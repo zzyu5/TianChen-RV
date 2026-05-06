@@ -45,7 +45,6 @@ private:
 } // namespace rvv
 
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
-llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
 
 } // namespace tianchenrv::plugin
 

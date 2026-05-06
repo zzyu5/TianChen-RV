@@ -413,14 +413,18 @@ scores and optional explanatory metadata through their cost hook, but they do
 not directly mutate dispatch IR or encode core selection policy through
 target-family branches.
 
-When selection is run as an MLIR pass, the pass must receive the same registry
-object explicitly from the owning tool or plugin loader. A default public pass
-registration with no injected plugins is allowed only as an honest diagnostic
-surface: it must fail on unregistered variant `origin` plugins rather than
+When selection, emission-readiness, or emission-plan collection is run as an
+MLIR pass, the pass must receive the same registry object explicitly from the
+owning tool or plugin loader. A public tool such as `tcrv-opt` may own a
+deterministic process-local registry and register built-in plugins before pass
+registration; this is a tool/front-door concern and must not move concrete
+extension branches into core orchestration. Default factory constructors with no
+injected plugins remain an honest diagnostic surface for C++ tests and embedded
+users: they must fail on unregistered variant `origin` plugins rather than
 falling back to core-side string attributes, target-family switches, or Python
-cost models. This keeps the dependency direction
-`core orchestration -> abstract plugin interface -> concrete extension
-implementation`.
+cost/readiness models. This keeps the dependency direction
+`tool/plugin loader -> registry -> core orchestration -> abstract plugin
+interface -> concrete extension implementation`.
 
 ## Registration Metadata
 
@@ -447,6 +451,9 @@ Concrete built-in plugins may expose small C++ helpers that populate an
 first built-in helper set is:
 
 ```cpp
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
 llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
 ```
@@ -455,9 +462,14 @@ The registry stores non-owning plugin references, so built-in registration
 helpers must register objects with safe process lifetime and must never register
 temporaries or stack objects that go out of scope after the helper returns.
 Duplicate registration continues to be rejected by the generic registry
-diagnostic path. Core passes must still receive a populated registry explicitly;
-the default public `tcrv-select-variants` pass remains honest when no plugins
-are injected.
+diagnostic path. `tcrv-opt` registers the built-in helper set at the tool
+boundary and then registers registry-dependent passes with that owned registry,
+so public `rvv-plugin` origins route through the RVV plugin instead of the
+empty-registry path. `--tcrv-disable-builtin-plugins` is the public tool escape
+hatch for tests that must exercise a completely empty plugin registry, including
+unregistered plugin dialect diagnostics. Unknown origins still diagnose
+generically as unregistered plugins, and direct factory tests can still
+construct empty-registry passes when that negative behavior is required.
 
 `registerPluginDialects` delegates to
 `ExtensionPluginRegistry::registerDialectsForEnabledPlugins`. Therefore a

@@ -61,6 +61,13 @@ fields and validating symbol structure; it is not lowering, runtime glue,
 artifact generation, RVV support, correctness evidence, or performance
 evidence.
 
+Public tool integration is a front-door/plugin-loader responsibility, not a core
+target-family branch. For example, `tcrv-opt` may construct a deterministic
+`ExtensionPluginRegistry`, populate it with built-in plugins such as the RVV
+first-slice plugin, register plugin dialects, and pass that registry into
+registry-dependent passes. The shared pass logic must still route only through
+generic `origin` lookup and plugin interfaces.
+
 ## When Core May Change
 
 The system must not promise that every future extension needs zero core changes.

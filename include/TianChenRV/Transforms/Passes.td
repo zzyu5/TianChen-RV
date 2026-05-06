@@ -51,9 +51,11 @@ def SelectVariants
     Runs the target-neutral TianChen-RV variant selection planner over direct
     tcrv.exec.variant children of each tcrv.exec.kernel. Production tools should
     construct this pass with a populated ExtensionPluginRegistry so variant costs
-    stay origin-plugin-owned. The default public registration uses an empty
-    registry and therefore diagnoses kernels whose variants name unregistered
-    origin plugins rather than inventing core-side cost semantics.
+    stay origin-plugin-owned. Public tcrv-opt registration owns a deterministic
+    built-in registry at the tool boundary, while the default factory constructor
+    still uses an empty registry for embedded negative tests and therefore
+    diagnoses kernels whose variants name unregistered origin plugins rather than
+    inventing core-side cost semantics.
 
     Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
     tcrv.exec.case, and tcrv.exec.fallback operations. Static and fallback-only
@@ -85,8 +87,10 @@ def CheckEmissionPaths
     through that marker target. Kernels without a dispatch or selected-marker
     surface are conservatively checked through all direct tcrv.exec.variant
     children. Production tools should construct this pass with a populated
-    ExtensionPluginRegistry. The default public registration uses an empty
-    registry and diagnoses unregistered origins.
+    ExtensionPluginRegistry. Public tcrv-opt registration owns a deterministic
+    built-in registry at the tool boundary, while the default factory constructor
+    still uses an empty registry for embedded negative tests and diagnoses
+    unregistered origins.
   }];
   let constructor =
       "::tianchenrv::transforms::createCheckEmissionPathsPass()";
@@ -109,10 +113,12 @@ def MaterializeEmissionPlans
     in IR order when no selected-path surface exists.
 
     Production tools should construct this pass with a populated
-    ExtensionPluginRegistry. The default public registration uses an empty
-    registry and diagnoses unregistered origins instead of inventing core-side
-    emission semantics. Existing materialized emission-plan diagnostics are
-    rejected so stale or repeated diagnostics are not silently appended.
+    ExtensionPluginRegistry. Public tcrv-opt registration owns a deterministic
+    built-in registry at the tool boundary, while the default factory constructor
+    still uses an empty registry for embedded negative tests and diagnoses
+    unregistered origins instead of inventing core-side emission semantics.
+    Existing materialized emission-plan diagnostics are rejected so stale or
+    repeated diagnostics are not silently appended.
   }];
   let constructor =
       "::tianchenrv::transforms::createMaterializeEmissionPlansPass()";

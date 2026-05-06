@@ -253,6 +253,16 @@ This unsupported readiness result is required. It is not a failure of the
 architecture and is not RVV hardware, toolchain, runtime, correctness, or
 performance evidence.
 
+Public `tcrv-opt` registers the built-in RVV plugin at the tool boundary, so
+materialized variants with `origin = "rvv-plugin"` can route through
+`RVVExtensionPlugin` for emission-readiness and emission-plan diagnostics. The
+result remains explicitly unsupported metadata: the plugin reports no RVV
+lowering pipeline, runtime ABI, artifact contract, executable emission path,
+hardware execution, correctness result, or performance result. Unknown origins
+must still fail through the generic unregistered-origin registry diagnostic.
+Tests that need the historical empty-registry parser surface should pass
+`--tcrv-disable-builtin-plugins`.
+
 ### MLIR vector / LLVM scalable vector
 
 Use for ordinary vector arithmetic, load/store, and reductions that LLVM reliably lowers.

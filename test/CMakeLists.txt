@@ -71,6 +71,7 @@ add_executable(tianchenrv-rvv-extension-plugin-test
 target_link_libraries(tianchenrv-rvv-extension-plugin-test
   PRIVATE
   TianChenRVInitAll
+  TianChenRVBuiltinPlugins
   TianChenRVPlugin
   TianChenRVRVVPlugin
   TianChenRVSupport

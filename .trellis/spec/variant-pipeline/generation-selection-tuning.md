@@ -417,10 +417,13 @@ pass boundary must preserve plugin-owned cost semantics:
 - `createSelectVariantsPass(const ExtensionPluginRegistry &registry)` is the
   production construction path. Tooling or future plugin loaders inject the
   populated registry before pass execution.
-- `createSelectVariantsPass()` may be used for public `tcrv-opt` registration,
-  but it owns only an empty registry. It must diagnose variants with
-  unregistered `origin` plugins instead of inventing core-side attribute costs,
-  target-family fallbacks, or Python-only ranking.
+- `createSelectVariantsPass()` owns only an empty registry when used directly.
+  Public tools such as `tcrv-opt` should register registry-dependent passes with
+  a deterministic tool-owned registry populated by the built-in plugin helper
+  set. Unknown `origin` plugins must still diagnose generically instead of
+  inventing core-side attribute costs, target-family fallbacks, or Python-only
+  ranking. Empty-registry public-tool coverage should use
+  `--tcrv-disable-builtin-plugins`.
 - The pass must build `TargetCapabilitySet` from each `tcrv.exec.kernel`, call
   the existing selection planner, materialize runtime-dispatch plans with typed
   `tcrv.exec.dispatch`, `tcrv.exec.case`, and `tcrv.exec.fallback`, and
@@ -428,8 +431,8 @@ pass boundary must preserve plugin-owned cost semantics:
   `tcrv.exec.diagnostic` marker.
 - Static, fallback-only, and no-direct-variant plans do not erase variants,
   lower extension dialects, or inject target-specific IR.
-- Tests should cover both injected-registry pass execution and public default
-  pass diagnostics for missing origin plugins.
+- Tests should cover injected-registry pass execution, public `tcrv-opt`
+  built-in plugin routing, and generic diagnostics for missing origin plugins.
 
 After selected-path planning and before executable lowering, a bounded
 materialization step may collect plugin-owned emission plans and emit

@@ -255,9 +255,4 @@ llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry) {
   return registry.registerPlugin(getBuiltinRVVExtensionPlugin());
 }
 
-llvm::Error registerBuiltinExtensionPlugins(
-    ExtensionPluginRegistry &registry) {
-  return registerRVVExtensionPlugin(registry);
-}
-
 } // namespace tianchenrv::plugin

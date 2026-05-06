@@ -26,6 +26,11 @@ Use lit/FileCheck for:
 - default public pass diagnostics when origin plugins are not registered.
 - emission-plan diagnostic verifier behavior and default public
   materialization-pass diagnostics when origin plugins are not registered.
+- public tool built-in plugin routing, including `tcrv-opt` RVV first-slice
+  unsupported readiness/plan diagnostics, unknown-origin diagnostics, selected
+  marker traversal, dispatch case/fallback ordering, and
+  `--tcrv-disable-builtin-plugins` negative coverage for empty-registry plugin
+  dialect behavior.
 
 Example test intent:
 
@@ -44,6 +49,8 @@ Use C++ tests for:
 - cost model helper logic;
 - concrete first-slice plugin registration, proposal metadata, legality, and
   registry-backed selection consumption;
+- built-in plugin registration helpers, including safe registration lifetime,
+  lookup-visible plugin names/origins, and deterministic duplicate handling;
 - registry-injected pass behavior that requires in-process mock plugins;
 - non-textual MLIR interfaces;
 - C++ utility behavior that is not well covered through textual IR.

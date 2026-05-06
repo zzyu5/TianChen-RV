@@ -4,6 +4,7 @@ add_mlir_tool(tcrv-opt
 
 target_link_libraries(tcrv-opt
   PRIVATE
+  TianChenRVBuiltinPlugins
   TianChenRVInitAll
   TianChenRVExecDialect
   TianChenRVTransforms

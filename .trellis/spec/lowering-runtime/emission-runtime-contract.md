@@ -54,6 +54,9 @@ Rules:
   malformed plugin result, mismatched variant symbol, mismatched kernel symbol,
   mismatched selected-path role, duplicate selected markers, and missing
   dispatch targets generically before treating the plan as usable;
+- allow public tools to populate a deterministic built-in plugin registry before
+  constructing registry-dependent passes, while keeping the traversal and
+  selected-path routing target-neutral in shared pass code;
 - keep the boundary clear: readiness says whether a selected path is
   supportable, while the plan describes the plugin-owned lowering/runtime route
   or the structured unsupported reason;
@@ -230,3 +233,11 @@ the compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked a runtime,
 ran hardware, proved correctness, or measured performance. Unsupported
 diagnostics should carry explicit plugin diagnostic text and are valid evidence
 of a boundary, not of executable support.
+
+The current public `tcrv-opt` built-in registry includes the RVV first-slice
+plugin. Therefore an `origin = "rvv-plugin"` selected path can materialize an
+unsupported plugin-owned emission-plan diagnostic instead of a generic
+unregistered-origin failure. This remains compiler metadata only and must not be
+reported as RVV lowering, runtime, correctness, or performance evidence. The
+tool-level `--tcrv-disable-builtin-plugins` option preserves an explicit
+empty-registry surface for negative parser/diagnostic tests.

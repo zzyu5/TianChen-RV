@@ -1,5 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -201,6 +202,10 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(builtinRegistry.lookupPlugin("rvv-plugin") != nullptr &&
                      builtinRegistry.size() == 1,
                  "built-in registration owns a safe RVV plugin lifetime"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::registerBuiltinExtensionPlugins(builtinRegistry),
+          {"duplicate TianChen-RV extension plugin", "rvv-plugin"}))
     return result;
 
   return 0;
