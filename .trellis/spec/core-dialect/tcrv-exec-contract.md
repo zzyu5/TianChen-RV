@@ -18,6 +18,7 @@ region
 hart_parallel
 mem_window
 dispatch
+case
 fallback
 diagnostics
 ```
@@ -216,19 +217,33 @@ Reference shape:
 
 ```mlir
 tcrv.exec.dispatch {
-  case @offload if #tcrv.cond<"sophgo_available && M*N*K > threshold">
-  case @rvv     if #tcrv.cond<"rvv_available">
-  fallback @scalar_or_default
+  tcrv.exec.case @offload {
+    condition = "runtime_available",
+    guard = "large_shape",
+    policy = "prefer_accelerated"
+  }
+  tcrv.exec.case @rvv {condition = "vector_capability_available"}
+  tcrv.exec.fallback @scalar_or_default
 }
 ```
 
 Dispatch conditions may use capability availability, runtime probe, shape/dtype guard, cost threshold, and user policy.
+The structured first-slice form uses `tcrv.exec.case` operations directly nested
+inside `tcrv.exec.dispatch`. Each case references a sibling
+`tcrv.exec.variant` symbol in the enclosing `tcrv.exec.kernel`. Optional
+`condition`, `guard`, and `policy` attributes are non-empty generic strings; the
+core dialect records them but does not interpret RVV, IME, offload, Sophgo, AME,
+or future-plugin logic. A dispatch must be directly nested in a kernel, contain
+at least one case, and contain exactly one `tcrv.exec.fallback`.
 
 ### `tcrv.exec.fallback`
 
 Conservative correctness path for missing capability, unsupported shape, unavailable runtime, or dispatch failure.
 
 Fallback may lower through scalar/scf, default MLIR lowering, portable C/C++, conservative RVV, or another declared path.
+In the structured first-slice form, `tcrv.exec.fallback` is directly nested in
+`tcrv.exec.dispatch` and references a sibling `tcrv.exec.variant` symbol in the
+enclosing kernel. It is not valid as arbitrary metadata inside a variant body.
 
 ### `tcrv.exec.diagnostic` / diagnostic metadata
 

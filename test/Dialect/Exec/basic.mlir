@@ -10,6 +10,11 @@ tcrv.exec.kernel @saxpy attributes {} {
   // CHECK-SAME: kind = "isa-vector"
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", version = "1.0"}
 
+  // CHECK: tcrv.exec.capability @portable
+  // CHECK-SAME: id = "portable"
+  // CHECK-SAME: kind = "toolchain"
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+
   // CHECK: tcrv.exec.mem_window @input_window
   // CHECK-SAME: binding = "args"
   // CHECK-SAME: memory_space = "host"
@@ -39,9 +44,20 @@ tcrv.exec.kernel @saxpy attributes {} {
     }
   }
 
+  // CHECK: tcrv.exec.variant @portable_variant
+  // CHECK-SAME: origin = "portable-plugin"
+  // CHECK-SAME: requires = [@portable]
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+
   // CHECK: tcrv.exec.dispatch
   tcrv.exec.dispatch attributes {} {
-    // CHECK: tcrv.exec.fallback @rvv_variant
-    tcrv.exec.fallback @rvv_variant
+    // CHECK: tcrv.exec.case @rvv_variant
+    // CHECK-SAME: condition = "preferred_capability_available"
+    // CHECK-SAME: guard = "shape_guard_passed"
+    // CHECK-SAME: policy = "prefer_accelerated"
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated"}
+    // CHECK: tcrv.exec.fallback @portable_variant
+    tcrv.exec.fallback @portable_variant
   }
 }

@@ -4,6 +4,7 @@ tcrv.exec.kernel @ok attributes {} {
   tcrv.exec.target @rvv_main {arch = "riscv64"}
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
   tcrv.exec.capability @toolchain {id = "llvm-rvv", kind = "toolchain"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
   tcrv.exec.mem_window @inputs {purpose = "dispatch-guard", binding = "args"}
   tcrv.exec.variant @rvv_variant attributes {
     origin = "rvv-plugin",
@@ -15,8 +16,11 @@ tcrv.exec.kernel @ok attributes {} {
       }
     }
   }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
   tcrv.exec.dispatch attributes {} {
-    tcrv.exec.fallback @rvv_variant
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated"}
+    tcrv.exec.fallback @portable_variant
   }
 }
 
@@ -86,6 +90,7 @@ tcrv.exec.kernel @bad_fallback attributes {} {
   tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
   tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available"}
     // expected-error @+1 {{references unknown fallback variant @missing_variant in enclosing tcrv.exec.kernel}}
     tcrv.exec.fallback @missing_variant
   }
@@ -157,4 +162,176 @@ tcrv.exec.kernel @missing_diagnostic_message attributes {} {
 tcrv.exec.kernel @empty_diagnostic_severity attributes {} {
   // expected-error @+1 {{requires non-empty string attribute 'severity' when present}}
   tcrv.exec.diagnostic {reason = "fallback-selected", message = "using fallback", severity = ""}
+}
+
+// -----
+
+tcrv.exec.kernel @unknown_dispatch_case attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // expected-error @+1 {{references unknown dispatch case variant @missing_variant in enclosing tcrv.exec.kernel}}
+    tcrv.exec.case @missing_variant {condition = "preferred_capability_available"}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @case_outside_dispatch attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  // expected-error @+1 {{must be nested directly in a tcrv.exec.dispatch}}
+  tcrv.exec.case @portable_variant {condition = "preferred_capability_available"}
+}
+
+// -----
+
+tcrv.exec.kernel @dispatch_without_fallback attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  // expected-error @+1 {{requires exactly one tcrv.exec.fallback}}
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available"}
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @dispatch_with_duplicate_fallback attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  // expected-error @+1 {{requires exactly one tcrv.exec.fallback}}
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available"}
+    tcrv.exec.fallback @portable_variant
+    tcrv.exec.fallback @rvv_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @dispatch_without_case attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  // expected-error @+1 {{requires at least one tcrv.exec.case}}
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @empty_dispatch_condition attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // expected-error @+1 {{requires non-empty string attribute 'condition' when present}}
+    tcrv.exec.case @rvv_variant {condition = ""}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @empty_dispatch_guard attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // expected-error @+1 {{requires non-empty string attribute 'guard' when present}}
+    tcrv.exec.case @rvv_variant {guard = ""}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @empty_dispatch_policy attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // expected-error @+1 {{requires non-empty string attribute 'policy' when present}}
+    tcrv.exec.case @rvv_variant {policy = ""}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @fallback_inside_variant attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+    // expected-error @+1 {{must be nested directly in a tcrv.exec.dispatch}}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @dispatch_inside_variant attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+    // expected-error @+1 {{must be nested directly in a tcrv.exec.kernel}}
+    tcrv.exec.dispatch attributes {} {
+      tcrv.exec.case @rvv_variant {condition = "preferred_capability_available"}
+      tcrv.exec.fallback @portable_variant
+    }
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @duplicate_dispatch_case attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @rvv_variant {condition = "first_generic_guard"}
+    // expected-error @+1 {{duplicates dispatch case target @rvv_variant in the same tcrv.exec.dispatch}}
+    tcrv.exec.case @rvv_variant {condition = "second_generic_guard"}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @illegal_dispatch_body_op attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available"}
+    // expected-error @+1 {{is not allowed in tcrv.exec.dispatch; expected only tcrv.exec.case or tcrv.exec.fallback}}
+    tcrv.exec.diagnostic {reason = "dispatch-note", message = "diagnostics stay outside dispatch body"}
+    tcrv.exec.fallback @portable_variant
+  }
 }

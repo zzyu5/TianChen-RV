@@ -152,13 +152,31 @@ def DispatchOp : TCRVExec_Op<"exec.dispatch",
     [NoRegionArguments, NoTerminator, SingleBlock]> {
   let summary = "capability-aware runtime dispatch organization";
   let description = [{
-    Groups dispatch cases and fallback behavior. Dispatch conditions should be
-    derived from structured capabilities, runtime probes, shape guards, dtype
-    guards, cost thresholds, or user policy.
+    Groups structured dispatch cases and exactly one fallback behavior. Dispatch
+    metadata names generic capability, runtime probe, guard, threshold, or policy
+    facts without interpreting extension-specific semantics in the core dialect.
   }];
 
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
+def DispatchCaseOp : TCRVExec_Op<"exec.case", []> {
+  let summary = "compiler-visible dispatch case variant reference";
+  let description = [{
+    References a candidate execution variant considered by a surrounding
+    tcrv.exec.dispatch. Optional condition, guard, and policy metadata are
+    generic non-empty strings; extension-specific interpretation remains
+    plugin-local.
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$target,
+                   OptionalAttr<StrAttr>:$condition,
+                   OptionalAttr<StrAttr>:$guard,
+                   OptionalAttr<StrAttr>:$policy);
+  let assemblyFormat = "$target attr-dict";
+  let hasVerifier = 1;
 }
 
 def FallbackOp : TCRVExec_Op<"exec.fallback", []> {

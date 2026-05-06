@@ -169,12 +169,21 @@ Reference:
 
 ```mlir
 tcrv.exec.dispatch {
-  case @sophgo_offload if #tcrv.cond<"runtime_available && large_shape">
-  case @ime            if #tcrv.cond<"ime_available && dtype_supported">
-  case @rvv            if #tcrv.cond<"rvv_available">
-  fallback @scalar_or_default
+  tcrv.exec.case @sophgo_offload {
+    condition = "runtime_available",
+    guard = "large_shape",
+    policy = "prefer_offload"
+  }
+  tcrv.exec.case @ime {condition = "extension_capability_available"}
+  tcrv.exec.case @rvv {condition = "vector_capability_available"}
+  tcrv.exec.fallback @scalar_or_default
 }
 ```
+
+The structured `tcrv.exec.case` form is a compiler-visible reference to a
+declared variant. The core verifier checks dispatch/fallback completeness and
+symbol resolution only; it does not implement selection, cost modeling, tuning,
+or extension-specific condition semantics.
 
 ## Capability-Aware Tuning
 

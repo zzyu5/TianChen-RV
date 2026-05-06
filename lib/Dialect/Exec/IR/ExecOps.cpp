@@ -3,6 +3,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Operation.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
 
 using namespace tianchenrv::tcrv::exec;
@@ -28,6 +29,9 @@ constexpr llvm::StringLiteral kReasonAttrName("reason");
 constexpr llvm::StringLiteral kMessageAttrName("message");
 constexpr llvm::StringLiteral kSeverityAttrName("severity");
 constexpr llvm::StringLiteral kStatusAttrName("status");
+constexpr llvm::StringLiteral kTargetAttrName("target");
+constexpr llvm::StringLiteral kConditionAttrName("condition");
+constexpr llvm::StringLiteral kGuardAttrName("guard");
 
 bool isMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
@@ -70,6 +74,10 @@ bool kernelContainsVariant(KernelOp kernel, llvm::StringRef symbolName) {
       return true;
   }
   return false;
+}
+
+bool hasDirectParent(mlir::Operation *op, mlir::Operation *parent) {
+  return op->getParentOp() == parent;
 }
 
 } // namespace
@@ -212,11 +220,100 @@ mlir::LogicalResult DiagnosticOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult FallbackOp::verify() {
+mlir::LogicalResult DispatchOp::verify() {
+  if (!llvm::isa_and_present<KernelOp>(getOperation()->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a tcrv.exec.kernel";
+
+  unsigned caseCount = 0;
+  unsigned fallbackCount = 0;
+  llvm::SmallDenseSet<llvm::StringRef, 8> caseTargets;
+
+  for (mlir::Operation &op : getBody().front()) {
+    if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(op)) {
+      ++caseCount;
+      auto targetAttr = dispatchCase.getOperation()
+                            ->getAttrOfType<mlir::FlatSymbolRefAttr>(
+                                kTargetAttrName);
+      if (!targetAttr)
+        continue;
+      llvm::StringRef target = targetAttr.getValue();
+      if (!caseTargets.insert(target).second)
+        return dispatchCase.emitOpError()
+               << "duplicates dispatch case target @" << target
+               << " in the same tcrv.exec.dispatch";
+      continue;
+    }
+
+    if (llvm::isa<FallbackOp>(op)) {
+      ++fallbackCount;
+      continue;
+    }
+
+    return op.emitOpError()
+           << "is not allowed in tcrv.exec.dispatch; expected only "
+              "tcrv.exec.case or tcrv.exec.fallback";
+  }
+
+  if (fallbackCount != 1)
+    return emitOpError()
+           << "requires exactly one tcrv.exec.fallback";
+
+  if (caseCount == 0)
+    return emitOpError()
+           << "requires at least one tcrv.exec.case";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult DispatchCaseOp::verify() {
   auto targetAttr =
-      getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
+      getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
   if (!targetAttr)
     return emitOpError() << "requires a variant symbol reference target";
+
+  if (!llvm::isa_and_present<DispatchOp>(getOperation()->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a tcrv.exec.dispatch";
+
+  KernelOp kernel = getEnclosingKernel(getOperation());
+  if (!kernel)
+    return emitOpError()
+           << "must be nested in a tcrv.exec.kernel to resolve dispatch target";
+
+  if (!kernelContainsVariant(kernel, targetAttr.getValue()))
+    return emitOpError()
+           << "references unknown dispatch case variant @"
+           << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kConditionAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kConditionAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kGuardAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kGuardAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kPolicyAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kPolicyAttrName
+           << "' when present";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult FallbackOp::verify() {
+  auto targetAttr =
+      getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  if (!targetAttr)
+    return emitOpError() << "requires a variant symbol reference target";
+
+  auto dispatch = getOperation()->getParentOfType<DispatchOp>();
+  if (!dispatch || !hasDirectParent(getOperation(), dispatch.getOperation()))
+    return emitOpError()
+           << "must be nested directly in a tcrv.exec.dispatch";
 
   KernelOp kernel = getEnclosingKernel(getOperation());
   if (!kernel)

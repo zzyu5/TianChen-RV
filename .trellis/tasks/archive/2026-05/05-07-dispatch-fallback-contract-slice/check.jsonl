@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check verifier and syntax changes against core tcrv.exec contract."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check dispatch/fallback completeness without accidental selection/cost/lowering scope creep."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check that extension details remain plugin-local and core contains no target-specific branches."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check lit/FileCheck coverage expectations for verifier diagnostics and dispatch/fallback structure."}
