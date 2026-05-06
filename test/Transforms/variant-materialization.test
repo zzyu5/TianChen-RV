@@ -1,0 +1,3 @@
+# RUN: tianchenrv-variant-materialization-test | FileCheck %s
+
+# CHECK: variant materialization smoke test passed

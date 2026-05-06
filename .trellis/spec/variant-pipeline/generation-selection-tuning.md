@@ -81,6 +81,31 @@ required capability ids or symbol references are non-empty, known to the request
 capability set, and available before the proposal can proceed to later legality
 or materialization slices.
 
+## Generic Proposal Materialization
+
+After proposal collection and generic capability validation, a core C++/MLIR
+materialization helper may turn validated `VariantProposal` metadata into real
+`tcrv.exec.variant` operations under the relevant `tcrv.exec.kernel`.
+
+The materialization slice is intentionally bounded:
+
+- it uses MLIR builders and ODS-generated `tcrv.exec` op APIs, not textual
+  string rewriting;
+- it preserves proposal order when creating variants;
+- it maps required capability ids through the generic `TargetCapabilitySet`
+  into `FlatSymbolRefAttr` references to `tcrv.exec.capability` symbols;
+- it preserves required capability symbol references after checking they resolve
+  in the kernel capability scope;
+- it attaches only generic metadata supported by the current `tcrv.exec` ODS
+  contract, such as variant symbol/name, origin plugin, and `requires`;
+- it diagnoses malformed input before mutating IR when practical, including
+  missing kernel anchors, duplicate variant symbols, invalid variant names,
+  empty origins, and unresolved capability ids or symbols.
+
+This helper does not select variants, build dispatch, run tuning, lower
+extension dialects, emit runtime glue, or implement extension-specific
+semantics. Core materialization must remain free of target-family branches.
+
 Example without IME:
 
 ```text

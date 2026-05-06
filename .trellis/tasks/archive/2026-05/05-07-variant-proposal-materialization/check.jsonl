@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for review"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free and variant materialization matches ODS contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry/materializer ownership split and diagnostics"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify generic core behavior without target-family branches"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify materialization does not drift into selection/tuning/lowering"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify requires metadata and capability lookup behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify local C++/lit/FileCheck evidence requirements"}
