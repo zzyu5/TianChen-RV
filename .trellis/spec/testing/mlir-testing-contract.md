@@ -61,6 +61,10 @@ Use C++ tests for:
 - emission-plan materialization helpers that need injected mock registries,
   deterministic selected-path ordering checks, no-partial-mutation checks, and
   unsupported first-slice plugin behavior.
+- plugin-local scalar fallback validation, including proposal gating on an
+  available `scalar.fallback` capability, materialization, legality rejection
+  for missing/unavailable fallback capability, conservative cost metadata,
+  supported metadata-only emission readiness, and stable emission-plan fields.
 
 ## CMake Checks
 

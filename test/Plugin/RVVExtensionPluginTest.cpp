@@ -256,8 +256,10 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
   if (int result =
           expect(builtinRegistry.lookupPlugin("rvv-plugin") != nullptr &&
-                     builtinRegistry.size() == 1,
-                 "built-in registration owns a safe RVV plugin lifetime"))
+                     builtinRegistry.lookupPlugin("scalar-plugin") != nullptr &&
+                     builtinRegistry.size() == 2,
+                 "built-in registration owns safe RVV and scalar plugin "
+                 "lifetimes"))
     return result;
   if (int result = expectErrorContains(
           tianchenrv::plugin::registerBuiltinExtensionPlugins(builtinRegistry),

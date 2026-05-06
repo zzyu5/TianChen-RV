@@ -37,6 +37,9 @@ Responsibilities:
 - RVV plugin registers the RVV extension dialect family. The current concrete
   MLIR namespace is `tcrv_rvv` because MLIR dialect namespaces cannot contain
   `.` characters; the architectural family remains `tcrv.rvv`;
+- scalar fallback first slice may register no dialect when it only contributes
+  variant/fallback metadata and emission-plan routing; future scalar execution
+  ops must be plugin-local rather than added to `tcrv.exec`;
 - IME plugin registers `tcrv.ime`;
 - offload plugin registers `tcrv.offload`;
 - future plugins register their own extension dialects.
@@ -453,8 +456,10 @@ first built-in helper set is:
 ```cpp
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
+llvm::Error registerScalarExtensionPlugin(ExtensionPluginRegistry &registry);
 llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
 ```
 
@@ -464,12 +469,12 @@ temporaries or stack objects that go out of scope after the helper returns.
 Duplicate registration continues to be rejected by the generic registry
 diagnostic path. `tcrv-opt` registers the built-in helper set at the tool
 boundary and then registers registry-dependent passes with that owned registry,
-so public `rvv-plugin` origins route through the RVV plugin instead of the
-empty-registry path. `--tcrv-disable-builtin-plugins` is the public tool escape
-hatch for tests that must exercise a completely empty plugin registry, including
-unregistered plugin dialect diagnostics. Unknown origins still diagnose
-generically as unregistered plugins, and direct factory tests can still
-construct empty-registry passes when that negative behavior is required.
+so public `rvv-plugin` and `scalar-plugin` origins route through their plugins
+instead of the empty-registry path. `--tcrv-disable-builtin-plugins` is the
+public tool escape hatch for tests that must exercise a completely empty plugin
+registry, including unregistered plugin dialect diagnostics. Unknown origins
+still diagnose generically as unregistered plugins, and direct factory tests can
+still construct empty-registry passes when that negative behavior is required.
 
 `registerPluginDialects` delegates to
 `ExtensionPluginRegistry::registerDialectsForEnabledPlugins`. Therefore a

@@ -83,6 +83,23 @@ target_link_libraries(tianchenrv-rvv-extension-plugin-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-scalar-extension-plugin-test
+  Plugin/ScalarExtensionPluginTest.cpp
+)
+
+target_link_libraries(tianchenrv-scalar-extension-plugin-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVPlugin
+  TianChenRVScalarPlugin
+  TianChenRVSupport
+  TianChenRVTransforms
+  MLIRFuncDialect
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_executable(tianchenrv-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )
@@ -188,6 +205,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-emission-readiness-test
   tianchenrv-rvv-dialect-test
   tianchenrv-rvv-extension-plugin-test
+  tianchenrv-scalar-extension-plugin-test
   tianchenrv-variant-dispatch-synthesis-test
   tianchenrv-variant-materialization-test
   tianchenrv-variant-selection-test

@@ -15,6 +15,7 @@ This layer defines planned extension plugins and their boundaries.
 | Spec | Description |
 |---|---|
 | [RVV Plugin](./rvv-plugin.md) | Current primary real hardware plugin |
+| [Scalar Fallback Plugin](./scalar-fallback-plugin.md) | Portable fallback plugin for coverage-oriented execution |
 | [IME Plugin](./ime-plugin.md) | Later K3/IME matrix-extension plugin |
 | [Offload Runtime Plugin](./offload-runtime-plugin.md) | Sophgo/vendor runtime-offload capability |
 | [Future Plugins](./future-plugins.md) | AME/custom ISA/vendor extension slots |
@@ -22,6 +23,8 @@ This layer defines planned extension plugins and their boundaries.
 ## Quality Check
 
 - RVV is the first full plugin and current mainline.
+- Scalar fallback is a coverage path and must not become the primary
+  performance story without real lowering/runtime evidence.
 - IME is a later extension plugin validation path.
 - Offload is runtime capability, not custom ISA.
 - Future plugins remain slots unless actual target facts exist.

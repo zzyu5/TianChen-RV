@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "preserve execution-layer and hardware-claim boundaries"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "ensure scalar fallback capability remains compiler-visible and queryable"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "keep tcrv.exec compute-free and fallback-focused"}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "classify the scalar fallback plugin boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "record scalar fallback first-slice contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "reuse plugin registry hooks without core extension branches"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "validate fallback variant proposal, legality, cost, and selection behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "distinguish scalar emission-plan metadata from executable emission"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "choose required C++ and lit coverage"}

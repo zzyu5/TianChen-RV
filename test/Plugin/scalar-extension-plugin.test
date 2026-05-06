@@ -1,0 +1,3 @@
+# RUN: tianchenrv-scalar-extension-plugin-test | FileCheck %s
+
+# CHECK: scalar fallback extension plugin smoke test passed

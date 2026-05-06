@@ -71,3 +71,15 @@ TianChen-RV-generated executable, correctness result, or performance result.
 The JSON also exposes sanitized `capability_facts` for the plugin-local C++
 RVV capability profile; Python remains evidence/artifact tooling and is not the
 compiler capability model.
+
+## Scalar Fallback First Slice
+
+The built-in plugin registry also includes a C++ `scalar-plugin` first slice.
+It proposes `@scalar_fallback_first_slice` only when the target kernel declares
+an available structured capability `scalar.fallback`, and it participates in
+the same legality, cost, selection, emission-readiness, and emission-plan
+interfaces as other plugins.
+
+This scalar fallback path is compiler metadata for a portable fallback route.
+It does not add a new high-level compute op, emit executable code, prove
+correctness, or measure performance in this slice.

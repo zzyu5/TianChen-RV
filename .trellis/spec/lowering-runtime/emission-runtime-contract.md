@@ -261,3 +261,22 @@ Do not reinterpret an RVV probe artifact as:
 Future supported RVV emission must add plugin-local lowering/runtime work and
 then cite both compiler-generated artifact evidence and separate `ssh rvv`
 hardware/toolchain evidence.
+
+## Scalar Fallback Metadata Boundary
+
+The first scalar fallback plugin slice may return a supported emission
+readiness result and materialize a supported emission-plan diagnostic for the
+portable fallback route:
+
+```text
+emission kind: portable-scalar-fallback
+lowering pipeline: mlir-default-scalar-lowering
+runtime ABI: none-required
+artifact kind: mlir-lowering-plan
+```
+
+This is still compiler-decision metadata. It does not prove that TianChen-RV
+emitted LLVM IR, generated an object, linked a runtime, executed a scalar
+kernel, proved correctness, or measured performance. Later scalar fallback
+lowering must add plugin-local lowering code and validation artifacts before
+reporting executable support.

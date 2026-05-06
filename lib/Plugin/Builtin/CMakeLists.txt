@@ -4,5 +4,6 @@ add_mlir_library(TianChenRVBuiltinPlugins
   LINK_LIBS PUBLIC
   TianChenRVPlugin
   TianChenRVRVVPlugin
+  TianChenRVScalarPlugin
   MLIRSupport
 )
