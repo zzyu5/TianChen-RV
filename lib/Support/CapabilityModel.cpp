@@ -28,9 +28,18 @@ llvm::StringRef getCapabilityStatus(tcrv::exec::CapabilityOp capability) {
 
 CapabilityDescriptor::CapabilityDescriptor(
     llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,
-    llvm::StringRef status, CapabilityAvailability availability)
+    llvm::StringRef status, CapabilityAvailability availability,
+    std::map<std::string, std::string> properties)
     : symbolName(symbolName.str()), id(id.str()), kind(kind.str()),
-      status(status.str()), availability(availability) {}
+      status(status.str()), availability(availability),
+      properties(std::move(properties)) {}
+
+llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
+  auto it = properties.find(name.str());
+  if (it == properties.end())
+    return {};
+  return it->second;
+}
 
 TargetCapabilitySet
 TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp kernel) {

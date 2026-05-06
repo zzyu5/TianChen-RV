@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -23,12 +24,19 @@
 
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::VariantEmissionPlan;
+using tianchenrv::plugin::VariantEmissionRequest;
+using tianchenrv::plugin::VariantEmissionRole;
+using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
+using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
+using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -107,6 +115,14 @@ int expectErrorContains(llvm::Error error,
   return 0;
 }
 
+int expectExpectedErrorContains(llvm::Expected<TargetCapabilitySet> value,
+                                std::initializer_list<llvm::StringRef>
+                                    fragments) {
+  if (value)
+    return fail("expected TargetCapabilitySet construction error");
+  return expectErrorContains(value.takeError(), fragments);
+}
+
 int expectRVVPolicyAttr(mlir::Attribute attribute, TailPolicy expectedTail,
                         MaskPolicy expectedMask) {
   auto policy = llvm::dyn_cast_if_present<PolicyAttr>(attribute);
@@ -154,6 +170,46 @@ VariantProposalRequest makeRequest(mlir::Operation *highLevelOp,
                                    KernelOp kernel,
                                    TargetCapabilitySet &capabilities) {
   return VariantProposalRequest(highLevelOp, kernel, capabilities);
+}
+
+RVVProbeCapabilityFacts makeSuccessfulProbeFacts() {
+  RVVProbeCapabilityFacts facts;
+  facts.architecture = "riscv64";
+  facts.hartCount = 64;
+  facts.isaVectorHints =
+      "isa: rv64imafdcv_zicsr_zifencei_zihpm_zve32f_zve64d_zvfh_zvl128b";
+  facts.clangAvailable = true;
+  facts.clangVersion = "clang version 18.1.3";
+  facts.cmakeAvailable = true;
+  facts.cmakeVersion = "cmake version 3.28.3";
+  facts.minimalRVVCompileRunSucceeded = true;
+  facts.selectedMarch = "rv64gcv";
+  facts.selectedMABI = "lp64d";
+  facts.sourceSHA256 =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  facts.binarySHA256 =
+      "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+  return facts;
+}
+
+bool containsForbiddenIdentityText(llvm::StringRef text) {
+  return text.contains("PASSWORD") || text.contains("hunter2") ||
+         text.contains("PRIVATE KEY") || text.contains("ssh rvv") ||
+         text.contains("provider") || text.contains("benchmark") ||
+         text.contains("latency") || text.contains("throughput") ||
+         text.contains("rvv_probe_ok");
+}
+
+int expectCapabilityIdentityIsSanitized(
+    const CapabilityDescriptor &capability) {
+  std::string identity;
+  llvm::raw_string_ostream stream(identity);
+  stream << capability.getSymbolName() << "|" << capability.getID() << "|"
+         << capability.getKind() << "|" << capability.getStatus();
+  stream.flush();
+  return expect(!containsForbiddenIdentityText(identity),
+                "capability identity excludes raw logs, secrets, providers, "
+                "and performance measurements");
 }
 
 int runRegistrationAndCapabilityMetadataTest() {
@@ -275,6 +331,212 @@ module {
                        kernelName))
       return result;
   }
+
+  return 0;
+}
+
+int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
+  tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
+  llvm::Expected<TargetCapabilitySet> capabilitiesOrError =
+      plugin.buildTargetCapabilitiesFromProbeFacts(makeSuccessfulProbeFacts());
+  if (!capabilitiesOrError)
+    return fail("valid RVV probe facts were rejected: " +
+                llvm::toString(capabilitiesOrError.takeError()));
+
+  TargetCapabilitySet capabilities = std::move(*capabilitiesOrError);
+  if (int result = expect(capabilities.size() == 7,
+                          "RVV probe facts produce deterministic capabilities"))
+    return result;
+  if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
+                          "RVV profile exposes available rvv capability"))
+    return result;
+  if (int result = expect(capabilities.isCapabilityAvailableBySymbolName(
+                              tianchenrv::plugin::rvv::
+                                  getRVVPreferredCapabilitySymbol()),
+                          "RVV profile exposes documented @rvv symbol"))
+    return result;
+
+  const CapabilityDescriptor *hartCount = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVHartCountCapabilityID());
+  if (int result = expect(hartCount && hartCount->getKind() == "uarch" &&
+                              hartCount->getProperty("count") == "64",
+                          "RVV profile preserves hart count as uarch fact"))
+    return result;
+
+  const CapabilityDescriptor *clang = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVClangToolchainCapabilityID());
+  if (int result = expect(clang && clang->getKind() == "toolchain" &&
+                              clang->getProperty("version") ==
+                                  "clang version 18.1.3",
+                          "RVV profile preserves clang toolchain version"))
+    return result;
+
+  const CapabilityDescriptor *cmake = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVCMakeToolchainCapabilityID());
+  if (int result = expect(cmake && cmake->getKind() == "toolchain" &&
+                              cmake->getProperty("version") ==
+                                  "cmake version 3.28.3",
+                          "RVV profile preserves cmake toolchain version"))
+    return result;
+
+  const CapabilityDescriptor *compileRun = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVProbeCompileRunCapabilityID());
+  if (int result = expect(compileRun &&
+                              compileRun->getProperty("selected_march") ==
+                                  "rv64gcv" &&
+                              compileRun->getProperty("selected_mabi") ==
+                                  "lp64d",
+                          "RVV profile preserves compile/run march and mabi"))
+    return result;
+
+  llvm::ArrayRef<CapabilityDescriptor> orderedCapabilities =
+      capabilities.getCapabilities();
+  if (int result =
+          expect(orderedCapabilities[0].getSymbolName() == "rvv" &&
+                     orderedCapabilities[1].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVHartCountCapabilitySymbol() &&
+                     orderedCapabilities[2].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVClangToolchainCapabilitySymbol() &&
+                     orderedCapabilities[3].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVCMakeToolchainCapabilitySymbol(),
+                 "RVV profile capability ordering is deterministic"))
+    return result;
+
+  for (const CapabilityDescriptor &capability : orderedCapabilities) {
+    if (int result = expectCapabilityIdentityIsSanitized(capability))
+      return result;
+  }
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @profile_rvv attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV capability profile module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "profile_rvv");
+  if (int result = expect(highLevelOp && kernel,
+                          "RVV capability profile test has op and kernel"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for capability profile test"))
+    return result;
+
+  VariantProposalRequest request =
+      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result =
+          expectSuccess(registry.collectVariantProposals(request, proposals),
+                        "profile-derived capabilities feed RVV proposals"))
+    return result;
+  if (int result = expect(proposals.size() == 1,
+                          "profile-derived RVV capabilities propose variant"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize RVV proposal from profile capabilities"))
+    return result;
+  VariantOp variant = materializedVariants.front();
+
+  VariantEmissionStatus readiness;
+  if (int result = expectSuccess(
+          plugin.checkVariantEmissionReadiness(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              readiness),
+          "RVV profile capabilities still route emission readiness"))
+    return result;
+  if (int result = expect(readiness.isUnsupported() &&
+                              readiness.getReason().contains(
+                                  "no RVV lowering"),
+                          "RVV profile does not enable emission readiness"))
+    return result;
+
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          plugin.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              plan),
+          "RVV profile capabilities still route emission plan"))
+    return result;
+  if (int result = expect(plan.isUnsupported() &&
+                              plan.getDiagnostic().contains(
+                                  "no RVV lowering pipeline"),
+                          "RVV profile does not enable emission plan support"))
+    return result;
+
+  return 0;
+}
+
+int runRVVCapabilityProfileRejectionTest() {
+  tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
+
+  RVVProbeCapabilityFacts facts = makeSuccessfulProbeFacts();
+  facts.isaVectorHints = "";
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"ISA/vector hint", "required"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.architecture = "x86_64";
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"architecture", "riscv64"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.minimalRVVCompileRunSucceeded = false;
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"compile/run", "required"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.clangAvailable = false;
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"clang availability", "required"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.cmakeAvailable = false;
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"cmake availability", "required"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.clangVersion = "PASSWORD=hunter2";
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"clang version", "secret-like"}))
+    return result;
 
   return 0;
 }
@@ -590,6 +852,10 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runMissingAndUnavailableProposalTest(context))
+    return result;
+  if (int result = runRVVCapabilityProfileTest(context))
+    return result;
+  if (int result = runRVVCapabilityProfileRejectionTest())
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

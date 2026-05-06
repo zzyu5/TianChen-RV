@@ -104,6 +104,18 @@ module {
                           "non-blocking generic status remains available"))
     return result;
 
+  TargetCapabilitySet syntheticCapabilities;
+  syntheticCapabilities.addCapability(CapabilityDescriptor(
+      "rvv_hart_count", "rvv.hart_count", "uarch", "available",
+      CapabilityAvailability::Available, {{"count", "64"}}));
+  const CapabilityDescriptor *syntheticHartCount =
+      syntheticCapabilities.lookupByID("rvv.hart_count");
+  if (int result = expect(syntheticHartCount &&
+                              syntheticHartCount->getProperty("count") == "64",
+                          "C++ capability descriptors preserve structured "
+                          "properties"))
+    return result;
+
   llvm::outs() << "capability model smoke test passed\n";
   return 0;
 }

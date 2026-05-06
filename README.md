@@ -68,3 +68,6 @@ The probe writes sanitized JSON evidence and command logs under
 `artifacts/tmp/rvv_probe/<run-id>/`. Its tiny RVV intrinsic compile/run check
 only proves remote RVV header/toolchain/program availability; it is not a
 TianChen-RV-generated executable, correctness result, or performance result.
+The JSON also exposes sanitized `capability_facts` for the plugin-local C++
+RVV capability profile; Python remains evidence/artifact tooling and is not the
+compiler capability model.

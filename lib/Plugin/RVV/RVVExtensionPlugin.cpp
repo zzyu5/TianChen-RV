@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -165,6 +166,12 @@ llvm::Error RVVExtensionPlugin::proposeVariants(
       getExpectedRVVPolicyAttr(request.getKernel()->getContext()));
   out.push_back(proposal);
   return llvm::Error::success();
+}
+
+llvm::Expected<support::TargetCapabilitySet>
+RVVExtensionPlugin::buildTargetCapabilitiesFromProbeFacts(
+    const RVVProbeCapabilityFacts &facts) const {
+  return buildRVVTargetCapabilitiesFromProbeFacts(facts);
 }
 
 llvm::Error RVVExtensionPlugin::verifyVariantLegality(

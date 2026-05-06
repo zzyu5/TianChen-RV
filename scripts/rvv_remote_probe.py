@@ -23,7 +23,7 @@ from typing import Any
 
 
 PROBE_NAME = "tianchenrv-rvv-remote-probe"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_probe")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -175,6 +175,68 @@ def parse_key_values(text: str) -> dict[str, str]:
 def bounded_lines(text: str, limit: int = 160) -> list[str]:
     lines = [line.rstrip() for line in sanitize_text(text).splitlines()]
     return [line for line in lines if line.strip()][:limit]
+
+
+def bounded_fact_value(text: Any, limit: int = 512) -> str:
+    value = " ; ".join(sanitize_text(text).splitlines()).strip()
+    return value[:limit]
+
+
+def extract_isa_vector_hints(facts: dict[str, Any]) -> str:
+    lines = facts.get("cpuinfo_hints", {}).get("lines", [])
+    if not isinstance(lines, list):
+        return ""
+    relevant: list[str] = []
+    for line in lines:
+        sanitized = bounded_fact_value(line)
+        lowered = sanitized.lower()
+        if (
+            "isa" in lowered
+            or "rv64" in lowered
+            or "rv32" in lowered
+            or "zve" in lowered
+            or "zvl" in lowered
+            or "zvfh" in lowered
+            or "vector" in lowered
+        ):
+            relevant.append(sanitized)
+    return bounded_fact_value("; ".join(relevant[:8]))
+
+
+def extract_selected_flag(flags: Any, prefix: str) -> str:
+    if not isinstance(flags, list):
+        return ""
+    for flag in flags:
+        text = str(flag)
+        if text.startswith(prefix):
+            return bounded_fact_value(text[len(prefix) :])
+    return ""
+
+
+def build_capability_facts(
+    facts: dict[str, Any], compile_run: dict[str, Any]
+) -> dict[str, Any]:
+    hart_count_value = facts.get("hart_count", {}).get("value") or 0
+    if not isinstance(hart_count_value, int):
+        hart_count_value = parse_first_int(str(hart_count_value)) or 0
+    return {
+        "architecture": bounded_fact_value(facts.get("architecture", {}).get("value", "")),
+        "hart_count": hart_count_value,
+        "isa_vector_hints": extract_isa_vector_hints(facts),
+        "clang_available": bool(facts.get("clang", {}).get("available")),
+        "clang_version": bounded_fact_value(facts.get("clang", {}).get("version", "")),
+        "cmake_available": bool(facts.get("cmake", {}).get("available")),
+        "cmake_version": bounded_fact_value(facts.get("cmake", {}).get("version", "")),
+        "minimal_rvv_compile_run_succeeded": compile_run.get("status") == "success",
+        "selected_march": extract_selected_flag(
+            compile_run.get("selected_compile_flags"), "-march="
+        ),
+        "selected_mabi": extract_selected_flag(
+            compile_run.get("selected_compile_flags"), "-mabi="
+        ),
+        "source_sha256": bounded_fact_value(compile_run.get("source_sha256", "")),
+        "binary_sha256": bounded_fact_value(compile_run.get("binary_sha256", "")),
+    }
 
 
 def run_command(command: list[str], timeout_seconds: int) -> dict[str, Any]:
@@ -477,6 +539,7 @@ def validate_evidence_artifact(artifact: dict[str, Any]) -> list[str]:
         "status": str,
         "success": bool,
         "facts": dict,
+        "capability_facts": dict,
         "rvv_compile_run": dict,
         "commands": list,
     }
@@ -508,12 +571,39 @@ def validate_evidence_artifact(artifact: dict[str, Any]) -> list[str]:
         "compiler_path",
         "compiler_version",
         "source_sha256",
+        "binary_sha256",
+        "selected_compile_flags",
         "commands",
     ):
         if key not in compile_run:
             errors.append(f"missing compile/run key: {key}")
     if compile_run.get("status") not in ("success", "failure", "skipped"):
         errors.append("compile/run status must be success, failure, or skipped")
+    capability_facts = (
+        artifact.get("capability_facts")
+        if isinstance(artifact.get("capability_facts"), dict)
+        else {}
+    )
+    required_capability_facts = {
+        "architecture": str,
+        "hart_count": int,
+        "isa_vector_hints": str,
+        "clang_available": bool,
+        "clang_version": str,
+        "cmake_available": bool,
+        "cmake_version": str,
+        "minimal_rvv_compile_run_succeeded": bool,
+        "selected_march": str,
+        "selected_mabi": str,
+        "source_sha256": str,
+        "binary_sha256": str,
+    }
+    for key, expected_type in required_capability_facts.items():
+        if key not in capability_facts:
+            errors.append(f"missing capability fact key: {key}")
+            continue
+        if not isinstance(capability_facts[key], expected_type):
+            errors.append(f"capability fact {key} has wrong type")
     for index, command in enumerate(artifact.get("commands", [])):
         if not isinstance(command, dict):
             errors.append(f"command {index} is not an object")
@@ -543,6 +633,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
     probe = RemoteProbe(args.ssh_target, artifact_dir, args.timeout, ssh_options)
     facts = collect_remote_facts(probe)
     compile_run = run_rvv_compile_probe(probe, run_id, facts)
+    capability_facts = build_capability_facts(facts, compile_run)
 
     fact_failures = [
         name
@@ -565,6 +656,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             else "probe did not prove full hardware/toolchain availability"
         ),
         "facts": facts,
+        "capability_facts": capability_facts,
         "rvv_compile_run": compile_run,
         "commands": probe.commands,
     }
@@ -643,6 +735,68 @@ def run_self_test() -> None:
         assert_self_test("hunter2" not in log_text, "command log leaked password")
         assert_self_test("abc.def.ghi" not in log_text, "command log leaked bearer token")
 
+    synthetic_facts = {
+        "uname": {},
+        "architecture": {"available": True, "value": "riscv64"},
+        "hart_count": {"available": True, "value": 64},
+        "clang": {
+            "available": True,
+            "version": "clang version 18.1.3 PASSWORD=hunter2",
+        },
+        "cmake": {"available": True, "version": "cmake version 3.28.3"},
+        "cpuinfo_hints": {
+            "available": True,
+            "lines": [
+                "processor\t: 0",
+                "isa\t: rv64imafdcv_zve32f_zvfh TOKEN=live-token",
+                "unrelated\t: hidden",
+            ],
+        },
+        "sudo": {},
+    }
+    synthetic_compile_run = {
+        "attempted": True,
+        "status": "success",
+        "diagnostic": "rvv_probe_ok",
+        "compiler_path": "/usr/bin/clang",
+        "compiler_version": "fixture clang",
+        "source_sha256": sha256_text(RVV_PROBE_SOURCE),
+        "binary_sha256": "a" * 64,
+        "selected_compile_flags": ["-O2", "-march=rv64gcv", "-mabi=lp64d"],
+        "commands": ["rvv_probe_program_run"],
+    }
+    capability_facts = build_capability_facts(
+        synthetic_facts, synthetic_compile_run
+    )
+    assert_self_test(
+        capability_facts["architecture"] == "riscv64",
+        "capability facts architecture missing",
+    )
+    assert_self_test(
+        capability_facts["hart_count"] == 64,
+        "capability facts hart count missing",
+    )
+    assert_self_test(
+        "rv64imafdcv" in capability_facts["isa_vector_hints"],
+        "capability facts vector hint missing",
+    )
+    assert_self_test(
+        "hunter2" not in capability_facts["clang_version"],
+        "capability facts leaked password",
+    )
+    assert_self_test(
+        "live-token" not in capability_facts["isa_vector_hints"],
+        "capability facts leaked token",
+    )
+    assert_self_test(
+        capability_facts["selected_march"] == "rv64gcv",
+        "capability facts selected march missing",
+    )
+    assert_self_test(
+        capability_facts["selected_mabi"] == "lp64d",
+        "capability facts selected mabi missing",
+    )
+
     synthetic_artifact = {
         "schema_version": SCHEMA_VERSION,
         "probe_name": PROBE_NAME,
@@ -652,24 +806,9 @@ def run_self_test() -> None:
         "artifact_dir": "artifacts/tmp/rvv_probe/self-test",
         "status": "success",
         "success": True,
-        "facts": {
-            "uname": {},
-            "architecture": {},
-            "hart_count": {},
-            "clang": {},
-            "cmake": {},
-            "cpuinfo_hints": {},
-            "sudo": {},
-        },
-        "rvv_compile_run": {
-            "attempted": True,
-            "status": "success",
-            "diagnostic": "rvv_probe_ok",
-            "compiler_path": "/usr/bin/clang",
-            "compiler_version": "fixture clang",
-            "source_sha256": sha256_text(RVV_PROBE_SOURCE),
-            "commands": ["rvv_probe_program_run"],
-        },
+        "facts": synthetic_facts,
+        "capability_facts": capability_facts,
+        "rvv_compile_run": synthetic_compile_run,
         "commands": [
             {
                 "name": "fixture",

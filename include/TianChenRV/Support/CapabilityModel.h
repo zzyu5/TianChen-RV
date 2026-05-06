@@ -9,6 +9,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cstddef>
+#include <map>
 #include <string>
 
 namespace tianchenrv::support {
@@ -23,7 +24,8 @@ public:
   CapabilityDescriptor() = default;
   CapabilityDescriptor(llvm::StringRef symbolName, llvm::StringRef id,
                        llvm::StringRef kind, llvm::StringRef status,
-                       CapabilityAvailability availability);
+                       CapabilityAvailability availability,
+                       std::map<std::string, std::string> properties = {});
 
   llvm::StringRef getSymbolName() const { return symbolName; }
   llvm::StringRef getID() const { return id; }
@@ -33,6 +35,10 @@ public:
   bool isAvailable() const {
     return availability == CapabilityAvailability::Available;
   }
+  llvm::StringRef getProperty(llvm::StringRef name) const;
+  const std::map<std::string, std::string> &getProperties() const {
+    return properties;
+  }
 
 private:
   std::string symbolName;
@@ -40,6 +46,7 @@ private:
   std::string kind;
   std::string status;
   CapabilityAvailability availability = CapabilityAvailability::Available;
+  std::map<std::string, std::string> properties;
 };
 
 class TargetCapabilitySet {
@@ -70,9 +77,9 @@ public:
   availabilityFromStatus(llvm::StringRef status);
   static bool isUnavailableStatus(llvm::StringRef status);
 
-private:
   void addCapability(CapabilityDescriptor descriptor);
 
+private:
   llvm::SmallVector<CapabilityDescriptor, 8> capabilities;
   llvm::StringMap<std::size_t> bySymbolName;
   llvm::StringMap<std::size_t> byID;

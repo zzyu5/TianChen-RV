@@ -24,6 +24,11 @@ Repeatable bounded hardware/toolchain evidence should be captured with
 JSON summary of uname/kernel, architecture, hart count, clang/cmake
 availability, bounded RISC-V/vector CPU hints, non-interactive sudo
 capability, and the minimal hand-written RVV intrinsic compile/run result.
+The JSON artifact may also include a sanitized `capability_facts` section for
+the compiler-facing profile boundary. Those facts are input to the plugin-local
+C++ RVV capability profile, which validates them and populates
+`TargetCapabilitySet`; they are not themselves compiler internals or proof that
+TianChen-RV emitted executable RVV code.
 
 This probe is a prerequisite evidence source for future RVV compiler claims,
 but it is not itself a TianChen-RV compiler correctness, runtime, supported

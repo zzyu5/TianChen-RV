@@ -46,6 +46,10 @@ Use C++ tests for:
 
 - plugin registry APIs;
 - capability query helper semantics;
+- plugin-local RVV capability-profile validation, including positive sanitized
+  probe facts, missing vector hints, non-`riscv64` architecture, compile/run
+  failure, missing clang/CMake availability, deterministic sanitized capability
+  identities, and preservation of unsupported RVV emission readiness/plans;
 - cost model helper logic;
 - concrete first-slice plugin registration, proposal metadata, legality, and
   registry-backed selection consumption;
@@ -108,4 +112,7 @@ python3 scripts/rvv_remote_probe.py --self-test
 `check-tianchenrv` should cover that self-test through lit so parser, schema,
 and sanitizer behavior are guarded without depending on `ssh rvv`. Passing this
 local self-test proves only the Python evidence tooling contract; it is not RVV
-runtime, correctness, performance, lowering, or emission evidence.
+runtime, correctness, performance, lowering, or emission evidence. The self-test
+must validate the sanitized `capability_facts` artifact section and redaction
+behavior, but compiler-facing capability mapping remains covered by C++ plugin
+tests rather than Python.

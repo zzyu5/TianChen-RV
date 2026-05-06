@@ -99,6 +99,10 @@ The JSON artifact records a bounded schema:
 - hardware/toolchain facts for `uname`, architecture, hart count, clang,
   cmake, bounded RISC-V/vector hints from `/proc/cpuinfo`, and non-interactive
   sudo availability as a boolean capability fact;
+- a sanitized `capability_facts` section containing only bounded
+  compiler-facing facts: architecture, hart count, ISA/vector hint string,
+  clang and CMake availability/version facts, minimal RVV compile/run success,
+  selected march/mabi, and optional source/binary digests;
 - a minimal RVV intrinsic compile/run probe result with command references,
   exit status, diagnostics, compiler path/version, source digest, selected
   compiler flags, and binary digest when a binary was produced;
@@ -109,6 +113,20 @@ Interpretation rules:
 
 - Successful `ssh rvv` probe output is hardware/toolchain/probe-program
   evidence only.
+- The transition from probe evidence to compiler capabilities is
+  `sanitized capability_facts -> plugin-local C++ RVV capability profile ->
+  TargetCapabilitySet`. The Python probe may emit artifacts, but it must not
+  implement capability relations, legality, selection, lowering, or emission.
+- The RVV C++ capability profile must validate facts before producing any
+  `TargetCapabilitySet`. Required gates include `riscv64`, positive hart count,
+  RVV ISA/vector hints, clang and CMake availability, and minimal RVV
+  compile/run success. Negative cases must return structured diagnostics rather
+  than partial target capabilities.
+- Profile-derived capability identities are stable and plugin-local. Current
+  first profile IDs include `rvv`, `rvv.hart_count`, `rvv.toolchain.clang`,
+  `rvv.toolchain.cmake`, `rvv.probe.compile_run`, `rvv.toolchain.march`, and
+  `rvv.toolchain.mabi`. These identities must not include ssh/provider names,
+  raw command logs, secrets, benchmark names, or performance measurements.
 - The probe does not prove that TianChen-RV generated RVV IR, lowered a
   `tcrv.exec` variant, emitted an object, linked runtime glue, proved compiler
   correctness, or measured performance.

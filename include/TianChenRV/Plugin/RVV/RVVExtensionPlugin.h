@@ -7,6 +7,8 @@ namespace tianchenrv::plugin {
 
 namespace rvv {
 
+struct RVVProbeCapabilityFacts;
+
 llvm::StringRef getRVVExtensionPluginName();
 llvm::StringRef getRVVExtensionPluginVersion();
 llvm::StringRef getRVVCapabilityID();
@@ -27,6 +29,9 @@ public:
   llvm::Error
   proposeVariants(const VariantProposalRequest &request,
                   llvm::SmallVectorImpl<VariantProposal> &out) const override;
+  llvm::Expected<support::TargetCapabilitySet>
+  buildTargetCapabilitiesFromProbeFacts(
+      const RVVProbeCapabilityFacts &facts) const;
   llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const override;
   llvm::Error
