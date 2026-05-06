@@ -1,0 +1,6 @@
+set(LLVM_TARGET_DEFINITIONS RVVOps.td)
+mlir_tablegen(RVVOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_rvv)
+mlir_tablegen(RVVOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_rvv)
+mlir_tablegen(RVVTypes.h.inc -gen-typedef-decls -typedefs-dialect=tcrv_rvv)
+mlir_tablegen(RVVTypes.cpp.inc -gen-typedef-defs -typedefs-dialect=tcrv_rvv)
+add_public_tablegen_target(MLIRRVVOpsIncGen)

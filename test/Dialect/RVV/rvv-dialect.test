@@ -1,0 +1,3 @@
+# RUN: tianchenrv-rvv-dialect-test | FileCheck %s
+
+# CHECK: RVV dialect registration smoke test passed

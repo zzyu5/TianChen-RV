@@ -62,11 +62,17 @@ compiler-visible metadata for the existing generic materialization, legality,
 capability, and selection helpers. They are not RVV lowering, code emission,
 runtime ABI, correctness evidence, or performance evidence.
 
-`registerDialects` is an explicit no-op in this first slice because no
-`tcrv.rvv` dialect skeleton is introduced yet. A future slice may add a
-compute-free `tcrv.rvv` dialect skeleton or real RVV execution ops, but that
-work must remain plugin-local and must not add compute operations to
-`tcrv.exec`.
+`registerDialects` now registers the minimal RVV dialect skeleton through the
+RVV plugin path. The default `registerAllDialects` path remains core-only; RVV
+dialect availability is proven by populating an `ExtensionPluginRegistry` with
+the RVV plugin and calling `registerPluginDialects`.
+
+The first RVV dialect slice is still metadata/control-plane only. It introduces
+the vector-length token type `!tcrv_rvv.vl` and does not introduce RVV ops,
+lowering, emission, runtime ABI, executable behavior, correctness claims, or
+performance claims. `tcrv_rvv` is the concrete MLIR dialect namespace because
+MLIR dialect namespaces cannot contain `.` characters; the architectural
+extension family remains `tcrv.rvv`.
 
 ## Capability Fields
 
@@ -99,15 +105,34 @@ Reference attribute:
           supports_tail_policy = true>
 ```
 
-## Dialect
+## Current Dialect Skeleton
 
-Dialect name:
+Architectural family:
 
 ```text
 tcrv.rvv
 ```
 
-Types:
+Concrete MLIR namespace:
+
+```text
+tcrv_rvv
+```
+
+Current first-slice type:
+
+```text
+!tcrv_rvv.vl
+```
+
+This type is a non-compute vector-length token used to prove plugin-local
+dialect registration, parser/printer ownership, and enabled-plugin registry
+behavior. It is not `vsetvl`, not a vector register, not a mask, not a memory
+operation, not lowering, and not runtime ABI.
+
+## Future Dialect Surface
+
+Future RVV execution dialect work may add richer types:
 
 ```text
 !tcrv.rvv.vreg<dtype, lmul>
@@ -116,7 +141,7 @@ Types:
 !tcrv.rvv.policy<tail, mask>
 ```
 
-Core ops:
+Future RVV execution dialect work may add ops:
 
 ```text
 tcrv.rvv.setvl

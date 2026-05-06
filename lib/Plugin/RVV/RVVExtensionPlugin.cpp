@@ -1,5 +1,6 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
+#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
@@ -105,7 +106,7 @@ RVVExtensionPlugin::getCapabilities() const {
 
 void RVVExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  (void)registry;
+  registry.insert<tcrv::rvv::TCRVRVVDialect>();
 }
 
 bool RVVExtensionPlugin::supportsOperation(

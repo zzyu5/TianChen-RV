@@ -34,7 +34,9 @@ public:
 
 Responsibilities:
 
-- RVV plugin registers `tcrv.rvv`;
+- RVV plugin registers the RVV extension dialect family. The current concrete
+  MLIR namespace is `tcrv_rvv` because MLIR dialect namespaces cannot contain
+  `.` characters; the architectural family remains `tcrv.rvv`;
 - IME plugin registers `tcrv.ime`;
 - offload plugin registers `tcrv.offload`;
 - future plugins register their own extension dialects.
@@ -350,3 +352,10 @@ Duplicate registration continues to be rejected by the generic registry
 diagnostic path. Core passes must still receive a populated registry explicitly;
 the default public `tcrv-select-variants` pass remains honest when no plugins
 are injected.
+
+`registerPluginDialects` delegates to
+`ExtensionPluginRegistry::registerDialectsForEnabledPlugins`. Therefore a
+disabled plugin must not make enabled-only plugin dialects available. The RVV
+first dialect slice relies on this contract: `!tcrv_rvv.vl` parses only when
+the RVV plugin has been registered and enabled through the plugin registry path,
+not through default core dialect registration.
