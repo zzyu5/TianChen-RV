@@ -7,7 +7,7 @@ Use before introducing any new op, dialect, or lowering pass.
 - [ ] Does the new construct organize execution or express algorithm semantics?
 - [ ] If it is algorithm semantics, why is it not represented by high-level MLIR before TianChen-RV?
 - [ ] If it is hardware execution behavior, which extension dialect owns it?
-- [ ] Does `tcrv.exec` only contain kernel, variant, capability, hart_parallel, dispatch, or fallback structure?
+- [ ] Does `tcrv.exec` only contain kernel, target, capability, variant, requires, region, hart_parallel, mem_window, dispatch, fallback, or diagnostics structure?
 - [ ] Are matmul/softmax/reduce semantics absent from core dialect?
 - [ ] Does the construct preserve plugin-driven variant proposal?
 
@@ -15,6 +15,7 @@ Use before introducing any new op, dialect, or lowering pass.
 
 ```text
 tcrv.exec.kernel
+tcrv.exec.target / target attachment
 tcrv.exec.variant
 tcrv.exec.requires
 tcrv.exec.hart_parallel
@@ -22,6 +23,7 @@ tcrv.exec.region
 tcrv.exec.mem_window
 tcrv.exec.dispatch
 tcrv.exec.fallback
+tcrv.exec.diagnostic / diagnostic metadata
 target/capability/cost/tuning/dispatch metadata
 ```
 

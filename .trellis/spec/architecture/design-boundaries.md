@@ -26,6 +26,8 @@ role: primary development, correctness, and performance path
 
 All current "real hardware path" claims should default to this RVV environment unless another environment has been explicitly probed and recorded.
 
+Any RVV correctness, runtime, or performance claim requires real `ssh rvv` evidence. A local CMake configure, local `mlir-opt` check, static document review, or Python-only smoke test is not RVV runtime evidence.
+
 ### Later IME/K3 path
 
 K3/IME is a later plugin integration target. It validates whether a new matrix-like extension can be added locally through an IME plugin.
@@ -45,6 +47,8 @@ It is not evidence for custom RISC-V ISA execution.
 ### Future extension slots
 
 AME、future custom ISA、other vendor extensions are extension plugin slots. They should appear as future extensibility targets, not as required current milestones or current hardware evidence.
+
+AME must remain future/optional unless real hardware and toolchain evidence is available. Without that evidence, AME work may only define generic future-plugin admission criteria or non-claiming design slots.
 
 ## Correct Paper Language
 

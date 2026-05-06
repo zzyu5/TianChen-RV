@@ -4,17 +4,20 @@
 
 `tcrv.exec` is the stable core dialect. It organizes RISC-V AI kernel execution variants. It does not express generic computation.
 
-It owns:
+It owns only execution organization:
 
 ```text
-kernel boundary
-target capability attachment
-execution variant container
-hart-level parallelism
-extension region
-memory window / buffer view
-dispatch / fallback
-variant metadata
+kernel
+target
+capability
+variant
+requires
+region
+hart_parallel
+mem_window
+dispatch
+fallback
+diagnostics
 ```
 
 It does not own:
@@ -27,6 +30,19 @@ generic tensor tile
 algorithm-level compute semantics
 extension-specific registers, fragments, buffers, or ops
 ```
+
+Concrete computation belongs to extension dialects or extension op families, for example `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, or future plugin dialects.
+
+## Implementation Stack
+
+`tcrv.exec` must be implemented as MLIR compiler code:
+
+- operation definitions in TableGen / ODS;
+- C++ verifiers, parsers/printers when custom behavior is needed, interfaces, and passes;
+- CMake build integration;
+- lit/FileCheck tests for syntax, parsing, verification, diagnostics, and pass-visible behavior.
+
+Do not implement `tcrv.exec` as Python classes, Python dictionaries, JSON-only schema, or a Python pseudo-IR. Python may only run tools or parse artifacts around the compiler.
 
 ## Execution Hierarchy
 
@@ -57,6 +73,16 @@ tcrv.exec.kernel @matmul(%A, %B, %C)
   ... variants ...
 }
 ```
+
+### `tcrv.exec.target` / target attachment
+
+Represents the target capability object attached to a kernel or module.
+
+Rules:
+
+- target data must be a structured MLIR-level compiler object or attribute;
+- passes and plugins must query it through compiler APIs;
+- it must not be plain text metadata that is ignored by the compiler.
 
 ### `tcrv.exec.variant`
 
@@ -141,6 +167,12 @@ Conservative correctness path for missing capability, unsupported shape, unavail
 
 Fallback may lower through scalar/scf, default MLIR lowering, portable C/C++, conservative RVV, or another declared path.
 
+### `tcrv.exec.diagnostic` / diagnostic metadata
+
+Represents structured reasons for variant rejection, dispatch choice, missing toolchain, missing runtime, unsupported dtype/layout, or fallback selection.
+
+Diagnostics must be compiler-visible and testable with lit/FileCheck when they originate from dialect verification or passes.
+
 ## Core Types And Attributes
 
 Core types/attributes should remain lightweight:
@@ -153,6 +185,7 @@ Core types/attributes should remain lightweight:
 #tcrv.dispatch_cond<...>
 #tcrv.cost<...>
 #tcrv.tuning<...>
+#tcrv.diagnostic<...>
 ```
 
 Extension-specific types belong outside core:
@@ -177,6 +210,7 @@ The `tcrv.exec` verifier must check:
 - offload variant declares runtime ABI and synchronization boundary;
 - IME variant declares IME capability;
 - RVV variant declares RVV capability.
+- diagnostics are emitted for missing capabilities, invalid extension ops, missing emission path, or incomplete fallback/dispatch.
 
 ## Relation To High-Level MLIR
 

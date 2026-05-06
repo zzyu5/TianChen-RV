@@ -4,6 +4,8 @@
 
 Each extension plugin should provide the following interface set.
 
+These interfaces are compiler interfaces. They must be implemented in C++ against MLIR/LLVM APIs and wired through CMake. Python may launch or audit plugin runs, but it must not implement plugin availability, dialect registration, variant generation, legality, cost, tuning, lowering, or emission.
+
 ### CapabilityProvider
 
 ```cpp
@@ -170,6 +172,7 @@ Each plugin registers:
 - provided capabilities;
 - required external toolchain/runtime;
 - extension dialects;
+- types, attributes, and operations;
 - supported high-level op classes;
 - variant generation hooks;
 - legality rules;

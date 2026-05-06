@@ -15,6 +15,8 @@ New IME, offload, or future custom ISA support still requires:
 - lowering patterns;
 - runtime or toolchain adapter.
 
+These pieces are compiler implementation work and belong in C++/MLIR/TableGen/CMake, with lit/FileCheck and C++ tests as appropriate.
+
 Pluginization means:
 
 - new capability code is concentrated in a plugin;
@@ -32,6 +34,8 @@ Plugin owns:
 - extension-specific runtime ABI;
 - extension-specific legality details;
 - extension-specific toolchain workarounds.
+
+Plugin-owned does not mean Python-owned. Plugin compiler behavior remains C++/MLIR implementation.
 
 ## Core-Owned Responsibilities
 

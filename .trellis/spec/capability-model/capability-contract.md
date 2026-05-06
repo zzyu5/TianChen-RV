@@ -2,17 +2,22 @@
 
 ## Scope
 
-Capability object describes what the target can execute, what the toolchain can emit, and what runtime services can be used.
+Capability objects are MLIR-level compiler objects. They describe what the target can execute, what the toolchain can emit, and what runtime services can be used.
 
-It must influence:
+They must be queryable by C++ MLIR passes and extension plugins. They are not prose annotations, plain strings, JSON-only records, or Python dictionaries.
+
+They must influence:
 
 - enabled plugins;
 - variant proposal;
 - variant legality;
+- legality verification;
 - tuning space;
 - cost model inputs;
+- variant selection;
 - runtime dispatch;
 - emission path selection;
+- lowering diagnostics;
 - fallback requirements.
 
 ## Capability Sources
@@ -23,15 +28,21 @@ Examples:
 
 ```text
 rv64
+rvv
+zvl*
+zvfh
+zvfbf*
 I / M / A / F / D / C
 V
 Zvl128b
 Zvfh
 Zvfbfmin
 Zvfbfwma
+ime
 vendor custom opcode
 SpacemiT IME extension
 future matrix extension
+future custom ISA
 ```
 
 ### Microarchitecture capabilities
@@ -45,8 +56,10 @@ cache size
 memory bandwidth
 preferred LMUL
 supported dtype throughput
+dtype support
 NUMA / memory topology
 OpenMP or thread runtime availability
+toolchain availability cross-links
 ```
 
 ### Runtime/offload capabilities
@@ -56,9 +69,12 @@ Examples:
 ```text
 Sophgo accelerator present
 TPU runtime available
+runtime name
+ABI
 PCIe mode
 SoC mode
 supported offload operator set
+supported offload operations
 supported model format
 host-device transfer cost
 async execution support
@@ -215,3 +231,15 @@ Capability verifier must check:
 - dispatch/fallback covers unavailable conditions.
 
 The verifier does not prove numerical correctness. It prevents illegal target-feature usage and missing execution prerequisites.
+
+## Implementation Requirements
+
+Capability model implementation belongs in the primary compiler stack:
+
+- C++ data structures and MLIR attributes/types/interfaces;
+- TableGen / ODS definitions when represented in IR;
+- CMake build targets;
+- lit/FileCheck tests for IR parsing, printing, verification, and diagnostic behavior;
+- C++ tests for registry/query helper semantics where textual MLIR tests are insufficient.
+
+Python may probe a target, parse remote output, or generate a report. Python must not be the source-of-truth implementation of capability relations, plugin availability, legality, selection, dispatch, or lowering diagnostics.

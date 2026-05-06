@@ -9,6 +9,7 @@ Capability model is the first core of TianChen-RV MLIR. It turns target facts in
 - [ ] Are capability relations such as require/provide/imply/conflict/dispatch condition explicit?
 - [ ] Are unavailable toolchains or runtime APIs represented as legality failures or diagnostics?
 - [ ] Are current and future target profiles kept distinct?
+- [ ] Is the capability model implemented as C++/MLIR compiler objects, not Python/JSON-only structures?
 
 ## Guidelines Index
 
@@ -22,3 +23,4 @@ Capability model is the first core of TianChen-RV MLIR. It turns target facts in
 - Capability cannot be a plain string attached after lowering.
 - If a variant requires an extension, the requirement must be represented in `#tcrv.requires<...>` or equivalent structured data.
 - If a hardware/runtime/toolchain feature is absent, the system must either reject the variant or generate a dispatch/fallback path with diagnostics.
+- Capability model behavior requires lit/FileCheck coverage for IR syntax/verification and C++ tests for registry/helper APIs where appropriate.

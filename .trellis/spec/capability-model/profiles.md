@@ -27,7 +27,10 @@ native compile support
 Rules:
 
 - This is the current real hardware mainline.
-- RVV runtime/performance/correctness claims should name this profile or a derived probed profile.
+- RVV correctness, runtime, or performance claims require real `ssh rvv` evidence.
+- RVV evidence should include probe output for relevant facts such as host identity, RISC-V architecture, core count, RVV/toolchain availability, CMake availability, and sudo behavior when relevant.
+- Local compile-only, local smoke-only, or unproven docs/spec changes must not be described as RVV runtime evidence.
+- RVV runtime/performance/correctness claims must name this profile or a derived probed profile.
 - VLEN and dtype support should be probed or declared with provenance, not guessed.
 
 ## K3/IME Later Profile
@@ -53,6 +56,7 @@ Rules:
 - Treat K3/IME as a later plugin validation path until actual hardware/toolchain facts exist.
 - IME capability depends on RVV/vector-register-backed resource constraints and vendor emission path.
 - Do not make IME the current primary hardware route unless the environment is verified.
+- IME runtime/performance claims require real K3/IME hardware and toolchain evidence.
 
 ## RISC-V Sophgo Offload Profile
 

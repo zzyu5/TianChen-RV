@@ -73,7 +73,7 @@ Examples:
 | Module | Stable Responsibility |
 |---|---|
 | Capability model | target object、capability relation、query、verification input |
-| `tcrv.exec` | kernel、variant、requires、hart_parallel、dispatch、fallback |
+| `tcrv.exec` | kernel、target、capability、variant、requires、region、hart_parallel、mem_window、dispatch、fallback、diagnostics |
 | Plugin protocol | registry、interfaces、local extension boundary |
 | RVV plugin | current real hardware path and first complete plugin |
 | IME plugin | later K3/IME matrix-extension plugin validation |

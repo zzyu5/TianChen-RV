@@ -9,6 +9,7 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - [ ] Does core code call registry/interface APIs rather than `hasRVV`/`hasIME`/`hasSophgo` branches?
 - [ ] If core interface changes are needed, are they justified by a genuinely new execution semantic?
 - [ ] Does documentation state that pluginization is local work, not zero work?
+- [ ] Are plugin interfaces, registries, dialect registrations, and lowering hooks implemented in C++/MLIR rather than Python?
 
 ## Guidelines Index
 
@@ -22,3 +23,4 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - Adding a plugin should mainly add plugin files and registrations.
 - Core pass diffs should show generic orchestration, not extension-specific lowering logic.
 - Any new core branch mentioning a concrete extension must be reviewed as a likely violation.
+- Plugin protocol behavior should be covered by lit/FileCheck for IR behavior and C++ tests for registry/interface APIs where useful.
