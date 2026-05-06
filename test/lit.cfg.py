@@ -28,6 +28,7 @@ llvm_config.add_tool_substitutions(
         "tianchenrv-plugin-variant-proposal-test",
         "tianchenrv-variant-dispatch-synthesis-test",
         "tianchenrv-variant-materialization-test",
+        "tianchenrv-variant-selection-test",
     ],
     tool_dirs,
 )

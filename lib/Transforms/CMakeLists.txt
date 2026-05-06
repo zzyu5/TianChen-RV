@@ -2,6 +2,7 @@ add_mlir_library(TianChenRVTransforms
   CheckCapabilityRequires.cpp
   VariantDispatchSynthesis.cpp
   VariantMaterialization.cpp
+  VariantSelection.cpp
 
   DEPENDS
   TianChenRVPassesIncGen

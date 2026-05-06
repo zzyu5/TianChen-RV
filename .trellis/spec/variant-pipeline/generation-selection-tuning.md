@@ -225,6 +225,152 @@ Core cost orchestration must not hard-code RVV, IME, offload, scalar fallback,
 vendor, dtype, shape, layout, runtime ABI, microarchitecture, or target-family
 semantics.
 
+## Generic Cost-Aware Selection Planning
+
+### 1. Scope / Trigger
+
+After materialized variant costs are ranked, a bounded core C++/MLIR selection
+planner may turn direct `tcrv.exec.variant` children into an explicit compiler
+decision plan. This planner consumes real MLIR ops, a `tcrv.exec.kernel`, the
+generic `TargetCapabilitySet`, and `ExtensionPluginRegistry` ranking output. It
+does not collect proposals, materialize variants, verify plugin-local legality,
+lower extension dialects, emit runtime glue, run hardware probes, or implement
+target-specific selection semantics.
+
+### 2. Signatures
+
+The durable C++ API shape is:
+
+```cpp
+enum class VariantSelectionKind {
+  StaticVariant,
+  RuntimeDispatch,
+  FallbackOnly,
+  NoViableVariant,
+};
+
+struct VariantSelectionCase {
+  tcrv::exec::VariantOp variant;
+  plugin::VariantCostEstimate cost;
+  std::size_t originalIndex;
+  bool genericallyAvailable;
+  bool hasGenericDecisionMetadata;
+};
+
+struct VariantSelectionPlan {
+  VariantSelectionKind kind;
+  tcrv::exec::KernelOp kernel;
+  tcrv::exec::VariantOp selectedVariant;
+  tcrv::exec::VariantOp fallback;
+  SmallVector<VariantSelectionCase> dispatchCases;
+  SmallVector<VariantSelectionCase> rankedVariants;
+};
+
+Expected<VariantSelectionPlan> planKernelVariantSelection(
+    tcrv::exec::KernelOp kernel,
+    const TargetCapabilitySet &capabilities,
+    const ExtensionPluginRegistry &registry);
+
+Error materializeRuntimeDispatchPlan(OpBuilder &builder,
+                                     const VariantSelectionPlan &plan,
+                                     tcrv::exec::DispatchOp *createdDispatch);
+```
+
+### 3. Contracts
+
+The generic selection-planning contract is:
+
+- collect only direct `tcrv.exec.variant` children of the request
+  `tcrv.exec.kernel`;
+- obtain score order through `ExtensionPluginRegistry::rankKernelVariantsByCost`
+  and preserve its stable original-IR-order tie break;
+- require every selected or dispatched variant to have structured generic
+  `requires` metadata and origin-owned cost information;
+- treat a variant as generically available only when all required capability
+  symbols resolve in the supplied `TargetCapabilitySet` and are available;
+- reject unavailable variants that have no non-empty generic `condition`,
+  `guard`, or `policy` metadata, rather than silently selecting them;
+- choose the best generically available fallback by cost ranking, not by old
+  kernel IR order;
+- produce an explicit no-variant plan when a kernel has no direct variants;
+- diagnose runtime-dispatch situations that have guarded candidates but no
+  generically available fallback;
+- produce a static plan when the lowest ranked executable path is available and
+  no lower-cost guarded candidate must be retained;
+- produce a runtime dispatch plan when lower-cost guarded candidates must be
+  retained and a generically available fallback exists.
+
+### 4. Validation & Error Matrix
+
+- missing kernel or missing kernel body -> return an `llvm::Error`;
+- no direct variants -> return a `NoViableVariant` plan, not a crash;
+- cost ranking failure from unknown origin, disabled plugin, plugin-local
+  failure, or invalid estimate -> propagate the registry error with plugin,
+  variant, and kernel context;
+- selected/dispatched variant without structured `requires` metadata -> return
+  an `llvm::Error`;
+- unavailable variant without generic decision metadata -> return an
+  `llvm::Error`;
+- runtime-dispatch plan without a generically available fallback -> return an
+  `llvm::Error`;
+- dispatch materialization for a non-runtime-dispatch plan -> return an
+  `llvm::Error`;
+- dispatch materialization when the kernel already contains a direct
+  `tcrv.exec.dispatch` -> return an `llvm::Error` and leave IR unchanged;
+- dispatch materialization with case/fallback variants not directly enclosed by
+  the plan kernel -> return an `llvm::Error`.
+
+### 5. Good / Base / Bad Cases
+
+- Good: lower-cost guarded variants carry non-empty generic metadata, a
+  generically available fallback exists, and materialization creates ordered
+  `tcrv.exec.case` ops plus one `tcrv.exec.fallback`.
+- Base: all candidates are generically available and unguarded; the planner
+  chooses the lowest-cost static variant and preserves stable equal-score order.
+- Bad: an unavailable unguarded variant appears in the ranked set; the planner
+  rejects it instead of silently selecting or dispatching it.
+
+### 6. Tests Required
+
+- C++ tests must parse or build real MLIR modules with `tcrv.exec.kernel`,
+  `tcrv.exec.capability`, and materialized `tcrv.exec.variant` ops.
+- Mock plugins must provide costs through the real
+  `ExtensionPluginRegistry::rankKernelVariantsByCost` path.
+- Positive tests must cover static lowest-cost selection, equal-cost stable
+  ties, guarded runtime dispatch, fallback-by-cost rather than IR order, typed
+  dispatch materialization, metadata copying, and verifier/capability-check
+  acceptance.
+- Negative tests must cover no direct variants, no available fallback,
+  unavailable unguarded variants, existing direct dispatch rejection, ranking
+  failure propagation, missing kernels, and cross-kernel case/fallback variants.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```cpp
+if (target.hasRVV()) choose(rvvVariant);
+else if (target.hasIME()) choose(imeVariant);
+```
+
+Correct:
+
+```cpp
+Expected<VariantSelectionPlan> plan =
+    planKernelVariantSelection(kernel, capabilities, registry);
+```
+
+A selection materialization helper may turn a runtime dispatch plan into typed
+`tcrv.exec.dispatch`, `tcrv.exec.case`, and `tcrv.exec.fallback` operations. The
+helper preserves planned case order, copies non-empty generic
+`condition`/`guard`/`policy` metadata verbatim, rejects kernels that already
+contain a direct dispatch, and does not erase variants. It must not parse,
+switch on, or infer target-family meaning from generic metadata strings.
+
+Selection planning must stay target-neutral. It must not branch on RVV, IME,
+offload, scalar fallback, vendors, accelerators, dtype, shape, layout, runtime
+ABI, microarchitecture, or any other target family.
+
 ## Variant IR Required Fields
 
 Each variant must include:

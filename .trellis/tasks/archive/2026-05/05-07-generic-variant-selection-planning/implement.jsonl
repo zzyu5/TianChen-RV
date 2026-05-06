@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec index and package routing for TianChen-RV boundaries"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Exec dialect must remain capability/variant/dispatch/fallback focused and compute-free"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Selection must consume plugin-local registry cost ranking without target-specific coupling"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Extension details must remain plugin-local behind interfaces and registry"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selection planning behavior and variant-pipeline boundaries"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Generic TargetCapabilitySet availability semantics for compiler decisions"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++ testing style and evidence expectations"}

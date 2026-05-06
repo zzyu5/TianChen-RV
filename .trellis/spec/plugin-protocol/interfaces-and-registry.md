@@ -294,6 +294,17 @@ orchestration:
   vendor, dtype, shape, layout, runtime ABI, microarchitecture, or
   target-family branches.
 
+Cost ranking is an input to generic selection planning, not a plugin-side
+selection decision. A core selection planner may consume
+`rankKernelVariantsByCost` results together with the same generic
+`TargetCapabilitySet` to choose a static variant, a fallback-only path, a
+runtime dispatch plan, or a no-viable-variant result. The planner must continue
+to route cost ownership through the variant `origin` plugin and must preserve
+the registry ranking tie-break by original kernel IR order. Plugins may provide
+scores and optional explanatory metadata through their cost hook, but they do
+not directly mutate dispatch IR or encode core selection policy through
+target-family branches.
+
 ## Registration Metadata
 
 Each plugin registers:
