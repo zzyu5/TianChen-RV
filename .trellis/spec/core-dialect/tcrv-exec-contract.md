@@ -114,6 +114,19 @@ Structured requirement attribute or op for variant prerequisites:
 requires = #tcrv.requires<["rvv", "zvl128b", "zvfh"]>
 ```
 
+The first verifier implementation may spell the same structured requirement
+with builtin MLIR attributes:
+
+```mlir
+tcrv.exec.variant @rvv
+  attributes {origin = "rvv-plugin", requires = [@rvv]} { ... }
+```
+
+For this compatibility form, `requires` must be an `ArrayAttr` of
+`FlatSymbolRefAttr` capability references resolved inside the enclosing
+`tcrv.exec.kernel`. This is a compiler-visible structured requirement field,
+not an arbitrary string list.
+
 ### `tcrv.exec.hart_parallel`
 
 Represents coarse-grained RISC-V hart/core parallelism.

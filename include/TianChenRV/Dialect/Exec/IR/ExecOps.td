@@ -43,8 +43,11 @@ def CapabilityOp : TCRVExec_Op<"exec.capability", [Symbol]> {
     attributes, not comments or unparsed side strings.
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name);
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                   OptionalAttr<StrAttr>:$id,
+                   OptionalAttr<StrAttr>:$kind);
   let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
 }
 
 def KernelOp : TCRVExec_Op<"exec.kernel",
@@ -72,9 +75,12 @@ def VariantOp : TCRVExec_Op<"exec.variant",
     extension operations.
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name, StrAttr:$origin);
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                   OptionalAttr<StrAttr>:$origin,
+                   OptionalAttr<ArrayAttr>:$requires);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name attr-dict-with-keyword $body";
+  let hasVerifier = 1;
 }
 
 def DispatchOp : TCRVExec_Op<"exec.dispatch",
@@ -99,6 +105,7 @@ def FallbackOp : TCRVExec_Op<"exec.fallback", []> {
 
   let arguments = (ins FlatSymbolRefAttr:$target);
   let assemblyFormat = "$target attr-dict";
+  let hasVerifier = 1;
 }
 
 #endif // TIANCHENRV_DIALECT_EXEC_IR_EXECOPS_TD

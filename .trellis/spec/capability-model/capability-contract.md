@@ -177,6 +177,21 @@ tcrv.exec.variant @rvv_fp16
   requires = #tcrv.requires<["rvv", "zvfh", "zvl128b"]> { ... }
 ```
 
+The initial compiler verifier slice may use MLIR builtin structured
+attributes until custom `#tcrv.requires<...>` parsing is introduced:
+
+```mlir
+tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+tcrv.exec.variant @rvv_fp16
+  attributes {origin = "rvv-plugin", requires = [@rvv]} { ... }
+```
+
+In that slice, `requires` is an `ArrayAttr` whose entries must be
+`FlatSymbolRefAttr` references to `tcrv.exec.capability` ops in the enclosing
+`tcrv.exec.kernel`. Capability `id` and `kind` are non-empty `StringAttr`
+fields. Core verification checks structure and symbol resolution only; concrete
+extension legality stays plugin-owned.
+
 ### provide
 
 Plugin declares provided capabilities:

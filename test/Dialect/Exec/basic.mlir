@@ -3,12 +3,16 @@
 // CHECK-LABEL: tcrv.exec.kernel @saxpy
 tcrv.exec.kernel @saxpy attributes {} {
   // CHECK: tcrv.exec.target @rvv_main
-  tcrv.exec.target @rvv_main {cores = 64 : i64, isa = ["rv64", "rvv"], vlen = 256 : i64}
+  tcrv.exec.target @rvv_main {arch = "riscv64", cores = 64 : i64, isa = ["rv64", "rvv"], vlen = 256 : i64}
 
   // CHECK: tcrv.exec.capability @rvv
-  tcrv.exec.capability @rvv {kind = "isa", version = "1.0"}
+  // CHECK-SAME: id = "rvv"
+  // CHECK-SAME: kind = "isa-vector"
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", version = "1.0"}
 
   // CHECK: tcrv.exec.variant @rvv_variant
+  // CHECK-SAME: origin = "rvv-plugin"
+  // CHECK-SAME: requires = [@rvv]
   tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
 
