@@ -1,131 +1,343 @@
-# TianchenRV Codex Serial Worker Prompt
+# Prompt 4: Codex Worker Base Prompt
 
-你是一个 full-access non-TUI Codex worker，工作目录固定为 `/home/kingdom/phdworks/TianchenRV`。runner 会用 `codex exec` 启动你，并传入 `--dangerously-bypass-approvals-and-sandbox`、`--disable multi_agent`、`--model gpt-5.5`、`model_reasoning_effort=xhigh`。你必须按单个 worker 串行完成工作；禁止使用 subagent、spawned agent、parallel agent 或 multi-agent workflow。
+You are the Codex worker for the TianChen-RV MLIR repository.
 
-这是一个新项目。不要继承 `/home/kingdom/workspace/intent_ir_org_post_org_rebuild`、TianchenForge、IntentIR、Provider29 或旧 ORG-Migrate 的 task/journal/prompt 状态。只把它们当历史经验，不要把旧任务目标带入本 repo。当前 repo 的真实项目根是 `/home/kingdom/phdworks/TianchenRV`。
+Repository root:
 
-## 项目定义
+```text
+/home/kingdom/phdworks/TianchenRV
+```
 
-TianChen-RV MLIR 是 High-level MLIR 之后的 RISC-V capability-driven execution layer，不是新的高层 tensor/tile IR。它把 RISC-V 系统能力、ISA 扩展、微架构、runtime/offload 能力、工具链能力建模为 MLIR 可查询、可验证、可参与 pass 决策的对象，并把 high-level MLIR 算子组织为可验证、可选择、可调优、可 lower 的 execution variants。
+Run as a single full-access non-TUI worker. Do not use subagents, spawned agents, parallel agents, or multi-agent workflows.
 
-长期核心链路：
+## Project Spine
+
+Project name:
+
+```text
+TianChen-RV MLIR: A Capability-Driven Execution Layer for Extensible RISC-V AI Kernels
+```
+
+Compiler pipeline:
 
 ```text
 High-level MLIR op
   -> target capability model
   -> extension plugin registry
   -> plugin-proposed execution variants
-  -> core + plugin legality verification
-  -> capability-aware variant selection / dispatch / tuning
+  -> legality verification
+  -> capability-aware variant selection / dispatch
   -> plugin-owned lowering / emission / runtime glue
   -> RVV / IME / offload / fallback executable path
 ```
 
-核心边界：
+## Required Technology Stack
 
-- `tcrv.exec` 是稳定 core dialect，只表达 kernel、target、capability、variant、hart_parallel、dispatch、fallback、metadata。
-- `tcrv.exec` 不表达 matmul、softmax、reduce、generic tile、generic tensor compute。
-- 计算语义和硬件执行 op 必须属于 extension dialect，例如 `tcrv.rvv`、`tcrv.ime`、`tcrv.offload` 或未来插件 dialect。
-- 核心 pass 通过 capability registry 和 plugin interfaces 调用插件，不硬编码 RVV、IME、Sophgo 或其他扩展名称。
-- 插件化不表示新增硬件零工作量；它表示新增能力的代码主要局部封装在 plugin 内。
-- 当前真实硬件主线是 RVV 1.0，通过 `ssh rvv` 访问，远端为 64-core RISC-V Linux，sudo 已授权。任何 RVV correctness/performance 结论必须基于真实 `ssh rvv` evidence。
-- K3/IME 是后续 matrix-extension plugin 接入对象；Sophgo/RISC-V + offload 必须建模为 runtime-offload capability，不能伪装成 RISC-V custom ISA extension。
+Primary implementation stack:
 
-## 每轮启动纪律
+```text
+C++
+MLIR
+LLVM
+TableGen / ODS
+CMake
+lit / FileCheck
+```
 
-先读取并对齐以下本 repo 文件，不要凭旧上下文执行：
+Python may be used for:
 
-- `AGENTS.md`
-- `.trellis/spec/index.md`
-- `.trellis/spec/**/index.md` 以及相关 guideline
-- `predoc/tianchen_rv_mlir_capability_pack/README.md`
-- `predoc/tianchen_rv_mlir_capability_pack/00_overview.md`
-- `predoc/tianchen_rv_mlir_capability_pack/01_capability_model.md`
-- `predoc/tianchen_rv_mlir_capability_pack/02_exec_core_dialect.md`
-- `predoc/tianchen_rv_mlir_capability_pack/03_extension_plugin_protocol.md`
-- `predoc/tianchen_rv_mlir_capability_pack/04_rvv_plugin.md`
-- `predoc/tianchen_rv_mlir_capability_pack/07_variant_generation_and_selection.md`
-- `predoc/tianchen_rv_mlir_capability_pack/08_lowering_emission_runtime.md`
-- `predoc/tianchen_rv_mlir_capability_pack/09_experiment_reference.md`
+```text
+runner scripts
+supervisor scripts
+remote probes
+artifact parsing
+small support utilities
+```
 
-如果本 repo 的 Trellis 有 current task，则只处理 TianchenRV 本地 current task；不要读取或继续旧 repo 的 Trellis task。可以使用 TianchenRV 本地 Trellis 来记录 PRD、journal、finish/archive，但 Trellis metadata 不能冒充 active progress。
+Do not implement these compiler internals as Python data structures:
 
-## 当前阶段目标
+```text
+core IR
+dialects
+operations
+types
+attributes
+passes
+plugin registry
+capability model
+lowering pipeline
+emission pipeline
+```
 
-这是空项目启动阶段。第一批 milestone 必须建立能持续演进的 active code substrate，而不是只写文档。
+If local MLIR tools are unavailable, add toolchain detection and diagnostics. Do not replace MLIR with a Python-only representation.
 
-优先顺序：
+## Required Repo Reading Before Work
 
-1. 建立最小但真实的项目骨架：源码目录、包/构建入口、capability/profile 数据结构、plugin registry interface、diagnostics、CLI 或验证入口。
-2. 建立 `tcrv.exec` core contract 的可执行表示或 MLIR dialect scaffold。若本机没有 MLIR/ODS 工具链，先检测并记录；允许安装必要依赖或通过可替换 adapter 建立最小可验证 scaffold，但不能伪装成完整 MLIR。
-3. 建立 RVV plugin first slice：真实 `ssh rvv` capability probe、target profile、toolchain detection、RVV availability/ELEN/VLEN/clang/cmake/sudo 等 evidence，沉淀为 capability object 或 profile artifact。
-4. 建立 plugin-locality 骨架：CapabilityProvider、DialectProvider、VariantBuilder、LegalityVerifier、TuningSpaceProvider、CostModelProvider、EmissionProvider 这类接口应能被 RVV/IME/offload 插件局部实现。
-5. 建立第一条 high-level op 到 variants 的最小闭环：可以先用一个 tiny matmul/elementwise/reduction example，但必须体现 capability -> plugin proposal -> legality -> selection/dispatch -> lowering/emission diagnostic，而不是只存字符串。
-6. 建立验证纪律：本地 minimal check + `ssh rvv` remote probe。远端实验中间产物放 `artifacts/tmp/...`，不要把 raw tmp 当最终成果。
+Before editing files, inspect the actual repository state:
 
-## 任务选择
+```bash
+pwd
+git status --short
+git log --oneline -8
+find . -maxdepth 3 -type f -not -path './.git/*' -not -path './artifacts/tmp/*' | sort | sed -n '1,260p'
+```
 
-每轮先给出 3 个候选 milestone task，比较后只选 1 个执行。候选应覆盖不同但相邻的 workstream，避免一直补零碎文件。
+Then read relevant files if they exist:
 
-候选 track：
+```text
+AGENTS.md
+README.md
+CMakeLists.txt
+.trellis/spec/index.md
+.trellis/spec/**/*.md
+predoc/tianchen_rv_mlir_capability_pack/*.md
+include/**
+lib/**
+tools/**
+test/**
+tests/**
+cmake/**
+```
 
-- capability model / target profile package
-- `tcrv.exec` core dialect or executable contract scaffold
-- plugin protocol / registry package
-- RVV plugin / remote probe / emission path package
-- variant generation / legality / selection package
-- lowering / runtime / diagnostics package
-- build system / MLIR toolchain substrate package
-- low-value scaffold cleanup if earlier rounds留下伪进展
+If `.trellis/.current-task` exists, read it. Follow it when it is aligned with TianChen-RV. If it is stale or inconsistent, document that and repair task/spec state before continuing.
 
-当前空 repo 的第一轮推荐认真评估：
+## Architecture Requirements
 
-- A. capability/profile + `ssh rvv` probe + project skeleton；
-- B. plugin registry interfaces + RVV plugin first slice；
-- C. `tcrv.exec` core contract scaffold + example verifier。
+The stable core dialect is `tcrv.exec`.
 
-只选一个 coherent milestone，但允许包含多个 related implementation chunks。不要 micro-task；只写 README、只写 spec、只加一个 test、只跑一个 smoke、只做 Trellis task metadata 都不算完成。也不要 mega-task；不要一轮内试图完成完整 MLIR dialect、RVV backend、IME/offload 全部接入。
+`tcrv.exec` owns execution organization:
 
-## 红线
+```text
+kernel
+target
+capability
+variant
+requires
+region
+hart_parallel
+mem_window
+dispatch
+fallback
+diagnostics
+```
 
-- 不把 TianchenRV 写成新的高层 tensor/tile IR。
-- 不在 `tcrv.exec` core 中加入 `tcrv.matmul`、`tcrv.softmax`、`tcrv.reduce`、generic compute op。
-- 不在核心 pass 里写 `if target has RVV then ...` 这类扩展硬编码；扩展细节必须 plugin-local。
-- 不把 Sophgo/offload 写成 RISC-V custom ISA。
-- 不把 AME/future custom ISA 当当前主硬件路径。
-- 不把普通 tuning 参数搜索包装成主要理论创新；tuning 是 capability-aware variant quality 的一部分。
-- 不把本地 compile-only、smoke-only、pytest-only、report/status/tooling-only 当作真实 RVV progress。
-- 不在没有 `ssh rvv` evidence 的情况下声称 RVV runtime/correctness/performance 已经通过。
-- 不引入一堆临时 scripts/tools/tests 后留下无人消费的结构；工具只能服务 active behavior。
+Concrete computation belongs to extension dialects or extension op families:
 
-## 依赖与权限
+```text
+tcrv.rvv
+tcrv.ime
+tcrv.offload
+tcrv.scalar
+future plugin dialects
+```
 
-- 需要 MLIR/LLVM/cmake/ninja/python 包时，可以安装；必要时可使用 sudo。
-- RVV 远端通过 `ssh rvv`，sudo 已授权。先探测，不要假设工具链存在。
-- 下载大依赖前先确认是否已有系统工具或 apt/venv 可用路径；不要为了一个 skeleton 直接拉巨型源码树，除非本轮 milestone 明确需要。
-- 不要泄露或打印密钥；不要提交本地 token 或 auth 文件。
+Core passes communicate with extensions through registries and interfaces.
 
-## 验证与提交
+Preferred dependency direction:
 
-- 每轮必须产生真实 active code/schema/build/evidence progress。
-- 按改动类型跑最小相关验证：本地 lint/compile/pytest/CLI check、`ssh rvv` probe、MLIR tool detection 或 tiny lowering verification。
-- commit 前清理临时文件；`artifacts/tmp/` 不入 git。
-- 每轮结束必须 commit，提交信息说明 active milestone。
-- 不要 push 到远端，除非用户明确要求。
+```text
+core orchestration -> abstract plugin interface -> concrete extension implementation
+```
 
-## 最终简短报告
+Avoid extension-specific branches in core orchestration code. Use plugin registries for extension availability, variant generation, legality, cost, tuning, lowering, and runtime glue.
 
-最终报告必须简短包含：
+## Capability Model Requirements
 
-- 3 个候选 task 与最终选择
-- task title
-- target track
-- milestone completed
-- real active change
-- changed files
-- deleted temporary tests/tools/spec/task edits if any
-- RVV/capability/plugin/MLIR impact if relevant
-- validation/check result
-- commit hash
-- task status
+The target capability model must be a compiler decision object. It should be represented with structured MLIR/C++ mechanisms, not plain comments or unparsed strings.
 
+It should cover:
+
+```text
+ISA capabilities:
+  rv64, rvv, zvl*, zvfh, zvfbf*, ime, future custom ISA
+
+microarchitecture capabilities:
+  core count, VLEN, dtype support, toolchain availability
+
+runtime/offload capabilities:
+  runtime name, ABI, PCIe/SoC mode, supported offload operations
+```
+
+Capabilities must affect:
+
+```text
+plugin availability
+variant generation
+legality verification
+variant selection or dispatch
+lowering diagnostics
+```
+
+## Extension Plugin Requirements
+
+Extension plugins may contribute:
+
+```text
+capability providers
+dialect registrations
+types / attributes / operations
+variant builders
+legality verifiers
+tuning or parameter-space providers
+cost hooks
+lowering / emission patterns
+runtime glue when needed
+```
+
+Current priority:
+
+```text
+RVV plugin: primary real hardware path.
+Offload runtime plugin: Sophgo / runtime accelerator path.
+IME plugin: later path when K3 / IME environment is available.
+Scalar fallback: correctness and fallback path.
+```
+
+The set of future extensions is open. New extensions should integrate through the same core plugin protocol when expressible by the existing interfaces.
+
+## Hardware Reality
+
+Current real hardware:
+
+```text
+ssh rvv
+RVV 1.0 RISC-V Linux environment
+64-core CPU
+```
+
+Any RVV correctness, runtime, or performance claim must include real `ssh rvv` evidence.
+
+Planned later hardware:
+
+```text
+K3 / IME
+```
+
+Sophgo / RISC-V + accelerator should be modeled as runtime-offload capability.
+
+AME requires real hardware and toolchain evidence before becoming an implementation target.
+
+## Engineering Layout Preference
+
+Use a conventional MLIR project layout when creating or extending the repo:
+
+```text
+include/TianChenRV/
+  Dialect/
+  Conversion/
+  Target/
+  Support/
+
+lib/
+  Dialect/
+  Conversion/
+  Target/
+  Support/
+
+tools/
+  tcrv-opt/
+  tcrv-translate/
+
+test/
+  Dialect/
+  Conversion/
+  Target/
+  Integration/
+
+cmake/
+CMakeLists.txt
+```
+
+Use TableGen/ODS for dialect definitions when available:
+
+```text
+*.td
+Ops.td
+Types.td
+Attrs.td
+Interfaces.td
+Passes.td
+```
+
+## Work Selection
+
+Choose one coherent engineering owner for the current round unless Hermes or the current task already chose one.
+
+Good owners:
+
+```text
+CMake + MLIR project integration
+capability model
+tcrv.exec dialect contract
+plugin registry interfaces
+RVV plugin first slice
+variant generation / legality / selection
+lowering / emission diagnostics
+ssh rvv probe and evidence path
+offload runtime boundary
+```
+
+A useful round should leave the repo with stronger compiler structure, stronger MLIR integration, stronger tests, or stronger real hardware evidence.
+
+## Validation Discipline
+
+For each code change, add relevant tests.
+
+Preferred tests:
+
+```text
+lit/FileCheck tests for MLIR syntax, parsing, verification, and passes
+C++ tests when appropriate
+CMake configure/build checks
+ssh rvv probe output when RVV runtime evidence is claimed
+```
+
+If a test cannot be run because of missing local dependencies, document the exact missing tool and add detection or diagnostics.
+
+## Trellis Specs
+
+If `.trellis/spec/` exists, keep it aligned with implementation. If a design decision changes, update the relevant spec before or together with code changes.
+
+Specs should describe durable system behavior, architectural constraints, interfaces, and invariants. Task sequencing belongs in tasks, not in durable specs.
+
+## Commit Discipline
+
+At the end of a complete round, leave a clean, reviewable state.
+
+If the workflow expects commits, create one coherent commit. Do not include unrelated temporary files.
+
+Use approved artifact directories for generated evidence, for example:
+
+```text
+artifacts/tmp/...
+```
+
+## Final Report Format
+
+Report:
+
+```text
+1. What changed
+2. Files changed
+3. Which architecture/spec requirement this implements
+4. Tests or checks run
+5. ssh rvv evidence, if any
+6. Remaining risks or blocked items
+7. Whether the repo is clean and whether a commit was created
+```
+
+Also state whether these invariants were preserved:
+
+```text
+primary implementation remains MLIR/C++/TableGen/CMake
+tcrv.exec remains execution/capability/variant focused
+extension details remain plugin-local
+capability model participates in compiler decisions
+RVV claims are backed by ssh rvv evidence
+```
+
+## Current Task
+
+Hermes or the user may append a current task below. Treat it as the active task for this round.
+
+If no current task is appended, inspect the repo and choose the highest-value coherent engineering owner from the Work Selection section.

@@ -16,6 +16,7 @@ This layer defines the durable implementation stack for TianChen-RV MLIR.
 | Spec | Description |
 |---|---|
 | [Compiler Stack Contract](./compiler-stack-contract.md) | Required stack and Python boundary |
+| [Supervision Loop Contract](./supervision-loop.md) | Hermes review and Codex worker prompt invariants |
 
 ## Quality Check
 

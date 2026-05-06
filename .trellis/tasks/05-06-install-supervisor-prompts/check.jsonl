@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Check prompt/spec changes against global TianChen-RV invariants."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Verify worker prompt keeps compiler implementation on C++/MLIR/LLVM/TableGen/CMake and Python tooling only."}
+{"file": ".trellis/spec/architecture/index.md", "reason": "Verify prompts enforce system positioning and avoid high-level compute IR drift."}
+{"file": ".trellis/spec/capability-model/index.md", "reason": "Verify capability model remains a compiler decision object in the supervision policy."}
+{"file": ".trellis/spec/core-dialect/index.md", "reason": "Verify tcrv.exec boundary is preserved in prompt/spec updates."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Verify extension behavior is routed through plugin-local interfaces."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Verify RVV, IME, offload, and AME evidence boundaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify future checks and evidence requirements are encoded correctly."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Verify evidence claims, especially RVV ssh rvv requirements, are not weakened."}
