@@ -1,0 +1,3 @@
+# RUN: tianchenrv-rvv-extension-plugin-test | FileCheck %s
+
+# CHECK: RVV extension plugin smoke test passed

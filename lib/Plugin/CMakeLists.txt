@@ -6,3 +6,5 @@ add_mlir_library(TianChenRVPlugin
   MLIRIR
   MLIRSupport
 )
+
+add_subdirectory(RVV)

@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"global TianChen-RV invariants for compiler stack and capability/plugin boundaries"}
+{"file":".trellis/spec/architecture/design-boundaries.md","reason":"prevents target-family branches, fake hardware claims, and high-level compute IR drift"}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"keeps tcrv.exec execution/capability/variant focused and compute-free"}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"defines ExtensionPluginRegistry interfaces, proposal validation, cost routing, and built-in registration semantics"}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"keeps RVV behavior plugin-local and avoids core extension-specific branches"}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"defines RVV first-slice plugin names, capability id/kind/symbol, and no-lowering scope"}
+{"file":".trellis/spec/capability-model/capability-contract.md","reason":"defines TargetCapabilitySet availability and requires semantics used by RVV proposals"}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"defines proposal materialization, legality, cost, and selection planning contracts"}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"defines required C++/lit/CMake evidence for plugin and MLIR behavior"}

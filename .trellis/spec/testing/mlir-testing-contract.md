@@ -40,6 +40,8 @@ Use C++ tests for:
 - plugin registry APIs;
 - capability query helper semantics;
 - cost model helper logic;
+- concrete first-slice plugin registration, proposal metadata, legality, and
+  registry-backed selection consumption;
 - registry-injected pass behavior that requires in-process mock plugins;
 - non-textual MLIR interfaces;
 - C++ utility behavior that is not well covered through textual IR.

@@ -26,6 +26,7 @@ llvm_config.add_tool_substitutions(
         "tianchenrv-plugin-variant-cost-test",
         "tianchenrv-plugin-variant-legality-test",
         "tianchenrv-plugin-variant-proposal-test",
+        "tianchenrv-rvv-extension-plugin-test",
         "tianchenrv-variant-dispatch-synthesis-test",
         "tianchenrv-variant-materialization-test",
         "tianchenrv-variant-selection-test",

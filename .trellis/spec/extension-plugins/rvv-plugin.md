@@ -29,6 +29,45 @@ RVV plugin provides:
 
 It does not define high-level matmul semantics, generic tensor/tile IR, IME internals, offload internals, or custom ISA internals.
 
+## First C++ Plugin Slice
+
+The first concrete C++ RVV slice is intentionally narrower than the full RVV
+plugin above. It proves plugin identity, capability participation, proposal
+metadata, materialization, legality routing, and selection consumption through
+`ExtensionPluginRegistry`.
+
+Stable first-slice names:
+
+```text
+plugin name: rvv-plugin
+plugin version: 0.1.0
+plugin capability id: rvv
+plugin capability kind: isa-vector
+preferred kernel capability symbol: @rvv
+first-slice proposal / variant symbol: @rvv_first_slice
+variant origin: rvv-plugin
+required capability id: rvv
+materialized requires form: requires = [@rvv]
+```
+
+The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
+contains a real high-level MLIR operation, a `tcrv.exec.kernel`, and a
+`TargetCapabilitySet` where capability id `rvv` is explicitly available. If
+the capability is missing or generically unavailable (`status = "disabled"`,
+`"missing"`, or `"unavailable"`), the plugin proposes no variant.
+
+The first slice carries only generic decision metadata (`condition`, `guard`,
+and `policy`) and a plugin-owned neutral cost estimate. These fields are
+compiler-visible metadata for the existing generic materialization, legality,
+capability, and selection helpers. They are not RVV lowering, code emission,
+runtime ABI, correctness evidence, or performance evidence.
+
+`registerDialects` is an explicit no-op in this first slice because no
+`tcrv.rvv` dialect skeleton is introduced yet. A future slice may add a
+compute-free `tcrv.rvv` dialect skeleton or real RVV execution ops, but that
+work must remain plugin-local and must not add compute operations to
+`tcrv.exec`.
+
 ## Capability Fields
 
 RVV plugin should register and query:

@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"verify global project invariants are preserved"}
+{"file":".trellis/spec/architecture/design-boundaries.md","reason":"verify no compute IR, core target-family branch, or unsupported hardware claim was introduced"}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"verify tcrv.exec remains execution/capability/variant focused"}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"verify registry, proposal, cost, and registration lifetime contracts"}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"verify RVV-specific behavior remains plugin-local"}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"verify RVV first-slice names and scope are documented"}
+{"file":".trellis/spec/capability-model/capability-contract.md","reason":"verify TargetCapabilitySet and generic availability behavior"}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"verify materialization, legality, and selection path compatibility"}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"verify required test evidence is present"}

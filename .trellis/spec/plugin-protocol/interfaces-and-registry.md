@@ -331,3 +331,22 @@ Each plugin registers:
 - cost model;
 - emission paths;
 - fallback behavior.
+
+## Built-In Registration API
+
+Concrete built-in plugins may expose small C++ helpers that populate an
+`ExtensionPluginRegistry` without changing core pass orchestration. The current
+first built-in helper set is:
+
+```cpp
+llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
+llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
+```
+
+The registry stores non-owning plugin references, so built-in registration
+helpers must register objects with safe process lifetime and must never register
+temporaries or stack objects that go out of scope after the helper returns.
+Duplicate registration continues to be rejected by the generic registry
+diagnostic path. Core passes must still receive a populated registry explicitly;
+the default public `tcrv-select-variants` pass remains honest when no plugins
+are injected.
