@@ -28,6 +28,9 @@ struct PlannedVariant {
   std::string symbolName;
   std::string originPlugin;
   mlir::ArrayAttr requires;
+  std::string condition;
+  std::string guard;
+  std::string policy;
 };
 
 llvm::Error makeMaterializationError(llvm::Twine message) {
@@ -65,6 +68,12 @@ bool isValidBareSymbolName(llvm::StringRef value) {
 
 bool kernelHasBody(KernelOp kernel) {
   return kernel && !kernel.getBody().empty();
+}
+
+std::string getNonEmptyDecisionMetadata(llvm::StringRef value) {
+  if (value.trim().empty())
+    return {};
+  return value.str();
 }
 
 CapabilityOp lookupCapabilityInKernel(KernelOp kernel,
@@ -223,7 +232,10 @@ llvm::Error validateAndPlanMaterialization(
 
     plannedVariants.push_back(PlannedVariant{
         variantName.str(), proposal.getOriginPlugin().str(),
-        builder.getArrayAttr(requiredCapabilityRefs)});
+        builder.getArrayAttr(requiredCapabilityRefs),
+        getNonEmptyDecisionMetadata(proposal.getCondition()),
+        getNonEmptyDecisionMetadata(proposal.getGuard()),
+        getNonEmptyDecisionMetadata(proposal.getPolicy())});
   }
 
   return llvm::Error::success();
@@ -245,10 +257,20 @@ llvm::Error materializeVariantProposals(
   builder.setInsertionPointToEnd(&kernel.getBody().front());
 
   for (const PlannedVariant &plannedVariant : plannedVariants) {
+    mlir::StringAttr conditionAttr;
+    mlir::StringAttr guardAttr;
+    mlir::StringAttr policyAttr;
+    if (!plannedVariant.condition.empty())
+      conditionAttr = builder.getStringAttr(plannedVariant.condition);
+    if (!plannedVariant.guard.empty())
+      guardAttr = builder.getStringAttr(plannedVariant.guard);
+    if (!plannedVariant.policy.empty())
+      policyAttr = builder.getStringAttr(plannedVariant.policy);
+
     VariantOp variant = builder.create<VariantOp>(
         kernel.getLoc(), plannedVariant.symbolName,
         builder.getStringAttr(plannedVariant.originPlugin),
-        plannedVariant.requires);
+        plannedVariant.requires, conditionAttr, guardAttr, policyAttr);
     if (variant.getBody().empty())
       variant.getBody().emplaceBlock();
     if (materializedVariants)

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec metadata contract and verifier behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin interface behavior remains generic."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify extension-specific semantics stay plugin-local."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify proposal-to-dispatch metadata flow is documented and tested."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify unavailable requirements remain rejected unless guarded by dispatch metadata."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify test and evidence coverage matches project requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability-first behavior."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute boundary."}

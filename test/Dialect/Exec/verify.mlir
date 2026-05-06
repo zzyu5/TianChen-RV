@@ -62,6 +62,45 @@ tcrv.exec.kernel @empty_origin attributes {} {
 
 // -----
 
+tcrv.exec.kernel @empty_variant_condition attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  // expected-error @+1 {{requires non-empty string attribute 'condition' when present}}
+  tcrv.exec.variant @rvv_variant attributes {
+    condition = "",
+    origin = "rvv-plugin",
+    requires = [@rvv]
+  } {
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @empty_variant_guard attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  // expected-error @+1 {{requires non-empty string attribute 'guard' when present}}
+  tcrv.exec.variant @rvv_variant attributes {
+    guard = "",
+    origin = "rvv-plugin",
+    requires = [@rvv]
+  } {
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @empty_variant_policy attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  // expected-error @+1 {{requires non-empty string attribute 'policy' when present}}
+  tcrv.exec.variant @rvv_variant attributes {
+    origin = "rvv-plugin",
+    policy = "",
+    requires = [@rvv]
+  } {
+  }
+}
+
+// -----
+
 tcrv.exec.kernel @missing_capability_id attributes {} {
   // expected-error @+1 {{requires non-empty string attribute 'id'}}
   tcrv.exec.capability @rvv {kind = "isa-vector"}

@@ -50,17 +50,25 @@ module {
       kind = "toolchain"
     }
     tcrv.exec.variant @fast_path attributes {
+      condition = "runtime_probe_available",
+      guard = "generic_fast_guard",
       origin = "fast-plugin",
+      policy = "prefer_fast_when_guarded",
       requires = [@fast_probe]
     } {
     }
     tcrv.exec.variant @baseline_path attributes {
+      condition = "baseline_fallback_condition",
       origin = "baseline-plugin",
+      policy = "baseline_fallback_policy",
       requires = [@baseline_capability]
     } {
     }
     tcrv.exec.variant @extra_path attributes {
+      condition = "extra_condition",
+      guard = "extra_guard",
       origin = "extra-plugin",
+      policy = "extra_policy",
       requires = [@extra_capability]
     } {
     }
@@ -178,12 +186,44 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
                  "fallback is first generically available variant"))
     return result;
   if (int result =
-          expect(cases[0]->getAttrOfType<mlir::StringAttr>("policy")
-                     .getValue() == "capability_dispatch_guard",
-                 "unavailable case receives generic guard policy"))
+          expect(cases[0]->getAttrOfType<mlir::StringAttr>("condition")
+                     .getValue() == "runtime_probe_available",
+                 "unavailable case inherits variant condition metadata"))
     return result;
-  if (int result = expect(!cases[1]->getAttr("policy"),
-                          "available case does not need generated guard"))
+  if (int result =
+          expect(cases[0]->getAttrOfType<mlir::StringAttr>("guard")
+                     .getValue() == "generic_fast_guard",
+                 "unavailable case inherits variant guard metadata"))
+    return result;
+  if (int result =
+          expect(cases[0]->getAttrOfType<mlir::StringAttr>("policy")
+                     .getValue() == "prefer_fast_when_guarded",
+                 "unavailable case preserves plugin policy metadata"))
+    return result;
+  if (int result =
+          expect(cases[1]->getAttrOfType<mlir::StringAttr>("condition")
+                     .getValue() == "extra_condition",
+                 "available case inherits variant condition metadata"))
+    return result;
+  if (int result =
+          expect(cases[1]->getAttrOfType<mlir::StringAttr>("guard")
+                     .getValue() == "extra_guard",
+                 "available case inherits variant guard metadata"))
+    return result;
+  if (int result =
+          expect(cases[1]->getAttrOfType<mlir::StringAttr>("policy")
+                     .getValue() == "extra_policy",
+                 "available case inherits variant policy metadata"))
+    return result;
+  if (int result = expect(cases[0]->getAttrOfType<mlir::StringAttr>("policy")
+                                  .getValue() !=
+                              "capability_dispatch_guard",
+                          "inherited metadata is not overwritten by synthesized guard"))
+    return result;
+  if (int result = expect(!fallback->getAttr("condition") &&
+                              !fallback->getAttr("guard") &&
+                              !fallback->getAttr("policy"),
+                          "fallback does not receive dispatch-case metadata"))
     return result;
 
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),

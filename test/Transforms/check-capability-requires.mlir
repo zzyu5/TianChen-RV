@@ -72,3 +72,47 @@ tcrv.exec.kernel @guarded_runtime_dispatch attributes {} {
     tcrv.exec.fallback @portable_fallback
   }
 }
+
+// -----
+
+// CHECK-LABEL: tcrv.exec.kernel @guarded_by_inherited_case_metadata
+tcrv.exec.kernel @guarded_by_inherited_case_metadata attributes {} {
+  tcrv.exec.capability @runtime_probe {
+    id = "portable.runtime.probe",
+    kind = "runtime-offload",
+    status = "missing"
+  }
+  tcrv.exec.capability @generic_toolchain {
+    id = "generic.toolchain",
+    kind = "toolchain"
+  }
+  // CHECK: tcrv.exec.variant @runtime_offload_path
+  // CHECK-SAME: condition = "runtime_probe_available"
+  // CHECK-SAME: guard = "runtime_guard_passed"
+  // CHECK-SAME: policy = "prefer_runtime_when_guarded"
+  tcrv.exec.variant @runtime_offload_path attributes {
+    condition = "runtime_probe_available",
+    guard = "runtime_guard_passed",
+    origin = "runtime-offload-plugin",
+    policy = "prefer_runtime_when_guarded",
+    requires = [@runtime_probe]
+  } {
+  }
+  tcrv.exec.variant @portable_fallback attributes {
+    origin = "portable-plugin",
+    requires = [@generic_toolchain]
+  } {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // CHECK: tcrv.exec.case @runtime_offload_path
+    // CHECK-SAME: condition = "runtime_probe_available"
+    // CHECK-SAME: guard = "runtime_guard_passed"
+    // CHECK-SAME: policy = "prefer_runtime_when_guarded"
+    tcrv.exec.case @runtime_offload_path {
+      condition = "runtime_probe_available",
+      guard = "runtime_guard_passed",
+      policy = "prefer_runtime_when_guarded"
+    }
+    tcrv.exec.fallback @portable_fallback
+  }
+}

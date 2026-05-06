@@ -106,6 +106,21 @@ mlir::LogicalResult VariantOp::verify() {
            << "requires structured array attribute '" << kRequiresAttrName
            << "' containing capability symbol references";
 
+  if (isPresentButEmptyStringAttr(getOperation(), kConditionAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kConditionAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kGuardAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kGuardAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kPolicyAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kPolicyAttrName
+           << "' when present";
+
   KernelOp kernel = getEnclosingKernel(getOperation());
   if (!kernel)
     return emitOpError()

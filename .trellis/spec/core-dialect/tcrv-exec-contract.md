@@ -93,7 +93,7 @@ Responsibilities:
 
 - declare required capabilities;
 - contain extension dialect ops;
-- carry cost, tuning, and dispatch metadata;
+- carry generic decision metadata plus cost, tuning, and dispatch metadata;
 - record origin plugin;
 - be checked by capability and plugin verifiers.
 
@@ -120,13 +120,25 @@ with builtin MLIR attributes:
 
 ```mlir
 tcrv.exec.variant @rvv
-  attributes {origin = "rvv-plugin", requires = [@rvv]} { ... }
+  attributes {
+    origin = "rvv-plugin",
+    requires = [@rvv],
+    condition = "runtime_probe_available",
+    guard = "shape_guard_passed",
+    policy = "prefer_accelerated"
+  } { ... }
 ```
 
 For this compatibility form, `requires` must be an `ArrayAttr` of
 `FlatSymbolRefAttr` capability references resolved inside the enclosing
 `tcrv.exec.kernel`. This is a compiler-visible structured requirement field,
 not an arbitrary string list.
+
+Optional `condition`, `guard`, and `policy` attributes on
+`tcrv.exec.variant` are generic non-empty strings when present. They preserve
+plugin-proposed decision metadata for later dispatch synthesis. The core
+dialect records these strings but does not interpret target family, dtype,
+shape, layout, runtime, vendor, extension, cost-model, or tuning semantics.
 
 ### `tcrv.exec.hart_parallel`
 

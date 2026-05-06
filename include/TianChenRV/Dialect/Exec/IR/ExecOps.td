@@ -70,14 +70,17 @@ def VariantOp : TCRVExec_Op<"exec.variant",
   let summary = "plugin-proposed execution variant";
   let description = [{
     Contains one plugin-proposed execution variant. The origin plugin,
-    required capabilities, preconditions, tuning metadata, cost metadata,
-    and emission path are represented as MLIR attributes or nested
-    extension operations.
+    required capabilities, generic decision metadata, preconditions, tuning
+    metadata, cost metadata, and emission path are represented as MLIR
+    attributes or nested extension operations.
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                    OptionalAttr<StrAttr>:$origin,
-                   OptionalAttr<ArrayAttr>:$requires);
+                   OptionalAttr<ArrayAttr>:$requires,
+                   OptionalAttr<StrAttr>:$condition,
+                   OptionalAttr<StrAttr>:$guard,
+                   OptionalAttr<StrAttr>:$policy);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name attr-dict-with-keyword $body";
   let hasVerifier = 1;

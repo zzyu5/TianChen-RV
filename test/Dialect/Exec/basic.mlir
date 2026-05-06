@@ -22,9 +22,18 @@ tcrv.exec.kernel @saxpy attributes {} {
   tcrv.exec.mem_window @input_window {binding = "args", memory_space = "host", purpose = "variant-dispatch-guard"}
 
   // CHECK: tcrv.exec.variant @rvv_variant
+  // CHECK-SAME: condition = "preferred_capability_available"
+  // CHECK-SAME: guard = "shape_guard_passed"
   // CHECK-SAME: origin = "rvv-plugin"
+  // CHECK-SAME: policy = "prefer_accelerated"
   // CHECK-SAME: requires = [@rvv]
-  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  tcrv.exec.variant @rvv_variant attributes {
+    condition = "preferred_capability_available",
+    guard = "shape_guard_passed",
+    origin = "rvv-plugin",
+    policy = "prefer_accelerated",
+    requires = [@rvv]
+  } {
     // CHECK: tcrv.exec.hart_parallel
     // CHECK-SAME: harts = 64
     // CHECK-SAME: policy = "static"

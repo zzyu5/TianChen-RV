@@ -97,7 +97,8 @@ The materialization slice is intentionally bounded:
 - it preserves required capability symbol references after checking they resolve
   in the kernel capability scope;
 - it attaches only generic metadata supported by the current `tcrv.exec` ODS
-  contract, such as variant symbol/name, origin plugin, and `requires`;
+  contract, such as variant symbol/name, origin plugin, `requires`, and
+  non-empty generic `condition`/`guard`/`policy` decision metadata;
 - it diagnoses malformed input before mutating IR when practical, including
   missing kernel anchors, duplicate variant symbols, invalid variant names,
   empty origins, and unresolved capability ids or symbols.
@@ -125,9 +126,12 @@ The deterministic first-slice policy is:
   the `tcrv.exec.fallback` target;
 - emit `tcrv.exec.case` entries for the remaining variants in original variant
   order;
-- attach a non-empty generic `condition`, `guard`, or `policy` string to any
-  case whose target has unavailable required capabilities, so
-  `--tcrv-check-capability-requires` can treat it as runtime-guarded;
+- inherit any present generic `condition`, `guard`, or `policy` metadata from
+  the target variant onto the generated `tcrv.exec.case`;
+- attach a synthesized non-empty generic guard policy only when a case target has
+  unavailable required capabilities and no inherited generic decision metadata,
+  so `--tcrv-check-capability-requires` can treat it as runtime-guarded without
+  overwriting plugin-proposed metadata;
 - diagnose and leave IR unmodified when no direct variant is generically
   available as an executable fallback.
 

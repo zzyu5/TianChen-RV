@@ -19,6 +19,8 @@ namespace tianchenrv::transforms {
 namespace {
 
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kConditionAttrName("condition");
+constexpr llvm::StringLiteral kGuardAttrName("guard");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kRuntimeGuardPolicy("capability_dispatch_guard");
@@ -94,6 +96,24 @@ bool areRequiredCapabilitiesGenericallyAvailable(
   return true;
 }
 
+bool hasNonEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  return attr && !attr.getValue().trim().empty();
+}
+
+bool hasGenericDecisionMetadata(VariantOp variant) {
+  return hasNonEmptyStringAttr(variant.getOperation(), kConditionAttrName) ||
+         hasNonEmptyStringAttr(variant.getOperation(), kGuardAttrName) ||
+         hasNonEmptyStringAttr(variant.getOperation(), kPolicyAttrName);
+}
+
+void copyStringAttrIfPresent(mlir::OperationState &state, VariantOp variant,
+                             llvm::StringRef attrName) {
+  auto attr = variant->getAttrOfType<mlir::StringAttr>(attrName);
+  if (attr && !attr.getValue().trim().empty())
+    state.addAttribute(attrName, attr);
+}
+
 mlir::LogicalResult buildDispatchSynthesisPlan(
     KernelOp kernel, const TargetCapabilitySet &capabilities,
     DispatchSynthesisPlan &plan) {
@@ -160,7 +180,11 @@ DispatchCaseOp createDispatchCase(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(kTargetAttrName,
                      mlir::FlatSymbolRefAttr::get(builder.getContext(),
                                                   variant.getSymName()));
-  if (needsRuntimeCapabilityGuard)
+  copyStringAttrIfPresent(state, variant, kConditionAttrName);
+  copyStringAttrIfPresent(state, variant, kGuardAttrName);
+  copyStringAttrIfPresent(state, variant, kPolicyAttrName);
+
+  if (needsRuntimeCapabilityGuard && !hasGenericDecisionMetadata(variant))
     state.addAttribute(kPolicyAttrName,
                        builder.getStringAttr(kRuntimeGuardPolicy));
 

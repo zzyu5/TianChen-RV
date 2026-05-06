@@ -186,6 +186,19 @@ int expectRequires(VariantOp variant,
   return 0;
 }
 
+int expectStringAttr(VariantOp variant, llvm::StringRef attrName,
+                     llvm::StringRef expectedValue) {
+  auto attr = variant->getAttrOfType<mlir::StringAttr>(attrName);
+  if (int result = expect(static_cast<bool>(attr),
+                          llvm::Twine("materialized variant has ") +
+                              attrName + " metadata"))
+    return result;
+
+  return expect(attr.getValue() == expectedValue,
+                llvm::Twine("materialized variant preserves ") + attrName +
+                    " metadata");
+}
+
 VariantProposal makeProposal(llvm::StringRef name, llvm::StringRef origin) {
   return VariantProposal(name, origin);
 }
@@ -243,6 +256,7 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
 
   VariantProposal first = makeProposal("first_path", "first-plugin");
   first.addRequiredCapabilityID("generic.alpha");
+  first.setCondition("generic_condition_for_future_dispatch");
   first.setGuard("generic_guard_for_future_dispatch");
 
   VariantProposal second = makeProposal("second_path", "second-plugin");
@@ -288,6 +302,18 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
   if (int result = expectRequires(materializedVariants[0], {"generic_alpha"}))
     return result;
   if (int result = expectRequires(materializedVariants[1], {"generic_beta"}))
+    return result;
+  if (int result = expectStringAttr(
+          materializedVariants[0], "condition",
+          "generic_condition_for_future_dispatch"))
+    return result;
+  if (int result = expectStringAttr(
+          materializedVariants[0], "guard",
+          "generic_guard_for_future_dispatch"))
+    return result;
+  if (int result = expectStringAttr(
+          materializedVariants[1], "policy",
+          "generic_policy_for_future_dispatch"))
     return result;
   if (int result = expect(!materializedVariants[0].getBody().empty() &&
                               !materializedVariants[1].getBody().empty(),
