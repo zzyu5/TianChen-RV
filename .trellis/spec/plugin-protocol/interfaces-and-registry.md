@@ -80,6 +80,30 @@ Responsibilities:
 - validate dtype, shape, layout, runtime ABI, and toolchain path;
 - emit structured diagnostics.
 
+The current registry-level C++ slice exposes materialized-variant legality
+through the existing `ExtensionPlugin` protocol:
+
+```cpp
+class VariantLegalityRequest {
+public:
+  tcrv::exec::VariantOp getVariant() const;
+  tcrv::exec::KernelOp getKernel() const;
+  const TargetCapabilitySet &getCapabilities() const;
+};
+
+class ExtensionPlugin {
+public:
+  virtual Error verifyVariantLegality(
+      const VariantLegalityRequest &request) const;
+};
+```
+
+This request carries only compiler objects that already exist in the current
+IR: the materialized `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, and
+the generic `TargetCapabilitySet` built from that kernel. It is not a Python
+schema, pseudo-IR, tuning object, lowering plan, emission object, or runtime
+probe result.
+
 ### TuningSpaceProvider
 
 ```cpp
@@ -179,6 +203,28 @@ The registry-level first slice provides deterministic proposal orchestration:
   generic diagnostics that name the plugin, variant, requirement, and capability
   status;
 - keep proposal collection generic and free of target-family branches.
+
+The registry-level legality slice provides deterministic materialized-variant
+verification orchestration:
+
+- validate that the request contains a materialized `tcrv.exec.variant`, an
+  enclosing `tcrv.exec.kernel`, and a variant whose `origin` is a non-empty
+  string attribute;
+- build or receive the generic `TargetCapabilitySet` from the kernel without
+  target-family logic;
+- look up exactly the origin plugin named by the variant `origin` attribute;
+- reject unknown origin plugins before invoking plugin legality;
+- reject disabled origin plugins for materialized variant legality, because a
+  disabled plugin cannot own fresh legality decisions for existing IR;
+- call only the origin plugin's `verifyVariantLegality` hook, never every
+  plugin in the registry;
+- wrap plugin-local failures with generic context naming the plugin, variant,
+  and kernel;
+- when verifying a kernel, visit direct `tcrv.exec.variant` children in IR order
+  and do not mutate materialization, dispatch, selection, lowering, or emission
+  structures;
+- keep legality orchestration generic and free of RVV, IME, offload, scalar,
+  vendor, dtype, shape, layout, or target-family branches.
 
 ## Registration Metadata
 

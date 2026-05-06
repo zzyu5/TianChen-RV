@@ -54,6 +54,24 @@ private:
   const support::TargetCapabilitySet &capabilities;
 };
 
+class VariantLegalityRequest {
+public:
+  VariantLegalityRequest(tcrv::exec::VariantOp variant,
+                         tcrv::exec::KernelOp kernel,
+                         const support::TargetCapabilitySet &capabilities);
+
+  tcrv::exec::VariantOp getVariant() const { return variant; }
+  tcrv::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+
+private:
+  tcrv::exec::VariantOp variant;
+  tcrv::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+};
+
 class VariantProposal {
 public:
   VariantProposal() = default;
@@ -106,6 +124,8 @@ public:
   virtual llvm::Error
   proposeVariants(const VariantProposalRequest &request,
                   llvm::SmallVectorImpl<VariantProposal> &out) const;
+  virtual llvm::Error
+  verifyVariantLegality(const VariantLegalityRequest &request) const;
 };
 
 class ExtensionPluginRegistry {
@@ -138,6 +158,13 @@ public:
   llvm::Error
   collectVariantProposals(const VariantProposalRequest &request,
                           llvm::SmallVectorImpl<VariantProposal> &out) const;
+  llvm::Error verifyVariantLegality(
+      const VariantLegalityRequest &request) const;
+  llvm::Error verifyKernelVariantLegality(tcrv::exec::KernelOp kernel) const;
+  llvm::Error
+  verifyKernelVariantLegality(
+      tcrv::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities) const;
 
 private:
   llvm::Error validateVariantProposal(const VariantProposalRequest &request,

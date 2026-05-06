@@ -153,6 +153,34 @@ linalg.matmul
   -> @fallback variant
 ```
 
+## Generic Materialized Variant Legality Routing
+
+After variants are materialized and before cost/tuning/lowering/emission, the
+core registry may orchestrate plugin-local legality verification for real
+`tcrv.exec.variant` IR.
+
+The first C++/MLIR legality routing contract is:
+
+- build or receive the generic `TargetCapabilitySet` from the enclosing
+  `tcrv.exec.kernel`;
+- create a `VariantLegalityRequest` containing the materialized
+  `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, and that capability
+  set;
+- route the request only to the plugin named by the variant `origin` attribute;
+- reject missing variants, missing kernels, missing or empty origins, unknown
+  origin plugins, and disabled origin plugins with generic diagnostics;
+- propagate plugin-local legality failures while wrapping them with plugin,
+  variant, and kernel context;
+- verify direct variants in kernel IR order when checking a whole kernel;
+- leave proposal collection, materialization, dispatch synthesis, selection,
+  tuning, lowering, and emission as separate pipeline responsibilities.
+
+This routing layer complements `--tcrv-check-capability-requires`. The generic
+capability pass continues to check availability and dispatch/fallback guarding;
+plugin legality checks extension-owned body details through plugin interfaces.
+Core legality orchestration must not hard-code RVV, IME, offload, scalar
+fallback, vendor, dtype, shape, layout, or target-family semantics.
+
 ## Variant IR Required Fields
 
 Each variant must include:

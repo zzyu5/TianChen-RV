@@ -1,6 +1,8 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -10,6 +12,8 @@
 namespace tianchenrv::plugin {
 namespace {
 
+constexpr llvm::StringLiteral kOriginAttrName("origin");
+
 bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
 }
@@ -17,6 +21,33 @@ bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
 llvm::Error makePluginRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       message, llvm::errc::invalid_argument);
+}
+
+void appendVariantLegalityContext(llvm::raw_ostream &stream,
+                                  tcrv::exec::VariantOp variant,
+                                  tcrv::exec::KernelOp kernel) {
+  stream << "variant ";
+  if (variant)
+    stream << "@" << variant.getSymName();
+  else
+    stream << "<missing>";
+
+  stream << " in kernel ";
+  if (kernel)
+    stream << "@" << kernel.getSymName();
+  else
+    stream << "<missing>";
+}
+
+llvm::Error makeVariantLegalityError(tcrv::exec::VariantOp variant,
+                                     tcrv::exec::KernelOp kernel,
+                                     llvm::Twine message) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "TianChen-RV variant legality verification failed for ";
+  appendVariantLegalityContext(stream, variant, kernel);
+  stream << ": " << message;
+  return makePluginRegistryError(stream.str());
 }
 
 llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
@@ -59,6 +90,11 @@ VariantProposalRequest::VariantProposalRequest(
     const support::TargetCapabilitySet &capabilities)
     : highLevelOp(highLevelOp), kernel(kernel), capabilities(capabilities) {}
 
+VariantLegalityRequest::VariantLegalityRequest(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities)
+    : variant(variant), kernel(kernel), capabilities(capabilities) {}
+
 VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
     : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
@@ -74,6 +110,12 @@ llvm::Error ExtensionPlugin::proposeVariants(
     llvm::SmallVectorImpl<VariantProposal> &out) const {
   (void)request;
   (void)out;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::verifyVariantLegality(
+    const VariantLegalityRequest &request) const {
+  (void)request;
   return llvm::Error::success();
 }
 
@@ -191,6 +233,95 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
     }
 
     out.append(pluginProposals.begin(), pluginProposals.end());
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::verifyVariantLegality(
+    const VariantLegalityRequest &request) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+
+  if (!variant)
+    return makeVariantLegalityError(
+        variant, kernel, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantLegalityError(
+        variant, kernel, "requires an enclosing tcrv.exec.kernel");
+
+  tcrv::exec::KernelOp actualKernel =
+      variant->getParentOfType<tcrv::exec::KernelOp>();
+  if (!actualKernel ||
+      actualKernel.getOperation() != kernel.getOperation()) {
+    return makeVariantLegalityError(
+        variant, kernel,
+        "variant is not enclosed by the request tcrv.exec.kernel");
+  }
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantLegalityError(
+        variant, kernel,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantLegalityError(
+        variant, kernel,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantLegalityError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  if (llvm::Error error = plugin->verifyVariantLegality(request)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantLegalityError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' rejected variant: " + pluginMessage);
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
+    tcrv::exec::KernelOp kernel) const {
+  if (!kernel)
+    return makeVariantLegalityError(tcrv::exec::VariantOp(), kernel,
+                                    "requires a tcrv.exec.kernel");
+
+  support::TargetCapabilitySet capabilities =
+      support::TargetCapabilitySet::buildFromKernel(kernel);
+  return verifyKernelVariantLegality(kernel, capabilities);
+}
+
+llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
+    tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities) const {
+  if (!kernel)
+    return makeVariantLegalityError(tcrv::exec::VariantOp(), kernel,
+                                    "requires a tcrv.exec.kernel");
+
+  if (kernel.getBody().empty())
+    return makeVariantLegalityError(
+        tcrv::exec::VariantOp(), kernel,
+        "requires kernel to have a materialized body block");
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (!variant)
+      continue;
+
+    VariantLegalityRequest request(variant, kernel, capabilities);
+    if (llvm::Error error = verifyVariantLegality(request))
+      return error;
   }
 
   return llvm::Error::success();
