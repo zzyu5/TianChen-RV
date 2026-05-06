@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for stack, tcrv.exec boundary, plugin locality, hardware evidence, and Python boundary."}
+{"file": ".trellis/spec/architecture/index.md", "reason": "System positioning and forbidden high-level compute IR drift for the initial compiler skeleton."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Hardware truth and non-goals that must shape diagnostics and README wording."}
+{"file": ".trellis/spec/core-dialect/index.md", "reason": "Core dialect scope before adding the first tcrv.exec ODS slice."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Allowed tcrv.exec concepts and prohibited concrete computation ownership."}
+{"file": ".trellis/spec/capability-model/index.md", "reason": "Capability-driven decision object requirements that the skeleton must prepare for without string-only substitutes."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin registry/interface direction to preserve while bootstrapping core code."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Required C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck stack and Python tooling boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "lit/FileCheck and diagnostic expectations for the first smoke test."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Evidence discipline, especially avoiding RVV runtime claims without ssh rvv evidence."}

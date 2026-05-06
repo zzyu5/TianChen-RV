@@ -1,0 +1,8 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+config.tianchenrv_src_root = path("@TIANCHENRV_SOURCE_DIR@")
+config.tianchenrv_obj_root = path("@TIANCHENRV_BINARY_DIR@")
+config.tianchenrv_tools_dir = path("@LLVM_RUNTIME_OUTPUT_INTDIR@")
+config.llvm_tools_dir = path("@LLVM_TOOLS_BINARY_DIR@")
+
+lit_config.load_config(config, "@TIANCHENRV_SOURCE_DIR@/test/lit.cfg.py")
