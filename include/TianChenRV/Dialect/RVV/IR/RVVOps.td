@@ -2,6 +2,7 @@
 #define TIANCHENRV_DIALECT_RVV_IR_RVVOPS_TD
 
 include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
 def TCRV_RVV_Dialect : Dialect {
@@ -22,11 +23,56 @@ def TCRV_RVV_Dialect : Dialect {
   }];
 
   let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
 }
 
 class TCRVRVV_Type<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<TCRV_RVV_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
+}
+
+class TCRVRVV_Attr<string name, string attrMnemonic, list<Trait> traits = []>
+    : AttrDef<TCRV_RVV_Dialect, name, traits> {
+  let mnemonic = attrMnemonic;
+}
+
+def TCRVRVV_TailAgnostic
+    : I32EnumAttrCase<"Agnostic", 0, "agnostic">;
+def TCRVRVV_TailUndisturbed
+    : I32EnumAttrCase<"Undisturbed", 1, "undisturbed">;
+
+def TCRVRVV_TailPolicy : I32EnumAttr<
+    "TailPolicy", "finite RVV tail element policy",
+    [TCRVRVV_TailAgnostic, TCRVRVV_TailUndisturbed]> {
+  let cppNamespace = "::tianchenrv::tcrv::rvv";
+}
+
+def TCRVRVV_MaskAgnostic
+    : I32EnumAttrCase<"Agnostic", 0, "agnostic">;
+def TCRVRVV_MaskUndisturbed
+    : I32EnumAttrCase<"Undisturbed", 1, "undisturbed">;
+
+def TCRVRVV_MaskPolicy : I32EnumAttr<
+    "MaskPolicy", "finite RVV inactive mask lane policy",
+    [TCRVRVV_MaskAgnostic, TCRVRVV_MaskUndisturbed]> {
+  let cppNamespace = "::tianchenrv::tcrv::rvv";
+}
+
+def TCRVRVV_PolicyAttr : TCRVRVV_Attr<"Policy", "policy"> {
+  let summary = "RVV non-compute tail and mask policy metadata";
+  let description = [{
+    Finite plugin-owned policy metadata for RVV proposal/materialization
+    bookkeeping. This attribute records explicit tail and mask behavior only:
+    tail agnostic or undisturbed, and mask agnostic or undisturbed. It does not
+    model vector arithmetic, memory behavior, lowering, runtime ABI, executable
+    correctness, or performance.
+  }];
+
+  let parameters = (ins
+    EnumParameter<TCRVRVV_TailPolicy>:$tail,
+    EnumParameter<TCRVRVV_MaskPolicy>:$mask
+  );
+  let assemblyFormat = "`<` `tail` `=` $tail `,` `mask` `=` $mask `>`";
 }
 
 def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {

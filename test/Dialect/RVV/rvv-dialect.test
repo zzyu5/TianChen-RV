@@ -1,3 +1,4 @@
 # RUN: tianchenrv-rvv-dialect-test | FileCheck %s
 
+# CHECK: RVV typed policy attribute round trip preserved
 # CHECK: RVV dialect registration smoke test passed

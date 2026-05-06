@@ -1,4 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -30,6 +31,9 @@ using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::rvv::MaskPolicy;
+using tianchenrv::tcrv::rvv::PolicyAttr;
+using tianchenrv::tcrv::rvv::TailPolicy;
 using tianchenrv::transforms::VariantSelectionKind;
 using tianchenrv::transforms::VariantSelectionPlan;
 
@@ -100,6 +104,31 @@ int expectErrorContains(llvm::Error error,
                   "': " + message);
   }
   return 0;
+}
+
+int expectRVVPolicyAttr(mlir::Attribute attribute, TailPolicy expectedTail,
+                        MaskPolicy expectedMask) {
+  auto policy = llvm::dyn_cast_if_present<PolicyAttr>(attribute);
+  if (int result =
+          expect(static_cast<bool>(policy),
+                 "RVV policy metadata is a typed #tcrv_rvv.policy attribute"))
+    return result;
+  if (int result = expect(policy.getTail() == expectedTail,
+                          "RVV policy tail metadata matches expectation"))
+    return result;
+  return expect(policy.getMask() == expectedMask,
+                "RVV policy mask metadata matches expectation");
+}
+
+int expectStringAttr(mlir::Operation *operation, llvm::StringRef attrName,
+                     llvm::StringRef expectedValue) {
+  auto attr = operation->getAttrOfType<mlir::StringAttr>(attrName);
+  if (int result = expect(static_cast<bool>(attr),
+                          llvm::Twine("expected string attribute ") + attrName))
+    return result;
+  return expect(attr.getValue() == expectedValue,
+                llvm::Twine("string attribute ") + attrName +
+                    " preserves expected value");
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
@@ -313,6 +342,20 @@ module {
                      !proposals[0].getPolicy().empty(),
                  "RVV proposal has deterministic plugin-owned metadata"))
     return result;
+  llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
+      proposals[0].getPluginAttributes();
+  if (int result =
+          expect(proposalAttributes.size() == 1,
+                 "RVV proposal carries one plugin-owned typed attribute"))
+    return result;
+  if (int result = expect(proposalAttributes[0].getName().getValue() ==
+                              tianchenrv::plugin::rvv::getRVVPolicyAttrName(),
+                          "RVV proposal attribute name is tcrv_rvv.policy"))
+    return result;
+  if (int result = expectRVVPolicyAttr(proposalAttributes[0].getValue(),
+                                       TailPolicy::Agnostic,
+                                       MaskPolicy::Agnostic))
+    return result;
 
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
@@ -328,10 +371,17 @@ module {
   VariantOp variant = materializedVariants[0];
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>("origin");
   auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  auto rvvPolicyAttr =
+      variant->getAttr(tianchenrv::plugin::rvv::getRVVPolicyAttrName());
   if (int result =
           expect(originAttr && originAttr.getValue() == "rvv-plugin" &&
-                     requiresAttr && requiresAttr.size() == 1,
-                 "materialized RVV variant has typed origin and requires"))
+                     requiresAttr && requiresAttr.size() == 1 &&
+                     static_cast<bool>(rvvPolicyAttr),
+                 "materialized RVV variant has typed origin, requires, and "
+                 "plugin-owned policy"))
+    return result;
+  if (int result = expectRVVPolicyAttr(rvvPolicyAttr, TailPolicy::Agnostic,
+                                       MaskPolicy::Agnostic))
     return result;
   auto requiredSymbol =
       llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiresAttr[0]);
@@ -347,6 +397,10 @@ module {
           expectSuccess(registry.verifyKernelVariantLegality(kernel,
                                                              capabilities),
                         "RVV plugin legality accepts materialized variant"))
+    return result;
+  if (int result =
+          expectStringAttr(variant.getOperation(), "policy",
+                           "metadata_only_first_slice"))
     return result;
 
   mlir::PassManager passManager(&context);
@@ -380,6 +434,87 @@ module {
     return fail("empty registry unexpectedly planned an RVV-origin variant");
   if (int result = expectErrorContains(
           emptyPlan.takeError(), {"unknown origin plugin", "rvv-plugin"}))
+    return result;
+
+  return 0;
+}
+
+int runRVVPolicyLegalityRejectionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_policy_legality attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @missing_policy attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice"
+    } {
+    }
+    tcrv.exec.variant @wrong_type_policy attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = "not_a_typed_policy"
+    } {
+    }
+    tcrv.exec.variant @inconsistent_policy attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = undisturbed, mask = agnostic>
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV policy legality rejection module");
+
+  KernelOp kernel = findKernel(*module, "rvv_policy_legality");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for policy legality negatives"))
+    return result;
+
+  VariantOp missingPolicy;
+  VariantOp wrongTypePolicy;
+  VariantOp inconsistentPolicy;
+  kernel->walk([&](VariantOp variant) {
+    if (variant.getSymName() == "missing_policy")
+      missingPolicy = variant;
+    if (variant.getSymName() == "wrong_type_policy")
+      wrongTypePolicy = variant;
+    if (variant.getSymName() == "inconsistent_policy")
+      inconsistentPolicy = variant;
+  });
+
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(
+              tianchenrv::plugin::VariantLegalityRequest(missingPolicy, kernel,
+                                                         capabilities)),
+          {"tcrv_rvv.policy", "requires typed"}))
+    return result;
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(
+              tianchenrv::plugin::VariantLegalityRequest(wrongTypePolicy,
+                                                         kernel, capabilities)),
+          {"tcrv_rvv.policy", "#tcrv_rvv.policy"}))
+    return result;
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(
+              tianchenrv::plugin::VariantLegalityRequest(
+                  inconsistentPolicy, kernel, capabilities)),
+          {"tcrv_rvv.policy", "agnostic tail/mask"}))
     return result;
 
   return 0;
@@ -436,7 +571,14 @@ int main() {
     return result;
 
   mlir::DialectRegistry dialectRegistry;
+  ExtensionPluginRegistry dialectPlugins;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(
+                            dialectPlugins),
+                        "register RVV plugin for dialect context"))
+    return result;
   tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
   dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);
@@ -445,6 +587,8 @@ int main() {
   if (int result = runMissingAndUnavailableProposalTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
+    return result;
+  if (int result = runRVVPolicyLegalityRejectionTest(context))
     return result;
   if (int result = runMalformedProposalRejectionTest(context))
     return result;

@@ -3,11 +3,14 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <string>
 
@@ -70,6 +73,86 @@ llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
       llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
       "' produced invalid variant proposal '" + proposal.getVariantName() +
       "': " + message);
+}
+
+bool isCoreVariantAttributeName(llvm::StringRef name) {
+  return name == "sym_name" || name == "origin" || name == "requires" ||
+         name == "condition" || name == "guard" || name == "policy";
+}
+
+bool isValidPluginAttributeNameSegment(llvm::StringRef segment) {
+  if (segment.empty())
+    return false;
+
+  auto isFirst = [](char character) {
+    unsigned char value = static_cast<unsigned char>(character);
+    return std::isalpha(value) || character == '_';
+  };
+  auto isRest = [](char character) {
+    unsigned char value = static_cast<unsigned char>(character);
+    return std::isalnum(value) || character == '_' || character == '$';
+  };
+
+  if (!isFirst(segment.front()))
+    return false;
+
+  for (char character : segment.drop_front()) {
+    if (!isRest(character))
+      return false;
+  }
+  return true;
+}
+
+bool isValidPluginAttributeName(llvm::StringRef name) {
+  if (name.empty() || name.trim() != name || !name.contains('.'))
+    return false;
+
+  llvm::SmallVector<llvm::StringRef, 4> segments;
+  name.split(segments, '.');
+  if (segments.size() < 2)
+    return false;
+
+  return llvm::all_of(segments, isValidPluginAttributeNameSegment);
+}
+
+llvm::Error validateProposalPluginAttributes(const ExtensionPlugin &plugin,
+                                             const VariantProposal &proposal) {
+  llvm::StringSet<> seenAttributeNames;
+  for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
+    if (!attribute.getName())
+      return makeVariantProposalError(
+          plugin, proposal, "plugin-owned attribute name must be non-empty");
+
+    llvm::StringRef name = attribute.getName().getValue();
+    if (name.empty())
+      return makeVariantProposalError(
+          plugin, proposal, "plugin-owned attribute name must be non-empty");
+
+    if (!attribute.getValue())
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("plugin-owned attribute '") + name +
+              "' must have a non-null MLIR attribute value");
+
+    if (isCoreVariantAttributeName(name))
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("plugin-owned attribute '") + name +
+              "' collides with required tcrv.exec.variant attribute");
+
+    if (!isValidPluginAttributeName(name))
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("plugin-owned attribute '") + name +
+              "' must be a dialect-qualified discardable attribute name");
+
+    if (!seenAttributeNames.insert(name).second)
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("duplicate plugin-owned attribute '") + name + "'");
+  }
+
+  return llvm::Error::success();
 }
 
 std::string
@@ -550,6 +633,9 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
           llvm::Twine("requires unavailable capability symbol @") +
               requiredSymbol + " " + describeCapabilityBySymbol(*capability));
   }
+
+  if (llvm::Error error = validateProposalPluginAttributes(plugin, proposal))
+    return error;
 
   return llvm::Error::success();
 }

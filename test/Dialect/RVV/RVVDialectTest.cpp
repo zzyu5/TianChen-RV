@@ -1,4 +1,5 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
@@ -14,7 +15,11 @@
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::rvv::MaskPolicy;
+using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::TCRVRVVDialect;
+using tianchenrv::tcrv::rvv::TailPolicy;
 using tianchenrv::tcrv::rvv::VLType;
 
 namespace {
@@ -88,6 +93,35 @@ int expectRVVTypeResult(mlir::ModuleOp module) {
                 "type-bearing op result is !tcrv_rvv.vl");
 }
 
+VariantOp findVariant(mlir::ModuleOp module, llvm::StringRef name) {
+  VariantOp variant;
+  module.walk([&](VariantOp candidate) {
+    if (candidate.getSymName() == name)
+      variant = candidate;
+  });
+  return variant;
+}
+
+int expectRVVPolicyAttr(VariantOp variant, TailPolicy expectedTail,
+                        MaskPolicy expectedMask) {
+  if (int result =
+          expect(static_cast<bool>(variant),
+                 "module contains typed tcrv.exec.variant for RVV policy"))
+    return result;
+
+  auto policy =
+      variant->getAttrOfType<PolicyAttr>(
+          tianchenrv::plugin::rvv::getRVVPolicyAttrName());
+  if (int result = expect(static_cast<bool>(policy),
+                          "variant carries typed #tcrv_rvv.policy metadata"))
+    return result;
+  if (int result = expect(policy.getTail() == expectedTail,
+                          "typed RVV policy tail value is preserved"))
+    return result;
+  return expect(policy.getMask() == expectedMask,
+                "typed RVV policy mask value is preserved");
+}
+
 int runPluginDialectRegistrationRoundTripTest() {
   ExtensionPluginRegistry plugins;
   if (int result = expectSuccess(
@@ -133,6 +167,71 @@ module {
   if (!reparsed)
     return fail("failed to reparse printed !tcrv_rvv.vl module");
   return expectRVVTypeResult(*reparsed);
+}
+
+int runPolicyAttributeRoundTripTest() {
+  ExtensionPluginRegistry plugins;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+          "register RVV extension plugin for policy attribute round trip"))
+    return result;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @policy_roundtrip attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse typed RVV policy attribute IR");
+  if (int result = expectRVVPolicyAttr(
+          findVariant(*module, "rvv_first_slice"), TailPolicy::Agnostic,
+          MaskPolicy::Agnostic))
+    return result;
+
+  std::string printedStorage;
+  llvm::raw_string_ostream printedStream(printedStorage);
+  module->print(printedStream);
+  printedStream.flush();
+  if (int result =
+          expect(llvm::StringRef(printedStorage).contains("tcrv_rvv.policy") &&
+                     llvm::StringRef(printedStorage)
+                         .contains("#tcrv_rvv.policy"),
+                 "printed module preserves typed RVV policy attribute syntax"))
+    return result;
+
+  mlir::OwningOpRef<mlir::ModuleOp> reparsed =
+      parseModule(context, printedStorage);
+  if (!reparsed)
+    return fail("failed to reparse printed typed RVV policy attribute IR");
+  if (int result = expectRVVPolicyAttr(
+          findVariant(*reparsed, "rvv_first_slice"), TailPolicy::Agnostic,
+          MaskPolicy::Agnostic))
+    return result;
+
+  llvm::outs() << "RVV typed policy attribute round trip preserved\n";
+  return 0;
 }
 
 int runDefaultCoreDoesNotRegisterRVVDialectTest() {
@@ -213,16 +312,51 @@ module {
   return expect(!module, "unknown !tcrv_rvv type syntax is rejected");
 }
 
+int runMalformedRVVPolicySyntaxTest() {
+  ExtensionPluginRegistry plugins;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+          "register RVV plugin for malformed policy test"))
+    return result;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @bad_policy attributes {} {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = invalid, mask = agnostic>
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModuleExpectingFailure(context, source);
+  return expect(!module, "malformed #tcrv_rvv.policy syntax is rejected");
+}
+
 } // namespace
 
 int main() {
   if (int result = runPluginDialectRegistrationRoundTripTest())
+    return result;
+  if (int result = runPolicyAttributeRoundTripTest())
     return result;
   if (int result = runDefaultCoreDoesNotRegisterRVVDialectTest())
     return result;
   if (int result = runDisabledPluginDoesNotRegisterDialectTest())
     return result;
   if (int result = runMalformedRVVTypeSyntaxTest())
+    return result;
+  if (int result = runMalformedRVVPolicySyntaxTest())
     return result;
 
   llvm::outs() << "RVV dialect registration smoke test passed\n";

@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -15,6 +16,7 @@ constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
+constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
@@ -59,6 +61,37 @@ variantRequiresRVV(tcrv::exec::VariantOp variant,
   return false;
 }
 
+mlir::StringAttr getRVVPolicyAttrNameAttr(mlir::MLIRContext *context) {
+  return mlir::StringAttr::get(context, kRVVPolicyAttrName);
+}
+
+tcrv::rvv::PolicyAttr getExpectedRVVPolicyAttr(mlir::MLIRContext *context) {
+  return tcrv::rvv::PolicyAttr::get(context, tcrv::rvv::TailPolicy::Agnostic,
+                                    tcrv::rvv::MaskPolicy::Agnostic);
+}
+
+llvm::Error verifyExpectedRVVPolicyAttr(tcrv::exec::VariantOp variant) {
+  mlir::Attribute rawPolicy = variant->getAttr(kRVVPolicyAttrName);
+  if (!rawPolicy)
+    return makeRVVPluginError(
+        "materialized RVV variant requires typed 'tcrv_rvv.policy' metadata");
+
+  auto policy = llvm::dyn_cast<tcrv::rvv::PolicyAttr>(rawPolicy);
+  if (!policy)
+    return makeRVVPluginError(
+        "materialized RVV variant 'tcrv_rvv.policy' metadata must be a typed "
+        "#tcrv_rvv.policy attribute");
+
+  if (policy.getTail() != tcrv::rvv::TailPolicy::Agnostic ||
+      policy.getMask() != tcrv::rvv::MaskPolicy::Agnostic) {
+    return makeRVVPluginError(
+        "materialized RVV variant 'tcrv_rvv.policy' metadata must match the "
+        "RVV first-slice agnostic tail/mask policy");
+  }
+
+  return llvm::Error::success();
+}
+
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
   static const rvv::RVVExtensionPlugin plugin;
   return plugin;
@@ -83,6 +116,8 @@ llvm::StringRef getRVVPreferredCapabilitySymbol() {
 llvm::StringRef getRVVFirstSliceVariantName() {
   return kRVVFirstSliceVariantName;
 }
+
+llvm::StringRef getRVVPolicyAttrName() { return kRVVPolicyAttrName; }
 
 RVVExtensionPlugin::RVVExtensionPlugin() {
   capabilities.push_back(PluginCapability(
@@ -125,6 +160,9 @@ llvm::Error RVVExtensionPlugin::proposeVariants(
   proposal.setCondition("capability_available");
   proposal.setGuard("plugin_local_rvv_first_slice");
   proposal.setPolicy("metadata_only_first_slice");
+  proposal.addPluginAttribute(
+      getRVVPolicyAttrNameAttr(request.getKernel()->getContext()),
+      getExpectedRVVPolicyAttr(request.getKernel()->getContext()));
   out.push_back(proposal);
   return llvm::Error::success();
 }
@@ -154,6 +192,9 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
   if (!*requiresRVV)
     return makeRVVPluginError(
         "materialized RVV variant must require capability id 'rvv'");
+
+  if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
+    return error;
 
   return llvm::Error::success();
 }

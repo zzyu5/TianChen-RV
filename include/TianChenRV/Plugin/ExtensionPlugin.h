@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 
+#include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -106,6 +107,9 @@ public:
   llvm::StringRef getCondition() const { return condition; }
   llvm::StringRef getGuard() const { return guard; }
   llvm::StringRef getPolicy() const { return policy; }
+  llvm::ArrayRef<mlir::NamedAttribute> getPluginAttributes() const {
+    return pluginAttributes;
+  }
 
   void setVariantName(llvm::StringRef name) { variantName = name.str(); }
   void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
@@ -118,6 +122,12 @@ public:
   void setCondition(llvm::StringRef value) { condition = value.str(); }
   void setGuard(llvm::StringRef value) { guard = value.str(); }
   void setPolicy(llvm::StringRef value) { policy = value.str(); }
+  void addPluginAttribute(mlir::NamedAttribute attribute) {
+    pluginAttributes.push_back(attribute);
+  }
+  void addPluginAttribute(mlir::StringAttr name, mlir::Attribute value) {
+    addPluginAttribute(mlir::NamedAttribute(name, value));
+  }
 
 private:
   std::string variantName;
@@ -127,6 +137,7 @@ private:
   std::string condition;
   std::string guard;
   std::string policy;
+  llvm::SmallVector<mlir::NamedAttribute, 4> pluginAttributes;
 };
 
 class VariantCostEstimate {

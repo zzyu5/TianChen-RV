@@ -74,7 +74,10 @@ The first C++ interface slice may collect proposal metadata objects before
 materializing textual IR. Each proposal must still be directly mappable to
 `tcrv.exec.variant` and dispatch metadata: variant symbol/name, origin plugin,
 required capability ids or symbol references, and optional generic
-condition/guard/policy metadata. Proposal collection is orchestration only; it
+condition/guard/policy metadata. A proposal may also carry plugin-owned MLIR
+attributes as a generic named-attribute bag, but those names must be
+dialect-qualified/discardable and must not collide with required
+`tcrv.exec.variant` attributes. Proposal collection is orchestration only; it
 does not select variants, run tuning, lower extension ops, emit runtime glue, or
 rewrite IR. Registry orchestration must still validate that any proposal
 required capability ids or symbol references are non-empty, known to the request
@@ -99,9 +102,14 @@ The materialization slice is intentionally bounded:
 - it attaches only generic metadata supported by the current `tcrv.exec` ODS
   contract, such as variant symbol/name, origin plugin, `requires`, and
   non-empty generic `condition`/`guard`/`policy` decision metadata;
+- it preserves plugin-owned dialect-qualified named attributes from the proposal
+  onto the materialized `tcrv.exec.variant` as opaque MLIR attributes, after
+  generic validation and without interpreting target-family semantics;
 - it diagnoses malformed input before mutating IR when practical, including
   missing kernel anchors, duplicate variant symbols, invalid variant names,
-  empty origins, and unresolved capability ids or symbols.
+  empty origins, unresolved capability ids or symbols, duplicate plugin-owned
+  attributes, malformed plugin-owned attribute names, and collisions with core
+  variant attributes.
 
 This helper does not select variants, build dispatch, run tuning, lower
 extension dialects, emit runtime glue, or implement extension-specific

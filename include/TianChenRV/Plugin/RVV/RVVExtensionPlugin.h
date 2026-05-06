@@ -13,6 +13,7 @@ llvm::StringRef getRVVCapabilityID();
 llvm::StringRef getRVVCapabilityKind();
 llvm::StringRef getRVVPreferredCapabilitySymbol();
 llvm::StringRef getRVVFirstSliceVariantName();
+llvm::StringRef getRVVPolicyAttrName();
 
 class RVVExtensionPlugin final : public ExtensionPlugin {
 public:

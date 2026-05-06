@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Primary C++/MLIR/TableGen/CMake/lit stack boundary for compiler internals."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Core architecture boundary and no-new-high-level-IR constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec remains execution/capability/variant/dispatch/fallback focused and compute-free."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "ExtensionPluginRegistry and VariantProposal interface/locality requirements."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-owned metadata must remain local and not become core target-family logic."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local dialect surface and no hardware/runtime claim boundary."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal materialization, legality, selection, and dispatch metadata contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck validation policy."}

@@ -258,6 +258,9 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
   first.addRequiredCapabilityID("generic.alpha");
   first.setCondition("generic_condition_for_future_dispatch");
   first.setGuard("generic_guard_for_future_dispatch");
+  first.addPluginAttribute(
+      mlir::StringAttr::get(&context, "plugin_test.policy"),
+      mlir::StringAttr::get(&context, "opaque_plugin_metadata"));
 
   VariantProposal second = makeProposal("second_path", "second-plugin");
   second.addRequiredCapabilitySymbol("generic_beta");
@@ -310,6 +313,10 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
   if (int result = expectStringAttr(
           materializedVariants[0], "guard",
           "generic_guard_for_future_dispatch"))
+    return result;
+  if (int result =
+          expectStringAttr(materializedVariants[0], "plugin_test.policy",
+                           "opaque_plugin_metadata"))
     return result;
   if (int result = expectStringAttr(
           materializedVariants[1], "policy",
@@ -441,6 +448,64 @@ int runNegativeMaterializationTests(mlir::MLIRContext &context) {
     if (int result = expectDirectMaterializationError(
             context, proposal, {"empty_origin_path",
                                 "origin plugin must be non-empty"}))
+      return result;
+  }
+
+  {
+    VariantProposal proposal = makeProposal("colliding_attr_path",
+                                            "colliding-attr-origin");
+    proposal.addRequiredCapabilityID("generic.alpha");
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(&context, "origin"),
+        mlir::StringAttr::get(&context, "must_not_override_core_origin"));
+    if (int result = expectDirectMaterializationError(
+            context, proposal,
+            {"colliding_attr_path", "origin", "collides",
+             "tcrv.exec.variant"}))
+      return result;
+  }
+
+  {
+    VariantProposal proposal =
+        makeProposal("duplicate_attr_path", "duplicate-attr-origin");
+    proposal.addRequiredCapabilityID("generic.alpha");
+    mlir::StringAttr name =
+        mlir::StringAttr::get(&context, "plugin_test.policy");
+    proposal.addPluginAttribute(
+        name, mlir::StringAttr::get(&context, "first_value"));
+    proposal.addPluginAttribute(
+        name, mlir::StringAttr::get(&context, "second_value"));
+    if (int result = expectDirectMaterializationError(
+            context, proposal,
+            {"duplicate_attr_path", "duplicate plugin-owned attribute",
+             "plugin_test.policy"}))
+      return result;
+  }
+
+  {
+    VariantProposal proposal =
+        makeProposal("malformed_attr_path", "malformed-attr-origin");
+    proposal.addRequiredCapabilityID("generic.alpha");
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(&context, "not_qualified"),
+        mlir::StringAttr::get(&context, "bad_name"));
+    if (int result = expectDirectMaterializationError(
+            context, proposal,
+            {"malformed_attr_path", "not_qualified",
+             "dialect-qualified discardable"}))
+      return result;
+  }
+
+  {
+    VariantProposal proposal =
+        makeProposal("empty_attr_path", "empty-attr-origin");
+    proposal.addRequiredCapabilityID("generic.alpha");
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(&context, ""),
+        mlir::StringAttr::get(&context, "empty_name"));
+    if (int result = expectDirectMaterializationError(
+            context, proposal,
+            {"empty_attr_path", "attribute name must be non-empty"}))
       return result;
   }
 

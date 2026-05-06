@@ -243,6 +243,14 @@ The registry-level first slice provides deterministic proposal orchestration:
 - reject empty, unknown, or unavailable proposal requirements with structured
   generic diagnostics that name the plugin, variant, requirement, and capability
   status;
+- reject malformed plugin-owned proposal attributes before materialization,
+  including empty names, non-dialect-qualified/discardable names, duplicate
+  names, null values, and collisions with required `tcrv.exec.variant`
+  attributes such as `sym_name`, `origin`, `requires`, `condition`, `guard`, or
+  `policy`;
+- preserve valid plugin-owned MLIR attributes as opaque named attributes for
+  materialization without interpreting extension-family semantics in the
+  registry;
 - keep proposal collection generic and free of target-family branches.
 
 The registry-level legality slice provides deterministic materialized-variant
