@@ -227,6 +227,14 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - `requires = [@cap]` and `@cap` has `status = "unavailable"` -> pass fails.
 - `requires = [@cap]` and `@cap` has `status = "disabled"` -> pass fails.
 - `requires = [@cap]` and `@cap` has `status = "missing"` -> pass fails.
+- An unavailable requirement on a static variant not referenced by a structured
+  `tcrv.exec.case` -> pass fails.
+- An unavailable requirement on a `tcrv.exec.case` target may pass only when
+  that case carries at least one non-empty generic `condition`, `guard`, or
+  `policy`; the core pass records the guard but does not parse the string.
+- An unavailable requirement on a `tcrv.exec.fallback` target -> pass fails,
+  because fallback must remain generically executable under the same
+  `TargetCapabilitySet`.
 - malformed `requires` or unknown `@cap` -> existing `tcrv.exec` verifier owns
   the diagnostic, not the capability query pass.
 
@@ -234,6 +242,9 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 
 - Good: a runtime-offload or toolchain capability is declared generically and
   the pass rejects a requiring variant when it is disabled.
+- Good: a runtime-dispatch case can reference a generically unavailable
+  variant when the case has a generic guard and the fallback variant remains
+  available.
 - Base: a capability has no status field and is treated as present.
 - Bad: core code branches on target-family names such as RVV, IME, or Sophgo to
   decide generic requires availability.

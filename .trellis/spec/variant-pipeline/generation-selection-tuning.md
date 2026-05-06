@@ -185,6 +185,14 @@ declared variant. The core verifier checks dispatch/fallback completeness and
 symbol resolution only; it does not implement selection, cost modeling, tuning,
 or extension-specific condition semantics.
 
+Capability legality may treat a `tcrv.exec.case` as a runtime guard for an
+unavailable required capability only when the case carries at least one
+non-empty generic `condition`, `guard`, or `policy` attribute. The core pass
+does not parse those strings and must not switch on target families. A
+`tcrv.exec.fallback` target is different: it must be generically available under
+the same target capability set, so runtime dispatch always has an executable
+fallback path when guarded cases are unavailable.
+
 ## Capability-Aware Tuning
 
 Tuning has two layers.
