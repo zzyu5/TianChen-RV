@@ -53,6 +53,21 @@ target_link_libraries(tianchenrv-variant-materialization-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-variant-dispatch-synthesis-test
+  Transforms/VariantDispatchSynthesisTest.cpp
+)
+
+target_link_libraries(tianchenrv-variant-dispatch-synthesis-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVSupport
+  TianChenRVTransforms
+  MLIRIR
+  MLIRParser
+  MLIRPass
+  MLIRSupport
+)
+
 add_executable(tianchenrv-capability-model-test
   Support/CapabilityModelTest.cpp
 )
@@ -73,6 +88,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-capability-model-test
   tianchenrv-plugin-registry-test
   tianchenrv-plugin-variant-proposal-test
+  tianchenrv-variant-dispatch-synthesis-test
   tianchenrv-variant-materialization-test
   ARGS
   -sv

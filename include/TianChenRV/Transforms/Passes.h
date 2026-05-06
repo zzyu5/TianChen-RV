@@ -8,6 +8,7 @@
 namespace tianchenrv::transforms {
 
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
+std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
 
 #define GEN_PASS_DECL
 #include "TianChenRV/Transforms/Passes.h.inc"

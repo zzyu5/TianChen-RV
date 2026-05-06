@@ -23,4 +23,25 @@ def CheckCapabilityRequires
   ];
 }
 
+def SynthesizeVariantDispatch
+    : Pass<"tcrv-synthesize-variant-dispatch", "::mlir::ModuleOp"> {
+  let summary = "Synthesize generic tcrv.exec.dispatch from materialized variants";
+  let description = [{
+    Scans each tcrv.exec.kernel for direct sibling tcrv.exec.variant operations
+    and, when no dispatch already exists, builds one structurally valid
+    tcrv.exec.dispatch. The first direct variant whose requirements are
+    generically available under the kernel TargetCapabilitySet becomes the
+    fallback target. Remaining variants are emitted as deterministic dispatch
+    cases in original kernel order, with a non-empty generic policy attached to
+    cases whose requirements are unavailable and therefore require runtime
+    dispatch guarding. Kernels without a generically available fallback are
+    diagnosed and left unmodified.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createSynthesizeVariantDispatchPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

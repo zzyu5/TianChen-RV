@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify exec dispatch contract"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify no target-specific leakage"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify pipeline semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify test contract"}

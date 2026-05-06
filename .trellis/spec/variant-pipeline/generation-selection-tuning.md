@@ -106,6 +106,34 @@ This helper does not select variants, build dispatch, run tuning, lower
 extension dialects, emit runtime glue, or implement extension-specific
 semantics. Core materialization must remain free of target-family branches.
 
+## Generic Dispatch Synthesis
+
+After variants are already materialized, a bounded core C++/MLIR dispatch
+synthesis helper may organize sibling `tcrv.exec.variant` operations into a
+single `tcrv.exec.dispatch`. This slice consumes real MLIR ops and the generic
+`TargetCapabilitySet`; it does not collect plugin proposals, materialize new
+variants, tune, lower, emit, probe hardware, or interpret target-family
+semantics.
+
+The deterministic first-slice policy is:
+
+- scan direct `tcrv.exec.variant` children of each `tcrv.exec.kernel` in IR
+  order;
+- leave kernels with an existing direct `tcrv.exec.dispatch` unchanged rather
+  than creating competing dispatch ops;
+- choose the first direct variant whose `requires` are generically available as
+  the `tcrv.exec.fallback` target;
+- emit `tcrv.exec.case` entries for the remaining variants in original variant
+  order;
+- attach a non-empty generic `condition`, `guard`, or `policy` string to any
+  case whose target has unavailable required capabilities, so
+  `--tcrv-check-capability-requires` can treat it as runtime-guarded;
+- diagnose and leave IR unmodified when no direct variant is generically
+  available as an executable fallback.
+
+Dispatch synthesis must stay target-neutral. It must not branch on RVV, IME,
+offload, scalar fallback, vendors, accelerators, or any other target family.
+
 Example without IME:
 
 ```text

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "exec dispatch/variant/fallback contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin registry boundary"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin-locality invariant"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant-to-dispatch pipeline requirements"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability availability semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck expectations"}
