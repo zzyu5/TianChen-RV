@@ -18,5 +18,11 @@ llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
 tool_dirs = [config.tianchenrv_tools_dir, config.llvm_tools_dir]
 llvm_config.add_tool_substitutions(
-    ["tcrv-opt", "FileCheck", "tianchenrv-plugin-registry-test"], tool_dirs
+    [
+        "tcrv-opt",
+        "FileCheck",
+        "tianchenrv-capability-model-test",
+        "tianchenrv-plugin-registry-test",
+    ],
+    tool_dirs,
 )

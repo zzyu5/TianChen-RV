@@ -6,6 +6,7 @@ target_link_libraries(tcrv-opt
   PRIVATE
   TianChenRVInitAll
   TianChenRVExecDialect
+  TianChenRVTransforms
   MLIROptLib
   MLIRIR
   MLIRSupport

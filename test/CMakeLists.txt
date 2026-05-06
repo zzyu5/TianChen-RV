@@ -21,10 +21,24 @@ target_link_libraries(tianchenrv-plugin-registry-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-capability-model-test
+  Support/CapabilityModelTest.cpp
+)
+
+target_link_libraries(tianchenrv-capability-model-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVSupport
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
   tcrv-opt
+  tianchenrv-capability-model-test
   tianchenrv-plugin-registry-test
   ARGS
   -sv

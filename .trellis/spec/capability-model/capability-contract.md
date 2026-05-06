@@ -192,6 +192,77 @@ In that slice, `requires` is an `ArrayAttr` whose entries must be
 fields. Core verification checks structure and symbol resolution only; concrete
 extension legality stays plugin-owned.
 
+Capability query passes may also consume a generic string `status` attribute
+or, equivalently, a generic string `availability` attribute on
+`tcrv.exec.capability`. Missing status means present/available. The generic
+strings `unavailable`, `disabled`, and `missing` mean unavailable for core
+requires checks. Core code must not interpret concrete target-family status
+values; extension-specific availability semantics remain plugin-owned.
+
+## Generic Capability Query Contract
+
+### 1. Scope / Trigger
+
+Use this contract when a core C++ pass needs target-independent capability
+availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
+
+### 2. Signatures
+
+- Query API: `TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp)`.
+- Pass command: `--tcrv-check-capability-requires`.
+
+### 3. Contracts
+
+- Each query descriptor records capability symbol name, `id`, `kind`, generic
+  status, and available/unavailable state.
+- Lookup must be available by capability symbol name and by capability `id`.
+- Collection/query by `kind` must treat kind values as an open string set.
+- Missing generic status means available/present.
+- `status` takes precedence over `availability` when both are present.
+
+### 4. Validation & Error Matrix
+
+- `requires = [@cap]` and `@cap` has missing status -> pass succeeds.
+- `requires = [@cap]` and `@cap` has `status = "available"` -> pass succeeds.
+- `requires = [@cap]` and `@cap` has `status = "unavailable"` -> pass fails.
+- `requires = [@cap]` and `@cap` has `status = "disabled"` -> pass fails.
+- `requires = [@cap]` and `@cap` has `status = "missing"` -> pass fails.
+- malformed `requires` or unknown `@cap` -> existing `tcrv.exec` verifier owns
+  the diagnostic, not the capability query pass.
+
+### 5. Good/Base/Bad Cases
+
+- Good: a runtime-offload or toolchain capability is declared generically and
+  the pass rejects a requiring variant when it is disabled.
+- Base: a capability has no status field and is treated as present.
+- Bad: core code branches on target-family names such as RVV, IME, or Sophgo to
+  decide generic requires availability.
+
+### 6. Tests Required
+
+- lit/FileCheck positive test for available requirements.
+- lit/FileCheck negative test for declared-but-unavailable requirements.
+- C++ smoke coverage for symbol-name lookup, id lookup, kind collection, and
+  generic availability status handling when textual IR cannot directly assert
+  helper API behavior.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```cpp
+if (target.hasRVV()) { ... }
+```
+
+Correct:
+
+```cpp
+TargetCapabilitySet capabilities =
+    TargetCapabilitySet::buildFromKernel(kernel);
+if (!capabilities.isCapabilityAvailableBySymbolName(requiredSymbol))
+  variant.emitError() << "requires unavailable capability";
+```
+
 ### provide
 
 Plugin declares provided capabilities:
