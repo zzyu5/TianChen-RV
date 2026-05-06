@@ -30,6 +30,7 @@ constexpr llvm::StringLiteral kStaticSelectionKindValue("static-variant");
 constexpr llvm::StringLiteral kFallbackOnlySelectionKindValue("fallback-only");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
@@ -131,6 +132,19 @@ llvm::Error routeVariantEmissionReadiness(
   return registry.checkVariantEmissionReadiness(request, status);
 }
 
+llvm::Error routeVariantEmissionPlan(
+    KernelOp kernel, VariantOp variant, const TargetCapabilitySet &capabilities,
+    const ExtensionPluginRegistry &registry, VariantEmissionRole role,
+    llvm::SmallVectorImpl<VariantEmissionPlan> &out) {
+  VariantEmissionPlan plan;
+  VariantEmissionRequest request(variant, kernel, capabilities, role);
+  if (llvm::Error error = registry.buildVariantEmissionPlan(request, plan))
+    return error;
+
+  out.push_back(plan);
+  return llvm::Error::success();
+}
+
 bool isDirectSelectedPathMarkerCandidate(DiagnosticOp diagnostic) {
   if (!diagnostic)
     return false;
@@ -200,12 +214,11 @@ llvm::Error resolveSelectedMarkerTarget(
           "same kernel");
 }
 
-llvm::Error checkSelectedMarkerEmissionPath(
+llvm::Error collectSelectedMarkerEmissionReference(
     KernelOp kernel, DiagnosticOp diagnostic,
-    const TargetCapabilitySet &capabilities,
-    const ExtensionPluginRegistry &registry,
     const llvm::StringMap<VariantOp> &directVariants,
-    const llvm::StringMap<mlir::Operation *> &directSymbols) {
+    const llvm::StringMap<mlir::Operation *> &directSymbols,
+    llvm::SmallVectorImpl<EmissionReference> &references) {
   if (!diagnostic || !hasDirectParent(diagnostic.getOperation(), kernel))
     return makeEmissionPathError(
         kernel,
@@ -217,8 +230,9 @@ llvm::Error checkSelectedMarkerEmissionPath(
           kernel, diagnostic, directVariants, directSymbols, variant))
     return error;
 
-  return routeVariantEmissionReadiness(kernel, variant, capabilities, registry,
-                                       VariantEmissionRole::DirectVariant);
+  references.push_back(
+      EmissionReference{variant, VariantEmissionRole::DirectVariant});
+  return llvm::Error::success();
 }
 
 llvm::Error resolveDispatchTarget(
@@ -276,12 +290,11 @@ llvm::Error resolveDispatchTarget(
           "same kernel");
 }
 
-llvm::Error checkDispatchEmissionPaths(
+llvm::Error collectDispatchEmissionReferences(
     KernelOp kernel, DispatchOp dispatch,
-    const TargetCapabilitySet &capabilities,
-    const ExtensionPluginRegistry &registry,
     const llvm::StringMap<VariantOp> &directVariants,
-    const llvm::StringMap<mlir::Operation *> &directSymbols) {
+    const llvm::StringMap<mlir::Operation *> &directSymbols,
+    llvm::SmallVectorImpl<EmissionReference> &out) {
   if (!dispatch || !hasDirectParent(dispatch.getOperation(), kernel))
     return makeEmissionPathError(
         kernel, "requires tcrv.exec.dispatch to be a direct kernel child");
@@ -337,10 +350,64 @@ llvm::Error checkDispatchEmissionPaths(
     return makeDispatchEmissionPathError(
         kernel, dispatch, "requires exactly one tcrv.exec.fallback");
 
-  for (const EmissionReference &reference : references) {
-    if (llvm::Error error = routeVariantEmissionReadiness(
-            kernel, reference.variant, capabilities, registry, reference.role))
+  out.append(references.begin(), references.end());
+  return llvm::Error::success();
+}
+
+llvm::Error collectKernelEmissionReferences(
+    KernelOp kernel, llvm::SmallVectorImpl<EmissionReference> &references) {
+  if (!kernel)
+    return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
+
+  if (!hasKernelBody(kernel))
+    return makeEmissionPathError(
+        kernel, "requires kernel to have a materialized body block");
+
+  llvm::StringMap<VariantOp> directVariants;
+  llvm::StringMap<mlir::Operation *> directSymbols;
+  collectDirectKernelSymbols(kernel, directVariants, directSymbols);
+
+  bool hasDirectDispatch = false;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto dispatch = llvm::dyn_cast<DispatchOp>(op);
+    if (!dispatch)
+      continue;
+
+    hasDirectDispatch = true;
+    if (llvm::Error error = collectDispatchEmissionReferences(
+            kernel, dispatch, directVariants, directSymbols, references))
       return error;
+  }
+
+  if (hasDirectDispatch)
+    return llvm::Error::success();
+
+  DiagnosticOp selectedMarker;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op);
+    if (!diagnostic || !isDirectSelectedPathMarkerCandidate(diagnostic))
+      continue;
+
+    if (selectedMarker)
+      return makeEmissionPathError(
+          kernel,
+          "requires at most one direct selected-path diagnostic marker when no "
+          "tcrv.exec.dispatch is present");
+
+    selectedMarker = diagnostic;
+  }
+
+  if (selectedMarker)
+    return collectSelectedMarkerEmissionReference(
+        kernel, selectedMarker, directVariants, directSymbols, references);
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<VariantOp>(op);
+    if (!variant)
+      continue;
+
+    references.push_back(
+        EmissionReference{variant, VariantEmissionRole::DirectVariant});
   }
 
   return llvm::Error::success();
@@ -402,61 +469,41 @@ llvm::Error checkKernelEmissionPaths(
 llvm::Error checkKernelEmissionPaths(
     KernelOp kernel, const TargetCapabilitySet &capabilities,
     const ExtensionPluginRegistry &registry) {
-  if (!kernel)
-    return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
+  llvm::SmallVector<EmissionReference, 4> references;
+  if (llvm::Error error = collectKernelEmissionReferences(kernel, references))
+    return error;
 
-  if (!hasKernelBody(kernel))
-    return makeEmissionPathError(
-        kernel, "requires kernel to have a materialized body block");
-
-  llvm::StringMap<VariantOp> directVariants;
-  llvm::StringMap<mlir::Operation *> directSymbols;
-  collectDirectKernelSymbols(kernel, directVariants, directSymbols);
-
-  bool hasDirectDispatch = false;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto dispatch = llvm::dyn_cast<DispatchOp>(op);
-    if (!dispatch)
-      continue;
-
-    hasDirectDispatch = true;
-    if (llvm::Error error = checkDispatchEmissionPaths(
-            kernel, dispatch, capabilities, registry, directVariants,
-            directSymbols))
+  for (const EmissionReference &reference : references) {
+    if (llvm::Error error = routeVariantEmissionReadiness(
+            kernel, reference.variant, capabilities, registry, reference.role))
       return error;
   }
 
-  if (hasDirectDispatch)
-    return llvm::Error::success();
+  return llvm::Error::success();
+}
 
-  DiagnosticOp selectedMarker;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op);
-    if (!diagnostic || !isDirectSelectedPathMarkerCandidate(diagnostic))
-      continue;
+llvm::Error collectKernelEmissionPlans(
+    KernelOp kernel, llvm::SmallVectorImpl<VariantEmissionPlan> &out,
+    const ExtensionPluginRegistry &registry) {
+  if (!kernel)
+    return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
 
-    if (selectedMarker)
-      return makeEmissionPathError(
-          kernel,
-          "requires at most one direct selected-path diagnostic marker when no "
-          "tcrv.exec.dispatch is present");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  return collectKernelEmissionPlans(kernel, capabilities, out, registry);
+}
 
-    selectedMarker = diagnostic;
-  }
+llvm::Error collectKernelEmissionPlans(
+    KernelOp kernel, const TargetCapabilitySet &capabilities,
+    llvm::SmallVectorImpl<VariantEmissionPlan> &out,
+    const ExtensionPluginRegistry &registry) {
+  llvm::SmallVector<EmissionReference, 4> references;
+  if (llvm::Error error = collectKernelEmissionReferences(kernel, references))
+    return error;
 
-  if (selectedMarker)
-    return checkSelectedMarkerEmissionPath(kernel, selectedMarker, capabilities,
-                                           registry, directVariants,
-                                           directSymbols);
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<VariantOp>(op);
-    if (!variant)
-      continue;
-
-    if (llvm::Error error = routeVariantEmissionReadiness(
-            kernel, variant, capabilities, registry,
-            VariantEmissionRole::DirectVariant))
+  for (const EmissionReference &reference : references) {
+    if (llvm::Error error = routeVariantEmissionPlan(
+            kernel, reference.variant, capabilities, registry, reference.role,
+            out))
       return error;
   }
 

@@ -23,6 +23,7 @@
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
@@ -44,11 +45,29 @@ enum class EmissionBehavior {
   UnsupportedEmptyReason,
 };
 
+enum class EmissionPlanBehavior {
+  Supported,
+  Unsupported,
+  PluginFailure,
+  MissingStatus,
+  SupportedEmptyEmissionKind,
+  SupportedEmptyLoweringPipeline,
+  SupportedEmptyRuntimeABI,
+  SupportedEmptyArtifactKind,
+  SupportedEmptyExplanation,
+  UnsupportedEmptyDiagnostic,
+  MismatchedVariantSymbol,
+  MismatchedRole,
+};
+
 class EmissionPlugin final : public ExtensionPlugin {
 public:
   EmissionPlugin(llvm::StringRef name, bool enabled = true,
-                 EmissionBehavior behavior = EmissionBehavior::Supported)
-      : name(name.str()), enabled(enabled), behavior(behavior) {}
+                 EmissionBehavior behavior = EmissionBehavior::Supported,
+                 EmissionPlanBehavior planBehavior =
+                     EmissionPlanBehavior::Supported)
+      : name(name.str()), enabled(enabled), behavior(behavior),
+        planBehavior(planBehavior) {}
 
   llvm::StringRef getName() const override { return name; }
 
@@ -107,7 +126,70 @@ public:
     return llvm::Error::success();
   }
 
+  llvm::Error buildVariantEmissionPlan(
+      const VariantEmissionRequest &request,
+      VariantEmissionPlan &out) const override {
+    ++planCalls;
+    observedPlanKernelSymbols.push_back(request.getKernel().getSymName().str());
+    observedPlanVariantSymbols.push_back(
+        request.getVariant().getSymName().str());
+    observedPlanRoles.push_back(
+        tianchenrv::plugin::stringifyVariantEmissionRole(request.getRole())
+            .str());
+
+    if (planBehavior == EmissionPlanBehavior::PluginFailure)
+      return llvm::make_error<llvm::StringError>(
+          "plugin-local emission plan construction failed",
+          llvm::errc::invalid_argument);
+
+    if (planBehavior == EmissionPlanBehavior::MissingStatus) {
+      out = VariantEmissionPlan();
+      return llvm::Error::success();
+    }
+
+    if (planBehavior == EmissionPlanBehavior::Unsupported ||
+        planBehavior == EmissionPlanBehavior::UnsupportedEmptyDiagnostic) {
+      out = VariantEmissionPlan::getUnsupported(
+          name, request.getKernel().getSymName(),
+          request.getVariant().getSymName(), request.getRole(),
+          planBehavior == EmissionPlanBehavior::Unsupported
+              ? "mock plugin reports unsupported selected emission path"
+              : "");
+      return llvm::Error::success();
+    }
+
+    llvm::StringRef variantSymbol = request.getVariant().getSymName();
+    if (planBehavior == EmissionPlanBehavior::MismatchedVariantSymbol)
+      variantSymbol = "wrong_variant";
+
+    VariantEmissionRole role = request.getRole();
+    if (planBehavior == EmissionPlanBehavior::MismatchedRole)
+      role = request.getRole() == VariantEmissionRole::DispatchCase
+                 ? VariantEmissionRole::DirectVariant
+                 : VariantEmissionRole::DispatchCase;
+
+    out = VariantEmissionPlan::getSupported(
+        name, request.getKernel().getSymName(), variantSymbol, role,
+        planBehavior == EmissionPlanBehavior::SupportedEmptyEmissionKind
+            ? ""
+            : "metadata-intent",
+        planBehavior == EmissionPlanBehavior::SupportedEmptyLoweringPipeline
+            ? ""
+            : "mock.lowering.pipeline.v1",
+        planBehavior == EmissionPlanBehavior::SupportedEmptyRuntimeABI
+            ? ""
+            : "mock.runtime.abi.v1",
+        planBehavior == EmissionPlanBehavior::SupportedEmptyArtifactKind
+            ? ""
+            : "compiler-emission-plan",
+        planBehavior == EmissionPlanBehavior::SupportedEmptyExplanation
+            ? ""
+            : "mock plugin-owned lowering/runtime route for selected path");
+    return llvm::Error::success();
+  }
+
   unsigned getReadinessCalls() const { return readinessCalls; }
+  unsigned getPlanCalls() const { return planCalls; }
   llvm::ArrayRef<std::string> getObservedKernelSymbols() const {
     return observedKernelSymbols;
   }
@@ -120,17 +202,31 @@ public:
   llvm::ArrayRef<unsigned> getObservedCapabilityCounts() const {
     return observedCapabilityCounts;
   }
+  llvm::ArrayRef<std::string> getObservedPlanKernelSymbols() const {
+    return observedPlanKernelSymbols;
+  }
+  llvm::ArrayRef<std::string> getObservedPlanVariantSymbols() const {
+    return observedPlanVariantSymbols;
+  }
+  llvm::ArrayRef<std::string> getObservedPlanRoles() const {
+    return observedPlanRoles;
+  }
 
 private:
   std::string name;
   bool enabled;
   EmissionBehavior behavior;
+  EmissionPlanBehavior planBehavior;
   llvm::SmallVector<PluginCapability, 1> capabilities;
   mutable unsigned readinessCalls = 0;
+  mutable unsigned planCalls = 0;
   mutable llvm::SmallVector<std::string, 4> observedKernelSymbols;
   mutable llvm::SmallVector<std::string, 4> observedVariantSymbols;
   mutable llvm::SmallVector<std::string, 4> observedRoles;
   mutable llvm::SmallVector<unsigned, 4> observedCapabilityCounts;
+  mutable llvm::SmallVector<std::string, 4> observedPlanKernelSymbols;
+  mutable llvm::SmallVector<std::string, 4> observedPlanVariantSymbols;
+  mutable llvm::SmallVector<std::string, 4> observedPlanRoles;
 };
 
 int fail(llvm::Twine message) {
@@ -164,6 +260,43 @@ int expectErrorContains(llvm::Error error,
                   fragment + "': " + message);
   }
   return 0;
+}
+
+int expectSupportedPlan(const VariantEmissionPlan &plan,
+                        llvm::StringRef expectedKernel,
+                        llvm::StringRef expectedVariant,
+                        VariantEmissionRole expectedRole) {
+  if (int result = expect(plan.isSupported(), "emission plan is supported"))
+    return result;
+  if (int result = expect(plan.getOriginPlugin() == "mock-emitter",
+                          "emission plan preserves origin plugin"))
+    return result;
+  if (int result = expect(plan.getKernelSymbol() == expectedKernel,
+                          "emission plan preserves kernel symbol"))
+    return result;
+  if (int result = expect(plan.getVariantSymbol() == expectedVariant,
+                          "emission plan preserves variant symbol"))
+    return result;
+  if (int result = expect(plan.getRole() == expectedRole,
+                          "emission plan preserves selected-path role"))
+    return result;
+  if (int result = expect(plan.getEmissionKind() == "metadata-intent",
+                          "emission plan carries generic emission kind"))
+    return result;
+  if (int result =
+          expect(plan.getLoweringPipeline() == "mock.lowering.pipeline.v1",
+                 "emission plan carries lowering pipeline id"))
+    return result;
+  if (int result =
+          expect(plan.getRuntimeABI() == "mock.runtime.abi.v1",
+                 "emission plan carries runtime ABI id"))
+    return result;
+  if (int result =
+          expect(plan.getArtifactKind() == "compiler-emission-plan",
+                 "emission plan carries artifact kind"))
+    return result;
+  return expect(plan.getExplanation().contains("plugin-owned"),
+                "emission plan carries explanation");
 }
 
 void registerCoreDialects(mlir::MLIRContext &context) {
@@ -302,6 +435,41 @@ int runRegistrySupportedDirectVariantTest(mlir::MLIRContext &context) {
     return result;
 
   return 0;
+}
+
+int runRegistrySupportedEmissionPlanTest(mlir::MLIRContext &context) {
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, getDirectKernelSource());
+  if (!module)
+    return fail("failed to parse direct emission plan module");
+
+  KernelOp kernel = findKernel(*module, "direct");
+  VariantOp variant = findDirectVariant(kernel, "fast");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  EmissionPlugin plugin("mock-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                 "register supported emission plan plugin"))
+    return result;
+
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              plan),
+          "registry routes direct variant emission plan"))
+    return result;
+
+  if (int result = expectSupportedPlan(plan, "direct", "fast",
+                                       VariantEmissionRole::DirectVariant))
+    return result;
+  if (int result = expect(plugin.getPlanCalls() == 1,
+                          "emission plan hook is invoked once"))
+    return result;
+  return expect(plugin.getReadinessCalls() == 0,
+                "emission planning does not imply readiness hook reuse");
 }
 
 int runInjectedDirectPassTest(mlir::MLIRContext &context) {
@@ -482,6 +650,204 @@ module {
                 "dispatch pass checks fallback role");
 }
 
+int runDispatchEmissionPlanCollectionTest(mlir::MLIRContext &context) {
+  const char *source = R"mlir(
+module {
+  tcrv.exec.kernel @dispatch_plan {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base],
+      policy = "fast_path"
+    } {
+    }
+    tcrv.exec.variant @medium attributes {
+      origin = "mock-emitter",
+      requires = [@base],
+      policy = "medium_path"
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @fast {policy = "fast_path"}
+      tcrv.exec.case @medium {policy = "medium_path"}
+      tcrv.exec.fallback @fallback
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse dispatch emission plan module");
+
+  KernelOp kernel = findKernel(*module, "dispatch_plan");
+  EmissionPlugin plugin("mock-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                 "register dispatch emission plan plugin"))
+    return result;
+
+  llvm::SmallVector<VariantEmissionPlan, 4> plans;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+                                                             registry),
+          "collect dispatch emission plans"))
+    return result;
+
+  if (int result = expect(plans.size() == 3,
+                          "dispatch collection returns case and fallback plans"))
+    return result;
+  if (int result =
+          expectSupportedPlan(plans[0], "dispatch_plan", "fast",
+                              VariantEmissionRole::DispatchCase))
+    return result;
+  if (int result =
+          expectSupportedPlan(plans[1], "dispatch_plan", "medium",
+                              VariantEmissionRole::DispatchCase))
+    return result;
+  if (int result =
+          expectSupportedPlan(plans[2], "dispatch_plan", "fallback",
+                              VariantEmissionRole::DispatchFallback))
+    return result;
+  if (int result = expect(plugin.getObservedPlanVariantSymbols()[0] == "fast" &&
+                              plugin.getObservedPlanVariantSymbols()[1] ==
+                                  "medium" &&
+                              plugin.getObservedPlanVariantSymbols()[2] ==
+                                  "fallback",
+                          "dispatch emission plans preserve deterministic "
+                          "dispatch order"))
+    return result;
+  return expect(plugin.getReadinessCalls() == 0,
+                "emission plan collection does not call readiness hook");
+}
+
+int runSelectedMarkerEmissionPlanCollectionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @selected_plan {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @slow attributes {
+      origin = "slow-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fast selected by generic planner",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @fast
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse selected marker emission plan module");
+
+  KernelOp kernel = findKernel(*module, "selected_plan");
+  EmissionPlugin fastPlugin("mock-emitter");
+  EmissionPlugin slowPlugin("slow-emitter", true,
+                            EmissionBehavior::Supported,
+                            EmissionPlanBehavior::PluginFailure);
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(fastPlugin),
+                                 "register selected plan fast plugin"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(slowPlugin),
+                                 "register selected plan slow plugin"))
+    return result;
+
+  llvm::SmallVector<VariantEmissionPlan, 2> plans;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+                                                             registry),
+          "collect selected marker emission plan"))
+    return result;
+
+  if (int result = expect(plans.size() == 1,
+                          "selected marker returns only selected plan"))
+    return result;
+  if (int result = expectSupportedPlan(plans[0], "selected_plan", "fast",
+                                       VariantEmissionRole::DirectVariant))
+    return result;
+  if (int result =
+          expect(slowPlugin.getPlanCalls() == 0,
+                 "unselected unsupported variant does not fail selected plan"))
+    return result;
+  return expect(fastPlugin.getPlanCalls() == 1,
+                "selected marker invokes selected origin plugin once");
+}
+
+int runConservativeDirectEmissionPlanCollectionTest(
+    mlir::MLIRContext &context) {
+  const char *source = R"mlir(
+module {
+  tcrv.exec.kernel @direct_plan {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse conservative direct emission plan module");
+
+  KernelOp kernel = findKernel(*module, "direct_plan");
+  EmissionPlugin plugin("mock-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                 "register conservative emission plan plugin"))
+    return result;
+
+  llvm::SmallVector<VariantEmissionPlan, 2> plans;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+                                                             registry),
+          "collect conservative direct emission plans"))
+    return result;
+
+  if (int result = expect(plans.size() == 2,
+                          "no dispatch or selected marker plans all variants"))
+    return result;
+  if (int result = expectSupportedPlan(plans[0], "direct_plan", "fast",
+                                       VariantEmissionRole::DirectVariant))
+    return result;
+  return expectSupportedPlan(plans[1], "direct_plan", "fallback",
+                             VariantEmissionRole::DirectVariant);
+}
+
 int runRegistryNegativeTests(mlir::MLIRContext &context) {
   {
     mlir::OwningOpRef<mlir::ModuleOp> module =
@@ -580,6 +946,30 @@ module {
                 VariantEmissionRequest(variant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
                 status),
+            {"variant @fast", "kernel @direct",
+             "non-empty string attribute 'origin'"}))
+      return result;
+  }
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    variant->removeAttr("origin");
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register missing-origin plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectErrorContains(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
             {"variant @fast", "kernel @direct",
              "non-empty string attribute 'origin'"}))
       return result;
@@ -690,6 +1080,211 @@ module {
   return 0;
 }
 
+int runEmissionPlanRegistryTests(mlir::MLIRContext &context) {
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register unsupported plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectSuccess(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            "build supported plan before unsupported mutation"))
+      return result;
+  }
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("mock-emitter", true, EmissionBehavior::Supported,
+                          EmissionPlanBehavior::Unsupported);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register unsupported plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectSuccess(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            "unsupported emission plan is a structured diagnostic result"))
+      return result;
+    if (int result = expect(plan.isUnsupported(),
+                            "unsupported emission plan keeps unsupported "
+                            "status"))
+      return result;
+    if (int result = expect(plan.getOriginPlugin() == "mock-emitter" &&
+                                plan.getKernelSymbol() == "direct" &&
+                                plan.getVariantSymbol() == "fast" &&
+                                plan.getRole() ==
+                                    VariantEmissionRole::DirectVariant,
+                            "unsupported emission plan carries generic "
+                            "context"))
+      return result;
+    if (int result =
+            expect(plan.getDiagnostic().contains("unsupported selected"),
+                   "unsupported emission plan carries diagnostic text"))
+      return result;
+  }
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    variant->setAttr("origin", mlir::StringAttr::get(&context, ""));
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register empty-origin plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectErrorContains(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            {"variant @fast", "kernel @direct",
+             "non-empty string attribute 'origin'"}))
+      return result;
+  }
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    variant->setAttr("origin",
+                     mlir::StringAttr::get(&context, "missing-emitter"));
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+    VariantEmissionPlan plan;
+    ExtensionPluginRegistry registry;
+    if (int result = expectErrorContains(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            {"emission plan collection", "variant @fast",
+             "unknown origin plugin 'missing-emitter'"}))
+      return result;
+  }
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    variant->setAttr("origin",
+                     mlir::StringAttr::get(&context, "disabled-emitter"));
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("disabled-emitter", false);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register disabled plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectErrorContains(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            {"variant @fast", "origin plugin 'disabled-emitter' is disabled"}))
+      return result;
+  }
+
+  struct PlanNegativeCase {
+    EmissionPlanBehavior behavior;
+    llvm::StringRef expectedFragment;
+  };
+
+  const PlanNegativeCase negativeCases[] = {
+      {EmissionPlanBehavior::MissingStatus, "status is missing"},
+      {EmissionPlanBehavior::SupportedEmptyEmissionKind,
+       "non-empty emission kind"},
+      {EmissionPlanBehavior::SupportedEmptyLoweringPipeline,
+       "non-empty lowering pipeline"},
+      {EmissionPlanBehavior::SupportedEmptyRuntimeABI,
+       "non-empty runtime ABI"},
+      {EmissionPlanBehavior::SupportedEmptyArtifactKind,
+       "non-empty artifact kind"},
+      {EmissionPlanBehavior::SupportedEmptyExplanation,
+       "non-empty explanation"},
+      {EmissionPlanBehavior::UnsupportedEmptyDiagnostic,
+       "non-empty diagnostic"},
+      {EmissionPlanBehavior::MismatchedVariantSymbol,
+       "does not match request variant"},
+      {EmissionPlanBehavior::MismatchedRole, "does not match request role"},
+  };
+
+  for (const PlanNegativeCase &negativeCase : negativeCases) {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("mock-emitter", true, EmissionBehavior::Supported,
+                          negativeCase.behavior);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register malformed plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectErrorContains(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            {"invalid emission plan", negativeCase.expectedFragment}))
+      return result;
+  }
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, getDirectKernelSource());
+    KernelOp kernel = findKernel(*module, "direct");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    EmissionPlugin plugin("mock-emitter", true, EmissionBehavior::Supported,
+                          EmissionPlanBehavior::PluginFailure);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register failing plan plugin"))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectErrorContains(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            {"failed emission plan query",
+             "plugin-local emission plan construction failed"}))
+      return result;
+  }
+
+  return 0;
+}
+
 int expectStructuralErrorHasNoPluginCalls(
     mlir::MLIRContext &context, llvm::StringRef source,
     void (*mutate)(mlir::MLIRContext &, KernelOp),
@@ -714,6 +1309,35 @@ int expectStructuralErrorHasNoPluginCalls(
 
   return expect(plugin.getReadinessCalls() == 0,
                 "dispatch structural failures are diagnosed before plugin "
+                "routing");
+}
+
+int expectPlanStructuralErrorHasNoPluginCalls(
+    mlir::MLIRContext &context, llvm::StringRef source,
+    void (*mutate)(mlir::MLIRContext &, KernelOp),
+    std::initializer_list<llvm::StringRef> fragments) {
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse plan structural negative module");
+
+  KernelOp kernel = findKernel(*module, "dispatch_negative");
+  mutate(context, kernel);
+
+  EmissionPlugin plugin("mock-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                 "register plan structural negative plugin"))
+    return result;
+
+  llvm::SmallVector<VariantEmissionPlan, 4> plans;
+  if (int result = expectErrorContains(
+          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+                                                             registry),
+          fragments))
+    return result;
+
+  return expect(plugin.getPlanCalls() == 0,
+                "plan structural failures are diagnosed before plugin "
                 "routing");
 }
 
@@ -909,6 +1533,54 @@ module {
   return 0;
 }
 
+int runEmissionPlanStructuralNegativeTests(mlir::MLIRContext &context) {
+  if (int result = expectPlanStructuralErrorHasNoPluginCalls(
+          context, getDispatchKernelSource(),
+          [](mlir::MLIRContext &, KernelOp kernel) {
+            DispatchCaseOp dispatchCase =
+                findFirstDispatchCase(findDirectDispatch(kernel));
+            dispatchCase->removeAttr("target");
+          },
+          {"missing a variant symbol reference target"}))
+    return result;
+
+  if (int result = expectPlanStructuralErrorHasNoPluginCalls(
+          context, getDispatchKernelSource(),
+          [](mlir::MLIRContext &context, KernelOp kernel) {
+            DispatchCaseOp dispatchCase =
+                findFirstDispatchCase(findDirectDispatch(kernel));
+            dispatchCase->setAttr("target",
+                                  getSymbolRef(context, "does_not_exist"));
+          },
+          {"dispatch target @does_not_exist",
+           "does not resolve to a direct sibling tcrv.exec.variant"}))
+    return result;
+
+  if (int result = expectPlanStructuralErrorHasNoPluginCalls(
+          context, getSelectedMarkerKernelSource(),
+          [](mlir::MLIRContext &context, KernelOp kernel) {
+            mlir::OpBuilder builder(&context);
+            builder.setInsertionPointToEnd(&kernel.getBody().front());
+            mlir::OperationState state(kernel.getLoc(),
+                                       DiagnosticOp::getOperationName());
+            state.addAttribute("reason",
+                               mlir::StringAttr::get(&context,
+                                                     "variant-selected"));
+            state.addAttribute("message",
+                               mlir::StringAttr::get(&context,
+                                                     "fallback also selected"));
+            state.addAttribute("selection_kind",
+                               mlir::StringAttr::get(&context,
+                                                     "fallback-only"));
+            state.addAttribute("target", getSymbolRef(context, "fallback"));
+            builder.create(state);
+          },
+          {"at most one direct selected-path diagnostic marker"}))
+    return result;
+
+  return 0;
+}
+
 int runRVVUnsupportedEmissionTest() {
   mlir::MLIRContext context;
   mlir::DialectRegistry dialectRegistry;
@@ -976,6 +1648,41 @@ module {
            "evidence"}))
     return result;
 
+  VariantEmissionPlan rvvPlan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(request, rvvPlan),
+          "RVV plugin returns explicit unsupported emission plan"))
+    return result;
+  if (int result = expect(rvvPlan.isUnsupported(),
+                          "RVV metadata-only first slice has unsupported "
+                          "emission plan status"))
+    return result;
+  if (int result = expect(rvvPlan.getOriginPlugin() == "rvv-plugin" &&
+                              rvvPlan.getKernelSymbol() == "rvv_emission" &&
+                              rvvPlan.getVariantSymbol() == "rvv_first_slice" &&
+                              rvvPlan.getRole() ==
+                                  VariantEmissionRole::DirectVariant,
+                          "RVV unsupported emission plan carries generic "
+                          "context"))
+    return result;
+  if (int result =
+          expect(rvvPlan.getDiagnostic().contains("no RVV lowering pipeline") &&
+                     rvvPlan.getDiagnostic().contains("runtime ABI") &&
+                     rvvPlan.getDiagnostic().contains("not RVV hardware"),
+                 "RVV unsupported emission plan carries structured boundary "
+                 "diagnostic"))
+    return result;
+
+  llvm::SmallVector<VariantEmissionPlan, 1> plans;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
+                                                             registry),
+          "collect RVV unsupported emission plan"))
+    return result;
+  if (int result = expect(plans.size() == 1 && plans[0].isUnsupported(),
+                          "RVV plan collection preserves unsupported plan"))
+    return result;
+
   return 0;
 }
 
@@ -987,15 +1694,27 @@ int main() {
 
   if (int result = runRegistrySupportedDirectVariantTest(context))
     return result;
+  if (int result = runRegistrySupportedEmissionPlanTest(context))
+    return result;
   if (int result = runInjectedDirectPassTest(context))
     return result;
   if (int result = runSelectedMarkerPassTest(context))
     return result;
   if (int result = runInjectedDispatchPassTest(context))
     return result;
+  if (int result = runDispatchEmissionPlanCollectionTest(context))
+    return result;
+  if (int result = runSelectedMarkerEmissionPlanCollectionTest(context))
+    return result;
+  if (int result = runConservativeDirectEmissionPlanCollectionTest(context))
+    return result;
   if (int result = runRegistryNegativeTests(context))
     return result;
+  if (int result = runEmissionPlanRegistryTests(context))
+    return result;
   if (int result = runStructuralDispatchNegativeTests(context))
+    return result;
+  if (int result = runEmissionPlanStructuralNegativeTests(context))
     return result;
   if (int result = runRVVUnsupportedEmissionTest())
     return result;

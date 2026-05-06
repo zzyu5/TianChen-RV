@@ -32,6 +32,7 @@ Plugin owns:
 - extension-specific lowering;
 - extension-specific tuning;
 - extension-specific runtime ABI;
+- extension-specific emission plans for selected paths;
 - extension-specific legality details;
 - extension-specific toolchain workarounds.
 
@@ -48,6 +49,11 @@ Core owns:
 - dispatch/fallback structure;
 - common verifier orchestration;
 - common diagnostics format.
+
+Core may route and validate emission-plan objects through the registry, but it
+must not fill in RVV/IME/offload lowering pipelines, runtime ABIs, artifact
+kinds, or supported-path claims on behalf of plugins. A plan is plugin-owned
+metadata/intent and remains separate from executable code generation evidence.
 
 ## When Core May Change
 

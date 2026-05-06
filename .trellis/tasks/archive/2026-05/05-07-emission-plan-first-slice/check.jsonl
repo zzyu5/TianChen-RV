@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains compute-free and diagnostic/control focused"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check emission-plan hook and registry semantics"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check plugin-locality invariants"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-path traversal and decision metadata"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no executable proof or RVV claim is introduced"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required C++ and lit evidence"}

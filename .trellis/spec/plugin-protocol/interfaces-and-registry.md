@@ -361,6 +361,31 @@ orchestration:
   vendor, dtype, shape, layout, runtime ABI, microarchitecture, or
   target-family branches.
 
+The registry-level emission-plan slice provides plugin-owned selected-path
+planning after readiness, without generating executable artifacts:
+
+- create a `VariantEmissionRequest` containing the materialized
+  `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, the generic
+  `TargetCapabilitySet`, and the selected-path role (`direct variant`,
+  `dispatch case`, or `dispatch fallback`);
+- route the request only to the plugin named by the variant `origin` attribute;
+- reject missing variants, missing kernels, variants not directly enclosed by
+  the requested kernel, missing or empty origins, unknown origin plugins, and
+  disabled origin plugins with generic diagnostics;
+- call only the origin plugin's emission-plan hook, never every plugin in the
+  registry and never a core target-family branch;
+- validate returned plans by requiring a present status, non-empty origin
+  plugin, non-empty kernel symbol, non-empty variant symbol, matching
+  origin/kernel/variant identity, and matching selected-path role;
+- require supported plans to carry non-empty generic emission kind, lowering
+  pipeline identifier, runtime ABI identifier, artifact kind, and explanation;
+- require unsupported plans to carry a non-empty diagnostic string;
+- treat plans as plugin-owned compiler metadata/intent only; a supported plan is
+  not proof that code was generated, linked, executed, correct, or performant;
+- keep readiness and planning separate: readiness answers whether the selected
+  path is supportable, while the plan describes the plugin-owned
+  lowering/runtime route or structured unsupported reason.
+
 Cost ranking is an input to generic selection planning, not a plugin-side
 selection decision. A core selection planner may consume
 `rankKernelVariantsByCost` results together with the same generic

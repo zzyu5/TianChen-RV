@@ -229,6 +229,26 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
   return llvm::Error::success();
 }
 
+llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
+    const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
+  if (!request.getVariant())
+    return makeRVVPluginError(
+        "emission planning requires a materialized tcrv.exec.variant");
+
+  if (!request.getKernel())
+    return makeRVVPluginError(
+        "emission planning requires an enclosing tcrv.exec.kernel");
+
+  out = VariantEmissionPlan::getUnsupported(
+      kRVVPluginName, request.getKernel().getSymName(),
+      request.getVariant().getSymName(), request.getRole(),
+      "RVV metadata-only first slice has no RVV lowering pipeline, runtime "
+      "ABI, artifact contract, or executable emission path; this unsupported "
+      "emission plan is a plugin-owned diagnostic boundary and not RVV "
+      "hardware/toolchain/runtime/correctness/performance evidence");
+  return llvm::Error::success();
+}
+
 } // namespace rvv
 
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry) {

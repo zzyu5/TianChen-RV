@@ -36,6 +36,30 @@ Rules:
 - avoid core branches on RVV, IME, offload, scalar, vendor, dtype, shape,
   runtime, toolchain, or microarchitecture details.
 
+## Emission Plan First Slice
+
+After readiness and selected-path traversal, the compiler may collect
+plugin-owned emission plans. An emission plan is a target-neutral compiler
+decision object, not an executable artifact.
+
+Rules:
+
+- route by the same materialized variant `origin` plugin as readiness;
+- carry kernel symbol, variant symbol, selected-path role, support status,
+  origin plugin, and diagnostic/explanation metadata;
+- for supported paths, require non-empty emission kind, lowering pipeline
+  identifier, runtime ABI identifier, artifact kind, and explanation;
+- for unsupported paths, require a non-empty diagnostic reason;
+- diagnose missing origin, unregistered origin, disabled origin plugin,
+  malformed plugin result, mismatched variant symbol, mismatched kernel symbol,
+  mismatched selected-path role, duplicate selected markers, and missing
+  dispatch targets generically before treating the plan as usable;
+- keep the boundary clear: readiness says whether a selected path is
+  supportable, while the plan describes the plugin-owned lowering/runtime route
+  or the structured unsupported reason;
+- do not claim generated code, runtime ABI glue, linked artifacts, RVV hardware
+  execution, correctness, or performance from an emission plan alone.
+
 ## EmissionProvider Responsibilities
 
 Each plugin emission provider:

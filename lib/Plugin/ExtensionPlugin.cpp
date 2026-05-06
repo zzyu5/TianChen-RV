@@ -78,6 +78,18 @@ llvm::Error makeVariantEmissionError(tcrv::exec::VariantOp variant,
   return makePluginRegistryError(stream.str());
 }
 
+llvm::Error makeVariantEmissionPlanError(tcrv::exec::VariantOp variant,
+                                         tcrv::exec::KernelOp kernel,
+                                         VariantEmissionRole role,
+                                         llvm::Twine message) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "TianChen-RV variant emission plan collection failed for ";
+  appendVariantContext(stream, variant, kernel);
+  stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
+  return makePluginRegistryError(stream.str());
+}
+
 llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
                                      const VariantProposal &proposal,
                                      llvm::Twine message) {
@@ -260,6 +272,40 @@ VariantEmissionStatus::getUnsupported(llvm::StringRef originPlugin,
   return status;
 }
 
+VariantEmissionPlan VariantEmissionPlan::getSupported(
+    llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+    llvm::StringRef variantSymbol, VariantEmissionRole role,
+    llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
+    llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
+    llvm::StringRef explanation) {
+  VariantEmissionPlan plan;
+  plan.setSupported();
+  plan.setOriginPlugin(originPlugin);
+  plan.setKernelSymbol(kernelSymbol);
+  plan.setVariantSymbol(variantSymbol);
+  plan.setRole(role);
+  plan.setEmissionKind(emissionKind);
+  plan.setLoweringPipeline(loweringPipeline);
+  plan.setRuntimeABI(runtimeABI);
+  plan.setArtifactKind(artifactKind);
+  plan.setExplanation(explanation);
+  return plan;
+}
+
+VariantEmissionPlan VariantEmissionPlan::getUnsupported(
+    llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+    llvm::StringRef variantSymbol, VariantEmissionRole role,
+    llvm::StringRef diagnostic) {
+  VariantEmissionPlan plan;
+  plan.setUnsupported();
+  plan.setOriginPlugin(originPlugin);
+  plan.setKernelSymbol(kernelSymbol);
+  plan.setVariantSymbol(variantSymbol);
+  plan.setRole(role);
+  plan.setDiagnostic(diagnostic);
+  return plan;
+}
+
 bool ExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   (void)request;
@@ -297,6 +343,19 @@ llvm::Error ExtensionPlugin::checkVariantEmissionReadiness(
       request.getVariant() ? request.getVariant().getSymName()
                            : llvm::StringRef("<missing>"),
       "origin plugin does not provide an emission readiness path");
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::buildVariantEmissionPlan(
+    const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
+  out = VariantEmissionPlan::getUnsupported(
+      getName(),
+      request.getKernel() ? request.getKernel().getSymName()
+                          : llvm::StringRef("<missing>"),
+      request.getVariant() ? request.getVariant().getSymName()
+                           : llvm::StringRef("<missing>"),
+      request.getRole(),
+      "origin plugin does not provide a plugin-owned emission plan");
   return llvm::Error::success();
 }
 
@@ -630,6 +689,62 @@ llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
   return llvm::Error::success();
 }
 
+llvm::Error ExtensionPluginRegistry::buildVariantEmissionPlan(
+    const VariantEmissionRequest &request, VariantEmissionPlan &out) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!variant)
+    return makeVariantEmissionPlanError(
+        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantEmissionPlanError(
+        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+
+  if (variant->getParentOp() != kernel.getOperation())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        "variant is not directly enclosed by the request tcrv.exec.kernel");
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  VariantEmissionPlan plan;
+  if (llvm::Error error = plugin->buildVariantEmissionPlan(request, plan)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' failed emission plan query: " + pluginMessage);
+  }
+
+  if (llvm::Error error =
+          validateVariantEmissionPlan(request, *plugin, origin, plan))
+    return error;
+
+  out = plan;
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
     tcrv::exec::KernelOp kernel) const {
   if (!kernel)
@@ -935,6 +1050,116 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionStatus(
         llvm::Twine("origin plugin '") + plugin.getName() +
             "' produced invalid emission readiness result: unsupported result "
             "requires a non-empty reason");
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
+    const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
+    llvm::StringRef origin, const VariantEmissionPlan &plan) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!plan.hasStatus())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: status is missing");
+
+  if (plan.getOriginPlugin().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: origin plugin must be "
+            "non-empty");
+
+  if (plan.getOriginPlugin() != origin)
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: plan origin '" +
+            plan.getOriginPlugin() + "' does not match variant origin '" +
+            origin + "'");
+
+  if (plan.getKernelSymbol().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: kernel symbol must be "
+            "non-empty");
+
+  if (plan.getKernelSymbol() != kernel.getSymName())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: plan kernel @" +
+            plan.getKernelSymbol() + " does not match request kernel @" +
+            kernel.getSymName());
+
+  if (plan.getVariantSymbol().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: variant symbol must be "
+            "non-empty");
+
+  if (plan.getVariantSymbol() != variant.getSymName())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: plan variant @" +
+            plan.getVariantSymbol() + " does not match request variant @" +
+            variant.getSymName());
+
+  if (plan.getRole() != role)
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: plan role '" +
+            stringifyVariantEmissionRole(plan.getRole()) +
+            "' does not match request role '" +
+            stringifyVariantEmissionRole(role) + "'");
+
+  if (plan.isSupported()) {
+    if (plan.getEmissionKind().trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: supported plan requires "
+              "non-empty emission kind");
+    if (plan.getLoweringPipeline().trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: supported plan requires "
+              "non-empty lowering pipeline");
+    if (plan.getRuntimeABI().trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: supported plan requires "
+              "non-empty runtime ABI");
+    if (plan.getArtifactKind().trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: supported plan requires "
+              "non-empty artifact kind");
+    if (plan.getExplanation().trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: supported plan requires "
+              "non-empty explanation");
+  }
+
+  if (plan.isUnsupported() && plan.getDiagnostic().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: unsupported plan requires "
+            "non-empty diagnostic");
 
   return llvm::Error::success();
 }

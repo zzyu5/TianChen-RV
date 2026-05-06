@@ -561,6 +561,17 @@ First-slice behavior:
 - routing is by the generic variant `origin` attribute through
   `ExtensionPluginRegistry`, with no target-family branches in core code.
 
+The same selected-path traversal may be reused to collect plugin-owned emission
+plans after readiness. Emission-plan collection must keep dispatch cases and
+fallbacks in dispatch body order, consume a single selected-path marker before
+falling back to conservative all-direct-variant traversal, and diagnose the
+same malformed selected-path structure before invoking plugin hooks. Each
+collected plan is a structured compiler decision object for the selected path:
+it records origin plugin, kernel symbol, variant symbol, selected-path role,
+support status, and either supported route metadata or an unsupported
+diagnostic. It does not lower IR, generate executable code, prove runtime
+correctness, or justify performance claims.
+
 ## Capability-Aware Tuning
 
 Tuning has two layers.

@@ -35,6 +35,8 @@ public:
   llvm::Error
   checkVariantEmissionReadiness(const VariantEmissionRequest &request,
                                 VariantEmissionStatus &out) const override;
+  llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
+                                       VariantEmissionPlan &out) const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

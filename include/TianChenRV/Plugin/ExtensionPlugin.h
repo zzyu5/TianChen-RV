@@ -260,6 +260,78 @@ private:
   std::string reason;
 };
 
+class VariantEmissionPlan {
+public:
+  VariantEmissionPlan() = default;
+  static VariantEmissionPlan getSupported(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
+      llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
+      llvm::StringRef explanation);
+  static VariantEmissionPlan getUnsupported(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef diagnostic);
+
+  bool hasStatus() const {
+    return support != VariantEmissionSupport::Unknown;
+  }
+  bool isSupported() const {
+    return support == VariantEmissionSupport::Supported;
+  }
+  bool isUnsupported() const {
+    return support == VariantEmissionSupport::Unsupported;
+  }
+  VariantEmissionSupport getSupport() const { return support; }
+  VariantEmissionRole getRole() const { return role; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getKernelSymbol() const { return kernelSymbol; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  llvm::StringRef getEmissionKind() const { return emissionKind; }
+  llvm::StringRef getLoweringPipeline() const { return loweringPipeline; }
+  llvm::StringRef getRuntimeABI() const { return runtimeABI; }
+  llvm::StringRef getArtifactKind() const { return artifactKind; }
+  llvm::StringRef getDiagnostic() const { return diagnostic; }
+  llvm::StringRef getExplanation() const { return explanation; }
+
+  void setSupported() { support = VariantEmissionSupport::Supported; }
+  void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
+  void setRole(VariantEmissionRole value) { role = value; }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setKernelSymbol(llvm::StringRef symbol) {
+    kernelSymbol = symbol.str();
+  }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setEmissionKind(llvm::StringRef value) {
+    emissionKind = value.str();
+  }
+  void setLoweringPipeline(llvm::StringRef value) {
+    loweringPipeline = value.str();
+  }
+  void setRuntimeABI(llvm::StringRef value) { runtimeABI = value.str(); }
+  void setArtifactKind(llvm::StringRef value) {
+    artifactKind = value.str();
+  }
+  void setDiagnostic(llvm::StringRef value) { diagnostic = value.str(); }
+  void setExplanation(llvm::StringRef value) { explanation = value.str(); }
+
+private:
+  VariantEmissionSupport support = VariantEmissionSupport::Unknown;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  std::string originPlugin;
+  std::string kernelSymbol;
+  std::string variantSymbol;
+  std::string emissionKind;
+  std::string loweringPipeline;
+  std::string runtimeABI;
+  std::string artifactKind;
+  std::string diagnostic;
+  std::string explanation;
+};
+
 struct VariantCostRankingEntry {
   tcrv::exec::VariantOp variant;
   VariantCostEstimate estimate;
@@ -287,6 +359,9 @@ public:
   virtual llvm::Error
   checkVariantEmissionReadiness(const VariantEmissionRequest &request,
                                 VariantEmissionStatus &out) const;
+  virtual llvm::Error
+  buildVariantEmissionPlan(const VariantEmissionRequest &request,
+                           VariantEmissionPlan &out) const;
 };
 
 class ExtensionPluginRegistry {
@@ -331,6 +406,8 @@ public:
   llvm::Error
   checkVariantEmissionReadiness(const VariantEmissionRequest &request,
                                 VariantEmissionStatus &out) const;
+  llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
+                                       VariantEmissionPlan &out) const;
   llvm::Error checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel) const;
   llvm::Error
   checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel,
@@ -361,6 +438,9 @@ private:
   llvm::Error validateVariantEmissionStatus(
       const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
       llvm::StringRef origin, const VariantEmissionStatus &status) const;
+  llvm::Error validateVariantEmissionPlan(
+      const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
+      llvm::StringRef origin, const VariantEmissionPlan &plan) const;
 
   llvm::SmallVector<const ExtensionPlugin *, 8> plugins;
   llvm::StringMap<const ExtensionPlugin *> pluginsByName;
