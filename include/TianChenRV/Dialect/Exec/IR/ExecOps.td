@@ -83,6 +83,71 @@ def VariantOp : TCRVExec_Op<"exec.variant",
   let hasVerifier = 1;
 }
 
+def MemWindowOp : TCRVExec_Op<"exec.mem_window", [Symbol]> {
+  let summary = "named memory organization window";
+  let description = [{
+    Describes memory-window, view, or binding context used by variants and
+    dispatch guards. This op is intentionally about execution memory
+    organization, not tensor computation or extension-specific buffers.
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                   OptionalAttr<StrAttr>:$purpose,
+                   OptionalAttr<StrAttr>:$binding,
+                   OptionalAttr<StrAttr>:$memory_space);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def HartParallelOp : TCRVExec_Op<"exec.hart_parallel",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "RISC-V hart/core parallel execution organization";
+  let description = [{
+    Groups extension-owned work under a coarse-grained RISC-V hart/core
+    parallel organization. The core dialect validates structural metadata only;
+    concrete thread runtimes and extension legality remain plugin-local.
+  }];
+
+  let arguments = (ins OptionalAttr<I64Attr>:$harts,
+                   OptionalAttr<StrAttr>:$policy);
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
+def RegionOp : TCRVExec_Op<"exec.region",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "extension-owned execution resource region";
+  let description = [{
+    Provides a single-block execution/resource organization region for
+    extension-owned work. The core dialect records structured region metadata
+    but does not interpret RVV, IME, offload, or future plugin legality here.
+  }];
+
+  let arguments = (ins OptionalAttr<StrAttr>:$kind,
+                   OptionalAttr<StrAttr>:$name,
+                   OptionalAttr<StrAttr>:$purpose);
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
+def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
+  let summary = "structured compiler-visible execution diagnostic metadata";
+  let description = [{
+    Records structured metadata explaining variant rejection, fallback,
+    selection, missing capability, missing runtime, or other compiler-visible
+    execution decisions. It is metadata only and does not model computation.
+  }];
+
+  let arguments = (ins OptionalAttr<StrAttr>:$reason,
+                   OptionalAttr<StrAttr>:$message,
+                   OptionalAttr<StrAttr>:$severity,
+                   OptionalAttr<StrAttr>:$status);
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 def DispatchOp : TCRVExec_Op<"exec.dispatch",
     [NoRegionArguments, NoTerminator, SingleBlock]> {
   let summary = "capability-aware runtime dispatch organization";

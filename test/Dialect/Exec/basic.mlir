@@ -10,10 +10,33 @@ tcrv.exec.kernel @saxpy attributes {} {
   // CHECK-SAME: kind = "isa-vector"
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", version = "1.0"}
 
+  // CHECK: tcrv.exec.mem_window @input_window
+  // CHECK-SAME: binding = "args"
+  // CHECK-SAME: memory_space = "host"
+  // CHECK-SAME: purpose = "variant-dispatch-guard"
+  tcrv.exec.mem_window @input_window {binding = "args", memory_space = "host", purpose = "variant-dispatch-guard"}
+
   // CHECK: tcrv.exec.variant @rvv_variant
   // CHECK-SAME: origin = "rvv-plugin"
   // CHECK-SAME: requires = [@rvv]
   tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+    // CHECK: tcrv.exec.hart_parallel
+    // CHECK-SAME: harts = 64
+    // CHECK-SAME: policy = "static"
+    tcrv.exec.hart_parallel attributes {harts = 64 : i64, policy = "static"} {
+      // CHECK: tcrv.exec.region
+      // CHECK-SAME: kind = "extension-resource"
+      // CHECK-SAME: name = "rvv-resource"
+      // CHECK-SAME: purpose = "extension-owned-body"
+      tcrv.exec.region attributes {kind = "extension-resource", name = "rvv-resource", purpose = "extension-owned-body"} {
+        // CHECK: tcrv.exec.diagnostic
+        // CHECK-SAME: message = "rvv variant selected by capability guard"
+        // CHECK-SAME: reason = "variant-selected"
+        // CHECK-SAME: severity = "note"
+        // CHECK-SAME: status = "accepted"
+        tcrv.exec.diagnostic {message = "rvv variant selected by capability guard", reason = "variant-selected", severity = "note", status = "accepted"}
+      }
+    }
   }
 
   // CHECK: tcrv.exec.dispatch

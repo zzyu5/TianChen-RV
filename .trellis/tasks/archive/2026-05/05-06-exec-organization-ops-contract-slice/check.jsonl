@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Review global invariants for implementation stack and core exec scope"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Review new op surface against tcrv.exec contract"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Review capability verification/query boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Review plugin locality and no hard-coded extension behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review required MLIR/lit validation coverage"}

@@ -16,12 +16,32 @@ namespace {
 
 constexpr llvm::StringLiteral kIdAttrName("id");
 constexpr llvm::StringLiteral kKindAttrName("kind");
+constexpr llvm::StringLiteral kNameAttrName("name");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kPurposeAttrName("purpose");
+constexpr llvm::StringLiteral kBindingAttrName("binding");
+constexpr llvm::StringLiteral kMemorySpaceAttrName("memory_space");
+constexpr llvm::StringLiteral kHartsAttrName("harts");
+constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kReasonAttrName("reason");
+constexpr llvm::StringLiteral kMessageAttrName("message");
+constexpr llvm::StringLiteral kSeverityAttrName("severity");
+constexpr llvm::StringLiteral kStatusAttrName("status");
 
 bool isMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   return !attr || attr.getValue().trim().empty();
+}
+
+bool isPresentButEmptyStringAttr(mlir::Operation *op,
+                                 llvm::StringRef attrName) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  return attr && attr.getValue().trim().empty();
+}
+
+bool hasEnclosingKernelOrVariant(mlir::Operation *op) {
+  return op->getParentOfType<KernelOp>() || op->getParentOfType<VariantOp>();
 }
 
 KernelOp getEnclosingKernel(mlir::Operation *op) {
@@ -97,6 +117,97 @@ mlir::LogicalResult VariantOp::verify() {
              << "requires unknown capability @" << symbolRef.getValue()
              << " in enclosing tcrv.exec.kernel";
   }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult MemWindowOp::verify() {
+  if (isMissingOrEmptyStringAttr(getOperation(), kPurposeAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kPurposeAttrName
+           << "'";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kBindingAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kBindingAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kMemorySpaceAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kMemorySpaceAttrName
+           << "' when present";
+
+  if (!hasEnclosingKernelOrVariant(getOperation()))
+    return emitOpError()
+           << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult HartParallelOp::verify() {
+  auto hartsAttr = getOperation()->getAttrOfType<mlir::IntegerAttr>(
+      kHartsAttrName);
+  if (hartsAttr && hartsAttr.getInt() <= 0)
+    return emitOpError()
+           << "requires positive integer attribute '" << kHartsAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kPolicyAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kPolicyAttrName
+           << "' when present";
+
+  if (!getOperation()->getParentOfType<VariantOp>())
+    return emitOpError() << "must be nested in a tcrv.exec.variant";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult RegionOp::verify() {
+  if (isMissingOrEmptyStringAttr(getOperation(), kKindAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kKindAttrName << "'";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kNameAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kNameAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kPurposeAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kPurposeAttrName
+           << "' when present";
+
+  if (!getOperation()->getParentOfType<VariantOp>())
+    return emitOpError() << "must be nested in a tcrv.exec.variant";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult DiagnosticOp::verify() {
+  if (isMissingOrEmptyStringAttr(getOperation(), kReasonAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kReasonAttrName
+           << "'";
+
+  if (isMissingOrEmptyStringAttr(getOperation(), kMessageAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kMessageAttrName
+           << "'";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kSeverityAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kSeverityAttrName
+           << "' when present";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kStatusAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kStatusAttrName
+           << "' when present";
+
+  if (!hasEnclosingKernelOrVariant(getOperation()))
+    return emitOpError()
+           << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
 
   return mlir::success();
 }

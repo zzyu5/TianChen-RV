@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR invariants and allowed core exec surfaces"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec operation scope, hierarchy, and compute-free boundary"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability participation and structural verification boundaries"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-locality boundary and no extension-specific core dispatch"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and compiler validation expectations"}

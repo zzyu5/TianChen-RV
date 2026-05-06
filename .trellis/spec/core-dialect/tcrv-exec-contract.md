@@ -137,6 +137,21 @@ Rules:
 - Must not model GPU-style thread/block execution.
 - Must not assume all RISC-V targets have the same thread runtime.
 
+The initial compiler verifier slice may spell hart organization with builtin
+MLIR attributes:
+
+```mlir
+tcrv.exec.hart_parallel attributes {harts = 64 : i64, policy = "static"} {
+  ... extension-owned work ...
+}
+```
+
+For this compatibility form, `harts` is optional but must be a positive integer
+when present. `policy` is optional but must be non-empty when present.
+`tcrv.exec.hart_parallel` must be nested in a `tcrv.exec.variant`. Core
+verification checks structure only; concrete runtime threading decisions remain
+plugin/local lowering responsibility.
+
 ### `tcrv.exec.region`
 
 Optional structured region for extension-resource use:
@@ -149,6 +164,23 @@ tcrv.exec.region kind = "rvv" {
 
 Use it for verification and analysis when a variant contains a recognizable extension resource region.
 
+The initial compiler verifier slice may use builtin string attributes:
+
+```mlir
+tcrv.exec.region attributes {
+  kind = "extension-resource",
+  name = "rvv-resource",
+  purpose = "extension-owned-body"
+} {
+  ... extension-owned work ...
+}
+```
+
+For this compatibility form, `kind` is required and non-empty. `name` and
+`purpose` are optional but must be non-empty when present. The region must be
+nested in a `tcrv.exec.variant`. Core verification must not interpret the kind
+as RVV, IME, offload, or future-plugin legality.
+
 ### `tcrv.exec.mem_window`
 
 Represents memory windows, shape specialization, stride/view data, and offload buffer binding context.
@@ -159,6 +191,22 @@ It supports:
 - contiguous/strided RVV access checks;
 - offload buffer binding;
 - shape guards for dispatch.
+
+The initial compiler verifier slice may model memory windows as named symbol
+ops:
+
+```mlir
+tcrv.exec.mem_window @input_window {
+  purpose = "variant-dispatch-guard",
+  binding = "args",
+  memory_space = "host"
+}
+```
+
+For this compatibility form, `purpose` is required and non-empty. `binding` and
+`memory_space` are optional but must be non-empty when present. The op must be
+nested in a `tcrv.exec.kernel` or `tcrv.exec.variant`. It describes memory
+organization context only, not tensor computation or extension-owned buffer ops.
 
 ### `tcrv.exec.dispatch`
 
@@ -187,6 +235,21 @@ Fallback may lower through scalar/scf, default MLIR lowering, portable C/C++, co
 Represents structured reasons for variant rejection, dispatch choice, missing toolchain, missing runtime, unsupported dtype/layout, or fallback selection.
 
 Diagnostics must be compiler-visible and testable with lit/FileCheck when they originate from dialect verification or passes.
+
+The initial compiler verifier slice may model diagnostics as metadata ops:
+
+```mlir
+tcrv.exec.diagnostic {
+  reason = "variant-selected",
+  message = "rvv variant selected by capability guard",
+  severity = "note",
+  status = "accepted"
+}
+```
+
+For this compatibility form, `reason` and `message` are required and non-empty.
+`severity` and `status` are optional but must be non-empty when present. The op
+must be nested in a `tcrv.exec.kernel` or `tcrv.exec.variant`.
 
 ## Core Types And Attributes
 
