@@ -180,6 +180,54 @@ space, lowering plan, emission object, runtime ABI, target-family object, or
 hardware performance claim. The default plugin hook returns a deterministic
 neutral estimate for the request variant and origin plugin.
 
+### EmissionReadinessProvider
+
+Before final lowering, the core may ask the selected variant's origin plugin
+whether a compiler-visible emission path exists. This is a readiness check, not
+lowering or runtime generation.
+
+```cpp
+enum class VariantEmissionRole {
+  DirectVariant,
+  DispatchCase,
+  DispatchFallback,
+};
+
+class VariantEmissionRequest {
+public:
+  tcrv::exec::VariantOp getVariant() const;
+  tcrv::exec::KernelOp getKernel() const;
+  const TargetCapabilitySet &getCapabilities() const;
+  VariantEmissionRole getRole() const;
+};
+
+class VariantEmissionStatus {
+public:
+  bool isSupported() const;
+  bool isUnsupported() const;
+  StringRef getOriginPlugin() const;
+  StringRef getVariantSymbol() const;
+  StringRef getEmissionPath() const;
+  StringRef getReason() const;
+};
+
+class ExtensionPlugin {
+public:
+  virtual Error checkVariantEmissionReadiness(
+      const VariantEmissionRequest &request,
+      VariantEmissionStatus &out) const;
+};
+```
+
+Registry routing is by the generic `origin` string on the materialized
+`tcrv.exec.variant`. The request carries only the materialized variant, its
+enclosing kernel, generic `TargetCapabilitySet`, and target-neutral role. A
+supported result must include a non-empty plugin-owned emission path identifier
+or description. An unsupported result must include a non-empty reason. The core
+validates result shape, origin/variant identity, plugin enablement, and sibling
+structure generically, but does not interpret RVV, IME, offload, scalar,
+vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics.
+
 ### EmissionProvider
 
 ```cpp
@@ -210,7 +258,9 @@ Core pass flow:
 5. Plugins propose one or more tcrv.exec.variant values.
 6. Core verifier orchestrates plugin verifier calls.
 7. Core selector chooses a static variant or dispatch set.
-8. Emission stage calls each selected plugin emission provider.
+8. Core emission-readiness check routes selected/direct/dispatch/fallback
+   variants to their origin plugin and rejects missing or unsupported paths.
+9. Emission stage calls each selected plugin emission provider.
 ```
 
 Correct core shape:

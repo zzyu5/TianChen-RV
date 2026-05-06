@@ -66,4 +66,29 @@ def SelectVariants
   ];
 }
 
+def CheckEmissionPaths
+    : Pass<"tcrv-check-emission-paths", "::mlir::ModuleOp"> {
+  let summary = "Check plugin-owned emission readiness for selected execution paths";
+  let description = [{
+    Verifies that every compiler-visible execution path selected by current
+    tcrv.exec structure can be routed to its origin plugin for emission
+    readiness before final lowering. The check is target-neutral: it validates
+    dispatch/fallback references structurally, routes each materialized
+    tcrv.exec.variant by its generic origin plugin attribute, and requires the
+    origin plugin to return a well-formed supported emission path result.
+
+    Kernels with a direct tcrv.exec.dispatch are checked through every
+    tcrv.exec.case target and the tcrv.exec.fallback target. Kernels without a
+    dispatch or selected-marker surface are conservatively checked through all
+    direct tcrv.exec.variant children. Production tools should construct this
+    pass with a populated ExtensionPluginRegistry. The default public
+    registration uses an empty registry and diagnoses unregistered origins.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createCheckEmissionPathsPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

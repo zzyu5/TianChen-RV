@@ -18,6 +18,9 @@ std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
 std::unique_ptr<::mlir::Pass> createSelectVariantsPass();
 std::unique_ptr<::mlir::Pass>
 createSelectVariantsPass(const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createCheckEmissionPathsPass();
+std::unique_ptr<::mlir::Pass>
+createCheckEmissionPathsPass(const plugin::ExtensionPluginRegistry &registry);
 
 #define GEN_PASS_DECL
 #include "TianChenRV/Transforms/Passes.h.inc"

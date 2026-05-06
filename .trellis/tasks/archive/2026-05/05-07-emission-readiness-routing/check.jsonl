@@ -1,0 +1,10 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "architecture boundary: execution layer, no high-level compute IR"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec remains execution/capability/variant/dispatch/fallback focused"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin interface and registry routing contract"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin-local target semantics boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant proposal/materialization/selection pipeline contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission readiness before lowering without fake runtime claims"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first slice metadata-only plugin contract"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR/TableGen/CMake/lit primary stack"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and C++ test expectations"}

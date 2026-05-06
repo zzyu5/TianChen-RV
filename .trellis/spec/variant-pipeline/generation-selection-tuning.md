@@ -503,6 +503,27 @@ does not parse those strings and must not switch on target families. A
 the same target capability set, so runtime dispatch always has an executable
 fallback path when guarded cases are unavailable.
 
+## Emission Readiness After Selection
+
+After materialization, legality, cost ranking, selection, and dispatch
+synthesis, the compiler may run a generic emission-readiness check before final
+lowering. This pass does not create lowering IR or runtime glue. It verifies
+that the current execution path can be routed back to the origin plugin that
+owns each selected materialized variant.
+
+First-slice behavior:
+
+- kernels with a direct `tcrv.exec.dispatch` check every `tcrv.exec.case`
+  target and the `tcrv.exec.fallback` target;
+- kernels without a dispatch or selected-marker surface conservatively check
+  all direct `tcrv.exec.variant` children;
+- dispatch and fallback targets must resolve to direct sibling variants in the
+  same kernel before plugin routing;
+- missing, duplicate, non-variant, or non-sibling dispatch references are
+  diagnosed generically before plugin emission-readiness hooks are called;
+- routing is by the generic variant `origin` attribute through
+  `ExtensionPluginRegistry`, with no target-family branches in core code.
+
 ## Capability-Aware Tuning
 
 Tuning has two layers.

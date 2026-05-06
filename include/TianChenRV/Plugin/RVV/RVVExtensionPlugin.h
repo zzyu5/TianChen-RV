@@ -32,6 +32,9 @@ public:
   llvm::Error
   estimateVariantCost(const VariantCostRequest &request,
                       VariantCostEstimate &out) const override;
+  llvm::Error
+  checkVariantEmissionReadiness(const VariantEmissionRequest &request,
+                                VariantEmissionStatus &out) const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

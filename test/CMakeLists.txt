@@ -129,6 +129,23 @@ target_link_libraries(tianchenrv-variant-dispatch-synthesis-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-emission-readiness-test
+  Transforms/EmissionReadinessTest.cpp
+)
+
+target_link_libraries(tianchenrv-emission-readiness-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVPlugin
+  TianChenRVRVVPlugin
+  TianChenRVSupport
+  TianChenRVTransforms
+  MLIRIR
+  MLIRParser
+  MLIRPass
+  MLIRSupport
+)
+
 add_executable(tianchenrv-variant-selection-test
   Transforms/VariantSelectionTest.cpp
 )
@@ -167,6 +184,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-plugin-registry-test
   tianchenrv-plugin-variant-legality-test
   tianchenrv-plugin-variant-proposal-test
+  tianchenrv-emission-readiness-test
   tianchenrv-rvv-dialect-test
   tianchenrv-rvv-extension-plugin-test
   tianchenrv-variant-dispatch-synthesis-test

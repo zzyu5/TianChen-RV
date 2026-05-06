@@ -1,5 +1,6 @@
 add_mlir_library(TianChenRVTransforms
   CheckCapabilityRequires.cpp
+  EmissionReadiness.cpp
   VariantDispatchSynthesis.cpp
   VariantMaterialization.cpp
   VariantSelection.cpp

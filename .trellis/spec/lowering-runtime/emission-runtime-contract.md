@@ -6,6 +6,32 @@ Core pass does not implement extension-specific emission. Each plugin owns its l
 
 Variant selection and emission path must be represented in capability model and verified before final lowering.
 
+## Emission Readiness First Slice
+
+The first compiler-visible emission slice is a target-neutral readiness check.
+It does not lower IR, generate runtime ABI glue, invoke a toolchain, run a
+kernel, or prove correctness/performance. It verifies that current
+`tcrv.exec` structure can be routed to the origin plugin that owns each
+materialized variant.
+
+Rules:
+
+- route by the materialized `tcrv.exec.variant` `origin` attribute;
+- carry the variant, enclosing `tcrv.exec.kernel`, generic
+  `TargetCapabilitySet`, and target-neutral role (`direct variant`,
+  `dispatch case`, or `dispatch fallback`);
+- require supported plugin results to contain a non-empty plugin-owned emission
+  path identifier or description;
+- require unsupported plugin results to contain a non-empty reason;
+- diagnose missing/empty origin, unknown plugin, disabled plugin, malformed
+  plugin result, missing kernel/variant, and non-direct variant/kernel
+  relationships generically;
+- validate `tcrv.exec.dispatch` case/fallback targets structurally before
+  routing to plugins: every reference must resolve to a direct sibling
+  `tcrv.exec.variant` in the same kernel and duplicate references are invalid;
+- avoid core branches on RVV, IME, offload, scalar, vendor, dtype, shape,
+  runtime, toolchain, or microarchitecture details.
+
 ## EmissionProvider Responsibilities
 
 Each plugin emission provider:

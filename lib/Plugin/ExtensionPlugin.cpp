@@ -66,6 +66,18 @@ llvm::Error makeVariantCostError(tcrv::exec::VariantOp variant,
   return makePluginRegistryError(stream.str());
 }
 
+llvm::Error makeVariantEmissionError(tcrv::exec::VariantOp variant,
+                                     tcrv::exec::KernelOp kernel,
+                                     VariantEmissionRole role,
+                                     llvm::Twine message) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "TianChen-RV variant emission readiness check failed for ";
+  appendVariantContext(stream, variant, kernel);
+  stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
+  return makePluginRegistryError(stream.str());
+}
+
 llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
                                      const VariantProposal &proposal,
                                      llvm::Twine message) {
@@ -196,6 +208,12 @@ VariantCostRequest::VariantCostRequest(
     const support::TargetCapabilitySet &capabilities)
     : variant(variant), kernel(kernel), capabilities(capabilities) {}
 
+VariantEmissionRequest::VariantEmissionRequest(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities, VariantEmissionRole role)
+    : variant(variant), kernel(kernel), capabilities(capabilities),
+      role(role) {}
+
 VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
     : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
@@ -205,6 +223,42 @@ VariantCostEstimate::VariantCostEstimate(double score,
                                          llvm::StringRef variantSymbol)
     : scoreSet(true), score(score), originPlugin(originPlugin.str()),
       variantSymbol(variantSymbol.str()) {}
+
+llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role) {
+  switch (role) {
+  case VariantEmissionRole::DirectVariant:
+    return "direct variant";
+  case VariantEmissionRole::DispatchCase:
+    return "dispatch case";
+  case VariantEmissionRole::DispatchFallback:
+    return "dispatch fallback";
+  }
+  return "unknown role";
+}
+
+VariantEmissionStatus
+VariantEmissionStatus::getSupported(llvm::StringRef originPlugin,
+                                    llvm::StringRef variantSymbol,
+                                    llvm::StringRef emissionPath) {
+  VariantEmissionStatus status;
+  status.setSupported();
+  status.setOriginPlugin(originPlugin);
+  status.setVariantSymbol(variantSymbol);
+  status.setEmissionPath(emissionPath);
+  return status;
+}
+
+VariantEmissionStatus
+VariantEmissionStatus::getUnsupported(llvm::StringRef originPlugin,
+                                      llvm::StringRef variantSymbol,
+                                      llvm::StringRef reason) {
+  VariantEmissionStatus status;
+  status.setUnsupported();
+  status.setOriginPlugin(originPlugin);
+  status.setVariantSymbol(variantSymbol);
+  status.setReason(reason);
+  return status;
+}
 
 bool ExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
@@ -233,6 +287,16 @@ llvm::Error ExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(getName());
   if (tcrv::exec::VariantOp variant = request.getVariant())
     out.setVariantSymbol(variant.getSymName());
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::checkVariantEmissionReadiness(
+    const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
+  out = VariantEmissionStatus::getUnsupported(
+      getName(),
+      request.getVariant() ? request.getVariant().getSymName()
+                           : llvm::StringRef("<missing>"),
+      "origin plugin does not provide an emission readiness path");
   return llvm::Error::success();
 }
 
@@ -503,6 +567,109 @@ llvm::Error ExtensionPluginRegistry::estimateVariantCost(
   return llvm::Error::success();
 }
 
+llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
+    const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!variant)
+    return makeVariantEmissionError(
+        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantEmissionError(
+        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+
+  if (variant->getParentOp() != kernel.getOperation())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        "variant is not directly enclosed by the request tcrv.exec.kernel");
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  VariantEmissionStatus status;
+  if (llvm::Error error =
+          plugin->checkVariantEmissionReadiness(request, status)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' failed emission readiness query: " + pluginMessage);
+  }
+
+  if (llvm::Error error =
+          validateVariantEmissionStatus(request, *plugin, origin, status))
+    return error;
+
+  if (status.isUnsupported())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' reported unsupported emission path: " + status.getReason());
+
+  out = status;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
+    tcrv::exec::KernelOp kernel) const {
+  if (!kernel)
+    return makeVariantEmissionError(tcrv::exec::VariantOp(), kernel,
+                                    VariantEmissionRole::DirectVariant,
+                                    "requires a tcrv.exec.kernel");
+
+  support::TargetCapabilitySet capabilities =
+      support::TargetCapabilitySet::buildFromKernel(kernel);
+  return checkKernelEmissionReadiness(kernel, capabilities);
+}
+
+llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
+    tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities) const {
+  if (!kernel)
+    return makeVariantEmissionError(tcrv::exec::VariantOp(), kernel,
+                                    VariantEmissionRole::DirectVariant,
+                                    "requires a tcrv.exec.kernel");
+
+  if (kernel.getBody().empty())
+    return makeVariantEmissionError(
+        tcrv::exec::VariantOp(), kernel, VariantEmissionRole::DirectVariant,
+        "requires kernel to have a materialized body block");
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (!variant)
+      continue;
+
+    VariantEmissionStatus status;
+    VariantEmissionRequest request(variant, kernel, capabilities,
+                                   VariantEmissionRole::DirectVariant);
+    if (llvm::Error error = checkVariantEmissionReadiness(request, status))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
     tcrv::exec::KernelOp kernel,
     llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
@@ -708,6 +875,66 @@ llvm::Error ExtensionPluginRegistry::validateVariantCostEstimate(
         llvm::Twine("origin plugin '") + plugin.getName() +
             "' produced invalid cost estimate: policy must be non-empty when "
             "present");
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateVariantEmissionStatus(
+    const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
+    llvm::StringRef origin, const VariantEmissionStatus &status) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!status.hasStatus())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: status is missing");
+
+  if (status.getOriginPlugin().trim().empty())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: origin plugin must "
+            "be non-empty");
+
+  if (status.getOriginPlugin() != origin)
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: result origin '" +
+            status.getOriginPlugin() + "' does not match variant origin '" +
+            origin + "'");
+
+  if (status.getVariantSymbol().trim().empty())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: variant symbol must "
+            "be non-empty");
+
+  if (status.getVariantSymbol() != variant.getSymName())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: result variant @" +
+            status.getVariantSymbol() + " does not match request variant @" +
+            variant.getSymName());
+
+  if (status.isSupported() && status.getEmissionPath().trim().empty())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: supported result "
+            "requires a non-empty plugin-owned emission path");
+
+  if (status.isUnsupported() && status.getReason().trim().empty())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: unsupported result "
+            "requires a non-empty reason");
 
   return llvm::Error::success();
 }

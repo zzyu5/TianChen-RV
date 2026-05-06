@@ -69,6 +69,14 @@ for the existing generic materialization, legality, capability, and selection
 helpers. They are not RVV lowering, code emission, runtime ABI, correctness
 evidence, or performance evidence.
 
+The RVV first slice participates in the generic emission-readiness protocol
+only to report an explicit unsupported status. Because this slice has no RVV
+ops, lowering patterns, runtime ABI, executable kernel, toolchain invocation,
+or runtime proof, `RVVExtensionPlugin` must not return a supported emission
+path for `@rvv_first_slice`. The unsupported reason is a diagnostic boundary
+that prevents accidental RVV lowering/runtime claims until a later slice adds
+real lowering and `ssh rvv` evidence.
+
 `registerDialects` now registers the minimal RVV dialect skeleton through the
 RVV plugin path. The default `registerAllDialects` path remains core-only; RVV
 dialect availability is proven by populating an `ExtensionPluginRegistry` with
@@ -233,6 +241,17 @@ Reference metadata:
 ```
 
 ## Emission Paths
+
+Current first slice:
+
+```text
+rvv-plugin @rvv_first_slice -> unsupported emission readiness
+reason: metadata/control-plane only; no RVV lowering/runtime/executable path
+```
+
+This unsupported readiness result is required. It is not a failure of the
+architecture and is not RVV hardware, toolchain, runtime, correctness, or
+performance evidence.
 
 ### MLIR vector / LLVM scalable vector
 

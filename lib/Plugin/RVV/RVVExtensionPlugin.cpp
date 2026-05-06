@@ -215,6 +215,20 @@ llvm::Error RVVExtensionPlugin::estimateVariantCost(
   return llvm::Error::success();
 }
 
+llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
+    const VariantEmissionRequest &request, VariantEmissionStatus &out) const {
+  if (!request.getVariant())
+    return makeRVVPluginError(
+        "emission readiness requires a materialized tcrv.exec.variant");
+
+  out = VariantEmissionStatus::getUnsupported(
+      kRVVPluginName, request.getVariant().getSymName(),
+      "RVV metadata-only first slice has no RVV lowering, runtime ABI, or "
+      "executable emission path; this is an explicit diagnostic boundary and "
+      "not RVV hardware/toolchain/runtime/correctness/performance evidence");
+  return llvm::Error::success();
+}
+
 } // namespace rvv
 
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry) {

@@ -91,6 +91,35 @@ private:
   const support::TargetCapabilitySet &capabilities;
 };
 
+enum class VariantEmissionRole {
+  DirectVariant,
+  DispatchCase,
+  DispatchFallback,
+};
+
+llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role);
+
+class VariantEmissionRequest {
+public:
+  VariantEmissionRequest(tcrv::exec::VariantOp variant,
+                         tcrv::exec::KernelOp kernel,
+                         const support::TargetCapabilitySet &capabilities,
+                         VariantEmissionRole role);
+
+  tcrv::exec::VariantOp getVariant() const { return variant; }
+  tcrv::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+
+private:
+  tcrv::exec::VariantOp variant;
+  tcrv::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+};
+
 class VariantProposal {
 public:
   VariantProposal() = default;
@@ -183,6 +212,54 @@ private:
   std::string policy;
 };
 
+enum class VariantEmissionSupport {
+  Unknown,
+  Supported,
+  Unsupported,
+};
+
+class VariantEmissionStatus {
+public:
+  VariantEmissionStatus() = default;
+  static VariantEmissionStatus getSupported(llvm::StringRef originPlugin,
+                                            llvm::StringRef variantSymbol,
+                                            llvm::StringRef emissionPath);
+  static VariantEmissionStatus getUnsupported(llvm::StringRef originPlugin,
+                                              llvm::StringRef variantSymbol,
+                                              llvm::StringRef reason);
+
+  bool hasStatus() const {
+    return support != VariantEmissionSupport::Unknown;
+  }
+  bool isSupported() const {
+    return support == VariantEmissionSupport::Supported;
+  }
+  bool isUnsupported() const {
+    return support == VariantEmissionSupport::Unsupported;
+  }
+  VariantEmissionSupport getSupport() const { return support; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  llvm::StringRef getEmissionPath() const { return emissionPath; }
+  llvm::StringRef getReason() const { return reason; }
+
+  void setSupported() { support = VariantEmissionSupport::Supported; }
+  void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setEmissionPath(llvm::StringRef path) { emissionPath = path.str(); }
+  void setReason(llvm::StringRef value) { reason = value.str(); }
+
+private:
+  VariantEmissionSupport support = VariantEmissionSupport::Unknown;
+  std::string originPlugin;
+  std::string variantSymbol;
+  std::string emissionPath;
+  std::string reason;
+};
+
 struct VariantCostRankingEntry {
   tcrv::exec::VariantOp variant;
   VariantCostEstimate estimate;
@@ -207,6 +284,9 @@ public:
   virtual llvm::Error
   estimateVariantCost(const VariantCostRequest &request,
                       VariantCostEstimate &out) const;
+  virtual llvm::Error
+  checkVariantEmissionReadiness(const VariantEmissionRequest &request,
+                                VariantEmissionStatus &out) const;
 };
 
 class ExtensionPluginRegistry {
@@ -248,6 +328,14 @@ public:
       const support::TargetCapabilitySet &capabilities) const;
   llvm::Error estimateVariantCost(const VariantCostRequest &request,
                                   VariantCostEstimate &out) const;
+  llvm::Error
+  checkVariantEmissionReadiness(const VariantEmissionRequest &request,
+                                VariantEmissionStatus &out) const;
+  llvm::Error checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel) const;
+  llvm::Error
+  checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel,
+                               const support::TargetCapabilitySet
+                                   &capabilities) const;
   llvm::Error collectKernelVariantCosts(
       tcrv::exec::KernelOp kernel,
       llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
@@ -270,6 +358,9 @@ private:
   llvm::Error validateVariantCostEstimate(
       const VariantCostRequest &request, const ExtensionPlugin &plugin,
       llvm::StringRef origin, const VariantCostEstimate &estimate) const;
+  llvm::Error validateVariantEmissionStatus(
+      const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
+      llvm::StringRef origin, const VariantEmissionStatus &status) const;
 
   llvm::SmallVector<const ExtensionPlugin *, 8> plugins;
   llvm::StringMap<const ExtensionPlugin *> pluginsByName;
