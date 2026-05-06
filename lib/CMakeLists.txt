@@ -1,6 +1,6 @@
 add_subdirectory(Dialect)
-add_subdirectory(Plugin)
 add_subdirectory(Support)
+add_subdirectory(Plugin)
 add_subdirectory(Transforms)
 
 add_mlir_library(TianChenRVInitAll

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for compiler stack, capability model, plugin registry, and tcrv.exec boundaries"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "VariantBuilder and registry orchestration interface contract"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "generic core/plugin boundary and no target-specific core branch requirement"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "plugin-driven proposal semantics and variant metadata boundary"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "TargetCapabilitySet and generic capability query semantics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec variant/origin/requires compute-free contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "C++ and lit/FileCheck evidence requirements"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability-driven decision checklist"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "plugin locality checklist"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "compute-free core dialect checklist"}

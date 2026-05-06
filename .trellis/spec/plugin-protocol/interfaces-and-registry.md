@@ -44,21 +44,23 @@ Responsibilities:
 ```cpp
 class VariantBuilder {
 public:
-  virtual bool supports(Operation *highLevelOp,
-                        const TargetCapability &target) = 0;
+  virtual bool supportsOperation(const VariantProposalRequest &request) = 0;
 
-  virtual LogicalResult proposeVariants(Operation *highLevelOp,
-                                        const TargetCapability &target,
-                                        SmallVectorImpl<TCRVVariant> &out) = 0;
+  virtual Error proposeVariants(const VariantProposalRequest &request,
+                                SmallVectorImpl<VariantProposal> &out) = 0;
 };
 ```
 
 Responsibilities:
 
 - decide whether a high-level op can be implemented by the plugin;
-- generate `tcrv.exec.variant`;
-- place extension dialect ops in the variant body;
-- declare `requires`, `origin`, shape guards, tuning metadata, and emission metadata.
+- receive the high-level `Operation *`, the relevant `tcrv.exec.kernel`
+  anchor, and the generic `TargetCapabilitySet`;
+- propose compiler-visible variant metadata before IR materialization;
+- declare variant name, `origin`, required capability ids or symbol
+  references, and optional generic guard/policy metadata;
+- later generation slices may materialize `tcrv.exec.variant`, place extension
+  dialect ops in the variant body, and attach tuning/emission metadata.
 
 ### LegalityVerifier
 
@@ -150,8 +152,8 @@ Correct core shape:
 
 ```cpp
 for (auto *plugin : pluginRegistry.enabledPlugins()) {
-  if (!plugin->supports(op, target)) continue;
-  plugin->proposeVariants(op, target, variants);
+  if (!plugin->supportsOperation(request)) continue;
+  plugin->proposeVariants(request, proposals);
 }
 ```
 
@@ -162,6 +164,16 @@ if (target.hasRVV()) { ... }
 if (target.hasIME()) { ... }
 if (target.hasSophgo()) { ... }
 ```
+
+The registry-level first slice provides deterministic proposal orchestration:
+
+- iterate plugins in registration order;
+- skip disabled plugins before support queries;
+- skip enabled unsupported plugins before proposal generation;
+- collect proposals only from enabled supported plugins;
+- reject malformed proposals with `llvm::Error`, including empty variant names
+  or empty origin/plugin ownership;
+- keep proposal collection generic and free of target-family branches.
 
 ## Registration Metadata
 

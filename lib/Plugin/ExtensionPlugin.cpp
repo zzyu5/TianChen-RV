@@ -22,6 +22,29 @@ PluginCapability::PluginCapability(llvm::StringRef id, llvm::StringRef kind,
                                    llvm::StringRef description)
     : id(id.str()), kind(kind.str()), description(description.str()) {}
 
+VariantProposalRequest::VariantProposalRequest(
+    mlir::Operation *highLevelOp, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities)
+    : highLevelOp(highLevelOp), kernel(kernel), capabilities(capabilities) {}
+
+VariantProposal::VariantProposal(llvm::StringRef variantName,
+                                 llvm::StringRef originPlugin)
+    : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
+
+bool ExtensionPlugin::supportsOperation(
+    const VariantProposalRequest &request) const {
+  (void)request;
+  return false;
+}
+
+llvm::Error ExtensionPlugin::proposeVariants(
+    const VariantProposalRequest &request,
+    llvm::SmallVectorImpl<VariantProposal> &out) const {
+  (void)request;
+  (void)out;
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::registerPlugin(
     const ExtensionPlugin &plugin) {
   llvm::StringRef name = plugin.getName();
@@ -113,6 +136,46 @@ void ExtensionPluginRegistry::collectCapabilitiesByKind(
         out.push_back(capability);
     }
   }
+}
+
+llvm::Error ExtensionPluginRegistry::collectVariantProposals(
+    const VariantProposalRequest &request,
+    llvm::SmallVectorImpl<VariantProposal> &out) const {
+  for (const ExtensionPlugin *plugin : plugins) {
+    if (!plugin->isEnabled())
+      continue;
+
+    if (!plugin->supportsOperation(request))
+      continue;
+
+    llvm::SmallVector<VariantProposal, 4> pluginProposals;
+    if (llvm::Error error = plugin->proposeVariants(request, pluginProposals))
+      return error;
+
+    for (const VariantProposal &proposal : pluginProposals) {
+      if (llvm::Error error = validateVariantProposal(*plugin, proposal))
+        return error;
+    }
+
+    out.append(pluginProposals.begin(), pluginProposals.end());
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateVariantProposal(
+    const ExtensionPlugin &plugin, const VariantProposal &proposal) const {
+  if (proposal.getVariantName().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+        "' produced invalid variant proposal: variant name must be non-empty");
+
+  if (proposal.getOriginPlugin().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+        "' produced invalid variant proposal: origin plugin must be non-empty");
+
+  return llvm::Error::success();
 }
 
 } // namespace tianchenrv::plugin

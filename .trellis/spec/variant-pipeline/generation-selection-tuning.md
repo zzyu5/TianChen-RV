@@ -70,6 +70,14 @@ Scalar/default plugin: can it generate fallback?
 Future plugin: can it generate another variant?
 ```
 
+The first C++ interface slice may collect proposal metadata objects before
+materializing textual IR. Each proposal must still be directly mappable to
+`tcrv.exec.variant` and dispatch metadata: variant symbol/name, origin plugin,
+required capability ids or symbol references, and optional generic
+condition/guard/policy metadata. Proposal collection is orchestration only; it
+does not select variants, run tuning, lower extension ops, emit runtime glue, or
+rewrite IR.
+
 Example without IME:
 
 ```text
