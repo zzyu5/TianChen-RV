@@ -7,7 +7,13 @@ class DialectRegistry;
 
 namespace tianchenrv {
 
+namespace plugin {
+class ExtensionPluginRegistry;
+} // namespace plugin
+
 void registerAllDialects(mlir::DialectRegistry &registry);
+void registerPluginDialects(const plugin::ExtensionPluginRegistry &plugins,
+                            mlir::DialectRegistry &registry);
 
 } // namespace tianchenrv
 

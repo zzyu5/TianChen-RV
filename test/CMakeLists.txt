@@ -9,10 +9,23 @@ configure_lit_site_cfg(
   LLVM_TOOLS_BINARY_DIR
 )
 
+add_executable(tianchenrv-plugin-registry-test
+  Plugin/PluginRegistryTest.cpp
+)
+
+target_link_libraries(tianchenrv-plugin-registry-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVPlugin
+  MLIRIR
+  MLIRSupport
+)
+
 add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
   tcrv-opt
+  tianchenrv-plugin-registry-test
   ARGS
   -sv
 )

@@ -8,7 +8,7 @@ llvm_config = lit.llvm.llvm_config
 
 config.name = "TianChenRV"
 config.test_format = lit.formats.ShTest()
-config.suffixes = [".mlir"]
+config.suffixes = [".mlir", ".test"]
 config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = config.tianchenrv_obj_root
 
@@ -17,4 +17,6 @@ llvm_config.with_environment("PATH", config.tianchenrv_tools_dir, append_path=Tr
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
 tool_dirs = [config.tianchenrv_tools_dir, config.llvm_tools_dir]
-llvm_config.add_tool_substitutions(["tcrv-opt", "FileCheck"], tool_dirs)
+llvm_config.add_tool_substitutions(
+    ["tcrv-opt", "FileCheck", "tianchenrv-plugin-registry-test"], tool_dirs
+)
