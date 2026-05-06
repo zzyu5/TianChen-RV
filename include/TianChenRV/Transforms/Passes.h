@@ -5,10 +5,19 @@
 
 #include <memory>
 
-namespace tianchenrv::transforms {
+namespace tianchenrv {
+
+namespace plugin {
+class ExtensionPluginRegistry;
+} // namespace plugin
+
+namespace transforms {
 
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
 std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
+std::unique_ptr<::mlir::Pass> createSelectVariantsPass();
+std::unique_ptr<::mlir::Pass>
+createSelectVariantsPass(const plugin::ExtensionPluginRegistry &registry);
 
 #define GEN_PASS_DECL
 #include "TianChenRV/Transforms/Passes.h.inc"
@@ -16,6 +25,7 @@ std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
 #define GEN_PASS_REGISTRATION
 #include "TianChenRV/Transforms/Passes.h.inc"
 
-} // namespace tianchenrv::transforms
+} // namespace transforms
+} // namespace tianchenrv
 
 #endif // TIANCHENRV_TRANSFORMS_PASSES_H

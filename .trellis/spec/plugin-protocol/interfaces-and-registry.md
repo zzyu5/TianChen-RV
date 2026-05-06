@@ -305,6 +305,15 @@ scores and optional explanatory metadata through their cost hook, but they do
 not directly mutate dispatch IR or encode core selection policy through
 target-family branches.
 
+When selection is run as an MLIR pass, the pass must receive the same registry
+object explicitly from the owning tool or plugin loader. A default public pass
+registration with no injected plugins is allowed only as an honest diagnostic
+surface: it must fail on unregistered variant `origin` plugins rather than
+falling back to core-side string attributes, target-family switches, or Python
+cost models. This keeps the dependency direction
+`core orchestration -> abstract plugin interface -> concrete extension
+implementation`.
+
 ## Registration Metadata
 
 Each plugin registers:

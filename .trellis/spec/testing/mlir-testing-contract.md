@@ -22,7 +22,8 @@ Use lit/FileCheck for:
 - pass pipelines;
 - rewrite/lowering behavior visible in textual IR;
 - capability-driven variant generation and rejection diagnostics;
-- dispatch/fallback IR structure.
+- dispatch/fallback IR structure;
+- default public pass diagnostics when origin plugins are not registered.
 
 Example test intent:
 
@@ -39,6 +40,7 @@ Use C++ tests for:
 - plugin registry APIs;
 - capability query helper semantics;
 - cost model helper logic;
+- registry-injected pass behavior that requires in-process mock plugins;
 - non-textual MLIR interfaces;
 - C++ utility behavior that is not well covered through textual IR.
 

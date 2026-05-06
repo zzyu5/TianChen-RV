@@ -44,4 +44,26 @@ def SynthesizeVariantDispatch
   ];
 }
 
+def SelectVariants
+    : Pass<"tcrv-select-variants", "::mlir::ModuleOp"> {
+  let summary = "Run generic capability-aware variant selection planning";
+  let description = [{
+    Runs the target-neutral TianChen-RV variant selection planner over direct
+    tcrv.exec.variant children of each tcrv.exec.kernel. Production tools should
+    construct this pass with a populated ExtensionPluginRegistry so variant costs
+    stay origin-plugin-owned. The default public registration uses an empty
+    registry and therefore diagnoses kernels whose variants name unregistered
+    origin plugins rather than inventing core-side cost semantics.
+
+    Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
+    tcrv.exec.case, and tcrv.exec.fallback operations. Static, fallback-only,
+    and no-variant plans do not erase variants or inject target-specific IR.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createSelectVariantsPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

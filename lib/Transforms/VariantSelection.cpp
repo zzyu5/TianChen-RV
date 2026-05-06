@@ -1,8 +1,12 @@
 #include "TianChenRV/Transforms/VariantSelection.h"
 
+#include "TianChenRV/Transforms/Passes.h"
+
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/Visitors.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
@@ -11,6 +15,10 @@
 #include <optional>
 
 namespace tianchenrv::transforms {
+
+#define GEN_PASS_DEF_SELECTVARIANTS
+#include "TianChenRV/Transforms/Passes.h.inc"
+
 namespace {
 
 constexpr llvm::StringLiteral kConditionAttrName("condition");
@@ -211,6 +219,68 @@ FallbackOp createFallback(mlir::OpBuilder &builder, VariantOp variant) {
   return llvm::cast<FallbackOp>(builder.create(state));
 }
 
+class SelectVariantsPass final
+    : public impl::SelectVariantsBase<SelectVariantsPass> {
+public:
+  SelectVariantsPass() : registry(&ownedRegistry) {}
+
+  explicit SelectVariantsPass(const ExtensionPluginRegistry &registry)
+      : registry(&registry) {}
+
+  SelectVariantsPass(const SelectVariantsPass &other)
+      : impl::SelectVariantsBase<SelectVariantsPass>(other),
+        registry(other.registry == &other.ownedRegistry ? &ownedRegistry
+                                                        : other.registry) {}
+
+  void runOnOperation() override {
+    mlir::OpBuilder builder(&getContext());
+    mlir::WalkResult walkResult =
+        getOperation()->walk([&](KernelOp kernel) -> mlir::WalkResult {
+          if (mlir::failed(runSelection(builder, kernel)))
+            return mlir::WalkResult::interrupt();
+          return mlir::WalkResult::advance();
+        });
+
+    if (walkResult.wasInterrupted())
+      signalPassFailure();
+  }
+
+private:
+  mlir::LogicalResult runSelection(mlir::OpBuilder &builder, KernelOp kernel) {
+    llvm::Expected<VariantSelectionPlan> planOrError =
+        planKernelVariantSelection(kernel, *registry);
+    if (!planOrError)
+      return emitSelectionError(kernel, planOrError.takeError());
+
+    VariantSelectionPlan plan = std::move(*planOrError);
+    switch (plan.kind) {
+    case VariantSelectionKind::RuntimeDispatch:
+      if (llvm::Error error = materializeRuntimeDispatchPlan(builder, plan))
+        return emitSelectionError(kernel, std::move(error));
+      return mlir::success();
+    case VariantSelectionKind::StaticVariant:
+    case VariantSelectionKind::FallbackOnly:
+    case VariantSelectionKind::NoViableVariant:
+      return mlir::success();
+    }
+
+    return emitSelectionError(
+        kernel, makeSelectionError(kernel, "unknown variant selection kind"));
+  }
+
+  mlir::LogicalResult emitSelectionError(KernelOp kernel, llvm::Error error) {
+    std::string message = llvm::toString(std::move(error));
+    if (kernel)
+      kernel.emitError() << message;
+    else
+      getOperation()->emitError() << message;
+    return mlir::failure();
+  }
+
+  ExtensionPluginRegistry ownedRegistry;
+  const ExtensionPluginRegistry *registry = nullptr;
+};
+
 } // namespace
 
 llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
@@ -383,6 +453,15 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
     *createdDispatch = dispatch;
 
   return llvm::Error::success();
+}
+
+std::unique_ptr<::mlir::Pass> createSelectVariantsPass() {
+  return std::make_unique<SelectVariantsPass>();
+}
+
+std::unique_ptr<::mlir::Pass>
+createSelectVariantsPass(const ExtensionPluginRegistry &registry) {
+  return std::make_unique<SelectVariantsPass>(registry);
 }
 
 } // namespace tianchenrv::transforms

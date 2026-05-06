@@ -163,6 +163,29 @@ unsigned countDirectVariants(KernelOp kernel) {
   return count;
 }
 
+unsigned countDirectDispatches(KernelOp kernel) {
+  if (!kernel || kernel.getBody().empty())
+    return 0;
+
+  unsigned count = 0;
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    if (llvm::isa<DispatchOp>(operation))
+      ++count;
+  }
+  return count;
+}
+
+DispatchOp findDirectDispatch(KernelOp kernel) {
+  if (!kernel || kernel.getBody().empty())
+    return DispatchOp();
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    if (auto dispatch = llvm::dyn_cast<DispatchOp>(operation))
+      return dispatch;
+  }
+  return DispatchOp();
+}
+
 llvm::StringRef getTarget(mlir::Operation *operation) {
   auto target = operation->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
   if (!target)
@@ -461,6 +484,117 @@ module {
   if (int result =
           expect(mlir::succeeded(passManager.run(*module)),
                  "check-capability-requires accepts guarded dispatch and available fallback"))
+    return result;
+
+  return 0;
+}
+
+int runInjectedRegistrySelectionPassTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @pass_injected_registry attributes {} {
+    tcrv.exec.capability @runtime_probe {
+      id = "runtime.probe",
+      kind = "runtime-offload",
+      status = "missing"
+    }
+    tcrv.exec.capability @generic_base {
+      id = "generic.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @guarded_fast attributes {
+      condition = "runtime_probe_available",
+      origin = "guarded-fast",
+      requires = [@runtime_probe]
+    } {
+    }
+    tcrv.exec.variant @portable_fallback attributes {
+      origin = "portable-fallback",
+      requires = [@generic_base]
+    } {
+    }
+    tcrv.exec.variant @available_slow attributes {
+      origin = "available-slow",
+      requires = [@generic_base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse injected selection pass module");
+
+  SelectionCostPlugin guardedFast("guarded-fast", 0.5);
+  SelectionCostPlugin portableFallback("portable-fallback", 2.0);
+  SelectionCostPlugin availableSlow("available-slow", 5.0);
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(guardedFast),
+                                 "register pass guarded fast"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(portableFallback),
+                                 "register pass portable fallback"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(availableSlow),
+                                 "register pass available slow"))
+    return result;
+
+  KernelOp kernel = findKernel(*module, "pass_injected_registry");
+  unsigned variantsBefore = countDirectVariants(kernel);
+  if (int result = expect(countDirectDispatches(kernel) == 0,
+                          "injected selection pass starts without dispatch"))
+    return result;
+
+  mlir::PassManager passManager(&context);
+  passManager.addPass(tianchenrv::transforms::createSelectVariantsPass(registry));
+  passManager.addPass(tianchenrv::transforms::createCheckCapabilityRequiresPass());
+  if (int result = expect(mlir::succeeded(passManager.run(*module)),
+                          "injected registry selection pass succeeds"))
+    return result;
+
+  kernel = findKernel(*module, "pass_injected_registry");
+  if (int result =
+          expect(countDirectVariants(kernel) == variantsBefore,
+                 "injected selection pass does not erase materialized variants"))
+    return result;
+  if (int result = expect(countDirectDispatches(kernel) == 1,
+                          "injected selection pass materializes one dispatch"))
+    return result;
+
+  DispatchOp dispatch = findDirectDispatch(kernel);
+  if (int result = expect(static_cast<bool>(dispatch),
+                          "injected selection pass produced typed dispatch"))
+    return result;
+
+  llvm::SmallVector<DispatchCaseOp, 2> cases;
+  FallbackOp fallback;
+  for (mlir::Operation &operation : dispatch.getBody().front()) {
+    if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(operation)) {
+      cases.push_back(dispatchCase);
+      continue;
+    }
+    if (auto fallbackCandidate = llvm::dyn_cast<FallbackOp>(operation))
+      fallback = fallbackCandidate;
+  }
+
+  if (int result = expect(cases.size() == 1,
+                          "injected selection pass keeps lower-cost guarded case"))
+    return result;
+  if (int result =
+          expect(getTarget(cases[0].getOperation()) == "guarded_fast",
+                 "injected selection pass dispatch case uses planned target"))
+    return result;
+  if (int result = expect(getStringAttr(cases[0].getOperation(), "condition") ==
+                              "runtime_probe_available",
+                          "injected selection pass copies generic condition"))
+    return result;
+  if (int result = expect(static_cast<bool>(fallback),
+                          "injected selection pass emits typed fallback"))
+    return result;
+  if (int result =
+          expect(getTarget(fallback.getOperation()) == "portable_fallback",
+                 "injected selection pass chooses cost-ranked available fallback"))
     return result;
 
   return 0;
@@ -804,6 +938,8 @@ int main() {
   if (int result = runStaticAndTieSelectionTest(context))
     return result;
   if (int result = runRuntimeDispatchPlanningAndMaterializationTest(context))
+    return result;
+  if (int result = runInjectedRegistrySelectionPassTest(context))
     return result;
   if (int result = runNoViableAndUnavailableNegativeTests(context))
     return result;

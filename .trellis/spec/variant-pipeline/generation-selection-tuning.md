@@ -371,6 +371,26 @@ Selection planning must stay target-neutral. It must not branch on RVV, IME,
 offload, scalar fallback, vendors, accelerators, dtype, shape, layout, runtime
 ABI, microarchitecture, or any other target family.
 
+### 8. Pass Integration and Registry Injection
+
+The generic selection planner may be exposed through an MLIR module pass, but the
+pass boundary must preserve plugin-owned cost semantics:
+
+- `createSelectVariantsPass(const ExtensionPluginRegistry &registry)` is the
+  production construction path. Tooling or future plugin loaders inject the
+  populated registry before pass execution.
+- `createSelectVariantsPass()` may be used for public `tcrv-opt` registration,
+  but it owns only an empty registry. It must diagnose variants with
+  unregistered `origin` plugins instead of inventing core-side attribute costs,
+  target-family fallbacks, or Python-only ranking.
+- The pass must build `TargetCapabilitySet` from each `tcrv.exec.kernel`, call
+  the existing selection planner, and materialize only runtime-dispatch plans
+  with typed `tcrv.exec.dispatch`, `tcrv.exec.case`, and `tcrv.exec.fallback`.
+- Static, fallback-only, and no-direct-variant plans do not erase variants,
+  lower extension dialects, or inject target-specific IR.
+- Tests should cover both injected-registry pass execution and public default
+  pass diagnostics for missing origin plugins.
+
 ## Variant IR Required Fields
 
 Each variant must include:
