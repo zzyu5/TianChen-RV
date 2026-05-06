@@ -386,6 +386,22 @@ planning after readiness, without generating executable artifacts:
   path is supportable, while the plan describes the plugin-owned
   lowering/runtime route or structured unsupported reason.
 
+The compiler may materialize collected `VariantEmissionPlan` results as
+structured `tcrv.exec.diagnostic` metadata with `reason = "emission_plan"`.
+Materialization is a core orchestration surface only:
+
+- it reuses the same selected-path traversal and registry routing as plan
+  collection;
+- it creates diagnostics only after plan collection and generic validation have
+  succeeded;
+- it copies plugin-owned generic fields such as origin, role, support status,
+  emission kind, lowering pipeline id, runtime ABI id, artifact kind, and
+  diagnostic/explanation text;
+- it rejects pre-existing materialized emission-plan diagnostics instead of
+  appending stale duplicates;
+- it never fills in RVV, IME, offload, scalar, vendor, dtype, shape,
+  toolchain, runtime, or target-family semantics in core code.
+
 Cost ranking is an input to generic selection planning, not a plugin-side
 selection decision. A core selection planner may consume
 `rankKernelVariantsByCost` results together with the same generic

@@ -62,6 +62,7 @@ def KernelOp : TCRVExec_Op<"exec.kernel",
   let arguments = (ins SymbolNameAttr:$sym_name);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name attr-dict-with-keyword $body";
+  let hasVerifier = 1;
 }
 
 def VariantOp : TCRVExec_Op<"exec.variant",
@@ -148,7 +149,14 @@ def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
                    OptionalAttr<StrAttr>:$severity,
                    OptionalAttr<StrAttr>:$status,
                    OptionalAttr<FlatSymbolRefAttr>:$target,
-                   OptionalAttr<StrAttr>:$selection_kind);
+                   OptionalAttr<StrAttr>:$selection_kind,
+                   OptionalAttr<StrAttr>:$origin,
+                   OptionalAttr<StrAttr>:$role,
+                   OptionalAttr<StrAttr>:$plan_kind,
+                   OptionalAttr<StrAttr>:$emission_kind,
+                   OptionalAttr<StrAttr>:$lowering_pipeline,
+                   OptionalAttr<StrAttr>:$runtime_abi,
+                   OptionalAttr<StrAttr>:$artifact_kind);
   let assemblyFormat = "attr-dict";
   let hasVerifier = 1;
 }

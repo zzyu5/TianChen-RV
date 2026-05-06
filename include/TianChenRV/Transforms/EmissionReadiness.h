@@ -30,6 +30,15 @@ llvm::Error collectKernelEmissionPlans(
     llvm::SmallVectorImpl<plugin::VariantEmissionPlan> &out,
     const plugin::ExtensionPluginRegistry &registry);
 
+llvm::Error materializeKernelEmissionPlanDiagnostics(
+    tcrv::exec::KernelOp kernel,
+    const plugin::ExtensionPluginRegistry &registry);
+
+llvm::Error materializeKernelEmissionPlanDiagnostics(
+    tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities,
+    const plugin::ExtensionPluginRegistry &registry);
+
 } // namespace tianchenrv::transforms
 
 #endif // TIANCHENRV_TRANSFORMS_EMISSIONREADINESS_H

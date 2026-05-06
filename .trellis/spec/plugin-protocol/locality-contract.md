@@ -54,6 +54,12 @@ Core may route and validate emission-plan objects through the registry, but it
 must not fill in RVV/IME/offload lowering pipelines, runtime ABIs, artifact
 kinds, or supported-path claims on behalf of plugins. A plan is plugin-owned
 metadata/intent and remains separate from executable code generation evidence.
+Core may also materialize those plugin-owned plans into
+`tcrv.exec.diagnostic {reason = "emission_plan"}` metadata after selected-path
+collection succeeds. That materialization is limited to copying generic plan
+fields and validating symbol structure; it is not lowering, runtime glue,
+artifact generation, RVV support, correctness evidence, or performance
+evidence.
 
 ## When Core May Change
 

@@ -1,10 +1,13 @@
 #include "TianChenRV/Transforms/EmissionReadiness.h"
 
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Location.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/Pass.h"
@@ -17,17 +20,35 @@
 namespace tianchenrv::transforms {
 
 #define GEN_PASS_DEF_CHECKEMISSIONPATHS
+#define GEN_PASS_DEF_MATERIALIZEEMISSIONPLANS
 #include "TianChenRV/Transforms/Passes.h.inc"
 
 namespace {
 
-constexpr llvm::StringLiteral kTargetAttrName("target");
+using tianchenrv::tcrv::exec::diagnostic::kArtifactKindAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionKindAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanPlanKindValue;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanReasonValue;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanSupportedSeverityValue;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanSupportedStatusValue;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanUnsupportedSeverityValue;
+using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanUnsupportedStatusValue;
+using tianchenrv::tcrv::exec::diagnostic::kFallbackOnlySelectionKindValue;
+using tianchenrv::tcrv::exec::diagnostic::kLoweringPipelineAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kMessageAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kOriginAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kPlanKindAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kReasonAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRoleAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kSelectedReasonValue;
+using tianchenrv::tcrv::exec::diagnostic::kSelectionKindAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kSeverityAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kStaticSelectionKindValue;
+using tianchenrv::tcrv::exec::diagnostic::kStatusAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kTargetAttrName;
+
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
-constexpr llvm::StringLiteral kReasonAttrName("reason");
-constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
-constexpr llvm::StringLiteral kSelectedReasonValue("variant-selected");
-constexpr llvm::StringLiteral kStaticSelectionKindValue("static-variant");
-constexpr llvm::StringLiteral kFallbackOnlySelectionKindValue("fallback-only");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantEmissionPlan;
@@ -306,7 +327,8 @@ llvm::Error collectDispatchEmissionReferences(
   unsigned caseCount = 0;
   unsigned fallbackCount = 0;
   llvm::StringSet<> seenTargets;
-  llvm::SmallVector<EmissionReference, 4> references;
+  llvm::SmallVector<EmissionReference, 4> caseReferences;
+  llvm::SmallVector<EmissionReference, 1> fallbackReferences;
 
   for (mlir::Operation &op : dispatch.getBody().front()) {
     if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(op)) {
@@ -317,7 +339,7 @@ llvm::Error collectDispatchEmissionReferences(
               VariantEmissionRole::DispatchCase, directVariants, directSymbols,
               seenTargets, variant))
         return error;
-      references.push_back(
+      caseReferences.push_back(
           EmissionReference{variant, VariantEmissionRole::DispatchCase});
       continue;
     }
@@ -330,7 +352,7 @@ llvm::Error collectDispatchEmissionReferences(
               VariantEmissionRole::DispatchFallback, directVariants,
               directSymbols, seenTargets, variant))
         return error;
-      references.push_back(
+      fallbackReferences.push_back(
           EmissionReference{variant, VariantEmissionRole::DispatchFallback});
       continue;
     }
@@ -350,7 +372,8 @@ llvm::Error collectDispatchEmissionReferences(
     return makeDispatchEmissionPathError(
         kernel, dispatch, "requires exactly one tcrv.exec.fallback");
 
-  out.append(references.begin(), references.end());
+  out.append(caseReferences.begin(), caseReferences.end());
+  out.append(fallbackReferences.begin(), fallbackReferences.end());
   return llvm::Error::success();
 }
 
@@ -413,6 +436,215 @@ llvm::Error collectKernelEmissionReferences(
   return llvm::Error::success();
 }
 
+bool isEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
+  if (!diagnostic)
+    return false;
+
+  auto reason =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
+  return reason && reason.getValue() == kEmissionPlanReasonValue;
+}
+
+llvm::Error makeEmissionPlanDiagnosticMaterializationError(
+    KernelOp kernel, llvm::Twine message) {
+  return makeEmissionPathError(
+      kernel, llvm::Twine("emission-plan diagnostic materialization failed "
+                          "before IR mutation: ") +
+                  message);
+}
+
+llvm::Error rejectExistingEmissionPlanDiagnostics(KernelOp kernel) {
+  if (!hasKernelBody(kernel))
+    return llvm::Error::success();
+
+  auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> llvm::Error {
+    if (!isEmissionPlanDiagnostic(diagnostic))
+      return llvm::Error::success();
+
+    auto targetAttr = diagnostic->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        kTargetAttrName);
+    llvm::StringRef target =
+        targetAttr ? targetAttr.getValue() : llvm::StringRef("<missing>");
+    return makeEmissionPlanDiagnosticMaterializationError(
+        kernel,
+        llvm::Twine("requires no pre-existing emission-plan diagnostics; "
+                    "found existing diagnostic for target @") +
+            target);
+  };
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op))
+      if (llvm::Error error = checkDiagnostic(diagnostic))
+        return error;
+
+    auto variant = llvm::dyn_cast<VariantOp>(op);
+    if (!variant || variant.getBody().empty())
+      continue;
+
+    for (mlir::Operation &nested : variant.getBody().front())
+      if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(nested))
+        if (llvm::Error error = checkDiagnostic(diagnostic))
+          return error;
+  }
+
+  return llvm::Error::success();
+}
+
+bool isEmpty(llvm::StringRef value) {
+  return value.trim().empty();
+}
+
+llvm::Error validatePlanString(KernelOp kernel, const VariantEmissionPlan &plan,
+                               llvm::StringRef fieldName,
+                               llvm::StringRef value) {
+  if (!isEmpty(value))
+    return llvm::Error::success();
+
+  return makeEmissionPlanDiagnosticMaterializationError(
+      kernel,
+      llvm::Twine("plan for variant @") + plan.getVariantSymbol() +
+          " requires non-empty " + fieldName);
+}
+
+llvm::Error validatePlansForMaterialization(
+    KernelOp kernel, llvm::ArrayRef<VariantEmissionPlan> plans) {
+  if (!kernel)
+    return makeEmissionPlanDiagnosticMaterializationError(
+        kernel, "requires a tcrv.exec.kernel");
+
+  llvm::StringMap<VariantOp> directVariants;
+  llvm::StringMap<mlir::Operation *> directSymbols;
+  collectDirectKernelSymbols(kernel, directVariants, directSymbols);
+
+  llvm::StringSet<> materializedTargets;
+  for (const VariantEmissionPlan &plan : plans) {
+    if (!plan.hasStatus())
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel, "plan status is missing");
+
+    if (llvm::Error error =
+            validatePlanString(kernel, plan, "origin plugin",
+                               plan.getOriginPlugin()))
+      return error;
+    if (llvm::Error error =
+            validatePlanString(kernel, plan, "kernel symbol",
+                               plan.getKernelSymbol()))
+      return error;
+    if (llvm::Error error =
+            validatePlanString(kernel, plan, "variant symbol",
+                               plan.getVariantSymbol()))
+      return error;
+
+    if (plan.getKernelSymbol() != kernel.getSymName())
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel, llvm::Twine("plan kernel @") + plan.getKernelSymbol() +
+                      " does not match materialization kernel @" +
+                      kernel.getSymName());
+
+    auto directVariantIt = directVariants.find(plan.getVariantSymbol());
+    if (directVariantIt == directVariants.end()) {
+      auto directSymbolIt = directSymbols.find(plan.getVariantSymbol());
+      if (directSymbolIt != directSymbols.end())
+        return makeEmissionPlanDiagnosticMaterializationError(
+            kernel, llvm::Twine("plan target @") + plan.getVariantSymbol() +
+                        " resolves to a direct sibling symbol that is not a "
+                        "tcrv.exec.variant");
+
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel, llvm::Twine("plan target @") + plan.getVariantSymbol() +
+                      " does not resolve to a direct sibling "
+                      "tcrv.exec.variant");
+    }
+
+    if (!materializedTargets.insert(plan.getVariantSymbol()).second)
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel, llvm::Twine("duplicate emission plan for target @") +
+                      plan.getVariantSymbol());
+
+    if (plan.isSupported()) {
+      if (llvm::Error error =
+              validatePlanString(kernel, plan, "emission kind",
+                                 plan.getEmissionKind()))
+        return error;
+      if (llvm::Error error =
+              validatePlanString(kernel, plan, "lowering pipeline",
+                                 plan.getLoweringPipeline()))
+        return error;
+      if (llvm::Error error =
+              validatePlanString(kernel, plan, "runtime ABI",
+                                 plan.getRuntimeABI()))
+        return error;
+      if (llvm::Error error =
+              validatePlanString(kernel, plan, "artifact kind",
+                                 plan.getArtifactKind()))
+        return error;
+      if (llvm::Error error =
+              validatePlanString(kernel, plan, "explanation",
+                                 plan.getExplanation()))
+        return error;
+      continue;
+    }
+
+    if (plan.isUnsupported()) {
+      if (llvm::Error error =
+              validatePlanString(kernel, plan, "diagnostic",
+                                 plan.getDiagnostic()))
+        return error;
+      continue;
+    }
+
+    return makeEmissionPlanDiagnosticMaterializationError(
+        kernel, "plan status must be supported or unsupported");
+  }
+
+  return llvm::Error::success();
+}
+
+void addStringAttribute(mlir::MLIRContext &context, mlir::OperationState &state,
+                        llvm::StringRef name, llvm::StringRef value) {
+  state.addAttribute(name, mlir::StringAttr::get(&context, value));
+}
+
+void materializeEmissionPlanDiagnostic(KernelOp kernel,
+                                       const VariantEmissionPlan &plan,
+                                       mlir::OpBuilder &builder) {
+  mlir::MLIRContext &context = *kernel.getContext();
+  mlir::OperationState state(kernel.getLoc(), DiagnosticOp::getOperationName());
+  addStringAttribute(context, state, kReasonAttrName,
+                     kEmissionPlanReasonValue);
+  addStringAttribute(context, state, kMessageAttrName,
+                     plan.isSupported() ? plan.getExplanation()
+                                        : plan.getDiagnostic());
+  addStringAttribute(context, state, kSeverityAttrName,
+                     plan.isSupported() ? kEmissionPlanSupportedSeverityValue
+                                        : kEmissionPlanUnsupportedSeverityValue);
+  addStringAttribute(context, state, kStatusAttrName,
+                     plan.isSupported() ? kEmissionPlanSupportedStatusValue
+                                        : kEmissionPlanUnsupportedStatusValue);
+  state.addAttribute(kTargetAttrName,
+                     mlir::FlatSymbolRefAttr::get(&context,
+                                                  plan.getVariantSymbol()));
+  addStringAttribute(context, state, kOriginAttrName, plan.getOriginPlugin());
+  addStringAttribute(
+      context, state, kRoleAttrName,
+      tianchenrv::plugin::stringifyVariantEmissionRole(plan.getRole()));
+  addStringAttribute(context, state, kPlanKindAttrName,
+                     kEmissionPlanPlanKindValue);
+
+  if (plan.isSupported()) {
+    addStringAttribute(context, state, kEmissionKindAttrName,
+                       plan.getEmissionKind());
+    addStringAttribute(context, state, kLoweringPipelineAttrName,
+                       plan.getLoweringPipeline());
+    addStringAttribute(context, state, kRuntimeABIAttrName,
+                       plan.getRuntimeABI());
+    addStringAttribute(context, state, kArtifactKindAttrName,
+                       plan.getArtifactKind());
+  }
+
+  builder.create(state);
+}
+
 class CheckEmissionPathsPass final
     : public impl::CheckEmissionPathsBase<CheckEmissionPathsPass> {
 public:
@@ -441,6 +673,50 @@ public:
 private:
   mlir::LogicalResult runCheck(KernelOp kernel) {
     if (llvm::Error error = checkKernelEmissionPaths(kernel, *registry)) {
+      std::string message = llvm::toString(std::move(error));
+      if (kernel)
+        kernel.emitError() << message;
+      else
+        getOperation()->emitError() << message;
+      return mlir::failure();
+    }
+    return mlir::success();
+  }
+
+  ExtensionPluginRegistry ownedRegistry;
+  const ExtensionPluginRegistry *registry = nullptr;
+};
+
+class MaterializeEmissionPlansPass final
+    : public impl::MaterializeEmissionPlansBase<MaterializeEmissionPlansPass> {
+public:
+  MaterializeEmissionPlansPass() : registry(&ownedRegistry) {}
+
+  explicit MaterializeEmissionPlansPass(
+      const ExtensionPluginRegistry &registry)
+      : registry(&registry) {}
+
+  MaterializeEmissionPlansPass(const MaterializeEmissionPlansPass &other)
+      : impl::MaterializeEmissionPlansBase<MaterializeEmissionPlansPass>(other),
+        registry(other.registry == &other.ownedRegistry ? &ownedRegistry
+                                                        : other.registry) {}
+
+  void runOnOperation() override {
+    llvm::SmallVector<KernelOp, 4> kernels;
+    getOperation()->walk([&](KernelOp kernel) { kernels.push_back(kernel); });
+
+    for (KernelOp kernel : kernels) {
+      if (mlir::failed(runMaterialization(kernel))) {
+        signalPassFailure();
+        return;
+      }
+    }
+  }
+
+private:
+  mlir::LogicalResult runMaterialization(KernelOp kernel) {
+    if (llvm::Error error =
+            materializeKernelEmissionPlanDiagnostics(kernel, *registry)) {
       std::string message = llvm::toString(std::move(error));
       if (kernel)
         kernel.emitError() << message;
@@ -510,6 +786,40 @@ llvm::Error collectKernelEmissionPlans(
   return llvm::Error::success();
 }
 
+llvm::Error materializeKernelEmissionPlanDiagnostics(
+    KernelOp kernel, const ExtensionPluginRegistry &registry) {
+  if (!kernel)
+    return makeEmissionPlanDiagnosticMaterializationError(
+        kernel, "requires a tcrv.exec.kernel");
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  return materializeKernelEmissionPlanDiagnostics(kernel, capabilities,
+                                                 registry);
+}
+
+llvm::Error materializeKernelEmissionPlanDiagnostics(
+    KernelOp kernel, const TargetCapabilitySet &capabilities,
+    const ExtensionPluginRegistry &registry) {
+  llvm::SmallVector<VariantEmissionPlan, 4> plans;
+  if (llvm::Error error =
+          collectKernelEmissionPlans(kernel, capabilities, plans, registry))
+    return error;
+
+  if (llvm::Error error = rejectExistingEmissionPlanDiagnostics(kernel))
+    return error;
+
+  if (llvm::Error error = validatePlansForMaterialization(kernel, plans))
+    return error;
+
+  mlir::Block &body = kernel.getBody().front();
+  mlir::OpBuilder builder(kernel.getContext());
+  builder.setInsertionPointToEnd(&body);
+  for (const VariantEmissionPlan &plan : plans)
+    materializeEmissionPlanDiagnostic(kernel, plan, builder);
+
+  return llvm::Error::success();
+}
+
 std::unique_ptr<::mlir::Pass> createCheckEmissionPathsPass() {
   return std::make_unique<CheckEmissionPathsPass>();
 }
@@ -517,6 +827,15 @@ std::unique_ptr<::mlir::Pass> createCheckEmissionPathsPass() {
 std::unique_ptr<::mlir::Pass>
 createCheckEmissionPathsPass(const ExtensionPluginRegistry &registry) {
   return std::make_unique<CheckEmissionPathsPass>(registry);
+}
+
+std::unique_ptr<::mlir::Pass> createMaterializeEmissionPlansPass() {
+  return std::make_unique<MaterializeEmissionPlansPass>();
+}
+
+std::unique_ptr<::mlir::Pass>
+createMaterializeEmissionPlansPass(const ExtensionPluginRegistry &registry) {
+  return std::make_unique<MaterializeEmissionPlansPass>(registry);
 }
 
 } // namespace tianchenrv::transforms

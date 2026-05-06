@@ -431,6 +431,14 @@ pass boundary must preserve plugin-owned cost semantics:
 - Tests should cover both injected-registry pass execution and public default
   pass diagnostics for missing origin plugins.
 
+After selected-path planning and before executable lowering, a bounded
+materialization step may collect plugin-owned emission plans and emit
+`tcrv.exec.diagnostic {reason = "emission_plan"}` metadata. This step must keep
+the selected-path order deterministic: dispatch cases in order, fallback after
+cases, a single selected-path marker target when present, or all direct variants
+in IR order for conservative mode. It must not reinterpret target families or
+turn emission-plan metadata into runtime/correctness/performance evidence.
+
 ## Variant IR Required Fields
 
 Each variant must include:

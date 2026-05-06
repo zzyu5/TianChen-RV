@@ -95,4 +95,30 @@ def CheckEmissionPaths
   ];
 }
 
+def MaterializeEmissionPlans
+    : Pass<"tcrv-materialize-emission-plans", "::mlir::ModuleOp"> {
+  let summary = "Materialize plugin-owned emission plans as structured diagnostics";
+  let description = [{
+    Collects VariantEmissionPlan results for the currently selected
+    compiler-visible execution paths and materializes them as structured
+    tcrv.exec.diagnostic metadata. The pass is target-neutral and does not
+    lower, emit, invoke a runtime, or claim executable correctness or
+    performance. It reuses the same selected-path traversal as emission
+    readiness: dispatch cases in deterministic order followed by fallback,
+    a direct selected-path marker target when present, or all direct variants
+    in IR order when no selected-path surface exists.
+
+    Production tools should construct this pass with a populated
+    ExtensionPluginRegistry. The default public registration uses an empty
+    registry and diagnoses unregistered origins instead of inventing core-side
+    emission semantics. Existing materialized emission-plan diagnostics are
+    rejected so stale or repeated diagnostics are not silently appended.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeEmissionPlansPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

@@ -24,6 +24,8 @@ Use lit/FileCheck for:
 - capability-driven variant generation and rejection diagnostics;
 - dispatch/fallback IR structure;
 - default public pass diagnostics when origin plugins are not registered.
+- emission-plan diagnostic verifier behavior and default public
+  materialization-pass diagnostics when origin plugins are not registered.
 
 Example test intent:
 
@@ -45,6 +47,9 @@ Use C++ tests for:
 - registry-injected pass behavior that requires in-process mock plugins;
 - non-textual MLIR interfaces;
 - C++ utility behavior that is not well covered through textual IR.
+- emission-plan materialization helpers that need injected mock registries,
+  deterministic selected-path ordering checks, no-partial-mutation checks, and
+  unsupported first-slice plugin behavior.
 
 ## CMake Checks
 

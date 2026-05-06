@@ -1,10 +1,14 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
+
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 
 using namespace tianchenrv::tcrv::exec;
 
@@ -18,21 +22,30 @@ namespace {
 constexpr llvm::StringLiteral kIdAttrName("id");
 constexpr llvm::StringLiteral kKindAttrName("kind");
 constexpr llvm::StringLiteral kNameAttrName("name");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kBindingAttrName("binding");
 constexpr llvm::StringLiteral kMemorySpaceAttrName("memory_space");
 constexpr llvm::StringLiteral kHartsAttrName("harts");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
-constexpr llvm::StringLiteral kReasonAttrName("reason");
-constexpr llvm::StringLiteral kMessageAttrName("message");
-constexpr llvm::StringLiteral kSeverityAttrName("severity");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kTargetAttrName("target");
-constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
 constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
+
+using diagnostic::kArtifactKindAttrName;
+using diagnostic::kEmissionKindAttrName;
+using diagnostic::kEmissionPlanSupportedStatusValue;
+using diagnostic::kEmissionPlanUnsupportedStatusValue;
+using diagnostic::kLoweringPipelineAttrName;
+using diagnostic::kMessageAttrName;
+using diagnostic::kOriginAttrName;
+using diagnostic::kPlanKindAttrName;
+using diagnostic::kReasonAttrName;
+using diagnostic::kRoleAttrName;
+using diagnostic::kRuntimeABIAttrName;
+using diagnostic::kSelectionKindAttrName;
+using diagnostic::kSeverityAttrName;
+using diagnostic::kStatusAttrName;
+using diagnostic::kTargetAttrName;
 
 bool isMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
@@ -77,8 +90,103 @@ bool kernelContainsVariant(KernelOp kernel, llvm::StringRef symbolName) {
   return false;
 }
 
+mlir::Operation *findDirectKernelSymbol(KernelOp kernel,
+                                        llvm::StringRef symbolName) {
+  if (!kernel || kernel.getBody().empty())
+    return nullptr;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto symbolAttr = op.getAttrOfType<mlir::StringAttr>(
+        mlir::SymbolTable::getSymbolAttrName());
+    if (symbolAttr && symbolAttr.getValue() == symbolName)
+      return &op;
+  }
+  return nullptr;
+}
+
 bool hasDirectParent(mlir::Operation *op, mlir::Operation *parent) {
   return op->getParentOp() == parent;
+}
+
+bool isEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
+  auto reasonAttr =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
+  return reasonAttr &&
+         diagnostic::isEmissionPlanReason(reasonAttr.getValue());
+}
+
+mlir::LogicalResult requireEmissionPlanStringAttr(DiagnosticOp diagnostic,
+                                                  llvm::StringRef attrName) {
+  if (isMissingOrEmptyStringAttr(diagnostic.getOperation(), attrName))
+    return diagnostic.emitOpError()
+           << "emission-plan diagnostic requires non-empty string attribute '"
+           << attrName << "'";
+  return mlir::success();
+}
+
+mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
+  mlir::Operation *op = diagnostic.getOperation();
+
+  if (mlir::failed(requireEmissionPlanStringAttr(diagnostic, kOriginAttrName)))
+    return mlir::failure();
+  if (mlir::failed(requireEmissionPlanStringAttr(diagnostic, kRoleAttrName)))
+    return mlir::failure();
+  if (mlir::failed(requireEmissionPlanStringAttr(diagnostic, kStatusAttrName)))
+    return mlir::failure();
+
+  auto statusAttr = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
+  if (!diagnostic::isEmissionPlanStatus(statusAttr.getValue()))
+    return diagnostic.emitOpError()
+           << "emission-plan diagnostic status must be '"
+           << kEmissionPlanSupportedStatusValue << "' or '"
+           << kEmissionPlanUnsupportedStatusValue << "'";
+
+  if (isPresentButEmptyStringAttr(op, kPlanKindAttrName))
+    return diagnostic.emitOpError()
+           << "requires non-empty string attribute '" << kPlanKindAttrName
+           << "' when present";
+
+  auto targetAttr = op->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  if (!targetAttr)
+    return diagnostic.emitOpError()
+           << "emission-plan diagnostic requires a variant symbol reference "
+              "target";
+
+  KernelOp kernel = getEnclosingKernel(op);
+  if (!kernel)
+    return diagnostic.emitOpError()
+           << "must be nested in a tcrv.exec.kernel to resolve emission-plan "
+              "diagnostic target";
+
+  mlir::Operation *target =
+      findDirectKernelSymbol(kernel, targetAttr.getValue());
+  if (!target)
+    return diagnostic.emitOpError()
+           << "references unknown emission-plan diagnostic target variant @"
+           << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+
+  if (!llvm::isa<VariantOp>(target))
+    return diagnostic.emitOpError()
+           << "emission-plan diagnostic target @" << targetAttr.getValue()
+           << " resolves to a direct sibling symbol that is not a "
+              "tcrv.exec.variant";
+
+  if (statusAttr.getValue() == kEmissionPlanSupportedStatusValue) {
+    if (mlir::failed(
+            requireEmissionPlanStringAttr(diagnostic, kEmissionKindAttrName)))
+      return mlir::failure();
+    if (mlir::failed(requireEmissionPlanStringAttr(
+            diagnostic, kLoweringPipelineAttrName)))
+      return mlir::failure();
+    if (mlir::failed(
+            requireEmissionPlanStringAttr(diagnostic, kRuntimeABIAttrName)))
+      return mlir::failure();
+    if (mlir::failed(
+            requireEmissionPlanStringAttr(diagnostic, kArtifactKindAttrName)))
+      return mlir::failure();
+  }
+
+  return mlir::success();
 }
 
 } // namespace
@@ -91,6 +199,49 @@ mlir::LogicalResult CapabilityOp::verify() {
   if (isMissingOrEmptyStringAttr(getOperation(), kKindAttrName))
     return emitOpError()
            << "requires non-empty string attribute '" << kKindAttrName << "'";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult KernelOp::verify() {
+  if (getBody().empty())
+    return mlir::success();
+
+  llvm::StringSet<> emissionPlanTargets;
+  auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> mlir::LogicalResult {
+    if (!isEmissionPlanDiagnostic(diagnostic))
+      return mlir::success();
+
+    auto targetAttr = diagnostic->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        kTargetAttrName);
+    if (!targetAttr)
+      return mlir::success();
+
+    if (!emissionPlanTargets.insert(targetAttr.getValue()).second)
+      return diagnostic.emitOpError()
+             << "duplicates emission-plan diagnostic for target @"
+             << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+
+    return mlir::success();
+  };
+
+  for (mlir::Operation &op : getBody().front()) {
+    if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op)) {
+      if (mlir::failed(checkDiagnostic(diagnostic)))
+        return mlir::failure();
+      continue;
+    }
+
+    auto variant = llvm::dyn_cast<VariantOp>(op);
+    if (!variant || variant.getBody().empty())
+      continue;
+
+    for (mlir::Operation &nested : variant.getBody().front()) {
+      if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(nested))
+        if (mlir::failed(checkDiagnostic(diagnostic)))
+          return mlir::failure();
+    }
+  }
 
   return mlir::success();
 }
@@ -237,6 +388,9 @@ mlir::LogicalResult DiagnosticOp::verify() {
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()
            << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+
+  if (isEmissionPlanDiagnostic(*this))
+    return verifyEmissionPlanDiagnostic(*this);
 
   auto targetAttr =
       getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);

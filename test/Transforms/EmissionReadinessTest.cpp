@@ -1,4 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/EmissionReadiness.h"
@@ -36,6 +37,7 @@ using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
 namespace {
+namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
 
 enum class EmissionBehavior {
   Supported,
@@ -368,6 +370,124 @@ FallbackOp findFallback(DispatchOp dispatch) {
 mlir::FlatSymbolRefAttr getSymbolRef(mlir::MLIRContext &context,
                                      llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(&context, symbol);
+}
+
+bool isEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
+  auto reason = diagnostic->getAttrOfType<mlir::StringAttr>(
+      execDiagnostic::kReasonAttrName);
+  return reason && reason.getValue() == execDiagnostic::kEmissionPlanReasonValue;
+}
+
+llvm::SmallVector<DiagnosticOp, 4>
+collectDirectEmissionPlanDiagnostics(KernelOp kernel) {
+  llvm::SmallVector<DiagnosticOp, 4> diagnostics;
+  if (!kernel || kernel.getBody().empty())
+    return diagnostics;
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+    if (diagnostic && isEmissionPlanDiagnostic(diagnostic))
+      diagnostics.push_back(diagnostic);
+  }
+  return diagnostics;
+}
+
+llvm::StringRef getStringAttr(mlir::Operation *operation,
+                              llvm::StringRef name) {
+  auto attr = operation->getAttrOfType<mlir::StringAttr>(name);
+  return attr ? attr.getValue() : llvm::StringRef();
+}
+
+llvm::StringRef getTargetAttr(DiagnosticOp diagnostic) {
+  auto attr = diagnostic->getAttrOfType<mlir::FlatSymbolRefAttr>(
+      execDiagnostic::kTargetAttrName);
+  return attr ? attr.getValue() : llvm::StringRef();
+}
+
+int expectDiagnosticStringAttr(DiagnosticOp diagnostic, llvm::StringRef name,
+                               llvm::StringRef expected,
+                               llvm::Twine context) {
+  return expect(getStringAttr(diagnostic.getOperation(), name) == expected,
+                context);
+}
+
+int expectSupportedEmissionPlanDiagnostic(DiagnosticOp diagnostic,
+                                          llvm::StringRef expectedTarget,
+                                          llvm::StringRef expectedRole) {
+  if (int result = expect(getTargetAttr(diagnostic) == expectedTarget,
+                          "diagnostic preserves variant target"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kOriginAttrName, "mock-emitter",
+          "diagnostic preserves plugin origin"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kRoleAttrName, expectedRole,
+          "diagnostic preserves selected-path role"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kStatusAttrName,
+          execDiagnostic::kEmissionPlanSupportedStatusValue,
+          "diagnostic marks supported status"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kSeverityAttrName,
+          execDiagnostic::kEmissionPlanSupportedSeverityValue,
+          "diagnostic marks info severity"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kPlanKindAttrName,
+          execDiagnostic::kEmissionPlanPlanKindValue,
+          "diagnostic carries generic plan kind"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kEmissionKindAttrName, "metadata-intent",
+          "diagnostic carries emission kind"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kLoweringPipelineAttrName,
+          "mock.lowering.pipeline.v1",
+          "diagnostic carries lowering pipeline"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kRuntimeABIAttrName,
+          "mock.runtime.abi.v1", "diagnostic carries runtime ABI"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kArtifactKindAttrName,
+          "compiler-emission-plan", "diagnostic carries artifact kind"))
+    return result;
+  return expect(getStringAttr(diagnostic.getOperation(),
+                              execDiagnostic::kMessageAttrName)
+                    .contains("plugin-owned"),
+                "diagnostic message carries plugin-owned explanation");
+}
+
+int expectUnsupportedEmissionPlanDiagnostic(DiagnosticOp diagnostic,
+                                            llvm::StringRef expectedTarget,
+                                            llvm::StringRef expectedOrigin,
+                                            llvm::StringRef expectedFragment) {
+  if (int result = expect(getTargetAttr(diagnostic) == expectedTarget,
+                          "unsupported diagnostic preserves variant target"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kOriginAttrName, expectedOrigin,
+          "unsupported diagnostic preserves plugin origin"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kStatusAttrName,
+          execDiagnostic::kEmissionPlanUnsupportedStatusValue,
+          "unsupported diagnostic marks unsupported status"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kSeverityAttrName,
+          execDiagnostic::kEmissionPlanUnsupportedSeverityValue,
+          "unsupported diagnostic marks error severity"))
+    return result;
+  return expect(getStringAttr(diagnostic.getOperation(),
+                              execDiagnostic::kMessageAttrName)
+                    .contains(expectedFragment),
+                "unsupported diagnostic carries plugin diagnostic text");
 }
 
 const char *getDirectKernelSource(llvm::StringRef kernelName = "direct") {
@@ -846,6 +966,421 @@ module {
     return result;
   return expectSupportedPlan(plans[1], "direct_plan", "fallback",
                              VariantEmissionRole::DirectVariant);
+}
+
+int runSelectedEmissionPlanMaterializationPassTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @materialize_selected {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @slow attributes {
+      origin = "slow-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fast selected by generic planner",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @fast
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse selected emission-plan materialization module");
+
+  EmissionPlugin fastPlugin("mock-emitter");
+  EmissionPlugin slowPlugin("slow-emitter", true, EmissionBehavior::Supported,
+                            EmissionPlanBehavior::PluginFailure);
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(fastPlugin),
+                                 "register materialization fast plugin"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(slowPlugin),
+                                 "register materialization slow plugin"))
+    return result;
+
+  mlir::PassManager passManager(&context);
+  passManager.addPass(
+      tianchenrv::transforms::createMaterializeEmissionPlansPass(registry));
+  if (int result = expect(mlir::succeeded(passManager.run(*module)),
+                          "injected materialize emission plans pass succeeds"))
+    return result;
+
+  KernelOp kernel = findKernel(*module, "materialize_selected");
+  llvm::SmallVector<DiagnosticOp, 4> diagnostics =
+      collectDirectEmissionPlanDiagnostics(kernel);
+  if (int result = expect(diagnostics.size() == 1,
+                          "selected materialization emits one plan diagnostic"))
+    return result;
+  if (int result = expectSupportedEmissionPlanDiagnostic(
+          diagnostics[0], "fast", "direct variant"))
+    return result;
+  if (int result =
+          expect(slowPlugin.getPlanCalls() == 0,
+                 "unselected unsupported variant is not materialized"))
+    return result;
+
+  std::string printed;
+  llvm::raw_string_ostream stream(printed);
+  module->print(stream);
+  stream.flush();
+  return expect(llvm::StringRef(printed).contains("tcrv.exec.diagnostic") &&
+                    llvm::StringRef(printed).contains("emission_kind") &&
+                    llvm::StringRef(printed).contains("lowering_pipeline") &&
+                    llvm::StringRef(printed).contains("runtime_abi") &&
+                    llvm::StringRef(printed).contains("artifact_kind"),
+                "printed MLIR contains structured emission-plan metadata");
+}
+
+int runDispatchEmissionPlanMaterializationOrderTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @materialize_dispatch {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @medium attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.fallback @fallback
+      tcrv.exec.case @fast {policy = "fast_path"}
+      tcrv.exec.case @medium {policy = "medium_path"}
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse dispatch materialization module");
+
+  KernelOp kernel = findKernel(*module, "materialize_dispatch");
+  EmissionPlugin plugin("mock-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                 "register dispatch materialization plugin"))
+    return result;
+
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+              kernel, registry),
+          "materialize dispatch emission plans"))
+    return result;
+
+  llvm::SmallVector<DiagnosticOp, 4> diagnostics =
+      collectDirectEmissionPlanDiagnostics(kernel);
+  if (int result = expect(diagnostics.size() == 3,
+                          "dispatch materialization emits all path diagnostics"))
+    return result;
+  if (int result = expect(getTargetAttr(diagnostics[0]) == "fast" &&
+                              getTargetAttr(diagnostics[1]) == "medium" &&
+                              getTargetAttr(diagnostics[2]) == "fallback",
+                          "dispatch diagnostics order cases before fallback"))
+    return result;
+  if (int result = expectSupportedEmissionPlanDiagnostic(
+          diagnostics[0], "fast", "dispatch case"))
+    return result;
+  return expectSupportedEmissionPlanDiagnostic(diagnostics[2], "fallback",
+                                               "dispatch fallback");
+}
+
+int runConservativeEmissionPlanMaterializationTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @materialize_direct {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse conservative materialization module");
+
+  KernelOp kernel = findKernel(*module, "materialize_direct");
+  EmissionPlugin plugin("mock-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                 "register conservative materialization plugin"))
+    return result;
+
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+              kernel, registry),
+          "materialize conservative direct emission plans"))
+    return result;
+
+  llvm::SmallVector<DiagnosticOp, 4> diagnostics =
+      collectDirectEmissionPlanDiagnostics(kernel);
+  if (int result = expect(diagnostics.size() == 2,
+                          "conservative materialization emits all variants"))
+    return result;
+  return expect(getTargetAttr(diagnostics[0]) == "fast" &&
+                    getTargetAttr(diagnostics[1]) == "fallback",
+                "conservative materialization preserves direct variant order");
+}
+
+int expectMaterializationErrorLeavesDiagnosticCount(
+    mlir::MLIRContext &context, llvm::StringRef source,
+    ExtensionPluginRegistry &registry,
+    std::initializer_list<llvm::StringRef> fragments,
+    unsigned expectedDiagnosticCount) {
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse materialization negative module");
+
+  KernelOp kernel;
+  module->walk([&](KernelOp candidate) {
+    if (!kernel)
+      kernel = candidate;
+  });
+  if (!kernel)
+    return fail("materialization negative module has no kernel");
+
+  unsigned before = collectDirectEmissionPlanDiagnostics(kernel).size();
+  if (int result = expect(before == expectedDiagnosticCount,
+                          "negative materialization starts with expected "
+                          "diagnostic count"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+              kernel, registry),
+          fragments))
+    return result;
+  unsigned after = collectDirectEmissionPlanDiagnostics(kernel).size();
+  return expect(after == before,
+                "failed materialization leaves diagnostic count unchanged");
+}
+
+int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
+  {
+    ExtensionPluginRegistry registry;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, getDirectKernelSource(), registry,
+            {"variant emission plan collection failed",
+             "unknown origin plugin 'mock-emitter'"},
+            0))
+      return result;
+  }
+
+  {
+    EmissionPlugin plugin("mock-emitter", false);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register disabled materialization plugin"))
+      return result;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, getDirectKernelSource(), registry,
+            {"origin plugin 'mock-emitter' is disabled"}, 0))
+      return result;
+  }
+
+  {
+    EmissionPlugin plugin("mock-emitter", true, EmissionBehavior::Supported,
+                          EmissionPlanBehavior::SupportedEmptyLoweringPipeline);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register malformed plan plugin"))
+      return result;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, getDirectKernelSource(), registry,
+            {"invalid emission plan", "supported plan requires non-empty "
+                                      "lowering pipeline"},
+            0))
+      return result;
+  }
+
+  {
+    EmissionPlugin plugin("mock-emitter", true, EmissionBehavior::Supported,
+                          EmissionPlanBehavior::MismatchedVariantSymbol);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register mismatched variant plan plugin"))
+      return result;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, getDirectKernelSource(), registry,
+            {"invalid emission plan", "does not match request variant"}, 0))
+      return result;
+  }
+
+  {
+    constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @duplicate_selected_marker {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {message = "fast", reason = "variant-selected", selection_kind = "static-variant", target = @fast}
+    tcrv.exec.diagnostic {message = "fallback", reason = "variant-selected", selection_kind = "fallback-only", target = @fallback}
+  }
+}
+)mlir";
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register duplicate marker plugin"))
+      return result;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, source, registry,
+            {"at most one direct selected-path diagnostic marker"}, 0))
+      return result;
+    if (int result = expect(plugin.getPlanCalls() == 0,
+                            "duplicate markers fail before plugin planning"))
+      return result;
+  }
+
+  {
+    constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @missing_dispatch_target {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @fast {policy = "fast"}
+      tcrv.exec.fallback @fallback
+    }
+  }
+}
+)mlir";
+    mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+    if (!module)
+      return fail("failed to parse missing dispatch target module");
+
+    KernelOp kernel = findKernel(*module, "missing_dispatch_target");
+    DispatchCaseOp dispatchCase = findFirstDispatchCase(findDirectDispatch(kernel));
+    dispatchCase->setAttr("target", getSymbolRef(context, "missing"));
+
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register missing dispatch target plugin"))
+      return result;
+    unsigned before = collectDirectEmissionPlanDiagnostics(kernel).size();
+    if (int result = expect(before == 0,
+                            "missing dispatch target starts with no "
+                            "emission-plan diagnostics"))
+      return result;
+    if (int result = expectErrorContains(
+            tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+                kernel, registry),
+            {"dispatch target @missing",
+             "does not resolve to a direct sibling tcrv.exec.variant"}))
+      return result;
+    unsigned after = collectDirectEmissionPlanDiagnostics(kernel).size();
+    if (int result = expect(after == before,
+                            "missing dispatch target leaves diagnostics "
+                            "unchanged"))
+      return result;
+    if (int result = expect(plugin.getPlanCalls() == 0,
+                            "missing dispatch target fails before planning"))
+      return result;
+  }
+
+  {
+    constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @preexisting_emission_plan {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "existing unsupported plan",
+      origin = "mock-emitter",
+      reason = "emission_plan",
+      role = "direct variant",
+      status = "unsupported",
+      target = @fast
+    }
+  }
+}
+)mlir";
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register preexisting diagnostic plugin"))
+      return result;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, source, registry,
+            {"requires no pre-existing emission-plan diagnostics",
+             "target @fast"},
+            1))
+      return result;
+  }
+
+  return 0;
 }
 
 int runRegistryNegativeTests(mlir::MLIRContext &context) {
@@ -1683,6 +2218,30 @@ module {
                           "RVV plan collection preserves unsupported plan"))
     return result;
 
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
+              kernel, registry),
+          "materialize RVV unsupported emission plan diagnostic"))
+    return result;
+  llvm::SmallVector<DiagnosticOp, 1> diagnostics =
+      collectDirectEmissionPlanDiagnostics(kernel);
+  if (int result = expect(diagnostics.size() == 1,
+                          "RVV materialization emits one unsupported "
+                          "diagnostic"))
+    return result;
+  if (int result = expectUnsupportedEmissionPlanDiagnostic(
+          diagnostics[0], "rvv_first_slice", "rvv-plugin",
+          "no RVV lowering pipeline"))
+    return result;
+  if (int result =
+          expect(getStringAttr(diagnostics[0].getOperation(),
+                               execDiagnostic::kMessageAttrName)
+                     .contains("not RVV hardware/toolchain/runtime/"
+                               "correctness/performance evidence"),
+                 "RVV unsupported diagnostic avoids runtime/correctness/"
+                 "performance claim"))
+    return result;
+
   return 0;
 }
 
@@ -1707,6 +2266,14 @@ int main() {
   if (int result = runSelectedMarkerEmissionPlanCollectionTest(context))
     return result;
   if (int result = runConservativeDirectEmissionPlanCollectionTest(context))
+    return result;
+  if (int result = runSelectedEmissionPlanMaterializationPassTest(context))
+    return result;
+  if (int result = runDispatchEmissionPlanMaterializationOrderTest(context))
+    return result;
+  if (int result = runConservativeEmissionPlanMaterializationTest(context))
+    return result;
+  if (int result = runEmissionPlanMaterializationNegativeTests(context))
     return result;
   if (int result = runRegistryNegativeTests(context))
     return result;

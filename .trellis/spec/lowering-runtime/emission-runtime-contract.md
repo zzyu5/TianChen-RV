@@ -220,3 +220,13 @@ Each emission path should record:
 - lowering path;
 - fallback status;
 - unsupported reason if failed.
+
+Before real lowering/runtime work exists, plugin emission plans may be
+materialized as `tcrv.exec.diagnostic {reason = "emission_plan"}` metadata.
+These diagnostics are reproducibility and compiler-decision records only. A
+supported diagnostic records plugin-owned intent such as emission kind,
+lowering pipeline id, runtime ABI id, and artifact kind; it does not mean that
+the compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked a runtime,
+ran hardware, proved correctness, or measured performance. Unsupported
+diagnostics should carry explicit plugin diagnostic text and are valid evidence
+of a boundary, not of executable support.

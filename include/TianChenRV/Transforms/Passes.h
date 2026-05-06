@@ -21,6 +21,9 @@ createSelectVariantsPass(const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createCheckEmissionPathsPass();
 std::unique_ptr<::mlir::Pass>
 createCheckEmissionPathsPass(const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createMaterializeEmissionPlansPass();
+std::unique_ptr<::mlir::Pass> createMaterializeEmissionPlansPass(
+    const plugin::ExtensionPluginRegistry &registry);
 
 #define GEN_PASS_DECL
 #include "TianChenRV/Transforms/Passes.h.inc"

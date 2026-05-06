@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "diagnostic op contract and compute-free core boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned emission plan interface and registry routing"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "extension locality and no core target semantics"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected-path and variant pipeline ordering semantics"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/runtime boundary and unsupported RVV status"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit and C++ testing evidence expectations"}

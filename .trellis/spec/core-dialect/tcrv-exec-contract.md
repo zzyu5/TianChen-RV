@@ -282,6 +282,37 @@ when present. `target` is optional selected-path metadata and, when present,
 must resolve to a variant symbol in the enclosing `tcrv.exec.kernel`. The op
 must be nested in a `tcrv.exec.kernel` or `tcrv.exec.variant`.
 
+Emission-plan diagnostics are a structured specialization of
+`tcrv.exec.diagnostic`, not a new core op. They use
+`reason = "emission_plan"` and must remain generic compiler-visible metadata:
+
+```mlir
+tcrv.exec.diagnostic {
+  reason = "emission_plan",
+  message = "plugin-owned lowering/runtime route for selected path",
+  severity = "info",
+  status = "supported",
+  target = @selected_variant,
+  origin = "example-plugin",
+  role = "direct variant",
+  plan_kind = "plugin-emission-plan",
+  emission_kind = "metadata-intent",
+  lowering_pipeline = "example.lowering.pipeline.v1",
+  runtime_abi = "example.runtime.abi.v1",
+  artifact_kind = "compiler-emission-plan"
+}
+```
+
+For `reason = "emission_plan"`, `target`, `origin`, `role`, and `status` are
+required and non-empty. `status` must be `supported` or `unsupported`.
+Supported diagnostics additionally require non-empty `emission_kind`,
+`lowering_pipeline`, `runtime_abi`, and `artifact_kind`. Unsupported
+diagnostics require non-empty diagnostic text through `message`. The target
+must resolve to a direct sibling `tcrv.exec.variant` in the same kernel.
+Duplicate emission-plan diagnostics for the same target in one kernel are
+invalid. These diagnostics do not prove that executable code was generated,
+linked, run, correct, or performant.
+
 ## Core Types And Attributes
 
 Core types/attributes should remain lightweight:
