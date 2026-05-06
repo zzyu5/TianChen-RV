@@ -23,14 +23,23 @@ namespace {
 
 constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
+constexpr llvm::StringLiteral kMessageAttrName("message");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kReasonAttrName("reason");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
+constexpr llvm::StringLiteral kSeverityAttrName("severity");
+constexpr llvm::StringLiteral kStatusAttrName("status");
 constexpr llvm::StringLiteral kTargetAttrName("target");
+constexpr llvm::StringLiteral kSelectedReasonValue("variant-selected");
+constexpr llvm::StringLiteral kStaticSelectionKindValue("static-variant");
+constexpr llvm::StringLiteral kFallbackOnlySelectionKindValue("fallback-only");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantCostRankingEntry;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
@@ -219,6 +228,68 @@ FallbackOp createFallback(mlir::OpBuilder &builder, VariantOp variant) {
   return llvm::cast<FallbackOp>(builder.create(state));
 }
 
+llvm::StringRef stringifySelectedMarkerKind(VariantSelectionKind kind) {
+  switch (kind) {
+  case VariantSelectionKind::StaticVariant:
+    return kStaticSelectionKindValue;
+  case VariantSelectionKind::FallbackOnly:
+    return kFallbackOnlySelectionKindValue;
+  case VariantSelectionKind::RuntimeDispatch:
+    return "runtime-dispatch";
+  case VariantSelectionKind::NoViableVariant:
+    return "no-viable-variant";
+  }
+  return "unknown";
+}
+
+llvm::StringRef getSelectedMarkerMessage(VariantSelectionKind kind) {
+  switch (kind) {
+  case VariantSelectionKind::StaticVariant:
+    return "static variant selected by generic cost and capability planning";
+  case VariantSelectionKind::FallbackOnly:
+    return "fallback-only variant selected by generic cost and capability planning";
+  case VariantSelectionKind::RuntimeDispatch:
+  case VariantSelectionKind::NoViableVariant:
+    break;
+  }
+  return "variant selection marker";
+}
+
+bool isSelectedPathMarker(DiagnosticOp diagnostic) {
+  if (!diagnostic)
+    return false;
+
+  auto reason =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
+  return reason && reason.getValue() == kSelectedReasonValue &&
+         diagnostic->hasAttr(kTargetAttrName) &&
+         diagnostic->hasAttr(kSelectionKindAttrName);
+}
+
+void collectDirectSelectedPathMarkers(
+    KernelOp kernel, llvm::SmallVectorImpl<DiagnosticOp> &markers) {
+  if (!hasKernelBody(kernel))
+    return;
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+    if (diagnostic && isSelectedPathMarker(diagnostic))
+      markers.push_back(diagnostic);
+  }
+}
+
+bool markerMatchesSelectionPlan(DiagnosticOp marker,
+                                VariantSelectionKind selectionKind,
+                                VariantOp selectedVariant) {
+  auto target =
+      marker->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  auto kind =
+      marker->getAttrOfType<mlir::StringAttr>(kSelectionKindAttrName);
+  return target && kind && selectedVariant &&
+         target.getValue() == selectedVariant.getSymName() &&
+         kind.getValue() == stringifySelectedMarkerKind(selectionKind);
+}
+
 class SelectVariantsPass final
     : public impl::SelectVariantsBase<SelectVariantsPass> {
 public:
@@ -260,6 +331,9 @@ private:
       return mlir::success();
     case VariantSelectionKind::StaticVariant:
     case VariantSelectionKind::FallbackOnly:
+      if (llvm::Error error = materializeSelectedVariantMarker(builder, plan))
+        return emitSelectionError(kernel, std::move(error));
+      return mlir::success();
     case VariantSelectionKind::NoViableVariant:
       return mlir::success();
     }
@@ -451,6 +525,88 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
 
   if (createdDispatch)
     *createdDispatch = dispatch;
+
+  return llvm::Error::success();
+}
+
+llvm::Error materializeSelectedVariantMarker(
+    mlir::OpBuilder &builder, const VariantSelectionPlan &plan,
+    DiagnosticOp *createdMarker) {
+  if (createdMarker)
+    *createdMarker = DiagnosticOp();
+
+  KernelOp kernel = plan.kernel;
+  if (!kernel)
+    return makeSelectionError(kernel,
+                              "requires a tcrv.exec.kernel for selected-path "
+                              "marker materialization");
+
+  if (!hasKernelBody(kernel))
+    return makeSelectionError(kernel,
+                              "requires kernel to have a materialized body "
+                              "block for selected-path marker materialization");
+
+  if (plan.kind != VariantSelectionKind::StaticVariant &&
+      plan.kind != VariantSelectionKind::FallbackOnly)
+    return makeSelectionError(
+        kernel,
+        "can only materialize selected-path marker for StaticVariant or "
+        "FallbackOnly plans");
+
+  if (hasDirectDispatch(kernel))
+    return makeSelectionError(
+        kernel,
+        "kernel already contains a direct tcrv.exec.dispatch; selected-path "
+        "marker materialization refuses to create a competing selected surface");
+
+  VariantOp selectedVariant = plan.selectedVariant ? plan.selectedVariant
+                                                   : plan.fallback;
+  if (llvm::Error error =
+          validatePlanVariant(kernel, selectedVariant, "selected"))
+    return error;
+
+  llvm::SmallVector<DiagnosticOp, 2> existingMarkers;
+  collectDirectSelectedPathMarkers(kernel, existingMarkers);
+  if (existingMarkers.size() > 1)
+    return makeSelectionError(
+        kernel,
+        "kernel already contains multiple direct selected-path diagnostic "
+        "markers");
+
+  if (!existingMarkers.empty()) {
+    if (markerMatchesSelectionPlan(existingMarkers.front(), plan.kind,
+                                   selectedVariant)) {
+      if (createdMarker)
+        *createdMarker = existingMarkers.front();
+      return llvm::Error::success();
+    }
+
+    return makeSelectionError(
+        kernel,
+        "kernel already contains a direct selected-path diagnostic marker for "
+        "a different target or selection kind");
+  }
+
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+
+  mlir::OperationState state(selectedVariant.getLoc(),
+                             DiagnosticOp::getOperationName());
+  state.addAttribute(kReasonAttrName,
+                     builder.getStringAttr(kSelectedReasonValue));
+  state.addAttribute(kMessageAttrName,
+                     builder.getStringAttr(getSelectedMarkerMessage(plan.kind)));
+  state.addAttribute(kSeverityAttrName, builder.getStringAttr("note"));
+  state.addAttribute(kStatusAttrName, builder.getStringAttr("selected"));
+  state.addAttribute(kTargetAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  selectedVariant.getSymName()));
+  state.addAttribute(kSelectionKindAttrName,
+                     builder.getStringAttr(stringifySelectedMarkerKind(plan.kind)));
+  DiagnosticOp marker = llvm::cast<DiagnosticOp>(builder.create(state));
+
+  if (createdMarker)
+    *createdMarker = marker;
 
   return llvm::Error::success();
 }

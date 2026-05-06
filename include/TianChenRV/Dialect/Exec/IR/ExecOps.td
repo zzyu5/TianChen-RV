@@ -146,7 +146,9 @@ def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
   let arguments = (ins OptionalAttr<StrAttr>:$reason,
                    OptionalAttr<StrAttr>:$message,
                    OptionalAttr<StrAttr>:$severity,
-                   OptionalAttr<StrAttr>:$status);
+                   OptionalAttr<StrAttr>:$status,
+                   OptionalAttr<FlatSymbolRefAttr>:$target,
+                   OptionalAttr<StrAttr>:$selection_kind);
   let assemblyFormat = "attr-dict";
   let hasVerifier = 1;
 }

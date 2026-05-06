@@ -30,6 +30,7 @@ constexpr llvm::StringLiteral kMessageAttrName("message");
 constexpr llvm::StringLiteral kSeverityAttrName("severity");
 constexpr llvm::StringLiteral kStatusAttrName("status");
 constexpr llvm::StringLiteral kTargetAttrName("target");
+constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
 constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
 
@@ -228,9 +229,29 @@ mlir::LogicalResult DiagnosticOp::verify() {
            << "requires non-empty string attribute '" << kStatusAttrName
            << "' when present";
 
+  if (isPresentButEmptyStringAttr(getOperation(), kSelectionKindAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kSelectionKindAttrName
+           << "' when present";
+
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()
            << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+
+  auto targetAttr =
+      getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  if (targetAttr) {
+    KernelOp kernel = getEnclosingKernel(getOperation());
+    if (!kernel)
+      return emitOpError()
+             << "must be nested in a tcrv.exec.kernel to resolve diagnostic "
+                "target";
+
+    if (!kernelContainsVariant(kernel, targetAttr.getValue()))
+      return emitOpError()
+             << "references unknown diagnostic target variant @"
+             << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
+  }
 
   return mlir::success();
 }

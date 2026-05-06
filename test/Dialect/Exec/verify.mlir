@@ -26,6 +26,22 @@ tcrv.exec.kernel @ok attributes {} {
 
 // -----
 
+tcrv.exec.kernel @selected_marker_ok attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.diagnostic {
+    message = "portable variant selected by generic planner",
+    reason = "variant-selected",
+    selection_kind = "static-variant",
+    severity = "note",
+    status = "selected",
+    target = @portable_variant
+  }
+}
+
+// -----
+
 tcrv.exec.kernel @missing_requires attributes {} {
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
   // expected-error @+1 {{requires structured array attribute 'requires' containing capability symbol references}}
@@ -201,6 +217,26 @@ tcrv.exec.kernel @missing_diagnostic_message attributes {} {
 tcrv.exec.kernel @empty_diagnostic_severity attributes {} {
   // expected-error @+1 {{requires non-empty string attribute 'severity' when present}}
   tcrv.exec.diagnostic {reason = "fallback-selected", message = "using fallback", severity = ""}
+}
+
+// -----
+
+tcrv.exec.kernel @empty_diagnostic_selection_kind attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  // expected-error @+1 {{requires non-empty string attribute 'selection_kind' when present}}
+  tcrv.exec.diagnostic {reason = "variant-selected", message = "using selected variant", selection_kind = "", target = @portable_variant}
+}
+
+// -----
+
+tcrv.exec.kernel @unknown_diagnostic_target attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  // expected-error @+1 {{references unknown diagnostic target variant @missing_variant in enclosing tcrv.exec.kernel}}
+  tcrv.exec.diagnostic {reason = "variant-selected", message = "using selected variant", selection_kind = "static-variant", target = @missing_variant}
 }
 
 // -----

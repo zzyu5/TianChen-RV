@@ -27,6 +27,7 @@ using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
@@ -348,6 +349,75 @@ module {
     return result;
   return expect(plugin.getObservedRoles()[0] == "direct variant",
                 "direct pass uses direct variant role");
+}
+
+int runSelectedMarkerPassTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @selected_marker {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "fast-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @slow attributes {
+      origin = "slow-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fast selected by generic selection marker",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @fast
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse selected marker emission readiness module");
+
+  EmissionPlugin fastPlugin("fast-emitter");
+  EmissionPlugin slowPlugin("slow-emitter");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(fastPlugin),
+                                 "register selected marker fast plugin"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(slowPlugin),
+                                 "register selected marker slow plugin"))
+    return result;
+
+  mlir::PassManager passManager(&context);
+  passManager.addPass(
+      tianchenrv::transforms::createCheckEmissionPathsPass(registry));
+  if (int result = expect(mlir::succeeded(passManager.run(*module)),
+                          "selected marker emission pass succeeds"))
+    return result;
+
+  if (int result =
+          expect(fastPlugin.getReadinessCalls() == 1,
+                 "selected marker routes only selected variant to plugin"))
+    return result;
+  if (int result =
+          expect(slowPlugin.getReadinessCalls() == 0,
+                 "selected marker prevents conservative all-variant routing"))
+    return result;
+  if (int result =
+          expect(fastPlugin.getObservedVariantSymbols().size() == 1 &&
+                     fastPlugin.getObservedVariantSymbols()[0] == "fast",
+                 "selected marker preserves selected target variant"))
+    return result;
+  return expect(fastPlugin.getObservedRoles().size() == 1 &&
+                    fastPlugin.getObservedRoles()[0] == "direct variant",
+                "selected marker uses target-neutral direct variant role");
 }
 
 int runInjectedDispatchPassTest(mlir::MLIRContext &context) {
@@ -674,6 +744,35 @@ module {
 )mlir";
 }
 
+const char *getSelectedMarkerKernelSource() {
+  return R"mlir(
+module {
+  tcrv.exec.kernel @dispatch_negative {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @fallback attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fast selected by generic planner",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      target = @fast
+    }
+  }
+}
+)mlir";
+}
+
 int runStructuralDispatchNegativeTests(mlir::MLIRContext &context) {
   if (int result = expectStructuralErrorHasNoPluginCalls(
           context, getDispatchKernelSource(),
@@ -753,6 +852,58 @@ module {
             fallback->setAttr("target", getSymbolRef(context, "fast"));
           },
           {"duplicate dispatch emission reference to variant @fast"}))
+    return result;
+
+  if (int result = expectStructuralErrorHasNoPluginCalls(
+          context, getSelectedMarkerKernelSource(),
+          [](mlir::MLIRContext &, KernelOp kernel) {
+            for (mlir::Operation &operation : kernel.getBody().front()) {
+              auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+              if (!diagnostic)
+                continue;
+              diagnostic->removeAttr("selection_kind");
+              break;
+            }
+          },
+          {"selected-path diagnostic marker", "selection_kind"}))
+    return result;
+
+  if (int result = expectStructuralErrorHasNoPluginCalls(
+          context, getSelectedMarkerKernelSource(),
+          [](mlir::MLIRContext &context, KernelOp kernel) {
+            for (mlir::Operation &operation : kernel.getBody().front()) {
+              auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+              if (!diagnostic)
+                continue;
+              diagnostic->setAttr("selection_kind",
+                                  mlir::StringAttr::get(&context,
+                                                        "runtime-dispatch"));
+              break;
+            }
+          },
+          {"unsupported selection_kind 'runtime-dispatch'"}))
+    return result;
+
+  if (int result = expectStructuralErrorHasNoPluginCalls(
+          context, getSelectedMarkerKernelSource(),
+          [](mlir::MLIRContext &context, KernelOp kernel) {
+            mlir::OpBuilder builder(&context);
+            builder.setInsertionPointToEnd(&kernel.getBody().front());
+            mlir::OperationState state(kernel.getLoc(),
+                                       DiagnosticOp::getOperationName());
+            state.addAttribute("reason",
+                               mlir::StringAttr::get(&context,
+                                                     "variant-selected"));
+            state.addAttribute("message",
+                               mlir::StringAttr::get(&context,
+                                                     "fallback also selected"));
+            state.addAttribute("selection_kind",
+                               mlir::StringAttr::get(&context,
+                                                     "fallback-only"));
+            state.addAttribute("target", getSymbolRef(context, "fallback"));
+            builder.create(state);
+          },
+          {"at most one direct selected-path diagnostic marker"}))
     return result;
 
   return 0;
@@ -837,6 +988,8 @@ int main() {
   if (int result = runRegistrySupportedDirectVariantTest(context))
     return result;
   if (int result = runInjectedDirectPassTest(context))
+    return result;
+  if (int result = runSelectedMarkerPassTest(context))
     return result;
   if (int result = runInjectedDispatchPassTest(context))
     return result;

@@ -53,6 +53,10 @@ llvm::Error materializeRuntimeDispatchPlan(
     mlir::OpBuilder &builder, const VariantSelectionPlan &plan,
     tcrv::exec::DispatchOp *createdDispatch = nullptr);
 
+llvm::Error materializeSelectedVariantMarker(
+    mlir::OpBuilder &builder, const VariantSelectionPlan &plan,
+    tcrv::exec::DiagnosticOp *createdMarker = nullptr);
+
 } // namespace tianchenrv::transforms
 
 #endif // TIANCHENRV_TRANSFORMS_VARIANTSELECTION_H

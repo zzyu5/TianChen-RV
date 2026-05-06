@@ -228,6 +228,13 @@ validates result shape, origin/variant identity, plugin enablement, and sibling
 structure generically, but does not interpret RVV, IME, offload, scalar,
 vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics.
 
+If variant selection materialized a direct selected-path `tcrv.exec.diagnostic`
+marker for a static or fallback-only plan, the emission readiness pass resolves
+that marker to the target `tcrv.exec.variant` before registry routing. The
+plugin still receives the same `VariantEmissionRequest` with role
+`DirectVariant`; the marker is core control metadata, not plugin-specific
+lowering or runtime input.
+
 ### EmissionProvider
 
 ```cpp

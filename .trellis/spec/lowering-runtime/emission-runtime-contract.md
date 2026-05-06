@@ -29,6 +29,10 @@ Rules:
 - validate `tcrv.exec.dispatch` case/fallback targets structurally before
   routing to plugins: every reference must resolve to a direct sibling
   `tcrv.exec.variant` in the same kernel and duplicate references are invalid;
+- when no dispatch is present, consume a direct selected-path
+  `tcrv.exec.diagnostic` marker before falling back to all variants; the marker
+  must carry a direct sibling variant `target` and a generic `selection_kind`
+  such as `static-variant` or `fallback-only`;
 - avoid core branches on RVV, IME, offload, scalar, vendor, dtype, shape,
   runtime, toolchain, or microarchitecture details.
 

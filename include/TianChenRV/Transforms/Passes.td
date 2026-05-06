@@ -56,8 +56,10 @@ def SelectVariants
     origin plugins rather than inventing core-side cost semantics.
 
     Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
-    tcrv.exec.case, and tcrv.exec.fallback operations. Static, fallback-only,
-    and no-variant plans do not erase variants or inject target-specific IR.
+    tcrv.exec.case, and tcrv.exec.fallback operations. Static and fallback-only
+    plans materialize a generic selected-path tcrv.exec.diagnostic marker with
+    target and selection_kind metadata. No-variant plans do not erase variants
+    or inject target-specific IR.
   }];
   let constructor =
       "::tianchenrv::transforms::createSelectVariantsPass()";
@@ -79,10 +81,12 @@ def CheckEmissionPaths
 
     Kernels with a direct tcrv.exec.dispatch are checked through every
     tcrv.exec.case target and the tcrv.exec.fallback target. Kernels without a
-    dispatch or selected-marker surface are conservatively checked through all
-    direct tcrv.exec.variant children. Production tools should construct this
-    pass with a populated ExtensionPluginRegistry. The default public
-    registration uses an empty registry and diagnoses unregistered origins.
+    dispatch but with a direct selected-path diagnostic marker are checked
+    through that marker target. Kernels without a dispatch or selected-marker
+    surface are conservatively checked through all direct tcrv.exec.variant
+    children. Production tools should construct this pass with a populated
+    ExtensionPluginRegistry. The default public registration uses an empty
+    registry and diagnoses unregistered origins.
   }];
   let constructor =
       "::tianchenrv::transforms::createCheckEmissionPathsPass()";

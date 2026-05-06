@@ -23,12 +23,18 @@ namespace {
 
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
+constexpr llvm::StringLiteral kReasonAttrName("reason");
+constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
+constexpr llvm::StringLiteral kSelectedReasonValue("variant-selected");
+constexpr llvm::StringLiteral kStaticSelectionKindValue("static-variant");
+constexpr llvm::StringLiteral kFallbackOnlySelectionKindValue("fallback-only");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
@@ -60,6 +66,16 @@ llvm::Error makeDispatchEmissionPathError(KernelOp kernel, DispatchOp dispatch,
   return makeEmissionPathError(
       kernel, llvm::Twine("dispatch reference validation failed before plugin "
                           "emission routing: ") +
+                  message);
+}
+
+llvm::Error makeSelectedMarkerEmissionPathError(KernelOp kernel,
+                                                DiagnosticOp diagnostic,
+                                                llvm::Twine message) {
+  (void)diagnostic;
+  return makeEmissionPathError(
+      kernel, llvm::Twine("selected-path diagnostic marker validation failed "
+                          "before plugin emission routing: ") +
                   message);
 }
 
@@ -113,6 +129,96 @@ llvm::Error routeVariantEmissionReadiness(
   VariantEmissionStatus status;
   VariantEmissionRequest request(variant, kernel, capabilities, role);
   return registry.checkVariantEmissionReadiness(request, status);
+}
+
+bool isDirectSelectedPathMarkerCandidate(DiagnosticOp diagnostic) {
+  if (!diagnostic)
+    return false;
+
+  auto reason =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
+  return reason && reason.getValue() == kSelectedReasonValue;
+}
+
+llvm::Error resolveSelectedMarkerTarget(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    const llvm::StringMap<VariantOp> &directVariants,
+    const llvm::StringMap<mlir::Operation *> &directSymbols,
+    VariantOp &resolvedVariant) {
+  auto selectionKind =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kSelectionKindAttrName);
+  if (!selectionKind || selectionKind.getValue().trim().empty())
+    return makeSelectedMarkerEmissionPathError(
+        kernel, diagnostic,
+        "requires non-empty string attribute 'selection_kind'");
+
+  if (selectionKind.getValue() != kStaticSelectionKindValue &&
+      selectionKind.getValue() != kFallbackOnlySelectionKindValue)
+    return makeSelectedMarkerEmissionPathError(
+        kernel, diagnostic,
+        llvm::Twine("unsupported selection_kind '") +
+            selectionKind.getValue() +
+            "'; expected 'static-variant' or 'fallback-only'");
+
+  auto targetAttr =
+      diagnostic->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  if (!targetAttr)
+    return makeSelectedMarkerEmissionPathError(
+        kernel, diagnostic, "requires a variant symbol reference target");
+
+  llvm::StringRef target = targetAttr.getValue();
+  if (target.trim().empty())
+    return makeSelectedMarkerEmissionPathError(
+        kernel, diagnostic, "has an empty variant symbol reference target");
+
+  auto directVariantIt = directVariants.find(target);
+  if (directVariantIt != directVariants.end()) {
+    resolvedVariant = directVariantIt->getValue();
+    return llvm::Error::success();
+  }
+
+  auto directSymbolIt = directSymbols.find(target);
+  if (directSymbolIt != directSymbols.end())
+    return makeSelectedMarkerEmissionPathError(
+        kernel, diagnostic,
+        llvm::Twine("selected-path target @") + target +
+            " resolves to a direct sibling symbol that is not a "
+            "tcrv.exec.variant");
+
+  VariantOp nestedVariant = findNestedVariantBySymbol(kernel, target);
+  if (nestedVariant && !hasDirectParent(nestedVariant.getOperation(), kernel))
+    return makeSelectedMarkerEmissionPathError(
+        kernel, diagnostic,
+        llvm::Twine("selected-path target @") + target +
+            " resolves to a tcrv.exec.variant that is not a direct sibling of "
+            "the tcrv.exec.diagnostic marker in the same kernel");
+
+  return makeSelectedMarkerEmissionPathError(
+      kernel, diagnostic,
+      llvm::Twine("selected-path target @") + target +
+          " does not resolve to a direct sibling tcrv.exec.variant in the "
+          "same kernel");
+}
+
+llvm::Error checkSelectedMarkerEmissionPath(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    const TargetCapabilitySet &capabilities,
+    const ExtensionPluginRegistry &registry,
+    const llvm::StringMap<VariantOp> &directVariants,
+    const llvm::StringMap<mlir::Operation *> &directSymbols) {
+  if (!diagnostic || !hasDirectParent(diagnostic.getOperation(), kernel))
+    return makeEmissionPathError(
+        kernel,
+        "requires selected-path tcrv.exec.diagnostic to be a direct kernel "
+        "child");
+
+  VariantOp variant;
+  if (llvm::Error error = resolveSelectedMarkerTarget(
+          kernel, diagnostic, directVariants, directSymbols, variant))
+    return error;
+
+  return routeVariantEmissionReadiness(kernel, variant, capabilities, registry,
+                                       VariantEmissionRole::DirectVariant);
 }
 
 llvm::Error resolveDispatchTarget(
@@ -322,6 +428,26 @@ llvm::Error checkKernelEmissionPaths(
 
   if (hasDirectDispatch)
     return llvm::Error::success();
+
+  DiagnosticOp selectedMarker;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op);
+    if (!diagnostic || !isDirectSelectedPathMarkerCandidate(diagnostic))
+      continue;
+
+    if (selectedMarker)
+      return makeEmissionPathError(
+          kernel,
+          "requires at most one direct selected-path diagnostic marker when no "
+          "tcrv.exec.dispatch is present");
+
+    selectedMarker = diagnostic;
+  }
+
+  if (selectedMarker)
+    return checkSelectedMarkerEmissionPath(kernel, selectedMarker, capabilities,
+                                           registry, directVariants,
+                                           directSymbols);
 
   for (mlir::Operation &op : kernel.getBody().front()) {
     auto variant = llvm::dyn_cast<VariantOp>(op);

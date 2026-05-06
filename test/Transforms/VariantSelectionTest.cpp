@@ -28,6 +28,7 @@ using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
@@ -175,6 +176,37 @@ unsigned countDirectDispatches(KernelOp kernel) {
   return count;
 }
 
+bool isSelectedPathMarker(DiagnosticOp diagnostic) {
+  auto reason = diagnostic->getAttrOfType<mlir::StringAttr>("reason");
+  return reason && reason.getValue() == "variant-selected" &&
+         diagnostic->hasAttr("target") && diagnostic->hasAttr("selection_kind");
+}
+
+unsigned countDirectSelectedPathMarkers(KernelOp kernel) {
+  if (!kernel || kernel.getBody().empty())
+    return 0;
+
+  unsigned count = 0;
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+    if (diagnostic && isSelectedPathMarker(diagnostic))
+      ++count;
+  }
+  return count;
+}
+
+DiagnosticOp findDirectSelectedPathMarker(KernelOp kernel) {
+  if (!kernel || kernel.getBody().empty())
+    return DiagnosticOp();
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+    if (diagnostic && isSelectedPathMarker(diagnostic))
+      return diagnostic;
+  }
+  return DiagnosticOp();
+}
+
 DispatchOp findDirectDispatch(KernelOp kernel) {
   if (!kernel || kernel.getBody().empty())
     return DispatchOp();
@@ -237,6 +269,18 @@ module {
     } {
     }
   }
+
+  tcrv.exec.kernel @fallback_only_anchor attributes {} {
+    tcrv.exec.capability @generic_base {
+      id = "generic.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @only_path attributes {
+      origin = "only",
+      requires = [@generic_base]
+    } {
+    }
+  }
 }
 )mlir";
 
@@ -248,6 +292,7 @@ module {
   SelectionCostPlugin cheap("cheap", 1.0);
   SelectionCostPlugin tieA("tie-a", 2.0);
   SelectionCostPlugin tieB("tie-b", 2.0);
+  SelectionCostPlugin only("only", 3.0);
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(registry.registerPlugin(expensive), "register expensive"))
@@ -257,6 +302,8 @@ module {
   if (int result = expectSuccess(registry.registerPlugin(tieB), "register tie-b"))
     return result;
   if (int result = expectSuccess(registry.registerPlugin(tieA), "register tie-a"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(only), "register only"))
     return result;
 
   KernelOp staticKernel = findKernel(*module, "static_anchor");
@@ -299,6 +346,83 @@ module {
                               tiePlan.rankedVariants[1].variant.getSymName() ==
                                   "tie_b",
                           "equal-cost ranking remains visible in plan order"))
+    return result;
+
+  KernelOp fallbackOnlyKernel = findKernel(*module, "fallback_only_anchor");
+  TargetCapabilitySet fallbackOnlyCapabilities =
+      TargetCapabilitySet::buildFromKernel(fallbackOnlyKernel);
+  auto fallbackOnlyPlanOrError =
+      tianchenrv::transforms::planKernelVariantSelection(
+          fallbackOnlyKernel, fallbackOnlyCapabilities, registry);
+  if (!fallbackOnlyPlanOrError)
+    return fail("fallback-only selection failed: " +
+                llvm::toString(fallbackOnlyPlanOrError.takeError()));
+  VariantSelectionPlan fallbackOnlyPlan = std::move(*fallbackOnlyPlanOrError);
+
+  if (int result =
+          expect(fallbackOnlyPlan.kind == VariantSelectionKind::FallbackOnly,
+                 "single available path produces fallback-only plan"))
+    return result;
+  if (int result =
+          expect(fallbackOnlyPlan.selectedVariant.getSymName() == "only_path",
+                 "fallback-only plan records selected variant"))
+    return result;
+
+  mlir::PassManager passManager(&context);
+  passManager.addPass(tianchenrv::transforms::createSelectVariantsPass(registry));
+  if (int result =
+          expect(mlir::succeeded(passManager.run(*module)),
+                 "selection pass materializes selected-path markers"))
+    return result;
+
+  staticKernel = findKernel(*module, "static_anchor");
+  DiagnosticOp staticMarker = findDirectSelectedPathMarker(staticKernel);
+  if (int result = expect(countDirectDispatches(staticKernel) == 0,
+                          "static marker pass does not create dispatch"))
+    return result;
+  if (int result =
+          expect(countDirectSelectedPathMarkers(staticKernel) == 1,
+                 "static marker pass creates one selected-path marker"))
+    return result;
+  if (int result =
+          expect(getTarget(staticMarker.getOperation()) == "cheap_second",
+                 "static marker targets cost-ranked selected variant"))
+    return result;
+  if (int result =
+          expect(getStringAttr(staticMarker.getOperation(), "selection_kind") ==
+                     "static-variant",
+                 "static marker records generic selection kind"))
+    return result;
+
+  tieKernel = findKernel(*module, "tie_anchor");
+  DiagnosticOp tieMarker = findDirectSelectedPathMarker(tieKernel);
+  if (int result = expect(getTarget(tieMarker.getOperation()) == "tie_a",
+                          "tie marker preserves stable selected target"))
+    return result;
+
+  fallbackOnlyKernel = findKernel(*module, "fallback_only_anchor");
+  DiagnosticOp fallbackOnlyMarker =
+      findDirectSelectedPathMarker(fallbackOnlyKernel);
+  if (int result =
+          expect(getTarget(fallbackOnlyMarker.getOperation()) == "only_path",
+                 "fallback-only marker targets the only selected path"))
+    return result;
+  if (int result = expect(getStringAttr(fallbackOnlyMarker.getOperation(),
+                                        "selection_kind") == "fallback-only",
+                          "fallback-only marker records generic selection kind"))
+    return result;
+
+  mlir::PassManager rerunPassManager(&context);
+  rerunPassManager.addPass(
+      tianchenrv::transforms::createSelectVariantsPass(registry));
+  if (int result =
+          expect(mlir::succeeded(rerunPassManager.run(*module)),
+                 "selection pass selected-path markers are idempotent"))
+    return result;
+  staticKernel = findKernel(*module, "static_anchor");
+  if (int result =
+          expect(countDirectSelectedPathMarkers(staticKernel) == 1,
+                 "selection rerun does not duplicate static selected marker"))
     return result;
 
   return 0;

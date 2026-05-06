@@ -270,12 +270,16 @@ tcrv.exec.diagnostic {
   reason = "variant-selected",
   message = "rvv variant selected by capability guard",
   severity = "note",
-  status = "accepted"
+  status = "accepted",
+  target = @rvv_variant,
+  selection_kind = "static-variant"
 }
 ```
 
 For this compatibility form, `reason` and `message` are required and non-empty.
-`severity` and `status` are optional but must be non-empty when present. The op
+`severity`, `status`, and `selection_kind` are optional but must be non-empty
+when present. `target` is optional selected-path metadata and, when present,
+must resolve to a variant symbol in the enclosing `tcrv.exec.kernel`. The op
 must be nested in a `tcrv.exec.kernel` or `tcrv.exec.variant`.
 
 ## Core Types And Attributes

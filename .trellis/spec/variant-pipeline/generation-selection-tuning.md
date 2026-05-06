@@ -282,6 +282,11 @@ Expected<VariantSelectionPlan> planKernelVariantSelection(
 Error materializeRuntimeDispatchPlan(OpBuilder &builder,
                                      const VariantSelectionPlan &plan,
                                      tcrv::exec::DispatchOp *createdDispatch);
+
+Error materializeSelectedVariantMarker(
+    OpBuilder &builder,
+    const VariantSelectionPlan &plan,
+    tcrv::exec::DiagnosticOp *createdMarker);
 ```
 
 ### 3. Contracts
@@ -327,6 +332,11 @@ The generic selection-planning contract is:
   `tcrv.exec.dispatch` -> return an `llvm::Error` and leave IR unchanged;
 - dispatch materialization with case/fallback variants not directly enclosed by
   the plan kernel -> return an `llvm::Error`.
+- selected-path marker materialization for a non-`StaticVariant` /
+  non-`FallbackOnly` plan -> return an `llvm::Error`;
+- selected-path marker materialization when the kernel already contains a direct
+  `tcrv.exec.dispatch` or a different direct selected marker -> return an
+  `llvm::Error`.
 
 ### 5. Good / Base / Bad Cases
 
@@ -375,6 +385,26 @@ helper preserves planned case order, copies non-empty generic
 contain a direct dispatch, and does not erase variants. It must not parse,
 switch on, or infer target-family meaning from generic metadata strings.
 
+Static and fallback-only selection plans may instead materialize one direct
+`tcrv.exec.diagnostic` selected-path marker:
+
+```mlir
+tcrv.exec.diagnostic {
+  reason = "variant-selected",
+  message = "static variant selected by generic cost and capability planning",
+  severity = "note",
+  status = "selected",
+  target = @selected_variant,
+  selection_kind = "static-variant"
+}
+```
+
+The marker is generic control metadata. `target` references the selected direct
+variant, and `selection_kind` is `static-variant` or `fallback-only` in the
+first slice. It is not lowering IR, runtime ABI glue, or target-family logic.
+Re-running selection must reuse an equivalent direct marker rather than
+duplicating it.
+
 Selection planning must stay target-neutral. It must not branch on RVV, IME,
 offload, scalar fallback, vendors, accelerators, dtype, shape, layout, runtime
 ABI, microarchitecture, or any other target family.
@@ -392,8 +422,10 @@ pass boundary must preserve plugin-owned cost semantics:
   unregistered `origin` plugins instead of inventing core-side attribute costs,
   target-family fallbacks, or Python-only ranking.
 - The pass must build `TargetCapabilitySet` from each `tcrv.exec.kernel`, call
-  the existing selection planner, and materialize only runtime-dispatch plans
-  with typed `tcrv.exec.dispatch`, `tcrv.exec.case`, and `tcrv.exec.fallback`.
+  the existing selection planner, materialize runtime-dispatch plans with typed
+  `tcrv.exec.dispatch`, `tcrv.exec.case`, and `tcrv.exec.fallback`, and
+  materialize static/fallback-only plans with one generic selected-path
+  `tcrv.exec.diagnostic` marker.
 - Static, fallback-only, and no-direct-variant plans do not erase variants,
   lower extension dialects, or inject target-specific IR.
 - Tests should cover both injected-registry pass execution and public default
@@ -515,8 +547,13 @@ First-slice behavior:
 
 - kernels with a direct `tcrv.exec.dispatch` check every `tcrv.exec.case`
   target and the `tcrv.exec.fallback` target;
-- kernels without a dispatch or selected-marker surface conservatively check
-  all direct `tcrv.exec.variant` children;
+- kernels without a dispatch but with one direct selected-path
+  `tcrv.exec.diagnostic` marker check only that marker target;
+- kernels without a dispatch or selected-marker surface conservatively check all
+  direct `tcrv.exec.variant` children;
+- selected-path marker targets must resolve to direct sibling variants in the
+  same kernel before plugin routing, and duplicate direct selected markers are
+  invalid;
 - dispatch and fallback targets must resolve to direct sibling variants in the
   same kernel before plugin routing;
 - missing, duplicate, non-variant, or non-sibling dispatch references are
