@@ -1,0 +1,24 @@
+# Architecture Specs
+
+本层定义 TianChen-RV MLIR 的系统定位和长期边界。进入任何实现或实验解释前，先确认这里的 invariants。
+
+## Pre-Development Checklist
+
+- [ ] 这项工作是否仍然把 TianChen-RV 描述为 high-level MLIR 之后的 RISC-V execution layer？
+- [ ] 是否避免新增核心 `tcrv.matmul`、`tcrv.softmax`、`tcrv.reduce`、`tcrv.generic_tile` 这类高层计算 op？
+- [ ] 是否把 capability object 放在 pass 决策路径上，而不是作为注释？
+- [ ] 是否区分 RVV 当前主线、K3/IME 后续插件、Sophgo runtime offload、future custom ISA 插槽？
+- [ ] 是否没有把实验便利性反向写成系统结构？
+
+## Guidelines Index
+
+| Spec | Description |
+|---|---|
+| [System Positioning](./system-positioning.md) | 系统定位、研究贡献、模块边界 |
+| [Design Boundaries](./design-boundaries.md) | 禁止方向、硬件路线口径、论文表述边界 |
+
+## Quality Check
+
+- 系统叙事必须能用一句话复述为：capability-driven RISC-V execution layer。
+- 任何新增核心概念必须说明它属于 capability、variant、plugin、dispatch、fallback 之一，或解释为什么需要扩展核心 interface。
+- 文档或代码中出现 high-level compute core op 时，必须视为 architecture violation，除非它明确属于 extension dialect 内部执行 op。
