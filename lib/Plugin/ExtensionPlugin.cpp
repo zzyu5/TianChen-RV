@@ -7,6 +7,8 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace tianchenrv::plugin {
@@ -23,9 +25,9 @@ llvm::Error makePluginRegistryError(llvm::Twine message) {
       message, llvm::errc::invalid_argument);
 }
 
-void appendVariantLegalityContext(llvm::raw_ostream &stream,
-                                  tcrv::exec::VariantOp variant,
-                                  tcrv::exec::KernelOp kernel) {
+void appendVariantContext(llvm::raw_ostream &stream,
+                          tcrv::exec::VariantOp variant,
+                          tcrv::exec::KernelOp kernel) {
   stream << "variant ";
   if (variant)
     stream << "@" << variant.getSymName();
@@ -45,7 +47,18 @@ llvm::Error makeVariantLegalityError(tcrv::exec::VariantOp variant,
   std::string description;
   llvm::raw_string_ostream stream(description);
   stream << "TianChen-RV variant legality verification failed for ";
-  appendVariantLegalityContext(stream, variant, kernel);
+  appendVariantContext(stream, variant, kernel);
+  stream << ": " << message;
+  return makePluginRegistryError(stream.str());
+}
+
+llvm::Error makeVariantCostError(tcrv::exec::VariantOp variant,
+                                 tcrv::exec::KernelOp kernel,
+                                 llvm::Twine message) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "TianChen-RV variant cost estimation failed for ";
+  appendVariantContext(stream, variant, kernel);
   stream << ": " << message;
   return makePluginRegistryError(stream.str());
 }
@@ -95,9 +108,20 @@ VariantLegalityRequest::VariantLegalityRequest(
     const support::TargetCapabilitySet &capabilities)
     : variant(variant), kernel(kernel), capabilities(capabilities) {}
 
+VariantCostRequest::VariantCostRequest(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities)
+    : variant(variant), kernel(kernel), capabilities(capabilities) {}
+
 VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
     : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
+
+VariantCostEstimate::VariantCostEstimate(double score,
+                                         llvm::StringRef originPlugin,
+                                         llvm::StringRef variantSymbol)
+    : scoreSet(true), score(score), originPlugin(originPlugin.str()),
+      variantSymbol(variantSymbol.str()) {}
 
 bool ExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
@@ -116,6 +140,16 @@ llvm::Error ExtensionPlugin::proposeVariants(
 llvm::Error ExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
   (void)request;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::estimateVariantCost(
+    const VariantCostRequest &request, VariantCostEstimate &out) const {
+  out = VariantCostEstimate();
+  out.setScore(0.0);
+  out.setOriginPlugin(getName());
+  if (tcrv::exec::VariantOp variant = request.getVariant())
+    out.setVariantSymbol(variant.getSymName());
   return llvm::Error::success();
 }
 
@@ -327,6 +361,139 @@ llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
   return llvm::Error::success();
 }
 
+llvm::Error ExtensionPluginRegistry::estimateVariantCost(
+    const VariantCostRequest &request, VariantCostEstimate &out) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+
+  if (!variant)
+    return makeVariantCostError(
+        variant, kernel, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantCostError(
+        variant, kernel, "requires an enclosing tcrv.exec.kernel");
+
+  tcrv::exec::KernelOp actualKernel =
+      variant->getParentOfType<tcrv::exec::KernelOp>();
+  if (!actualKernel ||
+      actualKernel.getOperation() != kernel.getOperation()) {
+    return makeVariantCostError(
+        variant, kernel,
+        "variant is not enclosed by the request tcrv.exec.kernel");
+  }
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  VariantCostEstimate estimate;
+  if (llvm::Error error = plugin->estimateVariantCost(request, estimate)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' failed cost estimate: " + pluginMessage);
+  }
+
+  if (llvm::Error error =
+          validateVariantCostEstimate(request, *plugin, origin, estimate))
+    return error;
+
+  out = estimate;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
+    tcrv::exec::KernelOp kernel,
+    llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
+  if (!kernel)
+    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
+                                "requires a tcrv.exec.kernel");
+
+  support::TargetCapabilitySet capabilities =
+      support::TargetCapabilitySet::buildFromKernel(kernel);
+  return collectKernelVariantCosts(kernel, capabilities, out);
+}
+
+llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
+    tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities,
+    llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
+  if (!kernel)
+    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
+                                "requires a tcrv.exec.kernel");
+
+  if (kernel.getBody().empty())
+    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
+                                "requires kernel to have a materialized body "
+                                "block");
+
+  std::size_t originalIndex = 0;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (!variant)
+      continue;
+
+    VariantCostEstimate estimate;
+    VariantCostRequest request(variant, kernel, capabilities);
+    if (llvm::Error error = estimateVariantCost(request, estimate))
+      return error;
+
+    out.push_back(VariantCostRankingEntry{variant, estimate, originalIndex});
+    ++originalIndex;
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
+    tcrv::exec::KernelOp kernel,
+    llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
+  if (!kernel)
+    return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
+                                "requires a tcrv.exec.kernel");
+
+  support::TargetCapabilitySet capabilities =
+      support::TargetCapabilitySet::buildFromKernel(kernel);
+  return rankKernelVariantsByCost(kernel, capabilities, out);
+}
+
+llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
+    tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities,
+    llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const {
+  if (llvm::Error error = collectKernelVariantCosts(kernel, capabilities, out))
+    return error;
+
+  std::stable_sort(out.begin(), out.end(),
+                   [](const VariantCostRankingEntry &lhs,
+                      const VariantCostRankingEntry &rhs) {
+                     if (lhs.estimate.getScore() < rhs.estimate.getScore())
+                       return true;
+                     if (rhs.estimate.getScore() < lhs.estimate.getScore())
+                       return false;
+                     return lhs.originalIndex < rhs.originalIndex;
+                   });
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::validateVariantProposal(
     const VariantProposalRequest &request, const ExtensionPlugin &plugin,
     const VariantProposal &proposal) const {
@@ -383,6 +550,78 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
           llvm::Twine("requires unavailable capability symbol @") +
               requiredSymbol + " " + describeCapabilityBySymbol(*capability));
   }
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateVariantCostEstimate(
+    const VariantCostRequest &request, const ExtensionPlugin &plugin,
+    llvm::StringRef origin, const VariantCostEstimate &estimate) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+
+  if (!estimate.hasScore())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: score is missing");
+
+  double score = estimate.getScore();
+  if (!std::isfinite(score))
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: score must be finite");
+
+  if (score < 0.0)
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: score must be non-negative");
+
+  if (estimate.getOriginPlugin().trim().empty())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: origin plugin must be "
+            "non-empty");
+
+  if (estimate.getOriginPlugin() != origin)
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: estimate origin '" +
+            estimate.getOriginPlugin() + "' does not match variant origin '" +
+            origin + "'");
+
+  if (estimate.getVariantSymbol().trim().empty())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: variant symbol must be "
+            "non-empty");
+
+  if (estimate.getVariantSymbol() != variant.getSymName())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: estimate variant @" +
+            estimate.getVariantSymbol() +
+            " does not match request variant @" + variant.getSymName());
+
+  if (estimate.hasExplanation() && estimate.getExplanation().trim().empty())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: explanation must be non-empty "
+            "when present");
+
+  if (estimate.hasPolicy() && estimate.getPolicy().trim().empty())
+    return makeVariantCostError(
+        variant, kernel,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid cost estimate: policy must be non-empty when "
+            "present");
 
   return llvm::Error::success();
 }

@@ -139,6 +139,45 @@ Responsibilities:
 - combine shape, dtype, capability, runtime transfer cost, and profile data;
 - explain selection decisions.
 
+The registry-level first C++ cost slice exposes materialized-variant cost
+estimation through the existing `ExtensionPlugin` protocol:
+
+```cpp
+class VariantCostRequest {
+public:
+  tcrv::exec::VariantOp getVariant() const;
+  tcrv::exec::KernelOp getKernel() const;
+  const TargetCapabilitySet &getCapabilities() const;
+};
+
+class VariantCostEstimate {
+public:
+  bool hasScore() const;
+  double getScore() const;
+  StringRef getOriginPlugin() const;
+  StringRef getVariantSymbol() const;
+  bool hasExplanation() const;
+  StringRef getExplanation() const;
+  bool hasPolicy() const;
+  StringRef getPolicy() const;
+};
+
+class ExtensionPlugin {
+public:
+  virtual Error estimateVariantCost(const VariantCostRequest &request,
+                                    VariantCostEstimate &out) const;
+};
+```
+
+This request carries only compiler objects already present in IR: the
+materialized `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, and the
+generic `TargetCapabilitySet` built from that kernel. The estimate is a generic
+finite non-negative score plus origin/variant identity and optional non-empty
+generic explanation or policy text. It is not a selection decision, tuning
+space, lowering plan, emission object, runtime ABI, target-family object, or
+hardware performance claim. The default plugin hook returns a deterministic
+neutral estimate for the request variant and origin plugin.
+
 ### EmissionProvider
 
 ```cpp
@@ -225,6 +264,35 @@ verification orchestration:
   structures;
 - keep legality orchestration generic and free of RVV, IME, offload, scalar,
   vendor, dtype, shape, layout, or target-family branches.
+
+The registry-level cost slice provides deterministic materialized-variant cost
+orchestration:
+
+- validate that the request contains a materialized `tcrv.exec.variant`, an
+  enclosing `tcrv.exec.kernel`, and a variant whose `origin` is a non-empty
+  string attribute;
+- build or receive the generic `TargetCapabilitySet` from the kernel without
+  target-family logic;
+- look up exactly the origin plugin named by the variant `origin` attribute;
+- reject unknown origin plugins before invoking plugin cost estimation;
+- reject disabled origin plugins for materialized variant cost estimation,
+  because a disabled plugin cannot own fresh cost decisions for existing IR;
+- call only the origin plugin's `estimateVariantCost` hook, never every plugin
+  in the registry;
+- validate returned estimates by requiring a present finite non-negative score,
+  non-empty origin plugin, non-empty variant symbol, matching request
+  origin/variant identity, and non-empty explanation/policy strings when those
+  optional fields are present;
+- wrap plugin-local failures and invalid estimates with generic context naming
+  the plugin, variant, and kernel;
+- when collecting costs for a kernel, visit direct `tcrv.exec.variant` children
+  in IR order and do not mutate materialization, dispatch, selection, lowering,
+  or emission structures;
+- when ranking collected estimates, sort by generic score and keep equal-score
+  ties stable by original kernel IR order;
+- keep cost orchestration generic and free of RVV, IME, offload, scalar,
+  vendor, dtype, shape, layout, runtime ABI, microarchitecture, or
+  target-family branches.
 
 ## Registration Metadata
 

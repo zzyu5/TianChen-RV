@@ -185,6 +185,46 @@ plugin legality checks extension-owned body details through plugin interfaces.
 Core legality orchestration must not hard-code RVV, IME, offload, scalar
 fallback, vendor, dtype, shape, layout, or target-family semantics.
 
+## Generic Materialized Variant Cost Routing
+
+After variants are materialized and legality can be routed plugin-locally, the
+core registry may also orchestrate plugin-local cost estimation for real
+`tcrv.exec.variant` IR. This is an input to later selection, not selection
+itself.
+
+The first C++/MLIR cost routing contract is:
+
+- build or receive the generic `TargetCapabilitySet` from the enclosing
+  `tcrv.exec.kernel`;
+- create a `VariantCostRequest` containing the materialized
+  `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, and that capability
+  set;
+- route the request only to the plugin named by the variant `origin` attribute;
+- reject missing variants, missing kernels, variants not enclosed by the
+  requested kernel, missing or empty origins, unknown origin plugins, and
+  disabled origin plugins with generic diagnostics;
+- propagate plugin-local cost failures while wrapping them with plugin,
+  variant, and kernel context;
+- reject invalid estimates, including missing scores, non-finite scores,
+  negative scores, mismatched origin/variant identity, and present-but-empty
+  generic explanation or policy text;
+- collect direct kernel variant costs in original IR order without mutating IR;
+- return deterministic rankings by ascending generic score, with equal-score
+  ties kept stable by original kernel IR order;
+- leave proposal collection, materialization, legality, dispatch synthesis,
+  full selection, tuning, lowering, emission, runtime ABI, and hardware
+  probing as separate pipeline responsibilities.
+
+The default plugin cost hook is deterministic and safe: it returns a neutral
+finite score for the request variant and origin plugin. Concrete analytic,
+empirical, profile-guided, shape-aware, dtype-aware, runtime-aware, or
+hardware-specific cost semantics belong inside plugins and later selection
+slices, not in core registry orchestration.
+
+Core cost orchestration must not hard-code RVV, IME, offload, scalar fallback,
+vendor, dtype, shape, layout, runtime ABI, microarchitecture, or target-family
+semantics.
+
 ## Variant IR Required Fields
 
 Each variant must include:

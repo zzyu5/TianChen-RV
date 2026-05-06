@@ -23,6 +23,7 @@ llvm_config.add_tool_substitutions(
         "FileCheck",
         "tianchenrv-capability-model-test",
         "tianchenrv-plugin-registry-test",
+        "tianchenrv-plugin-variant-cost-test",
         "tianchenrv-plugin-variant-legality-test",
         "tianchenrv-plugin-variant-proposal-test",
         "tianchenrv-variant-dispatch-synthesis-test",

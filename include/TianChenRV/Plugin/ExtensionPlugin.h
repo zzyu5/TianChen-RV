@@ -72,6 +72,24 @@ private:
   const support::TargetCapabilitySet &capabilities;
 };
 
+class VariantCostRequest {
+public:
+  VariantCostRequest(tcrv::exec::VariantOp variant,
+                     tcrv::exec::KernelOp kernel,
+                     const support::TargetCapabilitySet &capabilities);
+
+  tcrv::exec::VariantOp getVariant() const { return variant; }
+  tcrv::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+
+private:
+  tcrv::exec::VariantOp variant;
+  tcrv::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+};
+
 class VariantProposal {
 public:
   VariantProposal() = default;
@@ -111,6 +129,55 @@ private:
   std::string policy;
 };
 
+class VariantCostEstimate {
+public:
+  VariantCostEstimate() = default;
+  VariantCostEstimate(double score, llvm::StringRef originPlugin,
+                      llvm::StringRef variantSymbol);
+
+  bool hasScore() const { return scoreSet; }
+  double getScore() const { return score; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  bool hasExplanation() const { return explanationSet; }
+  llvm::StringRef getExplanation() const { return explanation; }
+  bool hasPolicy() const { return policySet; }
+  llvm::StringRef getPolicy() const { return policy; }
+
+  void setScore(double value) {
+    score = value;
+    scoreSet = true;
+  }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setExplanation(llvm::StringRef value) {
+    explanation = value.str();
+    explanationSet = true;
+  }
+  void setPolicy(llvm::StringRef value) {
+    policy = value.str();
+    policySet = true;
+  }
+
+private:
+  bool scoreSet = false;
+  double score = 0.0;
+  std::string originPlugin;
+  std::string variantSymbol;
+  bool explanationSet = false;
+  std::string explanation;
+  bool policySet = false;
+  std::string policy;
+};
+
+struct VariantCostRankingEntry {
+  tcrv::exec::VariantOp variant;
+  VariantCostEstimate estimate;
+  std::size_t originalIndex = 0;
+};
+
 class ExtensionPlugin {
 public:
   virtual ~ExtensionPlugin() = default;
@@ -126,6 +193,9 @@ public:
                   llvm::SmallVectorImpl<VariantProposal> &out) const;
   virtual llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const;
+  virtual llvm::Error
+  estimateVariantCost(const VariantCostRequest &request,
+                      VariantCostEstimate &out) const;
 };
 
 class ExtensionPluginRegistry {
@@ -165,11 +235,30 @@ public:
   verifyKernelVariantLegality(
       tcrv::exec::KernelOp kernel,
       const support::TargetCapabilitySet &capabilities) const;
+  llvm::Error estimateVariantCost(const VariantCostRequest &request,
+                                  VariantCostEstimate &out) const;
+  llvm::Error collectKernelVariantCosts(
+      tcrv::exec::KernelOp kernel,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+  llvm::Error collectKernelVariantCosts(
+      tcrv::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+  llvm::Error rankKernelVariantsByCost(
+      tcrv::exec::KernelOp kernel,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
+  llvm::Error rankKernelVariantsByCost(
+      tcrv::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
 
 private:
   llvm::Error validateVariantProposal(const VariantProposalRequest &request,
                                       const ExtensionPlugin &plugin,
                                       const VariantProposal &proposal) const;
+  llvm::Error validateVariantCostEstimate(
+      const VariantCostRequest &request, const ExtensionPlugin &plugin,
+      llvm::StringRef origin, const VariantCostEstimate &estimate) const;
 
   llvm::SmallVector<const ExtensionPlugin *, 8> plugins;
   llvm::StringMap<const ExtensionPlugin *> pluginsByName;
