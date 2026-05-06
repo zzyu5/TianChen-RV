@@ -173,6 +173,11 @@ The registry-level first slice provides deterministic proposal orchestration:
 - collect proposals only from enabled supported plugins;
 - reject malformed proposals with `llvm::Error`, including empty variant names
   or empty origin/plugin ownership;
+- validate each proposal's required capability ids and symbol references against
+  the request `TargetCapabilitySet` before IR materialization;
+- reject empty, unknown, or unavailable proposal requirements with structured
+  generic diagnostics that name the plugin, variant, requirement, and capability
+  status;
 - keep proposal collection generic and free of target-family branches.
 
 ## Registration Metadata

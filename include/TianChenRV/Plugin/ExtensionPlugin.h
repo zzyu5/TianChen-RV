@@ -140,7 +140,8 @@ public:
                           llvm::SmallVectorImpl<VariantProposal> &out) const;
 
 private:
-  llvm::Error validateVariantProposal(const ExtensionPlugin &plugin,
+  llvm::Error validateVariantProposal(const VariantProposalRequest &request,
+                                      const ExtensionPlugin &plugin,
                                       const VariantProposal &proposal) const;
 
   llvm::SmallVector<const ExtensionPlugin *, 8> plugins;

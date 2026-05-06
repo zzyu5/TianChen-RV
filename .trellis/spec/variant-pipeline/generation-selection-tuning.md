@@ -76,7 +76,10 @@ materializing textual IR. Each proposal must still be directly mappable to
 required capability ids or symbol references, and optional generic
 condition/guard/policy metadata. Proposal collection is orchestration only; it
 does not select variants, run tuning, lower extension ops, emit runtime glue, or
-rewrite IR.
+rewrite IR. Registry orchestration must still validate that any proposal
+required capability ids or symbol references are non-empty, known to the request
+capability set, and available before the proposal can proceed to later legality
+or materialization slices.
 
 Example without IME:
 
@@ -237,6 +240,8 @@ Structured diagnostics should cover:
 
 - no plugin supports the high-level op;
 - plugin supports op but capability is absent;
+- plugin proposes a variant with an empty, unknown, or unavailable required
+  capability id or symbol reference;
 - plugin generated variant but legality failed;
 - variant legal but emission path missing;
 - multiple variants have close cost and dispatch is retained;

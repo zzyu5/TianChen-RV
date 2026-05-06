@@ -3,6 +3,9 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <string>
 
 namespace tianchenrv::plugin {
 namespace {
@@ -14,6 +17,35 @@ bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
 llvm::Error makePluginRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       message, llvm::errc::invalid_argument);
+}
+
+llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
+                                     const VariantProposal &proposal,
+                                     llvm::Twine message) {
+  return makePluginRegistryError(
+      llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
+      "' produced invalid variant proposal '" + proposal.getVariantName() +
+      "': " + message);
+}
+
+std::string
+describeCapabilityByID(const support::CapabilityDescriptor &capability) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "(symbol = @" << capability.getSymbolName() << ", kind = \""
+         << capability.getKind() << "\", status = \""
+         << capability.getStatus() << "\")";
+  return stream.str();
+}
+
+std::string
+describeCapabilityBySymbol(const support::CapabilityDescriptor &capability) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "(id = \"" << capability.getID() << "\", kind = \""
+         << capability.getKind() << "\", status = \""
+         << capability.getStatus() << "\")";
+  return stream.str();
 }
 
 } // namespace
@@ -153,7 +185,8 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
       return error;
 
     for (const VariantProposal &proposal : pluginProposals) {
-      if (llvm::Error error = validateVariantProposal(*plugin, proposal))
+      if (llvm::Error error =
+              validateVariantProposal(request, *plugin, proposal))
         return error;
     }
 
@@ -164,7 +197,8 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
 }
 
 llvm::Error ExtensionPluginRegistry::validateVariantProposal(
-    const ExtensionPlugin &plugin, const VariantProposal &proposal) const {
+    const VariantProposalRequest &request, const ExtensionPlugin &plugin,
+    const VariantProposal &proposal) const {
   if (proposal.getVariantName().trim().empty())
     return makePluginRegistryError(
         llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
@@ -174,6 +208,50 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
     return makePluginRegistryError(
         llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
         "' produced invalid variant proposal: origin plugin must be non-empty");
+
+  const support::TargetCapabilitySet &capabilities = request.getCapabilities();
+  for (const std::string &requiredIDStorage :
+       proposal.getRequiredCapabilityIDs()) {
+    llvm::StringRef requiredID(requiredIDStorage);
+    if (requiredID.trim().empty())
+      return makeVariantProposalError(
+          plugin, proposal, "required capability id must be non-empty");
+
+    const support::CapabilityDescriptor *capability =
+        capabilities.lookupByID(requiredID);
+    if (!capability)
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("requires unknown capability id \"") + requiredID + "\"");
+
+    if (!capability->isAvailable())
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("requires unavailable capability id \"") + requiredID +
+              "\" " + describeCapabilityByID(*capability));
+  }
+
+  for (const std::string &requiredSymbolStorage :
+       proposal.getRequiredCapabilitySymbols()) {
+    llvm::StringRef requiredSymbol(requiredSymbolStorage);
+    if (requiredSymbol.trim().empty())
+      return makeVariantProposalError(
+          plugin, proposal,
+          "required capability symbol reference must be non-empty");
+
+    const support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(requiredSymbol);
+    if (!capability)
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("requires unknown capability symbol @") + requiredSymbol);
+
+    if (!capability->isAvailable())
+      return makeVariantProposalError(
+          plugin, proposal,
+          llvm::Twine("requires unavailable capability symbol @") +
+              requiredSymbol + " " + describeCapabilityBySymbol(*capability));
+  }
 
   return llvm::Error::success();
 }

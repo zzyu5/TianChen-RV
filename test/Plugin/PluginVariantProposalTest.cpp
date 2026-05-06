@@ -30,12 +30,15 @@ class ProposalPlugin final : public ExtensionPlugin {
 public:
   ProposalPlugin(llvm::StringRef name, llvm::StringRef supportCapabilityID,
                  llvm::StringRef proposalName, llvm::StringRef originPlugin,
-                 llvm::StringRef requiredCapabilitySymbol,
-                 bool enabled = true)
+                 llvm::StringRef requiredCapabilityID,
+                 llvm::StringRef requiredCapabilitySymbol, bool enabled = true,
+                 bool includeRequiredCapabilitySymbol = true)
       : name(name.str()), supportCapabilityID(supportCapabilityID.str()),
         proposalName(proposalName.str()), originPlugin(originPlugin.str()),
+        requiredCapabilityID(requiredCapabilityID.str()),
         requiredCapabilitySymbol(requiredCapabilitySymbol.str()),
-        enabled(enabled) {}
+        enabled(enabled),
+        includeRequiredCapabilitySymbol(includeRequiredCapabilitySymbol) {}
 
   llvm::StringRef getName() const override { return name; }
 
@@ -71,8 +74,8 @@ public:
     ++proposalCalls;
 
     VariantProposal proposal(proposalName, originPlugin);
-    proposal.addRequiredCapabilityID(supportCapabilityID);
-    if (!requiredCapabilitySymbol.empty())
+    proposal.addRequiredCapabilityID(requiredCapabilityID);
+    if (includeRequiredCapabilitySymbol)
       proposal.addRequiredCapabilitySymbol(requiredCapabilitySymbol);
     proposal.setGuard("generic_capability_available");
     out.push_back(proposal);
@@ -94,8 +97,10 @@ private:
   std::string supportCapabilityID;
   std::string proposalName;
   std::string originPlugin;
+  std::string requiredCapabilityID;
   std::string requiredCapabilitySymbol;
   bool enabled;
+  bool includeRequiredCapabilitySymbol;
   llvm::SmallVector<PluginCapability, 1> capabilities;
   mutable unsigned supportCalls = 0;
   mutable unsigned proposalCalls = 0;
@@ -209,14 +214,14 @@ module {
     return result;
 
   ProposalPlugin first("first", "generic.vector", "first_path", "first",
-                       "generic_vector");
+                       "generic.vector", "generic_vector");
   ProposalPlugin disabled("disabled", "generic.vector", "disabled_path",
-                          "disabled", "generic_vector", false);
+                          "disabled", "generic.vector", "generic_vector", false);
   ProposalPlugin unsupported("unsupported", "generic.missing",
                              "unsupported_path", "unsupported",
-                             "generic_missing");
+                             "generic.missing", "generic_missing");
   ProposalPlugin second("second", "generic.toolchain", "second_path", "second",
-                        "generic_toolchain");
+                        "generic.toolchain", "generic_toolchain");
 
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(registry.registerPlugin(first),
@@ -285,7 +290,7 @@ module {
     return result;
 
   ProposalPlugin emptyName("empty-name", "generic.vector", "", "empty-name",
-                           "generic_vector");
+                           "generic.vector", "generic_vector");
   ExtensionPluginRegistry emptyNameRegistry;
   if (int result = expectSuccess(emptyNameRegistry.registerPlugin(emptyName),
                                  "register empty-name plugin"))
@@ -298,7 +303,8 @@ module {
     return result;
 
   ProposalPlugin emptyOrigin("empty-origin", "generic.vector",
-                             "originless_path", "", "generic_vector");
+                             "originless_path", "", "generic.vector",
+                             "generic_vector");
   ExtensionPluginRegistry emptyOriginRegistry;
   if (int result = expectSuccess(
           emptyOriginRegistry.registerPlugin(emptyOrigin),
@@ -309,6 +315,108 @@ module {
           emptyOriginRegistry.collectVariantProposals(request,
                                                       invalidOriginProposals),
           {"empty-origin", "origin plugin must be non-empty"}))
+    return result;
+
+  ProposalPlugin emptyRequiredID("empty-required-id", "generic.vector",
+                                 "empty_required_id_path", "empty-required-id",
+                                 "", "generic_vector");
+  ExtensionPluginRegistry emptyRequiredIDRegistry;
+  if (int result = expectSuccess(
+          emptyRequiredIDRegistry.registerPlugin(emptyRequiredID),
+          "register empty-required-id plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> emptyRequiredIDProposals;
+  if (int result = expectErrorContains(
+          emptyRequiredIDRegistry.collectVariantProposals(
+              request, emptyRequiredIDProposals),
+          {"empty-required-id", "empty_required_id_path",
+           "required capability id must be non-empty"}))
+    return result;
+
+  ProposalPlugin unknownRequiredID(
+      "unknown-required-id", "generic.vector", "unknown_required_id_path",
+      "unknown-required-id", "generic.missing", "generic_vector");
+  ExtensionPluginRegistry unknownRequiredIDRegistry;
+  if (int result = expectSuccess(
+          unknownRequiredIDRegistry.registerPlugin(unknownRequiredID),
+          "register unknown-required-id plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> unknownRequiredIDProposals;
+  if (int result = expectErrorContains(
+          unknownRequiredIDRegistry.collectVariantProposals(
+              request, unknownRequiredIDProposals),
+          {"unknown-required-id", "unknown_required_id_path",
+           "unknown capability id", "generic.missing"}))
+    return result;
+
+  ProposalPlugin unavailableRequiredID(
+      "unavailable-required-id", "generic.vector",
+      "unavailable_required_id_path", "unavailable-required-id",
+      "generic.disabled", "generic_vector");
+  ExtensionPluginRegistry unavailableRequiredIDRegistry;
+  if (int result = expectSuccess(
+          unavailableRequiredIDRegistry.registerPlugin(unavailableRequiredID),
+          "register unavailable-required-id plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> unavailableRequiredIDProposals;
+  if (int result = expectErrorContains(
+          unavailableRequiredIDRegistry.collectVariantProposals(
+              request, unavailableRequiredIDProposals),
+          {"unavailable-required-id", "unavailable_required_id_path",
+           "unavailable capability id", "generic.disabled", "generic_disabled",
+           "status = \"disabled\""}))
+    return result;
+
+  ProposalPlugin emptyRequiredSymbol(
+      "empty-required-symbol", "generic.vector", "empty_required_symbol_path",
+      "empty-required-symbol", "generic.vector", "");
+  ExtensionPluginRegistry emptyRequiredSymbolRegistry;
+  if (int result = expectSuccess(
+          emptyRequiredSymbolRegistry.registerPlugin(emptyRequiredSymbol),
+          "register empty-required-symbol plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> emptyRequiredSymbolProposals;
+  if (int result = expectErrorContains(
+          emptyRequiredSymbolRegistry.collectVariantProposals(
+              request, emptyRequiredSymbolProposals),
+          {"empty-required-symbol", "empty_required_symbol_path",
+           "required capability symbol reference must be non-empty"}))
+    return result;
+
+  ProposalPlugin unknownRequiredSymbol(
+      "unknown-required-symbol", "generic.vector",
+      "unknown_required_symbol_path", "unknown-required-symbol",
+      "generic.vector", "generic_missing");
+  ExtensionPluginRegistry unknownRequiredSymbolRegistry;
+  if (int result = expectSuccess(
+          unknownRequiredSymbolRegistry.registerPlugin(unknownRequiredSymbol),
+          "register unknown-required-symbol plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> unknownRequiredSymbolProposals;
+  if (int result = expectErrorContains(
+          unknownRequiredSymbolRegistry.collectVariantProposals(
+              request, unknownRequiredSymbolProposals),
+          {"unknown-required-symbol", "unknown_required_symbol_path",
+           "unknown capability symbol", "generic_missing"}))
+    return result;
+
+  ProposalPlugin unavailableRequiredSymbol(
+      "unavailable-required-symbol", "generic.vector",
+      "unavailable_required_symbol_path", "unavailable-required-symbol",
+      "generic.vector", "generic_disabled");
+  ExtensionPluginRegistry unavailableRequiredSymbolRegistry;
+  if (int result = expectSuccess(
+          unavailableRequiredSymbolRegistry.registerPlugin(
+              unavailableRequiredSymbol),
+          "register unavailable-required-symbol plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> unavailableRequiredSymbolProposals;
+  if (int result = expectErrorContains(
+          unavailableRequiredSymbolRegistry.collectVariantProposals(
+              request, unavailableRequiredSymbolProposals),
+          {"unavailable-required-symbol", "unavailable_required_symbol_path",
+           "unavailable capability symbol", "generic_disabled",
+           "generic.disabled", "status = \"disabled\""}))
     return result;
 
   llvm::outs() << "plugin variant proposal smoke test passed\n";
