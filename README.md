@@ -56,3 +56,15 @@ Python is used only for support tooling such as lit configuration, runners, prob
 ## Hardware Evidence
 
 The current real hardware mainline is RVV 1.0 via `ssh rvv`. Any RVV correctness, runtime, or performance claim must include real `ssh rvv` evidence. Local CMake, `tcrv-opt`, or lit checks are compiler/toolchain evidence only.
+
+Use the bounded RVV probe to record hardware/toolchain availability without
+claiming TianChen-RV compiler lowering or runtime support:
+
+```bash
+python3 scripts/rvv_remote_probe.py
+```
+
+The probe writes sanitized JSON evidence and command logs under
+`artifacts/tmp/rvv_probe/<run-id>/`. Its tiny RVV intrinsic compile/run check
+only proves remote RVV header/toolchain/program availability; it is not a
+TianChen-RV-generated executable, correctness result, or performance result.

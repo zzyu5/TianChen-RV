@@ -97,3 +97,15 @@ unattributed artifact copied from an older run
 ## Python Tool Tests
 
 Python tooling may have Python tests, shell smoke tests, or script-level checks. These only validate tooling. They cannot be used as the sole evidence for MLIR dialects, passes, capability decisions, lowering, or emission.
+
+The RVV remote probe must keep a local self-test path that requires no
+hardware:
+
+```text
+python3 scripts/rvv_remote_probe.py --self-test
+```
+
+`check-tianchenrv` should cover that self-test through lit so parser, schema,
+and sanitizer behavior are guarded without depending on `ssh rvv`. Passing this
+local self-test proves only the Python evidence tooling contract; it is not RVV
+runtime, correctness, performance, lowering, or emission evidence.

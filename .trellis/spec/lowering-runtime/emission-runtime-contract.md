@@ -241,3 +241,23 @@ unregistered-origin failure. This remains compiler metadata only and must not be
 reported as RVV lowering, runtime, correctness, or performance evidence. The
 tool-level `--tcrv-disable-builtin-plugins` option preserves an explicit
 empty-registry surface for negative parser/diagnostic tests.
+
+## RVV Probe Evidence Boundary
+
+`scripts/rvv_remote_probe.py` may produce `ssh rvv` evidence under
+`artifacts/tmp/rvv_probe/<run-id>/`. That artifact is a remote
+hardware/toolchain evidence record, not an emission artifact. Even when its
+minimal hand-written RVV intrinsic program compiles and runs, the result only
+proves that the remote host can compile and execute that probe program.
+
+Do not reinterpret an RVV probe artifact as:
+
+- plugin-supported emission readiness;
+- compiler lowering to LLVM, RISC-V, or RVV intrinsics;
+- generated object, executable, runtime ABI glue, or dispatch lowering;
+- TianChen-RV compiler correctness;
+- RVV kernel performance.
+
+Future supported RVV emission must add plugin-local lowering/runtime work and
+then cite both compiler-generated artifact evidence and separate `ssh rvv`
+hardware/toolchain evidence.

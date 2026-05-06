@@ -18,6 +18,17 @@ permission: sudo available
 role: primary development, performance, and correctness environment
 ```
 
+Repeatable bounded hardware/toolchain evidence should be captured with
+`scripts/rvv_remote_probe.py`. Its artifacts are written below
+`artifacts/tmp/rvv_probe/<run-id>/` and include sanitized command logs plus a
+JSON summary of uname/kernel, architecture, hart count, clang/cmake
+availability, bounded RISC-V/vector CPU hints, non-interactive sudo
+capability, and the minimal hand-written RVV intrinsic compile/run result.
+
+This probe is a prerequisite evidence source for future RVV compiler claims,
+but it is not itself a TianChen-RV compiler correctness, runtime, supported
+emission, or performance artifact.
+
 ### K3/IME later
 
 ```text

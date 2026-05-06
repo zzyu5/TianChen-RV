@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants and Python boundary"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "verify Python remains tooling-only"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV support remains unsupported"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify evidence is not claimed as emission"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify target-neutral compiler orchestration"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify check-tianchenrv coverage"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "verify RVV hardware evidence claim boundary"}

@@ -77,6 +77,48 @@ path for `@rvv_first_slice`. The unsupported reason is a diagnostic boundary
 that prevents accidental RVV lowering/runtime claims until a later slice adds
 real lowering and `ssh rvv` evidence.
 
+## Remote Evidence Probe Contract
+
+The repo-owned RVV evidence probe is `scripts/rvv_remote_probe.py`. It is
+Python runner/evidence tooling and must not be used as the implementation of
+capabilities, plugin registry behavior, legality, lowering, emission, runtime
+ABI, or compiler-generated executable paths.
+
+Probe artifacts live under:
+
+```text
+artifacts/tmp/rvv_probe/<run-id>/
+  rvv_probe_evidence.json
+  logs/*.log
+```
+
+The JSON artifact records a bounded schema:
+
+- `schema_version`, `probe_name`, `run_id`, timestamp, ssh target, artifact dir,
+  status, and success boolean;
+- hardware/toolchain facts for `uname`, architecture, hart count, clang,
+  cmake, bounded RISC-V/vector hints from `/proc/cpuinfo`, and non-interactive
+  sudo availability as a boolean capability fact;
+- a minimal RVV intrinsic compile/run probe result with command references,
+  exit status, diagnostics, compiler path/version, source digest, selected
+  compiler flags, and binary digest when a binary was produced;
+- sanitized command logs that avoid secrets, credentials, private keys,
+  environment tokens, and unrelated raw environment dumps.
+
+Interpretation rules:
+
+- Successful `ssh rvv` probe output is hardware/toolchain/probe-program
+  evidence only.
+- The probe does not prove that TianChen-RV generated RVV IR, lowered a
+  `tcrv.exec` variant, emitted an object, linked runtime glue, proved compiler
+  correctness, or measured performance.
+- If clang, RVV headers, candidate flags, or remote execution are unavailable,
+  the artifact must record failure with exact non-secret command diagnostics
+  rather than synthesizing success.
+- Future RVV supported emission requires both plugin-local lowering/runtime
+  implementation and successful named `ssh rvv` evidence; this first slice
+  remains unsupported diagnostic metadata.
+
 `registerDialects` now registers the minimal RVV dialect skeleton through the
 RVV plugin path. The default `registerAllDialects` path remains core-only; RVV
 dialect availability is proven by populating an `ExtensionPluginRegistry` with

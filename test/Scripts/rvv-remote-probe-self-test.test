@@ -1,0 +1,3 @@
+# RUN: python3 %S/../../scripts/rvv_remote_probe.py --self-test | FileCheck %s
+
+# CHECK: rvv_remote_probe self-test passed
