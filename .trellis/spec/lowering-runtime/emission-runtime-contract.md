@@ -630,10 +630,18 @@ RVV-plugin materialization from the finite selected-variant descriptor
 `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"`.
 
 This export is the first bounded RVV executable microkernel slice. It may emit
-a deterministic standalone C program that computes and self-checks a finite i32
-vector add using RVV intrinsics. It is not generic high-level MLIR lowering,
-arbitrary RVV kernel emission, runtime ABI glue, benchmarking, or performance
-evidence.
+a deterministic standalone C source file whose primary behavior is a stable
+runtime-callable C ABI function:
+
+```c
+void <generated_name>(const int32_t *lhs, const int32_t *rhs,
+                      int32_t *out, size_t n);
+```
+
+The callable function computes finite i32 vector add using RVV intrinsics. The
+standalone `main` is only a bounded self-check harness that calls that ABI
+function. This is not generic high-level MLIR lowering, arbitrary RVV kernel
+emission, full runtime integration, benchmarking, or performance evidence.
 
 ### 2. Signatures
 
@@ -670,8 +678,10 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
 - A matching direct child `tcrv_rvv.i32_vadd_microkernel` must identify the same
   selected path, required capability refs, required march, optional selected
   mabi, and bounded element count.
-- Output must be deterministic standalone C with `riscv_vector.h`, RVV i32
-  load/add/store intrinsics, fixed local arrays, and a self-checking `main`.
+- Output must be deterministic standalone C with `riscv_vector.h`, a stable
+  runtime-callable i32 vadd C ABI function, RVV i32 load/add/store intrinsics
+  inside that callable function, fixed local arrays in the self-check harness,
+  and a self-checking `main` that calls the callable ABI.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
   benchmark sizes, latency/throughput numbers, or performance claims.
 
@@ -694,10 +704,10 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
 ### 5. Evidence Interpretation
 
 Real `ssh rvv` compile/run evidence for generated microkernel C proves only that
-the explicit generated i32 vector-add microkernel compiled and passed its
-self-check on that host with the selected compiler flags. It does not prove
-generic TianChen-RV lowering correctness, supported arbitrary RVV kernel
-emission, runtime ABI support, or performance.
+the explicit generated i32 vector-add callable ABI source compiled and that its
+self-check harness passed on that host with the selected compiler flags. It
+does not prove generic TianChen-RV lowering correctness, supported arbitrary RVV
+kernel emission, full runtime integration, or performance.
 
 ### 6. Emission Plan / Manifest Handoff
 
@@ -708,19 +718,21 @@ may return a supported emission plan for the standalone C source export route:
 status: supported
 emission kind: rvv-explicit-i32-vadd-microkernel-c-source
 lowering pipeline: tcrv-export-rvv-microkernel-c
-runtime ABI: rvv-i32-vadd-standalone-c-self-check.v1
-runtime ABI kind/name: RVV standalone C source export metadata
-runtime glue role: standalone self-check main
+runtime ABI: rvv-i32-vadd-runtime-callable-c-abi.v1
+runtime ABI kind: rvv-runtime-callable-c-abi
+runtime ABI name: rvv-i32-vadd-runtime-callable-c-function.v1
+runtime glue role: runtime-callable-i32-vadd-function
 artifact kind: standalone-c-source
 ```
 
 This supported plan is a plugin-owned compiler handoff to the existing RVV
-microkernel exporter. It is more concrete than the default unsupported RVV
-first-slice plan, but it is still not generic RVV lowering, runtime ABI glue,
-object generation, arbitrary kernel emission, correctness evidence, or
-performance evidence by itself. The generic emission manifest may serialize the
-record after validating the selected surface, the `tcrv_rvv.lowering_boundary`
-link, and the emission-plan diagnostic. It must not reinterpret the adjacent
+microkernel exporter and names the callable C ABI emitted in that source. It is
+more concrete than the default unsupported RVV first-slice plan, but it is
+still not generic RVV lowering, full runtime integration, object generation,
+arbitrary kernel emission, correctness evidence, or performance evidence by
+itself. The generic emission manifest may serialize the record after validating
+the selected surface, the `tcrv_rvv.lowering_boundary` link, and the
+emission-plan diagnostic. It must not reinterpret the adjacent
 `tcrv_rvv.i32_vadd_microkernel` attachment as a second lowering boundary.
 
 ## Scalar Fallback Metadata Boundary

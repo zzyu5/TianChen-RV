@@ -14,10 +14,12 @@
 # POS: /* selected_mabi: lp64d */
 # POS: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 # POS: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+# POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
 # POS: __riscv_vsetvl_e32m1
 # POS: __riscv_vle32_v_i32m1
 # POS: __riscv_vadd_vv_i32m1
 # POS: __riscv_vse32_v_i32m1
+# POS: tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
 # POS: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);
 
 # RUN: tcrv-opt %S/../RVVMicrokernel/rvv-microkernel-pipeline.mlir --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PLAN --implicit-check-not="#include <riscv_vector.h>"
@@ -31,6 +33,7 @@
 # AUTO-RVV: /* selected_role: dispatch case */
 # AUTO-RVV: /* selected_march: rv64gcv */
 # AUTO-RVV: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+# AUTO-RVV: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
 # AUTO-RVV: __riscv_vadd_vv_i32m1
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE --implicit-check-not="#include <riscv_vector.h>"

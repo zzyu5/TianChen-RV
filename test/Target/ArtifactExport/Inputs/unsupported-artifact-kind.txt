@@ -58,10 +58,10 @@ module {
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-i32-vadd-standalone-c-self-check.v1",
-      runtime_abi_kind = "rvv-standalone-c-source-export",
-      runtime_abi_name = "rvv-i32-vadd-microkernel-standalone-c.v1",
-      runtime_glue_role = "standalone-self-check-main",
+      runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "rvv-runtime-callable-c-abi",
+      runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1",
+      runtime_glue_role = "runtime-callable-i32-vadd-function",
       status = "supported",
       target = @rvv_first_slice
     }

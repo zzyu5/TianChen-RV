@@ -501,11 +501,15 @@ compute semantics, dtype dispatch, or microarchitecture-specific branches.
 that has exactly one selected `rvv-plugin` path, a matching
 `tcrv_rvv.lowering_boundary`, preserved selected march metadata, and exactly one
 matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
-`riscv_vector.h`, RVV i32 load/add/store intrinsics, bounded local arrays, and a
-self-checking `main`. Successful `ssh rvv` compile/run evidence for that source
-supports only the bounded microkernel correctness claim. It is not generic
-high-level lowering, arbitrary RVV executable emission, runtime ABI glue, or
-performance evidence.
+`riscv_vector.h` and exposes a deterministic runtime-callable i32 vadd C ABI
+function with `const int32_t *` input pointers, an `int32_t *` output pointer,
+and a `size_t` element count. That function owns the RVV i32
+load/add/store-intrinsic loop. Bounded local arrays and `main` remain only as a
+self-check harness that calls the ABI function. Successful `ssh rvv`
+compile/run evidence for that source supports only the bounded microkernel
+correctness claim for the generated callable ABI plus harness. It is not
+generic high-level lowering, arbitrary RVV executable emission, full runtime
+integration, or performance evidence.
 
 This target export does not change the default metadata-only RVV unsupported
 boundary. A selected RVV path without the finite descriptor or exactly one

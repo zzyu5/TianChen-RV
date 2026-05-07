@@ -94,12 +94,15 @@ module @rvv_microkernel_input {
 // CHECK: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 // CHECK: /* element_count: 16 */
 // CHECK: /* required_capabilities: @rvv */
-// CHECK-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(void)
-// CHECK: enum { kTCRVMicrokernelElements = 16 };
+// CHECK-LABEL: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+// CHECK: while (offset < n)
 // CHECK: __riscv_vsetvl_e32m1
 // CHECK: __riscv_vle32_v_i32m1
 // CHECK: __riscv_vadd_vv_i32m1
 // CHECK: __riscv_vse32_v_i32m1
+// CHECK-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check(void)
+// CHECK: enum { kTCRVMicrokernelElements = 16 };
+// CHECK: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
 // CHECK-LABEL: int main(void)
-// CHECK: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice();
+// CHECK: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check();
 // CHECK: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);

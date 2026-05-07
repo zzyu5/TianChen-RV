@@ -76,10 +76,10 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: reason = "emission_plan"
 // IR-SAME: required_capabilities = [@rvv]
 // IR-SAME: role = "dispatch case"
-// IR-SAME: runtime_abi = "rvv-i32-vadd-standalone-c-self-check.v1"
-// IR-SAME: runtime_abi_kind = "rvv-standalone-c-source-export"
-// IR-SAME: runtime_abi_name = "rvv-i32-vadd-microkernel-standalone-c.v1"
-// IR-SAME: runtime_glue_role = "standalone-self-check-main"
+// IR-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
+// IR-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
+// IR-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
+// IR-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
 // IR-SAME: status = "supported"
 // IR-SAME: target = @rvv_first_slice
 
@@ -96,12 +96,15 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 // EXPORT: /* element_count: 16 */
 // EXPORT: /* required_capabilities: @rvv */
-// EXPORT-LABEL: static int tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice(void)
-// EXPORT: enum { kTCRVMicrokernelElements = 16 };
+// EXPORT-LABEL: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+// EXPORT: while (offset < n)
 // EXPORT: __riscv_vsetvl_e32m1
 // EXPORT: __riscv_vle32_v_i32m1
 // EXPORT: __riscv_vadd_vv_i32m1
 // EXPORT: __riscv_vse32_v_i32m1
+// EXPORT-LABEL: static int tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice_self_check(void)
+// EXPORT: enum { kTCRVMicrokernelElements = 16 };
+// EXPORT: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
 // EXPORT-LABEL: int main(void)
-// EXPORT: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice();
+// EXPORT: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice_self_check();
 // EXPORT: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);

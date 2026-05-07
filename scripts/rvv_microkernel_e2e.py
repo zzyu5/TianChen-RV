@@ -40,10 +40,10 @@ REQUIRED_HANDOFF = {
     "emission_kind": "rvv-explicit-i32-vadd-microkernel-c-source",
     "lowering_pipeline": "tcrv-export-rvv-microkernel-c",
     "lowering_boundary": "tcrv_rvv.lowering_boundary",
-    "runtime_abi": "rvv-i32-vadd-standalone-c-self-check.v1",
-    "runtime_abi_kind": "rvv-standalone-c-source-export",
-    "runtime_abi_name": "rvv-i32-vadd-microkernel-standalone-c.v1",
-    "runtime_glue_role": "standalone-self-check-main",
+    "runtime_abi": "rvv-i32-vadd-runtime-callable-c-abi.v1",
+    "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+    "runtime_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1",
+    "runtime_glue_role": "runtime-callable-i32-vadd-function",
     "artifact_kind": "standalone-c-source",
 }
 
@@ -740,10 +740,10 @@ kernel @rvv_microkernel_manifest
     emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"
     lowering_pipeline: "tcrv-export-rvv-microkernel-c"
     lowering_boundary: "tcrv_rvv.lowering_boundary"
-    runtime_abi: "rvv-i32-vadd-standalone-c-self-check.v1"
-    runtime_abi_kind: "rvv-standalone-c-source-export"
-    runtime_abi_name: "rvv-i32-vadd-microkernel-standalone-c.v1"
-    runtime_glue_role: "standalone-self-check-main"
+    runtime_abi: "rvv-i32-vadd-runtime-callable-c-abi.v1"
+    runtime_abi_kind: "rvv-runtime-callable-c-abi"
+    runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+    runtime_glue_role: "runtime-callable-i32-vadd-function"
     artifact_kind: "standalone-c-source"
     required_capabilities: [@rvv]
     explanation: "bounded"

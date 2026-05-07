@@ -1066,12 +1066,28 @@ void printRecordComment(llvm::raw_ostream &os,
   for (llvm::StringRef capability : record.requiredCapabilities)
     os << " @" << capability;
   os << " */\n";
+  os << "/* runtime_callable_abi: void " << functionName
+     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) "
+        "*/\n";
 }
 
 void printMicrokernelFunction(llvm::raw_ostream &os,
                               llvm::StringRef functionName,
                               std::int64_t elementCount) {
-  os << "static int " << functionName << "(void) {\n";
+  os << "void " << functionName
+     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) {\n";
+  os << "  size_t offset = 0;\n";
+  os << "  while (offset < n) {\n";
+  os << "    size_t vl = __riscv_vsetvl_e32m1(n - offset);\n";
+  os << "    vint32m1_t lhs_vec = __riscv_vle32_v_i32m1(&lhs[offset], vl);\n";
+  os << "    vint32m1_t rhs_vec = __riscv_vle32_v_i32m1(&rhs[offset], vl);\n";
+  os << "    vint32m1_t sum_vec = __riscv_vadd_vv_i32m1(lhs_vec, rhs_vec, vl);\n";
+  os << "    __riscv_vse32_v_i32m1(&out[offset], sum_vec, vl);\n";
+  os << "    offset += vl;\n";
+  os << "  }\n";
+  os << "}\n\n";
+
+  os << "static int " << functionName << "_self_check(void) {\n";
   os << "  enum { kTCRVMicrokernelElements = " << elementCount << " };\n";
   os << "  int32_t lhs[kTCRVMicrokernelElements];\n";
   os << "  int32_t rhs[kTCRVMicrokernelElements];\n";
@@ -1086,15 +1102,8 @@ void printMicrokernelFunction(llvm::raw_ostream &os,
   os << "    fprintf(stderr, \"invalid rvv microkernel vl=%zu\\n\", first_vl);\n";
   os << "    return 2;\n";
   os << "  }\n\n";
-  os << "  size_t offset = 0;\n";
-  os << "  while (offset < kTCRVMicrokernelElements) {\n";
-  os << "    size_t vl = __riscv_vsetvl_e32m1(kTCRVMicrokernelElements - offset);\n";
-  os << "    vint32m1_t lhs_vec = __riscv_vle32_v_i32m1(&lhs[offset], vl);\n";
-  os << "    vint32m1_t rhs_vec = __riscv_vle32_v_i32m1(&rhs[offset], vl);\n";
-  os << "    vint32m1_t sum_vec = __riscv_vadd_vv_i32m1(lhs_vec, rhs_vec, vl);\n";
-  os << "    __riscv_vse32_v_i32m1(&out[offset], sum_vec, vl);\n";
-  os << "    offset += vl;\n";
-  os << "  }\n\n";
+  os << "  " << functionName
+     << "(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);\n\n";
   os << "  for (int index = 0; index < kTCRVMicrokernelElements; ++index) {\n";
   os << "    int32_t expected = lhs[index] + rhs[index];\n";
   os << "    if (out[index] != expected) {\n";
@@ -1125,7 +1134,7 @@ void printMicrokernelSource(const RVVMicrokernelRecord &record,
   printMicrokernelFunction(os, functionName, record.elementCount);
 
   os << "int main(void) {\n";
-  os << "  int status = " << functionName << "();\n";
+  os << "  int status = " << functionName << "_self_check();\n";
   os << "  if (status != 0)\n";
   os << "    return status;\n";
   os << "  printf(\"tcrv_rvv_microkernel_ok elements=%zu\\n\", (size_t)"

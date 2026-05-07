@@ -72,11 +72,13 @@ Use lit/FileCheck for:
   dialect parse/verify for `tcrv_rvv.i32_vadd_microkernel`, execution-planning
   coverage proving the RVV plugin materializes the op from the finite selected
   descriptor without a hand-authored input microkernel, pipeline-to-export
-  coverage, selected kernel/variant/march comments, `riscv_vector.h` use, RVV
-  i32 load/add/store intrinsics, self-checking `main`, fail-before-source
-  diagnostics for missing selected RVV paths, missing/stale boundaries,
-  missing/duplicate microkernel ops, missing or malformed finite descriptor
-  metadata, malformed selected march metadata, and no
+  coverage, selected kernel/variant/march comments, `riscv_vector.h` use, a
+  runtime-callable C ABI function with `const int32_t *` inputs, `int32_t *`
+  output, and `size_t` length, RVV i32 load/add/store intrinsics in that
+  function, self-checking `main` that calls the ABI function,
+  fail-before-source diagnostics for missing selected RVV paths,
+  missing/stale boundaries, missing/duplicate microkernel ops, missing or
+  malformed finite descriptor metadata, malformed selected march metadata, and no
   manifest/runtime-success/raw-log/performance numbers.
 - RVV microkernel emission-plan and emission-manifest handoff,
   including supported standalone C source export metadata only when a selected
@@ -241,11 +243,12 @@ supported RVV emission, runtime ABI, or performance result.
 
 If the repository exports generated C for an explicit
 `tcrv_rvv.i32_vadd_microkernel`, local lit tests must cover the dialect op and
-exporter without requiring `ssh rvv`. Any remote compile/run of that generated
-source must be reported separately as bounded microkernel correctness evidence
-only for that explicit source and selected flags. It must not be reported as
-generic TianChen-RV lowering correctness, arbitrary RVV emission support,
-runtime ABI support, or performance evidence.
+exporter without requiring `ssh rvv`, including the runtime-callable C ABI
+function and the harness call into that function. Any remote compile/run of
+that generated source must be reported separately as bounded microkernel
+correctness evidence only for that explicit source and selected flags. It must
+not be reported as generic TianChen-RV lowering correctness, arbitrary RVV
+emission support, full runtime integration, or performance evidence.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must

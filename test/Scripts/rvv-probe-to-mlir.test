@@ -87,10 +87,10 @@
 # PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
 # PIPE-SAME: reason = "emission_plan"
 # PIPE-SAME: required_capabilities = [@rvv]
-# PIPE-SAME: runtime_abi = "rvv-i32-vadd-standalone-c-self-check.v1"
-# PIPE-SAME: runtime_abi_kind = "rvv-standalone-c-source-export"
-# PIPE-SAME: runtime_abi_name = "rvv-i32-vadd-microkernel-standalone-c.v1"
-# PIPE-SAME: runtime_glue_role = "standalone-self-check-main"
+# PIPE-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
+# PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
+# PIPE-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
+# PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
 # PIPE-SAME: status = "supported"
 # PIPE-SAME: target = @rvv_first_slice
 # PIPE: tcrv.exec.diagnostic

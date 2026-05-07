@@ -82,13 +82,16 @@ preserved selected march metadata, and the bounded RVV microkernel op. The op
 may come from an explicit fixture or from the RVV plugin materializing the
 finite `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` selected
 variant descriptor during the execution-planning pipeline. The generated source
-uses `riscv_vector.h`, RVV i32 add intrinsics, fixed local arrays, and a
-self-checking `main`. It proves only that this bounded generated microkernel
-source can compile and pass its self-check when real `ssh rvv` evidence is
-recorded. It is not generic high-level lowering, arbitrary RVV kernel
-executable emission, runtime ABI glue, or performance evidence; selected RVV
-paths without the finite descriptor or matching microkernel op remain
-unsupported and deferred.
+uses `riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
+runtime-callable C ABI function:
+`void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
+Its standalone `main` is only a bounded self-check harness that calls that ABI
+function over fixed local arrays. Real `ssh rvv` compile/run evidence proves
+only that this bounded generated microkernel source compiled and that the
+harness passed on the selected host flags. It is not generic high-level
+lowering, arbitrary RVV kernel executable emission, full runtime integration,
+or performance evidence; selected RVV paths without the finite descriptor or
+matching microkernel op remain unsupported and deferred.
 
 The `tcrv-translate --tcrv-export-target-source-artifact` tool adds a generic
 target artifact routing front door for supported post-planning emission-plan
@@ -216,9 +219,9 @@ The dry-run mode runs local compiler tools only and writes sanitized
 post-planning MLIR, emission manifest, generated C source, hashes, and command
 summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Real ssh mode
 adds bounded remote compile/run evidence for the generated
-`tcrv_rvv.i32_vadd_microkernel` self-check only. It is not generic RVV lowering,
-runtime ABI integration, arbitrary kernel emission, correctness coverage, or
-performance evidence.
+`tcrv_rvv.i32_vadd_microkernel` callable ABI plus self-check harness only. It
+is not generic RVV lowering, full runtime integration, arbitrary kernel
+emission, broad correctness coverage, or performance evidence.
 
 ## Scalar Fallback First Slice
 
