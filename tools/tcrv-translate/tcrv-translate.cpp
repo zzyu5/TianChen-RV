@@ -1,11 +1,10 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/EmissionManifest.h"
-#include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
-#include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -71,14 +70,7 @@ mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
                                                llvm::raw_ostream &os) {
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
-          tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(
-              exporters)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  if (llvm::Error error =
-          tianchenrv::target::scalar::registerScalarMicrokernelTargetExporters(
+          tianchenrv::target::registerBuiltinTargetArtifactExporters(
               exporters)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
@@ -99,22 +91,8 @@ mlir::LogicalResult exportTargetArtifact(mlir::ModuleOp module,
                                          llvm::raw_ostream &os) {
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
-          tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(
+          tianchenrv::target::registerBuiltinTargetArtifactExporters(
               exporters)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  if (llvm::Error error =
-          tianchenrv::target::scalar::registerScalarMicrokernelTargetExporters(
-              exporters)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  if (llvm::Error error = tianchenrv::target::offload::
-                              registerOffloadRuntimeDescriptorTargetExporters(
-                                  exporters)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

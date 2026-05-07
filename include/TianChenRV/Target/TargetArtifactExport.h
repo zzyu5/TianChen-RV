@@ -6,6 +6,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstddef>
 #include <string>
 
 namespace llvm {
@@ -44,6 +45,7 @@ class TargetArtifactExporterRegistry {
 public:
   llvm::Error registerExporter(const TargetArtifactExporter &exporter);
   const TargetArtifactExporter *lookup(llvm::StringRef routeID) const;
+  std::size_t size() const { return exporters.size(); }
 
 private:
   llvm::StringMap<TargetArtifactExporter> exporters;

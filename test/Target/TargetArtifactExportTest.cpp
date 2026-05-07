@@ -1,3 +1,4 @@
+#include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "llvm/Support/Error.h"
@@ -25,6 +26,25 @@ bool expectFailure(llvm::Error error, llvm::StringRef context) {
   }
   llvm::errs() << context << ": expected failure\n";
   return false;
+}
+
+bool expectRoute(const TargetArtifactExporterRegistry &registry,
+                 llvm::StringRef routeID, llvm::StringRef artifactKind,
+                 llvm::StringRef originPlugin,
+                 llvm::StringRef emissionKind) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing built-in exporter route '" << routeID << "'\n";
+    return false;
+  }
+  if (exporter->getArtifactKind() != artifactKind ||
+      exporter->getOriginPlugin() != originPlugin ||
+      exporter->getEmissionKind() != emissionKind || !exporter->getExportFn()) {
+    llvm::errs() << "malformed built-in exporter metadata for route '"
+                 << routeID << "'\n";
+    return false;
+  }
+  return true;
 }
 
 } // namespace
@@ -94,6 +114,32 @@ int main() {
                          "missing-callback", "standalone-c-source",
                          "test-plugin", "test-source", nullptr)),
                      "null callback rejected"))
+    return 1;
+
+  TargetArtifactExporterRegistry builtinRegistry;
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
+                     "register built-in target artifact exporters"))
+    return 1;
+  if (builtinRegistry.size() != 3) {
+    llvm::errs() << "expected exactly 3 built-in target artifact routes, got "
+                 << builtinRegistry.size() << "\n";
+    return 1;
+  }
+  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
+                   "standalone-c-source", "rvv-plugin",
+                   "rvv-explicit-i32-vadd-microkernel-c-source"))
+    return 1;
+  if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
+                   "standalone-c-source", "scalar-plugin",
+                   "scalar-explicit-i32-vadd-microkernel-c-source"))
+    return 1;
+  if (!expectRoute(builtinRegistry,
+                   "tcrv-export-offload-runtime-descriptor",
+                   "runtime-offload-handoff-descriptor", "offload-plugin",
+                   "runtime-offload-handoff-descriptor"))
+    return 1;
+  if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
+                     "duplicate built-in exporter registration rejected"))
     return 1;
 
   return 0;

@@ -4,11 +4,10 @@ add_mlir_tool(tcrv-translate
 
 target_link_libraries(tcrv-translate
   PRIVATE
+  TianChenRVBuiltinTargetArtifactExporters
   TianChenRVBuiltinPlugins
   TianChenRVInitAll
-  TianChenRVOffloadTarget
   TianChenRVRVVTarget
-  TianChenRVScalarTarget
   TianChenRVTarget
   MLIRIR
   MLIRSupport

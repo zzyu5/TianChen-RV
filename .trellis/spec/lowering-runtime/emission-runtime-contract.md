@@ -107,6 +107,110 @@ C exporter registered by scalar target/export code. This does not add generic
 RVV or scalar lowering, runtime ABI integration, object generation, linking,
 arbitrary source export, correctness evidence, or performance evidence.
 
+### Built-In Target Artifact Exporter Registration Boundary
+
+#### 1. Scope / Trigger
+
+Trigger: a public tool needs the complete built-in target artifact route set
+for generic artifact export after selected-path, lowering-boundary, and
+emission-plan metadata have already been materialized.
+
+This boundary is a Target-layer registration composition helper only. It does
+not inspect MLIR modules, selected plans, capabilities, lowering boundaries, or
+runtime ABI metadata.
+
+#### 2. Signatures
+
+Header:
+
+```cpp
+#include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
+```
+
+C++ API:
+
+```cpp
+llvm::Error registerBuiltinTargetArtifactExporters(
+    TargetArtifactExporterRegistry &registry);
+```
+
+#### 3. Contracts
+
+- The caller owns the `TargetArtifactExporterRegistry`.
+- The helper registers every currently supported built-in target artifact route
+  by delegating to target-owned registration functions.
+- The current route set is:
+  - RVV explicit i32 vector-add microkernel standalone C source.
+  - Scalar explicit i32 vector-add microkernel standalone C source.
+  - Offload runtime handoff descriptor.
+- The helper may include RVV/scalar/offload target headers and call their
+  target-owned registration functions, but it must not duplicate route
+  semantics or artifact validation.
+- Generic public translate helpers should call this helper once and then call
+  `exportTargetSourceArtifact` or `exportTargetArtifact`.
+- Source-only filtering remains the responsibility of the generic exporter via
+  artifact-kind validation, not by omitting non-source built-ins from the
+  registration helper.
+
+#### 4. Validation & Error Matrix
+
+- Empty route id, empty artifact kind, or null callback from any target-owned
+  exporter -> generic `TargetArtifactExporterRegistry` registration failure.
+- Duplicate route id, including calling the built-in helper twice on the same
+  registry -> generic duplicate route failure.
+- Missing built-in route registration in a tool -> route lookup fails closed as
+  an unknown target artifact route or no supported artifact route.
+- Offload descriptor selected through source-only command -> source artifact
+  filtering must fail closed without descriptor output.
+- Route spoofing across RVV/scalar/offload origins or artifact kinds -> generic
+  exporter metadata validation must fail before target-owned output.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `tcrv-translate --tcrv-export-target-artifact` creates a registry,
+  calls `registerBuiltinTargetArtifactExporters`, and exports a legal offload
+  descriptor through the offload target-owned exporter.
+- Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
+  built-in registry but filters to a legal RVV or scalar standalone C source
+  route.
+- Bad: each generic translate helper manually repeats
+  `registerRVVMicrokernelTargetExporters`,
+  `registerScalarMicrokernelTargetExporters`, and
+  `registerOffloadRuntimeDescriptorTargetExporters`; adding a target route then
+  requires broad hand-editing in generic tool code.
+
+#### 6. Tests Required
+
+- C++ registry tests must prove the built-in helper registers all current
+  route ids with deterministic generic metadata and rejects duplicate
+  registration.
+- lit/FileCheck route tests must continue to cover RVV source export, scalar
+  source export, offload descriptor export, source-only offload rejection, and
+  RVV/scalar/offload route spoofing failures.
+- CMake checks must include the built-in Target support library in the tool and
+  C++ test link graph.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```cpp
+// In each generic translate helper:
+registerRVVMicrokernelTargetExporters(registry);
+registerScalarMicrokernelTargetExporters(registry);
+registerOffloadRuntimeDescriptorTargetExporters(registry);
+```
+
+Correct:
+
+```cpp
+registerBuiltinTargetArtifactExporters(registry);
+```
+
+The correct shape keeps target-specific route registration in target-owned
+modules plus one Target-layer built-in bundle, while shared generic artifact
+routing remains target-neutral and fail-closed.
+
 The artifact-kind aware generic route may also dispatch supported non-source
 artifacts through target-owned exporters. The first such route is the offload
 runtime handoff descriptor, registered by offload target/export code and
