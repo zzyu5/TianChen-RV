@@ -990,6 +990,15 @@ llvm::Error validateEmissionPlans(
 llvm::Error validateSupportedArtifactCandidates(
     llvm::ArrayRef<TargetArtifactCandidate> inputCandidates,
     const TargetArtifactExporterRegistry &targetExporters) {
+  llvm::Expected<const tianchenrv::target::TargetArtifactCompositeExporter *>
+      compositeExporter =
+          tianchenrv::target::selectTargetArtifactCompositeExporter(
+              inputCandidates, targetExporters, /*sourceOnly=*/false);
+  if (!compositeExporter)
+    return compositeExporter.takeError();
+  if (*compositeExporter)
+    return llvm::Error::success();
+
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates(inputCandidates);
   bool hasNonFallbackCandidate = llvm::any_of(
       candidates, [](const TargetArtifactCandidate &candidate) {

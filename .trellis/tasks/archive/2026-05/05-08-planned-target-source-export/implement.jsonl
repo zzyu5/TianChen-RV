@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec index and boundary routing for implementation."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation, guarded dispatch planning, selection, and tuning contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, emission, runtime ABI, and lowering boundary contract."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability availability/conflict semantics required by planned guarded dispatch."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec compute-free dialect contract and dispatch/fallback boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local behavior and target-owned RVV export expectations."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin behavior and conflict-free fallback expectations."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck testing expectations for MLIR compiler behavior."}

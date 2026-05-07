@@ -8,7 +8,11 @@ namespace llvm {
 class raw_ostream;
 } // namespace llvm
 
-namespace tianchenrv::target::rvv_scalar {
+namespace tianchenrv::target {
+
+class TargetArtifactExporterRegistry;
+
+namespace rvv_scalar {
 
 llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
                                             llvm::raw_ostream &os);
@@ -20,6 +24,10 @@ llvm::Error
 exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os);
 
-} // namespace tianchenrv::target::rvv_scalar
+llvm::Error registerRVVScalarDispatchTargetExporters(
+    tianchenrv::target::TargetArtifactExporterRegistry &registry);
+
+} // namespace rvv_scalar
+} // namespace tianchenrv::target
 
 #endif // TIANCHENRV_TARGET_RVVSCALARDISPATCH_H

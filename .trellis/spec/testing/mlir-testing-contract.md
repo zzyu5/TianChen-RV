@@ -101,7 +101,9 @@ Use lit/FileCheck for:
 - generic target source artifact export routing, including post-planning
   selected-path/emission-plan consumption, deterministic agreement with the
   direct RVV microkernel C exporter for the checked-in explicit microkernel
-  fixture, fail-closed diagnostics for unsupported metadata-only paths, missing
+  fixture, generic route coverage for the target-owned RVV+scalar dispatch
+  composite exporter when a planned selected dispatch has both callable sides,
+  fail-closed diagnostics for unsupported metadata-only paths, missing
   plan/route metadata, unknown route ids, unsupported artifact kinds, stale
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
   multiple supported artifacts, and scalar/offload paths not being routed
@@ -143,7 +145,10 @@ Use lit/FileCheck for:
   generated dispatcher body, an explicit self-check harness export that calls
   the generated dispatcher with both guard false and guard true, and
   fail-closed diagnostics when scalar callable fallback metadata is missing,
-  unsupported, or structurally incompatible by runtime ABI role/type/ownership.
+  unsupported, or structurally incompatible by runtime ABI role/type/ownership,
+  and generic `--tcrv-export-target-source-artifact` coverage that proves a
+  pipeline-synthesized selected dispatch is exported through the target-owned
+  composite dispatch source route rather than a single callable shortcut.
   When the bounded self-check object export route is present, lit coverage must
   also prove the public route is visible, preserves the source/self-check split,
   fails closed before object creation for missing or malformed selected-path/

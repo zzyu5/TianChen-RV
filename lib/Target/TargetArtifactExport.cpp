@@ -672,7 +672,45 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
   return std::optional<TargetArtifactCandidate>(std::move(candidate));
 }
 
+llvm::Expected<const TargetArtifactCompositeExporter *>
+selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
+                        const TargetArtifactExporterRegistry &registry,
+                        bool sourceOnly) {
+  const TargetArtifactCompositeExporter *selected = nullptr;
+  for (const TargetArtifactCompositeExporter &exporter :
+       registry.getCompositeExporters()) {
+    if (sourceOnly && !isSourceArtifactKind(exporter.getArtifactKind()))
+      continue;
+
+    TargetArtifactCompositeMatchFn matchFn = exporter.getMatchFn();
+    if (!matchFn)
+      return makeModuleArtifactExportError(
+          llvm::Twine("composite target artifact route '") +
+          exporter.getRouteID() + "' has no registered match callback");
+
+    llvm::Expected<bool> matched = matchFn(candidates);
+    if (!matched)
+      return matched.takeError();
+    if (!*matched)
+      continue;
+
+    if (selected)
+      return makeModuleArtifactExportError(
+          "requires at most one supported composite target artifact route; "
+          "found multiple ambiguous composite artifacts");
+    selected = &exporter;
+  }
+  return selected;
+}
+
 } // namespace
+
+llvm::Expected<const TargetArtifactCompositeExporter *>
+selectTargetArtifactCompositeExporter(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactExporterRegistry &registry, bool sourceOnly) {
+  return selectCompositeExporter(candidates, registry, sourceOnly);
+}
 
 llvm::Error collectTargetArtifactCandidates(
     mlir::ModuleOp module,
@@ -840,6 +878,13 @@ llvm::Error exportTargetArtifactImpl(
           collectTargetArtifactCandidates(module, allCandidates))
     return error;
 
+  llvm::Expected<const TargetArtifactCompositeExporter *> compositeExporter =
+      selectCompositeExporter(allCandidates, registry, sourceOnly);
+  if (!compositeExporter)
+    return compositeExporter.takeError();
+  if (*compositeExporter)
+    return (*compositeExporter)->getExportFn()(module, os);
+
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
   for (const TargetArtifactCandidate &candidate : allCandidates) {
     if (!sourceOnly) {
@@ -908,6 +953,12 @@ TargetArtifactExporter::TargetArtifactExporter(
       requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());
 }
 
+TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
+    llvm::StringRef routeID, llvm::StringRef artifactKind,
+    TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn)
+    : routeID(routeID.str()), artifactKind(artifactKind.str()),
+      matchFn(matchFn), exportFn(exportFn) {}
+
 llvm::Error TargetArtifactExporterRegistry::registerExporter(
     const TargetArtifactExporter &exporter) {
   if (exporter.getRouteID().trim().empty())
@@ -917,11 +968,49 @@ llvm::Error TargetArtifactExporterRegistry::registerExporter(
   if (!exporter.getExportFn())
     return makeRegistryError("exporter callback must be non-null");
 
+  for (const TargetArtifactCompositeExporter &existing :
+       compositeExporters) {
+    if (existing.getRouteID() == exporter.getRouteID())
+      return makeRegistryError(
+          llvm::Twine("duplicate exporter route id '") +
+          exporter.getRouteID() + "'");
+  }
+
   auto [it, inserted] = exporters.try_emplace(exporter.getRouteID(), exporter);
   (void)it;
   if (!inserted)
     return makeRegistryError(llvm::Twine("duplicate exporter route id '") +
                              exporter.getRouteID() + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error TargetArtifactExporterRegistry::registerCompositeExporter(
+    const TargetArtifactCompositeExporter &exporter) {
+  if (exporter.getRouteID().trim().empty())
+    return makeRegistryError("composite exporter route id must be non-empty");
+  if (exporter.getArtifactKind().trim().empty())
+    return makeRegistryError(
+        "composite exporter artifact kind must be non-empty");
+  if (!exporter.getMatchFn())
+    return makeRegistryError(
+        "composite exporter match callback must be non-null");
+  if (!exporter.getExportFn())
+    return makeRegistryError(
+        "composite exporter callback must be non-null");
+
+  if (lookup(exporter.getRouteID()))
+    return makeRegistryError(
+        llvm::Twine("duplicate exporter route id '") +
+        exporter.getRouteID() + "'");
+  for (const TargetArtifactCompositeExporter &existing :
+       compositeExporters) {
+    if (existing.getRouteID() == exporter.getRouteID())
+      return makeRegistryError(
+          llvm::Twine("duplicate exporter route id '") +
+          exporter.getRouteID() + "'");
+  }
+
+  compositeExporters.push_back(exporter);
   return llvm::Error::success();
 }
 

@@ -27,6 +27,7 @@ namespace tianchenrv::target::rvv_scalar {
 namespace {
 
 using tianchenrv::target::TargetArtifactCandidate;
+using tianchenrv::target::TargetArtifactCompositeExporter;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
 using tianchenrv::support::CapabilityDescriptor;
@@ -225,6 +226,20 @@ bool hasCandidateShape(const TargetArtifactCandidate &candidate,
          candidate.runtimeABIKind == runtimeABIKind &&
          candidate.runtimeABIName == runtimeABIName &&
          candidate.runtimeGlueRole == runtimeGlueRole;
+}
+
+bool isRVVCallableCandidate(const TargetArtifactCandidate &candidate) {
+  return hasCandidateShape(candidate, kRVVPluginName, kDispatchCaseRole,
+                           kRVVRouteID, kRVVEmissionKind, kRVVRuntimeABI,
+                           kRVVRuntimeABIKind, kRVVRuntimeABIName,
+                           kRVVRuntimeGlueRole);
+}
+
+bool isScalarCallableCandidate(const TargetArtifactCandidate &candidate) {
+  return hasCandidateShape(candidate, kScalarPluginName, kDispatchFallbackRole,
+                           kScalarRouteID, kScalarEmissionKind,
+                           kScalarRuntimeABI, kScalarRuntimeABIKind,
+                           kScalarRuntimeABIName, kScalarRuntimeGlueRole);
 }
 
 llvm::Error validateRegisteredCallableRouteMetadata(
@@ -567,11 +582,8 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
   return plan;
 }
 
-llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
-  llvm::SmallVector<TargetArtifactCandidate, 4> candidates;
-  if (llvm::Error error = collectTargetArtifactCandidates(module, candidates))
-    return std::move(error);
-
+llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
   TargetArtifactExporterRegistry registry;
   if (llvm::Error error =
           rvv::registerRVVMicrokernelTargetExporters(registry))
@@ -583,10 +595,7 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
   const TargetArtifactCandidate *rvvCandidate = nullptr;
   const TargetArtifactCandidate *scalarCandidate = nullptr;
   for (const TargetArtifactCandidate &candidate : candidates) {
-    if (hasCandidateShape(candidate, kRVVPluginName, kDispatchCaseRole,
-                          kRVVRouteID, kRVVEmissionKind, kRVVRuntimeABI,
-                          kRVVRuntimeABIKind, kRVVRuntimeABIName,
-                          kRVVRuntimeGlueRole)) {
+    if (isRVVCallableCandidate(candidate)) {
       if (rvvCandidate)
         return makeDispatchError(candidate.kernel,
                                  "requires exactly one supported RVV dispatch "
@@ -598,10 +607,7 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
       continue;
     }
 
-    if (hasCandidateShape(candidate, kScalarPluginName, kDispatchFallbackRole,
-                          kScalarRouteID, kScalarEmissionKind,
-                          kScalarRuntimeABI, kScalarRuntimeABIKind,
-                          kScalarRuntimeABIName, kScalarRuntimeGlueRole)) {
+    if (isScalarCallableCandidate(candidate)) {
       if (scalarCandidate)
         return makeDispatchError(
             candidate.kernel,
@@ -641,6 +647,41 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
     return abiPlan.takeError();
   pair.abiPlan = std::move(*abiPlan);
   return pair;
+}
+
+llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
+  llvm::SmallVector<TargetArtifactCandidate, 4> candidates;
+  if (llvm::Error error = collectTargetArtifactCandidates(module, candidates))
+    return std::move(error);
+  return collectDispatchPairFromCandidates(candidates);
+}
+
+llvm::Expected<bool> matchRVVScalarI32VAddDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 2)
+    return false;
+
+  bool hasRVV = false;
+  bool hasScalar = false;
+  for (const TargetArtifactCandidate &candidate : candidates) {
+    if (isRVVCallableCandidate(candidate)) {
+      hasRVV = true;
+      continue;
+    }
+    if (isScalarCallableCandidate(candidate)) {
+      hasScalar = true;
+      continue;
+    }
+    return false;
+  }
+  if (!hasRVV || !hasScalar)
+    return false;
+
+  llvm::Expected<DispatchPair> pair =
+      collectDispatchPairFromCandidates(candidates);
+  if (!pair)
+    return pair.takeError();
+  return true;
 }
 
 std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
@@ -1240,6 +1281,15 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
 
   return compileSelfCheckSourceToObject(pair->rvv.kernel, source,
                                         *compileConfig, os);
+}
+
+llvm::Error registerRVVScalarDispatchTargetExporters(
+    TargetArtifactExporterRegistry &registry) {
+  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+      kRuntimeCallableCSourceArtifactKind,
+      matchRVVScalarI32VAddDispatchCandidates,
+      exportRVVScalarI32VAddDispatchC));
 }
 
 } // namespace tianchenrv::target::rvv_scalar

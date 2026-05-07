@@ -12,6 +12,11 @@ llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
   return llvm::Error::success();
 }
 
+llvm::Expected<bool>
+neverMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>) {
+  return false;
+}
+
 bool expectSuccess(llvm::Error error, llvm::StringRef context) {
   if (!error)
     return true;
@@ -67,6 +72,13 @@ int main() {
                          "runtime-offload-handoff-descriptor", noopExporter)),
                      "register descriptor exporter"))
     return 1;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "tcrv-test-composite-route",
+                             "runtime-callable-c-source", neverMatchComposite,
+                             noopExporter)),
+                     "register valid composite exporter"))
+    return 1;
 
   const TargetArtifactExporter *exporter = registry.lookup("tcrv-test-route");
   if (!exporter) {
@@ -118,6 +130,44 @@ int main() {
                          "test-plugin", "test-source", nullptr)),
                      "null callback rejected"))
     return 1;
+  if (!expectFailure(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "tcrv-test-composite-route",
+                             "runtime-callable-c-source", neverMatchComposite,
+                             noopExporter)),
+                     "duplicate composite route rejected"))
+    return 1;
+  if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
+                         "tcrv-test-composite-route", "standalone-c-source",
+                         "test-plugin", "test-source", noopExporter)),
+                     "single route duplicate of composite route rejected"))
+    return 1;
+  if (!expectFailure(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "", "runtime-callable-c-source",
+                             neverMatchComposite, noopExporter)),
+                     "empty composite route rejected"))
+    return 1;
+  if (!expectFailure(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "empty-composite-artifact-kind", "",
+                             neverMatchComposite, noopExporter)),
+                     "empty composite artifact kind rejected"))
+    return 1;
+  if (!expectFailure(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "missing-composite-match",
+                             "runtime-callable-c-source", nullptr,
+                             noopExporter)),
+                     "null composite match rejected"))
+    return 1;
+  if (!expectFailure(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "missing-composite-callback",
+                             "runtime-callable-c-source",
+                             neverMatchComposite, nullptr)),
+                     "null composite callback rejected"))
+    return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
@@ -126,6 +176,12 @@ int main() {
   if (builtinRegistry.size() != 3) {
     llvm::errs() << "expected exactly 3 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
+    return 1;
+  }
+  if (builtinRegistry.compositeSize() != 1) {
+    llvm::errs() << "expected exactly 1 built-in composite target artifact "
+                    "route, got "
+                 << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",

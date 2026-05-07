@@ -145,16 +145,20 @@ through a registered target-owned exporter only after a generic execution-plan
 coherence preflight validates that selected-path, lowering-boundary,
 runtime-ABI, emission-plan, and artifact-route metadata still describe the same
 path, including the structured ABI parameter roles required by the target-owned
-source exporter. Registered source routes are bounded to plugin-local
-microkernel attachments: the RVV i32 vector-add microkernel C exporter above
-and the scalar fallback explicit i32 vector-add portable runtime-callable C
-exporter below.
+source exporter. Registered source routes are bounded to target-owned explicit
+artifacts: the RVV i32 vector-add microkernel C exporter above, the scalar
+fallback explicit i32 vector-add portable runtime-callable C exporter below,
+and the RVV+scalar i32-vadd host dispatch C composite exporter when the
+selected plan contains both supported callable sides.
 Unsupported
 metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
 paths, missing boundaries, missing microkernels, route spoofing, and ambiguous
-multiple supported artifacts fail closed. This tool does not add generic RVV or
-scalar lowering, arbitrary source export, full runtime ABI integration, object
-generation, linking, correctness evidence, or performance evidence.
+multiple supported artifacts fail closed. For a planned selected RVV dispatch
+case plus scalar dispatch fallback, the generic route delegates to the
+target-owned dispatch exporter instead of silently exporting only the primary
+callable. This tool does not add generic RVV or scalar lowering, arbitrary
+source export, full runtime ABI integration, object generation, linking,
+correctness evidence, or performance evidence.
 
 The `tcrv-translate --tcrv-export-target-artifact` tool is the artifact-kind
 aware generic front door. It uses the same selected-path, lowering-boundary,
@@ -319,7 +323,9 @@ scalar source export, object/linking support, runtime integration, correctness
 coverage beyond this explicit microkernel, or performance evidence. For generic
 single-artifact export, a supported primary non-fallback route wins over a
 supported `dispatch fallback` candidate; scalar-only selected fallback remains
-exportable when it is the only supported route.
+exportable when it is the only supported route. The bounded RVV+scalar
+dispatcher is the target-owned composite exception: when both selected callable
+sides are present, generic source export emits the dispatch source.
 
 ## Host RVV + Scalar Dispatch First Slice
 
@@ -337,6 +343,16 @@ sides for the built-in RVV+scalar dispatch fixture: RVV from the finite RVV
 descriptor and scalar fallback from the finite scalar descriptor. A hand-authored
 scalar microkernel is no longer required for that pipeline-to-dispatch-export
 path.
+
+The same bounded dispatch source is also reachable through the coherence-gated
+generic source artifact route when the selected plan contains both supported
+callable sides:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
+  | tcrv-translate --tcrv-export-target-source-artifact \
+  > rvv_scalar_dispatch.c
+```
 
 The generated source embeds the existing deterministic RVV runtime-callable C
 function and scalar runtime-callable fallback C function, then emits a stable

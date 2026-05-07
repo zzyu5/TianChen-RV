@@ -28,18 +28,25 @@
 # MISSING-PLAN: execution plan coherence check failed for kernel @micro_a
 # MISSING-PLAN-SAME: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before export preflight
 
-# RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact > %t.auto-rvv.c
-# RUN: FileCheck %s --check-prefix=AUTO-RVV --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.auto-rvv.c
-# AUTO-RVV: /* selected_kernel: @pipeline_manifest */
-# AUTO-RVV: /* selected_variant: @rvv_first_slice */
-# AUTO-RVV: /* selected_role: dispatch case */
-# AUTO-RVV: /* selected_march: rv64gcv */
-# AUTO-RVV: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-# AUTO-RVV: /* artifact_kind: runtime-callable-c-source */
-# AUTO-RVV: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
-# AUTO-RVV: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-# AUTO-RVV: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
-# AUTO-RVV: __riscv_vadd_vv_i32m1
+# RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact > %t.auto-dispatch.c
+# RUN: FileCheck %s --check-prefix=AUTO-DISPATCH --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.auto-dispatch.c
+# AUTO-DISPATCH: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+# AUTO-DISPATCH: /* selected_kernel: @pipeline_manifest */
+# AUTO-DISPATCH: /* rvv_selected_variant: @rvv_first_slice */
+# AUTO-DISPATCH: /* rvv_selected_role: dispatch case */
+# AUTO-DISPATCH: /* rvv_artifact_route_id: tcrv-export-rvv-microkernel-c */
+# AUTO-DISPATCH: /* scalar_selected_variant: @scalar_fallback_first_slice */
+# AUTO-DISPATCH: /* scalar_selected_role: dispatch fallback */
+# AUTO-DISPATCH: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
+# AUTO-DISPATCH: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
+# AUTO-DISPATCH: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
+# AUTO-DISPATCH: __riscv_vadd_vv_i32m1
+# AUTO-DISPATCH: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
+# AUTO-DISPATCH: out[index] = lhs[index] + rhs[index];
+# AUTO-DISPATCH-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
+# AUTO-DISPATCH: if (rvv_available)
+# AUTO-DISPATCH: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);
+# AUTO-DISPATCH: tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice(lhs, rhs, out, n);
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE --implicit-check-not="#include <riscv_vector.h>"
 # STALE: stale emission-plan diagnostic is not selected by the current execution plan surface

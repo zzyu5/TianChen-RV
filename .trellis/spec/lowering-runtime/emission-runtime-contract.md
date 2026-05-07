@@ -108,13 +108,17 @@ parameter boundary, including role, C name, C type, and ownership. Missing,
 spoofed, or extra required roles fail before target-owned C source emission.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
 dtype, shape, runtime, toolchain, or microarchitecture semantics. The
-currently supported source routes are only bounded explicit microkernel
-attachments: the RVV i32 vector-add runtime-callable library C exporter
-registered by RVV target/export code, and the scalar fallback i32 vector-add
-portable runtime-callable C exporter registered by scalar target/export code.
-This does not add generic RVV or scalar lowering, full runtime ABI integration,
-object generation, linking, arbitrary source export, correctness evidence, or
-performance evidence.
+currently supported source routes are bounded explicit target/export-owned
+artifacts: the RVV i32 vector-add runtime-callable library C exporter
+registered by RVV target/export code, the scalar fallback i32 vector-add
+portable runtime-callable C exporter registered by scalar target/export code,
+and the RVV+scalar i32 vector-add host dispatch C composite exporter registered
+by RVV+scalar target/export code. The composite exporter consumes the selected
+RVV dispatch-case callable candidate plus selected scalar dispatch-fallback
+callable candidate and validates the target-owned dispatch availability guard
+ABI before source output. This does not add generic RVV or scalar lowering,
+full runtime ABI integration, object generation, linking, arbitrary source
+export, correctness evidence, or performance evidence.
 
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
@@ -230,10 +234,15 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - The caller owns the `TargetArtifactExporterRegistry`.
 - The helper registers every currently supported built-in target artifact route
   by delegating to target-owned registration functions.
-- The current route set is:
+- The current single-candidate route set is:
   - RVV explicit i32 vector-add microkernel runtime-callable C source.
   - Scalar explicit i32 vector-add microkernel runtime-callable C source.
   - Offload runtime handoff descriptor.
+- The current composite route set is:
+  - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C source,
+    matched by target-owned RVV+scalar dispatch exporter code from the selected
+    RVV dispatch-case callable route and scalar dispatch-fallback callable
+    route.
 - The helper may include RVV/scalar/offload target headers and call their
   target-owned registration functions, but it must not duplicate route
   semantics or artifact validation.
@@ -262,8 +271,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   calls `registerBuiltinTargetArtifactExporters`, and exports a legal offload
   descriptor through the offload target-owned exporter.
 - Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
-  built-in registry but filters to a legal RVV runtime-callable C source or
-  scalar runtime-callable C source route.
+  built-in registry but filters to a legal RVV runtime-callable C source,
+  scalar runtime-callable C source route, or target-owned RVV+scalar dispatch
+  composite source route when the selected plan contains both callable sides.
 - Bad: each generic translate helper manually repeats
   `registerRVVMicrokernelTargetExporters`,
   `registerScalarMicrokernelTargetExporters`, and
@@ -276,8 +286,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   route ids with deterministic generic metadata and rejects duplicate
   registration.
 - lit/FileCheck route tests must continue to cover RVV source export, scalar
-  source export, offload descriptor export, source-only offload rejection, and
-  RVV/scalar/offload route spoofing failures.
+  source export, RVV+scalar composite dispatch source export, offload
+  descriptor export, source-only offload rejection, and RVV/scalar/offload
+  route spoofing failures.
 - CMake checks must include the built-in Target support library in the tool and
   C++ test link graph.
 
@@ -885,6 +896,7 @@ Public route:
 
 ```text
 tcrv-translate --tcrv-export-target-source-artifact
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c
 ```
 
 Route metadata:
