@@ -43,6 +43,15 @@ module {
     tcrv.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
     tcrv.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", availability = "disabled"}
     tcrv.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
+    tcrv.exec.capability @rvv_profile {
+      id = "rvv.profile.rv64gcv",
+      kind = "profile",
+      status = "available",
+      provides = ["rvv"],
+      implies = ["zvl128b"],
+      conflicts = ["vendor.inline_asm_forbidden"],
+      architecture = "riscv64"
+    }
     tcrv.exec.capability @rvv_uarch {
       id = "rvv.uarch",
       kind = "uarch",
@@ -75,7 +84,7 @@ module {
 
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
-  if (int result = expect(capabilities.size() == 6,
+  if (int result = expect(capabilities.size() == 7,
                           "all declared capabilities are collected"))
     return result;
 
@@ -112,6 +121,50 @@ module {
   if (int result = expect(!capabilities.isCapabilityAvailableByID(
                               "runtime.probe"),
                           "missing status is unavailable"))
+    return result;
+
+  const CapabilityDescriptor *rvvProfile =
+      capabilities.lookupBySymbolName("rvv_profile");
+  if (int result = expect(rvvProfile && rvvProfile->getID() ==
+                                            "rvv.profile.rv64gcv",
+                          "profile capability is available by symbol"))
+    return result;
+  if (int result = expect(rvvProfile->providesID("rvv"),
+                          "provides relation is preserved"))
+    return result;
+  if (int result = expect(rvvProfile->impliesID("zvl128b"),
+                          "implies relation is preserved"))
+    return result;
+  if (int result = expect(
+          rvvProfile->conflictsWithID("vendor.inline_asm_forbidden"),
+          "conflicts relation is preserved"))
+    return result;
+  if (int result = expect(rvvProfile->satisfiesID("rvv"),
+                          "profile satisfies provided capability id"))
+    return result;
+  if (int result = expect(rvvProfile->satisfiesID("zvl128b"),
+                          "profile satisfies implied capability id"))
+    return result;
+  if (int result = expect(rvvProfile->getProperty("provides").empty() &&
+                              rvvProfile->getProperty("implies").empty() &&
+                              rvvProfile->getProperty("conflicts").empty(),
+                          "relation attributes are first-class fields rather "
+                          "than generic properties"))
+    return result;
+  if (int result =
+          expect(capabilities.lookupProviderByID("rvv") == rvvProfile,
+                 "provider lookup resolves provided capability id"))
+    return result;
+  if (int result =
+          expect(capabilities.lookupProviderByID("zvl128b") == rvvProfile,
+                 "provider lookup resolves implied capability id"))
+    return result;
+  if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
+                          "provided capability id is available by relation"))
+    return result;
+  if (int result =
+          expect(capabilities.isCapabilityAvailableByID("zvl128b"),
+                 "implied capability id is available by relation"))
     return result;
 
   if (int result = expect(TargetCapabilitySet::availabilityFromStatus(

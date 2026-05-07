@@ -25,7 +25,10 @@ public:
   CapabilityDescriptor(llvm::StringRef symbolName, llvm::StringRef id,
                        llvm::StringRef kind, llvm::StringRef status,
                        CapabilityAvailability availability,
-                       std::map<std::string, std::string> properties = {});
+                       std::map<std::string, std::string> properties = {},
+                       llvm::ArrayRef<std::string> providedIDs = {},
+                       llvm::ArrayRef<std::string> impliedIDs = {},
+                       llvm::ArrayRef<std::string> conflictingIDs = {});
 
   llvm::StringRef getSymbolName() const { return symbolName; }
   llvm::StringRef getID() const { return id; }
@@ -39,6 +42,16 @@ public:
   const std::map<std::string, std::string> &getProperties() const {
     return properties;
   }
+  llvm::ArrayRef<std::string> getProvidedIDs() const { return providedIDs; }
+  llvm::ArrayRef<std::string> getImpliedIDs() const { return impliedIDs; }
+  llvm::ArrayRef<std::string> getConflictingIDs() const {
+    return conflictingIDs;
+  }
+
+  bool providesID(llvm::StringRef capabilityID) const;
+  bool impliesID(llvm::StringRef capabilityID) const;
+  bool conflictsWithID(llvm::StringRef capabilityID) const;
+  bool satisfiesID(llvm::StringRef capabilityID) const;
 
 private:
   std::string symbolName;
@@ -47,6 +60,9 @@ private:
   std::string status;
   CapabilityAvailability availability = CapabilityAvailability::Available;
   std::map<std::string, std::string> properties;
+  llvm::SmallVector<std::string, 4> providedIDs;
+  llvm::SmallVector<std::string, 4> impliedIDs;
+  llvm::SmallVector<std::string, 4> conflictingIDs;
 };
 
 class TargetCapabilitySet {
@@ -63,6 +79,7 @@ public:
   const CapabilityDescriptor *
   lookupBySymbolName(llvm::StringRef symbolName) const;
   const CapabilityDescriptor *lookupByID(llvm::StringRef id) const;
+  const CapabilityDescriptor *lookupProviderByID(llvm::StringRef id) const;
 
   void collectByKind(llvm::StringRef kind,
                      llvm::SmallVectorImpl<const CapabilityDescriptor *> &out)

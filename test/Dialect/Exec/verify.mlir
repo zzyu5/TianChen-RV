@@ -131,6 +131,27 @@ tcrv.exec.kernel @empty_capability_kind attributes {} {
 
 // -----
 
+tcrv.exec.kernel @malformed_capability_relation attributes {} {
+  // expected-error @+1 {{capability relation attribute 'provides' must be an array of non-empty capability id strings}}
+  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", provides = "rvv"}
+}
+
+// -----
+
+tcrv.exec.kernel @empty_capability_relation_id attributes {} {
+  // expected-error @+1 {{capability relation attribute 'implies' entry 0 must be a non-empty capability id string}}
+  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", implies = [""]}
+}
+
+// -----
+
+tcrv.exec.kernel @duplicate_capability_relation_id attributes {} {
+  // expected-error @+1 {{capability relation attribute 'conflicts' duplicates capability id 'rvv'}}
+  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", conflicts = ["rvv", "rvv"]}
+}
+
+// -----
+
 tcrv.exec.kernel @malformed_requires attributes {} {
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
   // expected-error @+1 {{attribute 'requires' must contain only capability symbol references}}

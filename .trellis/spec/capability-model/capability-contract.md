@@ -257,7 +257,12 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
   status, and available/unavailable state.
 - Each query descriptor preserves additional non-core MLIR attributes as
   structured property entries queryable by property name.
+- Each query descriptor preserves `provides`, `implies`, and `conflicts` as
+  first-class relation lists rather than generic property-map entries.
 - Lookup must be available by capability symbol name and by capability `id`.
+- Relation-aware provider lookup must be available by exact id, provided id,
+  and implied id. Exact id lookup is authoritative when present; relation
+  providers are used only when there is no direct capability with that id.
 - Collection/query by `kind` must treat kind values as an open string set.
 - Missing generic status means available/present.
 - `status` takes precedence over `availability` when both are present.
@@ -300,6 +305,10 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
   helper API behavior.
 - C++ smoke coverage for textual MLIR capability properties, including scalar
   facts such as hart/VLEN counts and runtime-offload mode/ABI metadata.
+- C++ smoke coverage for relation lists and relation-aware provider lookup.
+- lit/FileCheck coverage that at least one plugin proposal/materialization path
+  is driven by a structured capability provider relation rather than only an
+  exact capability id.
 
 ### 7. Wrong vs Correct
 
@@ -328,6 +337,19 @@ IME plugin: ime, vector-register-backed-matrix, ime-frag-mma
 Offload plugin: sophgo-runtime, async-offload, runtime-buffer
 ```
 
+The current C++/MLIR relation slice represents provided capability ids with a
+structured `provides = ["..."]` array on `tcrv.exec.capability`. These entries
+are capability ids, not symbol names and not prose strings. They are parsed into
+first-class `CapabilityDescriptor` relation fields by
+`TargetCapabilitySet::buildFromKernel`.
+
+`TargetCapabilitySet::lookupProviderByID(id)` resolves an exact capability id
+first. If no exact id is declared, it may resolve an available capability whose
+`provides` or `implies` relation satisfies that id. This lets a profile
+capability such as `id = "rvv.profile.rv64gcv", provides = ["rvv"]` satisfy a
+plugin proposal requiring capability id `rvv`, while preserving deterministic
+direct-id override behavior when an exact `id = "rvv"` capability is present.
+
 ### imply
 
 Examples:
@@ -338,6 +360,12 @@ zvfh implies fp16 vector arithmetic, subject to toolchain support
 spacemit.ime implies vector-register-backed matrix capability, subject to vendor toolchain support
 ```
 
+The current relation slice represents implied capability ids with
+`implies = ["..."]` and exposes them through the same relation-aware provider
+lookup and availability query APIs as `provides`. `implies` is bounded to
+compiler decision routing in this slice; it does not implement a full
+capability lattice, target-family inference engine, or performance model.
+
 ### conflict
 
 Examples:
@@ -347,6 +375,12 @@ variant requires vendor runtime but target lacks runtime library
 variant requires inline asm but build policy forbids inline asm
 offload variant requires fixed shape but input shape is dynamic or unsupported
 ```
+
+The current relation slice preserves `conflicts = ["..."]` as first-class
+descriptor relation metadata and verifies that it is a structured array of
+non-empty capability id strings. Full conflict solving and conflict-driven
+variant pruning remain future work; callers must not claim conflict relations
+are enforced unless a concrete pass uses them.
 
 ### dispatch condition
 

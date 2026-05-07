@@ -161,7 +161,10 @@ The materialization slice is intentionally bounded:
   string rewriting;
 - it preserves proposal order when creating variants;
 - it maps required capability ids through the generic `TargetCapabilitySet`
-  into `FlatSymbolRefAttr` references to `tcrv.exec.capability` symbols;
+  into `FlatSymbolRefAttr` references to `tcrv.exec.capability` symbols. The
+  mapping is relation-aware: an exact capability id wins when present, otherwise
+  an available capability whose structured `provides` or `implies` relation
+  satisfies the requested id may be used as the required symbol;
 - it preserves required capability symbol references after checking they resolve
   in the kernel capability scope;
 - it attaches only generic metadata supported by the current `tcrv.exec` ODS

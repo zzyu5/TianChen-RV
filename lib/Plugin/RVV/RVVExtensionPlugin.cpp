@@ -202,7 +202,7 @@ getRequiredPositiveIntegerRVVProperty(
 llvm::Error requireAvailableCapability(
     const support::TargetCapabilitySet &capabilities, llvm::StringRef id,
     const support::CapabilityDescriptor *&out) {
-  out = capabilities.lookupByID(id);
+  out = capabilities.lookupProviderByID(id);
   if (!out)
     return makeRVVPluginError(llvm::Twine("RVV property decision requires "
                                           "capability id '") +
@@ -312,7 +312,7 @@ variantRequiresRVV(tcrv::exec::VariantOp variant,
     if (!capability)
       continue;
 
-    if (capability->getID() == kRVVCapabilityID)
+    if (capability->satisfiesID(kRVVCapabilityID))
       return true;
   }
 

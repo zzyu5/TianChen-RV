@@ -1233,7 +1233,7 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
           plugin, proposal, "required capability id must be non-empty");
 
     const support::CapabilityDescriptor *capability =
-        capabilities.lookupByID(requiredID);
+        capabilities.lookupProviderByID(requiredID);
     if (!capability)
       return makeVariantProposalError(
           plugin, proposal,

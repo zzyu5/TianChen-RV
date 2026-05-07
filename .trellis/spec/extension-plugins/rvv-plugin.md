@@ -47,7 +47,9 @@ preferred kernel capability symbol: @rvv
 first-slice proposal / variant symbol: @rvv_first_slice
 variant origin: rvv-plugin
 required capability id: rvv
-materialized requires form: requires = [@rvv]
+materialized requires form: requires = [@rvv] for an exact RVV capability, or
+  a relation-provider symbol such as [@rvv_profile] when that capability
+  structurally `provides` or `implies` id `rvv`
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
@@ -58,8 +60,12 @@ finite element-count attr name: tcrv_rvv.element_count
 
 The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
 contains a real high-level MLIR operation, a `tcrv.exec.kernel`, and a
-`TargetCapabilitySet` where capability id `rvv` is explicitly available and
-where preserved RVV capability properties provide bounded plugin-local evidence.
+`TargetCapabilitySet` where capability id `rvv` is available either as an exact
+capability id or through a structured relation-provider capability whose
+`provides` or `implies` list satisfies id `rvv`. The satisfying capability must
+also carry the preserved RVV capability properties that provide bounded
+plugin-local evidence.
+
 The current minimal proposal gate is:
 
 - capability id `rvv` has bounded `architecture` and `isa_vector_hints`
@@ -73,7 +79,8 @@ The current minimal proposal gate is:
 - all consumed property text must be bounded, single-line, and free of
   secret-like/raw-log text.
 
-If the `rvv` capability is missing or generically unavailable
+If the `rvv` capability id is not satisfied by an exact or relation-provider
+capability, or if the satisfying capability is generically unavailable
 (`status = "disabled"`, `"missing"`, or `"unavailable"`), the plugin proposes
 no variant. If `rvv` is available but the required RVV property evidence is
 missing, malformed, secret-like, or internally conflicting, proposal collection
@@ -99,6 +106,13 @@ when present on a materialized variant. These fields are compiler-visible
 metadata for the existing generic materialization, legality, capability, and
 selection helpers. They are not generic tensor semantics, arbitrary RVV
 lowering, runtime correctness evidence, or performance evidence.
+
+When a relation-provider capability satisfies id `rvv`, generic variant
+materialization records the provider symbol in `requires`, for example
+`requires = [@rvv_profile]`. RVV legality must treat that provider as satisfying
+the RVV id through the C++ `CapabilityDescriptor::satisfiesID("rvv")` relation
+API; it must not require an exact `id = "rvv"` capability when a structured
+provider relation is present.
 
 When the selected `rvv-plugin` path carries the finite descriptor above,
 `RVVExtensionPlugin` owns the lowering-boundary materialization step that

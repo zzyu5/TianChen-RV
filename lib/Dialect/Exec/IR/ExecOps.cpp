@@ -7,6 +7,7 @@
 #include "mlir/IR/SymbolTable.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 
@@ -38,6 +39,9 @@ constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
 constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
     "preference_tie_break");
 constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
+constexpr llvm::StringLiteral kProvidesAttrName("provides");
+constexpr llvm::StringLiteral kImpliesAttrName("implies");
+constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
 
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
@@ -95,6 +99,46 @@ mlir::LogicalResult verifyPreferenceMetadataAttrs(mlir::Operation *op) {
     return op->emitOpError()
            << "requires non-negative integer attribute '"
            << kPreferenceRankAttrName << "' when present";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult verifyCapabilityIDRelationAttr(mlir::Operation *op,
+                                                   llvm::StringRef attrName) {
+  mlir::Attribute rawAttr = op->getAttr(attrName);
+  if (!rawAttr)
+    return mlir::success();
+
+  auto arrayAttr = llvm::dyn_cast<mlir::ArrayAttr>(rawAttr);
+  if (!arrayAttr)
+    return op->emitOpError()
+           << "capability relation attribute '" << attrName
+           << "' must be an array of non-empty capability id strings";
+
+  llvm::StringSet<> seenIDs;
+  for (auto [index, relationID] : llvm::enumerate(arrayAttr)) {
+    auto stringAttr = llvm::dyn_cast<mlir::StringAttr>(relationID);
+    if (!stringAttr || stringAttr.getValue().trim().empty())
+      return op->emitOpError()
+             << "capability relation attribute '" << attrName << "' entry "
+             << index << " must be a non-empty capability id string";
+
+    llvm::StringRef value = stringAttr.getValue().trim();
+    if (value != stringAttr.getValue())
+      return op->emitOpError()
+             << "capability relation attribute '" << attrName << "' entry "
+             << index << " must not require whitespace trimming";
+
+    if (value.contains('\n') || value.contains('\r') || value.contains('\0'))
+      return op->emitOpError()
+             << "capability relation attribute '" << attrName << "' entry "
+             << index << " must be single-line capability id text";
+
+    if (!seenIDs.insert(value).second)
+      return op->emitOpError()
+             << "capability relation attribute '" << attrName
+             << "' duplicates capability id '" << value << "'";
+  }
 
   return mlir::success();
 }
@@ -329,6 +373,16 @@ mlir::LogicalResult CapabilityOp::verify() {
   if (isMissingOrEmptyStringAttr(getOperation(), kKindAttrName))
     return emitOpError()
            << "requires non-empty string attribute '" << kKindAttrName << "'";
+
+  if (mlir::failed(
+          verifyCapabilityIDRelationAttr(getOperation(), kProvidesAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityIDRelationAttr(getOperation(), kImpliesAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityIDRelationAttr(getOperation(), kConflictsAttrName)))
+    return mlir::failure();
 
   return mlir::success();
 }

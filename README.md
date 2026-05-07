@@ -30,6 +30,15 @@ CMakeLists.txt
 
 The first compiler slice defines a minimal `tcrv.exec.*` operation family through TableGen/ODS and C++ registration. MLIR registers the concrete namespace as `tcrv` so operations parse and print as `tcrv.exec.kernel`, `tcrv.exec.variant`, and related core execution ops. The family is intentionally limited to execution organization concepts such as kernels, targets, capabilities, variants, dispatch, and fallback. Concrete computation belongs in extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, or future plugin-local dialects.
 
+The C++ capability model consumes direct `tcrv.exec.capability` anchors and
+preserves structured properties plus first-slice capability relations:
+`provides`, `implies`, and `conflicts`. Relation-aware provider lookup lets a
+profile capability such as `id = "rvv.profile.rv64gcv", provides = ["rvv"]`
+satisfy plugin proposals that require capability id `rvv`, while an exact
+capability id remains authoritative when present. These relations participate
+in compiler decisions such as RVV plugin proposal, variant materialization, and
+RVV legality; full conflict solving remains future work.
+
 The built-in RVV first slice registers the concrete MLIR namespace
 `tcrv_rvv` through the RVV plugin path. It includes metadata/control-plane
 surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, `tcrv_rvv.setvl` for

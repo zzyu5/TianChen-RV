@@ -222,11 +222,17 @@ llvm::Error appendRequiredID(mlir::OpBuilder &builder, KernelOp kernel,
                              "required capability id must be non-empty");
 
   const CapabilityDescriptor *capability =
-      request.getCapabilities().lookupByID(requiredID);
+      request.getCapabilities().lookupProviderByID(requiredID);
   if (!capability)
     return makeProposalError(
         proposal, llvm::Twine("unresolved required capability id \"") +
                       requiredID + "\" in kernel @" + kernel.getSymName());
+  if (!capability->isAvailable())
+    return makeProposalError(
+        proposal, llvm::Twine("required capability id \"") + requiredID +
+                      "\" resolves to unavailable capability symbol @" +
+                      capability->getSymbolName() + " in kernel @" +
+                      kernel.getSymName());
 
   llvm::StringRef requiredSymbol = capability->getSymbolName();
   if (requiredSymbol.trim().empty())
