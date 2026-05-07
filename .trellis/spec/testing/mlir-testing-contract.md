@@ -149,3 +149,19 @@ runtime, correctness, performance, lowering, or emission evidence. The self-test
 must validate the sanitized `capability_facts` artifact section and redaction
 behavior, but compiler-facing capability mapping remains covered by C++ plugin
 tests rather than Python.
+
+If the repository provides an RVV probe replay helper, it must also be tested as
+Python tooling and as MLIR pipeline input. Required coverage:
+
+- a sanitized probe fixture converts to parseable `tcrv.exec` MLIR capability
+  ops with the field names consumed by `RVVExtensionPlugin`;
+- the replayed MLIR can drive `tcrv-opt --tcrv-execution-planning-pipeline` to
+  materialize RVV proposal metadata, selected lowering-boundary metadata, and
+  boundary-linked emission-plan diagnostics when the required RVV facts are
+  present;
+- missing, malformed, failed, secret-like, or unbounded probe facts do not
+  invent RVV support;
+- scalar fallback remains available when an explicit `scalar.fallback`
+  capability is included and RVV evidence is unavailable or declined;
+- helper tests must not use raw credentials, private keys, tokens, unbounded
+  command dumps, correctness claims, runtime claims, or performance claims.

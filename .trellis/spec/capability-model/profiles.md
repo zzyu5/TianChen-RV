@@ -30,6 +30,11 @@ Rules:
 - RVV correctness, runtime, or performance claims require real `ssh rvv` evidence.
 - RVV evidence should include probe output for relevant facts such as host identity, RISC-V architecture, core count, RVV/toolchain availability, CMake availability, and sudo behavior when relevant.
 - Probe artifacts may expose a sanitized `capability_facts` section for compiler-facing ingestion. That section is evidence-tool output only; the authoritative capability relation is the plugin-local C++ RVV capability profile that validates those facts and populates `TargetCapabilitySet`.
+- A replay helper may translate sanitized `capability_facts` into
+  `tcrv.exec.capability` fixture MLIR for deterministic planning tests. The
+  replay helper remains artifact parsing tooling: it must not implement
+  capability relations, RVV legality, variant selection, lowering, emission, or
+  runtime decisions.
 - Required positive facts for the RVV probe-derived profile include `riscv64` architecture, `hart_count > 0`, bounded RVV ISA/vector hints, clang and CMake availability/version facts, minimal hand-written RVV compile/run success, and selected march/mabi facts when emitted by the probe.
 - Stable profile capability identities must remain plugin-local and generic, such as `rvv`, `rvv.hart_count`, `rvv.toolchain.clang`, `rvv.toolchain.cmake`, `rvv.probe.compile_run`, `rvv.toolchain.march`, and `rvv.toolchain.mabi`; provider identity, benchmark names, logs, and performance measurements must not become capability IDs.
 - Local compile-only, local smoke-only, or unproven docs/spec changes must not be described as RVV runtime evidence.

@@ -163,6 +163,36 @@ Interpretation rules:
   implementation and successful named `ssh rvv` evidence; this first slice
   remains unsupported diagnostic metadata.
 
+## Remote Evidence Replay Contract
+
+The repo may provide a Python artifact parser such as
+`scripts/rvv_probe_to_mlir.py` to replay sanitized `rvv_probe_evidence.json`
+facts into a bounded `tcrv.exec` MLIR fixture. This helper is allowed to parse
+the probe JSON, reject secret-like or unbounded compiler-facing facts, and emit
+existing `tcrv.exec.capability` ops with the stable plugin-local capability IDs
+used by the C++ RVV plugin:
+
+```text
+rvv
+rvv.hart_count
+rvv.toolchain.clang
+rvv.toolchain.cmake
+rvv.probe.compile_run
+rvv.toolchain.march
+rvv.toolchain.mabi
+```
+
+The replayed MLIR is a capability fixture, not a compiler decision. The helper
+must not decide RVV proposal availability, legality, selection, lowering,
+emission, runtime ABI, correctness, or performance. Those decisions remain in
+`RVVExtensionPlugin`, the plugin-local C++ RVV capability profile, and the
+generic C++/MLIR planning pipeline. Malformed or failed RVV probe facts may
+therefore produce replay MLIR that the C++ RVV plugin declines or diagnoses,
+and an explicitly present `scalar.fallback` capability may still allow the
+scalar fallback plugin to provide coverage. This is the expected boundary: the
+Python helper preserves sanitized evidence facts; it does not invent RVV
+support.
+
 `registerDialects` now registers the minimal RVV dialect skeleton through the
 RVV plugin path. The default `registerAllDialects` path remains core-only; RVV
 dialect availability is proven by populating an `ExtensionPluginRegistry` with

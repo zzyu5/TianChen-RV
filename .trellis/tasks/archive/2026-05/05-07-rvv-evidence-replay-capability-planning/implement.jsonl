@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability facts must be MLIR-queryable compiler objects, not Python-only records"}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "RVV probe-derived profile identities and evidence boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local capability evidence gates and remote probe contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Fallback availability must stay explicit and plugin-owned"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Replay output must remain planning metadata, not executable lowering/runtime evidence"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry and plugin-local ownership rules for proposal/selection/boundary routing"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and Python tooling evidence coverage"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Execution planning pipeline expectations and target-neutral constraints"}

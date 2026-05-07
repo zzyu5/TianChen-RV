@@ -1,0 +1,29 @@
+{
+  "artifact_dir": "artifacts/tmp/rvv_probe/fixture-non-riscv64",
+  "capability_facts": {
+    "architecture": "x86_64",
+    "binary_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "clang_available": true,
+    "clang_version": "clang version 18.1.3",
+    "cmake_available": true,
+    "cmake_version": "cmake version 3.28.3",
+    "hart_count": 64,
+    "isa_vector_hints": "isa: rv64imafdcv_zve64d_zvfh_zvl128b",
+    "minimal_rvv_compile_run_succeeded": true,
+    "selected_mabi": "lp64d",
+    "selected_march": "rv64gcv",
+    "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "commands": [],
+  "facts": {},
+  "probe_name": "tianchenrv-rvv-remote-probe",
+  "run_id": "fixture-non-riscv64",
+  "rvv_compile_run": {
+    "status": "success"
+  },
+  "schema_version": 2,
+  "ssh_target": "rvv",
+  "status": "failure",
+  "success": false,
+  "timestamp_utc": "2026-05-07T00:00:00Z"
+}

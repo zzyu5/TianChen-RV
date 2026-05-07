@@ -1,0 +1,111 @@
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py --self-test | FileCheck %s --check-prefix=SELF
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | FileCheck %s --check-prefix=MLIR
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - | FileCheck %s --check-prefix=PARSE
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-architecture.json --kernel-name missing_architecture --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/non-riscv64.json --kernel-name non_riscv64 --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-isa-vector-hints.json --kernel-name missing_isa_vector_hints --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-selected-march.json --kernel-name missing_selected_march --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/failed-compile-run.json --kernel-name failed_compile_run --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
+# RUN: not python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/secret-like-capability-fact.json --kernel-name secret_like 2>&1 | FileCheck %s --check-prefix=SECRET
+# RUN: not python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/unbounded-capability-fact.json --kernel-name unbounded 2>&1 | FileCheck %s --check-prefix=UNBOUNDED
+# RUN: not python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name 1bad 2>&1 | FileCheck %s --check-prefix=BADSYMBOL
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name malformed_replay --include-scalar-fallback | sed 's/@rvv {/@1bad {/' | not tcrv-opt - --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=MALFORMED
+
+# SELF: rvv_probe_to_mlir self-test passed
+
+# MLIR-LABEL: tcrv.exec.kernel @rvv_probe_replay
+# MLIR: tcrv.exec.capability @rvv
+# MLIR-SAME: {
+# MLIR: architecture = "riscv64"
+# MLIR: isa_vector_hints = "isa: rv64imafdcv_zve64d_zvfh_zvl128b"
+# MLIR: status = "available"
+# MLIR: tcrv.exec.capability @rvv_hart_count
+# MLIR: count = 64 : i64
+# MLIR: tcrv.exec.capability @rvv_probe_compile_run
+# MLIR: selected_march = "rv64gcv"
+# MLIR: selected_mabi = "lp64d"
+# MLIR: source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+# MLIR: binary_sha256 = "1111111111111111111111111111111111111111111111111111111111111111"
+# MLIR: tcrv.exec.capability @rvv_toolchain_march
+# MLIR: value = "rv64gcv"
+# MLIR: tcrv.exec.capability @scalar_fallback
+# MLIR: id = "scalar.fallback"
+
+# PARSE-LABEL: tcrv.exec.kernel @rvv_probe_replay
+# PARSE: tcrv.exec.capability @rvv
+# PARSE-SAME: architecture = "riscv64"
+# PARSE-SAME: isa_vector_hints = "isa: rv64imafdcv_zve64d_zvfh_zvl128b"
+# PARSE: tcrv.exec.capability @rvv_probe_compile_run
+# PARSE-SAME: selected_march = "rv64gcv"
+# PARSE: tcrv.exec.capability @scalar_fallback
+
+# PIPE-LABEL: tcrv.exec.kernel @rvv_probe_replay
+# PIPE: tcrv.exec.capability @rvv
+# PIPE-SAME: architecture = "riscv64"
+# PIPE-SAME: isa_vector_hints = "isa: rv64imafdcv_zve64d_zvfh_zvl128b"
+# PIPE: tcrv.exec.capability @rvv_hart_count
+# PIPE-SAME: count = 64 : i64
+# PIPE: tcrv.exec.capability @rvv_probe_compile_run
+# PIPE-SAME: selected_march = "rv64gcv"
+# PIPE: tcrv.exec.variant @rvv_first_slice
+# PIPE-SAME: origin = "rvv-plugin"
+# PIPE-SAME: requires = [@rvv]
+# PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
+# PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+# PIPE-SAME: origin = "scalar-plugin"
+# PIPE-SAME: requires = [@scalar_fallback]
+# PIPE: tcrv.exec.dispatch
+# PIPE: tcrv.exec.case @rvv_first_slice
+# PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
+# PIPE: tcrv_rvv.lowering_boundary
+# PIPE-SAME: origin = "rvv-plugin"
+# PIPE-SAME: required_capabilities = [@rvv]
+# PIPE-SAME: role = "dispatch case"
+# PIPE-SAME: selected_variant = @rvv_first_slice
+# PIPE-SAME: source_kernel = "rvv_probe_replay"
+# PIPE-SAME: status = "unsupported"
+# PIPE: tcrv_scalar.lowering_boundary
+# PIPE-SAME: origin = "scalar-plugin"
+# PIPE-SAME: role = "dispatch fallback"
+# PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+# PIPE: tcrv.exec.diagnostic
+# PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
+# PIPE-SAME: reason = "emission_plan"
+# PIPE-SAME: status = "unsupported"
+# PIPE-SAME: target = @rvv_first_slice
+# PIPE: tcrv.exec.diagnostic
+# PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+# PIPE-SAME: reason = "emission_plan"
+# PIPE-SAME: status = "metadata-only"
+# PIPE-SAME: target = @scalar_fallback_first_slice
+
+# SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
+# SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice
+# SCALAR_ONLY-SAME: origin = "scalar-plugin"
+# SCALAR_ONLY-SAME: requires = [@scalar_fallback]
+# SCALAR_ONLY: tcrv.exec.diagnostic
+# SCALAR_ONLY-SAME: reason = "variant-selected"
+# SCALAR_ONLY-SAME: selection_kind = "fallback-only"
+# SCALAR_ONLY-SAME: target = @scalar_fallback_first_slice
+# SCALAR_ONLY: tcrv_scalar.lowering_boundary
+# SCALAR_ONLY-SAME: selected_variant = @scalar_fallback_first_slice
+# SCALAR_ONLY: tcrv.exec.diagnostic
+# SCALAR_ONLY-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+# SCALAR_ONLY-SAME: reason = "emission_plan"
+# SCALAR_ONLY-SAME: status = "metadata-only"
+# SCALAR_ONLY-NOT: tcrv_rvv.lowering_boundary
+
+# SECRET: rvv_probe_to_mlir:
+# SECRET-SAME: capability fact clang_version
+# SECRET-SAME: secret-like
+
+# UNBOUNDED: rvv_probe_to_mlir:
+# UNBOUNDED-SAME: capability fact clang_version
+# UNBOUNDED-SAME: bounded single-line fact
+
+# BADSYMBOL: rvv_probe_to_mlir:
+# BADSYMBOL-SAME: MLIR symbol
+
+# MALFORMED: error:
+# MALFORMED-SAME: @ identifier expected
