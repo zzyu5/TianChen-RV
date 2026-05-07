@@ -129,20 +129,24 @@ Use lit/FileCheck for:
 - RVV + scalar host dispatch C export for the finite i32 vector-add slice,
   including one selected RVV dispatch case plus one scalar dispatch fallback,
   matching lowering boundaries, supported runtime-callable C source
-  emission-plan routes for both paths, deterministic dispatcher signature,
-  explicit host-provided `rvv_available` guard, RVV callable branch, scalar
-  fallback branch, RVV intrinsic code preservation, scalar i32 addition
+  emission-plan routes for both paths, deterministic dispatcher signature from
+  runtime ABI roles rather than exact callable C parameter-name equality,
+  explicit host-provided availability guard metadata, RVV callable branch,
+  scalar fallback branch, RVV intrinsic code preservation, scalar i32 addition
   preservation, bounded metadata comments, pipeline-to-dispatch-export coverage
   where the scalar fallback callable is descriptor-materialized rather than
-  hand-authored, an explicit self-check harness export that calls the generated
-  dispatcher with both `rvv_available = 0` and `rvv_available = 1`, and
-  fail-closed diagnostics when the scalar callable fallback metadata is missing
-  or unsupported. When the bounded self-check object export route is present,
-  lit coverage must also prove the public route is visible, preserves the
-  source/self-check split, fails closed before object creation for missing or
-  malformed selected-path/runtime ABI metadata, and, when local/native RVV clang
-  support is detected, emits a non-empty tool-readable object file without
-  committing binary artifacts.
+  hand-authored, a role-binding fixture where callable or dispatcher names such
+  as `a`, `b`, `dst`, `len`, and a non-default guard name are emitted in the
+  generated dispatcher body, an explicit self-check harness export that calls
+  the generated dispatcher with both guard false and guard true, and
+  fail-closed diagnostics when scalar callable fallback metadata is missing,
+  unsupported, or structurally incompatible by runtime ABI role/type/ownership.
+  When the bounded self-check object export route is present, lit coverage must
+  also prove the public route is visible, preserves the source/self-check split,
+  fails closed before object creation for missing or malformed selected-path/
+  runtime ABI metadata, and, when local/native RVV clang support is detected,
+  emits a non-empty tool-readable object file without committing binary
+  artifacts.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability

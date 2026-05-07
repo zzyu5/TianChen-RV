@@ -148,6 +148,15 @@ preserve parameter layering:
   exports mark `lhs`, `rhs`, `out`, and runtime `n` as
   `target-export-abi-owned`; the RVV+scalar host dispatcher additionally marks
   `rvv_available` as a target/export-owned dispatch guard;
+- emission-plan-backed RVV+scalar dispatch export must resolve callable
+  parameters structurally by runtime ABI role, C type, and ownership. The
+  bounded dispatch exporter may use the selected RVV candidate's role-bound
+  C names/types for public callable parameters, require scalar role/type/
+  ownership compatibility, and append exactly one target/export-owned
+  `dispatch-availability-guard` parameter. The default guard C name is
+  `rvv_available`; target-owned dispatch metadata may override that guard name
+  without changing callable role order or introducing automatic hardware
+  probing;
 - descriptor-local bounded values such as `tcrv_rvv.element_count` or
   `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
   and must not be reported as tensor shape, global problem size, AVL, vl,

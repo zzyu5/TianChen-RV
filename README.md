@@ -334,7 +334,7 @@ path.
 
 The generated source embeds the existing deterministic RVV runtime-callable C
 function and scalar runtime-callable fallback C function, then emits a stable
-dispatcher ABI:
+dispatcher ABI. With default emission-plan metadata this ABI is:
 
 ```c
 void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
@@ -343,16 +343,26 @@ void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
                                      int rvv_available);
 ```
 
-For the current bounded RVV, scalar, and RVV+scalar dispatch source exports,
-`lhs`, `rhs`, `out`, runtime `n`, and dispatcher `rvv_available` are structured
-target/export-owned ABI parameters unless a future IR surface models them
-directly. Descriptor-local `element_count` remains finite microkernel metadata;
-it is not high-level shape, runtime `n`, AVL, or VL. The `rvv_available`
-argument is an explicit host-provided guard. This export
-does not implement automatic hardware probing, object generation, dynamic
-loading, linking, benchmarking, correctness measurement, or performance
-measurement. RVV runtime/correctness/performance claims still require separate
-real `ssh rvv` evidence.
+For emission-plan-backed dispatch export, the RVV and scalar callable
+candidates are validated by structured runtime ABI role, C type, and ownership
+rather than by exact C parameter-name equality. The dispatcher public callable
+parameters are derived deterministically from the selected RVV candidate's
+role-bound names/types, the scalar callable candidate must be role/type/
+ownership compatible, and calls to both embedded callables are emitted in the
+fixed lhs/rhs/output/runtime-count role order. The explicit host-provided
+availability guard remains a dispatch runtime ABI parameter with role
+`dispatch-availability-guard`; by default it is named `rvv_available`, and a
+bounded target-owned dispatch metadata list
+`tcrv_rvv_scalar.dispatch_runtime_abi_parameters` may provide a different C
+name for that single guard role. For the current bounded RVV, scalar, and
+RVV+scalar dispatch source exports, callable `lhs`, `rhs`, `out`, runtime `n`,
+and the dispatcher availability guard are structured target/export-owned ABI
+parameters unless a future IR surface models them directly. Descriptor-local
+`element_count` remains finite microkernel metadata; it is not high-level
+shape, runtime `n`, AVL, or VL. This export does not implement automatic
+hardware probing, object generation, dynamic loading, linking, benchmarking,
+correctness measurement, or performance measurement. RVV runtime/correctness/
+performance claims still require separate real `ssh rvv` evidence.
 
 The explicit
 `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`

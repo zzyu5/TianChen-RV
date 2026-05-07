@@ -151,13 +151,25 @@ getI32VAddRuntimeABIRoleRequirements() {
   return parameters;
 }
 
+inline RuntimeABIParameter makeI32VAddDispatchAvailabilityGuard(
+    llvm::StringRef cName = "rvv_available") {
+  return makeTargetExportABIParameter(
+      cName, "int", RuntimeABIParameterRole::DispatchAvailabilityGuard);
+}
+
+inline void appendI32VAddDispatchRuntimeABIParameters(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
+    llvm::ArrayRef<RuntimeABIParameter> callableParameters,
+    const RuntimeABIParameter &guardParameter) {
+  out.append(callableParameters.begin(), callableParameters.end());
+  out.push_back(guardParameter);
+}
+
 inline llvm::SmallVector<RuntimeABIParameter, 5>
 getI32VAddDispatchRuntimeABIParameters() {
   llvm::SmallVector<RuntimeABIParameter, 5> parameters;
   appendI32VAddRuntimeABIParameters(parameters);
-  parameters.push_back(makeTargetExportABIParameter(
-      "rvv_available", "int",
-      RuntimeABIParameterRole::DispatchAvailabilityGuard));
+  parameters.push_back(makeI32VAddDispatchAvailabilityGuard());
   return parameters;
 }
 

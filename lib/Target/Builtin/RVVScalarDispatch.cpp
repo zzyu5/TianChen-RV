@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <system_error>
@@ -30,6 +31,7 @@ using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
@@ -39,6 +41,8 @@ constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
 constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
     "runtime-callable-c-source");
+constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
+    "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
 
 constexpr llvm::StringLiteral kRVVRouteID("tcrv-export-rvv-microkernel-c");
 constexpr llvm::StringLiteral kRVVEmissionKind(
@@ -76,14 +80,19 @@ constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
 
-struct DispatchPair {
-  TargetArtifactCandidate rvv;
-  TargetArtifactCandidate scalar;
-};
-
 struct DispatchObjectCompileConfig {
   std::string selectedMarch;
   std::optional<std::string> selectedMABI;
+};
+
+struct DispatchABIPlan {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+};
+
+struct DispatchPair {
+  TargetArtifactCandidate rvv;
+  TargetArtifactCandidate scalar;
+  DispatchABIPlan abiPlan;
 };
 
 struct TemporaryFile {
@@ -218,7 +227,7 @@ bool hasCandidateShape(const TargetArtifactCandidate &candidate,
          candidate.runtimeGlueRole == runtimeGlueRole;
 }
 
-llvm::Error validateAgainstRegisteredRoute(
+llvm::Error validateRegisteredCallableRouteMetadata(
     const TargetArtifactCandidate &candidate,
     const TargetArtifactExporterRegistry &registry) {
   const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
@@ -227,22 +236,335 @@ llvm::Error validateAgainstRegisteredRoute(
         candidate.kernel,
         llvm::Twine("unknown selected callable artifact route id '") +
             candidate.routeID + "'");
-  return validateTargetArtifactCandidateAgainstExporter(candidate, *exporter);
+
+  if (candidate.artifactKind != exporter->getArtifactKind())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected callable artifact route '") + candidate.routeID +
+            "' does not support artifact_kind '" + candidate.artifactKind +
+            "'");
+  if (!exporter->getOriginPlugin().empty() &&
+      candidate.origin != exporter->getOriginPlugin())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected callable artifact route '") + candidate.routeID +
+            "' is registered for origin '" + exporter->getOriginPlugin() +
+            "' but selected emission-plan origin is '" + candidate.origin + "'");
+  if (!exporter->getEmissionKind().empty() &&
+      candidate.emissionKind != exporter->getEmissionKind())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected callable artifact route '") + candidate.routeID +
+            "' is registered for emission_kind '" +
+            exporter->getEmissionKind() +
+            "' but selected emission-plan emission_kind is '" +
+            candidate.emissionKind + "'");
+  if (!exporter->getExportFn())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected callable artifact route '") + candidate.routeID +
+            "' has no registered export callback");
+  return llvm::Error::success();
 }
 
-llvm::Error validateCallableI32VAddABIParameters(
-    const TargetArtifactCandidate &candidate) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
-      support::getI32VAddRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(candidate.runtimeABIParameters,
-                                         expected))
-    return llvm::Error::success();
+bool isValidCParameterName(llvm::StringRef value) {
+  if (value.empty())
+    return false;
+  unsigned char first = static_cast<unsigned char>(value.front());
+  if (!std::isalpha(first) && value.front() != '_')
+    return false;
+  return llvm::all_of(value.drop_front(), [](char character) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    return std::isalnum(byte) || character == '_';
+  });
+}
 
-  return makeDispatchError(
-      candidate.kernel,
-      llvm::Twine("selected callable artifact route '") + candidate.routeID +
-          "' must carry structured lhs/rhs/out/n target-export-owned runtime "
-          "ABI parameter metadata");
+llvm::Error validateDispatchCParameterName(KernelOp kernel,
+                                           llvm::StringRef value) {
+  if (!isValidCParameterName(value))
+    return makeDispatchError(
+        kernel, llvm::Twine("runtime ABI parameter c_name '") + value +
+                    "' must be a valid C identifier for RVV+scalar dispatch "
+                    "source export");
+  return llvm::Error::success();
+}
+
+llvm::Error validateDispatchRuntimeABIText(KernelOp kernel,
+                                           llvm::StringRef fieldName,
+                                           llvm::StringRef value) {
+  constexpr std::size_t kMaxTextLength = 512;
+  if (value.empty() || value.size() > kMaxTextLength)
+    return makeDispatchError(
+        kernel, llvm::Twine(fieldName) +
+                    " must be bounded non-empty single-line metadata");
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      return makeDispatchError(
+          kernel, llvm::Twine(fieldName) +
+                      " must be bounded non-empty single-line metadata");
+    if (byte < 0x20 && character != '\t')
+      return makeDispatchError(
+          kernel, llvm::Twine(fieldName) +
+                      " must be bounded non-empty single-line metadata");
+  }
+
+  if (containsForbiddenText(value))
+    return makeDispatchError(
+        kernel, llvm::Twine(fieldName) +
+                    " must not contain secret-like or raw credential text");
+  return llvm::Error::success();
+}
+
+llvm::Error resolveCallableI32VAddABIParameters(
+    const TargetArtifactCandidate &candidate,
+    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> expectedParameters =
+      support::getI32VAddRuntimeABIRoleRequirements();
+
+  for (const support::RuntimeABIParameter &expected : expectedParameters) {
+    const support::RuntimeABIParameter *actualParameter = nullptr;
+    unsigned count = 0;
+    for (const support::RuntimeABIParameter &actual :
+         candidate.runtimeABIParameters) {
+      if (actual.role != expected.role)
+        continue;
+      actualParameter = &actual;
+      ++count;
+    }
+
+    if (count == 0)
+      return makeDispatchError(
+          candidate.kernel,
+          llvm::Twine("selected callable artifact route '") +
+              candidate.routeID + "' requires runtime ABI parameter role '" +
+              support::stringifyRuntimeABIParameterRole(expected.role) + "'");
+    if (count > 1)
+      return makeDispatchError(
+          candidate.kernel,
+          llvm::Twine("selected callable artifact route '") +
+              candidate.routeID +
+              "' received duplicate runtime ABI parameter role '" +
+              support::stringifyRuntimeABIParameterRole(expected.role) + "'");
+
+    if (llvm::Error error =
+            validateDispatchCParameterName(candidate.kernel,
+                                           actualParameter->cName))
+      return error;
+
+    if (actualParameter->cType != expected.cType)
+      return makeDispatchError(
+          candidate.kernel,
+          llvm::Twine("selected callable artifact route '") +
+              candidate.routeID + "' runtime ABI parameter role '" +
+              support::stringifyRuntimeABIParameterRole(expected.role) +
+              "' must use c type '" + expected.cType + "'");
+
+    if (actualParameter->ownership != expected.ownership)
+      return makeDispatchError(
+          candidate.kernel,
+          llvm::Twine("selected callable artifact route '") +
+              candidate.routeID + "' runtime ABI parameter role '" +
+              support::stringifyRuntimeABIParameterRole(expected.role) +
+              "' must use ownership '" +
+              support::stringifyRuntimeABIParameterOwnership(
+                  expected.ownership) +
+              "'");
+
+    out.push_back(*actualParameter);
+  }
+
+  for (const support::RuntimeABIParameter &actual :
+       candidate.runtimeABIParameters) {
+    bool expectedRole = llvm::any_of(
+        expectedParameters, [&](const support::RuntimeABIParameter &expected) {
+          return expected.role == actual.role;
+        });
+    if (!expectedRole)
+      return makeDispatchError(
+          candidate.kernel,
+          llvm::Twine("selected callable artifact route '") +
+              candidate.routeID +
+              "' received unsupported runtime ABI parameter role '" +
+              support::stringifyRuntimeABIParameterRole(actual.role) + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+DispatchOp findDispatchOpForPair(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  if (!kernel || kernel.getBody().empty())
+    return DispatchOp();
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto dispatch = llvm::dyn_cast<DispatchOp>(op);
+    if (dispatch)
+      return dispatch;
+  }
+  return DispatchOp();
+}
+
+llvm::Error parseDispatchGuardRuntimeABIParameter(
+    KernelOp kernel, mlir::DictionaryAttr dict, std::size_t index,
+    support::RuntimeABIParameter &out) {
+  if (!dict)
+    return makeDispatchError(
+        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
+                    llvm::Twine(index) + "] must be a dictionary attribute");
+
+  auto cName =
+      dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterCNameAttrName);
+  auto cType =
+      dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterCTypeAttrName);
+  auto role =
+      dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterRoleAttrName);
+  auto ownership = dict.getAs<mlir::StringAttr>(
+      support::kRuntimeABIParameterOwnershipAttrName);
+  if (!cName || cName.getValue().trim().empty())
+    return makeDispatchError(
+        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
+                    llvm::Twine(index) + "] requires non-empty c_name");
+  if (!cType || cType.getValue().trim().empty())
+    return makeDispatchError(
+        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
+                    llvm::Twine(index) + "] requires non-empty c_type");
+  if (!role || role.getValue().trim().empty())
+    return makeDispatchError(
+        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
+                    llvm::Twine(index) + "] requires non-empty role");
+  if (!ownership || ownership.getValue().trim().empty())
+    return makeDispatchError(
+        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
+                    llvm::Twine(index) + "] requires non-empty ownership");
+
+  llvm::StringRef cNameValue = cName.getValue().trim();
+  llvm::StringRef cTypeValue = cType.getValue().trim();
+  llvm::StringRef roleValue = role.getValue().trim();
+  llvm::StringRef ownershipValue = ownership.getValue().trim();
+
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime ABI parameter c_name", cNameValue))
+    return error;
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime ABI parameter c_type", cTypeValue))
+    return error;
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime ABI parameter role", roleValue))
+    return error;
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime ABI parameter ownership", ownershipValue))
+    return error;
+  if (llvm::Error error = validateDispatchCParameterName(kernel, cNameValue))
+    return error;
+
+  std::optional<support::RuntimeABIParameterRole> parsedRole =
+      support::symbolizeRuntimeABIParameterRole(roleValue);
+  if (!parsedRole)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("unsupported dispatch runtime ABI parameter role '") +
+            roleValue + "'");
+  if (*parsedRole != support::RuntimeABIParameterRole::DispatchAvailabilityGuard)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
+            " only accepts runtime ABI role 'dispatch-availability-guard'");
+
+  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+      support::symbolizeRuntimeABIParameterOwnership(ownershipValue);
+  if (!parsedOwnership)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("unsupported dispatch runtime ABI parameter ownership '") +
+            ownershipValue + "'");
+
+  out = support::RuntimeABIParameter(cNameValue, cTypeValue, *parsedRole,
+                                     *parsedOwnership);
+  return llvm::Error::success();
+}
+
+llvm::Expected<support::RuntimeABIParameter>
+resolveDispatchAvailabilityGuardParameter(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  DispatchOp dispatch = findDispatchOpForPair(pair);
+  if (!dispatch)
+    return makeDispatchError(
+        kernel, "requires one tcrv.exec.dispatch to build dispatch ABI "
+                "availability guard metadata");
+
+  auto guardParameters =
+      dispatch->getAttrOfType<mlir::ArrayAttr>(
+          kDispatchRuntimeABIParametersAttrName);
+  if (!guardParameters)
+    return support::makeI32VAddDispatchAvailabilityGuard();
+
+  if (guardParameters.empty())
+    return makeDispatchError(
+        kernel,
+        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
+            " must contain exactly one dispatch-availability-guard parameter");
+  if (guardParameters.size() != 1)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
+            " must contain exactly one dispatch-availability-guard parameter");
+
+  support::RuntimeABIParameter guard;
+  if (llvm::Error error = parseDispatchGuardRuntimeABIParameter(
+          kernel, llvm::dyn_cast<mlir::DictionaryAttr>(guardParameters[0]), 0,
+          guard))
+    return std::move(error);
+
+  support::RuntimeABIParameter expected =
+      support::makeI32VAddDispatchAvailabilityGuard(guard.cName);
+  if (guard.cType != expected.cType)
+    return makeDispatchError(
+        kernel, "dispatch availability guard runtime ABI parameter must use c "
+                "type 'int'");
+  if (guard.ownership != expected.ownership)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("dispatch availability guard runtime ABI parameter must "
+                    "use ownership '") +
+            support::stringifyRuntimeABIParameterOwnership(expected.ownership) +
+            "'");
+  return guard;
+}
+
+llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> rvvParameters;
+  if (llvm::Error error =
+          resolveCallableI32VAddABIParameters(pair.rvv, rvvParameters))
+    return std::move(error);
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters;
+  if (llvm::Error error =
+          resolveCallableI32VAddABIParameters(pair.scalar, scalarParameters))
+    return std::move(error);
+
+  for (auto [rvvParameter, scalarParameter] :
+       llvm::zip(rvvParameters, scalarParameters)) {
+    if (rvvParameter.role != scalarParameter.role ||
+        rvvParameter.cType != scalarParameter.cType ||
+        rvvParameter.ownership != scalarParameter.ownership)
+      return makeDispatchError(
+          pair.rvv.kernel,
+          llvm::Twine("RVV and scalar callable runtime ABI role '") +
+              support::stringifyRuntimeABIParameterRole(rvvParameter.role) +
+              "' must agree on c type and ownership before dispatch export");
+  }
+
+  llvm::Expected<support::RuntimeABIParameter> guard =
+      resolveDispatchAvailabilityGuardParameter(pair);
+  if (!guard)
+    return guard.takeError();
+
+  DispatchABIPlan plan;
+  support::appendI32VAddDispatchRuntimeABIParameters(plan.parameters,
+                                                    rvvParameters, *guard);
+  return plan;
 }
 
 llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
@@ -270,10 +592,7 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
                                  "requires exactly one supported RVV dispatch "
                                  "case callable route; found duplicate");
       if (llvm::Error error =
-              validateAgainstRegisteredRoute(candidate, registry))
-        return std::move(error);
-      if (llvm::Error error =
-              validateCallableI32VAddABIParameters(candidate))
+              validateRegisteredCallableRouteMetadata(candidate, registry))
         return std::move(error);
       rvvCandidate = &candidate;
       continue;
@@ -289,10 +608,7 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
             "requires exactly one supported scalar dispatch fallback callable "
             "route; found duplicate");
       if (llvm::Error error =
-              validateAgainstRegisteredRoute(candidate, registry))
-        return std::move(error);
-      if (llvm::Error error =
-              validateCallableI32VAddABIParameters(candidate))
+              validateRegisteredCallableRouteMetadata(candidate, registry))
         return std::move(error);
       scalarCandidate = &candidate;
       continue;
@@ -320,6 +636,10 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
   DispatchPair pair;
   pair.rvv = *rvvCandidate;
   pair.scalar = *scalarCandidate;
+  llvm::Expected<DispatchABIPlan> abiPlan = buildDispatchABIPlan(pair);
+  if (!abiPlan)
+    return abiPlan.takeError();
+  pair.abiPlan = std::move(*abiPlan);
   return pair;
 }
 
@@ -582,6 +902,10 @@ void printDispatcherFunction(llvm::raw_ostream &os,
                              llvm::StringRef scalarFunctionName,
                              llvm::ArrayRef<support::RuntimeABIParameter>
                                  parameters) {
+  llvm::ArrayRef<support::RuntimeABIParameter> callableParameters =
+      parameters.take_front(4);
+  const support::RuntimeABIParameter &guardParameter = parameters[4];
+
   os << "void " << dispatcherFunctionName << "(";
   for (auto [index, parameter] : llvm::enumerate(parameters)) {
     if (index != 0)
@@ -589,32 +913,46 @@ void printDispatcherFunction(llvm::raw_ostream &os,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") {\n";
-  os << "  if (rvv_available) {\n";
-  os << "    " << rvvFunctionName << "(lhs, rhs, out, n);\n";
+  os << "  if (" << guardParameter.cName << ") {\n";
+  os << "    " << rvvFunctionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(callableParameters)) {
+    if (index != 0)
+      os << ", ";
+    os << parameter.cName;
+  }
+  os << ");\n";
   os << "    return;\n";
   os << "  }\n";
-  os << "  " << scalarFunctionName << "(lhs, rhs, out, n);\n";
+  os << "  " << scalarFunctionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(callableParameters)) {
+    if (index != 0)
+      os << ", ";
+    os << parameter.cName;
+  }
+  os << ");\n";
   os << "}\n";
 }
 
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
-                                   llvm::StringRef dispatcherFunctionName) {
+                                   llvm::StringRef dispatcherFunctionName,
+                                   llvm::StringRef guardParameterName) {
   os << "\n/* Explicit bounded self-check harness for RVV+scalar dispatch "
         "runtime invocation evidence. */\n";
   os << "/* Harness scope: calls the generated dispatcher once with "
-        "rvv_available = 0 and once with rvv_available = 1. */\n";
+     << guardParameterName << " = 0 and once with " << guardParameterName
+     << " = 1. */\n";
   os << "/* Runtime n is a target/export-owned ABI parameter in this harness; "
         "descriptor-local element_count remains metadata only. */\n";
   os << "#include <stdio.h>\n\n";
   os << "static int " << dispatcherFunctionName
-     << "_self_check_one(int rvv_available) {\n";
+     << "_self_check_one(int " << guardParameterName << ") {\n";
   os << "  const int32_t lhs[16] = {0, 1, 2, 3, 4, 5, 6, 7, "
         "8, 9, 10, 11, 12, 13, 14, 15};\n";
   os << "  const int32_t rhs[16] = {31, 29, 23, 19, 17, 13, 11, 7, "
         "5, 3, 2, 1, -1, -3, -5, -7};\n";
   os << "  int32_t out[16] = {0};\n";
   os << "  " << dispatcherFunctionName
-     << "(lhs, rhs, out, 16, rvv_available);\n";
+     << "(lhs, rhs, out, 16, " << guardParameterName << ");\n";
   os << "  for (size_t index = 0; index < 16; ++index) {\n";
   os << "    if (out[index] != lhs[index] + rhs[index])\n";
   os << "      return 1;\n";
@@ -638,14 +976,16 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   std::string rvvFunctionName = makeRVVFunctionName(pair.rvv);
   std::string scalarFunctionName = makeScalarFunctionName(pair.scalar);
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
-  llvm::SmallVector<support::RuntimeABIParameter, 5> dispatchParameters =
-      support::getI32VAddDispatchRuntimeABIParameters();
+  llvm::ArrayRef<support::RuntimeABIParameter> dispatchParameters =
+      pair.abiPlan.parameters;
+  const support::RuntimeABIParameter &guardParameter =
+      dispatchParameters.back();
 
   os << "/* TianChen-RV RVV+scalar host runtime dispatch C export. */\n";
   os << "/* Scope: one selected RVV i32-vadd dispatch case plus one scalar "
         "i32-vadd dispatch fallback. */\n";
-  os << "/* Runtime guard: explicit host-provided rvv_available parameter; "
-        "no automatic hardware probe is generated. */\n";
+  os << "/* Runtime guard: explicit host-provided " << guardParameter.cName
+     << " parameter; no automatic hardware probe is generated. */\n";
   os << "/* selected_kernel: @" << kernel.getSymName() << " */\n";
   printCandidateMetadata(os, "rvv", pair.rvv);
   printCandidateMetadata(os, "scalar", pair.scalar);
@@ -682,7 +1022,8 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
                           scalarFunctionName, dispatchParameters);
   if (includeSelfCheck)
-    printDispatchSelfCheckHarness(os, dispatcherFunctionName);
+    printDispatchSelfCheckHarness(os, dispatcherFunctionName,
+                                  guardParameter.cName);
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
