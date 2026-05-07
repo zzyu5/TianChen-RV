@@ -65,6 +65,13 @@ private:
   llvm::SmallVector<std::string, 4> conflictingIDs;
 };
 
+struct CapabilityConflict {
+  const CapabilityDescriptor *requiredCapability = nullptr;
+  const CapabilityDescriptor *conflictingCapability = nullptr;
+  const CapabilityDescriptor *relationOwner = nullptr;
+  std::string conflictID;
+};
+
 class TargetCapabilitySet {
 public:
   static TargetCapabilitySet
@@ -80,6 +87,12 @@ public:
   lookupBySymbolName(llvm::StringRef symbolName) const;
   const CapabilityDescriptor *lookupByID(llvm::StringRef id) const;
   const CapabilityDescriptor *lookupProviderByID(llvm::StringRef id) const;
+  void collectProvidersByID(
+      llvm::StringRef id,
+      llvm::SmallVectorImpl<const CapabilityDescriptor *> &out) const;
+  void collectAvailableConflictsForCapability(
+      const CapabilityDescriptor &requiredCapability,
+      llvm::SmallVectorImpl<CapabilityConflict> &out) const;
 
   void collectByKind(llvm::StringRef kind,
                      llvm::SmallVectorImpl<const CapabilityDescriptor *> &out)

@@ -4,6 +4,7 @@
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -209,6 +210,70 @@ TargetCapabilitySet::lookupProviderByID(llvm::StringRef id) const {
   }
 
   return nullptr;
+}
+
+void TargetCapabilitySet::collectProvidersByID(
+    llvm::StringRef id,
+    llvm::SmallVectorImpl<const CapabilityDescriptor *> &out) const {
+  if (const CapabilityDescriptor *exact = lookupByID(id)) {
+    out.push_back(exact);
+    return;
+  }
+
+  for (const CapabilityDescriptor &capability : capabilities) {
+    if (capability.satisfiesID(id))
+      out.push_back(&capability);
+  }
+}
+
+void TargetCapabilitySet::collectAvailableConflictsForCapability(
+    const CapabilityDescriptor &requiredCapability,
+    llvm::SmallVectorImpl<CapabilityConflict> &out) const {
+  if (!requiredCapability.isAvailable())
+    return;
+
+  llvm::StringSet<> seenConflicts;
+  auto appendConflict = [&](const CapabilityDescriptor &conflictingCapability,
+                            const CapabilityDescriptor &relationOwner,
+                            llvm::StringRef conflictID) {
+    if (&conflictingCapability == &requiredCapability ||
+        !conflictingCapability.isAvailable())
+      return;
+
+    std::string key;
+    llvm::raw_string_ostream stream(key);
+    stream << requiredCapability.getSymbolName() << "\n"
+           << conflictingCapability.getSymbolName() << "\n"
+           << relationOwner.getSymbolName() << "\n" << conflictID;
+    stream.flush();
+    if (!seenConflicts.insert(key).second)
+      return;
+
+    CapabilityConflict conflict;
+    conflict.requiredCapability = &requiredCapability;
+    conflict.conflictingCapability = &conflictingCapability;
+    conflict.relationOwner = &relationOwner;
+    conflict.conflictID = conflictID.str();
+    out.push_back(std::move(conflict));
+  };
+
+  for (const std::string &conflictID : requiredCapability.getConflictingIDs()) {
+    llvm::SmallVector<const CapabilityDescriptor *, 4> providers;
+    collectProvidersByID(conflictID, providers);
+    for (const CapabilityDescriptor *provider : providers)
+      if (provider)
+        appendConflict(*provider, requiredCapability, conflictID);
+  }
+
+  for (const CapabilityDescriptor &candidate : capabilities) {
+    if (&candidate == &requiredCapability || !candidate.isAvailable())
+      continue;
+
+    for (const std::string &conflictID : candidate.getConflictingIDs()) {
+      if (requiredCapability.satisfiesID(conflictID))
+        appendConflict(candidate, candidate, conflictID);
+    }
+  }
 }
 
 void TargetCapabilitySet::collectByKind(

@@ -282,6 +282,17 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - An unavailable requirement on a `tcrv.exec.fallback` target -> pass fails,
   because fallback must remain generically executable under the same
   `TargetCapabilitySet`.
+- A static variant requirement whose available capability conflicts with
+  another available capability in the same kernel -> pass fails. Conflict ids
+  are capability ids and may be satisfied by exact id, `provides`, or
+  `implies` relations.
+- A `tcrv.exec.case` target with a conflicting required capability may pass
+  only when that case carries at least one non-empty generic `condition`,
+  `guard`, or `policy`; the core pass records the guard surface but does not
+  solve or parse the conflict.
+- A `tcrv.exec.fallback` target with a conflicting required capability -> pass
+  fails, because fallback must remain generically executable without relying on
+  a preferred-path guard.
 - malformed `requires` or unknown `@cap` -> existing `tcrv.exec` verifier owns
   the diagnostic, not the capability query pass.
 
@@ -292,6 +303,9 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - Good: a runtime-dispatch case can reference a generically unavailable
   variant when the case has a generic guard and the fallback variant remains
   available.
+- Good: a dispatch case can reference a capability that conflicts with an
+  available build/runtime policy only when a non-empty generic guard records
+  the dispatch protection surface.
 - Base: a capability has no status field and is treated as present.
 - Bad: core code branches on target-family names such as RVV, IME, or Sophgo to
   decide generic requires availability.
@@ -306,9 +320,14 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - C++ smoke coverage for textual MLIR capability properties, including scalar
   facts such as hart/VLEN counts and runtime-offload mode/ABI metadata.
 - C++ smoke coverage for relation lists and relation-aware provider lookup.
+- C++ smoke coverage for bounded conflict queries, including direct conflict
+  ids and relation-satisfied conflict providers.
 - lit/FileCheck coverage that at least one plugin proposal/materialization path
   is driven by a structured capability provider relation rather than only an
   exact capability id.
+- lit/FileCheck coverage for static conflict rejection, guarded dispatch-case
+  conflict allowance, unguarded dispatch-case conflict rejection, and fallback
+  conflict rejection.
 
 ### 7. Wrong vs Correct
 
@@ -378,9 +397,23 @@ offload variant requires fixed shape but input shape is dynamic or unsupported
 
 The current relation slice preserves `conflicts = ["..."]` as first-class
 descriptor relation metadata and verifies that it is a structured array of
-non-empty capability id strings. Full conflict solving and conflict-driven
-variant pruning remain future work; callers must not claim conflict relations
-are enforced unless a concrete pass uses them.
+non-empty capability id strings. `TargetCapabilitySet` exposes a bounded
+conflict query for an available required capability: each declared conflict id
+is matched against available exact/provided/implied providers in the same
+kernel, and the reverse direction is also checked when another available
+capability declares a conflict id satisfied by the required capability.
+
+`--tcrv-check-capability-requires` uses that bounded query as a legality gate.
+Static variants and dispatch fallbacks fail closed when a required capability
+conflicts with another available capability. Dispatch cases may reference a
+conflicting requirement only when the case has an explicit non-empty generic
+`condition`, `guard`, or `policy`, which records the runtime-dispatch
+protection surface without parsing extension-specific semantics.
+
+This is not a full conflict solver, profile lattice, provider ranking model,
+or automatic conflict-resolution strategy. It only prevents unprotected
+conflicting requirements from reaching later selection, lowering, and artifact
+export stages.
 
 ### dispatch condition
 

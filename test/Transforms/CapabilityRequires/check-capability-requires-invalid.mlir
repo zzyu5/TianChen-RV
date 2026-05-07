@@ -79,3 +79,108 @@ tcrv.exec.kernel @unavailable_fallback attributes {} {
     tcrv.exec.fallback @portable_fallback
   }
 }
+
+tcrv.exec.kernel @static_conflict attributes {} {
+  tcrv.exec.capability @inline_asm {
+    id = "vendor.inline_asm",
+    kind = "toolchain",
+    conflicts = ["build.policy.no_inline_asm"],
+    status = "available"
+  }
+  tcrv.exec.capability @no_inline {
+    id = "build.policy.no_inline_asm",
+    kind = "build-policy",
+    status = "available"
+  }
+  // CHECK: error: static variant @inline_asm_path requires conflicting capability @inline_asm
+  // CHECK-SAME: id = "vendor.inline_asm"
+  // CHECK-SAME: kind = "toolchain"
+  // CHECK-SAME: conflicting with available capability @no_inline
+  // CHECK-SAME: id = "build.policy.no_inline_asm"
+  // CHECK-SAME: via conflict id "build.policy.no_inline_asm"
+  // CHECK-SAME: kernel @static_conflict
+  // CHECK-SAME: not protected by tcrv.exec.dispatch case
+  tcrv.exec.variant @inline_asm_path attributes {
+    origin = "inline-asm-plugin",
+    requires = [@inline_asm]
+  } {
+  }
+}
+
+tcrv.exec.kernel @unguarded_conflict_dispatch attributes {} {
+  tcrv.exec.capability @fixed_shape_runtime {
+    id = "runtime.fixed_shape",
+    kind = "runtime-offload",
+    conflicts = ["shape.dynamic"],
+    status = "available"
+  }
+  tcrv.exec.capability @shape_profile {
+    id = "shape.profile",
+    kind = "shape-policy",
+    provides = ["shape.dynamic"],
+    status = "available"
+  }
+  tcrv.exec.capability @generic_toolchain {
+    id = "generic.toolchain",
+    kind = "toolchain",
+    status = "available"
+  }
+  tcrv.exec.variant @fixed_shape_path attributes {
+    origin = "runtime-offload-plugin",
+    requires = [@fixed_shape_runtime]
+  } {
+  }
+  tcrv.exec.variant @portable_fallback attributes {
+    origin = "portable-plugin",
+    requires = [@generic_toolchain]
+  } {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // CHECK: error: unguarded dispatch case in kernel @unguarded_conflict_dispatch targets variant @fixed_shape_path with conflicting required capability @fixed_shape_runtime
+    // CHECK-SAME: id = "runtime.fixed_shape"
+    // CHECK-SAME: conflicting with available capability @shape_profile
+    // CHECK-SAME: id = "shape.profile"
+    // CHECK-SAME: via conflict id "shape.dynamic"
+    // CHECK-SAME: condition, guard, or policy
+    tcrv.exec.case @fixed_shape_path
+    tcrv.exec.fallback @portable_fallback
+  }
+}
+
+tcrv.exec.kernel @conflicting_fallback attributes {} {
+  tcrv.exec.capability @generic_toolchain {
+    id = "generic.toolchain",
+    kind = "toolchain",
+    status = "available"
+  }
+  tcrv.exec.capability @scalar_fallback {
+    id = "scalar.fallback",
+    kind = "fallback",
+    conflicts = ["build.policy.no_scalar_fallback"],
+    status = "available"
+  }
+  tcrv.exec.capability @no_scalar_fallback {
+    id = "build.policy.no_scalar_fallback",
+    kind = "build-policy",
+    status = "available"
+  }
+  tcrv.exec.variant @available_case_path attributes {
+    origin = "portable-plugin",
+    requires = [@generic_toolchain]
+  } {
+  }
+  tcrv.exec.variant @portable_fallback attributes {
+    origin = "runtime-fallback-plugin",
+    requires = [@scalar_fallback]
+  } {
+  }
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @available_case_path {condition = "generic_toolchain_available"}
+    // CHECK: error: dispatch fallback in kernel @conflicting_fallback targets variant @portable_fallback with conflicting required capability @scalar_fallback
+    // CHECK-SAME: id = "scalar.fallback"
+    // CHECK-SAME: conflicting with available capability @no_scalar_fallback
+    // CHECK-SAME: id = "build.policy.no_scalar_fallback"
+    // CHECK-SAME: via conflict id "build.policy.no_scalar_fallback"
+    tcrv.exec.fallback @portable_fallback
+  }
+}

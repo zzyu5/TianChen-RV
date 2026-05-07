@@ -10,6 +10,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 using tianchenrv::support::CapabilityAvailability;
+using tianchenrv::support::CapabilityConflict;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
@@ -52,6 +53,29 @@ module {
       conflicts = ["vendor.inline_asm_forbidden"],
       architecture = "riscv64"
     }
+    tcrv.exec.capability @inline_asm_forbidden {
+      id = "vendor.inline_asm_forbidden",
+      kind = "build-policy",
+      status = "available"
+    }
+    tcrv.exec.capability @dynamic_shape_policy {
+      id = "shape.policy.profile",
+      kind = "shape-policy",
+      provides = ["shape.dynamic"],
+      status = "available"
+    }
+    tcrv.exec.capability @fixed_shape_runtime {
+      id = "runtime.fixed_shape",
+      kind = "runtime-offload",
+      conflicts = ["shape.dynamic"],
+      status = "available"
+    }
+    tcrv.exec.capability @no_rvv_policy {
+      id = "policy.no_rvv",
+      kind = "build-policy",
+      conflicts = ["rvv"],
+      status = "available"
+    }
     tcrv.exec.capability @rvv_uarch {
       id = "rvv.uarch",
       kind = "uarch",
@@ -84,7 +108,7 @@ module {
 
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
-  if (int result = expect(capabilities.size() == 7,
+  if (int result = expect(capabilities.size() == 11,
                           "all declared capabilities are collected"))
     return result;
 
@@ -159,12 +183,67 @@ module {
           expect(capabilities.lookupProviderByID("zvl128b") == rvvProfile,
                  "provider lookup resolves implied capability id"))
     return result;
+  llvm::SmallVector<const CapabilityDescriptor *, 4> dynamicShapeProviders;
+  capabilities.collectProvidersByID("shape.dynamic", dynamicShapeProviders);
+  if (int result = expect(dynamicShapeProviders.size() == 1 &&
+                              dynamicShapeProviders.front()->getSymbolName() ==
+                                  "dynamic_shape_policy",
+                          "provider collection resolves relation-satisfied "
+                          "capability ids"))
+    return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
                           "provided capability id is available by relation"))
     return result;
   if (int result =
           expect(capabilities.isCapabilityAvailableByID("zvl128b"),
                  "implied capability id is available by relation"))
+    return result;
+
+  llvm::SmallVector<CapabilityConflict, 4> rvvProfileConflicts;
+  capabilities.collectAvailableConflictsForCapability(*rvvProfile,
+                                                      rvvProfileConflicts);
+  if (int result = expect(rvvProfileConflicts.size() == 2,
+                          "conflict query detects direct and reverse "
+                          "relation-satisfied conflicts"))
+    return result;
+  bool sawDirectConflict = false;
+  bool sawReverseConflict = false;
+  for (const CapabilityConflict &conflict : rvvProfileConflicts) {
+    if (conflict.conflictID == "vendor.inline_asm_forbidden" &&
+        conflict.conflictingCapability->getSymbolName() ==
+            "inline_asm_forbidden" &&
+        conflict.relationOwner == rvvProfile)
+      sawDirectConflict = true;
+    if (conflict.conflictID == "rvv" &&
+        conflict.conflictingCapability->getSymbolName() == "no_rvv_policy" &&
+        conflict.relationOwner->getSymbolName() == "no_rvv_policy")
+      sawReverseConflict = true;
+  }
+  if (int result =
+          expect(sawDirectConflict,
+                 "conflict query resolves direct conflict provider ids"))
+    return result;
+  if (int result = expect(sawReverseConflict,
+                          "conflict query resolves reverse conflicts against "
+                          "provided capability ids"))
+    return result;
+
+  const CapabilityDescriptor *fixedShapeRuntime =
+      capabilities.lookupByID("runtime.fixed_shape");
+  if (int result = expect(fixedShapeRuntime,
+                          "fixed-shape runtime capability is present"))
+    return result;
+  llvm::SmallVector<CapabilityConflict, 2> fixedShapeConflicts;
+  capabilities.collectAvailableConflictsForCapability(*fixedShapeRuntime,
+                                                      fixedShapeConflicts);
+  if (int result = expect(fixedShapeConflicts.size() == 1 &&
+                              fixedShapeConflicts.front()
+                                      .conflictingCapability->getSymbolName() ==
+                                  "dynamic_shape_policy" &&
+                              fixedShapeConflicts.front().conflictID ==
+                                  "shape.dynamic",
+                          "conflict query resolves conflict providers through "
+                          "provides relations"))
     return result;
 
   if (int result = expect(TargetCapabilitySet::availabilityFromStatus(

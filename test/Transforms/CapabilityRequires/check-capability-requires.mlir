@@ -116,3 +116,47 @@ tcrv.exec.kernel @guarded_by_inherited_case_metadata attributes {} {
     tcrv.exec.fallback @portable_fallback
   }
 }
+
+// -----
+
+// CHECK-LABEL: tcrv.exec.kernel @guarded_conflict_dispatch
+tcrv.exec.kernel @guarded_conflict_dispatch attributes {} {
+  tcrv.exec.capability @inline_asm {
+    id = "vendor.inline_asm",
+    kind = "toolchain",
+    conflicts = ["build.policy.no_inline_asm"],
+    status = "available"
+  }
+  tcrv.exec.capability @no_inline_profile {
+    id = "build.policy.profile",
+    kind = "build-policy",
+    provides = ["build.policy.no_inline_asm"],
+    status = "available"
+  }
+  tcrv.exec.capability @scalar_fallback {
+    id = "scalar.fallback",
+    kind = "fallback",
+    status = "available"
+  }
+  // CHECK: tcrv.exec.variant @inline_asm_path
+  // CHECK-SAME: requires = [@inline_asm]
+  tcrv.exec.variant @inline_asm_path attributes {
+    origin = "inline-asm-plugin",
+    requires = [@inline_asm]
+  } {
+  }
+  tcrv.exec.variant @portable_fallback attributes {
+    origin = "portable-plugin",
+    requires = [@scalar_fallback]
+  } {
+  }
+  // CHECK: tcrv.exec.dispatch
+  tcrv.exec.dispatch attributes {} {
+    // CHECK: tcrv.exec.case @inline_asm_path
+    // CHECK-SAME: guard = "runtime_policy_allows_inline_asm"
+    tcrv.exec.case @inline_asm_path {
+      guard = "runtime_policy_allows_inline_asm"
+    }
+    tcrv.exec.fallback @portable_fallback
+  }
+}

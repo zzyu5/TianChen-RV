@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV MLIR invariants and source-of-truth boundaries"}
+{"file": ".trellis/spec/capability-model/index.md", "reason": "capability model checklist for compiler decision objects"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "structured capability relation semantics including conflicts"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec capability/variant/dispatch contract and compute-free boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant legality, dispatch protection, and selection pipeline behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit and C++ test requirements for capability/pass changes"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability-first review checklist for target facts and legality"}

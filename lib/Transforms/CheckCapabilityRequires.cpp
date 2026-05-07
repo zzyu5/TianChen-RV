@@ -25,12 +25,19 @@ constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 
-struct UnavailableRequirement {
+struct RequirementIssue {
+  enum class Kind {
+    Unavailable,
+    Conflict,
+  };
+
+  Kind kind = Kind::Unavailable;
   llvm::StringRef symbolName;
   const support::CapabilityDescriptor *capability = nullptr;
+  support::CapabilityConflict conflict;
 };
 
-using RequirementList = llvm::SmallVector<UnavailableRequirement, 4>;
+using RequirementIssueList = llvm::SmallVector<RequirementIssue, 4>;
 
 class CheckCapabilityRequiresPass final
     : public impl::CheckCapabilityRequiresBase<CheckCapabilityRequiresPass> {
@@ -39,26 +46,26 @@ public:
       CheckCapabilityRequiresPass>::CheckCapabilityRequiresBase;
 
   void runOnOperation() override {
-    bool foundUnavailableRequirement = false;
+    bool foundRequirementIssue = false;
     getOperation()->walk([&](tcrv::exec::KernelOp kernel) {
       support::TargetCapabilitySet capabilities =
           support::TargetCapabilitySet::buildFromKernel(kernel);
-      checkKernel(kernel, capabilities, foundUnavailableRequirement);
+      checkKernel(kernel, capabilities, foundRequirementIssue);
     });
 
-    if (foundUnavailableRequirement)
+    if (foundRequirementIssue)
       signalPassFailure();
   }
 
 private:
   void checkKernel(tcrv::exec::KernelOp kernel,
                    const support::TargetCapabilitySet &capabilities,
-                   bool &foundUnavailableRequirement) const {
+                   bool &foundRequirementIssue) const {
     if (!kernel || kernel.getBody().empty())
       return;
 
     llvm::StringMap<tcrv::exec::VariantOp> variantsBySymbol;
-    llvm::StringMap<RequirementList> unavailableByVariant;
+    llvm::StringMap<RequirementIssueList> issuesByVariant;
     llvm::StringSet<> dispatchCaseTargets;
     llvm::StringSet<> fallbackTargets;
 
@@ -68,11 +75,10 @@ private:
         continue;
 
       variantsBySymbol[variant.getSymName()] = variant;
-      RequirementList unavailableRequirements =
-          collectUnavailableRequirements(variant, capabilities);
-      if (!unavailableRequirements.empty())
-        unavailableByVariant[variant.getSymName()] =
-            std::move(unavailableRequirements);
+      RequirementIssueList issues =
+          collectRequirementIssues(variant, capabilities);
+      if (!issues.empty())
+        issuesByVariant[variant.getSymName()] = std::move(issues);
     }
 
     for (mlir::Operation &op : kernel.getBody().front()) {
@@ -83,16 +89,15 @@ private:
       for (mlir::Operation &dispatchBodyOp : dispatch.getBody().front()) {
         if (auto dispatchCase =
                 llvm::dyn_cast<tcrv::exec::DispatchCaseOp>(dispatchBodyOp)) {
-          checkDispatchCase(kernel, dispatchCase, unavailableByVariant,
-                            dispatchCaseTargets,
-                            foundUnavailableRequirement);
+          checkDispatchCase(kernel, dispatchCase, issuesByVariant,
+                            dispatchCaseTargets, foundRequirementIssue);
           continue;
         }
 
         if (auto fallback =
                 llvm::dyn_cast<tcrv::exec::FallbackOp>(dispatchBodyOp)) {
-          checkFallback(kernel, fallback, unavailableByVariant, fallbackTargets,
-                        foundUnavailableRequirement);
+          checkFallback(kernel, fallback, issuesByVariant, fallbackTargets,
+                        foundRequirementIssue);
           continue;
         }
       }
@@ -103,32 +108,31 @@ private:
           fallbackTargets.contains(variantEntry.getKey()))
         continue;
 
-      auto unavailableIt = unavailableByVariant.find(variantEntry.getKey());
-      if (unavailableIt == unavailableByVariant.end())
+      auto issueIt = issuesByVariant.find(variantEntry.getKey());
+      if (issueIt == issuesByVariant.end())
         continue;
 
-      for (const UnavailableRequirement &requirement :
-           unavailableIt->getValue()) {
+      for (const RequirementIssue &issue : issueIt->getValue()) {
         mlir::InFlightDiagnostic diagnostic =
             variantEntry.getValue().emitError()
-            << "static variant @" << variantEntry.getKey()
-            << " requires unavailable capability";
-        appendCapabilityDetails(diagnostic, requirement);
+            << "static variant @" << variantEntry.getKey() << " requires ";
+        appendIssueDetails(diagnostic, issue,
+                           /*includeRequiredAdjective=*/false);
         diagnostic << " in kernel @" << kernel.getSymName()
                    << "; variant is not protected by tcrv.exec.dispatch case";
-        foundUnavailableRequirement = true;
+        foundRequirementIssue = true;
       }
     }
   }
 
-  RequirementList collectUnavailableRequirements(
+  RequirementIssueList collectRequirementIssues(
       tcrv::exec::VariantOp variant,
       const support::TargetCapabilitySet &capabilities) const {
-    RequirementList unavailableRequirements;
+    RequirementIssueList issues;
     auto requiresAttr =
         variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
     if (!requiresAttr)
-      return unavailableRequirements;
+      return issues;
 
     for (mlir::Attribute requiredCapability : requiresAttr) {
       auto symbolRef =
@@ -138,21 +142,39 @@ private:
 
       const support::CapabilityDescriptor *capability =
           capabilities.lookupBySymbolName(symbolRef.getValue());
-      if (!capability || capability->isAvailable())
+      if (!capability)
         continue;
 
-      unavailableRequirements.push_back(
-          UnavailableRequirement{symbolRef.getValue(), capability});
+      if (!capability->isAvailable()) {
+        RequirementIssue issue;
+        issue.kind = RequirementIssue::Kind::Unavailable;
+        issue.symbolName = symbolRef.getValue();
+        issue.capability = capability;
+        issues.push_back(issue);
+        continue;
+      }
+
+      llvm::SmallVector<support::CapabilityConflict, 4> conflicts;
+      capabilities.collectAvailableConflictsForCapability(*capability,
+                                                          conflicts);
+      for (const support::CapabilityConflict &conflict : conflicts) {
+        RequirementIssue issue;
+        issue.kind = RequirementIssue::Kind::Conflict;
+        issue.symbolName = symbolRef.getValue();
+        issue.capability = capability;
+        issue.conflict = conflict;
+        issues.push_back(issue);
+      }
     }
 
-    return unavailableRequirements;
+    return issues;
   }
 
   void checkDispatchCase(
       tcrv::exec::KernelOp kernel, tcrv::exec::DispatchCaseOp dispatchCase,
-      const llvm::StringMap<RequirementList> &unavailableByVariant,
+      const llvm::StringMap<RequirementIssueList> &issuesByVariant,
       llvm::StringSet<> &dispatchCaseTargets,
-      bool &foundUnavailableRequirement) const {
+      bool &foundRequirementIssue) const {
     auto targetAttr =
         dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
     if (!targetAttr)
@@ -161,32 +183,30 @@ private:
     llvm::StringRef target = targetAttr.getValue();
     dispatchCaseTargets.insert(target);
 
-    auto unavailableIt = unavailableByVariant.find(target);
-    if (unavailableIt == unavailableByVariant.end())
+    auto issueIt = issuesByVariant.find(target);
+    if (issueIt == issuesByVariant.end())
       return;
 
     if (hasGenericDispatchGuard(dispatchCase.getOperation()))
       return;
 
-    for (const UnavailableRequirement &requirement :
-         unavailableIt->getValue()) {
+    for (const RequirementIssue &issue : issueIt->getValue()) {
       mlir::InFlightDiagnostic diagnostic =
           dispatchCase.emitError()
           << "unguarded dispatch case in kernel @" << kernel.getSymName()
-          << " targets variant @" << target
-          << " with unavailable required capability";
-      appendCapabilityDetails(diagnostic, requirement);
+          << " targets variant @" << target << " with ";
+      appendIssueDetails(diagnostic, issue,
+                         /*includeRequiredAdjective=*/true);
       diagnostic << "; add a non-empty condition, guard, or policy to make "
                     "the runtime dispatch guard explicit";
-      foundUnavailableRequirement = true;
+      foundRequirementIssue = true;
     }
   }
 
   void checkFallback(
       tcrv::exec::KernelOp kernel, tcrv::exec::FallbackOp fallback,
-      const llvm::StringMap<RequirementList> &unavailableByVariant,
-      llvm::StringSet<> &fallbackTargets,
-      bool &foundUnavailableRequirement) const {
+      const llvm::StringMap<RequirementIssueList> &issuesByVariant,
+      llvm::StringSet<> &fallbackTargets, bool &foundRequirementIssue) const {
     auto targetAttr =
         fallback->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
     if (!targetAttr)
@@ -195,19 +215,18 @@ private:
     llvm::StringRef target = targetAttr.getValue();
     fallbackTargets.insert(target);
 
-    auto unavailableIt = unavailableByVariant.find(target);
-    if (unavailableIt == unavailableByVariant.end())
+    auto issueIt = issuesByVariant.find(target);
+    if (issueIt == issuesByVariant.end())
       return;
 
-    for (const UnavailableRequirement &requirement :
-         unavailableIt->getValue()) {
+    for (const RequirementIssue &issue : issueIt->getValue()) {
       mlir::InFlightDiagnostic diagnostic =
           fallback.emitError()
           << "dispatch fallback in kernel @" << kernel.getSymName()
-          << " targets variant @" << target
-          << " with unavailable required capability";
-      appendCapabilityDetails(diagnostic, requirement);
-      foundUnavailableRequirement = true;
+          << " targets variant @" << target << " with ";
+      appendIssueDetails(diagnostic, issue,
+                         /*includeRequiredAdjective=*/true);
+      foundRequirementIssue = true;
     }
   }
 
@@ -223,16 +242,47 @@ private:
     return attr && !attr.getValue().trim().empty();
   }
 
-  void appendCapabilityDetails(
-      mlir::InFlightDiagnostic &diagnostic,
-      const UnavailableRequirement &requirement) const {
-    diagnostic << " @" << requirement.symbolName << " (id = \""
-               << requirement.capability->getID() << "\", kind = \""
-               << requirement.capability->getKind() << "\"";
-    if (!requirement.capability->getStatus().empty())
-      diagnostic << ", status = \"" << requirement.capability->getStatus()
-                 << "\"";
+  void appendCapabilityDetails(mlir::InFlightDiagnostic &diagnostic,
+                               llvm::StringRef symbolName,
+                               const support::CapabilityDescriptor &capability)
+      const {
+    diagnostic << " @" << symbolName << " (id = \"" << capability.getID()
+               << "\", kind = \"" << capability.getKind() << "\"";
+    if (!capability.getStatus().empty())
+      diagnostic << ", status = \"" << capability.getStatus() << "\"";
     diagnostic << ")";
+  }
+
+  void appendIssueDetails(mlir::InFlightDiagnostic &diagnostic,
+                          const RequirementIssue &issue,
+                          bool includeRequiredAdjective) const {
+    switch (issue.kind) {
+    case RequirementIssue::Kind::Unavailable:
+      diagnostic << "unavailable ";
+      if (includeRequiredAdjective)
+        diagnostic << "required ";
+      diagnostic << "capability";
+      appendCapabilityDetails(diagnostic, issue.symbolName, *issue.capability);
+      return;
+    case RequirementIssue::Kind::Conflict:
+      diagnostic << "conflicting ";
+      if (includeRequiredAdjective)
+        diagnostic << "required ";
+      diagnostic << "capability";
+      appendCapabilityDetails(diagnostic, issue.symbolName, *issue.capability);
+      diagnostic << " conflicting with available capability";
+      appendCapabilityDetails(
+          diagnostic, issue.conflict.conflictingCapability->getSymbolName(),
+          *issue.conflict.conflictingCapability);
+      diagnostic << " via conflict id \"" << issue.conflict.conflictID
+                 << "\"";
+      if (issue.conflict.relationOwner &&
+          issue.conflict.relationOwner != issue.capability) {
+        diagnostic << " declared by capability @"
+                   << issue.conflict.relationOwner->getSymbolName();
+      }
+      return;
+    }
   }
 };
 

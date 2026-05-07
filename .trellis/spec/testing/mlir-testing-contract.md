@@ -22,6 +22,9 @@ Use lit/FileCheck for:
 - pass pipelines;
 - rewrite/lowering behavior visible in textual IR;
 - capability-driven variant generation and rejection diagnostics;
+- capability conflict legality diagnostics, including static variant
+  rejection, guarded dispatch-case allowance, unguarded dispatch-case
+  rejection, and fallback rejection without target-family-specific branches;
 - public plugin-variant materialization pass behavior, including built-in
   registry proposal routing, deterministic proposal order, parseable downstream
   pass pipelines, no-built-in-registry diagnostics, plugin-local proposal

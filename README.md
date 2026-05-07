@@ -37,7 +37,13 @@ profile capability such as `id = "rvv.profile.rv64gcv", provides = ["rvv"]`
 satisfy plugin proposals that require capability id `rvv`, while an exact
 capability id remains authoritative when present. These relations participate
 in compiler decisions such as RVV plugin proposal, variant materialization, and
-RVV legality; full conflict solving remains future work.
+RVV legality. The generic `--tcrv-check-capability-requires` pass also uses a
+bounded conflict query: unprotected static variants and dispatch fallbacks fail
+when a required available capability conflicts with another available
+capability, while dispatch cases must carry an explicit generic guard surface
+before a conflicting requirement can remain dispatch-protected. Full conflict
+solving, provider ranking, and automatic conflict resolution remain future
+work.
 
 The built-in RVV first slice registers the concrete MLIR namespace
 `tcrv_rvv` through the RVV plugin path. It includes metadata/control-plane
