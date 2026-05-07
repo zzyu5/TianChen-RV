@@ -19,6 +19,9 @@ namespace transforms {
 
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
 std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
+std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass();
+std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass(
+    const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createSelectVariantsPass();
 std::unique_ptr<::mlir::Pass>
 createSelectVariantsPass(const plugin::ExtensionPluginRegistry &registry);

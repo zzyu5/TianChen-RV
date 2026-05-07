@@ -1,8 +1,15 @@
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
+#include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Transforms/Passes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/IR/Visitors.h"
+#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -15,11 +22,17 @@
 #include <utility>
 
 namespace tianchenrv::transforms {
+
+#define GEN_PASS_DEF_MATERIALIZEPLUGINVARIANTS
+#include "TianChenRV/Transforms/Passes.h.inc"
+
 namespace {
 
+using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::CapabilityDescriptor;
+using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::CapabilityOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -111,6 +124,17 @@ bool isValidPluginAttributeName(llvm::StringRef name) {
 
 bool kernelHasBody(KernelOp kernel) {
   return kernel && !kernel.getBody().empty();
+}
+
+bool kernelHasDirectCapability(KernelOp kernel) {
+  if (!kernelHasBody(kernel))
+    return false;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    if (llvm::isa<CapabilityOp>(op))
+      return true;
+  }
+  return false;
 }
 
 std::string getNonEmptyDecisionMetadata(llvm::StringRef value) {
@@ -337,6 +361,306 @@ llvm::Error validateAndPlanMaterialization(
   return llvm::Error::success();
 }
 
+llvm::Error buildExpectedRequiredRefs(
+    mlir::OpBuilder &builder, const VariantProposalRequest &request,
+    const VariantProposal &proposal,
+    llvm::SmallVectorImpl<mlir::Attribute> &requiredCapabilityRefs) {
+  KernelOp kernel = request.getKernel();
+  llvm::StringSet<> seenRequiredSymbols;
+
+  for (const std::string &requiredIDStorage :
+       proposal.getRequiredCapabilityIDs()) {
+    if (llvm::Error error = appendRequiredID(
+            builder, kernel, request, proposal, requiredIDStorage,
+            seenRequiredSymbols, requiredCapabilityRefs))
+      return error;
+  }
+
+  for (const std::string &requiredSymbolStorage :
+       proposal.getRequiredCapabilitySymbols()) {
+    llvm::StringRef requiredSymbol(requiredSymbolStorage);
+    const CapabilityDescriptor *capability =
+        request.getCapabilities().lookupBySymbolName(requiredSymbol);
+    if (!capability) {
+      if (requiredSymbol.trim().empty())
+        return makeProposalError(
+            proposal, "required capability symbol reference must be non-empty");
+      return makeProposalError(
+          proposal, llvm::Twine("unresolved required capability symbol @") +
+                        requiredSymbol + " in kernel @" + kernel.getSymName());
+    }
+
+    if (llvm::Error error =
+            appendRequiredSymbol(builder, kernel, proposal, requiredSymbol,
+                                 seenRequiredSymbols, requiredCapabilityRefs))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
+bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
+  if (!lhs || !rhs || lhs.size() != rhs.size())
+    return false;
+
+  for (auto [lhsAttr, rhsAttr] : llvm::zip(lhs, rhs)) {
+    if (lhsAttr != rhsAttr)
+      return false;
+  }
+  return true;
+}
+
+llvm::Error explainExistingVariantMismatch(VariantOp existing,
+                                           const VariantProposal &proposal,
+                                           llvm::Twine reason) {
+  return makeProposalError(
+      proposal, llvm::Twine("existing direct variant @") +
+                    existing.getSymName() +
+                    " does not exactly match the current plugin proposal: " +
+                    reason);
+}
+
+llvm::Error existingVariantMatchesProposal(
+    mlir::OpBuilder &builder, const VariantProposalRequest &request,
+    const VariantProposal &proposal, VariantOp existing) {
+  if (!existing)
+    return makeProposalError(
+        proposal, "existing direct symbol for proposed variant is not a "
+                  "tcrv.exec.variant");
+
+  if (existing.getBody().empty())
+    return explainExistingVariantMismatch(
+        existing, proposal, "variant region is missing its materialized block");
+
+  if (!existing.getBody().front().empty())
+    return explainExistingVariantMismatch(
+        existing, proposal,
+        "variant body is not the empty body produced by proposal "
+        "materialization");
+
+  auto originAttr =
+      existing->getAttrOfType<mlir::StringAttr>("origin");
+  if (!originAttr || originAttr.getValue() != proposal.getOriginPlugin())
+    return explainExistingVariantMismatch(existing, proposal,
+                                          "origin attribute differs");
+
+  llvm::SmallVector<mlir::Attribute, 4> requiredCapabilityRefs;
+  if (llvm::Error error = buildExpectedRequiredRefs(
+          builder, request, proposal, requiredCapabilityRefs))
+    return error;
+
+  mlir::ArrayAttr expectedRequires = builder.getArrayAttr(requiredCapabilityRefs);
+  mlir::ArrayAttr actualRequires =
+      existing->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!arrayAttrsEqual(actualRequires, expectedRequires))
+    return explainExistingVariantMismatch(existing, proposal,
+                                          "requires attribute differs");
+
+  auto requireStringMetadata = [&](llvm::StringRef attrName,
+                                   llvm::StringRef expected) -> llvm::Error {
+    auto attr = existing->getAttrOfType<mlir::StringAttr>(attrName);
+    if (expected.empty()) {
+      if (attr)
+        return explainExistingVariantMismatch(
+            existing, proposal,
+            llvm::Twine(attrName) + " attribute is present but proposal omits it");
+      return llvm::Error::success();
+    }
+
+    if (!attr || attr.getValue() != expected)
+      return explainExistingVariantMismatch(
+          existing, proposal, llvm::Twine(attrName) + " attribute differs");
+    return llvm::Error::success();
+  };
+
+  if (llvm::Error error =
+          requireStringMetadata("condition",
+                                getNonEmptyDecisionMetadata(
+                                    proposal.getCondition())))
+    return error;
+  if (llvm::Error error =
+          requireStringMetadata("guard",
+                                getNonEmptyDecisionMetadata(proposal.getGuard())))
+    return error;
+  if (llvm::Error error =
+          requireStringMetadata("policy",
+                                getNonEmptyDecisionMetadata(
+                                    proposal.getPolicy())))
+    return error;
+
+  std::string expectedFallbackRole =
+      proposal.hasFallbackRole()
+          ? plugin::stringifyVariantFallbackRole(proposal.getFallbackRole()).str()
+          : std::string();
+  if (llvm::Error error = requireStringMetadata(
+          plugin::kVariantFallbackRoleAttrName, expectedFallbackRole))
+    return error;
+
+  llvm::SmallVector<mlir::NamedAttribute, 4> expectedPluginAttributes;
+  if (llvm::Error error =
+          validateAndCopyPluginAttributes(proposal, expectedPluginAttributes))
+    return error;
+
+  llvm::StringSet<> expectedPluginAttributeNames;
+  for (mlir::NamedAttribute attribute : expectedPluginAttributes)
+    expectedPluginAttributeNames.insert(attribute.getName().getValue());
+
+  for (mlir::NamedAttribute expectedAttribute : expectedPluginAttributes) {
+    mlir::Attribute actual =
+        existing->getAttr(expectedAttribute.getName().getValue());
+    if (actual != expectedAttribute.getValue())
+      return explainExistingVariantMismatch(
+          existing, proposal,
+          llvm::Twine("plugin-owned attribute '") +
+              expectedAttribute.getName().getValue() + "' differs");
+  }
+
+  for (mlir::NamedAttribute actualAttribute : existing->getAttrs()) {
+    llvm::StringRef name = actualAttribute.getName().getValue();
+    if (isCoreVariantAttributeName(name) ||
+        expectedPluginAttributeNames.contains(name))
+      continue;
+    return explainExistingVariantMismatch(
+        existing, proposal,
+        llvm::Twine("unexpected extra attribute '") + name + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error filterAlreadyMaterializedProposals(
+    mlir::OpBuilder &builder, const VariantProposalRequest &request,
+    llvm::ArrayRef<VariantProposal> proposals,
+    llvm::SmallVectorImpl<VariantProposal> &proposalsToMaterialize) {
+  KernelOp kernel = request.getKernel();
+  for (const VariantProposal &proposal : proposals) {
+    mlir::Operation *existingSymbol = mlir::SymbolTable::lookupSymbolIn(
+        kernel.getOperation(), proposal.getVariantName());
+    if (!existingSymbol) {
+      proposalsToMaterialize.push_back(proposal);
+      continue;
+    }
+
+    auto existingVariant = llvm::dyn_cast<VariantOp>(existingSymbol);
+    if (!existingVariant)
+      return makeProposalError(
+          proposal, llvm::Twine("duplicate proposed variant symbol @") +
+                        proposal.getVariantName() +
+                        " resolves to non-variant op " +
+                        existingSymbol->getName().getStringRef() +
+                        " in kernel @" + kernel.getSymName());
+
+    if (llvm::Error error = existingVariantMatchesProposal(
+            builder, request, proposal, existingVariant))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error materializeKernelPluginVariants(
+    mlir::OpBuilder &builder, KernelOp kernel,
+    const ExtensionPluginRegistry &registry,
+    llvm::SmallVectorImpl<VariantOp> *materializedVariants = nullptr) {
+  if (!kernel)
+    return makeMaterializationError(
+        "TianChen-RV plugin variant materialization requires a "
+        "tcrv.exec.kernel");
+
+  if (!kernelHasBody(kernel))
+    return makeMaterializationError(
+        llvm::Twine("TianChen-RV plugin variant materialization requires "
+                    "kernel @") +
+        kernel.getSymName() + " to have a materialized body block");
+
+  if (registry.empty())
+    return makeMaterializationError(
+        llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
+        kernel.getSymName() +
+        " requires at least one enabled extension plugin in the registry");
+
+  if (!kernelHasDirectCapability(kernel))
+    return makeMaterializationError(
+        llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
+        kernel.getSymName() +
+        " requires existing direct tcrv.exec.capability anchors");
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+
+  llvm::SmallVector<VariantProposal, 4> proposals;
+  if (llvm::Error error = registry.collectVariantProposals(request, proposals))
+    return error;
+
+  llvm::SmallVector<VariantProposal, 4> proposalsToMaterialize;
+  if (llvm::Error error = filterAlreadyMaterializedProposals(
+          builder, request, proposals, proposalsToMaterialize))
+    return error;
+
+  return materializeVariantProposals(builder, request, proposalsToMaterialize,
+                                     materializedVariants);
+}
+
+class MaterializePluginVariantsPass final
+    : public impl::MaterializePluginVariantsBase<
+          MaterializePluginVariantsPass> {
+public:
+  MaterializePluginVariantsPass() : registry(&ownedRegistry) {}
+
+  explicit MaterializePluginVariantsPass(
+      const ExtensionPluginRegistry &registry)
+      : registry(&registry) {}
+
+  MaterializePluginVariantsPass(const MaterializePluginVariantsPass &other)
+      : impl::MaterializePluginVariantsBase<MaterializePluginVariantsPass>(
+            other),
+        registry(other.registry == &other.ownedRegistry ? &ownedRegistry
+                                                        : other.registry) {}
+
+  void runOnOperation() override {
+    loadPluginDialects();
+
+    mlir::OpBuilder builder(&getContext());
+    llvm::SmallVector<KernelOp, 4> kernels;
+    getOperation()->walk([&](KernelOp kernel) { kernels.push_back(kernel); });
+
+    for (KernelOp kernel : kernels) {
+      if (mlir::failed(runMaterialization(builder, kernel))) {
+        signalPassFailure();
+        return;
+      }
+    }
+  }
+
+private:
+  void loadPluginDialects() {
+    if (registry->empty())
+      return;
+
+    mlir::DialectRegistry dialects;
+    registry->registerDialectsForEnabledPlugins(dialects);
+    getContext().appendDialectRegistry(dialects);
+    getContext().loadAllAvailableDialects();
+  }
+
+  mlir::LogicalResult runMaterialization(mlir::OpBuilder &builder,
+                                         KernelOp kernel) {
+    if (llvm::Error error =
+            materializeKernelPluginVariants(builder, kernel, *registry)) {
+      std::string message = llvm::toString(std::move(error));
+      if (kernel)
+        kernel.emitError() << message;
+      else
+        getOperation()->emitError() << message;
+      return mlir::failure();
+    }
+    return mlir::success();
+  }
+
+  ExtensionPluginRegistry ownedRegistry;
+  const ExtensionPluginRegistry *registry = nullptr;
+};
+
 } // namespace
 
 llvm::Error materializeVariantProposals(
@@ -391,6 +715,15 @@ llvm::Error collectAndMaterializeVariantProposals(
 
   return materializeVariantProposals(builder, request, proposals,
                                      materializedVariants);
+}
+
+std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass() {
+  return std::make_unique<MaterializePluginVariantsPass>();
+}
+
+std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass(
+    const plugin::ExtensionPluginRegistry &registry) {
+  return std::make_unique<MaterializePluginVariantsPass>(registry);
 }
 
 } // namespace tianchenrv::transforms

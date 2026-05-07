@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler boundaries and invariants"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "plugin proposal collection and variant materialization contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "registry orchestration, proposal validation, and target-neutral pass rules"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin locality and core-owned orchestration boundaries"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "TargetCapabilitySet and structured capability participation requirements"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec execution-only dialect contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first-slice proposal gating and plugin-local metadata requirements"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback first-slice proposal and conservative fallback semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and C++ test evidence policy"}

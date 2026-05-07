@@ -22,6 +22,10 @@ Use lit/FileCheck for:
 - pass pipelines;
 - rewrite/lowering behavior visible in textual IR;
 - capability-driven variant generation and rejection diagnostics;
+- public plugin-variant materialization pass behavior, including built-in
+  registry proposal routing, deterministic proposal order, parseable downstream
+  pass pipelines, no-built-in-registry diagnostics, plugin-local proposal
+  failures, and safe repeated-run behavior;
 - dispatch/fallback IR structure;
 - default public pass diagnostics when origin plugins are not registered.
 - emission-plan diagnostic verifier behavior and default public

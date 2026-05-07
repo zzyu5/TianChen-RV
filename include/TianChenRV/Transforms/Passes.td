@@ -44,6 +44,34 @@ def SynthesizeVariantDispatch
   ];
 }
 
+def MaterializePluginVariants
+    : Pass<"tcrv-materialize-plugin-variants", "::mlir::ModuleOp"> {
+  let summary = "Collect plugin proposals and materialize tcrv.exec variants";
+  let description = [{
+    Scans existing tcrv.exec.kernel operations, builds a generic
+    TargetCapabilitySet from each kernel's direct tcrv.exec.capability anchors,
+    asks an injected ExtensionPluginRegistry for validated plugin proposals, and
+    materializes those proposals as typed tcrv.exec.variant operations through
+    the shared materialization API.
+
+    The pass is target-neutral. It does not branch on RVV, scalar fallback, IME,
+    offload, vendor, runtime, dtype, shape, or microarchitecture semantics.
+    Public tcrv-opt registration owns a deterministic built-in registry at the
+    tool boundary, while the default factory constructor owns an empty registry
+    for embedded negative tests and diagnoses kernels instead of inventing core
+    variants.
+
+    Repeated runs skip existing direct variants only when they exactly match the
+    current plugin proposal metadata. Mismatched existing symbols are diagnosed
+    so the pass never silently appends duplicates or overwrites hand-authored IR.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializePluginVariantsPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def SelectVariants
     : Pass<"tcrv-select-variants", "::mlir::ModuleOp"> {
   let summary = "Run generic capability-aware variant selection planning";

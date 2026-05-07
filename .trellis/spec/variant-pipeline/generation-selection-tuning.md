@@ -115,6 +115,21 @@ This helper does not select variants, build dispatch, run tuning, lower
 extension dialects, emit runtime glue, or implement extension-specific
 semantics. Core materialization must remain free of target-family branches.
 
+The public compiler pass surface for this slice is
+`--tcrv-materialize-plugin-variants`. It scans existing `tcrv.exec.kernel`
+anchors, builds each kernel's generic `TargetCapabilitySet` from direct
+`tcrv.exec.capability` objects, routes proposal collection through an injected
+`ExtensionPluginRegistry`, and materializes the validated proposal set through
+the shared helper above. Public tools may inject the deterministic built-in
+registry at the tool boundary; the default factory uses an empty registry for
+negative/embedded tests and must not invent core-owned variants.
+
+The pass must be safely repeatable: if a proposed variant symbol already exists,
+it may skip only an existing direct `tcrv.exec.variant` whose origin, requires,
+generic decision metadata, fallback role, plugin-owned attributes, and empty
+materialized body exactly match the current proposal. Mismatched symbols must be
+diagnosed rather than overwritten or duplicated.
+
 ## Generic Dispatch Synthesis
 
 After variants are already materialized, a bounded core C++/MLIR dispatch
