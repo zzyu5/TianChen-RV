@@ -231,6 +231,85 @@ bool isForbiddenWithVLParameterAttr(llvm::StringRef name) {
          name == kCapabilityFactsAttrName;
 }
 
+mlir::LogicalResult
+verifyMicrokernelStructuredControlPlane(I32VAddMicrokernelOp microkernel) {
+  mlir::Region &body = microkernel.getBody();
+  if (body.empty() || !llvm::hasSingleElement(body))
+    return microkernel.emitOpError()
+           << "requires exactly one structured RVV control-plane body block";
+
+  mlir::Block &block = body.front();
+  if (block.getNumArguments() != 1)
+    return microkernel.emitOpError()
+           << "requires structured control-plane body to have exactly one "
+              "runtime index block argument for target/export-owned n/AVL";
+  if (!block.getArgument(0).getType().isIndex())
+    return microkernel.emitOpError()
+           << "requires structured control-plane body argument to have index "
+              "type for runtime n/AVL";
+
+  SetVLOp setvl;
+  WithVLOp withVL;
+  unsigned setvlCount = 0;
+  unsigned withVLCount = 0;
+  for (mlir::Operation &bodyOp : block) {
+    if (auto candidate = llvm::dyn_cast<SetVLOp>(bodyOp)) {
+      setvl = candidate;
+      ++setvlCount;
+      continue;
+    }
+    if (auto candidate = llvm::dyn_cast<WithVLOp>(bodyOp)) {
+      withVL = candidate;
+      ++withVLCount;
+      continue;
+    }
+    return microkernel.emitOpError()
+           << "structured control-plane body accepts only "
+              "tcrv_rvv.setvl and tcrv_rvv.with_vl direct operations; "
+              "unexpected operation '"
+           << bodyOp.getName().getStringRef() << "'";
+  }
+
+  if (setvlCount != 1)
+    return microkernel.emitOpError()
+           << "requires exactly one tcrv_rvv.setvl in the structured "
+              "control-plane body";
+  if (withVLCount != 1)
+    return microkernel.emitOpError()
+           << "requires exactly one tcrv_rvv.with_vl in the structured "
+              "control-plane body";
+
+  if (setvl.getAvl() != block.getArgument(0))
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.setvl AVL operand to be the runtime index "
+              "body argument, not descriptor-local element_count or a "
+              "constant";
+  if (withVL.getVl() != setvl.getVl())
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.with_vl to consume the !tcrv_rvv.vl token "
+              "produced by the body tcrv_rvv.setvl";
+
+  if (!withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName) ||
+      !withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName) ||
+      !withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName)) {
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.with_vl to carry explicit SEW/LMUL/policy "
+              "control metadata so emission can consume the structured body";
+  }
+
+  mlir::Region &withVLBody = withVL.getBody();
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.with_vl to own one body block";
+  if (!withVLBody.front().empty())
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.with_vl body to remain empty in the bounded "
+              "i32-vadd control-plane slice; RVV arithmetic/memory ops are "
+              "not modeled here";
+
+  return mlir::success();
+}
+
 } // namespace
 
 mlir::LogicalResult SetVLOp::verify() {
@@ -683,6 +762,9 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
   if (!requiresRVV)
     return emitOpError()
            << "required_capabilities must include capability id 'rvv'";
+
+  if (mlir::failed(verifyMicrokernelStructuredControlPlane(*this)))
+    return mlir::failure();
 
   return mlir::success();
 }

@@ -99,14 +99,22 @@ contain a selected `rvv-plugin` variant, matching `tcrv_rvv.lowering_boundary`,
 preserved selected march metadata, and the bounded RVV microkernel op. The op
 may come from an explicit fixture or from the RVV plugin materializing the
 finite `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` selected
-variant descriptor during the execution-planning pipeline. The generated source
-uses `riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
-runtime-callable C ABI function:
+variant descriptor during the execution-planning pipeline. The microkernel op
+now carries a structured RVV control-plane body with one runtime index body
+argument for target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, and one
+matching `tcrv_rvv.with_vl`; descriptor-local `element_count` remains metadata
+and is not promoted to AVL or VL. The generated source uses `riscv_vector.h`
+and RVV i32 add intrinsics to expose a deterministic runtime-callable C ABI
+function:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
-The default artifact has no embedded `main` or self-check harness, so later
-runtime glue can embed it and call the ABI boundary directly. The explicit
+The exporter validates and consumes that `setvl` / `with_vl` body before
+emitting the runtime-callable loop, so mismatched or stale control-plane
+metadata fails before source output. The default artifact has no embedded
+`main` or self-check harness, so later runtime glue can embed it and call the
+ABI boundary directly. The explicit
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
-same callable function plus a bounded self-check `main` for evidence collection.
+same callable function plus a bounded self-check `main` for evidence
+collection.
 Real `ssh rvv` compile/run evidence for that harness source proves only that
 this bounded generated microkernel source compiled and that the harness passed
 on the selected host flags. It is not generic high-level lowering, arbitrary

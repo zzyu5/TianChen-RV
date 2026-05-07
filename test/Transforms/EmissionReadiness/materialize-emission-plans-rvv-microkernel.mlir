@@ -53,7 +53,7 @@ module @rvv_microkernel_plan_input {
       status = "selected",
       target = @rvv_first_slice
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -62,6 +62,11 @@ module @rvv_microkernel_plan_input {
       selected_mabi = "lp64d",
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_microkernel_direct"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
   }
 }

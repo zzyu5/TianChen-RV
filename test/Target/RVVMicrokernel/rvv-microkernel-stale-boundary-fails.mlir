@@ -46,7 +46,7 @@ module {
       status = "unsupported",
       unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -54,6 +54,11 @@ module {
       role = "direct variant",
       selected_variant = @rvv_selected,
       source_kernel = "stale_boundary_microkernel"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
   }
 }

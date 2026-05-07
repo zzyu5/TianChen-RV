@@ -56,7 +56,7 @@ module @rvv_microkernel_descriptor_mismatch_input {
       status = "unsupported",
       unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 8 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -64,6 +64,11 @@ module @rvv_microkernel_descriptor_mismatch_input {
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_descriptor_microkernel_element_mismatch"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
   }
 }

@@ -119,10 +119,13 @@ When the selected `rvv-plugin` path carries the finite descriptor above,
 creates the matching plugin-local `tcrv_rvv.i32_vadd_microkernel` direct
 kernel-child op. The materialized op must preserve source kernel, selected
 variant, origin, selected role, required capability refs, required march,
-optional selected mabi, and bounded element count. If descriptor metadata is
-missing or malformed, required march is missing, or an explicit matching
-microkernel would make the selected path ambiguous, the plugin must fail before
-claiming a supported emission path.
+optional selected mabi, bounded element count, and one structured RVV
+control-plane body. That body has a runtime index block argument for the
+target/export-owned runtime `n`/AVL value, one `tcrv_rvv.setvl`, and one
+matching `tcrv_rvv.with_vl`. If descriptor metadata is missing or malformed,
+required march is missing, the structured body is malformed, or an explicit
+matching microkernel would make the selected path ambiguous, the plugin must
+fail before claiming a supported emission path.
 
 The microkernel slice is the first narrow exception to the metadata-only RVV
 unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
@@ -135,9 +138,11 @@ the i32 vector-add microkernel artifact route. When the selected variant
 carries the finite descriptor, supported readiness/plan
 metadata must also validate that the attached microkernel's `element_count`
 matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
-does not provide generic RVV lowering or runtime ABI integration, and it does
-not create correctness or performance evidence without separate `ssh rvv`
-compile/run artifacts.
+must also validate the microkernel's `setvl` / `with_vl` control-plane body
+against the selected RVV first-slice policy before reporting the supported
+handoff. It does not provide generic RVV lowering or runtime ABI integration,
+and it does not create correctness or performance evidence without separate
+`ssh rvv` compile/run artifacts.
 
 ## Remote Evidence Probe Contract
 
@@ -572,10 +577,14 @@ microkernel op. It represents exactly one bounded i32 vector-add smoke
 microkernel body for a selected RVV path. The op is plugin-local under the
 `tcrv_rvv` dialect and must carry only selected-path metadata: source kernel,
 selected variant, origin, selected role, required capability refs, required
-march, optional selected mabi, and a tiny element count. It must reject generic
-tensor/tile/benchmark attributes, unbounded or secret-like strings, invalid
-element counts, stale selected variants, missing or unavailable RVV capability
-refs, and required-march mismatches.
+march, optional selected mabi, a tiny element count, and one structured
+control-plane region. The region has one runtime index block argument for
+target/export-owned `n`/AVL, one `tcrv_rvv.setvl` consuming that argument, and
+one `tcrv_rvv.with_vl` consuming the resulting `!tcrv_rvv.vl` value. It must
+reject generic tensor/tile/benchmark attributes, unbounded or secret-like
+strings, invalid element counts, stale selected variants, missing or
+unavailable RVV capability refs, required-march mismatches, descriptor-local
+`element_count` masquerading as AVL/VL, and malformed control-plane bodies.
 
 During selected-boundary materialization, `RVVExtensionPlugin` may create this
 op automatically from the selected variant's finite
@@ -593,12 +602,15 @@ function with `const int32_t *` input pointers, an `int32_t *` output pointer,
 and a `size_t` runtime element count. The supported emission plan must carry
 structured `runtime_abi_parameters` entries for `lhs`, `rhs`, `out`, and
 runtime `n`. For this first slice those parameters are target/export ABI-owned,
-not IR-modeled RVV operands or descriptor-local `element_count`. That function
-owns the RVV i32 load/add/store-intrinsic loop. The default export is a
-library-style callable source artifact with no embedded `main` or self-check
-harness. If a bounded self-check executable is needed for evidence collection,
-`tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the explicit
-harness export and calls the same ABI function over fixed local arrays.
+not IR-modeled RVV operands or descriptor-local `element_count`. The exporter
+must validate and consume the microkernel's structured `setvl` / `with_vl`
+body before emitting the RVV i32 load/add/store-intrinsic loop, so stale or
+mismatched control-plane metadata cannot be silently ignored. The default
+export is a library-style callable source artifact with no embedded `main` or
+self-check harness. If a bounded self-check executable is needed for evidence
+collection, `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the
+explicit harness export and calls the same ABI function over fixed local
+arrays.
 Successful `ssh rvv` compile/run evidence for the harness source supports only
 the bounded microkernel correctness claim for the generated callable ABI plus
 harness. It is not generic high-level lowering, arbitrary RVV executable

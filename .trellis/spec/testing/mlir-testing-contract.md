@@ -72,17 +72,21 @@ Use lit/FileCheck for:
   claims.
 - RVV i32 vector-add microkernel materialization and C target export, including
   dialect parse/verify for `tcrv_rvv.i32_vadd_microkernel`, execution-planning
-  coverage proving the RVV plugin materializes the op from the finite selected
+  coverage proving the RVV plugin materializes the op and its structured
+  `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` body from the finite selected
   descriptor without a hand-authored input microkernel, pipeline-to-export
-  coverage, selected kernel/variant/march comments, `riscv_vector.h` use, a
+  coverage, selected kernel/variant/march comments, control-plane body
+  consumption comments, `riscv_vector.h` use, a
   runtime-callable C ABI function with `const int32_t *` inputs, `int32_t *`
   output, and `size_t` length, RVV i32 load/add/store intrinsics in that
   function, default library-style source without an embedded `main`, and an
   explicit self-check harness export that calls the ABI function,
   fail-before-source diagnostics for missing selected RVV paths,
   missing/stale boundaries, missing/duplicate microkernel ops, missing or
-  malformed finite descriptor metadata, malformed selected march metadata, and no
-  manifest/runtime-success/raw-log/performance numbers.
+  malformed finite descriptor metadata, malformed selected march metadata,
+  malformed structured control-plane bodies, exporter-visible
+  setvl/with_vl-policy mismatches, and no manifest/runtime-success/raw-log/
+  performance numbers.
 - RVV microkernel emission-plan and emission-manifest handoff,
   including supported runtime-callable C source export metadata only when a
   selected RVV path has exactly one matching

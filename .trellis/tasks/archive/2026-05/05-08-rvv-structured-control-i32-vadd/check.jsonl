@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check project boundary and compute-free exec constraints."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check capability and parameter-layering behavior."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality and structured control-plane ownership."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback path remains deterministic."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check proposal/materialization/selection responsibilities remain layered."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target-owned emission/runtime ABI constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck coverage and diagnostic quality."}

@@ -264,7 +264,7 @@ module {
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     } {
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -272,6 +272,19 @@ module {
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "microkernel_roundtrip"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } {
+      } : !tcrv_rvv.vl
     }
   }
 }
@@ -304,6 +317,12 @@ module {
           expect(llvm::StringRef(printedStorage)
                      .contains("tcrv_rvv.i32_vadd_microkernel"),
                  "printed module preserves RVV microkernel op"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(printedStorage).contains("tcrv_rvv.setvl") &&
+                     llvm::StringRef(printedStorage)
+                         .contains("tcrv_rvv.with_vl"),
+                 "printed module preserves structured RVV control-plane body"))
     return result;
 
   mlir::OwningOpRef<mlir::ModuleOp> reparsed =

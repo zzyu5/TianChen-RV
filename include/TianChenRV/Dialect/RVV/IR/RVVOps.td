@@ -183,19 +183,25 @@ def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
   let hasVerifier = 1;
 }
 
-def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel", []> {
+def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
+    [NoTerminator, SingleBlock]> {
   let summary = "explicit bounded RVV i32 vector-add executable microkernel";
   let description = [{
     Records one plugin-local executable RVV i32 vector-add microkernel body for
     a selected RVV variant. This is intentionally a finite smoke microkernel
     surface: it carries selected-path metadata, required RVV capability
-    references, the required march, and a tiny element count that a target-local
-    exporter can turn into deterministic standalone C using RVV intrinsics.
+    references, the required march, a tiny element count, and one structured
+    RVV control-plane body that a target-local exporter can validate before
+    emitting deterministic standalone C using RVV intrinsics. The body has one
+    runtime index block argument representing the target/export-owned runtime
+    element count/AVL control value, then a bounded tcrv_rvv.setvl to
+    tcrv_rvv.with_vl chain.
 
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary vector math IR. It represents exactly the first
     bounded RVV executable microkernel slice for i32 vector-add smoke
-    correctness.
+    correctness, while keeping descriptor-local element_count distinct from
+    runtime n/AVL/VL control.
   }];
 
   let arguments = (ins
@@ -208,8 +214,9 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel", []> {
     StrAttr:$required_march,
     OptionalAttr<StrAttr>:$selected_mabi
   );
+  let regions = (region SizedRegion<1>:$body);
 
-  let assemblyFormat = "attr-dict";
+  let assemblyFormat = "attr-dict-with-keyword $body";
   let hasVerifier = 1;
 }
 

@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -60,6 +61,9 @@ constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kMicrokernelRequiredMarchAttrName(
     "required_march");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kSEWAttrName("sew");
+constexpr llvm::StringLiteral kLMULAttrName("lmul");
+constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
@@ -619,6 +623,94 @@ llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
   return llvm::Error::success();
 }
 
+llvm::Error validateMicrokernelStructuredControlPlane(
+    tcrv::exec::VariantOp variant,
+    tcrv::rvv::I32VAddMicrokernelOp microkernel) {
+  if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
+    return error;
+
+  auto expectedPolicy =
+      llvm::cast<tcrv::rvv::PolicyAttr>(variant->getAttr(kRVVPolicyAttrName));
+
+  mlir::Region &body = microkernel.getBody();
+  if (body.empty() || !llvm::hasSingleElement(body))
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires exactly one "
+        "structured tcrv_rvv.i32_vadd_microkernel control-plane body block");
+
+  mlir::Block &block = body.front();
+  if (block.getNumArguments() != 1 ||
+      !block.getArgument(0).getType().isIndex())
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires the structured "
+        "control-plane body to expose one runtime index block argument for "
+        "target/export-owned n/AVL");
+
+  tcrv::rvv::SetVLOp setvl;
+  tcrv::rvv::WithVLOp withVL;
+  unsigned setvlCount = 0;
+  unsigned withVLCount = 0;
+  for (mlir::Operation &bodyOp : block) {
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::SetVLOp>(bodyOp)) {
+      setvl = candidate;
+      ++setvlCount;
+      continue;
+    }
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::WithVLOp>(bodyOp)) {
+      withVL = candidate;
+      ++withVLCount;
+      continue;
+    }
+    return makeRVVPluginError(
+        llvm::Twine("explicit RVV microkernel emission plan does not consume "
+                    "unexpected control-plane body operation '") +
+        bodyOp.getName().getStringRef() + "'");
+  }
+
+  if (setvlCount != 1 || withVLCount != 1)
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires exactly one "
+        "tcrv_rvv.setvl and exactly one tcrv_rvv.with_vl in the "
+        "structured control-plane body");
+  if (setvl.getAvl() != block.getArgument(0))
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires tcrv_rvv.setvl AVL "
+        "to use the runtime index body argument, not descriptor-local "
+        "element_count or a constant");
+  if (withVL.getVl() != setvl.getVl())
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires tcrv_rvv.with_vl to "
+        "consume the !tcrv_rvv.vl token produced by tcrv_rvv.setvl");
+  if (setvl.getSew() != 32 || setvl.getLmul() != "m1" ||
+      setvl.getPolicy() != expectedPolicy)
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires setvl "
+        "SEW/LMUL/policy metadata to match the selected RVV first-slice "
+        "variant config");
+
+  auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto withVLPolicy =
+      withVL->getAttrOfType<tcrv::rvv::PolicyAttr>(kPolicyAttrName);
+  if (!withVLSew || withVLSew.getInt() != 32 || !withVLLMUL ||
+      withVLLMUL.getValue() != "m1" || !withVLPolicy ||
+      withVLPolicy != expectedPolicy)
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires with_vl "
+        "SEW/LMUL/policy metadata to match setvl and the selected RVV "
+        "first-slice variant config");
+
+  mlir::Region &withVLBody = withVL.getBody();
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody) ||
+      !withVLBody.front().empty())
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires the bounded "
+        "tcrv_rvv.with_vl body to be present and empty; RVV arithmetic or "
+        "memory ops are not modeled by this i32-vadd control-plane slice");
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>>
 buildDescriptorPlanForEmission(const VariantEmissionRequest &request) {
   tcrv::exec::VariantOp variant = request.getVariant();
@@ -726,6 +818,10 @@ llvm::Expected<bool> hasMatchingExplicitMicrokernel(
           "explicit RVV microkernel emission plan requires "
           "tcrv_rvv.i32_vadd_microkernel element_count to match selected "
           "variant finite descriptor metadata 'tcrv_rvv.element_count'");
+
+    if (llvm::Error error =
+            validateMicrokernelStructuredControlPlane(variant, microkernel))
+      return std::move(error);
   }
 
   if (matches > 1)
@@ -845,6 +941,39 @@ tcrv::rvv::I32VAddMicrokernelOp materializeRVVI32VAddMicrokernelOp(
   if (plan.selectedMABI)
     state.addAttribute(kSelectedMABIAttrName,
                        builder.getStringAttr(*plan.selectedMABI));
+
+  mlir::Region *body = state.addRegion();
+  auto *block = new mlir::Block();
+  body->push_back(block);
+  mlir::Value runtimeN =
+      block->addArgument(builder.getIndexType(), variant.getLoc());
+
+  mlir::OpBuilder bodyBuilder(builder.getContext());
+  bodyBuilder.setInsertionPointToStart(block);
+
+  tcrv::rvv::PolicyAttr policy =
+      getExpectedRVVPolicyAttr(builder.getContext());
+
+  mlir::OperationState setvlState(variant.getLoc(),
+                                  tcrv::rvv::SetVLOp::getOperationName());
+  setvlState.addOperands(runtimeN);
+  setvlState.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
+  setvlState.addAttribute(kSEWAttrName, builder.getI64IntegerAttr(32));
+  setvlState.addAttribute(kLMULAttrName, builder.getStringAttr("m1"));
+  setvlState.addAttribute(kPolicyAttrName, policy);
+  auto setvl =
+      llvm::cast<tcrv::rvv::SetVLOp>(bodyBuilder.create(setvlState));
+
+  mlir::OperationState withVLState(variant.getLoc(),
+                                   tcrv::rvv::WithVLOp::getOperationName());
+  withVLState.addOperands(setvl.getVl());
+  withVLState.addAttribute(kSEWAttrName, builder.getI64IntegerAttr(32));
+  withVLState.addAttribute(kLMULAttrName, builder.getStringAttr("m1"));
+  withVLState.addAttribute(kPolicyAttrName, policy);
+  mlir::Region *withVLBody = withVLState.addRegion();
+  withVLBody->push_back(new mlir::Block());
+  bodyBuilder.create(withVLState);
+
   return llvm::cast<tcrv::rvv::I32VAddMicrokernelOp>(builder.create(state));
 }
 

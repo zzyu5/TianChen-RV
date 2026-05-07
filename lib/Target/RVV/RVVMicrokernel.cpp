@@ -38,6 +38,9 @@ using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
+using tianchenrv::tcrv::rvv::PolicyAttr;
+using tianchenrv::tcrv::rvv::SetVLOp;
+using tianchenrv::tcrv::rvv::WithVLOp;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -52,6 +55,9 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kSEWAttrName("sew");
+constexpr llvm::StringLiteral kLMULAttrName("lmul");
+constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
@@ -92,6 +98,8 @@ struct RVVMicrokernelRecord {
   llvm::SmallVector<std::string, 4> requiredCapabilities;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   std::int64_t elementCount = 0;
+  std::int64_t controlPlaneSEW = 0;
+  std::string controlPlaneLMUL;
 };
 
 VariantOp getPathVariant(const SelectedPath &path) {
@@ -708,7 +716,9 @@ llvm::Error findAndValidateBoundary(
 llvm::Error validateMicrokernelForPath(
     KernelOp kernel, const SelectedPath &path, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
-    I32VAddMicrokernelOp microkernel, std::int64_t &elementCount) {
+    PolicyAttr expectedPolicy, I32VAddMicrokernelOp microkernel,
+    std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
+    std::string &controlPlaneLMUL) {
   if (!microkernel)
     return makeMicrokernelError(kernel, "requires a matching "
                                         "tcrv_rvv.i32_vadd_microkernel");
@@ -804,6 +814,90 @@ llvm::Error validateMicrokernelForPath(
         kernel, "tcrv_rvv.i32_vadd_microkernel element_count must be in the "
                 "bounded smoke range [1, 64]");
 
+  mlir::Region &body = microkernel.getBody();
+  if (body.empty() || !llvm::hasSingleElement(body))
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel requires exactly one "
+                "structured RVV control-plane body block");
+
+  mlir::Block &block = body.front();
+  if (block.getNumArguments() != 1 ||
+      !block.getArgument(0).getType().isIndex()) {
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body must expose "
+                "one runtime index block argument for target/export-owned n/"
+                "AVL");
+  }
+
+  SetVLOp setvl;
+  WithVLOp withVL;
+  unsigned setvlCount = 0;
+  unsigned withVLCount = 0;
+  for (mlir::Operation &bodyOp : block) {
+    if (auto candidate = llvm::dyn_cast<SetVLOp>(bodyOp)) {
+      setvl = candidate;
+      ++setvlCount;
+      continue;
+    }
+    if (auto candidate = llvm::dyn_cast<WithVLOp>(bodyOp)) {
+      withVL = candidate;
+      ++withVLCount;
+      continue;
+    }
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("tcrv_rvv.i32_vadd_microkernel control-plane body has "
+                    "unexpected operation '") +
+            bodyOp.getName().getStringRef() +
+            "'; exporter consumes only tcrv_rvv.setvl and tcrv_rvv.with_vl");
+  }
+
+  if (setvlCount != 1 || withVLCount != 1)
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body requires "
+                "exactly one tcrv_rvv.setvl and exactly one "
+                "tcrv_rvv.with_vl");
+  if (setvl.getAvl() != block.getArgument(0))
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body requires "
+                "setvl AVL to come from the runtime index body argument, not "
+                "descriptor-local element_count or a constant");
+  if (withVL.getVl() != setvl.getVl())
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body requires "
+                "with_vl to consume the !tcrv_rvv.vl token produced by setvl");
+
+  if (setvl.getSew() != 32 || setvl.getLmul() != "m1")
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body must keep "
+                "the bounded first-slice compile-time config sew=32,lmul=m1");
+  if (setvl.getPolicy() != expectedPolicy)
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane setvl policy "
+                "must match selected variant tcrv_rvv.policy metadata");
+
+  auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto withVLPolicy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!withVLSew || withVLSew.getInt() != 32 || !withVLLMUL ||
+      withVLLMUL.getValue() != "m1" || !withVLPolicy ||
+      withVLPolicy != expectedPolicy) {
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl "
+                "metadata must match setvl and selected variant "
+                "SEW/LMUL/policy metadata");
+  }
+
+  mlir::Region &withVLBody = withVL.getBody();
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody) ||
+      !withVLBody.front().empty())
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
+                "must be present and empty for this bounded i32-vadd export "
+                "slice");
+
+  controlPlaneSEW = 32;
+  controlPlaneLMUL = "m1";
   return llvm::Error::success();
 }
 
@@ -811,7 +905,9 @@ llvm::Error findAndValidateMicrokernel(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
-    I32VAddMicrokernelOp &matchedMicrokernel, std::int64_t &elementCount) {
+    PolicyAttr expectedPolicy, I32VAddMicrokernelOp &matchedMicrokernel,
+    std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
+    std::string &controlPlaneLMUL) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
     auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
@@ -854,7 +950,9 @@ llvm::Error findAndValidateMicrokernel(
                     " has duplicate tcrv_rvv.i32_vadd_microkernel metadata");
 
   return validateMicrokernelForPath(kernel, path, selectedMarch, selectedMABI,
-                                    matchedMicrokernel, elementCount);
+                                    expectedPolicy, matchedMicrokernel,
+                                    elementCount, controlPlaneSEW,
+                                    controlPlaneLMUL);
 }
 
 llvm::Expected<RVVMicrokernelRecord>
@@ -926,9 +1024,12 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
 
   I32VAddMicrokernelOp microkernel;
   std::int64_t elementCount = 0;
+  std::int64_t controlPlaneSEW = 0;
+  std::string controlPlaneLMUL;
   if (llvm::Error error = findAndValidateMicrokernel(
           kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
-          microkernel, elementCount))
+          policy, microkernel, elementCount, controlPlaneSEW,
+          controlPlaneLMUL))
     return std::move(error);
 
   RVVMicrokernelRecord record;
@@ -940,6 +1041,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.requiredCapabilities = std::move(requiredCapabilities);
   record.runtimeABIParameters = support::getI32VAddRuntimeABIParameters();
   record.elementCount = elementCount;
+  record.controlPlaneSEW = controlPlaneSEW;
+  record.controlPlaneLMUL = std::move(controlPlaneLMUL);
   return record;
 }
 
@@ -1068,6 +1171,14 @@ void printRecordComment(llvm::raw_ostream &os,
     os << "/* selected_mabi: " << *record.selectedMABI << " */\n";
   os << "/* lowering_boundary: tcrv_rvv.lowering_boundary */\n";
   os << "/* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */\n";
+  os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
+  os << "/* control_plane_runtime_avl: body index argument maps to "
+        "target/export-owned runtime n ABI parameter */\n";
+  os << "/* control_plane_vl: !tcrv_rvv.vl value consumed by "
+        "tcrv_rvv.with_vl */\n";
+  os << "/* control_plane_config: sew=" << record.controlPlaneSEW
+     << ", lmul=" << record.controlPlaneLMUL
+     << ", policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */\n";
   os << "/* artifact_kind: runtime-callable-c-source */\n";
   os << "/* element_count: " << record.elementCount << " */\n";
   os << "/* required_capabilities:";

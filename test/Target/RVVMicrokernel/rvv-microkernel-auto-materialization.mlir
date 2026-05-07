@@ -77,6 +77,15 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: selected_mabi = "lp64d"
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "auto_i32_vadd"
+// IR: ^bb0(%[[N:.*]]: index):
+// IR: %[[VL:.*]] = tcrv_rvv.setvl %[[N]]
+// IR-SAME: lmul = "m1"
+// IR-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+// IR-SAME: sew = 32 : i64
+// IR: tcrv_rvv.with_vl %[[VL]] attributes
+// IR-SAME: lmul = "m1"
+// IR-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+// IR-SAME: sew = 32 : i64
 // IR: tcrv.exec.diagnostic
 // IR-SAME: artifact_kind = "runtime-callable-c-source"
 // IR-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
@@ -104,6 +113,10 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* selected_mabi: lp64d */
 // EXPORT: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 // EXPORT: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// EXPORT: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
+// EXPORT: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
+// EXPORT: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
+// EXPORT: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // EXPORT: /* artifact_kind: runtime-callable-c-source */
 // EXPORT: /* element_count: 16 */
 // EXPORT: /* required_capabilities: @rvv */

@@ -51,7 +51,7 @@ module {
       status = "selected",
       target = @rvv_first_slice
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -59,6 +59,11 @@ module {
       role = "direct variant",
       selected_variant = @other_rvv,
       source_kernel = "stale_rvv_microkernel_plan"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
   }
 }
@@ -109,7 +114,7 @@ module {
       status = "selected",
       target = @rvv_first_slice
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -117,8 +122,13 @@ module {
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "duplicate_rvv_microkernel_plan"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 8 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -126,6 +136,11 @@ module {
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "duplicate_rvv_microkernel_plan"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
   }
 }

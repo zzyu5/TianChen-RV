@@ -69,7 +69,7 @@ module @rvv_microkernel_input {
         origin = "scalar-plugin"
       }
     }
-    tcrv_rvv.i32_vadd_microkernel {
+    tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
@@ -78,6 +78,11 @@ module @rvv_microkernel_input {
       selected_mabi = "lp64d",
       selected_variant = @rvv_first_slice,
       source_kernel = "micro_a"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
     }
   }
 }
@@ -94,6 +99,10 @@ module @rvv_microkernel_input {
 // LIB: /* selected_mabi: lp64d */
 // LIB: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 // LIB: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// LIB: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
+// LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
+// LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
+// LIB: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // LIB: /* artifact_kind: runtime-callable-c-source */
 // LIB: /* element_count: 16 */
 // LIB: /* required_capabilities: @rvv */
