@@ -56,10 +56,10 @@ module {
     // PIPE-SAME: role = "dispatch fallback"
     // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
     // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: artifact_kind = "metadata-handoff-manifest"
-    // PIPE-SAME: emission_kind = "runtime-offload-handoff-metadata-route"
+    // PIPE-SAME: artifact_kind = "runtime-offload-handoff-descriptor"
+    // PIPE-SAME: emission_kind = "runtime-offload-handoff-descriptor"
     // PIPE-SAME: lowering_boundary = "tcrv_offload.lowering_boundary"
-    // PIPE-SAME: lowering_pipeline = "offload-runtime-boundary-metadata-only"
+    // PIPE-SAME: lowering_pipeline = "tcrv-export-offload-runtime-descriptor"
     // PIPE-SAME: origin = "offload-plugin"
     // PIPE-SAME: plan_kind = "plugin-emission-plan"
     // PIPE-SAME: reason = "emission_plan"
@@ -69,7 +69,7 @@ module {
     // PIPE-SAME: runtime_abi_kind = "runtime-offload-c-abi-handoff"
     // PIPE-SAME: runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1"
     // PIPE-SAME: runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary"
-    // PIPE-SAME: status = "metadata-only"
+    // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @offload_runtime_first_slice
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"

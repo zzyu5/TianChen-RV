@@ -2,6 +2,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/EmissionManifest.h"
+#include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
@@ -94,6 +95,40 @@ mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportTargetArtifact(mlir::ModuleOp module,
+                                         llvm::raw_ostream &os) {
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
+  if (llvm::Error error =
+          tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(
+              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  if (llvm::Error error =
+          tianchenrv::target::scalar::registerScalarMicrokernelTargetExporters(
+              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  if (llvm::Error error = tianchenrv::target::offload::
+                              registerOffloadRuntimeDescriptorTargetExporters(
+                                  exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error =
+          tianchenrv::target::exportTargetArtifact(module, exporters, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
@@ -118,6 +153,12 @@ void registerTianChenRVTranslations() {
       "export one supported TianChen-RV target source artifact route",
       exportTargetSourceArtifact, registerTianChenRVTranslateDialects);
   (void)targetSourceArtifact;
+
+  static mlir::TranslateFromMLIRRegistration targetArtifact(
+      "tcrv-export-target-artifact",
+      "export one supported TianChen-RV target artifact route",
+      exportTargetArtifact, registerTianChenRVTranslateDialects);
+  (void)targetArtifact;
 }
 
 } // namespace

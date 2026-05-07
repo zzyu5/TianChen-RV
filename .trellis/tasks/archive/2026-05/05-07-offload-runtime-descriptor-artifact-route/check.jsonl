@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check project spine and boundaries while reviewing implementation."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec stays compute-free."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin-local route metadata and registry use."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emission readiness, manifest, runtime ABI, and artifact export behavior."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify offload runtime descriptor scope."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Guard scalar route regression."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Guard RVV route regression."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify test strategy and FileCheck coverage."}

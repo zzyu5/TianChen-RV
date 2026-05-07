@@ -99,6 +99,15 @@ Use lit/FileCheck for:
   boundaries, missing/stale scalar microkernels, route spoofing, unsupported
   metadata-only scalar fallback paths, offload-only paths, and ambiguous
   supported artifacts.
+- offload runtime descriptor target artifact export through the artifact-kind
+  aware generic route, including selected offload path plus matching
+  `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability
+  refs, descriptor route id, non-source artifact kind, deterministic descriptor
+  output, source-only route filtering, and fail-closed diagnostics for missing
+  boundaries, missing runtime ABI metadata, stale selected variants, stale
+  lowering boundaries, unknown route ids, unsupported artifact kinds,
+  RVV/scalar/offload route spoofing, URLs, raw credentials, and secret-like
+  metadata.
 
 Example test intent:
 

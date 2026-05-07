@@ -47,6 +47,14 @@ constexpr llvm::StringLiteral kRuntimeABIAttrName("runtime_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kHandoffReasonAttrName("handoff_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kOffloadDescriptorRouteID(
+    "tcrv-export-offload-runtime-descriptor");
+constexpr llvm::StringLiteral kOffloadDescriptorEmissionKind(
+    "runtime-offload-handoff-descriptor");
+constexpr llvm::StringLiteral kOffloadDescriptorArtifactKind(
+    "runtime-offload-handoff-descriptor");
+constexpr llvm::StringLiteral kOffloadDescriptorRuntimeGlueRole(
+    "plugin-owned-runtime-offload-glue-boundary");
 
 struct OffloadRuntimeCapabilityView {
   std::string runtimeABI;
@@ -386,6 +394,18 @@ llvm::StringRef getOffloadFirstSlicePolicy() {
   return kOffloadFirstSlicePolicy;
 }
 
+llvm::StringRef getOffloadDescriptorRouteID() {
+  return kOffloadDescriptorRouteID;
+}
+
+llvm::StringRef getOffloadDescriptorEmissionKind() {
+  return kOffloadDescriptorEmissionKind;
+}
+
+llvm::StringRef getOffloadDescriptorArtifactKind() {
+  return kOffloadDescriptorArtifactKind;
+}
+
 OffloadExtensionPlugin::OffloadExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       kOffloadRuntimeCapabilityID, kOffloadRuntimeCapabilityKind,
@@ -553,19 +573,18 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getMetadataOnly(
+  out = VariantEmissionPlan::getSupported(
       kOffloadPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "runtime-offload-handoff-metadata-route",
-      "offload-runtime-boundary-metadata-only", kExpectedRuntimeABI,
-      "metadata-handoff-manifest",
-      "runtime-offload first slice records a generic runtime ABI handoff for "
-      "downstream integration only; it does not emit vendor runtime calls, "
-      "generate objects, run hardware, prove correctness, or measure "
-      "performance");
+      kOffloadDescriptorEmissionKind, kOffloadDescriptorRouteID,
+      kExpectedRuntimeABI, kOffloadDescriptorArtifactKind,
+      "runtime-offload first slice can export a deterministic compiler "
+      "handoff descriptor for downstream integration only; it does not emit "
+      "vendor runtime calls, generate objects, run hardware, prove "
+      "correctness, or measure performance");
   out.setRuntimeABIKind("runtime-offload-c-abi-handoff");
   out.setRuntimeABIName(kExpectedRuntimeABI);
-  out.setRuntimeGlueRole("plugin-owned-runtime-offload-glue-boundary");
+  out.setRuntimeGlueRole(kOffloadDescriptorRuntimeGlueRole);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

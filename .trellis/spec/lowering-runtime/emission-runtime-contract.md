@@ -107,6 +107,15 @@ C exporter registered by scalar target/export code. This does not add generic
 RVV or scalar lowering, runtime ABI integration, object generation, linking,
 arbitrary source export, correctness evidence, or performance evidence.
 
+The artifact-kind aware generic route may also dispatch supported non-source
+artifacts through target-owned exporters. The first such route is the offload
+runtime handoff descriptor, registered by offload target/export code and
+selected by the offload plugin's supported descriptor emission plan. Shared
+generic routing still validates only route id, artifact kind, origin, emission
+kind, selected path, lowering-boundary reference, runtime ABI metadata, and
+required capability refs; offload-specific descriptor content stays in the
+offload target exporter.
+
 ## Selected Lowering Boundary First Slice
 
 Before executable lowering exists, the compiler may materialize selected-path
@@ -662,29 +671,37 @@ ambiguous multiple supported artifacts must fail before source output.
 ## Runtime Offload Metadata Boundary
 
 The first runtime-offload plugin slice may return a metadata-only emission
-readiness result and materialize a metadata-only emission-plan diagnostic for a
-generic runtime ABI handoff:
+readiness result and materialize a supported descriptor emission-plan
+diagnostic for a generic runtime ABI handoff artifact:
 
 ```text
-status: metadata-only
-emission kind: runtime-offload-handoff-metadata-route
-lowering pipeline: offload-runtime-boundary-metadata-only
+status: supported
+emission kind: runtime-offload-handoff-descriptor
+lowering pipeline: tcrv-export-offload-runtime-descriptor
 runtime ABI: generic-runtime-offload-c-abi-handoff.v1
 runtime ABI kind: runtime-offload-c-abi-handoff
 runtime ABI name: generic-runtime-offload-c-abi-handoff.v1
 runtime glue role: plugin-owned-runtime-offload-glue-boundary
-artifact kind: metadata-handoff-manifest
+artifact kind: runtime-offload-handoff-descriptor
 ```
 
-This is compiler handoff metadata for downstream runtime integration. It does
-not emit vendor runtime calls, allocate or copy device buffers, compile
-accelerator kernels, generate objects, link runtime libraries, run hardware,
-prove correctness, or measure performance. The selected
+This supported plan means only that the compiler can export a deterministic
+target-owned handoff descriptor for downstream runtime integration. It does not
+emit vendor runtime calls, allocate or copy device buffers, compile accelerator
+kernels, generate objects, link runtime libraries, run hardware, prove
+correctness, or measure performance. The selected
 `tcrv_offload.lowering_boundary` op records the plugin-local runtime-offload
 handoff boundary, but it remains metadata-only and non-executable. Its
 availability depends on explicit `offload.runtime` capability metadata and
 plugin legality; it cannot resurrect unavailable, malformed, illegal, or
 unselected variants.
+
+The descriptor export route must validate that the selected offload path has a
+matching `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required
+capability refs, emission kind, artifact kind, route id, and bounded handoff
+reason. Unsafe strings, URLs, raw credentials, stale selected variants, stale
+lowering boundaries, route spoofing, unknown route ids, and unsupported artifact
+kinds must fail before descriptor output.
 
 ## Emission Manifest Export Boundary
 

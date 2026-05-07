@@ -101,6 +101,18 @@ closed. This tool does not add generic RVV or scalar lowering, arbitrary source
 export, runtime ABI integration, object generation, linking, correctness
 evidence, or performance evidence.
 
+The `tcrv-translate --tcrv-export-target-artifact` tool is the artifact-kind
+aware generic front door. It uses the same selected-path, lowering-boundary,
+and plugin-owned emission-plan route metadata, but it is not limited to source
+artifacts. The first non-source route is the offload runtime handoff descriptor:
+a deterministic target-owned text descriptor for a selected `offload-plugin`
+path with a matching `tcrv_offload.lowering_boundary`, runtime ABI metadata,
+required capability refs, and supported descriptor emission plan. This
+descriptor is compiler handoff metadata only. It does not emit vendor runtime
+calls, implement DMA or buffer management, generate accelerator objects, link
+runtime libraries, run offload hardware, prove correctness, or measure
+performance.
+
 When the selected RVV path has that exact explicit microkernel attachment, the
 RVV plugin may also materialize a supported emission-plan diagnostic and the
 generic emission manifest may serialize the handoff as a deterministic
@@ -249,3 +261,19 @@ metadata-only status. The emission-plan and manifest paths may serialize this
 generic runtime ABI handoff for downstream integration. They do not emit vendor
 runtime calls, implement DMA or buffer management, generate accelerator objects,
 run hardware, prove correctness, or measure performance.
+
+When that selected offload path has the matching plugin-owned lowering boundary
+and a supported descriptor emission plan, the target artifact route can export
+a deterministic runtime handoff descriptor:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
+  | tcrv-translate --tcrv-export-target-artifact \
+  > offload_runtime_descriptor.txt
+```
+
+The descriptor contains only sanitized compiler-visible fields such as source
+kernel, selected variant, origin plugin, required capabilities, runtime ABI
+kind/name, emission kind, artifact kind, lowering-boundary op name, and handoff
+reason. It is not offload runtime execution, hardware correctness evidence, or
+performance evidence.

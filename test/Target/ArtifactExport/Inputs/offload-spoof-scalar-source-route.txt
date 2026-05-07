@@ -1,0 +1,43 @@
+module {
+  tcrv.exec.kernel @offload_spoof_scalar_source_route {
+    tcrv.exec.capability @offload_runtime {
+      id = "offload.runtime",
+      kind = "runtime-offload",
+      status = "available",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      handoff_kind = "runtime-offload"
+    }
+    tcrv.exec.variant @offload_runtime_first_slice attributes {
+      origin = "offload-plugin",
+      requires = [@offload_runtime],
+      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      tcrv_offload.handoff_kind = "runtime-offload"
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "static offload path selected",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      status = "selected",
+      target = @offload_runtime_first_slice
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "standalone-c-source",
+      emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
+      lowering_boundary = "tcrv_offload.lowering_boundary",
+      lowering_pipeline = "tcrv-export-scalar-microkernel-c",
+      message = "offload metadata must not spoof a scalar source route",
+      origin = "offload-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@offload_runtime],
+      role = "direct variant",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      runtime_abi_kind = "runtime-offload-c-abi-handoff",
+      runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1",
+      runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary",
+      status = "supported",
+      target = @offload_runtime_first_slice
+    }
+  }
+}

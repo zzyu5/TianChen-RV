@@ -27,17 +27,17 @@ module @offload_manifest_inputs {
 // CHECK: selected_variant: @offload_runtime_first_slice
 // CHECK: role: "dispatch case"
 // CHECK: origin: "offload-plugin"
-// CHECK: emission_status: "metadata-only"
-// CHECK: emission_kind: "runtime-offload-handoff-metadata-route"
-// CHECK: lowering_pipeline: "offload-runtime-boundary-metadata-only"
+// CHECK: emission_status: "supported"
+// CHECK: emission_kind: "runtime-offload-handoff-descriptor"
+// CHECK: lowering_pipeline: "tcrv-export-offload-runtime-descriptor"
 // CHECK: lowering_boundary: "tcrv_offload.lowering_boundary"
 // CHECK: runtime_abi: "generic-runtime-offload-c-abi-handoff.v1"
 // CHECK: runtime_abi_kind: "runtime-offload-c-abi-handoff"
 // CHECK: runtime_abi_name: "generic-runtime-offload-c-abi-handoff.v1"
 // CHECK: runtime_glue_role: "plugin-owned-runtime-offload-glue-boundary"
-// CHECK: artifact_kind: "metadata-handoff-manifest"
+// CHECK: artifact_kind: "runtime-offload-handoff-descriptor"
 // CHECK: required_capabilities: [@offload_runtime]
-// CHECK: explanation: "runtime-offload first slice records a generic runtime ABI handoff
+// CHECK: explanation: "runtime-offload first slice can export a deterministic compiler handoff descriptor
 // CHECK: preference:
 // CHECK: available: true
 // CHECK: policy: "prefer runtime-offload metadata handoff only when explicit offload.runtime capability metadata is available"

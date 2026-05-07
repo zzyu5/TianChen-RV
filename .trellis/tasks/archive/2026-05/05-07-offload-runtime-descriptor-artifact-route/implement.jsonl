@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spine and spec layer routing for capability-driven execution boundaries."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Ensure tcrv.exec remains capability/variant/dispatch/fallback focused and compute-free."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin proposal and registry contract for emission metadata and exporter registration."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, manifest, runtime ABI, and artifact export boundary."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Offload runtime plugin locality and descriptor handoff constraints."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Preserve scalar fallback source-export route invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Preserve RVV explicit source-export route invariants."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and C++ regression testing expectations."}

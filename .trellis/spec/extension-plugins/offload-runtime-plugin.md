@@ -22,8 +22,9 @@ This is a `runtime-offload capability`, not a custom RISC-V ISA extension.
 The first concrete C++ runtime-offload slice is intentionally bounded. It proves
 plugin identity, explicit capability gating, proposal metadata, legality
 routing, conservative preference metadata, selected lowering-boundary
-materialization, plugin-owned runtime ABI handoff metadata, and emission
-manifest serialization through the existing generic registry interfaces.
+materialization, plugin-owned runtime ABI handoff metadata, emission manifest
+serialization, and target-owned descriptor artifact export through the existing
+generic registry and target artifact interfaces.
 
 Stable first-slice names:
 
@@ -39,6 +40,8 @@ required capability id: offload.runtime
 materialized requires form: requires = [@offload_runtime]
 runtime ABI handoff id: generic-runtime-offload-c-abi-handoff.v1
 handoff kind: runtime-offload
+descriptor route id: tcrv-export-offload-runtime-descriptor
+descriptor artifact kind: runtime-offload-handoff-descriptor
 ```
 
 The first slice may propose `@offload_runtime_first_slice` only when the kernel
@@ -145,6 +148,16 @@ tcrv_offload.lowering_boundary {
 This op is a selected-path handoff boundary. It is not a high-level compute op,
 custom RISC-V ISA op, vendor runtime call, DMA operation, accelerator kernel,
 object-generation step, correctness result, or performance result.
+
+When the selected offload path has this matching lowering boundary and the
+plugin-owned emission plan records the supported descriptor route, the target
+artifact exporter may emit a deterministic text descriptor for runtime-offload
+handoff metadata. The descriptor may contain only sanitized compiler-visible
+fields such as source kernel, selected variant, origin plugin, required
+capability refs, runtime ABI kind/name, emission kind, artifact kind,
+lowering-boundary op name, and handoff reason. It is not runtime execution,
+vendor integration, DMA, object generation, correctness evidence, or
+performance evidence.
 
 Future types may include:
 

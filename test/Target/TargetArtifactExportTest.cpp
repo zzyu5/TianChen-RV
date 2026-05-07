@@ -37,6 +37,13 @@ int main() {
                          "test-plugin", "test-source", noopExporter)),
                      "register valid exporter"))
     return 1;
+  if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
+                         "tcrv-test-descriptor-route",
+                         "runtime-offload-handoff-descriptor",
+                         "offload-plugin",
+                         "runtime-offload-handoff-descriptor", noopExporter)),
+                     "register descriptor exporter"))
+    return 1;
 
   const TargetArtifactExporter *exporter = registry.lookup("tcrv-test-route");
   if (!exporter) {
@@ -52,6 +59,19 @@ int main() {
   }
   if (registry.lookup("missing-route")) {
     llvm::errs() << "lookup unexpectedly found missing route\n";
+    return 1;
+  }
+
+  const TargetArtifactExporter *descriptorExporter =
+      registry.lookup("tcrv-test-descriptor-route");
+  if (!descriptorExporter ||
+      descriptorExporter->getArtifactKind() !=
+          "runtime-offload-handoff-descriptor" ||
+      descriptorExporter->getOriginPlugin() != "offload-plugin" ||
+      descriptorExporter->getEmissionKind() !=
+          "runtime-offload-handoff-descriptor" ||
+      !descriptorExporter->getExportFn()) {
+    llvm::errs() << "lookup returned malformed descriptor exporter metadata\n";
     return 1;
   }
 

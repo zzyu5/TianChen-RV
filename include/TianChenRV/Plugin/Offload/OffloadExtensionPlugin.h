@@ -18,6 +18,9 @@ llvm::StringRef getOffloadHandoffKindAttrName();
 llvm::StringRef getOffloadExpectedRuntimeABI();
 llvm::StringRef getOffloadExpectedHandoffKind();
 llvm::StringRef getOffloadFirstSlicePolicy();
+llvm::StringRef getOffloadDescriptorRouteID();
+llvm::StringRef getOffloadDescriptorEmissionKind();
+llvm::StringRef getOffloadDescriptorArtifactKind();
 
 class OffloadExtensionPlugin final : public ExtensionPlugin {
 public:

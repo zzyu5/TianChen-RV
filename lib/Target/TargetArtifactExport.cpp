@@ -33,6 +33,8 @@ constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
+constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
+    "standalone-c-source");
 
 struct SelectedPath {
   VariantOp variant;
@@ -100,7 +102,9 @@ bool containsForbiddenText(llvm::StringRef value) {
          normalized.contains("token") || normalized.contains("secret") ||
          normalized.contains("private key") ||
          normalized.contains("authorization:") ||
-         normalized.contains("api_key") || normalized.contains("access_key");
+         normalized.contains("api_key") || normalized.contains("access_key") ||
+         normalized.contains("http://") || normalized.contains("https://") ||
+         normalized.contains("://");
 }
 
 llvm::Error validateBoundedText(KernelOp kernel, llvm::StringRef fieldName,
@@ -650,6 +654,56 @@ llvm::Error validateCandidateAgainstExporter(
   return llvm::Error::success();
 }
 
+llvm::Error exportTargetArtifactImpl(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::StringRef requiredArtifactKind, llvm::StringRef routeDescription,
+    llvm::raw_ostream &os) {
+  llvm::SmallVector<ArtifactCandidate, 2> allCandidates;
+  if (llvm::Error error = collectSupportedCandidates(module, allCandidates))
+    return error;
+
+  llvm::SmallVector<ArtifactCandidate, 2> candidates;
+  for (const ArtifactCandidate &candidate : allCandidates) {
+    if (requiredArtifactKind.empty()) {
+      candidates.push_back(candidate);
+      continue;
+    }
+
+    const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
+    if (!exporter) {
+      if (candidate.artifactKind == requiredArtifactKind)
+        candidates.push_back(candidate);
+      continue;
+    }
+
+    if (exporter->getArtifactKind() == requiredArtifactKind ||
+        candidate.artifactKind != exporter->getArtifactKind())
+      candidates.push_back(candidate);
+  }
+
+  if (candidates.empty())
+    return makeModuleArtifactExportError(
+        llvm::Twine("requires exactly one supported ") + routeDescription +
+        " emission-plan route; found none");
+  if (candidates.size() > 1)
+    return makeModuleArtifactExportError(
+        llvm::Twine("requires exactly one supported ") + routeDescription +
+        " emission-plan route; found multiple ambiguous supported artifacts");
+
+  const ArtifactCandidate &candidate = candidates.front();
+  const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
+  if (!exporter)
+    return makeArtifactExportError(
+        candidate.kernel, llvm::Twine("unknown target artifact export route id "
+                                      "'") +
+                              candidate.routeID + "'");
+
+  if (llvm::Error error = validateCandidateAgainstExporter(candidate, *exporter))
+    return error;
+
+  return exporter->getExportFn()(module, os);
+}
+
 } // namespace
 
 TargetArtifactExporter::TargetArtifactExporter(
@@ -688,31 +742,16 @@ TargetArtifactExporterRegistry::lookup(llvm::StringRef routeID) const {
 llvm::Error exportTargetSourceArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os) {
-  llvm::SmallVector<ArtifactCandidate, 2> candidates;
-  if (llvm::Error error = collectSupportedCandidates(module, candidates))
-    return error;
+  return exportTargetArtifactImpl(module, registry,
+                                  kStandaloneCSourceArtifactKind,
+                                  "source artifact", os);
+}
 
-  if (candidates.empty())
-    return makeModuleArtifactExportError(
-        "requires exactly one supported source artifact emission-plan route; "
-        "found none");
-  if (candidates.size() > 1)
-    return makeModuleArtifactExportError(
-        "requires exactly one supported source artifact emission-plan route; "
-        "found multiple ambiguous supported artifacts");
-
-  const ArtifactCandidate &candidate = candidates.front();
-  const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
-  if (!exporter)
-    return makeArtifactExportError(
-        candidate.kernel, llvm::Twine("unknown target artifact export route id "
-                                      "'") +
-                              candidate.routeID + "'");
-
-  if (llvm::Error error = validateCandidateAgainstExporter(candidate, *exporter))
-    return error;
-
-  return exporter->getExportFn()(module, os);
+llvm::Error exportTargetArtifact(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::raw_ostream &os) {
+  return exportTargetArtifactImpl(module, registry, llvm::StringRef(),
+                                  "target artifact", os);
 }
 
 } // namespace tianchenrv::target

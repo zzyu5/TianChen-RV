@@ -1,0 +1,40 @@
+module {
+  tcrv.exec.kernel @scalar_spoof_offload_descriptor_route {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fallback-only scalar path selected",
+      reason = "variant-selected",
+      selection_kind = "fallback-only",
+      status = "selected",
+      target = @scalar_fallback_first_slice
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "runtime-offload-handoff-descriptor",
+      emission_kind = "runtime-offload-handoff-descriptor",
+      lowering_boundary = "tcrv_scalar.lowering_boundary",
+      lowering_pipeline = "tcrv-export-offload-runtime-descriptor",
+      message = "scalar metadata must not spoof an offload descriptor route",
+      origin = "scalar-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      runtime_abi = "none-metadata-only",
+      runtime_abi_kind = "host-scalar-fallback-metadata",
+      runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1",
+      runtime_glue_role = "metadata-only-host-fallback-boundary",
+      status = "supported",
+      target = @scalar_fallback_first_slice
+    }
+  }
+}

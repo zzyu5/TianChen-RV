@@ -535,7 +535,7 @@ module {
           "offload emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isMetadataOnly() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::offload::
                              getOffloadExtensionPluginName() &&
@@ -543,7 +543,14 @@ module {
                      emissionPlan.getVariantSymbol() ==
                          offloadVariant.getSymName() &&
                      emissionPlan.getEmissionKind() ==
-                         "runtime-offload-handoff-metadata-route" &&
+                         tianchenrv::plugin::offload::
+                             getOffloadDescriptorEmissionKind() &&
+                     emissionPlan.getLoweringPipeline() ==
+                         tianchenrv::plugin::offload::
+                             getOffloadDescriptorRouteID() &&
+                     emissionPlan.getArtifactKind() ==
+                         tianchenrv::plugin::offload::
+                             getOffloadDescriptorArtifactKind() &&
                      emissionPlan.getRuntimeABIKind() ==
                          "runtime-offload-c-abi-handoff" &&
                      emissionPlan.getRuntimeABIName() ==
