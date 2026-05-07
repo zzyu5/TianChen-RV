@@ -86,6 +86,11 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: lmul = "m1"
 // IR-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 // IR-SAME: sew = 32 : i64
+// IR: tcrv_rvv.i32_vadd_dataflow
+// IR-SAME: lhs = "lhs"
+// IR-SAME: out = "out"
+// IR-SAME: rhs = "rhs"
+// IR-SAME: runtime_n = "n"
 // IR: tcrv.exec.diagnostic
 // IR-SAME: artifact_kind = "runtime-callable-c-source"
 // IR-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
@@ -116,6 +121,8 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
 // EXPORT: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // EXPORT: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
+// EXPORT: /* dataflow_body: tcrv_rvv.i32_vadd_dataflow lhs/rhs/out/n */
+// EXPORT: /* dataflow_abi_roles: lhs=target-export-owned lhs input, rhs=target-export-owned rhs input, out=target-export-owned output, runtime_n=target/export-owned n */
 // EXPORT: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // EXPORT: /* artifact_kind: runtime-callable-c-source */
 // EXPORT: /* element_count: 16 */

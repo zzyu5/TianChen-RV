@@ -43,14 +43,17 @@ The built-in RVV first slice registers the concrete MLIR namespace
 `tcrv_rvv` through the RVV plugin path. It includes metadata/control-plane
 surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, `tcrv_rvv.setvl` for
 bounded runtime AVL-to-VL control, and `tcrv_rvv.with_vl` for the matching
-bounded VL scope region, plus `tcrv_rvv.lowering_boundary` for selected RVV
-variants. The setvl surface is control-plane IR only: it consumes a runtime AVL
+bounded VL scope region, plus the finite `tcrv_rvv.i32_vadd_dataflow` marker
+for the current i32-vadd microkernel export route and
+`tcrv_rvv.lowering_boundary` for selected RVV variants. The setvl surface is
+control-plane IR only: it consumes a runtime AVL
 SSA value, returns a `!tcrv_rvv.vl` token, and carries bounded first-slice
 SEW/LMUL/policy metadata. The with_vl surface consumes that runtime VL token and
-creates a single-block plugin-local control-plane region for future RVV body
-work; it is not arithmetic, memory, lowering, runtime ABI, or evidence. The
-lowering boundary is pre-executable compiler metadata only: these RVV surfaces
-do not emit RVV intrinsics, lower to LLVM/RISC-V, create runtime ABI glue,
+creates a single-block plugin-local region. Its first bounded dataflow payload
+is exactly the i32-vadd marker consumed by the RVV exporter; this is not a
+generic RVV memory model, arbitrary vector lowering, full runtime ABI, or
+evidence. The lowering boundary is pre-executable compiler metadata only: these
+RVV surfaces do not by themselves lower to LLVM/RISC-V, create runtime ABI glue,
 generate objects, run hardware, prove correctness, or measure performance.
 
 Selected-path lowering-boundary materialization is routed through the generic
@@ -100,18 +103,19 @@ preserved selected march metadata, and the bounded RVV microkernel op. The op
 may come from an explicit fixture or from the RVV plugin materializing the
 finite `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` selected
 variant descriptor during the execution-planning pipeline. The microkernel op
-now carries a structured RVV control-plane body with one runtime index body
-argument for target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, and one
-matching `tcrv_rvv.with_vl`; descriptor-local `element_count` remains metadata
-and is not promoted to AVL or VL. The generated source uses `riscv_vector.h`
-and RVV i32 add intrinsics to expose a deterministic runtime-callable C ABI
-function:
+now carries a structured RVV body with one runtime index body argument for
+target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, one matching
+`tcrv_rvv.with_vl`, and one nested finite `tcrv_rvv.i32_vadd_dataflow` marker
+for the target/export-owned `lhs`/`rhs`/`out`/runtime-`n` ABI roles consumed by
+the exporter. Descriptor-local `element_count` remains metadata and is not
+promoted to AVL or VL. The generated source uses `riscv_vector.h` and RVV i32
+add intrinsics to expose a deterministic runtime-callable C ABI function:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
-The exporter validates and consumes that `setvl` / `with_vl` body before
-emitting the runtime-callable loop, so mismatched or stale control-plane
-metadata fails before source output. The default artifact has no embedded
-`main` or self-check harness, so later runtime glue can embed it and call the
-ABI boundary directly. The explicit
+The exporter validates and consumes that `setvl` / `with_vl` /
+`i32_vadd_dataflow` body before emitting the runtime-callable loop, so
+mismatched or stale control/dataflow metadata fails before source output. The
+default artifact has no embedded `main` or self-check harness, so later runtime
+glue can embed it and call the ABI boundary directly. The explicit
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
 same callable function plus a bounded self-check `main` for evidence
 collection.

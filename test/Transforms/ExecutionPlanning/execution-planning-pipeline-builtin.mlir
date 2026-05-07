@@ -85,6 +85,11 @@ module {
     // PIPE-SAME: role = "dispatch case"
     // PIPE-SAME: selected_variant = @rvv_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
+    // PIPE: tcrv_rvv.i32_vadd_dataflow
+    // PIPE-SAME: lhs = "lhs"
+    // PIPE-SAME: out = "out"
+    // PIPE-SAME: rhs = "rhs"
+    // PIPE-SAME: runtime_n = "n"
     // PIPE: tcrv_scalar.lowering_boundary
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: required_capabilities = [@scalar_fallback]
@@ -131,6 +136,7 @@ module {
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
+    // ROUNDTRIP: tcrv_rvv.i32_vadd_dataflow
     // ROUNDTRIP: tcrv_scalar.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
     // ROUNDTRIP: tcrv_scalar.i32_vadd_microkernel

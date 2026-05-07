@@ -688,9 +688,11 @@ and exactly one `tcrv_rvv.i32_vadd_microkernel` op for that selected
 kernel/variant. The microkernel op may be an explicit fixture attachment or an
 RVV-plugin materialization from the finite selected-variant descriptor
 `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"`. The microkernel
-op must carry the structured RVV control-plane body for this bounded slice:
+op must carry the structured RVV control/dataflow body for this bounded slice:
 one runtime index body argument for target/export-owned `n`/AVL, one
-`tcrv_rvv.setvl`, and one matching `tcrv_rvv.with_vl`.
+`tcrv_rvv.setvl`, one matching `tcrv_rvv.with_vl`, and one nested finite
+`tcrv_rvv.i32_vadd_dataflow` marker for the target/export-owned
+`lhs`/`rhs`/`out`/runtime-`n` ABI roles consumed by this exporter.
 
 This export is the first bounded RVV executable microkernel slice. It emits a
 deterministic library-style C source file whose primary behavior is a stable
@@ -746,14 +748,15 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   capability refs.
 - A matching direct child `tcrv_rvv.i32_vadd_microkernel` must identify the same
   selected path, required capability refs, required march, optional selected
-  mabi, bounded element count, and structured `setvl` / `with_vl` control-plane
-  body. The body runtime index argument is runtime/control-plane/ABI state;
-  `element_count` remains descriptor-local metadata.
+  mabi, bounded element count, and structured `setvl` / `with_vl` /
+  `i32_vadd_dataflow` body. The body runtime index argument is
+  runtime/control-plane/ABI state; `element_count` remains descriptor-local
+  metadata.
 - Output must be deterministic library-style C with `riscv_vector.h`, a stable
   runtime-callable i32 vadd C ABI function, RVV i32 load/add/store intrinsics
   inside that callable function, control-flow derived only after validating the
-  structured control-plane body, and no default embedded `main` or self-check
-  harness.
+  structured control/dataflow body, and no default embedded `main` or
+  self-check harness.
 - The explicit self-check harness export must call the same callable ABI from a
   bounded helper over fixed local arrays and is evidence tooling, not the
   default target artifact contract.
@@ -768,8 +771,9 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   required-capability-mismatched `tcrv_rvv.lowering_boundary` -> export fails.
 - Missing, duplicate, stale, selected-variant-mismatched,
   required-capability-mismatched, invalid-element-count, malformed-march,
-  malformed structured control-plane body, setvl/with_vl policy mismatch, or
-  secret-like `tcrv_rvv.i32_vadd_microkernel` -> export fails.
+  malformed structured control/dataflow body, setvl/with_vl policy mismatch,
+  missing or mismatched `tcrv_rvv.i32_vadd_dataflow`, or secret-like
+  `tcrv_rvv.i32_vadd_microkernel` -> export fails.
 - Missing, unavailable, non-symbol, non-RVV, or unknown selected variant
   requirements -> export fails.
 - Missing or mismatched preserved selected march capability metadata -> export

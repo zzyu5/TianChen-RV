@@ -48,6 +48,10 @@ constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kLHSAttrName("lhs");
+constexpr llvm::StringLiteral kRHSAttrName("rhs");
+constexpr llvm::StringLiteral kOutAttrName("out");
+constexpr llvm::StringLiteral kRuntimeNAttrName("runtime_n");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -212,6 +216,11 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedI32VAddDataflowAttr(llvm::StringRef name) {
+  return name == kLHSAttrName || name == kRHSAttrName ||
+         name == kOutAttrName || name == kRuntimeNAttrName;
+}
+
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
   return name == kAVLAttrName || name == kVLenAttrName ||
          name == kVLenBAttrName || name == kElementCountAttrName ||
@@ -229,6 +238,25 @@ bool isForbiddenWithVLParameterAttr(llvm::StringRef name) {
          name == kArchitectureAttrName || name == kISAVectorHintsAttrName ||
          name == kHartCountAttrName || name == kSelectedMarchAttrName ||
          name == kCapabilityFactsAttrName;
+}
+
+bool isForbiddenDataflowParameterAttr(llvm::StringRef name) {
+  return isForbiddenWithVLParameterAttr(name) || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
+mlir::LogicalResult verifyBoundedDataflowABIAttr(I32VAddDataflowOp op,
+                                                 llvm::StringRef attrName) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return op.emitOpError()
+           << "requires non-empty string attribute '" << attrName << "'";
+
+  llvm::StringRef value = attr.getValue().trim();
+  if (mlir::failed(verifyBoundedMetadata(op.getOperation(), attrName, value)))
+    return mlir::failure();
+
+  return mlir::success();
 }
 
 mlir::LogicalResult
@@ -301,11 +329,28 @@ verifyMicrokernelStructuredControlPlane(I32VAddMicrokernelOp microkernel) {
   if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
     return microkernel.emitOpError()
            << "requires tcrv_rvv.with_vl to own one body block";
-  if (!withVLBody.front().empty())
+  if (withVLBody.front().getNumArguments() != 0)
     return microkernel.emitOpError()
-           << "requires tcrv_rvv.with_vl body to remain empty in the bounded "
-              "i32-vadd control-plane slice; RVV arithmetic/memory ops are "
-              "not modeled here";
+           << "requires tcrv_rvv.with_vl body to have no block arguments; "
+              "runtime n/AVL/VL is carried by the enclosing control-plane "
+              "surface";
+
+  unsigned dataflowCount = 0;
+  for (mlir::Operation &withVLOp : withVLBody.front()) {
+    if (llvm::isa<I32VAddDataflowOp>(withVLOp)) {
+      ++dataflowCount;
+      continue;
+    }
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.with_vl body to contain only the bounded "
+              "tcrv_rvv.i32_vadd_dataflow operation; unexpected operation '"
+           << withVLOp.getName().getStringRef() << "'";
+  }
+
+  if (dataflowCount != 1)
+    return microkernel.emitOpError()
+           << "requires exactly one tcrv_rvv.i32_vadd_dataflow in the "
+              "tcrv_rvv.with_vl body";
 
   return mlir::success();
 }
@@ -439,6 +484,55 @@ mlir::LogicalResult WithVLOp::verify() {
              << "requires optional 'policy' metadata to match defining "
                 "tcrv_rvv.setvl";
   }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult I32VAddDataflowOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i32_vadd_dataflow keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and element_count as descriptor-local "
+                "microkernel metadata";
+
+    if (!isAllowedI32VAddDataflowAttr(attrName))
+      return emitOpError()
+             << "only accepts fixed target/export ABI role attributes '"
+             << kLHSAttrName << "', '" << kRHSAttrName << "', '"
+             << kOutAttrName << "', and '" << kRuntimeNAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 0 || op->getNumResults() != 0)
+    return emitOpError()
+           << "is a bounded finite dataflow marker with no SSA operands or "
+              "results; pointer buffers and runtime n are target/export ABI "
+              "parameters";
+  if (op->getNumRegions() != 0)
+    return emitOpError()
+           << "does not own regions; it must be nested directly under "
+              "tcrv_rvv.with_vl";
+
+  if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a tcrv_rvv.with_vl body";
+  if (!op->getParentOfType<I32VAddMicrokernelOp>())
+    return emitOpError()
+           << "must be nested under tcrv_rvv.i32_vadd_microkernel; it is a "
+              "finite microkernel dataflow marker, not a standalone RVV "
+              "compute op";
+
+  if (mlir::failed(verifyBoundedDataflowABIAttr(*this, kLHSAttrName)) ||
+      mlir::failed(verifyBoundedDataflowABIAttr(*this, kRHSAttrName)) ||
+      mlir::failed(verifyBoundedDataflowABIAttr(*this, kOutAttrName)) ||
+      mlir::failed(verifyBoundedDataflowABIAttr(*this, kRuntimeNAttrName)))
+    return mlir::failure();
 
   return mlir::success();
 }

@@ -120,12 +120,14 @@ creates the matching plugin-local `tcrv_rvv.i32_vadd_microkernel` direct
 kernel-child op. The materialized op must preserve source kernel, selected
 variant, origin, selected role, required capability refs, required march,
 optional selected mabi, bounded element count, and one structured RVV
-control-plane body. That body has a runtime index block argument for the
-target/export-owned runtime `n`/AVL value, one `tcrv_rvv.setvl`, and one
-matching `tcrv_rvv.with_vl`. If descriptor metadata is missing or malformed,
-required march is missing, the structured body is malformed, or an explicit
-matching microkernel would make the selected path ambiguous, the plugin must
-fail before claiming a supported emission path.
+dataflow body. That body has a runtime index block argument for the
+target/export-owned runtime `n`/AVL value, one `tcrv_rvv.setvl`, one matching
+`tcrv_rvv.with_vl`, and one nested finite `tcrv_rvv.i32_vadd_dataflow` marker
+for the target/export-owned `lhs`/`rhs`/`out`/runtime-`n` ABI roles consumed by
+the exporter. If descriptor metadata is missing or malformed, required march is
+missing, the structured body is malformed, or an explicit matching microkernel
+would make the selected path ambiguous, the plugin must fail before claiming a
+supported emission path.
 
 The microkernel slice is the first narrow exception to the metadata-only RVV
 unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
@@ -138,11 +140,12 @@ the i32 vector-add microkernel artifact route. When the selected variant
 carries the finite descriptor, supported readiness/plan
 metadata must also validate that the attached microkernel's `element_count`
 matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
-must also validate the microkernel's `setvl` / `with_vl` control-plane body
-against the selected RVV first-slice policy before reporting the supported
-handoff. It does not provide generic RVV lowering or runtime ABI integration,
-and it does not create correctness or performance evidence without separate
-`ssh rvv` compile/run artifacts.
+must also validate the microkernel's `setvl` / `with_vl` /
+`i32_vadd_dataflow` body against the selected RVV first-slice policy and the
+fixed i32-vadd ABI role contract before reporting the supported handoff. It
+does not provide generic RVV lowering or runtime ABI integration, and it does
+not create correctness or performance evidence without separate `ssh rvv`
+compile/run artifacts.
 
 ## Remote Evidence Probe Contract
 
@@ -239,24 +242,30 @@ RVV plugin path. The default `registerAllDialects` path remains core-only; RVV
 dialect availability is proven by populating an `ExtensionPluginRegistry` with
 the RVV plugin and calling `registerPluginDialects`.
 
-The first RVV dialect slice is still metadata/control-plane only. It introduces
-the vector-length token type `!tcrv_rvv.vl`, the finite policy attribute
+The first RVV dialect slice started as metadata/control-plane only and now has
+one bounded i32-vadd dataflow exception for the finite microkernel export. It
+introduces the vector-length token type `!tcrv_rvv.vl`, the finite policy
+attribute
 `#tcrv_rvv.policy<tail = agnostic|undisturbed, mask =
 agnostic|undisturbed>`, the bounded runtime AVL-to-VL control-plane operation
-`tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`, and
-the pre-executable `tcrv_rvv.lowering_boundary` operation. The setvl op
+`tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`,
+the finite `tcrv_rvv.i32_vadd_dataflow` marker nested under that scope for the
+current i32-vadd export route, and the pre-executable
+`tcrv_rvv.lowering_boundary` operation. The setvl op
 consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
 only bounded first-slice compile-time config metadata: SEW 32, LMUL m1, and the
 finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
-owns one single-block region for future RVV control/body work. Optional
+owns one single-block region for bounded RVV control/body work. Optional
 duplicated SEW/LMUL/policy metadata is limited to the same bounded first-slice
 config and must agree with the visible defining setvl when present. The
-boundary op records selected RVV source/variant/role/status metadata for a
-future lowering attachment point. These surfaces are not RVV arithmetic, memory
-operations, LLVM/RISC-V lowering, runtime ABI glue, executable emission,
-correctness evidence, or performance evidence. `tcrv_rvv` is the concrete MLIR
-dialect namespace because MLIR dialect namespaces cannot contain `.` characters;
-the architectural extension family remains `tcrv.rvv`.
+dataflow marker carries only fixed target/export ABI role metadata for the
+current i32-vadd route; it is not a generic vector memory model. The boundary
+op records selected RVV source/variant/role/status metadata for a future
+lowering attachment point. These surfaces are not generic RVV arithmetic,
+generic memory operations, LLVM/RISC-V lowering, full runtime ABI glue,
+hardware execution, correctness evidence, or performance evidence. `tcrv_rvv`
+is the concrete MLIR dialect namespace because MLIR dialect namespaces cannot
+contain `.` characters; the architectural extension family remains `tcrv.rvv`.
 
 ## Capability Fields
 
@@ -578,13 +587,14 @@ microkernel body for a selected RVV path. The op is plugin-local under the
 `tcrv_rvv` dialect and must carry only selected-path metadata: source kernel,
 selected variant, origin, selected role, required capability refs, required
 march, optional selected mabi, a tiny element count, and one structured
-control-plane region. The region has one runtime index block argument for
-target/export-owned `n`/AVL, one `tcrv_rvv.setvl` consuming that argument, and
-one `tcrv_rvv.with_vl` consuming the resulting `!tcrv_rvv.vl` value. It must
+dataflow region. The region has one runtime index block argument for
+target/export-owned `n`/AVL, one `tcrv_rvv.setvl` consuming that argument, one
+`tcrv_rvv.with_vl` consuming the resulting `!tcrv_rvv.vl` value, and exactly
+one `tcrv_rvv.i32_vadd_dataflow` nested under the `with_vl` body. It must
 reject generic tensor/tile/benchmark attributes, unbounded or secret-like
 strings, invalid element counts, stale selected variants, missing or
 unavailable RVV capability refs, required-march mismatches, descriptor-local
-`element_count` masquerading as AVL/VL, and malformed control-plane bodies.
+`element_count` masquerading as AVL/VL, and malformed control/dataflow bodies.
 
 During selected-boundary materialization, `RVVExtensionPlugin` may create this
 op automatically from the selected variant's finite
@@ -603,11 +613,12 @@ and a `size_t` runtime element count. The supported emission plan must carry
 structured `runtime_abi_parameters` entries for `lhs`, `rhs`, `out`, and
 runtime `n`. For this first slice those parameters are target/export ABI-owned,
 not IR-modeled RVV operands or descriptor-local `element_count`. The exporter
-must validate and consume the microkernel's structured `setvl` / `with_vl`
-body before emitting the RVV i32 load/add/store-intrinsic loop, so stale or
-mismatched control-plane metadata cannot be silently ignored. The default
-export is a library-style callable source artifact with no embedded `main` or
-self-check harness. If a bounded self-check executable is needed for evidence
+must validate and consume the microkernel's structured `setvl` / `with_vl` /
+`i32_vadd_dataflow` body before emitting the RVV i32 load/add/store-intrinsic
+loop, so stale or mismatched control/dataflow metadata cannot be silently
+ignored. The default export is a library-style callable source artifact with no
+embedded `main` or self-check harness. If a bounded self-check executable is
+needed for evidence
 collection, `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the
 explicit harness export and calls the same ABI function over fixed local
 arrays.

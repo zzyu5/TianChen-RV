@@ -1,7 +1,7 @@
 // RUN: not tcrv-translate --tcrv-export-rvv-microkernel-c %s 2>&1 | FileCheck %s --implicit-check-not="#include <riscv_vector.h>"
 
 module {
-  tcrv.exec.kernel @stale_boundary_microkernel {
+  tcrv.exec.kernel @dataflow_runtime_role_mismatch {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -15,14 +15,7 @@ module {
       selected_march = "rv64gcv",
       status = "available"
     }
-    tcrv.exec.variant @rvv_selected attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv"
-    } {
-    }
-    tcrv.exec.variant @rvv_old attributes {
+    tcrv.exec.variant @rvv_first_slice attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -35,16 +28,17 @@ module {
       selection_kind = "static-variant",
       severity = "note",
       status = "selected",
-      target = @rvv_selected
+      target = @rvv_first_slice
     }
     tcrv_rvv.lowering_boundary {
+      capability_summary = "rvv",
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
       role = "direct variant",
-      selected_variant = @rvv_old,
-      source_kernel = "stale_boundary_microkernel",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "dataflow_runtime_role_mismatch",
       status = "unsupported",
-      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
+      unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
     }
     tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
@@ -52,17 +46,16 @@ module {
       required_capabilities = [@rvv],
       required_march = "rv64gcv",
       role = "direct variant",
-      selected_variant = @rvv_selected,
-      source_kernel = "stale_boundary_microkernel"
+      selected_variant = @rvv_first_slice,
+      source_kernel = "dataflow_runtime_role_mismatch"
     } {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "element_count"}
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK: stale tcrv_rvv.lowering_boundary for @rvv_old as direct variant
-// CHECK-SAME: is not selected by the current RVV microkernel surface
+// CHECK: tcrv_rvv.i32_vadd_dataflow attribute 'runtime_n' must be fixed target/export ABI role name 'n'

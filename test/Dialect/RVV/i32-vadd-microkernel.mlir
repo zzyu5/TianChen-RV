@@ -33,6 +33,11 @@ module {
     // CHECK-SAME: lmul = "m1"
     // CHECK-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     // CHECK-SAME: sew = 32 : i64
+    // CHECK: tcrv_rvv.i32_vadd_dataflow
+    // CHECK-SAME: lhs = "lhs"
+    // CHECK-SAME: out = "out"
+    // CHECK-SAME: rhs = "rhs"
+    // CHECK-SAME: runtime_n = "n"
     tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
@@ -46,6 +51,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -81,6 +87,96 @@ module {
 // -----
 
 module {
+  tcrv.exec.kernel @rvv_i32_vadd_microkernel_missing_dataflow {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    // expected-error@+1 {{requires exactly one tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body}}
+    tcrv_rvv.i32_vadd_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "rvv_i32_vadd_microkernel_missing_dataflow"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_i32_vadd_microkernel_duplicate_dataflow {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    // expected-error@+1 {{requires exactly one tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body}}
+    tcrv_rvv.i32_vadd_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "rvv_i32_vadd_microkernel_duplicate_dataflow"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_i32_vadd_microkernel_dataflow_forbidden_element_count {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    tcrv_rvv.i32_vadd_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "rvv_i32_vadd_microkernel_dataflow_forbidden_element_count"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        // expected-error@+1 {{does not accept attribute '"element_count"'}}
+        tcrv_rvv.i32_vadd_dataflow {element_count = 16 : i64, lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+module {
   tcrv.exec.kernel @rvv_i32_vadd_microkernel_bad_source {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @rvv_first_slice attributes {
@@ -102,6 +198,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -131,6 +228,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -160,6 +258,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -189,6 +288,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -218,6 +318,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -247,6 +348,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -277,6 +379,7 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }

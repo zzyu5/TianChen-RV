@@ -15,13 +15,14 @@ def TCRV_RVV_Dialect : Dialect {
     concrete MLIR dialect namespace is tcrv_rvv because MLIR dialect
     namespaces cannot contain '.' characters.
 
-    This first slice intentionally exposes only non-compute control-plane
-    surfaces and is registered by RVVExtensionPlugin through the
-    ExtensionPluginRegistry path. The bounded tcrv_rvv.setvl op is the first
-    runtime AVL-to-VL control-plane surface, and tcrv_rvv.with_vl provides the
-    matching bounded VL scope region. RVV arithmetic, memory, reduction,
-    lowering, emission, runtime ABI, executable behavior, correctness, and
-    performance evidence are out of scope for this dialect skeleton.
+    The initial control-plane slice exposes the bounded tcrv_rvv.setvl runtime
+    AVL-to-VL surface and the matching tcrv_rvv.with_vl VL scope region. The
+    first executable microkernel exception adds one finite
+    tcrv_rvv.i32_vadd_dataflow marker under that scope so the RVV exporter can
+    consume plugin-local i32 vector-add dataflow without turning tcrv.exec into
+    a compute IR. Generic RVV lowering, arbitrary vector memory modeling,
+    runtime ABI implementation, correctness claims, and performance evidence
+    remain out of scope for the dialect skeleton.
   }];
 
   let useDefaultTypePrinterParser = 1;
@@ -154,6 +155,32 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
   let hasVerifier = 1;
 }
 
+def I32VAddDataflowOp : TCRVRVV_Op<"i32_vadd_dataflow", []> {
+  let summary = "bounded RVV i32 vector-add dataflow marker";
+  let description = [{
+    Records the finite RVV i32 vector-add dataflow surface consumed by the
+    current microkernel C exporter. The op is nested under
+    tcrv_rvv.with_vl, carries only fixed target/export-owned ABI role names
+    for lhs, rhs, out, and runtime n, and has no SSA operands or results.
+
+    Pointer operands remain target/export ABI-owned parameters, not IR-modeled
+    buffers. Runtime n/AVL/VL remains represented by the surrounding
+    tcrv_rvv.i32_vadd_microkernel region argument, tcrv_rvv.setvl, and
+    tcrv_rvv.with_vl control surface. Descriptor-local element_count remains
+    metadata on the enclosing microkernel and is not accepted here.
+  }];
+
+  let arguments = (ins
+    StrAttr:$lhs,
+    StrAttr:$rhs,
+    StrAttr:$out,
+    StrAttr:$runtime_n
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
   let summary = "pre-executable RVV lowering boundary metadata";
   let description = [{
@@ -191,11 +218,12 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
     a selected RVV variant. This is intentionally a finite smoke microkernel
     surface: it carries selected-path metadata, required RVV capability
     references, the required march, a tiny element count, and one structured
-    RVV control-plane body that a target-local exporter can validate before
+    RVV dataflow body that a target-local exporter can validate before
     emitting deterministic standalone C using RVV intrinsics. The body has one
     runtime index block argument representing the target/export-owned runtime
     element count/AVL control value, then a bounded tcrv_rvv.setvl to
-    tcrv_rvv.with_vl chain.
+    tcrv_rvv.with_vl chain whose nested body contains exactly one finite
+    tcrv_rvv.i32_vadd_dataflow marker.
 
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary vector math IR. It represents exactly the first

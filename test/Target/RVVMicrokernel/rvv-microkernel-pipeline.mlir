@@ -82,6 +82,7 @@ module @rvv_microkernel_input {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
       } : !tcrv_rvv.vl
     }
   }
@@ -102,6 +103,8 @@ module @rvv_microkernel_input {
 // LIB: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
 // LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
+// LIB: /* dataflow_body: tcrv_rvv.i32_vadd_dataflow lhs/rhs/out/n */
+// LIB: /* dataflow_abi_roles: lhs=target-export-owned lhs input, rhs=target-export-owned rhs input, out=target-export-owned output, runtime_n=target/export-owned n */
 // LIB: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // LIB: /* artifact_kind: runtime-callable-c-source */
 // LIB: /* element_count: 16 */

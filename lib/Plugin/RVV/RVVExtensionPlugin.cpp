@@ -64,6 +64,10 @@ constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kLHSAttrName("lhs");
+constexpr llvm::StringLiteral kRHSAttrName("rhs");
+constexpr llvm::StringLiteral kOutAttrName("out");
+constexpr llvm::StringLiteral kRuntimeNAttrName("runtime_n");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
@@ -701,12 +705,47 @@ llvm::Error validateMicrokernelStructuredControlPlane(
         "first-slice variant config");
 
   mlir::Region &withVLBody = withVL.getBody();
-  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody) ||
-      !withVLBody.front().empty())
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
     return makeRVVPluginError(
         "explicit RVV microkernel emission plan requires the bounded "
-        "tcrv_rvv.with_vl body to be present and empty; RVV arithmetic or "
-        "memory ops are not modeled by this i32-vadd control-plane slice");
+        "tcrv_rvv.with_vl body to be present");
+  if (withVLBody.front().getNumArguments() != 0)
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires the bounded "
+        "tcrv_rvv.with_vl body to have no block arguments");
+
+  tcrv::rvv::I32VAddDataflowOp dataflow;
+  unsigned dataflowCount = 0;
+  for (mlir::Operation &withVLOp : withVLBody.front()) {
+    if (auto candidate =
+            llvm::dyn_cast<tcrv::rvv::I32VAddDataflowOp>(withVLOp)) {
+      dataflow = candidate;
+      ++dataflowCount;
+      continue;
+    }
+    return makeRVVPluginError(
+        llvm::Twine("explicit RVV microkernel emission plan does not consume "
+                    "unexpected with_vl dataflow operation '") +
+        withVLOp.getName().getStringRef() + "'");
+  }
+
+  if (dataflowCount != 1)
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires exactly one "
+        "tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body");
+
+  if (llvm::Error error = validateMicrokernelEmissionAttr(
+          dataflow.getOperation(), kLHSAttrName, "lhs"))
+    return error;
+  if (llvm::Error error = validateMicrokernelEmissionAttr(
+          dataflow.getOperation(), kRHSAttrName, "rhs"))
+    return error;
+  if (llvm::Error error = validateMicrokernelEmissionAttr(
+          dataflow.getOperation(), kOutAttrName, "out"))
+    return error;
+  if (llvm::Error error = validateMicrokernelEmissionAttr(
+          dataflow.getOperation(), kRuntimeNAttrName, "n"))
+    return error;
 
   return llvm::Error::success();
 }
@@ -971,7 +1010,19 @@ tcrv::rvv::I32VAddMicrokernelOp materializeRVVI32VAddMicrokernelOp(
   withVLState.addAttribute(kLMULAttrName, builder.getStringAttr("m1"));
   withVLState.addAttribute(kPolicyAttrName, policy);
   mlir::Region *withVLBody = withVLState.addRegion();
-  withVLBody->push_back(new mlir::Block());
+  auto *withVLBlock = new mlir::Block();
+  withVLBody->push_back(withVLBlock);
+
+  mlir::OpBuilder withVLBodyBuilder(builder.getContext());
+  withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
+  mlir::OperationState dataflowState(
+      variant.getLoc(), tcrv::rvv::I32VAddDataflowOp::getOperationName());
+  dataflowState.addAttribute(kLHSAttrName, builder.getStringAttr("lhs"));
+  dataflowState.addAttribute(kRHSAttrName, builder.getStringAttr("rhs"));
+  dataflowState.addAttribute(kOutAttrName, builder.getStringAttr("out"));
+  dataflowState.addAttribute(kRuntimeNAttrName, builder.getStringAttr("n"));
+  withVLBodyBuilder.create(dataflowState);
+
   bodyBuilder.create(withVLState);
 
   return llvm::cast<tcrv::rvv::I32VAddMicrokernelOp>(builder.create(state));

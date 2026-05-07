@@ -284,6 +284,12 @@ module {
         policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
       } {
+        tcrv_rvv.i32_vadd_dataflow {
+          lhs = "lhs",
+          out = "out",
+          rhs = "rhs",
+          runtime_n = "n"
+        }
       } : !tcrv_rvv.vl
     }
   }
@@ -321,8 +327,10 @@ module {
   if (int result =
           expect(llvm::StringRef(printedStorage).contains("tcrv_rvv.setvl") &&
                      llvm::StringRef(printedStorage)
-                         .contains("tcrv_rvv.with_vl"),
-                 "printed module preserves structured RVV control-plane body"))
+                         .contains("tcrv_rvv.with_vl") &&
+                     llvm::StringRef(printedStorage)
+                         .contains("tcrv_rvv.i32_vadd_dataflow"),
+                 "printed module preserves structured RVV dataflow body"))
     return result;
 
   mlir::OwningOpRef<mlir::ModuleOp> reparsed =

@@ -36,6 +36,7 @@ using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::rvv::I32VAddDataflowOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
 using tianchenrv::tcrv::rvv::PolicyAttr;
@@ -58,6 +59,10 @@ constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kLHSAttrName("lhs");
+constexpr llvm::StringLiteral kRHSAttrName("rhs");
+constexpr llvm::StringLiteral kOutAttrName("out");
+constexpr llvm::StringLiteral kRuntimeNAttrName("runtime_n");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
@@ -241,6 +246,22 @@ llvm::Error requireSafeStringAttr(KernelOp kernel, mlir::Operation *op,
   if (llvm::Error error = validateBoundedText(kernel, attrName, value))
     return error;
   out = value.str();
+  return llvm::Error::success();
+}
+
+llvm::Error requireFixedDataflowABIAttr(KernelOp kernel, mlir::Operation *op,
+                                        llvm::StringRef attrName,
+                                        llvm::StringRef expectedValue) {
+  std::string value;
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, op, attrName,
+                                "tcrv_rvv.i32_vadd_dataflow", value))
+    return error;
+  if (value != expectedValue)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("tcrv_rvv.i32_vadd_dataflow attribute '") +
+                    attrName + "' must be fixed target/export ABI role name '" +
+                    expectedValue + "' for this bounded export route");
   return llvm::Error::success();
 }
 
@@ -889,12 +910,47 @@ llvm::Error validateMicrokernelForPath(
   }
 
   mlir::Region &withVLBody = withVL.getBody();
-  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody) ||
-      !withVLBody.front().empty())
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
     return makeMicrokernelError(
         kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
-                "must be present and empty for this bounded i32-vadd export "
-                "slice");
+                "must be present for this bounded i32-vadd export slice");
+  if (withVLBody.front().getNumArguments() != 0)
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
+                "must not have block arguments");
+
+  I32VAddDataflowOp dataflow;
+  unsigned dataflowCount = 0;
+  for (mlir::Operation &withVLOp : withVLBody.front()) {
+    if (auto candidate = llvm::dyn_cast<I32VAddDataflowOp>(withVLOp)) {
+      dataflow = candidate;
+      ++dataflowCount;
+      continue;
+    }
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
+                    "has unexpected operation '") +
+            withVLOp.getName().getStringRef() +
+            "'; exporter consumes only tcrv_rvv.i32_vadd_dataflow there");
+  }
+  if (dataflowCount != 1)
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
+                "requires exactly one tcrv_rvv.i32_vadd_dataflow");
+
+  if (llvm::Error error = requireFixedDataflowABIAttr(
+          kernel, dataflow.getOperation(), kLHSAttrName, "lhs"))
+    return error;
+  if (llvm::Error error = requireFixedDataflowABIAttr(
+          kernel, dataflow.getOperation(), kRHSAttrName, "rhs"))
+    return error;
+  if (llvm::Error error = requireFixedDataflowABIAttr(
+          kernel, dataflow.getOperation(), kOutAttrName, "out"))
+    return error;
+  if (llvm::Error error = requireFixedDataflowABIAttr(
+          kernel, dataflow.getOperation(), kRuntimeNAttrName, "n"))
+    return error;
 
   controlPlaneSEW = 32;
   controlPlaneLMUL = "m1";
@@ -1176,6 +1232,10 @@ void printRecordComment(llvm::raw_ostream &os,
         "target/export-owned runtime n ABI parameter */\n";
   os << "/* control_plane_vl: !tcrv_rvv.vl value consumed by "
         "tcrv_rvv.with_vl */\n";
+  os << "/* dataflow_body: tcrv_rvv.i32_vadd_dataflow lhs/rhs/out/n */\n";
+  os << "/* dataflow_abi_roles: lhs=target-export-owned lhs input, "
+        "rhs=target-export-owned rhs input, out=target-export-owned output, "
+        "runtime_n=target/export-owned n */\n";
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
      << ", policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */\n";
