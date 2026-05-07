@@ -23,6 +23,19 @@ bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
 }
 
+bool hasConservativeFallbackRole(const VariantCostRankingEntry &entry) {
+  if (entry.estimate.getFallbackRole() ==
+      VariantFallbackRole::ConservativeFallback)
+    return true;
+
+  if (!entry.variant)
+    return false;
+
+  auto roleAttr = entry.variant->getAttrOfType<mlir::StringAttr>(
+      kVariantFallbackRoleAttrName);
+  return roleAttr && roleAttr.getValue() == kConservativeFallbackRoleValue;
+}
+
 llvm::Error makePluginRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       message, llvm::errc::invalid_argument);
@@ -276,8 +289,8 @@ VariantProposalDecline::VariantProposalDecline(llvm::StringRef pluginName,
 VariantCostEstimate::VariantCostEstimate(double score,
                                          llvm::StringRef originPlugin,
                                          llvm::StringRef variantSymbol)
-    : scoreSet(true), score(score), originPlugin(originPlugin.str()),
-      variantSymbol(variantSymbol.str()) {}
+    : scoreSet(true), score(score), explicitPreference(true),
+      originPlugin(originPlugin.str()), variantSymbol(variantSymbol.str()) {}
 
 llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role) {
   switch (role) {
@@ -469,6 +482,7 @@ llvm::Error ExtensionPlugin::estimateVariantCost(
     const VariantCostRequest &request, VariantCostEstimate &out) const {
   out = VariantCostEstimate();
   out.setScore(0.0);
+  out.setExplicitPreference(false);
   out.setOriginPlugin(getName());
   if (tcrv::exec::VariantOp variant = request.getVariant())
     out.setVariantSymbol(variant.getSymName());
@@ -1088,11 +1102,23 @@ llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
   std::stable_sort(out.begin(), out.end(),
                    [](const VariantCostRankingEntry &lhs,
                       const VariantCostRankingEntry &rhs) {
+                     if (lhs.estimate.hasExplicitPreference() !=
+                         rhs.estimate.hasExplicitPreference())
+                       return lhs.estimate.hasExplicitPreference();
                      if (lhs.estimate.getScore() < rhs.estimate.getScore())
                        return true;
                      if (rhs.estimate.getScore() < lhs.estimate.getScore())
                        return false;
-                     return lhs.originalIndex < rhs.originalIndex;
+                     bool lhsFallback = hasConservativeFallbackRole(lhs);
+                     bool rhsFallback = hasConservativeFallbackRole(rhs);
+                     if (lhsFallback != rhsFallback)
+                       return !lhsFallback;
+                     if (lhs.originalIndex < rhs.originalIndex)
+                       return true;
+                     if (rhs.originalIndex < lhs.originalIndex)
+                       return false;
+                     return lhs.estimate.getVariantSymbol() <
+                            rhs.estimate.getVariantSymbol();
                    });
   return llvm::Error::success();
 }

@@ -5,7 +5,7 @@ tcrv.exec.kernel @pluginless_selection attributes {} {
     id = "generic.base",
     kind = "toolchain"
   }
-  // CHECK: error: TianChen-RV variant cost estimation failed for variant @candidate in kernel @pluginless_selection: unknown origin plugin 'missing-plugin'
+  // CHECK: error: TianChen-RV variant legality verification failed for variant @candidate in kernel @pluginless_selection: unknown origin plugin 'missing-plugin'
   tcrv.exec.variant @candidate attributes {
     origin = "missing-plugin",
     requires = [@generic_base]

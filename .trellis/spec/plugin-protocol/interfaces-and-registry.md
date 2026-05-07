@@ -162,6 +162,7 @@ class VariantCostEstimate {
 public:
   bool hasScore() const;
   double getScore() const;
+  bool hasExplicitPreference() const;
   StringRef getOriginPlugin() const;
   StringRef getVariantSymbol() const;
   bool hasExplanation() const;
@@ -180,12 +181,14 @@ public:
 
 This request carries only compiler objects already present in IR: the
 materialized `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, and the
-generic `TargetCapabilitySet` built from that kernel. The estimate is a generic
-finite non-negative score plus origin/variant identity and optional non-empty
-generic explanation or policy text. It is not a selection decision, tuning
-space, lowering plan, emission object, runtime ABI, target-family object, or
-hardware performance claim. The default plugin hook returns a deterministic
-neutral estimate for the request variant and origin plugin.
+generic `TargetCapabilitySet` built from that kernel. The estimate is generic
+selection-preference metadata: explicit-preference availability, a finite
+non-negative score, origin/variant identity, fallback role metadata, and
+optional non-empty generic explanation or policy text. It is not a selection
+decision, tuning space, lowering plan, emission object, runtime ABI,
+target-family object, hardware performance claim, correctness result, or
+benchmark. The default plugin hook returns a deterministic neutral
+no-explicit-preference estimate for the request variant and origin plugin.
 
 ### EmissionReadinessProvider
 
@@ -415,6 +418,9 @@ orchestration:
   non-empty origin plugin, non-empty variant symbol, matching request
   origin/variant identity, and non-empty explanation/policy strings when those
   optional fields are present;
+- distinguish explicit plugin preference from the default no-preference hook so
+  selection can prefer real plugin-provided ranking metadata before applying
+  target-neutral tie-breaks;
 - allow plugins to return an abstract fallback role in the cost estimate so
   generic selection can choose a `tcrv.exec.fallback` without inspecting plugin
   names, target families, capability ids, dtypes, shapes, or runtime identities;
@@ -423,8 +429,9 @@ orchestration:
 - when collecting costs for a kernel, visit direct `tcrv.exec.variant` children
   in IR order and do not mutate materialization, dispatch, selection, lowering,
   or emission structures;
-- when ranking collected estimates, sort by generic score and keep equal-score
-  ties stable by original kernel IR order;
+- when ranking collected estimates, sort by explicit-preference availability,
+  generic score, generic fallback role, original kernel IR order, then symbol
+  name;
 - keep cost orchestration generic and free of RVV, IME, offload, scalar,
   vendor, dtype, shape, layout, runtime ABI, microarchitecture, or
   target-family branches.
@@ -487,14 +494,15 @@ selection decision. A core selection planner may consume
 `rankKernelVariantsByCost` results together with the same generic
 `TargetCapabilitySet` to choose a static variant, a fallback-only path, a
 runtime dispatch plan, or a no-viable-variant result. The planner must continue
-to route cost ownership through the variant `origin` plugin and must preserve
-the registry ranking tie-break by original kernel IR order. Plugins may provide
-scores and optional explanatory metadata through their cost hook, but they do
-not directly mutate dispatch IR or encode core selection policy through
-target-family branches. If runtime dispatch requires a fallback, the planner may
-use only a plugin-provided generic fallback role from proposal/materialized
-metadata or cost-estimate metadata; it must not invent fallback coverage from an
-arbitrary available variant.
+to route cost/preference ownership through the variant `origin` plugin and must
+preserve the registry ranking tie-break order: explicit-preference
+availability, score, fallback role, original kernel IR order, then symbol name.
+Plugins may provide scores and optional explanatory metadata through their cost
+hook, but they do not directly mutate dispatch IR or encode core selection
+policy through target-family branches. If runtime dispatch requires a fallback,
+the planner may use only a plugin-provided generic fallback role from
+proposal/materialized metadata or cost-estimate metadata; it must not invent
+fallback coverage from an arbitrary available variant.
 
 When legality verification, selection, emission-readiness, or emission-plan
 collection is run as an MLIR pass, the pass must receive the same registry

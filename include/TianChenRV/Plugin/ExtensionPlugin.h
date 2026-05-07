@@ -252,6 +252,7 @@ public:
 
   bool hasScore() const { return scoreSet; }
   double getScore() const { return score; }
+  bool hasExplicitPreference() const { return explicitPreference; }
   llvm::StringRef getOriginPlugin() const { return originPlugin; }
   llvm::StringRef getVariantSymbol() const { return variantSymbol; }
   bool hasExplanation() const { return explanationSet; }
@@ -266,6 +267,9 @@ public:
   void setScore(double value) {
     score = value;
     scoreSet = true;
+  }
+  void setExplicitPreference(bool value = true) {
+    explicitPreference = value;
   }
   void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
   void setVariantSymbol(llvm::StringRef symbol) {
@@ -284,6 +288,7 @@ public:
 private:
   bool scoreSet = false;
   double score = 0.0;
+  bool explicitPreference = false;
   std::string originPlugin;
   std::string variantSymbol;
   bool explanationSet = false;

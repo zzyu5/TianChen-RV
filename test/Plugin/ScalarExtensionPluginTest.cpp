@@ -405,6 +405,7 @@ module {
     return result;
   if (int result =
           expect(estimate.hasScore() && estimate.getScore() == 1000.0 &&
+                     estimate.hasExplicitPreference() &&
                      estimate.getOriginPlugin() ==
                          tianchenrv::plugin::scalar::
                              getScalarExtensionPluginName() &&

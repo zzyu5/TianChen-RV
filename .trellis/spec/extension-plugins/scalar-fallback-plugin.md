@@ -51,10 +51,12 @@ Scalar fallback is still capability-driven:
 
 ## Cost And Selection
 
-The first slice uses plugin-owned cost metadata to mark scalar fallback as a
-conservative coverage path. It should not be treated as a performance baseline
-unless a later task adds real lowering, runtime, input metadata, and measured
-evidence.
+The first slice uses plugin-owned preference/cost metadata to mark scalar
+fallback as a conservative coverage path. Its explicit preference is deliberately
+weaker than plugin-specific legal variants such as RVV, so it wins only when no
+better legal plugin-owned path is selected. It should not be treated as a
+performance baseline unless a later task adds real lowering, runtime, input
+metadata, and measured evidence.
 
 Selection and dispatch must reuse the existing generic variant-selection
 protocol. Scalar fallback does not introduce a new core fallback selector: the

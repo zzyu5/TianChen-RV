@@ -305,17 +305,19 @@ The first C++/MLIR cost routing contract is:
   negative scores, mismatched origin/variant identity, and present-but-empty
   generic explanation or policy text;
 - collect direct kernel variant costs in original IR order without mutating IR;
-- return deterministic rankings by ascending generic score, with equal-score
-  ties kept stable by original kernel IR order;
+- return deterministic rankings by explicit plugin-preference availability,
+  ascending generic score, generic fallback role, original kernel IR order, and
+  finally symbol name;
 - leave proposal collection, materialization, legality, dispatch synthesis,
   full selection, tuning, lowering, emission, runtime ABI, and hardware
   probing as separate pipeline responsibilities.
 
 The default plugin cost hook is deterministic and safe: it returns a neutral
-finite score for the request variant and origin plugin. Concrete analytic,
-empirical, profile-guided, shape-aware, dtype-aware, runtime-aware, or
-hardware-specific cost semantics belong inside plugins and later selection
-slices, not in core registry orchestration.
+finite score marked as no explicit preference for the request variant and
+origin plugin. Concrete analytic, empirical, profile-guided, shape-aware,
+dtype-aware, runtime-aware, or hardware-specific cost/preference semantics
+belong inside plugins and later selection slices, not in core registry
+orchestration.
 
 Core cost orchestration must not hard-code RVV, IME, offload, scalar fallback,
 vendor, dtype, shape, layout, runtime ABI, microarchitecture, or target-family
@@ -385,7 +387,8 @@ The generic selection-planning contract is:
 - collect only direct `tcrv.exec.variant` children of the request
   `tcrv.exec.kernel`;
 - obtain score order through `ExtensionPluginRegistry::rankKernelVariantsByCost`
-  and preserve its stable original-IR-order tie break;
+  and preserve its target-neutral tie-break order: explicit plugin preference
+  availability, score, fallback role, original IR order, then symbol name;
 - require every selected or dispatched variant to have structured generic
   `requires` metadata and origin-owned cost information;
 - treat a variant as generically available only when all required capability
@@ -393,6 +396,10 @@ The generic selection-planning contract is:
 - reject unavailable variants that have no non-empty generic `condition`,
   `guard`, or `policy` metadata, rather than silently selecting them;
 - choose the best selected variant by generic availability and cost ranking;
+- materialize generic preference metadata on selected markers, dispatch cases,
+  and fallbacks so diagnostics expose origin plugin, explicit-preference
+  availability, preference score, rank, policy/explanation when present,
+  fallback role when present, and the target-neutral tie-break reason;
 - choose a `tcrv.exec.fallback` only from a generically available variant that a
   plugin marked with an abstract conservative fallback role in proposal,
   materialized metadata, or cost-estimate metadata;
@@ -507,7 +514,9 @@ lowering/runtime/correctness/performance claim.
 
 Selection planning must stay target-neutral. It must not branch on RVV, IME,
 offload, scalar fallback, vendors, accelerators, dtype, shape, layout, runtime
-ABI, microarchitecture, or any other target family.
+ABI, microarchitecture, or any other target family. Preference metadata is
+heuristic compiler ordering input only; it is not performance truth and cannot
+weaken capability or plugin-legality failures.
 
 ### 8. Pass Integration and Registry Injection
 

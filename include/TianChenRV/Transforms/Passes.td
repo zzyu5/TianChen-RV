@@ -106,12 +106,14 @@ def SelectVariants
   let description = [{
     Runs the target-neutral TianChen-RV variant selection planner over direct
     tcrv.exec.variant children of each tcrv.exec.kernel. Production tools should
-    construct this pass with a populated ExtensionPluginRegistry so variant costs
-    stay origin-plugin-owned. Public tcrv-opt registration owns a deterministic
-    built-in registry at the tool boundary, while the default factory constructor
-    still uses an empty registry for embedded negative tests and therefore
-    diagnoses kernels whose variants name unregistered origin plugins rather than
-    inventing core-side cost semantics.
+    construct this pass with a populated ExtensionPluginRegistry so variant
+    preference/cost metadata and legality stay origin-plugin-owned. The pass
+    verifies plugin-local legality before ranking and never lets preference act
+    as soft legality. Public tcrv-opt registration owns a deterministic built-in
+    registry at the tool boundary, while the default factory constructor still
+    uses an empty registry for embedded negative tests and therefore diagnoses
+    kernels whose variants name unregistered origin plugins rather than
+    inventing core-side preference semantics.
 
     Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
     tcrv.exec.case, and tcrv.exec.fallback operations only when a plugin-provided

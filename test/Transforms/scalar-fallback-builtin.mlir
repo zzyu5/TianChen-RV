@@ -16,6 +16,11 @@ module {
     } {
     }
     // CHECK: tcrv.exec.diagnostic
+    // CHECK-SAME: fallback_role = "conservative"
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: preference_available = true
+    // CHECK-SAME: preference_rank = 0
+    // CHECK-SAME: preference_score
     // CHECK-SAME: reason = "variant-selected"
     // CHECK-SAME: selection_kind = "fallback-only"
     // CHECK-SAME: status = "selected"

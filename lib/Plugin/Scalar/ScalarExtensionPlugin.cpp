@@ -255,6 +255,7 @@ llvm::Error ScalarExtensionPlugin::estimateVariantCost(
 
   out = VariantCostEstimate();
   out.setScore(1000.0);
+  out.setExplicitPreference(true);
   out.setOriginPlugin(kScalarPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation("portable scalar fallback first slice; coverage-oriented "

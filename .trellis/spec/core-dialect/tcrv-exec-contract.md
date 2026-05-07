@@ -147,6 +147,14 @@ materialized, but scalar/RVV/IME/offload semantics remain plugin-local. Core
 passes must not invent a fallback from an arbitrary available variant that lacks
 this generic role.
 
+Selection may also materialize target-neutral preference metadata on
+`tcrv.exec.diagnostic`, `tcrv.exec.case`, or `tcrv.exec.fallback`, including
+`origin`, `preference_available`, `preference_score`, `preference_rank`,
+`preference_policy`, `preference_explanation`, `preference_tie_break`, and
+`fallback_role`. These attributes explain deterministic compiler ordering only.
+They are not legality, lowering, runtime ABI, executable generation,
+correctness, performance, or hardware evidence.
+
 ### `tcrv.exec.hart_parallel`
 
 Represents coarse-grained RISC-V hart/core parallelism.
@@ -295,6 +303,9 @@ For this compatibility form, `reason` and `message` are required and non-empty.
 when present. `target` is optional selected-path metadata and, when present,
 must resolve to a variant symbol in the enclosing `tcrv.exec.kernel`. The op
 must be nested in a `tcrv.exec.kernel` or `tcrv.exec.variant`.
+When present on a selection diagnostic, preference metadata is plugin-provided
+heuristic ranking context and must not be interpreted as performance truth or
+soft legality.
 
 Emission-plan diagnostics are a structured specialization of
 `tcrv.exec.diagnostic`, not a new core op. They use

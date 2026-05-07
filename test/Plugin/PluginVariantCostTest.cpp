@@ -111,6 +111,7 @@ public:
     out = VariantCostEstimate();
     out.setOriginPlugin(name);
     out.setVariantSymbol(request.getVariant().getSymName());
+    out.setExplicitPreference(true);
 
     double score = availableScore;
     if (!capabilityID.empty()) {
@@ -360,6 +361,9 @@ module {
   if (int result = expect(estimate.hasScore() && estimate.getScore() == 2.0,
                           "cost can depend on generic capability availability"))
     return result;
+  if (int result = expect(estimate.hasExplicitPreference(),
+                          "origin plugin marks explicit selection preference"))
+    return result;
   if (int result = expect(estimate.getOriginPlugin() == "alpha" &&
                               estimate.getVariantSymbol() == "alpha_path",
                           "estimate preserves origin and variant symbol"))
@@ -419,6 +423,9 @@ module {
 
   if (int result = expect(estimate.hasScore() && estimate.getScore() == 0.0,
                           "default cost hook returns neutral finite score"))
+    return result;
+  if (int result = expect(!estimate.hasExplicitPreference(),
+                          "default hook records no explicit plugin preference"))
     return result;
   if (int result = expect(estimate.getOriginPlugin() == "default" &&
                               estimate.getVariantSymbol() == "default_path",
@@ -545,6 +552,67 @@ module {
     return result;
   if (int result = expect(ranked[1].originalIndex < ranked[2].originalIndex,
                           "equal score ranking keeps original IR order key"))
+    return result;
+
+  return 0;
+}
+
+int runExplicitPreferenceAvailabilityRankingTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @preference_availability_anchor attributes {} {
+    tcrv.exec.capability @generic_base {
+      id = "generic.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @default_no_preference attributes {
+      origin = "default",
+      requires = [@generic_base]
+    } {
+    }
+    tcrv.exec.variant @explicit_preference attributes {
+      origin = "explicit",
+      requires = [@generic_base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse preference availability ranking module");
+
+  KernelOp kernel = findKernel(*module, "preference_availability_anchor");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  DefaultCostPlugin defaultPlugin("default");
+  CostPlugin explicitPlugin("explicit", 10.0);
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(defaultPlugin),
+                                 "register default no-preference plugin"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(explicitPlugin),
+                                 "register explicit preference plugin"))
+    return result;
+
+  llvm::SmallVector<VariantCostRankingEntry, 2> ranked;
+  if (int result =
+          expectSuccess(registry.rankKernelVariantsByCost(kernel, capabilities,
+                                                          ranked),
+                        "rank explicit preference ahead of no-preference"))
+    return result;
+
+  if (int result =
+          expect(ranked.size() == 2 &&
+                     ranked[0].estimate.getVariantSymbol() ==
+                         "explicit_preference" &&
+                     ranked[0].estimate.hasExplicitPreference() &&
+                     ranked[1].estimate.getVariantSymbol() ==
+                         "default_no_preference" &&
+                     !ranked[1].estimate.hasExplicitPreference(),
+                 "explicit plugin preference availability outranks default no-preference"))
     return result;
 
   return 0;
@@ -795,6 +863,8 @@ int main() {
   if (int result = runDefaultNeutralEstimateTest(context))
     return result;
   if (int result = runKernelCollectionAndRankingTest(context))
+    return result;
+  if (int result = runExplicitPreferenceAvailabilityRankingTest(context))
     return result;
   if (int result = runNegativeCostTests(context))
     return result;

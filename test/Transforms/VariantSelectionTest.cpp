@@ -23,7 +23,9 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstdint>
 #include <initializer_list>
+#include <optional>
 #include <string>
 
 using tianchenrv::plugin::ExtensionPlugin;
@@ -77,8 +79,10 @@ public:
     out = VariantCostEstimate();
     out.setOriginPlugin(name);
     out.setVariantSymbol(request.getVariant().getSymName());
-    if (behavior == CostBehavior::Valid)
+    if (behavior == CostBehavior::Valid) {
       out.setScore(score);
+      out.setExplicitPreference(true);
+    }
     return llvm::Error::success();
   }
 
@@ -87,6 +91,25 @@ private:
   double score;
   bool enabled;
   CostBehavior behavior;
+  llvm::SmallVector<PluginCapability, 1> capabilities;
+};
+
+class NoPreferencePlugin final : public ExtensionPlugin {
+public:
+  explicit NoPreferencePlugin(llvm::StringRef name) : name(name.str()) {}
+
+  llvm::StringRef getName() const override { return name; }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return capabilities;
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+private:
+  std::string name;
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 
@@ -256,6 +279,27 @@ llvm::StringRef getStringAttr(mlir::Operation *operation,
   return attr.getValue();
 }
 
+bool getBoolAttr(mlir::Operation *operation, llvm::StringRef attrName) {
+  auto attr = operation->getAttrOfType<mlir::BoolAttr>(attrName);
+  return attr && attr.getValue();
+}
+
+std::optional<std::int64_t> getIntegerAttr(mlir::Operation *operation,
+                                           llvm::StringRef attrName) {
+  auto attr = operation->getAttrOfType<mlir::IntegerAttr>(attrName);
+  if (!attr)
+    return std::nullopt;
+  return attr.getInt();
+}
+
+std::optional<double> getFloatAttr(mlir::Operation *operation,
+                                   llvm::StringRef attrName) {
+  auto attr = operation->getAttrOfType<mlir::FloatAttr>(attrName);
+  if (!attr)
+    return std::nullopt;
+  return attr.getValueAsDouble();
+}
+
 int runStaticAndTieSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -305,6 +349,24 @@ module {
     } {
     }
   }
+
+  tcrv.exec.kernel @no_preference_tie_anchor attributes {} {
+    tcrv.exec.capability @generic_base {
+      id = "generic.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @no_pref_a attributes {
+      origin = "no-pref-a",
+      requires = [@generic_base]
+    } {
+    }
+    tcrv.exec.variant @no_pref_b attributes {
+      origin = "no-pref-b",
+      requires = [@generic_base]
+    } {
+    }
+  }
+
 }
 )mlir";
 
@@ -317,6 +379,8 @@ module {
   SelectionCostPlugin tieA("tie-a", 2.0);
   SelectionCostPlugin tieB("tie-b", 2.0);
   SelectionCostPlugin only("only", 3.0);
+  NoPreferencePlugin noPrefA("no-pref-a");
+  NoPreferencePlugin noPrefB("no-pref-b");
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(registry.registerPlugin(expensive), "register expensive"))
@@ -328,6 +392,12 @@ module {
   if (int result = expectSuccess(registry.registerPlugin(tieA), "register tie-a"))
     return result;
   if (int result = expectSuccess(registry.registerPlugin(only), "register only"))
+    return result;
+  if (int result =
+          expectSuccess(registry.registerPlugin(noPrefA), "register no-pref-a"))
+    return result;
+  if (int result =
+          expectSuccess(registry.registerPlugin(noPrefB), "register no-pref-b"))
     return result;
 
   KernelOp staticKernel = findKernel(*module, "static_anchor");
@@ -392,6 +462,25 @@ module {
                  "fallback-only plan records selected variant"))
     return result;
 
+  KernelOp noPreferenceKernel = findKernel(*module, "no_preference_tie_anchor");
+  auto noPreferencePlanOrError =
+      tianchenrv::transforms::planKernelVariantSelection(
+          noPreferenceKernel,
+          TargetCapabilitySet::buildFromKernel(noPreferenceKernel), registry);
+  if (!noPreferencePlanOrError)
+    return fail("no-preference tie selection failed: " +
+                llvm::toString(noPreferencePlanOrError.takeError()));
+  VariantSelectionPlan noPreferencePlan = std::move(*noPreferencePlanOrError);
+  if (int result =
+          expect(noPreferencePlan.selectedVariant.getSymName() == "no_pref_a" &&
+                     noPreferencePlan.rankedVariants.size() == 2 &&
+                     !noPreferencePlan.rankedVariants[0]
+                          .cost.hasExplicitPreference() &&
+                     !noPreferencePlan.rankedVariants[1]
+                          .cost.hasExplicitPreference(),
+                 "missing preference hooks use target-neutral IR-order tie-break"))
+    return result;
+
   mlir::PassManager passManager(&context);
   passManager.addPass(tianchenrv::transforms::createSelectVariantsPass(registry));
   if (int result =
@@ -417,6 +506,20 @@ module {
                      "static-variant",
                  "static marker records generic selection kind"))
     return result;
+  if (int result =
+          expect(getStringAttr(staticMarker.getOperation(), "origin") ==
+                         "cheap" &&
+                     getBoolAttr(staticMarker.getOperation(),
+                                 "preference_available") &&
+                     getIntegerAttr(staticMarker.getOperation(),
+                                    "preference_rank") == 0 &&
+                     getFloatAttr(staticMarker.getOperation(),
+                                  "preference_score") == 1.0 &&
+                     getStringAttr(staticMarker.getOperation(),
+                                   "preference_tie_break")
+                         .contains("explicit plugin preference"),
+                 "static marker records generic plugin preference metadata"))
+    return result;
 
   tieKernel = findKernel(*module, "tie_anchor");
   DiagnosticOp tieMarker = findDirectSelectedPathMarker(tieKernel);
@@ -435,6 +538,11 @@ module {
                                         "selection_kind") == "fallback-only",
                           "fallback-only marker records generic selection kind"))
     return result;
+  if (int result =
+          expect(getStringAttr(fallbackOnlyMarker.getOperation(),
+                               "fallback_role") == "conservative",
+                 "fallback-only marker records generic fallback preference role"))
+    return result;
 
   mlir::PassManager rerunPassManager(&context);
   rerunPassManager.addPass(
@@ -447,6 +555,67 @@ module {
   if (int result =
           expect(countDirectSelectedPathMarkers(staticKernel) == 1,
                  "selection rerun does not duplicate static selected marker"))
+    return result;
+
+  return 0;
+}
+
+int runFallbackRoleTieBreakTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @fallback_tie_anchor attributes {} {
+    tcrv.exec.capability @generic_base {
+      id = "generic.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @fallback_ir_first attributes {
+      fallback_role = "conservative",
+      origin = "fallback-tie",
+      requires = [@generic_base]
+    } {
+    }
+    tcrv.exec.variant @non_fallback_ir_second attributes {
+      origin = "non-fallback-tie",
+      policy = "opaque_non_fallback_tie",
+      requires = [@generic_base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse fallback role tie-break module");
+
+  SelectionCostPlugin fallbackTie("fallback-tie", 4.0);
+  SelectionCostPlugin nonFallbackTie("non-fallback-tie", 4.0);
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(fallbackTie),
+                                 "register fallback-tie"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(nonFallbackTie),
+                                 "register non-fallback-tie"))
+    return result;
+
+  KernelOp kernel = findKernel(*module, "fallback_tie_anchor");
+  auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+      kernel, TargetCapabilitySet::buildFromKernel(kernel), registry);
+  if (!planOrError)
+    return fail("fallback tie selection failed: " +
+                llvm::toString(planOrError.takeError()));
+
+  VariantSelectionPlan plan = std::move(*planOrError);
+  if (int result = expect(plan.selectedVariant.getSymName() ==
+                              "non_fallback_ir_second",
+                          "equal preference tie ranks conservative fallback after non-fallback"))
+    return result;
+  if (int result =
+          expect(plan.fallback.getSymName() == "fallback_ir_first" &&
+                     plan.dispatchCases.size() == 1 &&
+                     plan.dispatchCases.front().variant ==
+                         plan.selectedVariant,
+                 "fallback role tie-break still preserves explicit fallback"))
     return result;
 
   return 0;
@@ -622,6 +791,26 @@ module {
   if (int result = expect(getStringAttr(cases[2].getOperation(), "policy") ==
                               "opaque_policy_tie_b",
                           "case with policy-only metadata remains guarded"))
+    return result;
+  if (int result =
+          expect(getStringAttr(cases[0].getOperation(), "origin") ==
+                         "guarded-fast" &&
+                     getBoolAttr(cases[0].getOperation(),
+                                 "preference_available") &&
+                     getIntegerAttr(cases[0].getOperation(),
+                                    "preference_rank") == 0 &&
+                     getFloatAttr(cases[0].getOperation(),
+                                  "preference_score") == 0.5,
+                 "dispatch case records generic plugin preference metadata"))
+    return result;
+  if (int result =
+          expect(getStringAttr(fallback.getOperation(), "origin") ==
+                         "cheap-fallback" &&
+                     getStringAttr(fallback.getOperation(), "fallback_role") ==
+                         "conservative" &&
+                     getIntegerAttr(fallback.getOperation(),
+                                    "preference_rank") == 3,
+                 "dispatch fallback records generic fallback preference metadata"))
     return result;
 
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
@@ -883,6 +1072,18 @@ module {
                      rvvScalarPlan.selectedVariant == rvvVariant &&
                      rvvScalarPlan.fallback == scalarVariant,
                  "RVV is selected while scalar remains explicit fallback"))
+    return result;
+  if (int result =
+          expect(rvvScalarPlan.rankedVariants.size() == 2 &&
+                     rvvScalarPlan.rankedVariants[0].variant == rvvVariant &&
+                     rvvScalarPlan.rankedVariants[0]
+                         .cost.hasExplicitPreference() &&
+                     rvvScalarPlan.rankedVariants[0].cost.getScore() == 1.0 &&
+                     rvvScalarPlan.rankedVariants[1].variant == scalarVariant &&
+                     rvvScalarPlan.rankedVariants[1]
+                         .cost.hasExplicitPreference() &&
+                     rvvScalarPlan.rankedVariants[1].cost.getScore() == 1000.0,
+                 "RVV plugin preference outranks scalar fallback preference"))
     return result;
   if (int result = expect(rvvScalarPlan.dispatchCases.size() == 1 &&
                               rvvScalarPlan.dispatchCases.front().variant ==
@@ -1176,6 +1377,14 @@ module {
   crossKernelPlan.kind = VariantSelectionKind::RuntimeDispatch;
   crossKernelPlan.kernel = otherKernel;
   crossKernelPlan.fallback = findDirectVariant(otherKernel, "other_path");
+  VariantCostEstimate otherEstimate;
+  otherEstimate.setScore(0.25);
+  otherEstimate.setExplicitPreference(true);
+  otherEstimate.setOriginPlugin("other");
+  otherEstimate.setVariantSymbol("other_path");
+  crossKernelPlan.rankedVariants.push_back(
+      tianchenrv::transforms::VariantSelectionCase{
+          crossKernelPlan.fallback, otherEstimate, 0, true, true});
   crossKernelPlan.dispatchCases.push_back(
       tianchenrv::transforms::VariantSelectionCase{
           findDirectVariant(kernel, "guarded_path"),
@@ -1339,6 +1548,8 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runStaticAndTieSelectionTest(context))
+    return result;
+  if (int result = runFallbackRoleTieBreakTest(context))
     return result;
   if (int result = runRuntimeDispatchPlanningAndMaterializationTest(context))
     return result;

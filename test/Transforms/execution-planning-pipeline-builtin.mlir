@@ -54,8 +54,17 @@ module {
     // PIPE: tcrv.exec.case @rvv_first_slice
     // PIPE-SAME: condition = "rvv_capability_properties_available"
     // PIPE-SAME: guard = "plugin_local_rvv_property_evidence"
+    // PIPE-SAME: origin = "rvv-plugin"
     // PIPE-SAME: policy = "metadata_only_first_slice"
+    // PIPE-SAME: preference_available = true
+    // PIPE-SAME: preference_rank = 0
+    // PIPE-SAME: preference_score
     // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
+    // PIPE-SAME: fallback_role = "conservative"
+    // PIPE-SAME: origin = "scalar-plugin"
+    // PIPE-SAME: preference_available = true
+    // PIPE-SAME: preference_rank = 1
+    // PIPE-SAME: preference_score
     // PIPE: tcrv_rvv.lowering_boundary
     // PIPE-SAME: capability_summary = "rvv"
     // PIPE-SAME: origin = "rvv-plugin"
@@ -121,6 +130,11 @@ module {
     // PIPE-SAME: requires = [@scalar_fallback]
     // PIPE-NOT: tcrv_rvv.lowering_boundary
     // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: fallback_role = "conservative"
+    // PIPE-SAME: origin = "scalar-plugin"
+    // PIPE-SAME: preference_available = true
+    // PIPE-SAME: preference_rank = 0
+    // PIPE-SAME: preference_score
     // PIPE-SAME: reason = "variant-selected"
     // PIPE-SAME: selection_kind = "fallback-only"
     // PIPE-SAME: target = @scalar_fallback_first_slice

@@ -32,6 +32,12 @@ constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 constexpr llvm::StringLiteral kConservativeFallbackRoleValue("conservative");
+constexpr llvm::StringLiteral kPreferencePolicyAttrName("preference_policy");
+constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
+    "preference_explanation");
+constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
+    "preference_tie_break");
+constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
 
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
@@ -60,6 +66,33 @@ bool isPresentButEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   return attr && attr.getValue().trim().empty();
+}
+
+mlir::LogicalResult requireNonEmptyWhenPresent(mlir::Operation *op,
+                                               llvm::StringRef attrName) {
+  if (!isPresentButEmptyStringAttr(op, attrName))
+    return mlir::success();
+  return op->emitOpError()
+         << "requires non-empty string attribute '" << attrName
+         << "' when present";
+}
+
+mlir::LogicalResult verifyPreferenceMetadataAttrs(mlir::Operation *op) {
+  if (mlir::failed(requireNonEmptyWhenPresent(op, kPreferencePolicyAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireNonEmptyWhenPresent(op, kPreferenceExplanationAttrName)))
+    return mlir::failure();
+  if (mlir::failed(requireNonEmptyWhenPresent(op, kPreferenceTieBreakAttrName)))
+    return mlir::failure();
+
+  auto rankAttr = op->getAttrOfType<mlir::IntegerAttr>(kPreferenceRankAttrName);
+  if (rankAttr && rankAttr.getInt() < 0)
+    return op->emitOpError()
+           << "requires non-negative integer attribute '"
+           << kPreferenceRankAttrName << "' when present";
+
+  return mlir::success();
 }
 
 bool hasEnclosingKernelOrVariant(mlir::Operation *op) {
@@ -403,6 +436,17 @@ mlir::LogicalResult DiagnosticOp::verify() {
            << "requires non-empty string attribute '" << kSelectionKindAttrName
            << "' when present";
 
+  if (mlir::failed(verifyPreferenceMetadataAttrs(getOperation())))
+    return mlir::failure();
+
+  auto fallbackRoleAttr =
+      getOperation()->getAttrOfType<mlir::StringAttr>(kFallbackRoleAttrName);
+  if (fallbackRoleAttr &&
+      fallbackRoleAttr.getValue() != kConservativeFallbackRoleValue)
+    return emitOpError()
+           << "requires fallback_role to be '"
+           << kConservativeFallbackRoleValue << "' when present";
+
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()
            << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
@@ -509,6 +553,14 @@ mlir::LogicalResult DispatchCaseOp::verify() {
            << "requires non-empty string attribute '" << kPolicyAttrName
            << "' when present";
 
+  if (isPresentButEmptyStringAttr(getOperation(), kOriginAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kOriginAttrName
+           << "' when present";
+
+  if (mlir::failed(verifyPreferenceMetadataAttrs(getOperation())))
+    return mlir::failure();
+
   return mlir::success();
 }
 
@@ -532,6 +584,22 @@ mlir::LogicalResult FallbackOp::verify() {
     return emitOpError()
            << "references unknown fallback variant @" << targetAttr.getValue()
            << " in enclosing tcrv.exec.kernel";
+
+  if (isPresentButEmptyStringAttr(getOperation(), kOriginAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kOriginAttrName
+           << "' when present";
+
+  if (mlir::failed(verifyPreferenceMetadataAttrs(getOperation())))
+    return mlir::failure();
+
+  auto fallbackRoleAttr =
+      getOperation()->getAttrOfType<mlir::StringAttr>(kFallbackRoleAttrName);
+  if (fallbackRoleAttr &&
+      fallbackRoleAttr.getValue() != kConservativeFallbackRoleValue)
+    return emitOpError()
+           << "requires fallback_role to be '"
+           << kConservativeFallbackRoleValue << "' when present";
 
   return mlir::success();
 }

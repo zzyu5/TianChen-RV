@@ -403,6 +403,14 @@ Reference metadata:
 >
 ```
 
+## Selection Preference
+
+The first RVV slice returns explicit plugin-owned selection preference metadata
+for legal materialized RVV variants. Its score is a heuristic ordering input
+used by the target-neutral selector; it is not a runtime, correctness, or
+performance claim. RVV-specific interpretation of preserved capability facts
+stays inside the RVV plugin before the generic preference record is returned.
+
 ## Emission Paths
 
 Current first slice:

@@ -36,8 +36,17 @@ module {
     // CHECK: tcrv.exec.case @rvv_first_slice
     // CHECK-SAME: condition = "capability_available"
     // CHECK-SAME: guard = "plugin_local_rvv_first_slice"
+    // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: policy = "metadata_only_first_slice"
+    // CHECK-SAME: preference_available = true
+    // CHECK-SAME: preference_rank = 0
+    // CHECK-SAME: preference_score
     // CHECK: tcrv.exec.fallback @scalar_fallback_first_slice
+    // CHECK-SAME: fallback_role = "conservative"
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: preference_available = true
+    // CHECK-SAME: preference_rank = 1
+    // CHECK-SAME: preference_score
     // CHECK: tcrv_rvv.lowering_boundary
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: required_capabilities = [@rvv]
@@ -84,6 +93,11 @@ module {
     } {
     }
     // CHECK: tcrv.exec.diagnostic
+    // CHECK-SAME: fallback_role = "conservative"
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: preference_available = true
+    // CHECK-SAME: preference_rank = 0
+    // CHECK-SAME: preference_score
     // CHECK-SAME: reason = "variant-selected"
     // CHECK-SAME: selection_kind = "fallback-only"
     // CHECK-SAME: target = @scalar_fallback_first_slice
@@ -119,6 +133,10 @@ module {
     }
     // CHECK-NOT: tcrv.exec.dispatch
     // CHECK: tcrv.exec.diagnostic
+    // CHECK-SAME: origin = "rvv-plugin"
+    // CHECK-SAME: preference_available = true
+    // CHECK-SAME: preference_rank = 0
+    // CHECK-SAME: preference_score
     // CHECK-SAME: reason = "variant-selected"
     // CHECK-SAME: selection_kind = "static-variant"
     // CHECK-SAME: target = @rvv_first_slice

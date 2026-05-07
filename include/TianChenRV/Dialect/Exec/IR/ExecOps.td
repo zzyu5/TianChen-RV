@@ -157,7 +157,14 @@ def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
                    OptionalAttr<StrAttr>:$lowering_pipeline,
                    OptionalAttr<StrAttr>:$runtime_abi,
                    OptionalAttr<StrAttr>:$artifact_kind,
-                   OptionalAttr<StrAttr>:$lowering_boundary);
+                   OptionalAttr<StrAttr>:$lowering_boundary,
+                   OptionalAttr<BoolAttr>:$preference_available,
+                   OptionalAttr<F64Attr>:$preference_score,
+                   OptionalAttr<I64Attr>:$preference_rank,
+                   OptionalAttr<StrAttr>:$preference_policy,
+                   OptionalAttr<StrAttr>:$preference_explanation,
+                   OptionalAttr<StrAttr>:$preference_tie_break,
+                   OptionalAttr<StrAttr>:$fallback_role);
   let assemblyFormat = "attr-dict";
   let hasVerifier = 1;
 }
@@ -188,7 +195,14 @@ def DispatchCaseOp : TCRVExec_Op<"exec.case", []> {
   let arguments = (ins FlatSymbolRefAttr:$target,
                    OptionalAttr<StrAttr>:$condition,
                    OptionalAttr<StrAttr>:$guard,
-                   OptionalAttr<StrAttr>:$policy);
+                   OptionalAttr<StrAttr>:$policy,
+                   OptionalAttr<StrAttr>:$origin,
+                   OptionalAttr<BoolAttr>:$preference_available,
+                   OptionalAttr<F64Attr>:$preference_score,
+                   OptionalAttr<I64Attr>:$preference_rank,
+                   OptionalAttr<StrAttr>:$preference_policy,
+                   OptionalAttr<StrAttr>:$preference_explanation,
+                   OptionalAttr<StrAttr>:$preference_tie_break);
   let assemblyFormat = "$target attr-dict";
   let hasVerifier = 1;
 }
@@ -200,7 +214,15 @@ def FallbackOp : TCRVExec_Op<"exec.fallback", []> {
     or policy conditions reject preferred variants.
   }];
 
-  let arguments = (ins FlatSymbolRefAttr:$target);
+  let arguments = (ins FlatSymbolRefAttr:$target,
+                   OptionalAttr<StrAttr>:$origin,
+                   OptionalAttr<BoolAttr>:$preference_available,
+                   OptionalAttr<F64Attr>:$preference_score,
+                   OptionalAttr<I64Attr>:$preference_rank,
+                   OptionalAttr<StrAttr>:$preference_policy,
+                   OptionalAttr<StrAttr>:$preference_explanation,
+                   OptionalAttr<StrAttr>:$preference_tie_break,
+                   OptionalAttr<StrAttr>:$fallback_role);
   let assemblyFormat = "$target attr-dict";
   let hasVerifier = 1;
 }

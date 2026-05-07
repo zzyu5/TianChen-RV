@@ -39,6 +39,16 @@ constexpr llvm::StringLiteral kMissingFallbackSelectionKindValue(
     "missing-conservative-fallback");
 constexpr llvm::StringLiteral kStaticSelectionKindValue("static-variant");
 constexpr llvm::StringLiteral kFallbackOnlySelectionKindValue("fallback-only");
+constexpr llvm::StringLiteral kPreferenceAvailableAttrName(
+    "preference_available");
+constexpr llvm::StringLiteral kPreferenceScoreAttrName("preference_score");
+constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
+constexpr llvm::StringLiteral kPreferencePolicyAttrName("preference_policy");
+constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
+    "preference_explanation");
+constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
+    "preference_tie_break");
+constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantCostEstimate;
@@ -225,7 +235,105 @@ llvm::Error validatePlanVariant(KernelOp kernel, VariantOp variant,
   return llvm::Error::success();
 }
 
+llvm::Error validatePlanCase(KernelOp kernel,
+                             const VariantSelectionCase &selectionCase,
+                             llvm::StringRef role) {
+  if (llvm::Error error =
+          validatePlanVariant(kernel, selectionCase.variant, role))
+    return error;
+
+  return validateOriginOwnedCost(
+      kernel, VariantCostRankingEntry{selectionCase.variant, selectionCase.cost,
+                                      selectionCase.originalIndex});
+}
+
+std::optional<std::size_t>
+findRankedCaseIndex(const VariantSelectionPlan &plan, VariantOp variant) {
+  for (std::size_t index = 0; index < plan.rankedVariants.size(); ++index) {
+    if (plan.rankedVariants[index].variant == variant)
+      return index;
+  }
+  return std::nullopt;
+}
+
+const VariantSelectionCase *
+findRankedCase(const VariantSelectionPlan &plan, VariantOp variant) {
+  std::optional<std::size_t> index = findRankedCaseIndex(plan, variant);
+  if (!index)
+    return nullptr;
+  return &plan.rankedVariants[*index];
+}
+
+std::string buildPreferenceTieBreakReason(const VariantSelectionPlan &plan,
+                                          std::size_t rank) {
+  if (rank >= plan.rankedVariants.size())
+    return "target-neutral preference metadata is unavailable";
+
+  const VariantSelectionCase &selectionCase = plan.rankedVariants[rank];
+  llvm::StringRef preferenceAvailability =
+      selectionCase.cost.hasExplicitPreference()
+          ? "explicit plugin preference"
+          : "no explicit plugin preference";
+
+  if (rank > 0 &&
+      plan.rankedVariants[rank - 1].cost.hasExplicitPreference() ==
+          selectionCase.cost.hasExplicitPreference() &&
+      plan.rankedVariants[rank - 1].cost.getScore() ==
+          selectionCase.cost.getScore()) {
+    return (llvm::Twine("equal ") + preferenceAvailability +
+            " score; fallback role, original IR order, then symbol name "
+            "decide the stable tie-break")
+        .str();
+  }
+
+  if (rank == 0)
+    return (llvm::Twine("best ") + preferenceAvailability +
+            " score; equal scores use fallback role, original IR order, then "
+            "symbol name")
+        .str();
+
+  return (llvm::Twine("ranked by ") + preferenceAvailability +
+          " score; fallback role, original IR order, then symbol name remain "
+          "the stable tie-breaks")
+      .str();
+}
+
+void addPreferenceMetadata(mlir::OpBuilder &builder,
+                           mlir::OperationState &state,
+                           const VariantSelectionPlan &plan,
+                           const VariantSelectionCase &selectionCase) {
+  std::optional<std::size_t> rank =
+      findRankedCaseIndex(plan, selectionCase.variant);
+  std::size_t rankValue = rank.value_or(selectionCase.originalIndex);
+
+  state.addAttribute(kOriginAttrName,
+                     builder.getStringAttr(selectionCase.cost.getOriginPlugin()));
+  state.addAttribute(
+      kPreferenceAvailableAttrName,
+      builder.getBoolAttr(selectionCase.cost.hasExplicitPreference()));
+  state.addAttribute(kPreferenceScoreAttrName,
+                     builder.getF64FloatAttr(selectionCase.cost.getScore()));
+  state.addAttribute(kPreferenceRankAttrName,
+                     builder.getI64IntegerAttr(rankValue));
+  if (selectionCase.cost.hasPolicy())
+    state.addAttribute(kPreferencePolicyAttrName,
+                       builder.getStringAttr(selectionCase.cost.getPolicy()));
+  if (selectionCase.cost.hasExplanation())
+    state.addAttribute(
+        kPreferenceExplanationAttrName,
+        builder.getStringAttr(selectionCase.cost.getExplanation()));
+  state.addAttribute(
+      kPreferenceTieBreakAttrName,
+      builder.getStringAttr(buildPreferenceTieBreakReason(plan, rankValue)));
+  if (isConservativeFallbackCandidate(selectionCase.variant,
+                                      selectionCase.cost))
+    state.addAttribute(kFallbackRoleAttrName,
+                       builder.getStringAttr(
+                           plugin::kConservativeFallbackRoleValue));
+}
+
 DispatchCaseOp createDispatchCase(mlir::OpBuilder &builder,
+                                  const VariantSelectionPlan &plan,
                                   VariantSelectionCase selectionCase) {
   VariantOp variant = selectionCase.variant;
   mlir::OperationState state(variant.getLoc(),
@@ -236,14 +344,19 @@ DispatchCaseOp createDispatchCase(mlir::OpBuilder &builder,
   copyStringAttrIfPresent(state, variant, kConditionAttrName);
   copyStringAttrIfPresent(state, variant, kGuardAttrName);
   copyStringAttrIfPresent(state, variant, kPolicyAttrName);
+  addPreferenceMetadata(builder, state, plan, selectionCase);
   return llvm::cast<DispatchCaseOp>(builder.create(state));
 }
 
-FallbackOp createFallback(mlir::OpBuilder &builder, VariantOp variant) {
+FallbackOp createFallback(mlir::OpBuilder &builder,
+                          const VariantSelectionPlan &plan,
+                          VariantSelectionCase selectionCase) {
+  VariantOp variant = selectionCase.variant;
   mlir::OperationState state(variant.getLoc(), FallbackOp::getOperationName());
   state.addAttribute(kTargetAttrName,
                      mlir::FlatSymbolRefAttr::get(builder.getContext(),
                                                   variant.getSymName()));
+  addPreferenceMetadata(builder, state, plan, selectionCase);
   return llvm::cast<FallbackOp>(builder.create(state));
 }
 
@@ -338,7 +451,10 @@ bool diagnosticTargetsVariant(DiagnosticOp diagnostic, VariantOp variant) {
 }
 
 llvm::Error materializeMissingFallbackCoverageDiagnostic(
-    mlir::OpBuilder &builder, KernelOp kernel, VariantOp selectedVariant) {
+    mlir::OpBuilder &builder, const VariantSelectionPlan &plan,
+    const VariantSelectionCase &selectedCase) {
+  KernelOp kernel = plan.kernel;
+  VariantOp selectedVariant = selectedCase.variant;
   if (!selectedVariant)
     return makeSelectionError(
         kernel,
@@ -379,6 +495,7 @@ llvm::Error materializeMissingFallbackCoverageDiagnostic(
                                                   selectedVariant.getSymName()));
   state.addAttribute(kSelectionKindAttrName,
                      builder.getStringAttr(kMissingFallbackSelectionKindValue));
+  addPreferenceMetadata(builder, state, plan, selectedCase);
   builder.create(state);
   return llvm::Error::success();
 }
@@ -411,8 +528,14 @@ public:
 
 private:
   mlir::LogicalResult runSelection(mlir::OpBuilder &builder, KernelOp kernel) {
+    TargetCapabilitySet capabilities =
+        TargetCapabilitySet::buildFromKernel(kernel);
+    if (llvm::Error error =
+            registry->verifyKernelVariantLegality(kernel, capabilities))
+      return emitSelectionError(kernel, std::move(error));
+
     llvm::Expected<VariantSelectionPlan> planOrError =
-        planKernelVariantSelection(kernel, *registry);
+        planKernelVariantSelection(kernel, capabilities, *registry);
     if (!planOrError)
       return emitSelectionError(kernel, planOrError.takeError());
 
@@ -612,7 +735,13 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
         "kernel already contains a direct tcrv.exec.dispatch; selection "
         "materialization refuses to create a competing dispatch");
 
-  if (llvm::Error error = validatePlanVariant(kernel, plan.fallback, "fallback"))
+  const VariantSelectionCase *fallbackCase =
+      findRankedCase(plan, plan.fallback);
+  if (!fallbackCase)
+    return makeSelectionError(
+        kernel, plan.fallback,
+        "fallback variant is missing from ranked preference metadata");
+  if (llvm::Error error = validatePlanCase(kernel, *fallbackCase, "fallback"))
     return error;
 
   if (plan.dispatchCases.empty())
@@ -622,7 +751,7 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
   llvm::StringSet<> seenCaseTargets;
   for (const VariantSelectionCase &selectionCase : plan.dispatchCases) {
     if (llvm::Error error =
-            validatePlanVariant(kernel, selectionCase.variant, "dispatch case"))
+            validatePlanCase(kernel, selectionCase, "dispatch case"))
       return error;
 
     if (selectionCase.variant == plan.fallback)
@@ -652,8 +781,8 @@ llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,
 
   builder.setInsertionPointToEnd(&dispatch.getBody().front());
   for (VariantSelectionCase selectionCase : plan.dispatchCases)
-    createDispatchCase(builder, selectionCase);
-  createFallback(builder, plan.fallback);
+    createDispatchCase(builder, plan, selectionCase);
+  createFallback(builder, plan, *fallbackCase);
 
   if (createdDispatch)
     *createdDispatch = dispatch;
@@ -693,8 +822,13 @@ llvm::Error materializeSelectedVariantMarker(
 
   VariantOp selectedVariant = plan.selectedVariant ? plan.selectedVariant
                                                    : plan.fallback;
-  if (llvm::Error error =
-          validatePlanVariant(kernel, selectedVariant, "selected"))
+  const VariantSelectionCase *selectedCase =
+      findRankedCase(plan, selectedVariant);
+  if (!selectedCase)
+    return makeSelectionError(
+        kernel, selectedVariant,
+        "selected variant is missing from ranked preference metadata");
+  if (llvm::Error error = validatePlanCase(kernel, *selectedCase, "selected"))
     return error;
 
   llvm::SmallVector<DiagnosticOp, 2> existingMarkers;
@@ -712,7 +846,7 @@ llvm::Error materializeSelectedVariantMarker(
         *createdMarker = existingMarkers.front();
       if (plan.missingFallbackCoverage)
         return materializeMissingFallbackCoverageDiagnostic(
-            builder, kernel, selectedVariant);
+            builder, plan, *selectedCase);
       return llvm::Error::success();
     }
 
@@ -738,14 +872,15 @@ llvm::Error materializeSelectedVariantMarker(
                                                   selectedVariant.getSymName()));
   state.addAttribute(kSelectionKindAttrName,
                      builder.getStringAttr(stringifySelectedMarkerKind(plan.kind)));
+  addPreferenceMetadata(builder, state, plan, *selectedCase);
   DiagnosticOp marker = llvm::cast<DiagnosticOp>(builder.create(state));
 
   if (createdMarker)
     *createdMarker = marker;
 
   if (plan.missingFallbackCoverage)
-    return materializeMissingFallbackCoverageDiagnostic(builder, kernel,
-                                                       selectedVariant);
+    return materializeMissingFallbackCoverageDiagnostic(builder, plan,
+                                                       *selectedCase);
 
   return llvm::Error::success();
 }

@@ -642,6 +642,7 @@ llvm::Error RVVExtensionPlugin::estimateVariantCost(
 
   out = VariantCostEstimate();
   out.setScore(1.0);
+  out.setExplicitPreference(true);
   out.setOriginPlugin(kRVVPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation("RVV metadata-only first slice; no runtime performance "
