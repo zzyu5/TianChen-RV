@@ -676,7 +676,8 @@ llvm::Expected<const TargetArtifactCompositeExporter *>
 selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
                         const TargetArtifactExporterRegistry &registry,
                         bool sourceOnly) {
-  const TargetArtifactCompositeExporter *selected = nullptr;
+  const TargetArtifactCompositeExporter *selectedSource = nullptr;
+  const TargetArtifactCompositeExporter *selectedNonSource = nullptr;
   for (const TargetArtifactCompositeExporter &exporter :
        registry.getCompositeExporters()) {
     if (sourceOnly && !isSourceArtifactKind(exporter.getArtifactKind()))
@@ -694,13 +695,19 @@ selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
     if (!*matched)
       continue;
 
+    bool sourceArtifact = isSourceArtifactKind(exporter.getArtifactKind());
+    const TargetArtifactCompositeExporter *&selected =
+        (!sourceOnly && !sourceArtifact) ? selectedNonSource : selectedSource;
     if (selected)
       return makeModuleArtifactExportError(
           "requires at most one supported composite target artifact route; "
           "found multiple ambiguous composite artifacts");
     selected = &exporter;
   }
-  return selected;
+
+  if (!sourceOnly && selectedNonSource)
+    return selectedNonSource;
+  return selectedSource;
 }
 
 } // namespace

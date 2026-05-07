@@ -173,6 +173,16 @@ runtime calls, implement DMA or buffer management, generate accelerator
 objects, link runtime libraries, run offload hardware, prove correctness, or
 measure performance.
 
+The same generic artifact front door can also select the target-owned
+RVV+scalar i32-vadd dispatch self-check object composite route when the
+selected plan contains both validated callable sides. In that case
+`--tcrv-export-target-artifact` prefers the bounded non-source object route,
+while `--tcrv-export-target-source-artifact` remains source-only. The object
+route emits one RISC-V ELF relocatable object from the explicit self-check
+source and selected compile capability metadata; it does not link, run
+hardware, auto-probe RVV availability, prove correctness, or measure
+performance.
+
 When the selected RVV path has that exact microkernel attachment, either
 explicitly authored or materialized by the RVV plugin from the finite descriptor,
 the RVV plugin may also materialize a supported emission-plan diagnostic and
@@ -409,6 +419,18 @@ setup are unavailable. The object is still only the bounded dispatcher
 self-check artifact; it is not generic RVV lowering, dynamic runtime
 integration, linking, automatic hardware probing, performance evidence, or
 broad correctness coverage.
+
+The same object route is also available through the generic artifact-kind-aware
+front door:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
+  | tcrv-translate --tcrv-export-target-artifact \
+  > tcrv_dispatch_self_check.o
+```
+
+The source-only front door continues to emit the library-style dispatcher C
+source without an embedded `main` or self-check harness.
 
 ## Runtime Offload First Slice
 

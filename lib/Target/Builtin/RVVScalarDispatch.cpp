@@ -42,6 +42,8 @@ constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
 constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
     "runtime-callable-c-source");
+constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
+    "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
     "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
 
@@ -1285,11 +1287,19 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
     TargetArtifactExporterRegistry &registry) {
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+              kRuntimeCallableCSourceArtifactKind,
+              matchRVVScalarI32VAddDispatchCandidates,
+              exportRVVScalarI32VAddDispatchC)))
+    return error;
+
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
-      kRuntimeCallableCSourceArtifactKind,
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
+      kRiscvELFRelocatableObjectArtifactKind,
       matchRVVScalarI32VAddDispatchCandidates,
-      exportRVVScalarI32VAddDispatchC));
+      exportRVVScalarI32VAddDispatchSelfCheckObject));
 }
 
 } // namespace tianchenrv::target::rvv_scalar

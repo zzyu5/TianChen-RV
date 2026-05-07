@@ -17,6 +17,11 @@ neverMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>) {
   return false;
 }
 
+llvm::Expected<bool>
+alwaysMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>) {
+  return true;
+}
+
 bool expectSuccess(llvm::Error error, llvm::StringRef context) {
   if (!error)
     return true;
@@ -50,6 +55,54 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
           expectedABIParameterCount) {
     llvm::errs() << "malformed built-in exporter metadata for route '"
                  << routeID << "'\n";
+    return false;
+  }
+  return true;
+}
+
+bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
+                          llvm::StringRef routeID,
+                          llvm::StringRef artifactKind) {
+  const TargetArtifactCompositeExporter *matched = nullptr;
+  for (const TargetArtifactCompositeExporter &exporter :
+       registry.getCompositeExporters()) {
+    if (exporter.getRouteID() != routeID)
+      continue;
+    if (matched) {
+      llvm::errs() << "duplicate built-in composite route '" << routeID
+                   << "'\n";
+      return false;
+    }
+    matched = &exporter;
+  }
+  if (!matched) {
+    llvm::errs() << "missing built-in composite route '" << routeID << "'\n";
+    return false;
+  }
+  if (matched->getArtifactKind() != artifactKind || !matched->getMatchFn() ||
+      !matched->getExportFn()) {
+    llvm::errs() << "malformed built-in composite route metadata for '"
+                 << routeID << "'\n";
+    return false;
+  }
+  return true;
+}
+
+bool expectSelectedCompositeRoute(
+    llvm::Expected<const TargetArtifactCompositeExporter *> selected,
+    llvm::StringRef routeID, llvm::StringRef context) {
+  if (!selected) {
+    llvm::errs() << context << ": " << llvm::toString(selected.takeError())
+                 << "\n";
+    return false;
+  }
+  if (!*selected) {
+    llvm::errs() << context << ": expected selected composite route\n";
+    return false;
+  }
+  if ((*selected)->getRouteID() != routeID) {
+    llvm::errs() << context << ": expected route '" << routeID << "', got '"
+                 << (*selected)->getRouteID() << "'\n";
     return false;
   }
   return true;
@@ -169,6 +222,30 @@ int main() {
                      "null composite callback rejected"))
     return 1;
 
+  TargetArtifactExporterRegistry compositeSelectionRegistry;
+  if (!expectSuccess(compositeSelectionRegistry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "source-composite", "runtime-callable-c-source",
+                             alwaysMatchComposite, noopExporter)),
+                     "register source composite for selection"))
+    return 1;
+  if (!expectSuccess(compositeSelectionRegistry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "object-composite", "riscv-elf-relocatable-object",
+                             alwaysMatchComposite, noopExporter)),
+                     "register object composite for selection"))
+    return 1;
+  if (!expectSelectedCompositeRoute(
+          selectTargetArtifactCompositeExporter(
+              {}, compositeSelectionRegistry, /*sourceOnly=*/true),
+          "source-composite", "source-only composite selection"))
+    return 1;
+  if (!expectSelectedCompositeRoute(
+          selectTargetArtifactCompositeExporter(
+              {}, compositeSelectionRegistry, /*sourceOnly=*/false),
+          "object-composite", "artifact-kind composite selection"))
+    return 1;
+
   TargetArtifactExporterRegistry builtinRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "register built-in target artifact exporters"))
@@ -178,8 +255,8 @@ int main() {
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 1) {
-    llvm::errs() << "expected exactly 1 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 2) {
+    llvm::errs() << "expected exactly 2 built-in composite target artifact "
                     "route, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -196,6 +273,15 @@ int main() {
                    "tcrv-export-offload-runtime-descriptor",
                    "runtime-offload-handoff-descriptor", "offload-plugin",
                    "runtime-offload-handoff-descriptor"))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+          "runtime-callable-c-source"))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
+          "riscv-elf-relocatable-object"))
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))

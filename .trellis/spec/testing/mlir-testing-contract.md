@@ -153,7 +153,9 @@ Use lit/FileCheck for:
   also prove the public route is visible, preserves the source/self-check split,
   fails closed before object creation for missing or malformed selected-path/
   runtime ABI metadata, and, when local/native RVV clang support is detected,
-  emits a non-empty tool-readable object file without committing binary
+  emits a non-empty tool-readable object file both through the dedicated
+  RVV+scalar object translator and through the generic
+  `--tcrv-export-target-artifact` front door without committing binary
   artifacts.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching

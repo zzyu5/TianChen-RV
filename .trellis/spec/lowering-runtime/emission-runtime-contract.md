@@ -120,6 +120,18 @@ ABI before source output. This does not add generic RVV or scalar lowering,
 full runtime ABI integration, object generation, linking, arbitrary source
 export, correctness evidence, or performance evidence.
 
+The artifact-kind-aware generic route may also select a target-owned
+RVV+scalar i32-vadd dispatch self-check object composite exporter for the same
+validated selected dispatch. That route reuses the selected callable source
+validation, emits the explicit bounded self-check source internally, and then
+uses selected RVV compile capability metadata plus local `clang` to produce a
+RISC-V ELF relocatable object. When both source and non-source composite
+exporters match the same selected plan, `--tcrv-export-target-artifact` must
+prefer the non-source composite route while
+`--tcrv-export-target-source-artifact` remains source-only. The object route is
+still a bounded target artifact; it does not link, run hardware, perform
+automatic probing, prove correctness, or measure performance.
+
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
 the primary non-fallback route and ignore the fallback candidate for ambiguity
@@ -243,6 +255,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     matched by target-owned RVV+scalar dispatch exporter code from the selected
     RVV dispatch-case callable route and scalar dispatch-fallback callable
     route.
+  - RVV+scalar explicit i32 vector-add host dispatch self-check RISC-V ELF
+    relocatable object, matched from the same selected callable candidates and
+    emitted by the target-owned RVV+scalar dispatch exporter code.
 - The helper may include RVV/scalar/offload target headers and call their
   target-owned registration functions, but it must not duplicate route
   semantics or artifact validation.
@@ -270,6 +285,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - Good: `tcrv-translate --tcrv-export-target-artifact` creates a registry,
   calls `registerBuiltinTargetArtifactExporters`, and exports a legal offload
   descriptor through the offload target-owned exporter.
+- Good: `tcrv-translate --tcrv-export-target-artifact` selects the non-source
+  RVV+scalar dispatch self-check object composite route when the selected plan
+  has both supported callable sides and local RVV object compilation support.
 - Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
   built-in registry but filters to a legal RVV runtime-callable C source,
   scalar runtime-callable C source route, or target-owned RVV+scalar dispatch
@@ -286,9 +304,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   route ids with deterministic generic metadata and rejects duplicate
   registration.
 - lit/FileCheck route tests must continue to cover RVV source export, scalar
-  source export, RVV+scalar composite dispatch source export, offload
-  descriptor export, source-only offload rejection, and RVV/scalar/offload
-  route spoofing failures.
+  source export, RVV+scalar composite dispatch source export, RVV+scalar
+  composite dispatch object export when local RVV object compilation is
+  available, offload descriptor export, source-only offload rejection, and
+  RVV/scalar/offload route spoofing failures.
 - CMake checks must include the built-in Target support library in the tool and
   C++ test link graph.
 

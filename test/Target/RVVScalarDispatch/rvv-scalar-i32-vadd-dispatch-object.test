@@ -3,6 +3,9 @@
 # RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object > %t.o
 # RUN: test -s %t.o
 # RUN: llvm-readobj --file-headers %t.o | FileCheck %s --check-prefix=OBJ
+# RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.generic.o
+# RUN: test -s %t.generic.o
+# RUN: llvm-readobj --file-headers %t.generic.o | FileCheck %s --check-prefix=OBJ
 
 # OBJ: Format: elf
 # OBJ: Arch: riscv

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariant review."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Confirm implementation stays in C++/MLIR/CMake/lit boundaries."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Confirm no unsupported hardware/runtime/perf claims."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review generic target artifact routing and object claim boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV bounded object route and ssh evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused route and C++ registry test coverage."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Confirm selected compile facts stay capability-owned."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Confirm extension-specific object generation stays target-owned."}
