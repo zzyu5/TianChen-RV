@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants and stack boundaries"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "target/emission changes must remain capability-driven"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV callable ABI emission must stay plugin-local and target-owned"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "avoid moving compute into tcrv.exec or generic transforms"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "preserve compute-free tcrv.exec selected-path metadata contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "preserve plugin routing and registry boundaries"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "keep extension-specific runtime ABI and emission local to RVV"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "preserve selected-path and planning pipeline semantics"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "RVV microkernel export and runtime ABI contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local microkernel materialization and export boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and evidence interpretation"}

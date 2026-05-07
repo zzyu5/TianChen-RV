@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "verify global invariants"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "check no RVV-specific logic leaked into generic code"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "check tcrv.exec remains compute-free"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check RVV runtime ABI/export contract and evidence scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check RVV plugin-owned microkernel semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused FileCheck coverage and evidence wording"}
