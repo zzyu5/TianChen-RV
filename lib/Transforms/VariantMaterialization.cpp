@@ -31,6 +31,7 @@ struct PlannedVariant {
   std::string condition;
   std::string guard;
   std::string policy;
+  std::string fallbackRole;
   llvm::SmallVector<mlir::NamedAttribute, 4> pluginAttributes;
 };
 
@@ -69,7 +70,8 @@ bool isValidBareSymbolName(llvm::StringRef value) {
 
 bool isCoreVariantAttributeName(llvm::StringRef name) {
   return name == "sym_name" || name == "origin" || name == "requires" ||
-         name == "condition" || name == "guard" || name == "policy";
+         name == "condition" || name == "guard" || name == "policy" ||
+         name == plugin::kVariantFallbackRoleAttrName;
 }
 
 bool isValidPluginAttributeNameSegment(llvm::StringRef segment) {
@@ -325,6 +327,10 @@ llvm::Error validateAndPlanMaterialization(
         getNonEmptyDecisionMetadata(proposal.getCondition()),
         getNonEmptyDecisionMetadata(proposal.getGuard()),
         getNonEmptyDecisionMetadata(proposal.getPolicy()),
+        proposal.hasFallbackRole()
+            ? plugin::stringifyVariantFallbackRole(proposal.getFallbackRole())
+                  .str()
+            : std::string(),
         std::move(pluginAttributes)});
   }
 
@@ -363,6 +369,9 @@ llvm::Error materializeVariantProposals(
         plannedVariant.requires, conditionAttr, guardAttr, policyAttr);
     for (mlir::NamedAttribute attribute : plannedVariant.pluginAttributes)
       variant->setAttr(attribute.getName(), attribute.getValue());
+    if (!plannedVariant.fallbackRole.empty())
+      variant->setAttr(plugin::kVariantFallbackRoleAttrName,
+                       builder.getStringAttr(plannedVariant.fallbackRole));
     if (variant.getBody().empty())
       variant.getBody().emplaceBlock();
     if (materializedVariants)

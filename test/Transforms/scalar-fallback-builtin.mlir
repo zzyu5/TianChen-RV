@@ -21,17 +21,17 @@ module {
     // CHECK-SAME: status = "selected"
     // CHECK-SAME: target = @scalar_fallback_first_slice
     // CHECK: tcrv.exec.diagnostic
-    // CHECK-SAME: artifact_kind = "mlir-lowering-plan"
-    // CHECK-SAME: emission_kind = "portable-scalar-fallback"
-    // CHECK-SAME: lowering_pipeline = "mlir-default-scalar-lowering"
-    // CHECK-SAME: message = "scalar fallback first slice records a portable fallback emission route
+    // CHECK-SAME: artifact_kind = "metadata-diagnostic"
+    // CHECK-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+    // CHECK-SAME: lowering_pipeline = "none-executable-metadata-only"
+    // CHECK-SAME: message = "scalar fallback first slice records a portable fallback metadata route
     // CHECK-SAME: origin = "scalar-plugin"
     // CHECK-SAME: plan_kind = "plugin-emission-plan"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: role = "direct variant"
-    // CHECK-SAME: runtime_abi = "none-required"
-    // CHECK-SAME: severity = "info"
-    // CHECK-SAME: status = "supported"
+    // CHECK-SAME: runtime_abi = "none-metadata-only"
+    // CHECK-SAME: severity = "note"
+    // CHECK-SAME: status = "metadata-only"
     // CHECK-SAME: target = @scalar_fallback_first_slice
   }
 }

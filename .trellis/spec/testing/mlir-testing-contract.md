@@ -64,7 +64,8 @@ Use C++ tests for:
 - plugin-local scalar fallback validation, including proposal gating on an
   available `scalar.fallback` capability, materialization, legality rejection
   for missing/unavailable fallback capability, conservative cost metadata,
-  supported metadata-only emission readiness, and stable emission-plan fields.
+  generic conservative fallback role metadata, metadata-only emission readiness,
+  and stable non-executable emission-plan fields.
 
 ## CMake Checks
 

@@ -140,6 +140,7 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
                            kScalarPluginName);
   proposal.addRequiredCapabilityID(kScalarFallbackCapabilityID);
   proposal.setPolicy(kScalarFallbackPolicy);
+  proposal.setFallbackRole(VariantFallbackRole::ConservativeFallback);
   out.push_back(proposal);
   return llvm::Error::success();
 }
@@ -191,6 +192,7 @@ llvm::Error ScalarExtensionPlugin::estimateVariantCost(
                      "metadata route, not a performance claim");
   out.setPolicy("prefer only as conservative fallback when better plugin-owned "
                 "variants are unavailable or not selected");
+  out.setFallbackRole(VariantFallbackRole::ConservativeFallback);
   return llvm::Error::success();
 }
 
@@ -200,9 +202,9 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
     return makeScalarPluginError(
         "emission readiness requires a materialized tcrv.exec.variant");
 
-  out = VariantEmissionStatus::getSupported(
+  out = VariantEmissionStatus::getMetadataOnly(
       kScalarPluginName, request.getVariant().getSymName(),
-      "portable-scalar-fallback-metadata-route");
+      "portable-scalar-fallback-non-executable-metadata-route");
   return llvm::Error::success();
 }
 
@@ -216,14 +218,15 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     return makeScalarPluginError(
         "emission planning requires an enclosing tcrv.exec.kernel");
 
-  out = VariantEmissionPlan::getSupported(
+  out = VariantEmissionPlan::getMetadataOnly(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "portable-scalar-fallback", "mlir-default-scalar-lowering",
-      "none-required", "mlir-lowering-plan",
-      "scalar fallback first slice records a portable fallback emission route "
-      "for compiler decisions only; this pass does not emit objects, link a "
-      "runtime, run hardware, prove correctness, or measure performance");
+      "portable-scalar-fallback-metadata-route",
+      "none-executable-metadata-only", "none-metadata-only",
+      "metadata-diagnostic",
+      "scalar fallback first slice records a portable fallback metadata route "
+      "for compiler decisions only; it does not emit objects, link a runtime, "
+      "run hardware, prove correctness, or measure performance");
   return llvm::Error::success();
 }
 

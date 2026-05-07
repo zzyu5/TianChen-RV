@@ -28,6 +28,7 @@ variant origin: scalar-plugin
 required capability id: scalar.fallback
 materialized requires form: requires = [@scalar_fallback]
 generic policy: portable_scalar_fallback_first_slice
+generic fallback role: fallback_role = "conservative"
 ```
 
 The first-slice scalar plugin may propose `@scalar_fallback_first_slice` only
@@ -56,21 +57,24 @@ unless a later task adds real lowering, runtime, input metadata, and measured
 evidence.
 
 Selection and dispatch must reuse the existing generic variant-selection
-protocol. Scalar fallback does not introduce a new core fallback selector.
+protocol. Scalar fallback does not introduce a new core fallback selector: the
+plugin marks the proposal/cost estimate with the abstract conservative fallback
+role, and the core consumes only that generic role.
 
 ## Emission Boundary
 
-The first scalar fallback emission readiness path is a supported metadata route
-for compiler decisions:
+The first scalar fallback emission readiness path is a metadata-only route for
+compiler decisions:
 
 ```text
-emission kind: portable-scalar-fallback
-lowering pipeline: mlir-default-scalar-lowering
-runtime ABI: none-required
-artifact kind: mlir-lowering-plan
+readiness status: metadata-only
+emission kind: portable-scalar-fallback-metadata-route
+lowering pipeline: none-executable-metadata-only
+runtime ABI: none-metadata-only
+artifact kind: metadata-diagnostic
 ```
 
-This supported emission-plan diagnostic records plugin-owned intent only. It
+This metadata-only emission-plan diagnostic records plugin-owned intent only. It
 does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
 runtime, executed a scalar kernel, proved correctness, or measured performance.
 

@@ -27,10 +27,14 @@ inline constexpr llvm::StringLiteral kEmissionPlanSupportedStatusValue(
     "supported");
 inline constexpr llvm::StringLiteral kEmissionPlanUnsupportedStatusValue(
     "unsupported");
+inline constexpr llvm::StringLiteral kEmissionPlanMetadataOnlyStatusValue(
+    "metadata-only");
 inline constexpr llvm::StringLiteral kEmissionPlanSupportedSeverityValue(
     "info");
 inline constexpr llvm::StringLiteral kEmissionPlanUnsupportedSeverityValue(
     "error");
+inline constexpr llvm::StringLiteral kEmissionPlanMetadataOnlySeverityValue(
+    "note");
 
 inline constexpr llvm::StringLiteral kSelectedReasonValue("variant-selected");
 inline constexpr llvm::StringLiteral kStaticSelectionKindValue(
@@ -44,6 +48,7 @@ inline bool isEmissionPlanReason(llvm::StringRef reason) {
 
 inline bool isEmissionPlanStatus(llvm::StringRef status) {
   return status == kEmissionPlanSupportedStatusValue ||
+         status == kEmissionPlanMetadataOnlyStatusValue ||
          status == kEmissionPlanUnsupportedStatusValue;
 }
 

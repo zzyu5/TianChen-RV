@@ -1,7 +1,11 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
+#include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"
 
 #include "mlir/IR/Attributes.h"
@@ -27,6 +31,7 @@ using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
+using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
@@ -207,6 +212,24 @@ DiagnosticOp findDirectSelectedPathMarker(KernelOp kernel) {
   return DiagnosticOp();
 }
 
+bool isMissingFallbackCoverageDiagnostic(DiagnosticOp diagnostic) {
+  auto reason = diagnostic->getAttrOfType<mlir::StringAttr>("reason");
+  return reason && reason.getValue() == "fallback-coverage-missing" &&
+         diagnostic->hasAttr("selection_kind");
+}
+
+DiagnosticOp findDirectMissingFallbackCoverageDiagnostic(KernelOp kernel) {
+  if (!kernel || kernel.getBody().empty())
+    return DiagnosticOp();
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+    if (diagnostic && isMissingFallbackCoverageDiagnostic(diagnostic))
+      return diagnostic;
+  }
+  return DiagnosticOp();
+}
+
 DispatchOp findDirectDispatch(KernelOp kernel) {
   if (!kernel || kernel.getBody().empty())
     return DispatchOp();
@@ -275,9 +298,10 @@ module {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @only_path attributes {
-      origin = "only",
-      requires = [@generic_base]
+	    tcrv.exec.variant @only_path attributes {
+	      fallback_role = "conservative",
+	      origin = "only",
+	      requires = [@generic_base]
     } {
     }
   }
@@ -446,9 +470,10 @@ module {
       id = "generic.baseline.b",
       kind = "toolchain"
     }
-    tcrv.exec.variant @expensive_ir_first_fallback attributes {
-      origin = "expensive-fallback",
-      requires = [@generic_baseline_a]
+	    tcrv.exec.variant @expensive_ir_first_fallback attributes {
+	      fallback_role = "conservative",
+	      origin = "expensive-fallback",
+	      requires = [@generic_baseline_a]
     } {
     }
     tcrv.exec.variant @guarded_fast attributes {
@@ -471,9 +496,10 @@ module {
       requires = [@generic_probe]
     } {
     }
-    tcrv.exec.variant @cheap_ranked_fallback attributes {
-      origin = "cheap-fallback",
-      requires = [@generic_baseline_b]
+	    tcrv.exec.variant @cheap_ranked_fallback attributes {
+	      fallback_role = "conservative",
+	      origin = "cheap-fallback",
+	      requires = [@generic_baseline_b]
     } {
     }
   }
@@ -632,9 +658,10 @@ module {
       requires = [@runtime_probe]
     } {
     }
-    tcrv.exec.variant @portable_fallback attributes {
-      origin = "portable-fallback",
-      requires = [@generic_base]
+	    tcrv.exec.variant @portable_fallback attributes {
+	      fallback_role = "conservative",
+	      origin = "portable-fallback",
+	      requires = [@generic_base]
     } {
     }
     tcrv.exec.variant @available_slow attributes {
@@ -724,6 +751,227 @@ module {
   return 0;
 }
 
+int runBuiltinRVVScalarFallbackSelectionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_plus_scalar attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+
+  tcrv.exec.kernel @scalar_only attributes {} {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+
+  tcrv.exec.kernel @rvv_only attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse built-in RVV/scalar selection module");
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
+                            registry),
+                        "register built-in RVV and scalar fallback plugins"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  KernelOp rvvScalarKernel = findKernel(*module, "rvv_plus_scalar");
+  TargetCapabilitySet rvvScalarCapabilities =
+      TargetCapabilitySet::buildFromKernel(rvvScalarKernel);
+  llvm::SmallVector<VariantOp, 2> materializedVariants;
+  VariantProposalRequest rvvScalarRequest(rvvScalarKernel.getOperation(),
+                                          rvvScalarKernel,
+                                          rvvScalarCapabilities);
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, rvvScalarRequest, &materializedVariants),
+          "materialize built-in RVV and scalar fallback proposals"))
+    return result;
+  if (int result =
+          expect(materializedVariants.size() == 2,
+                 "built-in registry materializes both RVV and scalar proposals"))
+    return result;
+
+  VariantOp rvvVariant = findDirectVariant(
+      rvvScalarKernel, tianchenrv::plugin::rvv::getRVVFirstSliceVariantName());
+  VariantOp scalarVariant =
+      findDirectVariant(rvvScalarKernel,
+                        tianchenrv::plugin::scalar::
+                            getScalarFallbackFirstSliceVariantName());
+  if (int result = expect(rvvVariant && scalarVariant,
+                          "materialized RVV and scalar variants are present"))
+    return result;
+  if (int result =
+          expect(getStringAttr(rvvVariant.getOperation(), "origin") ==
+                         tianchenrv::plugin::rvv::getRVVExtensionPluginName() &&
+                     getStringAttr(scalarVariant.getOperation(), "origin") ==
+                         tianchenrv::plugin::scalar::
+                             getScalarExtensionPluginName(),
+                 "materialized variants preserve plugin origins"))
+    return result;
+  if (int result =
+          expect(getStringAttr(scalarVariant.getOperation(),
+                               tianchenrv::plugin::kVariantFallbackRoleAttrName) ==
+                     tianchenrv::plugin::kConservativeFallbackRoleValue,
+                 "scalar fallback proposal materializes generic fallback role"))
+    return result;
+  if (int result = expectSuccess(
+          registry.verifyKernelVariantLegality(rvvScalarKernel,
+                                               rvvScalarCapabilities),
+          "built-in materialized variants pass plugin legality"))
+    return result;
+
+  auto rvvScalarPlanOrError =
+      tianchenrv::transforms::planKernelVariantSelection(
+          rvvScalarKernel, rvvScalarCapabilities, registry);
+  if (!rvvScalarPlanOrError)
+    return fail("RVV plus scalar selection failed: " +
+                llvm::toString(rvvScalarPlanOrError.takeError()));
+  VariantSelectionPlan rvvScalarPlan = std::move(*rvvScalarPlanOrError);
+  if (int result =
+          expect(rvvScalarPlan.kind == VariantSelectionKind::RuntimeDispatch &&
+                     rvvScalarPlan.selectedVariant == rvvVariant &&
+                     rvvScalarPlan.fallback == scalarVariant,
+                 "RVV is selected while scalar remains explicit fallback"))
+    return result;
+  if (int result = expect(rvvScalarPlan.dispatchCases.size() == 1 &&
+                              rvvScalarPlan.dispatchCases.front().variant ==
+                                  rvvVariant,
+                          "runtime dispatch keeps selected RVV case"))
+    return result;
+
+  DispatchOp dispatch;
+  if (int result =
+          expectSuccess(tianchenrv::transforms::materializeRuntimeDispatchPlan(
+                            builder, rvvScalarPlan, &dispatch),
+                        "materialize RVV/scalar dispatch plan"))
+    return result;
+  llvm::SmallVector<DispatchCaseOp, 2> cases;
+  FallbackOp fallback;
+  for (mlir::Operation &operation : dispatch.getBody().front()) {
+    if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(operation)) {
+      cases.push_back(dispatchCase);
+      continue;
+    }
+    if (auto fallbackCandidate = llvm::dyn_cast<FallbackOp>(operation))
+      fallback = fallbackCandidate;
+  }
+  if (int result =
+          expect(cases.size() == 1 &&
+                     getTarget(cases.front().getOperation()) ==
+                         rvvVariant.getSymName(),
+                 "materialized dispatch case targets selected RVV variant"))
+    return result;
+  if (int result =
+          expect(fallback &&
+                     getTarget(fallback.getOperation()) ==
+                         scalarVariant.getSymName(),
+                 "materialized dispatch fallback targets scalar fallback"))
+    return result;
+
+  KernelOp scalarOnlyKernel = findKernel(*module, "scalar_only");
+  TargetCapabilitySet scalarOnlyCapabilities =
+      TargetCapabilitySet::buildFromKernel(scalarOnlyKernel);
+  llvm::SmallVector<VariantOp, 1> scalarOnlyVariants;
+  VariantProposalRequest scalarOnlyRequest(scalarOnlyKernel.getOperation(),
+                                           scalarOnlyKernel,
+                                           scalarOnlyCapabilities);
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, scalarOnlyRequest, &scalarOnlyVariants),
+          "materialize scalar-only fallback proposal"))
+    return result;
+  if (int result =
+          expect(scalarOnlyVariants.size() == 1,
+                 "scalar-only capability materializes one fallback variant"))
+    return result;
+  auto scalarOnlyPlanOrError =
+      tianchenrv::transforms::planKernelVariantSelection(
+          scalarOnlyKernel, scalarOnlyCapabilities, registry);
+  if (!scalarOnlyPlanOrError)
+    return fail("scalar-only selection failed: " +
+                llvm::toString(scalarOnlyPlanOrError.takeError()));
+  VariantSelectionPlan scalarOnlyPlan = std::move(*scalarOnlyPlanOrError);
+  if (int result =
+          expect(scalarOnlyPlan.kind == VariantSelectionKind::FallbackOnly &&
+                     scalarOnlyPlan.selectedVariant == scalarOnlyVariants.front() &&
+                     scalarOnlyPlan.fallback == scalarOnlyVariants.front() &&
+                     !scalarOnlyPlan.missingFallbackCoverage,
+                 "scalar-only capability produces fallback-only metadata route"))
+    return result;
+
+  KernelOp rvvOnlyKernel = findKernel(*module, "rvv_only");
+  TargetCapabilitySet rvvOnlyCapabilities =
+      TargetCapabilitySet::buildFromKernel(rvvOnlyKernel);
+  llvm::SmallVector<VariantOp, 1> rvvOnlyVariants;
+  VariantProposalRequest rvvOnlyRequest(rvvOnlyKernel.getOperation(),
+                                        rvvOnlyKernel, rvvOnlyCapabilities);
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, rvvOnlyRequest, &rvvOnlyVariants),
+          "materialize RVV-only proposal"))
+    return result;
+  if (int result = expect(rvvOnlyVariants.size() == 1,
+                          "RVV-only capability materializes one RVV variant"))
+    return result;
+  auto rvvOnlyPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+      rvvOnlyKernel, rvvOnlyCapabilities, registry);
+  if (!rvvOnlyPlanOrError)
+    return fail("RVV-only selection failed: " +
+                llvm::toString(rvvOnlyPlanOrError.takeError()));
+  VariantSelectionPlan rvvOnlyPlan = std::move(*rvvOnlyPlanOrError);
+  if (int result =
+          expect(rvvOnlyPlan.kind == VariantSelectionKind::StaticVariant &&
+                     rvvOnlyPlan.selectedVariant == rvvOnlyVariants.front() &&
+                     !rvvOnlyPlan.fallback &&
+                     rvvOnlyPlan.missingFallbackCoverage,
+                 "RVV-only plan selects RVV without inventing fallback"))
+    return result;
+  DiagnosticOp rvvOnlyMarker;
+  if (int result =
+          expectSuccess(tianchenrv::transforms::materializeSelectedVariantMarker(
+                            builder, rvvOnlyPlan, &rvvOnlyMarker),
+                        "materialize RVV-only selected marker"))
+    return result;
+  if (int result =
+          expect(countDirectDispatches(rvvOnlyKernel) == 0,
+                 "RVV-only selection does not materialize fallback-less dispatch"))
+    return result;
+  DiagnosticOp missingFallback =
+      findDirectMissingFallbackCoverageDiagnostic(rvvOnlyKernel);
+  if (int result =
+          expect(missingFallback &&
+                     getStringAttr(missingFallback.getOperation(),
+                                   "selection_kind") ==
+                         "missing-conservative-fallback",
+                 "RVV-only selection records missing fallback diagnostic"))
+    return result;
+
+  return 0;
+}
+
 int runNoViableAndUnavailableNegativeTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -758,18 +1006,13 @@ module {
       id = "generic.base",
       kind = "toolchain"
     }
-    tcrv.exec.variant @unguarded_unavailable attributes {
-      origin = "unguarded-unavailable",
-      requires = [@generic_missing]
-    } {
-    }
-    tcrv.exec.variant @fallback_path attributes {
-      origin = "fallback",
-      requires = [@generic_base]
-    } {
-    }
-  }
-}
+	    tcrv.exec.variant @unguarded_unavailable attributes {
+	      origin = "unguarded-unavailable",
+	      requires = [@generic_missing]
+	    } {
+	    }
+	  }
+	}
 )mlir";
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
@@ -841,10 +1084,11 @@ module {
       requires = [@generic_probe]
     } {
     }
-    tcrv.exec.variant @fallback_path attributes {
-      origin = "fallback",
-      requires = [@generic_base]
-    } {
+	    tcrv.exec.variant @fallback_path attributes {
+	      fallback_role = "conservative",
+	      origin = "fallback",
+	      requires = [@generic_base]
+	    } {
     }
     tcrv.exec.dispatch attributes {} {
       tcrv.exec.case @guarded_path {policy = "preexisting_policy"}
@@ -1055,6 +1299,13 @@ module {
 int main() {
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
+  ExtensionPluginRegistry dialectPlugins;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
+                            dialectPlugins),
+                        "register built-in plugin dialects"))
+    return result;
+  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
@@ -1064,6 +1315,8 @@ int main() {
   if (int result = runRuntimeDispatchPlanningAndMaterializationTest(context))
     return result;
   if (int result = runInjectedRegistrySelectionPassTest(context))
+    return result;
+  if (int result = runBuiltinRVVScalarFallbackSelectionTest(context))
     return result;
   if (int result = runNoViableAndUnavailableNegativeTests(context))
     return result;

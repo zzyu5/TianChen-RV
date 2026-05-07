@@ -57,11 +57,12 @@ module {
       requires = [@fast_probe]
     } {
     }
-    tcrv.exec.variant @baseline_path attributes {
-      condition = "baseline_fallback_condition",
-      origin = "baseline-plugin",
-      policy = "baseline_fallback_policy",
-      requires = [@baseline_capability]
+	    tcrv.exec.variant @baseline_path attributes {
+	      condition = "baseline_fallback_condition",
+	      fallback_role = "conservative",
+	      origin = "baseline-plugin",
+	      policy = "baseline_fallback_policy",
+	      requires = [@baseline_capability]
     } {
     }
     tcrv.exec.variant @extra_path attributes {
@@ -183,7 +184,7 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
     return result;
   if (int result =
           expect(getTarget(fallback.getOperation()) == "baseline_path",
-                 "fallback is first generically available variant"))
+	                 "fallback is the first available conservative fallback variant"))
     return result;
   if (int result =
           expect(cases[0]->getAttrOfType<mlir::StringAttr>("condition")

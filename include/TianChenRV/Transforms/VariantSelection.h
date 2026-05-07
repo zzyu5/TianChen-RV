@@ -36,6 +36,7 @@ struct VariantSelectionPlan {
   tcrv::exec::KernelOp kernel;
   tcrv::exec::VariantOp selectedVariant;
   tcrv::exec::VariantOp fallback;
+  bool missingFallbackCoverage = false;
   llvm::SmallVector<VariantSelectionCase, 4> dispatchCases;
   llvm::SmallVector<VariantSelectionCase, 4> rankedVariants;
 };

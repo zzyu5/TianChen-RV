@@ -33,10 +33,15 @@ constexpr llvm::StringLiteral kSeverityAttrName("severity");
 constexpr llvm::StringLiteral kStatusAttrName("status");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kSelectedReasonValue("variant-selected");
+constexpr llvm::StringLiteral kMissingFallbackReasonValue(
+    "fallback-coverage-missing");
+constexpr llvm::StringLiteral kMissingFallbackSelectionKindValue(
+    "missing-conservative-fallback");
 constexpr llvm::StringLiteral kStaticSelectionKindValue("static-variant");
 constexpr llvm::StringLiteral kFallbackOnlySelectionKindValue("fallback-only");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRankingEntry;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
@@ -109,6 +114,20 @@ bool hasGenericDecisionMetadata(VariantOp variant) {
   return hasNonEmptyStringAttr(variant.getOperation(), kConditionAttrName) ||
          hasNonEmptyStringAttr(variant.getOperation(), kGuardAttrName) ||
          hasNonEmptyStringAttr(variant.getOperation(), kPolicyAttrName);
+}
+
+bool hasConservativeFallbackRoleAttr(VariantOp variant) {
+  auto roleAttr = variant->getAttrOfType<mlir::StringAttr>(
+      plugin::kVariantFallbackRoleAttrName);
+  return roleAttr &&
+         roleAttr.getValue() == plugin::kConservativeFallbackRoleValue;
+}
+
+bool isConservativeFallbackCandidate(VariantOp variant,
+                                     const VariantCostEstimate &estimate) {
+  return estimate.getFallbackRole() == plugin::VariantFallbackRole::
+                                           ConservativeFallback ||
+         hasConservativeFallbackRoleAttr(variant);
 }
 
 void copyStringAttrIfPresent(mlir::OperationState &state, VariantOp variant,
@@ -266,6 +285,16 @@ bool isSelectedPathMarker(DiagnosticOp diagnostic) {
          diagnostic->hasAttr(kSelectionKindAttrName);
 }
 
+bool isMissingFallbackCoverageDiagnostic(DiagnosticOp diagnostic) {
+  if (!diagnostic)
+    return false;
+
+  auto reason =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
+  return reason && reason.getValue() == kMissingFallbackReasonValue &&
+         diagnostic->hasAttr(kSelectionKindAttrName);
+}
+
 void collectDirectSelectedPathMarkers(
     KernelOp kernel, llvm::SmallVectorImpl<DiagnosticOp> &markers) {
   if (!hasKernelBody(kernel))
@@ -275,6 +304,18 @@ void collectDirectSelectedPathMarkers(
     auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
     if (diagnostic && isSelectedPathMarker(diagnostic))
       markers.push_back(diagnostic);
+  }
+}
+
+void collectDirectMissingFallbackDiagnostics(
+    KernelOp kernel, llvm::SmallVectorImpl<DiagnosticOp> &diagnostics) {
+  if (!hasKernelBody(kernel))
+    return;
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto diagnostic = llvm::dyn_cast<DiagnosticOp>(operation);
+    if (diagnostic && isMissingFallbackCoverageDiagnostic(diagnostic))
+      diagnostics.push_back(diagnostic);
   }
 }
 
@@ -288,6 +329,58 @@ bool markerMatchesSelectionPlan(DiagnosticOp marker,
   return target && kind && selectedVariant &&
          target.getValue() == selectedVariant.getSymName() &&
          kind.getValue() == stringifySelectedMarkerKind(selectionKind);
+}
+
+bool diagnosticTargetsVariant(DiagnosticOp diagnostic, VariantOp variant) {
+  auto target =
+      diagnostic->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  return target && variant && target.getValue() == variant.getSymName();
+}
+
+llvm::Error materializeMissingFallbackCoverageDiagnostic(
+    mlir::OpBuilder &builder, KernelOp kernel, VariantOp selectedVariant) {
+  if (!selectedVariant)
+    return makeSelectionError(
+        kernel,
+        "missing-fallback diagnostic requires a selected variant target");
+
+  llvm::SmallVector<DiagnosticOp, 2> existingDiagnostics;
+  collectDirectMissingFallbackDiagnostics(kernel, existingDiagnostics);
+  if (existingDiagnostics.size() > 1)
+    return makeSelectionError(
+        kernel,
+        "kernel already contains multiple direct missing-fallback diagnostics");
+
+  if (!existingDiagnostics.empty()) {
+    DiagnosticOp existing = existingDiagnostics.front();
+    if (diagnosticTargetsVariant(existing, selectedVariant))
+      return llvm::Error::success();
+    return makeSelectionError(
+        kernel,
+        "kernel already contains a direct missing-fallback diagnostic for a "
+        "different selected target");
+  }
+
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+  mlir::OperationState state(selectedVariant.getLoc(),
+                             DiagnosticOp::getOperationName());
+  state.addAttribute(kReasonAttrName,
+                     builder.getStringAttr(kMissingFallbackReasonValue));
+  state.addAttribute(
+      kMessageAttrName,
+      builder.getStringAttr(
+          "no plugin-provided conservative fallback candidate is available; "
+          "tcrv.exec.dispatch fallback is not invented"));
+  state.addAttribute(kSeverityAttrName, builder.getStringAttr("warning"));
+  state.addAttribute(kStatusAttrName, builder.getStringAttr("missing"));
+  state.addAttribute(kTargetAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  selectedVariant.getSymName()));
+  state.addAttribute(kSelectionKindAttrName,
+                     builder.getStringAttr(kMissingFallbackSelectionKindValue));
+  builder.create(state);
+  return llvm::Error::success();
 }
 
 class SelectVariantsPass final
@@ -380,6 +473,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
     return plan;
   }
 
+  std::optional<std::size_t> selectedIndex;
   std::optional<std::size_t> fallbackIndex;
   for (const VariantCostRankingEntry &entry : rankedCosts) {
     if (llvm::Error error = validateOriginOwnedCost(kernel, entry))
@@ -398,7 +492,11 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
           "unavailable variant lacks generic condition/guard/policy metadata "
           "and cannot be selected or retained by runtime dispatch");
 
-    if (*availability && !fallbackIndex)
+    bool conservativeFallback =
+        isConservativeFallbackCandidate(entry.variant, entry.estimate);
+    if (*availability && !selectedIndex)
+      selectedIndex = plan.rankedVariants.size();
+    if (*availability && conservativeFallback && !fallbackIndex)
       fallbackIndex = plan.rankedVariants.size();
 
     plan.rankedVariants.push_back(VariantSelectionCase{
@@ -406,35 +504,69 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
         hasDecisionMetadata});
   }
 
-  if (!fallbackIndex)
+  if (!selectedIndex)
     return makeSelectionError(
         kernel,
-        "no direct variant is generically available as selection fallback "
+        "no direct variant is generically available for selection "
         "under the supplied TargetCapabilitySet");
 
-  const VariantSelectionCase &fallbackCase =
-      plan.rankedVariants[*fallbackIndex];
-  plan.selectedVariant = fallbackCase.variant;
-  plan.fallback = fallbackCase.variant;
+  const VariantSelectionCase &selectedCase =
+      plan.rankedVariants[*selectedIndex];
+  plan.selectedVariant = selectedCase.variant;
+  if (fallbackIndex) {
+    const VariantSelectionCase &fallbackCase =
+        plan.rankedVariants[*fallbackIndex];
+    plan.fallback = fallbackCase.variant;
+  } else {
+    plan.missingFallbackCoverage = true;
+  }
+
+  bool dispatchWouldNeedFallback = false;
+  for (std::size_t index = 0; index < plan.rankedVariants.size(); ++index) {
+    const VariantSelectionCase &candidate = plan.rankedVariants[index];
+    if (index == *selectedIndex)
+      continue;
+    if (candidate.hasGenericDecisionMetadata &&
+        (index < *selectedIndex || !candidate.genericallyAvailable)) {
+      dispatchWouldNeedFallback = true;
+      break;
+    }
+  }
+
+  if (dispatchWouldNeedFallback && !fallbackIndex)
+    return makeSelectionError(
+        kernel,
+        "no plugin-provided conservative fallback candidate is available; "
+        "cannot materialize tcrv.exec.dispatch without inventing an implicit "
+        "fallback");
+
+  if (fallbackIndex && *selectedIndex != *fallbackIndex) {
+    if (!selectedCase.hasGenericDecisionMetadata)
+      return makeSelectionError(
+          kernel, selectedCase.variant,
+          "selected dispatch case requires non-empty generic condition, guard, "
+          "or policy metadata when a distinct fallback is present");
+    plan.dispatchCases.push_back(selectedCase);
+  }
 
   for (std::size_t index = 0; index < plan.rankedVariants.size(); ++index) {
-    if (index == *fallbackIndex)
+    if ((fallbackIndex && index == *fallbackIndex) || index == *selectedIndex)
       continue;
-
     const VariantSelectionCase &candidate = plan.rankedVariants[index];
     if (!candidate.hasGenericDecisionMetadata)
       continue;
 
-    if (index < *fallbackIndex || !candidate.genericallyAvailable)
+    if ((fallbackIndex && index < *fallbackIndex) ||
+        index < *selectedIndex || !candidate.genericallyAvailable)
       plan.dispatchCases.push_back(candidate);
   }
 
-  if (!plan.dispatchCases.empty()) {
+  if (fallbackIndex && !plan.dispatchCases.empty()) {
     plan.kind = VariantSelectionKind::RuntimeDispatch;
     return plan;
   }
 
-  if (plan.rankedVariants.size() == 1) {
+  if (fallbackIndex && plan.rankedVariants.size() == 1) {
     plan.kind = VariantSelectionKind::FallbackOnly;
     return plan;
   }
@@ -578,6 +710,9 @@ llvm::Error materializeSelectedVariantMarker(
                                    selectedVariant)) {
       if (createdMarker)
         *createdMarker = existingMarkers.front();
+      if (plan.missingFallbackCoverage)
+        return materializeMissingFallbackCoverageDiagnostic(
+            builder, kernel, selectedVariant);
       return llvm::Error::success();
     }
 
@@ -607,6 +742,10 @@ llvm::Error materializeSelectedVariantMarker(
 
   if (createdMarker)
     *createdMarker = marker;
+
+  if (plan.missingFallbackCoverage)
+    return materializeMissingFallbackCoverageDiagnostic(builder, kernel,
+                                                       selectedVariant);
 
   return llvm::Error::success();
 }

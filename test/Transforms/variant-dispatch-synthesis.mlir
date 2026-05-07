@@ -31,6 +31,7 @@ tcrv.exec.kernel @first_available_is_fallback attributes {} {
   }
   // SYNTH: tcrv.exec.variant @baseline_path
   tcrv.exec.variant @baseline_path attributes {
+    fallback_role = "conservative",
     origin = "baseline-plugin",
     requires = [@baseline_capability]
   } {

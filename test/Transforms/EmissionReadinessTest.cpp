@@ -1228,8 +1228,9 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
       return result;
     if (int result = expectMaterializationErrorLeavesDiagnosticCount(
             context, getDirectKernelSource(), registry,
-            {"invalid emission plan", "supported plan requires non-empty "
-                                      "lowering pipeline"},
+            {"invalid emission plan",
+             "supported or metadata-only plan requires non-empty lowering "
+             "pipeline"},
             0))
       return result;
   }

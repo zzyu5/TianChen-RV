@@ -21,6 +21,11 @@ class Operation;
 
 namespace tianchenrv::plugin {
 
+inline constexpr llvm::StringLiteral kVariantFallbackRoleAttrName(
+    "fallback_role");
+inline constexpr llvm::StringLiteral kConservativeFallbackRoleValue(
+    "conservative");
+
 class PluginCapability {
 public:
   PluginCapability() = default;
@@ -99,6 +104,13 @@ enum class VariantEmissionRole {
 
 llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role);
 
+enum class VariantFallbackRole {
+  None,
+  ConservativeFallback,
+};
+
+llvm::StringRef stringifyVariantFallbackRole(VariantFallbackRole role);
+
 class VariantEmissionRequest {
 public:
   VariantEmissionRequest(tcrv::exec::VariantOp variant,
@@ -136,6 +148,10 @@ public:
   llvm::StringRef getCondition() const { return condition; }
   llvm::StringRef getGuard() const { return guard; }
   llvm::StringRef getPolicy() const { return policy; }
+  VariantFallbackRole getFallbackRole() const { return fallbackRole; }
+  bool hasFallbackRole() const {
+    return fallbackRole != VariantFallbackRole::None;
+  }
   llvm::ArrayRef<mlir::NamedAttribute> getPluginAttributes() const {
     return pluginAttributes;
   }
@@ -151,6 +167,7 @@ public:
   void setCondition(llvm::StringRef value) { condition = value.str(); }
   void setGuard(llvm::StringRef value) { guard = value.str(); }
   void setPolicy(llvm::StringRef value) { policy = value.str(); }
+  void setFallbackRole(VariantFallbackRole role) { fallbackRole = role; }
   void addPluginAttribute(mlir::NamedAttribute attribute) {
     pluginAttributes.push_back(attribute);
   }
@@ -166,6 +183,7 @@ private:
   std::string condition;
   std::string guard;
   std::string policy;
+  VariantFallbackRole fallbackRole = VariantFallbackRole::None;
   llvm::SmallVector<mlir::NamedAttribute, 4> pluginAttributes;
 };
 
@@ -183,6 +201,10 @@ public:
   llvm::StringRef getExplanation() const { return explanation; }
   bool hasPolicy() const { return policySet; }
   llvm::StringRef getPolicy() const { return policy; }
+  VariantFallbackRole getFallbackRole() const { return fallbackRole; }
+  bool hasFallbackRole() const {
+    return fallbackRole != VariantFallbackRole::None;
+  }
 
   void setScore(double value) {
     score = value;
@@ -200,6 +222,7 @@ public:
     policy = value.str();
     policySet = true;
   }
+  void setFallbackRole(VariantFallbackRole role) { fallbackRole = role; }
 
 private:
   bool scoreSet = false;
@@ -210,11 +233,13 @@ private:
   std::string explanation;
   bool policySet = false;
   std::string policy;
+  VariantFallbackRole fallbackRole = VariantFallbackRole::None;
 };
 
 enum class VariantEmissionSupport {
   Unknown,
   Supported,
+  MetadataOnly,
   Unsupported,
 };
 
@@ -224,6 +249,9 @@ public:
   static VariantEmissionStatus getSupported(llvm::StringRef originPlugin,
                                             llvm::StringRef variantSymbol,
                                             llvm::StringRef emissionPath);
+  static VariantEmissionStatus getMetadataOnly(llvm::StringRef originPlugin,
+                                               llvm::StringRef variantSymbol,
+                                               llvm::StringRef metadataRoute);
   static VariantEmissionStatus getUnsupported(llvm::StringRef originPlugin,
                                               llvm::StringRef variantSymbol,
                                               llvm::StringRef reason);
@@ -233,6 +261,9 @@ public:
   }
   bool isSupported() const {
     return support == VariantEmissionSupport::Supported;
+  }
+  bool isMetadataOnly() const {
+    return support == VariantEmissionSupport::MetadataOnly;
   }
   bool isUnsupported() const {
     return support == VariantEmissionSupport::Unsupported;
@@ -244,6 +275,7 @@ public:
   llvm::StringRef getReason() const { return reason; }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
+  void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
   void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
   void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
   void setVariantSymbol(llvm::StringRef symbol) {
@@ -269,6 +301,12 @@ public:
       llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
       llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
       llvm::StringRef explanation);
+  static VariantEmissionPlan getMetadataOnly(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
+      llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
+      llvm::StringRef explanation);
   static VariantEmissionPlan getUnsupported(
       llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
       llvm::StringRef variantSymbol, VariantEmissionRole role,
@@ -279,6 +317,9 @@ public:
   }
   bool isSupported() const {
     return support == VariantEmissionSupport::Supported;
+  }
+  bool isMetadataOnly() const {
+    return support == VariantEmissionSupport::MetadataOnly;
   }
   bool isUnsupported() const {
     return support == VariantEmissionSupport::Unsupported;
@@ -296,6 +337,7 @@ public:
   llvm::StringRef getExplanation() const { return explanation; }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
+  void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
   void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
   void setRole(VariantEmissionRole value) { role = value; }
   void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }

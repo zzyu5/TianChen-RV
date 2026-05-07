@@ -30,10 +30,13 @@ constexpr llvm::StringLiteral kHartsAttrName("harts");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
+constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
+constexpr llvm::StringLiteral kConservativeFallbackRoleValue("conservative");
 
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
 using diagnostic::kEmissionPlanSupportedStatusValue;
+using diagnostic::kEmissionPlanMetadataOnlyStatusValue;
 using diagnostic::kEmissionPlanUnsupportedStatusValue;
 using diagnostic::kLoweringPipelineAttrName;
 using diagnostic::kMessageAttrName;
@@ -138,7 +141,8 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   if (!diagnostic::isEmissionPlanStatus(statusAttr.getValue()))
     return diagnostic.emitOpError()
            << "emission-plan diagnostic status must be '"
-           << kEmissionPlanSupportedStatusValue << "' or '"
+           << kEmissionPlanSupportedStatusValue << "', '"
+           << kEmissionPlanMetadataOnlyStatusValue << "', or '"
            << kEmissionPlanUnsupportedStatusValue << "'";
 
   if (isPresentButEmptyStringAttr(op, kPlanKindAttrName))
@@ -171,7 +175,8 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
            << " resolves to a direct sibling symbol that is not a "
               "tcrv.exec.variant";
 
-  if (statusAttr.getValue() == kEmissionPlanSupportedStatusValue) {
+  if (statusAttr.getValue() == kEmissionPlanSupportedStatusValue ||
+      statusAttr.getValue() == kEmissionPlanMetadataOnlyStatusValue) {
     if (mlir::failed(
             requireEmissionPlanStringAttr(diagnostic, kEmissionKindAttrName)))
       return mlir::failure();
@@ -272,6 +277,14 @@ mlir::LogicalResult VariantOp::verify() {
     return emitOpError()
            << "requires non-empty string attribute '" << kPolicyAttrName
            << "' when present";
+
+  auto fallbackRoleAttr =
+      getOperation()->getAttrOfType<mlir::StringAttr>(kFallbackRoleAttrName);
+  if (fallbackRoleAttr &&
+      fallbackRoleAttr.getValue() != kConservativeFallbackRoleValue)
+    return emitOpError()
+           << "requires fallback_role to be '"
+           << kConservativeFallbackRoleValue << "' when present";
 
   KernelOp kernel = getEnclosingKernel(getOperation());
   if (!kernel)

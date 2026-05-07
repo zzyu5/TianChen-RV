@@ -270,6 +270,7 @@ struct VariantSelectionPlan {
   tcrv::exec::KernelOp kernel;
   tcrv::exec::VariantOp selectedVariant;
   tcrv::exec::VariantOp fallback;
+  bool missingFallbackCoverage;
   SmallVector<VariantSelectionCase> dispatchCases;
   SmallVector<VariantSelectionCase> rankedVariants;
 };
@@ -303,11 +304,15 @@ The generic selection-planning contract is:
   symbols resolve in the supplied `TargetCapabilitySet` and are available;
 - reject unavailable variants that have no non-empty generic `condition`,
   `guard`, or `policy` metadata, rather than silently selecting them;
-- choose the best generically available fallback by cost ranking, not by old
-  kernel IR order;
+- choose the best selected variant by generic availability and cost ranking;
+- choose a `tcrv.exec.fallback` only from a generically available variant that a
+  plugin marked with an abstract conservative fallback role in proposal,
+  materialized metadata, or cost-estimate metadata;
+- do not infer fallback coverage from arbitrary available variants, origin
+  strings, capability IDs, target families, dtypes, shapes, or runtime identities;
 - produce an explicit no-variant plan when a kernel has no direct variants;
 - diagnose runtime-dispatch situations that have guarded candidates but no
-  generically available fallback;
+  plugin-provided conservative fallback candidate;
 - produce a static plan when the lowest ranked executable path is available and
   no lower-cost guarded candidate must be retained;
 - produce a runtime dispatch plan when lower-cost guarded candidates must be
@@ -324,8 +329,8 @@ The generic selection-planning contract is:
   an `llvm::Error`;
 - unavailable variant without generic decision metadata -> return an
   `llvm::Error`;
-- runtime-dispatch plan without a generically available fallback -> return an
-  `llvm::Error`;
+- runtime-dispatch plan without a plugin-provided conservative fallback candidate
+  -> return an `llvm::Error`;
 - dispatch materialization for a non-runtime-dispatch plan -> return an
   `llvm::Error`;
 - dispatch materialization when the kernel already contains a direct
@@ -405,6 +410,13 @@ first slice. It is not lowering IR, runtime ABI glue, or target-family logic.
 Re-running selection must reuse an equivalent direct marker rather than
 duplicating it.
 
+If a static selected variant has no plugin-provided conservative fallback
+candidate, the pass must also materialize a structured diagnostic with
+`reason = "fallback-coverage-missing"`,
+`selection_kind = "missing-conservative-fallback"`, and `status = "missing"`.
+This diagnostic is the explicit no-fallback contract; it is not a failed
+lowering/runtime/correctness/performance claim.
+
 Selection planning must stay target-neutral. It must not branch on RVV, IME,
 offload, scalar fallback, vendors, accelerators, dtype, shape, layout, runtime
 ABI, microarchitecture, or any other target family.
@@ -428,7 +440,8 @@ pass boundary must preserve plugin-owned cost semantics:
   the existing selection planner, materialize runtime-dispatch plans with typed
   `tcrv.exec.dispatch`, `tcrv.exec.case`, and `tcrv.exec.fallback`, and
   materialize static/fallback-only plans with one generic selected-path
-  `tcrv.exec.diagnostic` marker.
+  `tcrv.exec.diagnostic` marker plus a missing-fallback diagnostic when the plan
+  intentionally has no conservative fallback candidate.
 - Static, fallback-only, and no-direct-variant plans do not erase variants,
   lower extension dialects, or inject target-specific IR.
 - Tests should cover injected-registry pass execution, public `tcrv-opt`

@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/VariantDispatchSynthesis.h"
 
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
 
@@ -8,6 +9,7 @@
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Visitors.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -107,6 +109,13 @@ bool hasGenericDecisionMetadata(VariantOp variant) {
          hasNonEmptyStringAttr(variant.getOperation(), kPolicyAttrName);
 }
 
+bool hasConservativeFallbackRoleAttr(VariantOp variant) {
+  auto roleAttr = variant->getAttrOfType<mlir::StringAttr>(
+      plugin::kVariantFallbackRoleAttrName);
+  return roleAttr &&
+         roleAttr.getValue() == plugin::kConservativeFallbackRoleValue;
+}
+
 void copyStringAttrIfPresent(mlir::OperationState &state, VariantOp variant,
                              llvm::StringRef attrName) {
   auto attr = variant->getAttrOfType<mlir::StringAttr>(attrName);
@@ -142,13 +151,18 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
 
   VariantOp fallback;
   for (const VariantAvailability &availability : availabilityByVariant) {
-    if (availability.genericallyAvailable) {
+    if (availability.genericallyAvailable &&
+        hasConservativeFallbackRoleAttr(availability.variant)) {
       fallback = availability.variant;
       break;
     }
   }
 
-  if (!fallback)
+  if (!fallback &&
+      !llvm::any_of(availabilityByVariant,
+                    [](const VariantAvailability &availability) {
+                      return availability.genericallyAvailable;
+                    }))
     return kernel.emitError()
            << "cannot synthesize tcrv.exec.dispatch for kernel @"
            << kernel.getSymName()
@@ -157,6 +171,14 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
 
   if (variants.size() < 2)
     return mlir::success();
+
+  if (!fallback)
+    return kernel.emitError()
+           << "cannot synthesize tcrv.exec.dispatch for kernel @"
+           << kernel.getSymName()
+           << ": no direct variant carries available generic fallback_role = \""
+           << plugin::kConservativeFallbackRoleValue
+           << "\"; refusing to invent an implicit fallback";
 
   plan.fallback = fallback;
   for (const VariantAvailability &availability : availabilityByVariant) {

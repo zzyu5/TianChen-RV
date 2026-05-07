@@ -81,5 +81,7 @@ the same legality, cost, selection, emission-readiness, and emission-plan
 interfaces as other plugins.
 
 This scalar fallback path is compiler metadata for a portable fallback route.
-It does not add a new high-level compute op, emit executable code, prove
-correctness, or measure performance in this slice.
+It marks a generic conservative fallback role for dispatch synthesis and emits
+metadata-only readiness/plan diagnostics. It does not add a new high-level
+compute op, emit executable code, prove correctness, or measure performance in
+this slice.

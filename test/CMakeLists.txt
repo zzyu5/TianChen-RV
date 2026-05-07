@@ -171,7 +171,10 @@ add_executable(tianchenrv-variant-selection-test
 target_link_libraries(tianchenrv-variant-selection-test
   PRIVATE
   TianChenRVInitAll
+  TianChenRVBuiltinPlugins
   TianChenRVPlugin
+  TianChenRVRVVPlugin
+  TianChenRVScalarPlugin
   TianChenRVSupport
   TianChenRVTransforms
   MLIRIR

@@ -58,10 +58,13 @@ def SelectVariants
     inventing core-side cost semantics.
 
     Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
-    tcrv.exec.case, and tcrv.exec.fallback operations. Static and fallback-only
-    plans materialize a generic selected-path tcrv.exec.diagnostic marker with
-    target and selection_kind metadata. No-variant plans do not erase variants
-    or inject target-specific IR.
+    tcrv.exec.case, and tcrv.exec.fallback operations only when a plugin-provided
+    generic conservative fallback candidate is available. Static and
+    fallback-only plans materialize a generic selected-path tcrv.exec.diagnostic
+    marker with target and selection_kind metadata; static plans without fallback
+    coverage also materialize a missing-fallback diagnostic instead of inventing
+    an implicit fallback. No-variant plans do not erase variants or inject
+    target-specific IR.
   }];
   let constructor =
       "::tianchenrv::transforms::createSelectVariantsPass()";

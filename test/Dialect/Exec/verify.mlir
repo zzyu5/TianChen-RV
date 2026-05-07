@@ -345,7 +345,7 @@ tcrv.exec.kernel @bad_emission_plan_status attributes {} {
   tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
-  // expected-error @+1 {{emission-plan diagnostic status must be 'supported' or 'unsupported'}}
+  // expected-error @+1 {{emission-plan diagnostic status must be 'supported', 'metadata-only', or 'unsupported'}}
   tcrv.exec.diagnostic {message = "bad status", origin = "portable-plugin", reason = "emission_plan", role = "direct variant", status = "ready", target = @portable_variant}
 }
 
@@ -357,6 +357,15 @@ tcrv.exec.kernel @supported_emission_plan_missing_lowering attributes {} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'lowering_pipeline'}}
   tcrv.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "metadata-intent", message = "missing lowering", origin = "portable-plugin", reason = "emission_plan", role = "direct variant", runtime_abi = "portable.runtime.abi.v1", status = "supported", target = @portable_variant}
+}
+
+// -----
+
+tcrv.exec.kernel @bad_fallback_role attributes {} {
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  // expected-error @+1 {{requires fallback_role to be 'conservative' when present}}
+  tcrv.exec.variant @portable_variant attributes {fallback_role = "scalar", origin = "portable-plugin", requires = [@portable]} {
+  }
 }
 
 // -----

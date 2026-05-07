@@ -227,12 +227,12 @@ Each emission path should record:
 Before real lowering/runtime work exists, plugin emission plans may be
 materialized as `tcrv.exec.diagnostic {reason = "emission_plan"}` metadata.
 These diagnostics are reproducibility and compiler-decision records only. A
-supported diagnostic records plugin-owned intent such as emission kind,
-lowering pipeline id, runtime ABI id, and artifact kind; it does not mean that
-the compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked a runtime,
-ran hardware, proved correctness, or measured performance. Unsupported
-diagnostics should carry explicit plugin diagnostic text and are valid evidence
-of a boundary, not of executable support.
+supported or metadata-only diagnostic records plugin-owned intent such as
+emission kind, lowering pipeline id, runtime ABI id, and artifact kind; it does
+not mean that the compiler emitted LLVM/RISC-V/RVV IR, assembled an object,
+linked a runtime, ran hardware, proved correctness, or measured performance.
+Unsupported diagnostics should carry explicit plugin diagnostic text and are
+valid evidence of a boundary, not of executable support.
 
 The current public `tcrv-opt` built-in registry includes the RVV first-slice
 plugin. Therefore an `origin = "rvv-plugin"` selected path can materialize an
@@ -264,15 +264,16 @@ hardware/toolchain evidence.
 
 ## Scalar Fallback Metadata Boundary
 
-The first scalar fallback plugin slice may return a supported emission
-readiness result and materialize a supported emission-plan diagnostic for the
-portable fallback route:
+The first scalar fallback plugin slice may return a metadata-only emission
+readiness result and materialize a metadata-only emission-plan diagnostic for
+the portable fallback route:
 
 ```text
-emission kind: portable-scalar-fallback
-lowering pipeline: mlir-default-scalar-lowering
-runtime ABI: none-required
-artifact kind: mlir-lowering-plan
+status: metadata-only
+emission kind: portable-scalar-fallback-metadata-route
+lowering pipeline: none-executable-metadata-only
+runtime ABI: none-metadata-only
+artifact kind: metadata-diagnostic
 ```
 
 This is still compiler-decision metadata. It does not prove that TianChen-RV

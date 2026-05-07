@@ -140,6 +140,13 @@ plugin-proposed decision metadata for later dispatch synthesis. The core
 dialect records these strings but does not interpret target family, dtype,
 shape, layout, runtime, vendor, extension, cost-model, or tuning semantics.
 
+Optional `fallback_role = "conservative"` marks a plugin-proposed variant as a
+generic conservative fallback candidate. The marker is target-neutral: core
+selection may use it to decide whether a `tcrv.exec.fallback` can be
+materialized, but scalar/RVV/IME/offload semantics remain plugin-local. Core
+passes must not invent a fallback from an arbitrary available variant that lacks
+this generic role.
+
 ### `tcrv.exec.hart_parallel`
 
 Represents coarse-grained RISC-V hart/core parallelism.
@@ -246,7 +253,10 @@ inside `tcrv.exec.dispatch`. Each case references a sibling
 `condition`, `guard`, and `policy` attributes are non-empty generic strings; the
 core dialect records them but does not interpret RVV, IME, offload, Sophgo, AME,
 or future-plugin logic. A dispatch must be directly nested in a kernel, contain
-at least one case, and contain exactly one `tcrv.exec.fallback`.
+at least one case, and contain exactly one `tcrv.exec.fallback`. When no
+plugin-provided conservative fallback candidate is present, selection must
+record a structured diagnostic instead of creating a fallback-less dispatch or
+relabeling the selected variant as an implicit fallback.
 
 ### `tcrv.exec.fallback`
 
@@ -256,6 +266,10 @@ Fallback may lower through scalar/scf, default MLIR lowering, portable C/C++, co
 In the structured first-slice form, `tcrv.exec.fallback` is directly nested in
 `tcrv.exec.dispatch` and references a sibling `tcrv.exec.variant` symbol in the
 enclosing kernel. It is not valid as arbitrary metadata inside a variant body.
+The target variant must be selected through generic fallback eligibility such as
+`fallback_role = "conservative"` or an equivalent plugin-owned cost/proposal
+field carried into generic selection. The core dialect must not infer fallback
+semantics from plugin names, target families, or capability IDs.
 
 ### `tcrv.exec.diagnostic` / diagnostic metadata
 

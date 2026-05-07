@@ -209,7 +209,10 @@ module {
                          tianchenrv::plugin::scalar::
                              getScalarExtensionPluginName() &&
                      proposals.front().getPolicy() ==
-                         tianchenrv::plugin::scalar::getScalarFallbackPolicy(),
+                         tianchenrv::plugin::scalar::getScalarFallbackPolicy() &&
+                     proposals.front().getFallbackRole() ==
+                         tianchenrv::plugin::VariantFallbackRole::
+                             ConservativeFallback,
                  "scalar fallback proposal preserves stable metadata"))
     return result;
   if (int result =
@@ -336,6 +339,15 @@ module {
                  "materialized scalar fallback variant preserves policy"))
     return result;
 
+  auto fallbackRoleAttr = variant->getAttrOfType<mlir::StringAttr>(
+      tianchenrv::plugin::kVariantFallbackRoleAttrName);
+  if (int result =
+          expect(fallbackRoleAttr &&
+                     fallbackRoleAttr.getValue() ==
+                         tianchenrv::plugin::kConservativeFallbackRoleValue,
+                 "materialized scalar fallback variant preserves generic fallback role"))
+    return result;
+
   auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (int result =
           expect(requiresAttr && requiresAttr.size() == 1,
@@ -372,7 +384,10 @@ module {
                      estimate.getOriginPlugin() ==
                          tianchenrv::plugin::scalar::
                              getScalarExtensionPluginName() &&
-                     estimate.getVariantSymbol() == variant.getSymName(),
+                     estimate.getVariantSymbol() == variant.getSymName() &&
+                     estimate.getFallbackRole() ==
+                         tianchenrv::plugin::VariantFallbackRole::
+                             ConservativeFallback,
                  "scalar fallback cost metadata is plugin-owned"))
     return result;
 
@@ -408,10 +423,10 @@ module {
           "scalar fallback emission readiness is plugin-owned"))
     return result;
   if (int result =
-          expect(status.isSupported() &&
+          expect(status.isMetadataOnly() &&
                      status.getEmissionPath() ==
-                         "portable-scalar-fallback-metadata-route",
-                 "scalar fallback readiness reports supported metadata route"))
+                         "portable-scalar-fallback-non-executable-metadata-route",
+                 "scalar fallback readiness reports metadata-only route"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -423,19 +438,19 @@ module {
           "scalar fallback emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isMetadataOnly() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::scalar::
                              getScalarExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() == variant.getSymName() &&
                      emissionPlan.getEmissionKind() ==
-                         "portable-scalar-fallback" &&
+                         "portable-scalar-fallback-metadata-route" &&
                      emissionPlan.getLoweringPipeline() ==
-                         "mlir-default-scalar-lowering" &&
-                     emissionPlan.getRuntimeABI() == "none-required" &&
-                     emissionPlan.getArtifactKind() == "mlir-lowering-plan",
-                 "scalar fallback emission plan records stable route metadata"))
+                         "none-executable-metadata-only" &&
+                     emissionPlan.getRuntimeABI() == "none-metadata-only" &&
+                     emissionPlan.getArtifactKind() == "metadata-diagnostic",
+                 "scalar fallback emission plan records stable metadata-only route"))
     return result;
 
   return 0;

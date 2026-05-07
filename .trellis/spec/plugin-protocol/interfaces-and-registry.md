@@ -63,7 +63,8 @@ Responsibilities:
   anchor, and the generic `TargetCapabilitySet`;
 - propose compiler-visible variant metadata before IR materialization;
 - declare variant name, `origin`, required capability ids or symbol
-  references, and optional generic guard/policy metadata;
+  references, optional generic guard/policy metadata, and optional abstract
+  fallback role metadata such as `ConservativeFallback`;
 - later generation slices may materialize `tcrv.exec.variant`, place extension
   dialect ops in the variant body, and attach tuning/emission metadata.
 
@@ -165,6 +166,7 @@ public:
   StringRef getExplanation() const;
   bool hasPolicy() const;
   StringRef getPolicy() const;
+  VariantFallbackRole getFallbackRole() const;
 };
 
 class ExtensionPlugin {
@@ -306,8 +308,11 @@ The registry-level first slice provides deterministic proposal orchestration:
 - reject malformed plugin-owned proposal attributes before materialization,
   including empty names, non-dialect-qualified/discardable names, duplicate
   names, null values, and collisions with required `tcrv.exec.variant`
-  attributes such as `sym_name`, `origin`, `requires`, `condition`, `guard`, or
-  `policy`;
+  attributes such as `sym_name`, `origin`, `requires`, `condition`, `guard`,
+  `policy`, or `fallback_role`;
+- preserve an abstract proposal fallback role such as
+  `ConservativeFallback` as generic `fallback_role = "conservative"` metadata
+  when a plugin explicitly marks the variant as a fallback candidate;
 - preserve valid plugin-owned MLIR attributes as opaque named attributes for
   materialization without interpreting extension-family semantics in the
   registry;
@@ -353,6 +358,9 @@ orchestration:
   non-empty origin plugin, non-empty variant symbol, matching request
   origin/variant identity, and non-empty explanation/policy strings when those
   optional fields are present;
+- allow plugins to return an abstract fallback role in the cost estimate so
+  generic selection can choose a `tcrv.exec.fallback` without inspecting plugin
+  names, target families, capability ids, dtypes, shapes, or runtime identities;
 - wrap plugin-local failures and invalid estimates with generic context naming
   the plugin, variant, and kernel;
 - when collecting costs for a kernel, visit direct `tcrv.exec.variant` children
@@ -380,11 +388,13 @@ planning after readiness, without generating executable artifacts:
 - validate returned plans by requiring a present status, non-empty origin
   plugin, non-empty kernel symbol, non-empty variant symbol, matching
   origin/kernel/variant identity, and matching selected-path role;
-- require supported plans to carry non-empty generic emission kind, lowering
-  pipeline identifier, runtime ABI identifier, artifact kind, and explanation;
+- require supported and metadata-only plans to carry non-empty generic emission
+  kind, lowering pipeline identifier, runtime ABI identifier, artifact kind, and
+  explanation;
 - require unsupported plans to carry a non-empty diagnostic string;
-- treat plans as plugin-owned compiler metadata/intent only; a supported plan is
-  not proof that code was generated, linked, executed, correct, or performant;
+- treat plans as plugin-owned compiler metadata/intent only; a supported or
+  metadata-only plan is not proof that code was generated, linked, executed,
+  correct, or performant;
 - keep readiness and planning separate: readiness answers whether the selected
   path is supportable, while the plan describes the plugin-owned
   lowering/runtime route or structured unsupported reason.
@@ -414,7 +424,10 @@ to route cost ownership through the variant `origin` plugin and must preserve
 the registry ranking tie-break by original kernel IR order. Plugins may provide
 scores and optional explanatory metadata through their cost hook, but they do
 not directly mutate dispatch IR or encode core selection policy through
-target-family branches.
+target-family branches. If runtime dispatch requires a fallback, the planner may
+use only a plugin-provided generic fallback role from proposal/materialized
+metadata or cost-estimate metadata; it must not invent fallback coverage from an
+arbitrary available variant.
 
 When selection, emission-readiness, or emission-plan collection is run as an
 MLIR pass, the pass must receive the same registry object explicitly from the

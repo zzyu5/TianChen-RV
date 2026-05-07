@@ -687,12 +687,14 @@ module {
                 llvm::toString(planOrError.takeError()));
 
   VariantSelectionPlan plan = std::move(*planOrError);
-  if (int result = expect(plan.kind == VariantSelectionKind::FallbackOnly &&
-                              plan.fallback == variant &&
+  if (int result = expect(plan.kind == VariantSelectionKind::StaticVariant &&
+                              plan.selectedVariant == variant &&
+                              !plan.fallback &&
+                              plan.missingFallbackCoverage &&
                               plan.rankedVariants.size() == 1 &&
                               plan.rankedVariants[0].variant == variant,
-                          "selection consumes RVV-origin variant through "
-                          "ExtensionPluginRegistry"))
+                          "selection consumes RVV-origin variant without "
+                          "inventing a fallback through ExtensionPluginRegistry"))
     return result;
 
   ExtensionPluginRegistry emptyRegistry;

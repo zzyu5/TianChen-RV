@@ -101,7 +101,8 @@ llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
 
 bool isCoreVariantAttributeName(llvm::StringRef name) {
   return name == "sym_name" || name == "origin" || name == "requires" ||
-         name == "condition" || name == "guard" || name == "policy";
+         name == "condition" || name == "guard" || name == "policy" ||
+         name == kVariantFallbackRoleAttrName;
 }
 
 bool isValidPluginAttributeNameSegment(llvm::StringRef segment) {
@@ -248,6 +249,16 @@ llvm::StringRef stringifyVariantEmissionRole(VariantEmissionRole role) {
   return "unknown role";
 }
 
+llvm::StringRef stringifyVariantFallbackRole(VariantFallbackRole role) {
+  switch (role) {
+  case VariantFallbackRole::None:
+    return "none";
+  case VariantFallbackRole::ConservativeFallback:
+    return kConservativeFallbackRoleValue;
+  }
+  return "unknown";
+}
+
 VariantEmissionStatus
 VariantEmissionStatus::getSupported(llvm::StringRef originPlugin,
                                     llvm::StringRef variantSymbol,
@@ -257,6 +268,18 @@ VariantEmissionStatus::getSupported(llvm::StringRef originPlugin,
   status.setOriginPlugin(originPlugin);
   status.setVariantSymbol(variantSymbol);
   status.setEmissionPath(emissionPath);
+  return status;
+}
+
+VariantEmissionStatus
+VariantEmissionStatus::getMetadataOnly(llvm::StringRef originPlugin,
+                                       llvm::StringRef variantSymbol,
+                                       llvm::StringRef metadataRoute) {
+  VariantEmissionStatus status;
+  status.setMetadataOnly();
+  status.setOriginPlugin(originPlugin);
+  status.setVariantSymbol(variantSymbol);
+  status.setEmissionPath(metadataRoute);
   return status;
 }
 
@@ -280,6 +303,26 @@ VariantEmissionPlan VariantEmissionPlan::getSupported(
     llvm::StringRef explanation) {
   VariantEmissionPlan plan;
   plan.setSupported();
+  plan.setOriginPlugin(originPlugin);
+  plan.setKernelSymbol(kernelSymbol);
+  plan.setVariantSymbol(variantSymbol);
+  plan.setRole(role);
+  plan.setEmissionKind(emissionKind);
+  plan.setLoweringPipeline(loweringPipeline);
+  plan.setRuntimeABI(runtimeABI);
+  plan.setArtifactKind(artifactKind);
+  plan.setExplanation(explanation);
+  return plan;
+}
+
+VariantEmissionPlan VariantEmissionPlan::getMetadataOnly(
+    llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+    llvm::StringRef variantSymbol, VariantEmissionRole role,
+    llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
+    llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
+    llvm::StringRef explanation) {
+  VariantEmissionPlan plan;
+  plan.setMetadataOnly();
   plan.setOriginPlugin(originPlugin);
   plan.setKernelSymbol(kernelSymbol);
   plan.setVariantSymbol(variantSymbol);
@@ -1044,6 +1087,13 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionStatus(
             "' produced invalid emission readiness result: supported result "
             "requires a non-empty plugin-owned emission path");
 
+  if (status.isMetadataOnly() && status.getEmissionPath().trim().empty())
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission readiness result: metadata-only "
+            "result requires a non-empty plugin-owned metadata route");
+
   if (status.isUnsupported() && status.getReason().trim().empty())
     return makeVariantEmissionError(
         variant, kernel, role,
@@ -1121,36 +1171,41 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
             "' does not match request role '" +
             stringifyVariantEmissionRole(role) + "'");
 
-  if (plan.isSupported()) {
+  if (plan.isSupported() || plan.isMetadataOnly()) {
     if (plan.getEmissionKind().trim().empty())
       return makeVariantEmissionPlanError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: supported plan requires "
+              "' produced invalid emission plan: supported or metadata-only "
+              "plan requires "
               "non-empty emission kind");
     if (plan.getLoweringPipeline().trim().empty())
       return makeVariantEmissionPlanError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: supported plan requires "
+              "' produced invalid emission plan: supported or metadata-only "
+              "plan requires "
               "non-empty lowering pipeline");
     if (plan.getRuntimeABI().trim().empty())
       return makeVariantEmissionPlanError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: supported plan requires "
+              "' produced invalid emission plan: supported or metadata-only "
+              "plan requires "
               "non-empty runtime ABI");
     if (plan.getArtifactKind().trim().empty())
       return makeVariantEmissionPlanError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: supported plan requires "
+              "' produced invalid emission plan: supported or metadata-only "
+              "plan requires "
               "non-empty artifact kind");
     if (plan.getExplanation().trim().empty())
       return makeVariantEmissionPlanError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: supported plan requires "
+              "' produced invalid emission plan: supported or metadata-only "
+              "plan requires "
               "non-empty explanation");
   }
 
