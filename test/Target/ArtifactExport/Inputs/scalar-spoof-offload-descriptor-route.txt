@@ -18,6 +18,15 @@ module {
       status = "selected",
       target = @scalar_fallback_first_slice
     }
+    tcrv_scalar.lowering_boundary {
+      fallback_reason = "scalar fallback selected boundary is plugin-owned metadata only",
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      selected_variant = @scalar_fallback_first_slice,
+      source_kernel = "scalar_spoof_offload_descriptor_route",
+      status = "metadata-only"
+    }
     tcrv.exec.diagnostic {
       artifact_kind = "runtime-offload-handoff-descriptor",
       emission_kind = "runtime-offload-handoff-descriptor",

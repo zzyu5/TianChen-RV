@@ -19,10 +19,19 @@ module @rvv_spoof_scalar_route_input {
       status = "selected",
       target = @rvv_first_slice
     }
+    tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "rvv_spoof_scalar_route",
+      status = "unsupported",
+      unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
+    }
     tcrv.exec.diagnostic {
       artifact_kind = "standalone-c-source",
       emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
-      lowering_boundary = "tcrv_scalar.lowering_boundary",
+      lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "tcrv-export-scalar-microkernel-c",
       message = "spoofed scalar route from rvv origin",
       origin = "rvv-plugin",

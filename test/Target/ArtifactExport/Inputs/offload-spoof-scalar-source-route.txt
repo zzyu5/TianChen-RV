@@ -21,6 +21,17 @@ module {
       status = "selected",
       target = @offload_runtime_first_slice
     }
+    tcrv_offload.lowering_boundary {
+      handoff_kind = "runtime-offload",
+      handoff_reason = "runtime-offload descriptor boundary is compiler handoff metadata only",
+      origin = "offload-plugin",
+      required_capabilities = [@offload_runtime],
+      role = "direct variant",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      selected_variant = @offload_runtime_first_slice,
+      source_kernel = "offload_spoof_scalar_source_route",
+      status = "metadata-only"
+    }
     tcrv.exec.diagnostic {
       artifact_kind = "standalone-c-source",
       emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",

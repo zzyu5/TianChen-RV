@@ -21,16 +21,16 @@
 # SOURCE-ONLY: requires exactly one supported source artifact emission-plan route; found none
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-boundary.txt 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not=offload_runtime_handoff_descriptor
-# MISSING-BOUNDARY: selected offload path @offload_runtime_first_slice as direct variant requires exactly one matching tcrv_offload.lowering_boundary
+# MISSING-BOUNDARY: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-runtime-abi.txt 2>&1 | FileCheck %s --check-prefix=MISSING-ABI --implicit-check-not=offload_runtime_handoff_descriptor
 # MISSING-ABI: emission-plan diagnostic requires non-empty string attribute 'runtime_abi_name'
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
-# STALE-PLAN: stale emission-plan diagnostic is not selected by the current target artifact export surface
+# STALE-PLAN: stale emission-plan diagnostic is not selected by the current execution plan surface
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-stale-boundary.txt 2>&1 | FileCheck %s --check-prefix=STALE-BOUNDARY --implicit-check-not=offload_runtime_handoff_descriptor
-# STALE-BOUNDARY: stale tcrv_offload.lowering_boundary for @old_offload as direct variant is not selected by the current offload descriptor surface
+# STALE-BOUNDARY: stale lowering-boundary 'tcrv_offload.lowering_boundary' selected_variant @old_offload as direct variant is not selected by the current dispatch or selected diagnostic surface
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-unknown-route.txt 2>&1 | FileCheck %s --check-prefix=UNKNOWN-ROUTE --implicit-check-not=offload_runtime_handoff_descriptor
 # UNKNOWN-ROUTE: unknown target artifact export route id 'unknown-offload-descriptor-route'

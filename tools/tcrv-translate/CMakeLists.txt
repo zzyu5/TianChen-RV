@@ -9,6 +9,7 @@ target_link_libraries(tcrv-translate
   TianChenRVInitAll
   TianChenRVRVVTarget
   TianChenRVTarget
+  TianChenRVTransforms
   MLIRIR
   MLIRSupport
   MLIRTranslateLib

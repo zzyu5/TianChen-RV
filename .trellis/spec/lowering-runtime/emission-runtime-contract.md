@@ -109,8 +109,10 @@ arbitrary source export, correctness evidence, or performance evidence.
 
 ### Execution-Plan / Export Preflight Coherence
 
-Before a module is handed to a generic target artifact export route, a
-target-neutral preflight verifier may check that all compiler-visible handoff
+Before a module is handed to a generic target artifact export route, the public
+`tcrv-translate --tcrv-export-target-source-artifact` and
+`tcrv-translate --tcrv-export-target-artifact` front doors must run the
+target-neutral preflight verifier to check that all compiler-visible handoff
 metadata still describes the same selected execution path. This check is a
 metadata coherence gate only. It must not export artifacts, lower to
 LLVM/RISC-V, emit extension instructions, create runtime ABI glue, run hardware,

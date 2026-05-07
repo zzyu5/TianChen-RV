@@ -91,27 +91,30 @@ The `tcrv-translate --tcrv-export-target-source-artifact` tool adds a generic
 target artifact routing front door for supported post-planning emission-plan
 metadata. The route is selected from compiler-owned selected-path,
 lowering-boundary, and plugin-owned emission-plan diagnostics, then dispatched
-through a registered target-owned exporter. Registered source routes are
-bounded to explicit plugin-local microkernel attachments: the existing RVV
-microkernel C exporter above and the scalar fallback explicit i32 vector-add
-portable C exporter below. Unsupported metadata-only RVV/scalar paths, offload
-paths, unknown routes, stale selected paths, missing boundaries, missing
-microkernels, route spoofing, and ambiguous multiple supported artifacts fail
-closed. This tool does not add generic RVV or scalar lowering, arbitrary source
-export, runtime ABI integration, object generation, linking, correctness
-evidence, or performance evidence.
+through a registered target-owned exporter only after a generic execution-plan
+coherence preflight validates that selected-path, lowering-boundary,
+runtime-ABI, emission-plan, and artifact-route metadata still describe the same
+path. Registered source routes are bounded to explicit plugin-local microkernel
+attachments: the existing RVV microkernel C exporter above and the scalar
+fallback explicit i32 vector-add portable C exporter below. Unsupported
+metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
+paths, missing boundaries, missing microkernels, route spoofing, and ambiguous
+multiple supported artifacts fail closed. This tool does not add generic RVV or
+scalar lowering, arbitrary source export, runtime ABI integration, object
+generation, linking, correctness evidence, or performance evidence.
 
 The `tcrv-translate --tcrv-export-target-artifact` tool is the artifact-kind
 aware generic front door. It uses the same selected-path, lowering-boundary,
 and plugin-owned emission-plan route metadata, but it is not limited to source
-artifacts. The first non-source route is the offload runtime handoff descriptor:
-a deterministic target-owned text descriptor for a selected `offload-plugin`
-path with a matching `tcrv_offload.lowering_boundary`, runtime ABI metadata,
-required capability refs, and supported descriptor emission plan. This
-descriptor is compiler handoff metadata only. It does not emit vendor runtime
-calls, implement DMA or buffer management, generate accelerator objects, link
-runtime libraries, run offload hardware, prove correctness, or measure
-performance.
+artifacts. It runs the same generic execution-plan coherence preflight before
+artifact dispatch. The first non-source route is the offload runtime handoff
+descriptor: a deterministic target-owned text descriptor for a selected
+`offload-plugin` path with a matching `tcrv_offload.lowering_boundary`, runtime
+ABI metadata, required capability refs, and supported descriptor emission plan.
+This descriptor is compiler handoff metadata only. It does not emit vendor
+runtime calls, implement DMA or buffer management, generate accelerator
+objects, link runtime libraries, run offload hardware, prove correctness, or
+measure performance.
 
 When the selected RVV path has that exact explicit microkernel attachment, the
 RVV plugin may also materialize a supported emission-plan diagnostic and the

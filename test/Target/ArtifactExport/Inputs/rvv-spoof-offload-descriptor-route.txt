@@ -17,6 +17,15 @@ module {
       status = "selected",
       target = @rvv_first_slice
     }
+    tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "rvv_spoof_offload_descriptor_route",
+      status = "unsupported",
+      unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
+    }
     tcrv.exec.diagnostic {
       artifact_kind = "runtime-offload-handoff-descriptor",
       emission_kind = "runtime-offload-handoff-descriptor",

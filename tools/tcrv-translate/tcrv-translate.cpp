@@ -6,6 +6,7 @@
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Transforms/ExecutionPlanCoherence.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -18,6 +19,10 @@
 #include <utility>
 
 namespace {
+
+using TargetArtifactExportFn = llvm::Error (*)(
+    mlir::ModuleOp, const tianchenrv::target::TargetArtifactExporterRegistry &,
+    llvm::raw_ostream &);
 
 void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
   tianchenrv::registerAllDialects(registry);
@@ -66,8 +71,17 @@ mlir::LogicalResult exportRVVMicrokernelC(mlir::ModuleOp module,
   return mlir::success();
 }
 
-mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
-                                               llvm::raw_ostream &os) {
+mlir::LogicalResult
+exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
+                                   TargetArtifactExportFn exportFn) {
+  tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  if (llvm::Error error =
+          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
           tianchenrv::target::registerBuiltinTargetArtifactExporters(
@@ -78,8 +92,14 @@ mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
   }
 
   if (llvm::Error error =
-          tianchenrv::target::exportTargetSourceArtifact(module, exporters,
-                                                         os)) {
+          tianchenrv::transforms::checkExecutionPlanCoherence(module, plugins,
+                                                              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error = exportFn(module, exporters, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -87,24 +107,16 @@ mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
+                                               llvm::raw_ostream &os) {
+  return exportCoherenceGatedTargetArtifact(
+      module, os, tianchenrv::target::exportTargetSourceArtifact);
+}
+
 mlir::LogicalResult exportTargetArtifact(mlir::ModuleOp module,
                                          llvm::raw_ostream &os) {
-  tianchenrv::target::TargetArtifactExporterRegistry exporters;
-  if (llvm::Error error =
-          tianchenrv::target::registerBuiltinTargetArtifactExporters(
-              exporters)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-
-  if (llvm::Error error =
-          tianchenrv::target::exportTargetArtifact(module, exporters, os)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  return mlir::success();
+  return exportCoherenceGatedTargetArtifact(
+      module, os, tianchenrv::target::exportTargetArtifact);
 }
 
 void registerTianChenRVTranslations() {
