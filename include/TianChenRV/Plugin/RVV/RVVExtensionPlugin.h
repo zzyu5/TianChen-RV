@@ -29,6 +29,9 @@ public:
   llvm::Error
   proposeVariants(const VariantProposalRequest &request,
                   llvm::SmallVectorImpl<VariantProposal> &out) const override;
+  llvm::Error
+  collectVariantProposals(const VariantProposalRequest &request,
+                          VariantProposalCollectionResult &out) const override;
   llvm::Expected<support::TargetCapabilitySet>
   buildTargetCapabilitiesFromProbeFacts(
       const RVVProbeCapabilityFacts &facts) const;

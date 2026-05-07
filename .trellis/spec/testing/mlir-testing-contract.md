@@ -25,7 +25,9 @@ Use lit/FileCheck for:
 - public plugin-variant materialization pass behavior, including built-in
   registry proposal routing, deterministic proposal order, parseable downstream
   pass pipelines, no-built-in-registry diagnostics, plugin-local proposal
-  failures, and safe repeated-run behavior;
+  recoverable declines, fatal malformed proposal failures, no-viable-proposals
+  diagnostics, fallback preservation after extension-local evidence declines,
+  and safe repeated-run behavior;
 - dispatch/fallback IR structure;
 - default public pass diagnostics when origin plugins are not registered.
 - emission-plan diagnostic verifier behavior and default public

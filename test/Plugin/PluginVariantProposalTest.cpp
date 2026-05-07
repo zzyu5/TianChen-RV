@@ -1,8 +1,10 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -20,9 +22,12 @@ using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantProposal;
+using tianchenrv::plugin::VariantProposalCollectionResult;
+using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::VariantOp;
 
 namespace {
 
@@ -107,6 +112,44 @@ private:
   mutable std::string observedHighLevelOpName;
   mutable std::string observedKernelName;
   mutable std::size_t observedCapabilityCount = 0;
+};
+
+class DecliningPlugin final : public ExtensionPlugin {
+public:
+  DecliningPlugin(llvm::StringRef name, llvm::StringRef supportCapabilityID,
+                  llvm::StringRef reason)
+      : name(name.str()), supportCapabilityID(supportCapabilityID.str()),
+        reason(reason.str()) {}
+
+  llvm::StringRef getName() const override { return name; }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return capabilities;
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  bool supportsOperation(const VariantProposalRequest &request) const override {
+    return request.getHighLevelOp() && request.getKernel() &&
+           request.getCapabilities().isCapabilityAvailableByID(
+               supportCapabilityID);
+  }
+
+  llvm::Error
+  collectVariantProposals(const VariantProposalRequest &request,
+                          VariantProposalCollectionResult &out) const override {
+    (void)request;
+    out.addRecoverableDecline(name, reason);
+    return llvm::Error::success();
+  }
+
+private:
+  std::string name;
+  std::string supportCapabilityID;
+  std::string reason;
+  llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 
 int fail(llvm::Twine message) {
@@ -287,6 +330,122 @@ module {
                                   "proposal_source" &&
                               first.getObservedCapabilityCount() == 3,
                           "plugin observes MLIR op, kernel, and capability set"))
+    return result;
+
+  DecliningPlugin recoverableDecline("recoverable-decline", "generic.vector",
+                                     "missing plugin-local evidence");
+  ProposalPlugin validAfterDecline(
+      "valid-after-decline", "generic.vector", "valid_after_decline_path",
+      "valid-after-decline", "generic.vector", "generic_vector");
+  ExtensionPluginRegistry fallbackPreservingRegistry;
+  if (int result =
+          expectSuccess(fallbackPreservingRegistry.registerPlugin(
+                            recoverableDecline),
+                        "register recoverable decline plugin"))
+    return result;
+  if (int result =
+          expectSuccess(fallbackPreservingRegistry.registerPlugin(
+                            validAfterDecline),
+                        "register valid-after-decline plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> fallbackPreservedProposals;
+  llvm::SmallVector<VariantProposalDecline, 1> fallbackDeclines;
+  if (int result = expectSuccess(
+          fallbackPreservingRegistry.collectVariantProposals(
+              request, fallbackPreservedProposals, &fallbackDeclines),
+          "collect valid proposal after recoverable decline"))
+    return result;
+  if (int result =
+          expect(fallbackPreservedProposals.size() == 1 &&
+                     fallbackPreservedProposals[0].getVariantName() ==
+                         "valid_after_decline_path",
+                 "recoverable decline preserves later valid proposal"))
+    return result;
+  if (int result =
+          expect(fallbackDeclines.size() == 1 &&
+                     fallbackDeclines[0].getPluginName() ==
+                         "recoverable-decline" &&
+                     fallbackDeclines[0].getReason() ==
+                         "missing plugin-local evidence",
+                 "recoverable decline diagnostic is preserved"))
+    return result;
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedFallbackVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeVariantProposals(
+              builder, request, fallbackPreservedProposals,
+              &materializedFallbackVariants),
+          "materialize valid proposal after recoverable decline"))
+    return result;
+  if (int result =
+          expect(materializedFallbackVariants.size() == 1 &&
+                     materializedFallbackVariants[0].getSymName() ==
+                         "valid_after_decline_path",
+                 "valid proposal after decline remains materializable"))
+    return result;
+
+  ProposalPlugin invalidBeforeValid(
+      "invalid-before-valid", "generic.vector", "", "invalid-before-valid",
+      "generic.vector", "generic_vector");
+  ProposalPlugin validAfterInvalid(
+      "valid-after-invalid", "generic.vector", "valid_after_invalid_path",
+      "valid-after-invalid", "generic.vector", "generic_vector");
+  ExtensionPluginRegistry invalidBeforeValidRegistry;
+  if (int result = expectSuccess(
+          invalidBeforeValidRegistry.registerPlugin(invalidBeforeValid),
+          "register invalid-before-valid plugin"))
+    return result;
+  if (int result = expectSuccess(
+          invalidBeforeValidRegistry.registerPlugin(validAfterInvalid),
+          "register valid-after-invalid plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> invalidBeforeValidProposals;
+  if (int result = expectErrorContains(
+          invalidBeforeValidRegistry.collectVariantProposals(
+              request, invalidBeforeValidProposals),
+          {"invalid-before-valid", "variant name must be non-empty"}))
+    return result;
+
+  DecliningPlugin declineFirst("decline-first", "generic.vector",
+                               "first bounded decline");
+  DecliningPlugin declineSecond("decline-second", "generic.vector",
+                                "second bounded decline");
+  ExtensionPluginRegistry noViableRegistry;
+  if (int result =
+          expectSuccess(noViableRegistry.registerPlugin(declineFirst),
+                        "register first no-viable decline plugin"))
+    return result;
+  if (int result =
+          expectSuccess(noViableRegistry.registerPlugin(declineSecond),
+                        "register second no-viable decline plugin"))
+    return result;
+  llvm::SmallVector<VariantProposal, 1> noViableProposals;
+  llvm::SmallVector<VariantProposalDecline, 2> noViableDeclines;
+  if (int result = expectSuccess(
+          noViableRegistry.collectVariantProposals(request, noViableProposals,
+                                                   &noViableDeclines),
+          "collect deterministic recoverable declines"))
+    return result;
+  if (int result =
+          expect(noViableProposals.empty() && noViableDeclines.size() == 2,
+                 "all-decline collection has no valid proposals and two "
+                 "diagnostics"))
+    return result;
+  if (int result =
+          expect(noViableDeclines[0].getPluginName() == "decline-first" &&
+                     noViableDeclines[0].getReason() ==
+                         "first bounded decline" &&
+                     noViableDeclines[1].getPluginName() == "decline-second" &&
+                     noViableDeclines[1].getReason() ==
+                         "second bounded decline",
+                 "decline diagnostics preserve registration order"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, noViableRegistry, request),
+          {"no viable plugin proposals",
+           "decline-first: first bounded decline",
+           "decline-second: second bounded decline"}))
     return result;
 
   ProposalPlugin emptyName("empty-name", "generic.vector", "", "empty-name",

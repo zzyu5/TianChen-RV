@@ -34,6 +34,7 @@ using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantProposal;
+using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
 using tianchenrv::support::CapabilityDescriptor;
@@ -704,7 +705,7 @@ module {
                         "RVV legality accepts property-enabled variant"))
     return result;
 
-  auto expectProposalError =
+  auto expectProposalDecline =
       [&](llvm::StringRef kernelName, llvm::StringRef source,
           std::initializer_list<llvm::StringRef> fragments) -> int {
     mlir::OwningOpRef<mlir::ModuleOp> negativeModule =
@@ -722,12 +723,36 @@ module {
         makeRequest(negativeHighLevelOp.getOperation(), negativeKernel,
                     negativeCapabilities);
     llvm::SmallVector<VariantProposal, 1> negativeProposals;
-    return expectErrorContains(
-        registry.collectVariantProposals(negativeRequest, negativeProposals),
-        fragments);
+    llvm::SmallVector<VariantProposalDecline, 1> negativeDeclines;
+    if (int result = expectSuccess(
+            registry.collectVariantProposals(negativeRequest, negativeProposals,
+                                             &negativeDeclines),
+            llvm::Twine("collect recoverable RVV proposal decline for ") +
+                kernelName))
+      return result;
+    if (int result =
+            expect(negativeProposals.empty(),
+                   llvm::Twine("RVV recoverable decline proposes nothing for ") +
+                       kernelName))
+      return result;
+    if (int result =
+            expect(negativeDeclines.size() == 1 &&
+                       negativeDeclines[0].getPluginName() ==
+                           tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+                   llvm::Twine("one RVV decline diagnostic is collected for ") +
+                       kernelName))
+      return result;
+
+    llvm::StringRef message = negativeDeclines[0].getReason();
+    for (llvm::StringRef fragment : fragments) {
+      if (!message.contains(fragment))
+        return fail(llvm::Twine("decline text missing '") + fragment +
+                    "': " + message);
+    }
+    return 0;
   };
 
-  if (int result = expectProposalError(
+  if (int result = expectProposalDecline(
           "missing_hint",
           R"mlir(
 module {
@@ -757,7 +782,7 @@ module {
           {"rvv", "isa_vector_hints", "requires preserved property"}))
     return result;
 
-  if (int result = expectProposalError(
+  if (int result = expectProposalDecline(
           "malformed_harts",
           R"mlir(
 module {
@@ -788,7 +813,7 @@ module {
           {"rvv.hart_count", "count", "positive integer"}))
     return result;
 
-  if (int result = expectProposalError(
+  if (int result = expectProposalDecline(
           "secret_hint",
           R"mlir(
 module {
@@ -819,7 +844,7 @@ module {
           {"isa_vector_hints", "secret-like"}))
     return result;
 
-  if (int result = expectProposalError(
+  if (int result = expectProposalDecline(
           "conflicting_march",
           R"mlir(
 module {

@@ -28,6 +28,24 @@ llvm::Error makePluginRegistryError(llvm::Twine message) {
       message, llvm::errc::invalid_argument);
 }
 
+std::string copyBoundedDiagnosticText(llvm::StringRef value) {
+  constexpr std::size_t kMaxDiagnosticTextLength = 512;
+  std::string bounded;
+  bounded.reserve(std::min<std::size_t>(value.size(), kMaxDiagnosticTextLength));
+  for (char character : value.take_front(kMaxDiagnosticTextLength)) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      bounded.push_back(' ');
+    else if (byte < 0x20 && character != '\t')
+      bounded.push_back(' ');
+    else
+      bounded.push_back(character);
+  }
+  if (value.size() > kMaxDiagnosticTextLength)
+    bounded.append("...");
+  return bounded;
+}
+
 void appendVariantContext(llvm::raw_ostream &stream,
                           tcrv::exec::VariantOp variant,
                           tcrv::exec::KernelOp kernel) {
@@ -251,6 +269,10 @@ VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
     : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
 
+VariantProposalDecline::VariantProposalDecline(llvm::StringRef pluginName,
+                                               llvm::StringRef reason)
+    : pluginName(pluginName.str()), reason(copyBoundedDiagnosticText(reason)) {}
+
 VariantCostEstimate::VariantCostEstimate(double score,
                                          llvm::StringRef originPlugin,
                                          llvm::StringRef variantSymbol)
@@ -425,6 +447,18 @@ llvm::Error ExtensionPlugin::proposeVariants(
   return llvm::Error::success();
 }
 
+llvm::Error ExtensionPlugin::collectVariantProposals(
+    const VariantProposalRequest &request,
+    VariantProposalCollectionResult &out) const {
+  llvm::SmallVector<VariantProposal, 4> proposals;
+  if (llvm::Error error = proposeVariants(request, proposals))
+    return error;
+
+  for (const VariantProposal &proposal : proposals)
+    out.addProposal(proposal);
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
   (void)request;
@@ -575,6 +609,13 @@ void ExtensionPluginRegistry::collectCapabilitiesByKind(
 llvm::Error ExtensionPluginRegistry::collectVariantProposals(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
+  return collectVariantProposals(request, out, nullptr);
+}
+
+llvm::Error ExtensionPluginRegistry::collectVariantProposals(
+    const VariantProposalRequest &request,
+    llvm::SmallVectorImpl<VariantProposal> &out,
+    llvm::SmallVectorImpl<VariantProposalDecline> *recoverableDeclines) const {
   for (const ExtensionPlugin *plugin : plugins) {
     if (!plugin->isEnabled())
       continue;
@@ -582,17 +623,29 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
     if (!plugin->supportsOperation(request))
       continue;
 
-    llvm::SmallVector<VariantProposal, 4> pluginProposals;
-    if (llvm::Error error = plugin->proposeVariants(request, pluginProposals))
+    VariantProposalCollectionResult result;
+    if (llvm::Error error = plugin->collectVariantProposals(request, result))
       return error;
 
-    for (const VariantProposal &proposal : pluginProposals) {
+    if (recoverableDeclines) {
+      for (const VariantProposalDecline &decline :
+           result.getRecoverableDeclines())
+        recoverableDeclines->push_back(decline);
+    }
+
+    llvm::StringSet<> pluginProposalSymbols;
+    for (const VariantProposal &proposal : result.getProposals()) {
       if (llvm::Error error =
               validateVariantProposal(request, *plugin, proposal))
         return error;
+      if (!pluginProposalSymbols.insert(proposal.getVariantName()).second)
+        return makeVariantProposalError(
+            *plugin, proposal,
+            llvm::Twine("duplicate variant symbol @") +
+                proposal.getVariantName() + " in plugin proposal output");
     }
 
-    out.append(pluginProposals.begin(), pluginProposals.end());
+    out.append(result.getProposals().begin(), result.getProposals().end());
   }
 
   return llvm::Error::success();

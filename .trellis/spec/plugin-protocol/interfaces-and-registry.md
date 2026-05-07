@@ -344,6 +344,10 @@ The registry-level first slice provides deterministic proposal orchestration:
 - skip disabled plugins before support queries;
 - skip enabled unsupported plugins before proposal generation;
 - collect proposals only from enabled supported plugins;
+- preserve recoverable plugin-local decline diagnostics when a supported plugin
+  cannot propose because extension-owned evidence is missing, unavailable,
+  malformed, or otherwise not satisfied; such declines must not prevent later
+  enabled plugins from contributing valid proposals;
 - reject malformed proposals with `llvm::Error`, including empty variant names
   or empty origin/plugin ownership;
 - validate each proposal's required capability ids and symbol references against
@@ -356,6 +360,8 @@ The registry-level first slice provides deterministic proposal orchestration:
   names, null values, and collisions with required `tcrv.exec.variant`
   attributes such as `sym_name`, `origin`, `requires`, `condition`, `guard`,
   `policy`, or `fallback_role`;
+- reject duplicate proposal symbols within a single plugin's proposal output as
+  plugin contract violations rather than treating them as recoverable declines;
 - preserve an abstract proposal fallback role such as
   `ConservativeFallback` as generic `fallback_role = "conservative"` metadata
   when a plugin explicitly marks the variant as a fallback candidate;

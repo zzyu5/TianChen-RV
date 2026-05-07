@@ -12,6 +12,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <string>
@@ -420,6 +421,47 @@ llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
   return llvm::Error::success();
 }
 
+std::string sanitizeRVVDeclineReason(llvm::StringRef reason) {
+  constexpr std::size_t kMaxReasonLength = 512;
+  std::string sanitized;
+  sanitized.reserve(std::min<std::size_t>(reason.size(), kMaxReasonLength));
+  for (char character : reason.take_front(kMaxReasonLength)) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      sanitized.push_back(' ');
+    else if (byte < 0x20 && character != '\t')
+      sanitized.push_back(' ');
+    else
+      sanitized.push_back(character);
+  }
+  if (reason.size() > kMaxReasonLength)
+    sanitized.append("...");
+  return sanitized;
+}
+
+llvm::Expected<VariantProposal>
+buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
+  llvm::Expected<RVVCapabilityPropertyView> propertyView =
+      buildRVVCapabilityPropertyView(request.getCapabilities());
+  if (!propertyView)
+    return propertyView.takeError();
+
+  VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
+  proposal.addRequiredCapabilityID(kRVVCapabilityID);
+  proposal.setCondition("rvv_capability_properties_available");
+  proposal.setGuard("plugin_local_rvv_property_evidence");
+  proposal.setPolicy("metadata_only_first_slice");
+  proposal.addPluginAttribute(
+      getRVVPolicyAttrNameAttr(request.getKernel()->getContext()),
+      getExpectedRVVPolicyAttr(request.getKernel()->getContext()));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kRVVRequiredMarchAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            propertyView->selectedMarch));
+  return proposal;
+}
+
 tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
@@ -509,25 +551,31 @@ llvm::Error RVVExtensionPlugin::proposeVariants(
   if (!supportsOperation(request))
     return llvm::Error::success();
 
-  llvm::Expected<RVVCapabilityPropertyView> propertyView =
-      buildRVVCapabilityPropertyView(request.getCapabilities());
-  if (!propertyView)
-    return propertyView.takeError();
+  llvm::Expected<VariantProposal> proposal = buildRVVFirstSliceProposal(request);
+  if (!proposal) {
+    llvm::consumeError(proposal.takeError());
+    return llvm::Error::success();
+  }
 
-  VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
-  proposal.addRequiredCapabilityID(kRVVCapabilityID);
-  proposal.setCondition("rvv_capability_properties_available");
-  proposal.setGuard("plugin_local_rvv_property_evidence");
-  proposal.setPolicy("metadata_only_first_slice");
-  proposal.addPluginAttribute(
-      getRVVPolicyAttrNameAttr(request.getKernel()->getContext()),
-      getExpectedRVVPolicyAttr(request.getKernel()->getContext()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kRVVRequiredMarchAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            propertyView->selectedMarch));
-  out.push_back(proposal);
+  out.push_back(*proposal);
+  return llvm::Error::success();
+}
+
+llvm::Error RVVExtensionPlugin::collectVariantProposals(
+    const VariantProposalRequest &request,
+    VariantProposalCollectionResult &out) const {
+  if (!supportsOperation(request))
+    return llvm::Error::success();
+
+  llvm::Expected<VariantProposal> proposal = buildRVVFirstSliceProposal(request);
+  if (!proposal) {
+    std::string reason =
+        sanitizeRVVDeclineReason(llvm::toString(proposal.takeError()));
+    out.addRecoverableDecline(kRVVPluginName, reason);
+    return llvm::Error::success();
+  }
+
+  out.addProposal(*proposal);
   return llvm::Error::success();
 }
 

@@ -30,6 +30,7 @@ namespace {
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantProposal;
+using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
@@ -141,6 +142,35 @@ std::string getNonEmptyDecisionMetadata(llvm::StringRef value) {
   if (value.trim().empty())
     return {};
   return value.str();
+}
+
+std::string formatRecoverableDeclines(
+    llvm::ArrayRef<VariantProposalDecline> recoverableDeclines) {
+  if (recoverableDeclines.empty())
+    return "no enabled extension plugin produced a viable proposal";
+
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "recoverable plugin declines in registration order: ";
+  llvm::interleave(
+      recoverableDeclines,
+      [&](const VariantProposalDecline &decline) {
+        stream << decline.getPluginName() << ": " << decline.getReason();
+      },
+      [&] { stream << "; "; });
+  return stream.str();
+}
+
+llvm::Error makeNoViableProposalError(
+    KernelOp kernel, llvm::ArrayRef<VariantProposalDecline> recoverableDeclines) {
+  std::string message;
+  llvm::raw_string_ostream stream(message);
+  stream << "TianChen-RV plugin variant materialization";
+  if (kernel)
+    stream << " for kernel @" << kernel.getSymName();
+  stream << " collected no viable plugin proposals; "
+         << formatRecoverableDeclines(recoverableDeclines);
+  return makeMaterializationError(stream.str());
 }
 
 CapabilityOp lookupCapabilityInKernel(KernelOp kernel,
@@ -589,8 +619,14 @@ llvm::Error materializeKernelPluginVariants(
   VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
 
   llvm::SmallVector<VariantProposal, 4> proposals;
-  if (llvm::Error error = registry.collectVariantProposals(request, proposals))
+  llvm::SmallVector<VariantProposalDecline, 2> recoverableDeclines;
+  if (llvm::Error error =
+          registry.collectVariantProposals(request, proposals,
+                                           &recoverableDeclines))
     return error;
+
+  if (proposals.empty())
+    return makeNoViableProposalError(kernel, recoverableDeclines);
 
   llvm::SmallVector<VariantProposal, 4> proposalsToMaterialize;
   if (llvm::Error error = filterAlreadyMaterializedProposals(
@@ -710,8 +746,14 @@ llvm::Error collectAndMaterializeVariantProposals(
     const plugin::VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantOp> *materializedVariants) {
   llvm::SmallVector<plugin::VariantProposal, 4> proposals;
-  if (llvm::Error error = registry.collectVariantProposals(request, proposals))
+  llvm::SmallVector<plugin::VariantProposalDecline, 2> recoverableDeclines;
+  if (llvm::Error error =
+          registry.collectVariantProposals(request, proposals,
+                                           &recoverableDeclines))
     return error;
+
+  if (proposals.empty())
+    return makeNoViableProposalError(request.getKernel(), recoverableDeclines);
 
   return materializeVariantProposals(builder, request, proposals,
                                      materializedVariants);

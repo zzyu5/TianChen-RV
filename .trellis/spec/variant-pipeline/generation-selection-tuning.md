@@ -124,6 +124,14 @@ the shared helper above. Public tools may inject the deterministic built-in
 registry at the tool boundary; the default factory uses an empty registry for
 negative/embedded tests and must not invent core-owned variants.
 
+Recoverable plugin-local proposal declines are diagnostics, not variants. The
+pass must keep collecting later plugins after such a decline so explicitly
+available scalar/offload/fallback plugins can still contribute coverage. If
+collection finishes with no viable proposals, the pass must fail with a generic
+no-viable-proposals diagnostic that preserves bounded decline reasons in
+registration order. This must not soften fatal malformed proposals, malformed
+core IR, duplicate symbols, rerun mismatches, or typed materialization errors.
+
 The pass must be safely repeatable: if a proposed variant symbol already exists,
 it may skip only an existing direct `tcrv.exec.variant` whose origin, requires,
 generic decision metadata, fallback role, plugin-owned attributes, and empty

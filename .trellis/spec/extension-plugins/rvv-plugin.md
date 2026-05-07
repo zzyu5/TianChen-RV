@@ -74,8 +74,12 @@ If the `rvv` capability is missing or generically unavailable
 (`status = "disabled"`, `"missing"`, or `"unavailable"`), the plugin proposes
 no variant. If `rvv` is available but the required RVV property evidence is
 missing, malformed, secret-like, or internally conflicting, proposal collection
-fails with a deterministic RVV plugin diagnostic rather than synthesizing a
-partial variant.
+records a recoverable RVV plugin decline diagnostic and produces no RVV
+proposal, rather than synthesizing a partial variant or aborting later plugins.
+The diagnostic must name bounded property/capability evidence categories and
+must not echo raw property values or secret-like text. Materialized RVV variant
+legality remains strict: malformed explicit RVV metadata such as
+`tcrv_rvv.required_march` is still fatal in legality and selected-boundary APIs.
 
 The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`), one typed non-compute RVV policy attribute

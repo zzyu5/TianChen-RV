@@ -127,3 +127,37 @@ module {
     // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
   }
 }
+
+// -----
+
+module {
+  // MAT-LABEL: tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties
+  tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      status = "available"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    // MAT-NOT: tcrv.exec.variant @rvv_first_slice
+    // MAT: tcrv.exec.variant @scalar_fallback_first_slice
+    // MAT-SAME: fallback_role = "conservative"
+    // MAT-SAME: origin = "scalar-plugin"
+    // MAT-SAME: policy = "portable_scalar_fallback_first_slice"
+    // MAT-SAME: requires = [@scalar_fallback]
+
+    // PIPE-LABEL: tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties
+    // PIPE-NOT: tcrv.exec.variant @rvv_first_slice
+    // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+
+    // RERUN-LABEL: tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties
+    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
+    // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
+    // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
+  }
+}

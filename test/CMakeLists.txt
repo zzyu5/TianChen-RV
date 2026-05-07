@@ -30,9 +30,11 @@ target_link_libraries(tianchenrv-plugin-variant-proposal-test
   TianChenRVInitAll
   TianChenRVPlugin
   TianChenRVSupport
+  TianChenRVTransforms
   MLIRFuncDialect
   MLIRIR
   MLIRParser
+  MLIRPass
   MLIRSupport
 )
 

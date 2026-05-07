@@ -211,6 +211,39 @@ private:
   llvm::SmallVector<mlir::NamedAttribute, 4> pluginAttributes;
 };
 
+class VariantProposalDecline {
+public:
+  VariantProposalDecline() = default;
+  VariantProposalDecline(llvm::StringRef pluginName, llvm::StringRef reason);
+
+  llvm::StringRef getPluginName() const { return pluginName; }
+  llvm::StringRef getReason() const { return reason; }
+
+private:
+  std::string pluginName;
+  std::string reason;
+};
+
+class VariantProposalCollectionResult {
+public:
+  void addProposal(const VariantProposal &proposal) {
+    proposals.push_back(proposal);
+  }
+  void addRecoverableDecline(llvm::StringRef pluginName,
+                             llvm::StringRef reason) {
+    recoverableDeclines.push_back(VariantProposalDecline(pluginName, reason));
+  }
+
+  llvm::ArrayRef<VariantProposal> getProposals() const { return proposals; }
+  llvm::ArrayRef<VariantProposalDecline> getRecoverableDeclines() const {
+    return recoverableDeclines;
+  }
+
+private:
+  llvm::SmallVector<VariantProposal, 4> proposals;
+  llvm::SmallVector<VariantProposalDecline, 2> recoverableDeclines;
+};
+
 class VariantCostEstimate {
 public:
   VariantCostEstimate() = default;
@@ -491,6 +524,9 @@ public:
   proposeVariants(const VariantProposalRequest &request,
                   llvm::SmallVectorImpl<VariantProposal> &out) const;
   virtual llvm::Error
+  collectVariantProposals(const VariantProposalRequest &request,
+                          VariantProposalCollectionResult &out) const;
+  virtual llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const;
   virtual llvm::Error
   estimateVariantCost(const VariantCostRequest &request,
@@ -536,6 +572,10 @@ public:
   llvm::Error
   collectVariantProposals(const VariantProposalRequest &request,
                           llvm::SmallVectorImpl<VariantProposal> &out) const;
+  llvm::Error collectVariantProposals(
+      const VariantProposalRequest &request,
+      llvm::SmallVectorImpl<VariantProposal> &out,
+      llvm::SmallVectorImpl<VariantProposalDecline> *recoverableDeclines) const;
   llvm::Error verifyVariantLegality(
       const VariantLegalityRequest &request) const;
   llvm::Error verifyKernelVariantLegality(tcrv::exec::KernelOp kernel) const;
