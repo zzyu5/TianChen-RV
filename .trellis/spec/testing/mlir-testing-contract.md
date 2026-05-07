@@ -132,7 +132,12 @@ Use lit/FileCheck for:
   hand-authored, an explicit self-check harness export that calls the generated
   dispatcher with both `rvv_available = 0` and `rvv_available = 1`, and
   fail-closed diagnostics when the scalar callable fallback metadata is missing
-  or unsupported.
+  or unsupported. When the bounded self-check object export route is present,
+  lit coverage must also prove the public route is visible, preserves the
+  source/self-check split, fails closed before object creation for missing or
+  malformed selected-path/runtime ABI metadata, and, when local/native RVV clang
+  support is detected, emits a non-empty tool-readable object file without
+  committing binary artifacts.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability
@@ -283,6 +288,15 @@ bounded correctness/runtime-invocation evidence for the explicit i32-vadd
 dispatcher only. It must not be reported as generic high-level lowering
 correctness, arbitrary RVV emission support, object generation, dynamic runtime
 integration, or performance evidence.
+
+If the repository exports a generated RVV+scalar dispatch self-check object
+artifact, local object-byte tests may be conditional on a detected local/native
+RVV clang setup. If that setup is unavailable, local tests should cover
+fail-closed diagnostics only and the final report must name the exact missing
+tool/header/flag/sysroot condition. Any runtime/correctness claim still
+requires separate `ssh rvv` evidence for the bounded dispatcher self-check
+source/object path and must not be widened to generic RVV lowering, dynamic
+runtime integration, or performance.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must

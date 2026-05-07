@@ -5,6 +5,9 @@
 // RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch-self-check.c
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c | FileCheck %s --check-prefix=AUTO --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c | FileCheck %s --check-prefix=AUTO-HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
+// RUN: not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object %s 2>&1 | FileCheck %s --check-prefix=OBJECT-NO-PLAN --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/runtime-element-count/malformed-runtime-element-count/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object 2>&1 | FileCheck %s --check-prefix=OBJECT-BAD-ABI --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 module @rvv_scalar_dispatch_input {
   tcrv.exec.kernel @dispatch_vadd {
@@ -183,3 +186,10 @@ module @rvv_scalar_dispatch_input {
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(0)
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(1)
 // AUTO-HARNESS: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok
+
+// HELP: tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
+
+// OBJECT-NO-PLAN: RVV+scalar i32-vadd dispatch self-check object export failed
+// OBJECT-NO-PLAN: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before target artifact export
+
+// OBJECT-BAD-ABI: unsupported runtime ABI parameter role 'malformed-runtime-element-count'

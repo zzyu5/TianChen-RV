@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -10,11 +11,16 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cctype>
+#include <optional>
 #include <string>
+#include <system_error>
 
 namespace tianchenrv::target::rvv_scalar {
 namespace {
@@ -22,6 +28,8 @@ namespace {
 using tianchenrv::target::TargetArtifactCandidate;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
+using tianchenrv::support::CapabilityDescriptor;
+using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
@@ -56,10 +64,37 @@ constexpr llvm::StringLiteral kScalarRuntimeABIName(
     "scalar-i32-vadd-runtime-callable-c-function.v1");
 constexpr llvm::StringLiteral kScalarRuntimeGlueRole(
     "runtime-callable-i32-vadd-fallback-function");
+constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
+    "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kRVVProbeCompileRunCapabilityID(
+    "rvv.probe.compile_run");
+constexpr llvm::StringLiteral kRVVToolchainMarchCapabilityID(
+    "rvv.toolchain.march");
+constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
+    "rvv.toolchain.mabi");
+constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
+constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
+constexpr llvm::StringLiteral kValuePropertyName("value");
 
 struct DispatchPair {
   TargetArtifactCandidate rvv;
   TargetArtifactCandidate scalar;
+};
+
+struct DispatchObjectCompileConfig {
+  std::string selectedMarch;
+  std::optional<std::string> selectedMABI;
+};
+
+struct TemporaryFile {
+  llvm::SmallString<128> path;
+
+  ~TemporaryFile() {
+    if (!path.empty())
+      llvm::sys::fs::remove(path);
+  }
+
+  llvm::StringRef get() const { return llvm::StringRef(path); }
 };
 
 llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
@@ -81,6 +116,88 @@ llvm::Error makeModuleDispatchError(llvm::Twine message) {
       llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch C export failed: ") +
           message,
       llvm::errc::invalid_argument);
+}
+
+llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "TianChen-RV RVV+scalar i32-vadd dispatch self-check object "
+            "export failed";
+  if (kernel)
+    stream << " for kernel @" << kernel.getSymName();
+  else
+    stream << " for kernel <missing>";
+  stream << ": " << message;
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
+llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch self-check "
+                  "object export failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+bool containsForbiddenText(llvm::StringRef value) {
+  std::string lower = value.lower();
+  llvm::StringRef normalized(lower);
+  return normalized.contains("password") || normalized.contains("passwd") ||
+         normalized.contains("token") || normalized.contains("secret") ||
+         normalized.contains("private key") ||
+         normalized.contains("authorization:") ||
+         normalized.contains("api_key") || normalized.contains("access_key") ||
+         normalized.contains("http://") || normalized.contains("https://") ||
+         normalized.contains("://");
+}
+
+llvm::Error validateBoundedCompileText(KernelOp kernel,
+                                       llvm::StringRef fieldName,
+                                       llvm::StringRef value) {
+  constexpr std::size_t kMaxTextLength = 128;
+  if (value.empty() || value.size() > kMaxTextLength)
+    return makeDispatchObjectError(
+        kernel, llvm::Twine(fieldName) +
+                    " must be bounded non-empty compile metadata");
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (!std::isalnum(byte) && character != '_' && character != '.')
+      return makeDispatchObjectError(
+          kernel, llvm::Twine(fieldName) +
+                      " must contain only bounded compile-flag characters");
+  }
+
+  if (containsForbiddenText(value))
+    return makeDispatchObjectError(
+        kernel, llvm::Twine(fieldName) +
+                    " must not contain secret-like or raw credential text");
+  return llvm::Error::success();
+}
+
+bool hasRVVVectorHint(llvm::StringRef hints) {
+  std::string lower = hints.lower();
+  llvm::StringRef normalized(lower);
+  if (normalized.contains("zve") || normalized.contains("zvl") ||
+      normalized.contains("zvfh") || normalized.contains("gcv"))
+    return true;
+
+  std::size_t position = lower.find("rv64");
+  while (position != std::string::npos) {
+    std::size_t end = position;
+    while (end < lower.size()) {
+      unsigned char byte = static_cast<unsigned char>(lower[end]);
+      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
+        break;
+      ++end;
+    }
+    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
+      return true;
+    position = lower.find("rv64", position + 4);
+  }
+  return false;
 }
 
 bool hasCandidateShape(const TargetArtifactCandidate &candidate,
@@ -265,6 +382,131 @@ VariantOp findDirectVariant(KernelOp kernel, llvm::StringRef symbol) {
   return VariantOp();
 }
 
+llvm::Error requireSafeCompileStringAttr(KernelOp kernel, mlir::Operation *op,
+                                         llvm::StringRef attrName,
+                                         llvm::StringRef context,
+                                         std::string &out) {
+  auto attr = op ? op->getAttrOfType<mlir::StringAttr>(attrName)
+                 : mlir::StringAttr();
+  if (!attr || attr.getValue().trim().empty())
+    return makeDispatchObjectError(
+        kernel, llvm::Twine(context) + " requires non-empty string attribute '" +
+                    attrName + "'");
+  llvm::StringRef value = attr.getValue().trim();
+  if (llvm::Error error = validateBoundedCompileText(kernel, attrName, value))
+    return error;
+  out = value.str();
+  return llvm::Error::success();
+}
+
+llvm::Error mergeOptionalMABI(KernelOp kernel, llvm::StringRef fieldName,
+                              llvm::StringRef value,
+                              std::optional<std::string> &out) {
+  value = value.trim();
+  if (value.empty())
+    return llvm::Error::success();
+  if (llvm::Error error = validateBoundedCompileText(kernel, fieldName, value))
+    return error;
+  if (out && *out != value)
+    return makeDispatchObjectError(
+        kernel, "conflicting preserved selected_mabi capability metadata");
+  out = value.str();
+  return llvm::Error::success();
+}
+
+llvm::Expected<DispatchObjectCompileConfig>
+buildDispatchObjectCompileConfig(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  VariantOp rvvVariant = findDirectVariant(kernel, pair.rvv.selectedVariant);
+  if (!rvvVariant)
+    return makeDispatchObjectError(
+        kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                    pair.rvv.selectedVariant +
+                    " must resolve before object compilation");
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  std::string requiredMarch;
+  if (llvm::Error error = requireSafeCompileStringAttr(
+          kernel, rvvVariant.getOperation(), kRVVRequiredMarchAttrName,
+          "selected RVV dispatch case variant", requiredMarch))
+    return std::move(error);
+  if (!hasRVVVectorHint(requiredMarch))
+    return makeDispatchObjectError(
+        kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                    pair.rvv.selectedVariant +
+                    " attribute 'tcrv_rvv.required_march' must contain RVV "
+                    "vector evidence");
+
+  llvm::SmallVector<std::string, 2> preservedMarches;
+  if (const CapabilityDescriptor *compileRun =
+          capabilities.lookupByID(kRVVProbeCompileRunCapabilityID)) {
+    if (compileRun->isAvailable()) {
+      llvm::StringRef value =
+          compileRun->getProperty(kSelectedMarchPropertyName).trim();
+      if (!value.empty()) {
+        if (llvm::Error error = validateBoundedCompileText(
+                kernel, kSelectedMarchPropertyName, value))
+          return std::move(error);
+        preservedMarches.push_back(value.str());
+      }
+    }
+  }
+
+  if (const CapabilityDescriptor *march =
+          capabilities.lookupByID(kRVVToolchainMarchCapabilityID)) {
+    if (march->isAvailable()) {
+      llvm::StringRef value = march->getProperty(kValuePropertyName).trim();
+      if (!value.empty()) {
+        if (llvm::Error error =
+                validateBoundedCompileText(kernel, kValuePropertyName, value))
+          return std::move(error);
+        preservedMarches.push_back(value.str());
+      }
+    }
+  }
+
+  if (preservedMarches.empty())
+    return makeDispatchObjectError(
+        kernel, "selected RVV dispatch case requires available preserved "
+                "selected_march metadata from capability id "
+                "'rvv.probe.compile_run' or 'rvv.toolchain.march'");
+  if (!llvm::is_contained(preservedMarches, requiredMarch))
+    return makeDispatchObjectError(
+        kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                    pair.rvv.selectedVariant +
+                    " 'tcrv_rvv.required_march' metadata is not satisfied by "
+                    "preserved selected_march capability metadata");
+
+  std::optional<std::string> selectedMABI;
+  if (const CapabilityDescriptor *compileRun =
+          capabilities.lookupByID(kRVVProbeCompileRunCapabilityID)) {
+    if (compileRun->isAvailable())
+      if (llvm::Error error =
+              mergeOptionalMABI(kernel, kSelectedMABIPropertyName,
+                                compileRun->getProperty(
+                                    kSelectedMABIPropertyName),
+                                selectedMABI))
+        return std::move(error);
+  }
+
+  if (const CapabilityDescriptor *mabi =
+          capabilities.lookupByID(kRVVToolchainMABICapabilityID)) {
+    if (mabi->isAvailable())
+      if (llvm::Error error =
+              mergeOptionalMABI(kernel, kValuePropertyName,
+                                mabi->getProperty(kValuePropertyName),
+                                selectedMABI))
+        return std::move(error);
+  }
+
+  DispatchObjectCompileConfig config;
+  config.selectedMarch = std::move(requiredMarch);
+  config.selectedMABI = std::move(selectedMABI);
+  return config;
+}
+
 void printRequiredCapabilitiesComment(llvm::raw_ostream &os,
                                       llvm::StringRef label,
                                       KernelOp kernel,
@@ -443,6 +685,147 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
     printDispatchSelfCheckHarness(os, dispatcherFunctionName);
 }
 
+llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
+                           TemporaryFile &file) {
+  std::error_code ec =
+      llvm::sys::fs::createTemporaryFile(prefix, suffix, file.path);
+  if (ec)
+    return makeModuleDispatchObjectError(
+        llvm::Twine("failed to create temporary ") + suffix +
+        " file for object export: " + ec.message());
+  return llvm::Error::success();
+}
+
+llvm::Error writeTempSource(llvm::StringRef source, TemporaryFile &sourceFile) {
+  int fd = -1;
+  std::error_code ec = llvm::sys::fs::createTemporaryFile(
+      "tcrv-rvv-scalar-dispatch-self-check", "c", fd, sourceFile.path);
+  if (ec)
+    return makeModuleDispatchObjectError(
+        llvm::Twine("failed to create temporary C source for object export: ") +
+        ec.message());
+
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/true);
+  stream << source;
+  stream.close();
+  if (stream.has_error())
+    return makeModuleDispatchObjectError(
+        "failed to write generated self-check C source before object export");
+  return llvm::Error::success();
+}
+
+std::string readBoundedStderr(llvm::StringRef stderrPath) {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> buffer =
+      llvm::MemoryBuffer::getFile(stderrPath);
+  if (!buffer)
+    return "<stderr unavailable>";
+  std::string text = (*buffer)->getBuffer().str();
+  for (char &character : text) {
+    if (character == '\n' || character == '\r' || character == '\t')
+      character = ' ';
+  }
+  constexpr std::size_t kMaxDiagnosticBytes = 1024;
+  if (text.size() > kMaxDiagnosticBytes) {
+    text.resize(kMaxDiagnosticBytes);
+    text += "...";
+  }
+  return text;
+}
+
+std::string formatCompileCommand(llvm::StringRef selectedMarch,
+                                 const std::optional<std::string> &selectedMABI) {
+  std::string command;
+  llvm::raw_string_ostream stream(command);
+  stream << "clang -O2 -march=" << selectedMarch;
+  if (selectedMABI)
+    stream << " -mabi=" << *selectedMABI;
+  stream << " -c <generated-self-check-source> -o <object-file>";
+  stream.flush();
+  return command;
+}
+
+llvm::Error compileSelfCheckSourceToObject(
+    KernelOp kernel, llvm::StringRef source,
+    const DispatchObjectCompileConfig &compileConfig, llvm::raw_ostream &os) {
+  llvm::ErrorOr<std::string> clangPath =
+      llvm::sys::findProgramByName("clang");
+  if (!clangPath)
+    return makeDispatchObjectError(
+        kernel, "requires clang on PATH to compile the bounded self-check C "
+                "source into an object file");
+
+  TemporaryFile sourceFile;
+  if (llvm::Error error = writeTempSource(source, sourceFile))
+    return error;
+
+  TemporaryFile objectFile;
+  if (llvm::Error error =
+          createTempFile("tcrv-rvv-scalar-dispatch-self-check", "o",
+                         objectFile))
+    return error;
+
+  TemporaryFile stderrFile;
+  if (llvm::Error error =
+          createTempFile("tcrv-rvv-scalar-dispatch-self-check", "stderr",
+                         stderrFile))
+    return error;
+
+  std::string marchArg = "-march=" + compileConfig.selectedMarch;
+  std::string mabiArg;
+  llvm::SmallVector<llvm::StringRef, 8> args;
+  args.push_back(*clangPath);
+  args.push_back("-O2");
+  args.push_back(marchArg);
+  if (compileConfig.selectedMABI) {
+    mabiArg = "-mabi=" + *compileConfig.selectedMABI;
+    args.push_back(mabiArg);
+  }
+  args.push_back("-c");
+  args.push_back(sourceFile.get());
+  args.push_back("-o");
+  args.push_back(objectFile.get());
+
+  llvm::SmallVector<std::optional<llvm::StringRef>, 3> redirects;
+  redirects.emplace_back(llvm::StringRef());
+  redirects.emplace_back(llvm::StringRef());
+  redirects.emplace_back(stderrFile.get());
+
+  std::string executionError;
+  bool executionFailed = false;
+  int exitCode = llvm::sys::ExecuteAndWait(
+      *clangPath, args, std::nullopt, redirects, /*SecondsToWait=*/60,
+      /*MemoryLimit=*/0, &executionError, &executionFailed);
+  if (executionFailed || !executionError.empty() || exitCode != 0) {
+    std::string stderrText = readBoundedStderr(stderrFile.get());
+    return makeDispatchObjectError(
+        kernel, llvm::Twine("clang failed while creating object file; ") +
+                    "command: " +
+                    formatCompileCommand(compileConfig.selectedMarch,
+                                         compileConfig.selectedMABI) +
+                    "; exit_code=" + llvm::Twine(exitCode) +
+                    "; stderr: " + stderrText);
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> objectBuffer =
+      llvm::MemoryBuffer::getFile(objectFile.get(), /*IsText=*/false,
+                                  /*RequiresNullTerminator=*/false);
+  if (!objectBuffer)
+    return makeDispatchObjectError(
+        kernel, llvm::Twine("failed to read generated object file: ") +
+                    objectBuffer.getError().message());
+
+  llvm::StringRef bytes = (*objectBuffer)->getBuffer();
+  if (bytes.empty())
+    return makeDispatchObjectError(kernel,
+                                   "generated object file must be non-empty");
+  if (bytes.size() < 4 || !bytes.starts_with("\177ELF"))
+    return makeDispatchObjectError(
+        kernel, "generated object file must have an ELF object-file signature");
+
+  os.write(bytes.data(), bytes.size());
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
@@ -485,6 +868,37 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
   stream.flush();
   os << source;
   return llvm::Error::success();
+}
+
+llvm::Error
+exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchObjectError(message);
+  }
+
+  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
+      buildDispatchObjectCompileConfig(*pair);
+  if (!compileConfig)
+    return compileConfig.takeError();
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  if (llvm::Error error =
+          exportRVVScalarI32VAddDispatchSelfCheckC(module, stream)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchObjectError(message);
+  }
+  stream.flush();
+  if (source.empty())
+    return makeDispatchObjectError(
+        pair->rvv.kernel,
+        "validated self-check C source must be non-empty before object export");
+
+  return compileSelfCheckSourceToObject(pair->rvv.kernel, source,
+                                        *compileConfig, os);
 }
 
 } // namespace tianchenrv::target::rvv_scalar

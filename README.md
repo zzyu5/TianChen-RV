@@ -338,6 +338,20 @@ of that generated source proves only that this dispatcher harness passed on the
 selected host flags; it is not generic RVV lowering, object generation, dynamic
 runtime integration, performance evidence, or broad correctness coverage.
 
+The
+`tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object`
+tool is the first bounded object-file artifact route for that same dispatcher
+self-check source. It reuses the validated RVV+scalar self-check C generation
+path, then invokes `clang` with the selected RVV `-march` and optional
+`-mabi` metadata carried by the selected target capabilities to produce one
+ELF relocatable object on stdout. This route fails closed if the selected-path,
+lowering-boundary, emission-plan, runtime ABI parameter metadata, selected
+compile facts, `clang` tool, target headers, or local/native RISC-V toolchain
+setup are unavailable. The object is still only the bounded dispatcher
+self-check artifact; it is not generic RVV lowering, dynamic runtime
+integration, linking, automatic hardware probing, performance evidence, or
+broad correctness coverage.
+
 ## Runtime Offload First Slice
 
 The built-in registry includes a generic C++ `offload-plugin` first slice for

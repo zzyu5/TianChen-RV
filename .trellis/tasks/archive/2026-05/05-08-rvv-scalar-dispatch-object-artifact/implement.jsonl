@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "global project stack and boundary invariants"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact routing, runtime ABI, dispatch source, and object boundary constraints"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/C++/runtime evidence policy"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local compile facts and bounded microkernel/export constraints"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin-local ABI and bounded microkernel/export constraints"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability-driven metadata and parameter layering rules"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected-path, dispatch, and plugin-driven planning constraints"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability-first review checklist for emission path changes"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "plugin-locality review for target-owned route"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "ensure no compute leaks into tcrv.exec"}

@@ -1044,6 +1044,74 @@ and ran on ssh rvv with selected flags; this proves only that the finite
 dispatcher harness invoked both callable branches correctly.
 ```
 
+### Dispatch Self-Check Object Export
+
+#### 1. Scope / Trigger
+
+Trigger: the same post-planning module satisfies the dispatch self-check
+harness export boundary, and the caller requests a bounded object-file artifact
+for that exact generated harness source.
+
+This is the first target-owned object-generation boundary for the finite
+RVV+scalar i32-vadd dispatcher. It must not become a generic object/link/runtime
+pipeline.
+
+#### 2. Signatures
+
+Public command:
+
+```text
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
+```
+
+C++ entry point:
+
+```cpp
+llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
+    mlir::ModuleOp module, llvm::raw_ostream &os);
+```
+
+#### 3. Contracts
+
+- The object route must first reuse the same selected-path,
+  lowering-boundary, emission-plan, route-id, artifact-kind, and structured
+  runtime ABI parameter validation as the dispatch source and self-check source
+  exporters.
+- The object route must compile the exact generated self-check C source for
+  the selected dispatcher. It must not silently compile a different standalone
+  probe, omit the scalar fallback branch, omit the RVV branch, or bypass the
+  self-check harness.
+- The selected compile facts are target-owned RVV dispatch facts. The route may
+  pass the selected `-march` and optional `-mabi` values already preserved by
+  RVV capabilities or microkernel metadata. Shared generic routing must not
+  learn RVV, scalar, dtype, vendor, runtime, or toolchain semantics for this.
+- Direct binary stdout is the public output contract: success writes only the
+  generated object bytes to stdout. Diagnostics go through the normal
+  `tcrv-translate` error path. Textual metadata comments remain in the
+  generated temporary source and are not prepended to the object stream.
+- The route must use LLVM/C++ support facilities for temporary files, process
+  execution, diagnostics, and binary output, and must pass compiler arguments
+  as structured argv entries rather than shell-concatenated command text.
+- If local/native RISC-V clang, RVV headers, selected flags, or target sysroot
+  support are unavailable, the route must fail closed with an exact diagnostic.
+
+#### 4. Validation & Error Matrix
+
+- Missing selected RVV dispatch case, missing scalar dispatch fallback, missing
+  or stale lowering boundaries, missing supported callable emission plans,
+  route spoofing, wrong origin/role/artifact kind, or missing structured
+  `lhs`/`rhs`/`out`/runtime `n` ABI parameters -> fail before object creation.
+- Missing selected RVV `tcrv_rvv.required_march` or missing preserved selected
+  march capability metadata -> fail before object creation.
+- Conflicting selected MABI metadata -> fail before object creation.
+- Missing `clang`, unsupported local target, missing `riscv_vector.h`, missing
+  target libc headers, unsupported `-march`/`-mabi`, or other compile failure ->
+  fail with a bounded object-route diagnostic and no object claim.
+- Successful object emission only proves that the bounded generated self-check
+  source was compiled into a non-empty object-file artifact with the selected
+  flags. Runtime/correctness still requires separate `ssh rvv` compile/run
+  evidence when claimed.
+
 Contracts:
 
 - Input must be real post-planning MLIR with one selected RVV dispatch case and

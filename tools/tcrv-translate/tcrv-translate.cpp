@@ -15,6 +15,7 @@
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <utility>
@@ -109,6 +110,26 @@ exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
 }
 
 mlir::LogicalResult
+exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
+    module.emitError()
+        << "failed to switch stdout to binary mode for object export: "
+        << error.message();
+    return mlir::failure();
+  }
+
+  if (llvm::Error error = tianchenrv::target::rvv_scalar::
+                              exportRVVScalarI32VAddDispatchSelfCheckObject(
+                                  module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult
 exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
                                    TargetArtifactExportFn exportFn) {
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
@@ -195,6 +216,14 @@ void registerTianChenRVTranslations() {
       exportRVVScalarI32VAddDispatchSelfCheckC,
       registerTianChenRVTranslateDialects);
   (void)rvvScalarDispatchSelfCheckC;
+
+  static mlir::TranslateFromMLIRRegistration rvvScalarDispatchSelfCheckObject(
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
+      "export one host RVV+scalar i32 vector-add dispatch self-check object "
+      "file",
+      exportRVVScalarI32VAddDispatchSelfCheckObject,
+      registerTianChenRVTranslateDialects);
+  (void)rvvScalarDispatchSelfCheckObject;
 
   static mlir::TranslateFromMLIRRegistration targetSourceArtifact(
       "tcrv-export-target-source-artifact",
