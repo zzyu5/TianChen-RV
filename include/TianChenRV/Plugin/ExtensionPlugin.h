@@ -17,6 +17,7 @@
 namespace mlir {
 class DialectRegistry;
 class Operation;
+class OpBuilder;
 } // namespace mlir
 
 namespace tianchenrv::plugin {
@@ -130,6 +131,29 @@ private:
   tcrv::exec::KernelOp kernel;
   const support::TargetCapabilitySet &capabilities;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+};
+
+class VariantLoweringBoundaryRequest {
+public:
+  VariantLoweringBoundaryRequest(
+      tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role, mlir::OpBuilder &builder);
+
+  tcrv::exec::VariantOp getVariant() const { return variant; }
+  tcrv::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+  mlir::OpBuilder &getBuilder() const { return builder; }
+
+private:
+  tcrv::exec::VariantOp variant;
+  tcrv::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  mlir::OpBuilder &builder;
 };
 
 class VariantProposal {
@@ -374,6 +398,79 @@ private:
   std::string explanation;
 };
 
+enum class VariantLoweringBoundaryStatus {
+  Unknown,
+  Materialized,
+  NoBoundary,
+  Unsupported,
+};
+
+class VariantLoweringBoundaryResult {
+public:
+  VariantLoweringBoundaryResult() = default;
+  static VariantLoweringBoundaryResult getMaterialized(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      mlir::Operation *operation);
+  static VariantLoweringBoundaryResult getNoBoundary(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef reason);
+  static VariantLoweringBoundaryResult getUnsupported(
+      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+      llvm::StringRef variantSymbol, VariantEmissionRole role,
+      llvm::StringRef reason);
+
+  bool hasStatus() const {
+    return status != VariantLoweringBoundaryStatus::Unknown;
+  }
+  bool isMaterialized() const {
+    return status == VariantLoweringBoundaryStatus::Materialized;
+  }
+  bool isNoBoundary() const {
+    return status == VariantLoweringBoundaryStatus::NoBoundary;
+  }
+  bool isUnsupported() const {
+    return status == VariantLoweringBoundaryStatus::Unsupported;
+  }
+  VariantLoweringBoundaryStatus getStatus() const { return status; }
+  VariantEmissionRole getRole() const { return role; }
+  llvm::StringRef getOriginPlugin() const { return originPlugin; }
+  llvm::StringRef getKernelSymbol() const { return kernelSymbol; }
+  llvm::StringRef getVariantSymbol() const { return variantSymbol; }
+  llvm::StringRef getReason() const { return reason; }
+  mlir::Operation *getMaterializedOperation() const {
+    return materializedOperation;
+  }
+
+  void setMaterialized() {
+    status = VariantLoweringBoundaryStatus::Materialized;
+  }
+  void setNoBoundary() { status = VariantLoweringBoundaryStatus::NoBoundary; }
+  void setUnsupported() { status = VariantLoweringBoundaryStatus::Unsupported; }
+  void setRole(VariantEmissionRole value) { role = value; }
+  void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
+  void setKernelSymbol(llvm::StringRef symbol) {
+    kernelSymbol = symbol.str();
+  }
+  void setVariantSymbol(llvm::StringRef symbol) {
+    variantSymbol = symbol.str();
+  }
+  void setReason(llvm::StringRef value) { reason = value.str(); }
+  void setMaterializedOperation(mlir::Operation *operation) {
+    materializedOperation = operation;
+  }
+
+private:
+  VariantLoweringBoundaryStatus status = VariantLoweringBoundaryStatus::Unknown;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  std::string originPlugin;
+  std::string kernelSymbol;
+  std::string variantSymbol;
+  std::string reason;
+  mlir::Operation *materializedOperation = nullptr;
+};
+
 struct VariantCostRankingEntry {
   tcrv::exec::VariantOp variant;
   VariantCostEstimate estimate;
@@ -404,6 +501,9 @@ public:
   virtual llvm::Error
   buildVariantEmissionPlan(const VariantEmissionRequest &request,
                            VariantEmissionPlan &out) const;
+  virtual llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const;
 };
 
 class ExtensionPluginRegistry {
@@ -450,6 +550,9 @@ public:
                                 VariantEmissionStatus &out) const;
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const;
+  llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const;
   llvm::Error checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel) const;
   llvm::Error
   checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel,
@@ -483,10 +586,22 @@ private:
   llvm::Error validateVariantEmissionPlan(
       const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
       llvm::StringRef origin, const VariantEmissionPlan &plan) const;
+  llvm::Error validateVariantLoweringBoundaryResult(
+      const VariantLoweringBoundaryRequest &request,
+      const ExtensionPlugin &plugin, llvm::StringRef origin,
+      const VariantLoweringBoundaryResult &result) const;
 
   llvm::SmallVector<const ExtensionPlugin *, 8> plugins;
   llvm::StringMap<const ExtensionPlugin *> pluginsByName;
 };
+
+llvm::Error materializeSelectedLoweringBoundaries(
+    tcrv::exec::KernelOp kernel, const ExtensionPluginRegistry &registry);
+
+llvm::Error materializeSelectedLoweringBoundaries(
+    tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities,
+    const ExtensionPluginRegistry &registry);
 
 } // namespace tianchenrv::plugin
 

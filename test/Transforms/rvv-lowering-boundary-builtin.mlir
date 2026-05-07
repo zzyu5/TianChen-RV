@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --split-input-file --tcrv-select-variants --tcrv-materialize-rvv-lowering-boundary --tcrv-materialize-emission-plans | FileCheck %s
+// RUN: tcrv-opt %s --split-input-file --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s
 
 module {
   // CHECK-LABEL: tcrv.exec.kernel @public_rvv_plus_scalar_boundary

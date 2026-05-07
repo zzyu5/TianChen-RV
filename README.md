@@ -38,6 +38,13 @@ is pre-executable compiler metadata only: it does not emit RVV intrinsics,
 lower to LLVM/RISC-V, create runtime ABI glue, generate objects, run hardware,
 prove correctness, or measure performance.
 
+Selected-path lowering-boundary materialization is routed through the generic
+extension plugin registry. The public `tcrv-opt` pass
+`--tcrv-materialize-selected-lowering-boundaries` delegates selected direct,
+dispatch-case, and dispatch-fallback variant references to their origin plugin.
+RVV is the first materializing implementation; scalar fallback is a valid
+metadata-only no-boundary response.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:

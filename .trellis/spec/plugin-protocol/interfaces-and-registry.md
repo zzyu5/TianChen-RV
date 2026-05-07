@@ -240,6 +240,52 @@ plugin still receives the same `VariantEmissionRequest` with role
 `DirectVariant`; the marker is core control metadata, not plugin-specific
 lowering or runtime input.
 
+### SelectedLoweringBoundaryMaterializer
+
+The selected-path lowering-boundary interface is the generic handoff between
+core selected `tcrv.exec` structure and plugin-local pre-lowering metadata. It
+is still not executable lowering or runtime generation.
+
+```cpp
+class VariantLoweringBoundaryRequest {
+public:
+  tcrv::exec::VariantOp getVariant() const;
+  tcrv::exec::KernelOp getKernel() const;
+  const TargetCapabilitySet &getCapabilities() const;
+  VariantEmissionRole getRole() const;
+  OpBuilder &getBuilder() const;
+};
+
+class VariantLoweringBoundaryResult {
+public:
+  bool isMaterialized() const;
+  bool isNoBoundary() const;
+  bool isUnsupported() const;
+  StringRef getOriginPlugin() const;
+  StringRef getKernelSymbol() const;
+  StringRef getVariantSymbol() const;
+  VariantEmissionRole getRole() const;
+  Operation *getMaterializedOperation() const;
+  StringRef getReason() const;
+};
+```
+
+Registry routing is by the selected variant `origin` string. The registry must
+reject missing variants, missing kernels, non-direct variant/kernel
+relationships, missing or empty origins, unknown origin plugins, disabled
+origin plugins, plugin failures, unsupported plugin responses, and malformed or
+mismatched results with generic diagnostics. A materialized result must identify
+the request origin/kernel/variant/role and return a direct child operation in
+the request kernel. A no-boundary result is valid when the origin plugin owns a
+metadata-only selected path such as scalar fallback.
+
+The generic pass `--tcrv-materialize-selected-lowering-boundaries` traverses
+selected dispatch cases followed by fallback, or a direct selected-path marker
+when no dispatch exists, and delegates each reference to the registry. The pass
+must not branch on RVV, scalar, IME, offload, vendor, runtime, dtype, shape, or
+microarchitecture semantics. Plugin-local implementations decide whether to
+create extension-dialect metadata such as `tcrv_rvv.lowering_boundary`.
+
 ### EmissionProvider
 
 ```cpp

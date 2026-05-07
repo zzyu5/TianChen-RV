@@ -1,5 +1,6 @@
 add_mlir_library(TianChenRVPlugin
   ExtensionPlugin.cpp
+  LoweringBoundary.cpp
 
   LINK_LIBS PUBLIC
   TianChenRVSupport

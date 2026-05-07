@@ -130,17 +130,43 @@ def MaterializeEmissionPlans
   ];
 }
 
+def MaterializeSelectedLoweringBoundaries
+    : Pass<"tcrv-materialize-selected-lowering-boundaries", "::mlir::ModuleOp"> {
+  let summary = "Materialize selected-path lowering boundaries through plugins";
+  let description = [{
+    Traverses the already selected tcrv.exec dispatch or selected-marker
+    surface and routes each selected direct, dispatch-case, and dispatch-fallback
+    variant reference to the owning enabled extension plugin through the generic
+    ExtensionPluginRegistry lowering-boundary interface. The traversal and pass
+    are target-neutral: they do not branch on RVV, scalar, IME, offload, vendor,
+    runtime, dtype, shape, or microarchitecture semantics.
+
+    Plugins decide whether a selected path materializes a plugin-local
+    lowering-boundary operation or is a valid no-boundary metadata-only route.
+    The pass itself does not lower to LLVM/RISC-V, emit intrinsics, create
+    runtime ABI glue, generate objects, run hardware, prove correctness, or
+    claim performance. Public tcrv-opt registration owns a deterministic
+    built-in registry at the tool boundary, while the default factory
+    constructor owns an empty registry for negative registration tests.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeSelectedLoweringBoundariesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def MaterializeRVVLoweringBoundary
     : Pass<"tcrv-materialize-rvv-lowering-boundary", "::mlir::ModuleOp"> {
   let summary = "Materialize pre-executable RVV lowering-boundary metadata";
   let description = [{
-    Materializes plugin-owned `tcrv_rvv.lowering_boundary` operations for
-    selected RVV dispatch-case or direct selected variants. The pass consumes
-    generic `tcrv.exec` selected-path structure and routes RVV-owned variants
-    through the extension plugin registry before creating RVV dialect metadata.
-    It does not materialize dispatch fallback boundaries, lower to LLVM/RISC-V,
-    emit RVV intrinsics, create runtime ABI glue, generate objects, run
-    hardware, prove correctness, or claim performance.
+    Compatibility wrapper for the canonical
+    `--tcrv-materialize-selected-lowering-boundaries` pass. It uses the same
+    generic selected-path traversal and ExtensionPluginRegistry
+    lowering-boundary interface; RVV-specific interpretation remains behind the
+    RVV plugin implementation. It does not lower to LLVM/RISC-V, emit RVV
+    intrinsics, create runtime ABI glue, generate objects, run hardware, prove
+    correctness, or claim performance.
 
     Public tools should construct this pass with a populated
     ExtensionPluginRegistry. The default constructor owns an empty registry and

@@ -78,6 +78,15 @@ This metadata-only emission-plan diagnostic records plugin-owned intent only. It
 does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
 runtime, executed a scalar kernel, proved correctness, or measured performance.
 
+## Selected Lowering Boundary
+
+Scalar fallback participates in the generic selected lowering-boundary registry
+path. Its first slice validates the selected scalar fallback variant through the
+same plugin-local legality rules, then returns a no-boundary result. It must not
+materialize `tcrv_rvv` operations, must not be treated as executable lowering,
+and must not cause a missing-plugin diagnostic when selected as a fallback-only
+or dispatch fallback path.
+
 Real scalar fallback lowering must be added by a later plugin-local lowering
 slice and validated with compiler-generated artifacts and runtime evidence
 appropriate to that path.

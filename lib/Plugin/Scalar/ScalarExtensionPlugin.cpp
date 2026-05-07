@@ -5,6 +5,8 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
+
 namespace tianchenrv::plugin {
 namespace {
 
@@ -227,6 +229,37 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
       "scalar fallback first slice records a portable fallback metadata route "
       "for compiler decisions only; it does not emit objects, link a runtime, "
       "run hardware, prove correctness, or measure performance");
+  return llvm::Error::success();
+}
+
+llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
+    const VariantLoweringBoundaryRequest &request,
+    VariantLoweringBoundaryResult &out) const {
+  if (!request.getVariant())
+    return makeScalarPluginError(
+        "lowering-boundary materialization requires a materialized "
+        "tcrv.exec.variant");
+
+  if (!request.getKernel())
+    return makeScalarPluginError(
+        "lowering-boundary materialization requires an enclosing "
+        "tcrv.exec.kernel");
+
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeScalarPluginError(
+        llvm::Twine("selected scalar fallback variant @") +
+        request.getVariant().getSymName() +
+        " failed plugin legality before boundary materialization: " + message);
+  }
+
+  out = VariantLoweringBoundaryResult::getNoBoundary(
+      kScalarPluginName, request.getKernel().getSymName(),
+      request.getVariant().getSymName(), request.getRole(),
+      "scalar fallback first slice is metadata-only and does not materialize "
+      "plugin lowering-boundary operations");
   return llvm::Error::success();
 }
 

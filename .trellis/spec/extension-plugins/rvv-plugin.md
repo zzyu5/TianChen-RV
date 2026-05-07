@@ -236,20 +236,22 @@ evidence.
 
 ## First Lowering Boundary Slice
 
-The public `tcrv-opt` pass
-`--tcrv-materialize-rvv-lowering-boundary` materializes
+The canonical public `tcrv-opt` pass
+`--tcrv-materialize-selected-lowering-boundaries` materializes selected-path
+lowering-boundary metadata through the generic `ExtensionPluginRegistry`
+interface. RVV implements that plugin hook by creating
 `tcrv_rvv.lowering_boundary` for selected RVV-owned direct variants or dispatch
-cases. It consumes already selected `tcrv.exec` structure, uses the generic
-variant `origin` metadata and `ExtensionPluginRegistry`, and validates selected
-RVV variants through the RVV plugin legality path before mutating IR.
+cases. The older `--tcrv-materialize-rvv-lowering-boundary` entry remains only a
+compatibility wrapper around the same generic path.
 
 Rules:
 
 - RVV-specific interpretation stays in the RVV plugin/dialect implementation.
-- The pass materializes no boundary for `tcrv.exec.fallback`, including scalar
-  fallback variants.
+- The generic pass routes dispatch fallback references to their origin plugin;
+  the RVV first slice returns no boundary for fallback role, and scalar fallback
+  returns a metadata-only no-boundary result without receiving RVV ops.
 - Kernels without a dispatch or direct selected-path diagnostic are diagnosed
-  before any RVV boundary is materialized.
+  before any plugin lowering-boundary hook is invoked.
 - The boundary op remains `status = "unsupported"` until a later RVV lowering
   and runtime slice adds executable evidence.
 - The boundary is a compiler structure/evidence boundary only; it must not be

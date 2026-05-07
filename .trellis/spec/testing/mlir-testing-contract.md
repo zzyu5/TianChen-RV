@@ -31,9 +31,11 @@ Use lit/FileCheck for:
   marker traversal, dispatch case/fallback ordering, and
   `--tcrv-disable-builtin-plugins` negative coverage for empty-registry plugin
   dialect behavior.
-- RVV lowering-boundary syntax, verifier diagnostics, selected dispatch-case
-  materialization, scalar fallback preservation, scalar-only no-op behavior,
-  missing selected-surface diagnostics, and unsupported RVV evidence wording.
+- generic selected lowering-boundary pass routing, RVV lowering-boundary syntax,
+  verifier diagnostics, selected dispatch-case materialization, scalar fallback
+  preservation, scalar-only no-op behavior, missing selected-surface
+  diagnostics, old RVV pass compatibility, and unsupported RVV evidence
+  wording.
 
 Example test intent:
 
@@ -64,10 +66,11 @@ Use C++ tests for:
 - emission-plan materialization helpers that need injected mock registries,
   deterministic selected-path ordering checks, no-partial-mutation checks, and
   unsupported first-slice plugin behavior.
-- RVV lowering-boundary materialization helpers that need an in-process
-  built-in registry, selected RVV dispatch-case/direct-marker coverage,
-  scalar fallback preservation, malformed RVV legality rejection, and bounded
-  unsupported emission-plan status checks.
+- selected lowering-boundary materialization helpers that need an in-process
+  registry, origin routing, disabled or unknown plugin diagnostics, malformed
+  selected-path rejection, plugin result mismatch checks, RVV
+  dispatch-case/direct-marker coverage, scalar fallback preservation, malformed
+  RVV legality rejection, and bounded unsupported emission-plan status checks.
 - plugin-local scalar fallback validation, including proposal gating on an
   available `scalar.fallback` capability, materialization, legality rejection
   for missing/unavailable fallback capability, conservative cost metadata,

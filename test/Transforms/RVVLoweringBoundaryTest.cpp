@@ -8,28 +8,155 @@
 #include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/Parser/Parser.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <string>
 
+using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
+using tianchenrv::plugin::VariantLoweringBoundaryRequest;
+using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
 
 namespace {
+
+enum class BoundaryBehavior {
+  Materialized,
+  NoBoundary,
+  Unsupported,
+  PluginFailure,
+  MissingStatus,
+  MismatchedOrigin,
+  MismatchedVariant,
+  MismatchedRole,
+  NullMaterializedOp,
+};
+
+class BoundaryPlugin final : public ExtensionPlugin {
+public:
+  BoundaryPlugin(llvm::StringRef name, bool enabled = true,
+                 BoundaryBehavior behavior = BoundaryBehavior::Materialized)
+      : name(name.str()), enabled(enabled), behavior(behavior) {}
+
+  llvm::StringRef getName() const override { return name; }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return capabilities;
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  bool isEnabled() const override { return enabled; }
+
+  llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const override {
+    ++calls;
+    observedRoles.push_back(
+        tianchenrv::plugin::stringifyVariantEmissionRole(request.getRole())
+            .str());
+
+    if (behavior == BoundaryBehavior::PluginFailure)
+      return llvm::make_error<llvm::StringError>(
+          "plugin-local lowering-boundary builder failed",
+          llvm::errc::invalid_argument);
+
+    if (behavior == BoundaryBehavior::MissingStatus) {
+      out = VariantLoweringBoundaryResult();
+      return llvm::Error::success();
+    }
+
+    llvm::StringRef kernelSymbol = request.getKernel().getSymName();
+    llvm::StringRef variantSymbol = request.getVariant().getSymName();
+    VariantEmissionRole role = request.getRole();
+
+    if (behavior == BoundaryBehavior::MismatchedOrigin) {
+      out = VariantLoweringBoundaryResult::getNoBoundary(
+          "other-plugin", kernelSymbol, variantSymbol, role,
+          "mismatched origin test response");
+      return llvm::Error::success();
+    }
+
+    if (behavior == BoundaryBehavior::MismatchedVariant) {
+      out = VariantLoweringBoundaryResult::getNoBoundary(
+          name, kernelSymbol, "other_variant", role,
+          "mismatched variant test response");
+      return llvm::Error::success();
+    }
+
+    if (behavior == BoundaryBehavior::MismatchedRole) {
+      out = VariantLoweringBoundaryResult::getNoBoundary(
+          name, kernelSymbol, variantSymbol, VariantEmissionRole::DispatchCase,
+          "mismatched role test response");
+      return llvm::Error::success();
+    }
+
+    if (behavior == BoundaryBehavior::Unsupported) {
+      out = VariantLoweringBoundaryResult::getUnsupported(
+          name, kernelSymbol, variantSymbol, role,
+          "mock plugin intentionally reports unsupported lowering boundary");
+      return llvm::Error::success();
+    }
+
+    if (behavior == BoundaryBehavior::NoBoundary) {
+      out = VariantLoweringBoundaryResult::getNoBoundary(
+          name, kernelSymbol, variantSymbol, role,
+          "mock plugin selected path has no lowering-boundary op");
+      return llvm::Error::success();
+    }
+
+    mlir::Operation *operation = nullptr;
+    if (behavior != BoundaryBehavior::NullMaterializedOp) {
+      mlir::OperationState state(request.getVariant().getLoc(),
+                                 DiagnosticOp::getOperationName());
+      state.addAttribute("reason",
+                         request.getBuilder().getStringAttr(
+                             "mock-lowering-boundary"));
+      state.addAttribute("target",
+                         mlir::FlatSymbolRefAttr::get(
+                             request.getBuilder().getContext(),
+                             request.getVariant().getSymName()));
+      operation = request.getBuilder().create(state);
+    }
+
+    out = VariantLoweringBoundaryResult::getMaterialized(
+        name, kernelSymbol, variantSymbol, role, operation);
+    return llvm::Error::success();
+  }
+
+  mutable unsigned calls = 0;
+  mutable llvm::SmallVector<std::string, 4> observedRoles;
+
+private:
+  std::string name;
+  bool enabled;
+  BoundaryBehavior behavior;
+  llvm::SmallVector<PluginCapability, 0> capabilities;
+};
 
 int fail(llvm::Twine message) {
   llvm::errs() << "FAIL: " << message << "\n";
@@ -222,7 +349,7 @@ module {
     return result;
 
   if (int result = expectSuccess(
-          tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(kernel,
+          tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
                                                                     plugins),
           "materialize RVV boundary for selected dispatch case"))
     return result;
@@ -282,7 +409,7 @@ module {
 
   KernelOp kernel = findKernel(*module, "scalar_only");
   if (int result = expectSuccess(
-          tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(kernel,
+          tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
                                                                     plugins),
           "scalar-only selected path is a no-op for RVV boundary"))
     return result;
@@ -344,7 +471,7 @@ module {
 
   KernelOp kernel = findKernel(*module, "rvv_only");
   if (int result = expectSuccess(
-          tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(kernel,
+          tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
                                                                     plugins),
           "materialize RVV direct selected boundary"))
     return result;
@@ -398,7 +525,7 @@ module {
 
   KernelOp kernel = findKernel(*module, "bad_rvv");
   return expectErrorContains(
-      tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(kernel,
+      tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
                                                                plugins),
       {"failed plugin legality", "tcrv_rvv.policy"});
 }
@@ -474,6 +601,375 @@ module {
                 "scalar fallback emission plan remains metadata-only");
 }
 
+int runGenericRegistryRoutingAndDiagnosticTest() {
+  mlir::DialectRegistry dialects;
+  tianchenrv::registerAllDialects(dialects);
+  mlir::MLIRContext context(dialects);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @generic {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic",
+      status = "available"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-boundary",
+      requires = [@base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  auto runRegistryCase = [&](BoundaryBehavior behavior,
+                             std::initializer_list<llvm::StringRef> fragments) {
+    mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+    if (!module)
+      return fail("failed to parse generic lowering-boundary registry IR");
+
+    KernelOp kernel = findKernel(*module, "generic");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    mlir::OpBuilder builder(&context);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+
+    BoundaryPlugin plugin("mock-boundary", true, behavior);
+    ExtensionPluginRegistry registry;
+    if (int result =
+            expectSuccess(registry.registerPlugin(plugin),
+                          "register generic lowering-boundary mock plugin"))
+      return result;
+
+    VariantLoweringBoundaryResult boundaryResult;
+    llvm::Error error = registry.materializeSelectedLoweringBoundary(
+        VariantLoweringBoundaryRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant,
+                                       builder),
+        boundaryResult);
+    if (fragments.size() == 0) {
+      if (int result =
+              expectSuccess(std::move(error), "route generic boundary request"))
+        return result;
+      return expect(plugin.calls == 1 && boundaryResult.isMaterialized(),
+                    "registry routes materialized boundary result through "
+                    "origin plugin");
+    }
+
+    return expectErrorContains(std::move(error), fragments);
+  };
+
+  if (int result = runRegistryCase(BoundaryBehavior::Materialized, {}))
+    return result;
+  if (int result =
+          runRegistryCase(BoundaryBehavior::Unsupported,
+                          {"reported unsupported lowering-boundary "
+                           "materialization"}))
+    return result;
+  if (int result = runRegistryCase(
+          BoundaryBehavior::MissingStatus,
+          {"invalid lowering-boundary result", "status is missing"}))
+    return result;
+  if (int result = runRegistryCase(
+          BoundaryBehavior::MismatchedOrigin,
+          {"invalid lowering-boundary result", "result origin 'other-plugin'",
+           "variant origin 'mock-boundary'"}))
+    return result;
+  if (int result = runRegistryCase(
+          BoundaryBehavior::MismatchedVariant,
+          {"invalid lowering-boundary result", "result variant @other_variant",
+           "request variant @fast"}))
+    return result;
+  if (int result = runRegistryCase(
+          BoundaryBehavior::MismatchedRole,
+          {"invalid lowering-boundary result", "result role 'dispatch case'",
+           "request role 'direct variant'"}))
+    return result;
+  if (int result = runRegistryCase(
+          BoundaryBehavior::NullMaterializedOp,
+          {"invalid lowering-boundary result", "non-null operation"}))
+    return result;
+
+  return 0;
+}
+
+int runGenericRegistryOriginAndShapeErrorsTest() {
+  mlir::DialectRegistry dialects;
+  tianchenrv::registerAllDialects(dialects);
+  mlir::MLIRContext context(dialects);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @generic {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic",
+      status = "available"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-boundary",
+      requires = [@base]
+    } {
+      tcrv.exec.variant @nested attributes {
+        origin = "mock-boundary",
+        requires = [@base]
+      } {
+      }
+    }
+  }
+}
+)mlir";
+
+  auto runOriginCase = [&](llvm::function_ref<void(VariantOp)> mutate,
+                           const BoundaryPlugin &plugin,
+                           std::initializer_list<llvm::StringRef> fragments) {
+    mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+    if (!module)
+      return fail("failed to parse generic origin diagnostic IR");
+
+    KernelOp kernel = findKernel(*module, "generic");
+    VariantOp variant = findDirectVariant(kernel, "fast");
+    mutate(variant);
+
+    TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+    mlir::OpBuilder builder(&context);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+
+    ExtensionPluginRegistry registry;
+    if (!plugin.getName().empty())
+      if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                     "register origin diagnostic plugin"))
+        return result;
+
+    VariantLoweringBoundaryResult boundaryResult;
+    return expectErrorContains(
+        registry.materializeSelectedLoweringBoundary(
+            VariantLoweringBoundaryRequest(variant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant,
+                                           builder),
+            boundaryResult),
+        fragments);
+  };
+
+  BoundaryPlugin enabled("mock-boundary");
+  if (int result = runOriginCase(
+          [](VariantOp variant) { variant->removeAttr("origin"); }, enabled,
+          {"non-empty string attribute 'origin'"}))
+    return result;
+
+  if (int result = runOriginCase(
+          [&](VariantOp variant) {
+            variant->setAttr("origin",
+                             mlir::StringAttr::get(&context, "missing-plugin"));
+          },
+          enabled, {"unknown origin plugin 'missing-plugin'"}))
+    return result;
+
+  BoundaryPlugin disabled("disabled-boundary", false);
+  if (int result = runOriginCase(
+          [&](VariantOp variant) {
+            variant->setAttr(
+                "origin", mlir::StringAttr::get(&context, "disabled-boundary"));
+          },
+          disabled, {"origin plugin 'disabled-boundary' is disabled"}))
+    return result;
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse non-direct variant diagnostic IR");
+  KernelOp kernel = findKernel(*module, "generic");
+  VariantOp nested;
+  kernel->walk([&](VariantOp variant) {
+    if (variant.getSymName() == "nested")
+      nested = variant;
+  });
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  mlir::OpBuilder builder(&context);
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+
+  BoundaryPlugin plugin("mock-boundary");
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(registry.registerPlugin(plugin),
+                        "register non-direct diagnostic plugin"))
+    return result;
+
+  VariantLoweringBoundaryResult boundaryResult;
+  return expectErrorContains(
+      registry.materializeSelectedLoweringBoundary(
+          VariantLoweringBoundaryRequest(nested, kernel, capabilities,
+                                         VariantEmissionRole::DirectVariant,
+                                         builder),
+          boundaryResult),
+      {"variant @nested", "not directly enclosed"});
+}
+
+int runGenericSelectedPathStructuralErrorsTest() {
+  mlir::DialectRegistry dialects;
+  tianchenrv::registerAllDialects(dialects);
+  mlir::MLIRContext context(dialects);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral duplicateMarkerSource = R"mlir(
+module {
+  tcrv.exec.kernel @duplicate_marker {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic",
+      status = "available"
+    }
+    tcrv.exec.variant @fast attributes {origin = "mock-boundary", requires = [@base]} {
+    }
+    tcrv.exec.diagnostic {
+      message = "select fast mock path",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @fast
+    }
+    tcrv.exec.diagnostic {
+      message = "select fast mock path again",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @fast
+    }
+  }
+}
+)mlir";
+
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> module =
+        parseModule(context, duplicateMarkerSource);
+    if (!module)
+      return fail("failed to parse duplicate selected marker IR");
+    KernelOp kernel = findKernel(*module, "duplicate_marker");
+    BoundaryPlugin plugin("mock-boundary");
+    ExtensionPluginRegistry registry;
+    if (int result =
+            expectSuccess(registry.registerPlugin(plugin),
+                          "register duplicate marker diagnostic plugin"))
+      return result;
+    if (int result = expectErrorContains(
+            tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
+                                                                     registry),
+            {"at most one direct selected-path diagnostic marker"}))
+      return result;
+    if (int result = expect(plugin.calls == 0,
+                            "duplicate selected markers fail before plugin"))
+      return result;
+  }
+
+  constexpr llvm::StringLiteral duplicateDispatchSource = R"mlir(
+module {
+  tcrv.exec.kernel @duplicate_dispatch_ref {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic",
+      status = "available"
+    }
+    tcrv.exec.variant @fast attributes {origin = "mock-boundary", requires = [@base]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @fast
+      tcrv.exec.fallback @fast
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, duplicateDispatchSource);
+  if (!module)
+    return fail("failed to parse duplicate dispatch reference IR");
+  KernelOp kernel = findKernel(*module, "duplicate_dispatch_ref");
+  BoundaryPlugin plugin("mock-boundary");
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(registry.registerPlugin(plugin),
+                        "register duplicate dispatch diagnostic plugin"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
+                                                                   registry),
+          {"duplicate selected lowering-boundary reference to variant @fast"}))
+    return result;
+  return expect(plugin.calls == 0,
+                "malformed dispatch references fail before plugin");
+}
+
+int runRVVSpecificWrapperMatchesGenericPathTest() {
+  ExtensionPluginRegistry genericPlugins;
+  if (int result = registerBuiltins(genericPlugins))
+    return result;
+  ExtensionPluginRegistry wrapperPlugins;
+  if (int result = registerBuiltins(wrapperPlugins))
+    return result;
+
+  mlir::DialectRegistry registry;
+  registerDialects(genericPlugins, registry);
+  mlir::MLIRContext context(registry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_wrapper {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "select RVV first-slice metadata path",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @rvv_first_slice
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> genericModule =
+      parseModule(context, source);
+  mlir::OwningOpRef<mlir::ModuleOp> wrapperModule =
+      parseModule(context, source);
+  if (!genericModule || !wrapperModule)
+    return fail("failed to parse RVV wrapper comparison IR");
+
+  KernelOp genericKernel = findKernel(*genericModule, "rvv_wrapper");
+  KernelOp wrapperKernel = findKernel(*wrapperModule, "rvv_wrapper");
+  if (int result = expectSuccess(
+          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+              genericKernel, genericPlugins),
+          "materialize generic RVV wrapper comparison path"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(
+              wrapperKernel, wrapperPlugins),
+          "materialize RVV compatibility wrapper path"))
+    return result;
+
+  if (int result = expect(countDirectBoundaries(genericKernel) == 1 &&
+                              countDirectBoundaries(wrapperKernel) == 1,
+                          "generic and RVV wrapper produce one boundary"))
+    return result;
+  return expectBoundaryTarget(findDirectBoundary(wrapperKernel),
+                              "rvv_first_slice", "direct variant");
+}
+
 } // namespace
 
 int main() {
@@ -486,6 +982,14 @@ int main() {
   if (int result = runMalformedRVVVariantRejectedBeforeBoundaryTest())
     return result;
   if (int result = runEmissionPlanStatusesRemainBoundedTest())
+    return result;
+  if (int result = runGenericRegistryRoutingAndDiagnosticTest())
+    return result;
+  if (int result = runGenericRegistryOriginAndShapeErrorsTest())
+    return result;
+  if (int result = runGenericSelectedPathStructuralErrorsTest())
+    return result;
+  if (int result = runRVVSpecificWrapperMatchesGenericPathTest())
     return result;
 
   llvm::outs() << "RVV lowering boundary tests passed\n";

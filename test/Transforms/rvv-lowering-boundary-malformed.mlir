@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-rvv-lowering-boundary 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s
 
 module {
   tcrv.exec.kernel @rvv_missing_policy_for_boundary {
@@ -23,6 +23,7 @@ module {
   }
 }
 
-// CHECK: TianChen-RV RVV lowering-boundary materialization failed
+// CHECK: TianChen-RV selected lowering-boundary materialization failed
+// CHECK-SAME: origin plugin 'rvv-plugin' failed lowering-boundary materialization
 // CHECK-SAME: selected RVV variant @rvv_first_slice failed plugin legality
 // CHECK: tcrv_rvv.policy

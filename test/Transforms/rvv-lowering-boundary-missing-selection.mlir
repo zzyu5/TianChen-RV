@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-rvv-lowering-boundary 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s
 
 module {
   tcrv.exec.kernel @rvv_without_selected_surface {

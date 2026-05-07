@@ -42,6 +42,9 @@ public:
                                 VariantEmissionStatus &out) const override;
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const override;
+  llvm::Error materializeSelectedLoweringBoundary(
+      const VariantLoweringBoundaryRequest &request,
+      VariantLoweringBoundaryResult &out) const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

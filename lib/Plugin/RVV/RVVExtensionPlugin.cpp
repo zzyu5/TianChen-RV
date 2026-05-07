@@ -3,10 +3,15 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OperationSupport.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <string>
 
 namespace tianchenrv::plugin {
 namespace {
@@ -18,8 +23,17 @@ constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
+constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
+    "capability_summary");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kRoleAttrName("role");
+constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
+constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
+constexpr llvm::StringLiteral kStatusAttrName("status");
+constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
+    "unsupported_reason");
+constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -91,6 +105,89 @@ llvm::Error verifyExpectedRVVPolicyAttr(tcrv::exec::VariantOp variant) {
   }
 
   return llvm::Error::success();
+}
+
+llvm::Expected<std::string>
+buildRVVCapabilitySummary(tcrv::exec::VariantOp variant,
+                          const support::TargetCapabilitySet &capabilities) {
+  auto requiresAttr =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requiresAttr)
+    return makeRVVPluginError(
+        "selected RVV variant requires structured 'requires' metadata");
+
+  llvm::SmallVector<std::string, 4> summaries;
+  for (mlir::Attribute requiredCapability : requiresAttr) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef)
+      return makeRVVPluginError(
+          "selected RVV variant requires only capability symbol references");
+
+    const support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbolRef.getValue());
+    if (capability)
+      summaries.push_back(capability->getID().str());
+    else
+      summaries.push_back(symbolRef.getValue().str());
+  }
+
+  if (summaries.empty())
+    summaries.push_back(kRVVCapabilityID.str());
+
+  return llvm::join(summaries, ",");
+}
+
+llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
+                                                tcrv::exec::VariantOp variant) {
+  if (!kernel || kernel.getBody().empty())
+    return llvm::Error::success();
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto boundary = llvm::dyn_cast<tcrv::rvv::LoweringBoundaryOp>(op);
+    if (!boundary)
+      continue;
+
+    auto target =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    llvm::StringRef targetSymbol =
+        target ? target.getValue() : llvm::StringRef("<missing>");
+    if (targetSymbol != variant.getSymName())
+      continue;
+
+    return makeRVVPluginError(
+        llvm::Twine("requires no pre-existing tcrv_rvv.lowering_boundary for "
+                    "target @") +
+        targetSymbol);
+  }
+
+  return llvm::Error::success();
+}
+
+tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role,
+    llvm::StringRef capabilitySummary) {
+  mlir::OperationState state(variant.getLoc(),
+                             tcrv::rvv::LoweringBoundaryOp::getOperationName());
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  variant.getSymName()));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kUnsupportedStatusValue));
+  state.addAttribute(kCapabilitySummaryAttrName,
+                     builder.getStringAttr(capabilitySummary));
+  state.addAttribute(
+      kUnsupportedReasonAttrName,
+      builder.getStringAttr(
+          "RVV lowering boundary is pre-executable metadata only; no RVV "
+          "lowering pipeline, runtime ABI, generated artifact, correctness "
+          "proof, or performance measurement is produced"));
+  return llvm::cast<tcrv::rvv::LoweringBoundaryOp>(builder.create(state));
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -253,6 +350,55 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       "ABI, artifact contract, or executable emission path; this unsupported "
       "emission plan is a plugin-owned diagnostic boundary and not RVV "
       "hardware/toolchain/runtime/correctness/performance evidence");
+  return llvm::Error::success();
+}
+
+llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
+    const VariantLoweringBoundaryRequest &request,
+    VariantLoweringBoundaryResult &out) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!variant)
+    return makeRVVPluginError(
+        "lowering-boundary materialization requires a materialized "
+        "tcrv.exec.variant");
+
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!kernel)
+    return makeRVVPluginError(
+        "lowering-boundary materialization requires an enclosing "
+        "tcrv.exec.kernel");
+
+  VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV variant @") + variant.getSymName() +
+        " failed plugin legality before boundary materialization: " + message);
+  }
+
+  if (request.getRole() == VariantEmissionRole::DispatchFallback) {
+    out = VariantLoweringBoundaryResult::getNoBoundary(
+        kRVVPluginName, kernel.getSymName(), variant.getSymName(),
+        request.getRole(),
+        "RVV first slice does not materialize dispatch fallback lowering "
+        "boundaries");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error = rejectExistingRVVBoundaryForVariant(kernel, variant))
+    return error;
+
+  llvm::Expected<std::string> capabilitySummary =
+      buildRVVCapabilitySummary(variant, request.getCapabilities());
+  if (!capabilitySummary)
+    return capabilitySummary.takeError();
+
+  tcrv::rvv::LoweringBoundaryOp boundary = materializeRVVBoundaryOp(
+      request.getBuilder(), kernel, variant, request.getRole(),
+      *capabilitySummary);
+  out = VariantLoweringBoundaryResult::getMaterialized(
+      kRVVPluginName, kernel.getSymName(), variant.getSymName(),
+      request.getRole(), boundary.getOperation());
   return llvm::Error::success();
 }
 

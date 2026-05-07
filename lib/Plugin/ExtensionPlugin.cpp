@@ -90,6 +90,19 @@ llvm::Error makeVariantEmissionPlanError(tcrv::exec::VariantOp variant,
   return makePluginRegistryError(stream.str());
 }
 
+llvm::Error
+makeVariantLoweringBoundaryError(tcrv::exec::VariantOp variant,
+                                 tcrv::exec::KernelOp kernel,
+                                 VariantEmissionRole role,
+                                 llvm::Twine message) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "TianChen-RV selected lowering-boundary materialization failed for ";
+  appendVariantContext(stream, variant, kernel);
+  stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
+  return makePluginRegistryError(stream.str());
+}
+
 llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
                                      const VariantProposal &proposal,
                                      llvm::Twine message) {
@@ -227,6 +240,13 @@ VariantEmissionRequest::VariantEmissionRequest(
     : variant(variant), kernel(kernel), capabilities(capabilities),
       role(role) {}
 
+VariantLoweringBoundaryRequest::VariantLoweringBoundaryRequest(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities, VariantEmissionRole role,
+    mlir::OpBuilder &builder)
+    : variant(variant), kernel(kernel), capabilities(capabilities), role(role),
+      builder(builder) {}
+
 VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
     : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
@@ -349,6 +369,48 @@ VariantEmissionPlan VariantEmissionPlan::getUnsupported(
   return plan;
 }
 
+VariantLoweringBoundaryResult VariantLoweringBoundaryResult::getMaterialized(
+    llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+    llvm::StringRef variantSymbol, VariantEmissionRole role,
+    mlir::Operation *operation) {
+  VariantLoweringBoundaryResult result;
+  result.setMaterialized();
+  result.setOriginPlugin(originPlugin);
+  result.setKernelSymbol(kernelSymbol);
+  result.setVariantSymbol(variantSymbol);
+  result.setRole(role);
+  result.setMaterializedOperation(operation);
+  return result;
+}
+
+VariantLoweringBoundaryResult VariantLoweringBoundaryResult::getNoBoundary(
+    llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+    llvm::StringRef variantSymbol, VariantEmissionRole role,
+    llvm::StringRef reason) {
+  VariantLoweringBoundaryResult result;
+  result.setNoBoundary();
+  result.setOriginPlugin(originPlugin);
+  result.setKernelSymbol(kernelSymbol);
+  result.setVariantSymbol(variantSymbol);
+  result.setRole(role);
+  result.setReason(reason);
+  return result;
+}
+
+VariantLoweringBoundaryResult VariantLoweringBoundaryResult::getUnsupported(
+    llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
+    llvm::StringRef variantSymbol, VariantEmissionRole role,
+    llvm::StringRef reason) {
+  VariantLoweringBoundaryResult result;
+  result.setUnsupported();
+  result.setOriginPlugin(originPlugin);
+  result.setKernelSymbol(kernelSymbol);
+  result.setVariantSymbol(variantSymbol);
+  result.setRole(role);
+  result.setReason(reason);
+  return result;
+}
+
 bool ExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   (void)request;
@@ -399,6 +461,21 @@ llvm::Error ExtensionPlugin::buildVariantEmissionPlan(
                            : llvm::StringRef("<missing>"),
       request.getRole(),
       "origin plugin does not provide a plugin-owned emission plan");
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::materializeSelectedLoweringBoundary(
+    const VariantLoweringBoundaryRequest &request,
+    VariantLoweringBoundaryResult &out) const {
+  out = VariantLoweringBoundaryResult::getUnsupported(
+      getName(),
+      request.getKernel() ? request.getKernel().getSymName()
+                          : llvm::StringRef("<missing>"),
+      request.getVariant() ? request.getVariant().getSymName()
+                           : llvm::StringRef("<missing>"),
+      request.getRole(),
+      "origin plugin does not provide selected lowering-boundary "
+      "materialization");
   return llvm::Error::success();
 }
 
@@ -785,6 +862,71 @@ llvm::Error ExtensionPluginRegistry::buildVariantEmissionPlan(
     return error;
 
   out = plan;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::materializeSelectedLoweringBoundary(
+    const VariantLoweringBoundaryRequest &request,
+    VariantLoweringBoundaryResult &out) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!variant)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+
+  if (variant->getParentOp() != kernel.getOperation())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        "variant is not directly enclosed by the request tcrv.exec.kernel");
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  VariantLoweringBoundaryResult result;
+  if (llvm::Error error =
+          plugin->materializeSelectedLoweringBoundary(request, result)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' failed lowering-boundary materialization: " + pluginMessage);
+  }
+
+  if (llvm::Error error = validateVariantLoweringBoundaryResult(
+          request, *plugin, origin, result))
+    return error;
+
+  if (result.isUnsupported())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' reported unsupported lowering-boundary materialization: " +
+            result.getReason());
+
+  out = result;
   return llvm::Error::success();
 }
 
@@ -1215,6 +1357,119 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
         llvm::Twine("origin plugin '") + plugin.getName() +
             "' produced invalid emission plan: unsupported plan requires "
             "non-empty diagnostic");
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateVariantLoweringBoundaryResult(
+    const VariantLoweringBoundaryRequest &request,
+    const ExtensionPlugin &plugin, llvm::StringRef origin,
+    const VariantLoweringBoundaryResult &result) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!result.hasStatus())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: status is missing");
+
+  if (result.getOriginPlugin().trim().empty())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: origin plugin must "
+            "be non-empty");
+
+  if (result.getOriginPlugin() != origin)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: result origin '" +
+            result.getOriginPlugin() + "' does not match variant origin '" +
+            origin + "'");
+
+  if (result.getKernelSymbol().trim().empty())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: kernel symbol must "
+            "be non-empty");
+
+  if (result.getKernelSymbol() != kernel.getSymName())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: result kernel @" +
+            result.getKernelSymbol() + " does not match request kernel @" +
+            kernel.getSymName());
+
+  if (result.getVariantSymbol().trim().empty())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: variant symbol must "
+            "be non-empty");
+
+  if (result.getVariantSymbol() != variant.getSymName())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: result variant @" +
+            result.getVariantSymbol() + " does not match request variant @" +
+            variant.getSymName());
+
+  if (result.getRole() != role)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: result role '" +
+            stringifyVariantEmissionRole(result.getRole()) +
+            "' does not match request role '" +
+            stringifyVariantEmissionRole(role) + "'");
+
+  if (result.isMaterialized()) {
+    mlir::Operation *operation = result.getMaterializedOperation();
+    if (!operation)
+      return makeVariantLoweringBoundaryError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid lowering-boundary result: materialized "
+              "result requires a non-null operation");
+
+    if (operation->getParentOp() != kernel.getOperation())
+      return makeVariantLoweringBoundaryError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid lowering-boundary result: materialized "
+              "operation must be a direct child of the request "
+              "tcrv.exec.kernel");
+
+    if (!result.getReason().empty())
+      return makeVariantLoweringBoundaryError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid lowering-boundary result: materialized "
+              "result must not carry a no-boundary reason");
+
+    return llvm::Error::success();
+  }
+
+  if (result.getMaterializedOperation())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: non-materialized "
+            "result must not carry a materialized operation");
+
+  if ((result.isNoBoundary() || result.isUnsupported()) &&
+      result.getReason().trim().empty())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid lowering-boundary result: no-boundary or "
+            "unsupported result requires a non-empty reason");
 
   return llvm::Error::success();
 }

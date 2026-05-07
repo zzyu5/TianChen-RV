@@ -63,25 +63,29 @@ Rules:
 - do not claim generated code, runtime ABI glue, linked artifacts, RVV hardware
   execution, correctness, or performance from an emission plan alone.
 
-## RVV Lowering Boundary First Slice
+## Selected Lowering Boundary First Slice
 
-Before executable RVV lowering exists, the RVV plugin may materialize a
-plugin-local `tcrv_rvv.lowering_boundary` operation for selected RVV direct
-variants or dispatch cases. This operation is an extension-dialect attachment
-point for future lowering work, not an executable lowering product.
+Before executable lowering exists, the compiler may materialize selected-path
+lowering-boundary metadata through the generic extension plugin registry. RVV is
+the first plugin that creates a plugin-local `tcrv_rvv.lowering_boundary`
+operation for selected RVV direct variants or dispatch cases. Scalar fallback is
+a valid metadata-only no-boundary response. These structures are attachment
+points for future lowering work, not executable lowering products.
 
 Rules:
 
 - materialization consumes selected `tcrv.exec` dispatch or selected-marker
   structure and generic variant `origin` metadata;
-- RVV ownership and legality are routed through the `ExtensionPluginRegistry`
-  and RVV plugin before the boundary op is created;
+- ownership and legality are routed through the `ExtensionPluginRegistry` and
+  the selected variant's origin plugin before any plugin-local metadata is
+  created;
 - scalar or other fallback references remain `tcrv.exec.fallback` metadata and
-  do not receive RVV lowering-boundary ops;
-- the boundary op must carry `status = "unsupported"` and a non-empty
+  may return a no-boundary result without receiving RVV ops;
+- RVV boundary ops must carry `status = "unsupported"` and a non-empty
   unsupported reason;
-- the boundary op must not claim RVV intrinsics, LLVM/RISC-V lowering, runtime
-  ABI glue, generated objects, hardware execution, correctness, or performance.
+- selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
+  lowering, runtime ABI glue, generated objects, hardware execution,
+  correctness, or performance.
 
 ## EmissionProvider Responsibilities
 

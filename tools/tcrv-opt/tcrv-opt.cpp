@@ -51,6 +51,10 @@ void registerTianChenRVOptPasses(
     return tianchenrv::transforms::createMaterializeEmissionPlansPass(plugins);
   });
   mlir::registerPass([&plugins] {
+    return tianchenrv::transforms::
+        createMaterializeSelectedLoweringBoundariesPass(plugins);
+  });
+  mlir::registerPass([&plugins] {
     return tianchenrv::plugin::rvv::
         createMaterializeRVVLoweringBoundaryPass(plugins);
   });
