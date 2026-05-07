@@ -7,6 +7,7 @@ target_link_libraries(tcrv-translate
   TianChenRVBuiltinPlugins
   TianChenRVInitAll
   TianChenRVRVVTarget
+  TianChenRVScalarTarget
   TianChenRVTarget
   MLIRIR
   MLIRSupport

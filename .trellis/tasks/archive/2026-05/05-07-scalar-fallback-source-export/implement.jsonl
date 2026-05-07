@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants for compiler stack, capability model, and compute-free core dialect boundaries."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Confirms tcrv.exec must remain execution/capability/variant/dispatch/fallback focused and compute-free."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin-local routing, selected lowering-boundary materialization, emission readiness, and emission-plan ownership."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact export route and executable-source evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin boundary and metadata-only baseline behavior to preserve unless explicit microkernel is present."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV explicit microkernel precedent and evidence boundary to preserve while adding scalar route."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, C++ test, CMake, and evidence policy for dialect/plugin/export changes."}

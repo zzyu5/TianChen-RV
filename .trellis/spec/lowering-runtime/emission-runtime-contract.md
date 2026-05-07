@@ -100,12 +100,12 @@ Concrete artifact generation remains target-owned. Built-in tools may register
 target exporters, but the registration is where extension-specific route facts
 belong. Shared generic routing must not branch on RVV, IME, offload, scalar,
 vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics. The
-first route is only the explicit RVV i32 vector-add microkernel standalone C
-source exporter, registered by the RVV target/export code and reused by the
-generic `tcrv-translate --tcrv-export-target-source-artifact` entry point. This
-does not add generic RVV lowering, runtime ABI integration, object generation,
-linking, arbitrary source export, correctness evidence, or performance
-evidence.
+currently supported source routes are only bounded explicit microkernel
+attachments: the RVV i32 vector-add standalone C exporter registered by RVV
+target/export code, and the scalar fallback i32 vector-add portable standalone
+C exporter registered by scalar target/export code. This does not add generic
+RVV or scalar lowering, runtime ABI integration, object generation, linking,
+arbitrary source export, correctness evidence, or performance evidence.
 
 ## Selected Lowering Boundary First Slice
 
@@ -606,6 +606,58 @@ required capability references, but it remains metadata-only and non-executable.
 It is not evidence that the compiler emitted LLVM IR, assembled an object,
 linked runtime glue, ran a scalar kernel, proved correctness, or measured
 performance.
+
+## Scalar Explicit Microkernel Target Export Boundary
+
+Trigger: post-planning MLIR contains one selected `scalar-plugin` fallback
+path, a matching plugin-owned `tcrv_scalar.lowering_boundary`, and exactly one
+explicit `tcrv_scalar.i32_vadd_microkernel` op for that selected
+kernel/variant/role.
+
+This export is the first bounded scalar fallback executable source slice. It
+may emit a deterministic portable standalone C program that computes and
+self-checks a finite i32 vector add. It is not generic scalar lowering,
+arbitrary scalar kernel emission, runtime ABI glue, object generation, linking,
+benchmarking, or performance evidence.
+
+Public route:
+
+```text
+tcrv-translate --tcrv-export-target-source-artifact
+```
+
+Route metadata:
+
+```text
+status: supported
+emission kind: scalar-explicit-i32-vadd-microkernel-c-source
+lowering pipeline: tcrv-export-scalar-microkernel-c
+runtime ABI: scalar-i32-vadd-standalone-c-self-check.v1
+runtime ABI kind/name: scalar standalone C source export metadata
+runtime glue role: standalone self-check main
+artifact kind: standalone-c-source
+```
+
+Contracts:
+
+- Input must be real post-planning MLIR with one selected scalar fallback path.
+- The selected variant must be owned by `origin = "scalar-plugin"` and require
+  an available capability whose id is `scalar.fallback`.
+- A matching direct child `tcrv_scalar.lowering_boundary` must identify the
+  same source kernel, selected variant, origin, role, metadata-only status, and
+  required capability refs.
+- A matching direct child `tcrv_scalar.i32_vadd_microkernel` must identify the
+  same selected path and required capability refs with a bounded element count.
+- Output must be deterministic standalone portable C with fixed local arrays,
+  scalar i32 add, and a self-checking `main`.
+- Output must not include RVV headers, RVV intrinsics, route-spoof claims,
+  timestamps, absolute paths, raw logs, credentials, benchmark sizes,
+  latency/throughput numbers, or performance claims.
+
+Missing selected scalar path, missing or stale scalar lowering boundary,
+missing or stale scalar microkernel, unavailable fallback capability, unknown
+route id, unsupported artifact kind, route spoofing, offload-only paths, and
+ambiguous multiple supported artifacts must fail before source output.
 
 ## Runtime Offload Metadata Boundary
 

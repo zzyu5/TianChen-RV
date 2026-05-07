@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Audit global invariants: C++/MLIR/TableGen stack, Python helper-only boundary, and predoc source-of-truth status."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that no scalar compute was added to tcrv.exec."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check extension details remain plugin-local and registry-routed without generic target-family branches."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check supported source artifact route and evidence wording remain bounded and fail closed."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar metadata-only default remains preserved except for exact explicit microkernel route."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/C++/CMake coverage and evidence interpretation."}

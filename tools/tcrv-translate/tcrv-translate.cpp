@@ -4,6 +4,7 @@
 #include "TianChenRV/Target/EmissionManifest.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
+#include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -70,6 +71,13 @@ mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
           tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(
+              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  if (llvm::Error error =
+          tianchenrv::target::scalar::registerScalarMicrokernelTargetExporters(
               exporters)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;

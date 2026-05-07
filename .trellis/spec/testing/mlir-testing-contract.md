@@ -90,6 +90,15 @@ Use lit/FileCheck for:
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
   multiple supported artifacts, and scalar/offload paths not being routed
   through the RVV exporter.
+- scalar explicit microkernel C target export through the generic artifact
+  route, including dialect parse/verify for
+  `tcrv_scalar.i32_vadd_microkernel`, selected scalar fallback plus matching
+  `tcrv_scalar.lowering_boundary`, deterministic portable C output, absence of
+  RVV headers/intrinsics/route claims, local compile/run self-check evidence
+  when available, and fail-closed diagnostics for missing/stale scalar
+  boundaries, missing/stale scalar microkernels, route spoofing, unsupported
+  metadata-only scalar fallback paths, offload-only paths, and ambiguous
+  supported artifacts.
 
 Example test intent:
 
@@ -129,7 +138,9 @@ Use C++ tests for:
   available `scalar.fallback` capability, materialization, legality rejection
   for missing/unavailable fallback capability, conservative cost metadata,
   generic conservative fallback role metadata, metadata-only emission readiness,
-  and stable non-executable emission-plan fields.
+  stable non-executable emission-plan fields, and supported source-export
+  readiness/plan fields only when a matching explicit scalar microkernel and
+  scalar lowering boundary are present.
 
 ## CMake Checks
 

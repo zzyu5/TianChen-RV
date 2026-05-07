@@ -91,13 +91,15 @@ The `tcrv-translate --tcrv-export-target-source-artifact` tool adds a generic
 target artifact routing front door for supported post-planning emission-plan
 metadata. The route is selected from compiler-owned selected-path,
 lowering-boundary, and plugin-owned emission-plan diagnostics, then dispatched
-through a registered target-owned exporter. The first registered source route is
-only the existing explicit RVV microkernel C exporter above; scalar, offload,
-unsupported RVV metadata-only paths, unknown routes, stale selected paths,
-missing boundaries, missing microkernels, and ambiguous multiple supported
-artifacts fail closed. This tool does not add generic RVV lowering, arbitrary
-RVV source export, runtime ABI integration, object generation, linking,
-correctness evidence, or performance evidence.
+through a registered target-owned exporter. Registered source routes are
+bounded to explicit plugin-local microkernel attachments: the existing RVV
+microkernel C exporter above and the scalar fallback explicit i32 vector-add
+portable C exporter below. Unsupported metadata-only RVV/scalar paths, offload
+paths, unknown routes, stale selected paths, missing boundaries, missing
+microkernels, route spoofing, and ambiguous multiple supported artifacts fail
+closed. This tool does not add generic RVV or scalar lowering, arbitrary source
+export, runtime ABI integration, object generation, linking, correctness
+evidence, or performance evidence.
 
 When the selected RVV path has that exact explicit microkernel attachment, the
 RVV plugin may also materialize a supported emission-plan diagnostic and the
@@ -207,9 +209,9 @@ interfaces as other plugins.
 
 This scalar fallback path is compiler metadata for a portable fallback route.
 It marks a generic conservative fallback role for dispatch synthesis and emits
-metadata-only readiness/plan diagnostics. It does not add a new high-level
-compute op, emit executable code, prove correctness, or measure performance in
-this slice.
+metadata-only readiness/plan diagnostics by default. It does not add a new
+high-level compute op, generic scalar lowering, runtime ABI integration, object
+generation, correctness evidence, or performance evidence.
 
 The scalar fallback plugin also owns the concrete `tcrv_scalar` MLIR namespace.
 Its first operation, `tcrv_scalar.lowering_boundary`, records selected fallback
@@ -218,6 +220,18 @@ selected-path role, required capability references, and metadata-only status.
 It is a plugin-local attachment point for future scalar lowering work, not
 scalar computation, LLVM lowering, runtime ABI glue, object generation,
 correctness evidence, or performance evidence.
+
+The scalar dialect now also has one bounded explicit microkernel attachment:
+`tcrv_scalar.i32_vadd_microkernel`. It is valid only for a selected
+`scalar-plugin` fallback path with a matching `tcrv_scalar.lowering_boundary`
+and preserved `scalar.fallback` capability metadata. When present, the scalar
+plugin may report a supported standalone C source-export emission plan routed
+through `tcrv-translate --tcrv-export-target-source-artifact`. The generated C
+is portable scalar i32 vector add with a self-checking `main`; it uses no RVV
+headers or intrinsics. This proves only the local generated scalar C self-check
+when compiled and run locally. It is not generic scalar lowering, runtime ABI
+integration, arbitrary scalar source export, object/linking support,
+correctness coverage beyond this explicit microkernel, or performance evidence.
 
 ## Runtime Offload First Slice
 

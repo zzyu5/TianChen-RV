@@ -65,7 +65,7 @@ role, and the core consumes only that generic role.
 
 ## Emission Boundary
 
-The first scalar fallback emission readiness path is a metadata-only route for
+The default scalar fallback emission readiness path is a metadata-only route for
 compiler decisions:
 
 ```text
@@ -135,3 +135,36 @@ executed a scalar kernel, proved correctness, or measured performance.
 Real scalar fallback lowering must be added by a later plugin-local lowering
 slice and validated with compiler-generated artifacts and runtime evidence
 appropriate to that path.
+
+## Explicit I32 Vector-Add Microkernel Export
+
+`tcrv_scalar.i32_vadd_microkernel` is the first scalar extension-dialect
+executable source-export microkernel op. It represents exactly one bounded i32
+vector-add self-check body for a selected scalar fallback path. The op is
+plugin-local under the `tcrv_scalar` dialect and must carry only selected-path
+metadata: source kernel, selected variant, origin, selected role, required
+capability refs, and a tiny element count. It must reject generic
+tensor/tile/benchmark attributes, unbounded or secret-like strings, invalid
+element counts, stale selected variants, missing or unavailable scalar fallback
+capability refs, and required-capability mismatches.
+
+When the selected scalar fallback path has exactly one matching
+`tcrv_scalar.lowering_boundary` and exactly one matching
+`tcrv_scalar.i32_vadd_microkernel`, the scalar plugin may return a supported
+standalone C source export route:
+
+```text
+status: supported
+emission kind: scalar-explicit-i32-vadd-microkernel-c-source
+lowering pipeline: tcrv-export-scalar-microkernel-c
+runtime ABI: scalar-i32-vadd-standalone-c-self-check.v1
+runtime ABI kind: scalar-standalone-c-source-export
+runtime ABI name: scalar-i32-vadd-microkernel-standalone-c.v1
+runtime glue role: standalone-self-check-main
+artifact kind: standalone-c-source
+```
+
+Default scalar fallback selected paths without this explicit microkernel remain
+metadata-only. The supported route does not add generic scalar lowering,
+runtime ABI integration, arbitrary scalar source export, object generation,
+linking, broad correctness coverage, or performance evidence.

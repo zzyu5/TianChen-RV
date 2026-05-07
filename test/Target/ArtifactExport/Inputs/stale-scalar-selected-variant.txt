@@ -1,0 +1,68 @@
+module @stale_scalar_selected_variant_input {
+  tcrv.exec.kernel @stale_scalar_selected_variant {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.variant @old_scalar attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "selected scalar fixture",
+      origin = "scalar-plugin",
+      reason = "variant-selected",
+      selection_kind = "fallback-only",
+      severity = "note",
+      status = "selected",
+      target = @scalar_fallback_first_slice
+    }
+    tcrv_scalar.lowering_boundary {
+      fallback_reason = "stale scalar boundary",
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      selected_variant = @old_scalar,
+      source_kernel = "stale_scalar_selected_variant",
+      status = "metadata-only"
+    }
+    tcrv_scalar.i32_vadd_microkernel {
+      element_count = 16 : i64,
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      selected_variant = @old_scalar,
+      source_kernel = "stale_scalar_selected_variant"
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "standalone-c-source",
+      emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
+      lowering_boundary = "tcrv_scalar.lowering_boundary",
+      lowering_pipeline = "tcrv-export-scalar-microkernel-c",
+      message = "explicit scalar source export fixture",
+      origin = "scalar-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      runtime_abi = "scalar-i32-vadd-standalone-c-self-check.v1",
+      runtime_abi_kind = "scalar-standalone-c-source-export",
+      runtime_abi_name = "scalar-i32-vadd-microkernel-standalone-c.v1",
+      runtime_glue_role = "standalone-self-check-main",
+      severity = "info",
+      status = "supported",
+      target = @scalar_fallback_first_slice
+    }
+  }
+}

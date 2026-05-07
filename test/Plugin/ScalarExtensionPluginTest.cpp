@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/StringRef.h"
@@ -33,6 +34,7 @@ using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
+using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -555,6 +557,80 @@ module {
                          "scalar_fallback" &&
                      emissionPlan.getArtifactKind() == "metadata-diagnostic",
                  "scalar fallback emission plan records stable metadata-only route"))
+    return result;
+
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+    mlir::OperationState state(
+        variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
+    state.addAttribute("source_kernel",
+                       builder.getStringAttr(kernel.getSymName()));
+    state.addAttribute("selected_variant",
+                       mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                    variant.getSymName()));
+    state.addAttribute(
+        "origin",
+        builder.getStringAttr(
+            tianchenrv::plugin::scalar::getScalarExtensionPluginName()));
+    state.addAttribute("role", builder.getStringAttr("direct variant"));
+    state.addAttribute("element_count", builder.getI64IntegerAttr(16));
+    state.addAttribute("required_capabilities", requiresAttr);
+    builder.create(state);
+  }
+  if (int result =
+          expect(mlir::succeeded(mlir::verify(*module)),
+                 "explicit scalar microkernel module verifies"))
+    return result;
+
+  VariantEmissionStatus supportedStatus;
+  if (int result = expectSuccess(
+          registry.checkVariantEmissionReadiness(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              supportedStatus),
+          "explicit scalar microkernel readiness is plugin-owned"))
+    return result;
+  if (int result =
+          expect(supportedStatus.isSupported() &&
+                     supportedStatus.getEmissionPath() ==
+                         "scalar-explicit-i32-vadd-microkernel-c-source-export",
+                 "explicit scalar microkernel readiness reports supported source route"))
+    return result;
+
+  VariantEmissionPlan supportedPlan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              supportedPlan),
+          "explicit scalar microkernel emission plan is plugin-owned"))
+    return result;
+  if (int result =
+          expect(supportedPlan.isSupported() &&
+                     supportedPlan.getOriginPlugin() ==
+                         tianchenrv::plugin::scalar::
+                             getScalarExtensionPluginName() &&
+                     supportedPlan.getKernelSymbol() == kernel.getSymName() &&
+                     supportedPlan.getVariantSymbol() == variant.getSymName() &&
+                     supportedPlan.getEmissionKind() ==
+                         "scalar-explicit-i32-vadd-microkernel-c-source" &&
+                     supportedPlan.getLoweringPipeline() ==
+                         "tcrv-export-scalar-microkernel-c" &&
+                     supportedPlan.getRuntimeABI() ==
+                         "scalar-i32-vadd-standalone-c-self-check.v1" &&
+                     supportedPlan.getRuntimeABIKind() ==
+                         "scalar-standalone-c-source-export" &&
+                     supportedPlan.getRuntimeABIName() ==
+                         "scalar-i32-vadd-microkernel-standalone-c.v1" &&
+                     supportedPlan.getRuntimeGlueRole() ==
+                         "standalone-self-check-main" &&
+                     supportedPlan.getRequiredCapabilitySymbols().size() == 1 &&
+                     supportedPlan.getRequiredCapabilitySymbols().front() ==
+                         "scalar_fallback" &&
+                     supportedPlan.getArtifactKind() ==
+                         "standalone-c-source",
+                 "explicit scalar microkernel emission plan records stable supported source route"))
     return result;
 
   return 0;
