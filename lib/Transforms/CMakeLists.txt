@@ -1,6 +1,7 @@
 add_mlir_library(TianChenRVTransforms
   CheckCapabilityRequires.cpp
   EmissionReadiness.cpp
+  ExecutionPlanCoherence.cpp
   ExecutionPlanningPipeline.cpp
   LoweringBoundary.cpp
   PluginVariantLegality.cpp
@@ -15,6 +16,7 @@ add_mlir_library(TianChenRVTransforms
   TianChenRVExecDialect
   TianChenRVPlugin
   TianChenRVSupport
+  TianChenRVTarget
   MLIRIR
   MLIRPass
   MLIRSupport

@@ -107,6 +107,32 @@ C exporter registered by scalar target/export code. This does not add generic
 RVV or scalar lowering, runtime ABI integration, object generation, linking,
 arbitrary source export, correctness evidence, or performance evidence.
 
+### Execution-Plan / Export Preflight Coherence
+
+Before a module is handed to a generic target artifact export route, a
+target-neutral preflight verifier may check that all compiler-visible handoff
+metadata still describes the same selected execution path. This check is a
+metadata coherence gate only. It must not export artifacts, lower to
+LLVM/RISC-V, emit extension instructions, create runtime ABI glue, run hardware,
+or claim correctness or performance.
+
+The verifier must fail closed when selected-path, dispatch/fallback,
+lowering-boundary, runtime ABI ownership, emission-plan, and artifact route
+metadata are stale or contradictory. Required failure cases include selected
+variant references that no longer resolve to the current direct variant, origin
+plugins that are missing or unregistered, dispatch or selected-marker origin
+mismatch, lowering-boundary source kernel / selected variant / origin mismatch,
+emission-plan target / role / origin / lowering-boundary mismatch, missing
+runtime ABI ownership fields for plans that require them, unsupported artifact
+route kind or emission kind, unknown target artifact route id, and multiple
+ambiguous supported artifact candidates.
+
+The generic preflight verifier may use the existing `ExtensionPluginRegistry`
+to validate origin ownership and the generic target artifact exporter registry
+to validate route metadata. Target-specific proof of a concrete microkernel,
+descriptor body, toolchain, or runtime remains target-owned and must not move
+into the shared transform.
+
 ### Built-In Target Artifact Exporter Registration Boundary
 
 #### 1. Scope / Trigger

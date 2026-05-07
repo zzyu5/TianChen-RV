@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and architecture invariants for this implementation task."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Ensures the preflight checker keeps tcrv.exec execution/capability metadata focused and compute-free."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines ExtensionPluginRegistry delegation and fail-closed origin ownership requirements."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Guards against hard-coded target/plugin semantics in generic transform code."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Covers selected-path, dispatch, legality, and variant-selection metadata contracts."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines lowering-boundary, runtime ABI, emission-plan, manifest, and artifact-export handoff metadata."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Bounds RVV plugin-local semantics and explicit microkernel route expectations."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Bounds scalar fallback metadata-only and explicit microkernel route expectations."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Bounds runtime-offload descriptor semantics and prevents custom ISA conflation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck and C++ test evidence requirements for compiler behavior."}

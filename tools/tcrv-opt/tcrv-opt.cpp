@@ -2,6 +2,8 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVLoweringBoundary.h"
+#include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/IR/DialectRegistry.h"
@@ -36,7 +38,9 @@ bool shouldDisableBuiltinPlugins(int argc, char **argv) {
 }
 
 void registerTianChenRVOptPasses(
-    const tianchenrv::plugin::ExtensionPluginRegistry &plugins) {
+    const tianchenrv::plugin::ExtensionPluginRegistry &plugins,
+    const tianchenrv::target::TargetArtifactExporterRegistry
+        &targetExporters) {
   mlir::registerPass(
       [] { return tianchenrv::transforms::createCheckCapabilityRequiresPass(); });
   mlir::registerPass(
@@ -61,6 +65,10 @@ void registerTianChenRVOptPasses(
     return tianchenrv::transforms::
         createMaterializeSelectedLoweringBoundariesPass(plugins);
   });
+  mlir::registerPass([&plugins, &targetExporters] {
+    return tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
+        plugins, targetExporters);
+  });
   mlir::registerPass([&plugins] {
     return tianchenrv::plugin::rvv::
         createMaterializeRVVLoweringBoundaryPass(plugins);
@@ -73,6 +81,7 @@ void registerTianChenRVOptPasses(
 int main(int argc, char **argv) {
   bool useBuiltinPlugins = !shouldDisableBuiltinPlugins(argc, argv);
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  tianchenrv::target::TargetArtifactExporterRegistry targetExporters;
   if (useBuiltinPlugins) {
     if (llvm::Error error =
             tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
@@ -81,8 +90,16 @@ int main(int argc, char **argv) {
                    << llvm::toString(std::move(error)) << "\n";
       return 1;
     }
+    if (llvm::Error error =
+            tianchenrv::target::registerBuiltinTargetArtifactExporters(
+                targetExporters)) {
+      llvm::errs() << "failed to register TianChen-RV built-in target "
+                      "artifact exporters: "
+                   << llvm::toString(std::move(error)) << "\n";
+      return 1;
+    }
   }
-  registerTianChenRVOptPasses(plugins);
+  registerTianChenRVOptPasses(plugins, targetExporters);
 
   mlir::DialectRegistry registry;
   tianchenrv::registerAllDialects(registry);

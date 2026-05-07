@@ -90,6 +90,14 @@ Use lit/FileCheck for:
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
   multiple supported artifacts, and scalar/offload paths not being routed
   through the RVV exporter.
+- execution-plan/export preflight coherence checks, including legal RVV explicit
+  microkernel, scalar fallback microkernel, and offload descriptor planned paths;
+  existing execution-planning pipeline output followed by the preflight pass;
+  and fail-closed diagnostics for stale selected paths, selected origin
+  mismatch, lowering-boundary kernel/variant/origin mismatch, emission-plan
+  route/origin mismatch, missing runtime ABI ownership metadata, source versus
+  descriptor artifact route spoofing, unregistered origins, and ambiguous
+  supported artifact candidates.
 - scalar explicit microkernel C target export through the generic artifact
   route, including dialect parse/verify for
   `tcrv_scalar.i32_vadd_microkernel`, selected scalar fallback plus matching

@@ -1,7 +1,10 @@
 #ifndef TIANCHENRV_TARGET_TARGETARTIFACTEXPORT_H
 #define TIANCHENRV_TARGET_TARGETARTIFACTEXPORT_H
 
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -41,6 +44,21 @@ private:
   TargetArtifactExportFn exportFn = nullptr;
 };
 
+struct TargetArtifactCandidate {
+  tcrv::exec::KernelOp kernel;
+  std::string selectedVariant;
+  std::string role;
+  std::string origin;
+  std::string routeID;
+  std::string emissionKind;
+  std::string artifactKind;
+  std::string loweringBoundary;
+  std::string runtimeABI;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string runtimeGlueRole;
+};
+
 class TargetArtifactExporterRegistry {
 public:
   llvm::Error registerExporter(const TargetArtifactExporter &exporter);
@@ -50,6 +68,14 @@ public:
 private:
   llvm::StringMap<TargetArtifactExporter> exporters;
 };
+
+llvm::Error collectTargetArtifactCandidates(
+    mlir::ModuleOp module,
+    llvm::SmallVectorImpl<TargetArtifactCandidate> &out);
+
+llvm::Error validateTargetArtifactCandidateAgainstExporter(
+    const TargetArtifactCandidate &candidate,
+    const TargetArtifactExporter &exporter);
 
 llvm::Error exportTargetSourceArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,

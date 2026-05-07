@@ -214,6 +214,31 @@ def MaterializeSelectedLoweringBoundaries
   ];
 }
 
+def CheckExecutionPlanCoherence
+    : Pass<"tcrv-check-execution-plan-coherence", "::mlir::ModuleOp"> {
+  let summary = "Check selected execution-plan metadata before target artifact export";
+  let description = [{
+    Verifies that post-planning compiler-visible handoff metadata is coherent
+    before target artifact export. The pass checks that selected-path markers or
+    dispatch/fallback references resolve to direct selected variants; variant
+    origins are registered plugins; selected lowering-boundary metadata matches
+    the selected kernel, variant, role, origin, and required capabilities;
+    emission-plan diagnostics match the same selected path and carry bounded
+    runtime ABI ownership metadata; and supported artifact route metadata agrees
+    with the registered target artifact exporter.
+
+    The pass is target-neutral and selected-path based. It does not export
+    artifacts, lower to LLVM/RISC-V, run a runtime, or claim correctness or
+    performance. Plugin-specific emission and lowering semantics stay behind
+    ExtensionPluginRegistry and target-owned exporter registrations.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createCheckExecutionPlanCoherencePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def MaterializeRVVLoweringBoundary
     : Pass<"tcrv-materialize-rvv-lowering-boundary", "::mlir::ModuleOp"> {
   let summary = "Materialize pre-executable RVV lowering-boundary metadata";

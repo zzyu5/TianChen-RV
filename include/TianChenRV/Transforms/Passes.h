@@ -15,6 +15,10 @@ std::unique_ptr<::mlir::Pass> createMaterializeRVVLoweringBoundaryPass();
 } // namespace rvv
 } // namespace plugin
 
+namespace target {
+class TargetArtifactExporterRegistry;
+} // namespace target
+
 namespace transforms {
 
 void buildExecutionPlanningPipeline(::mlir::OpPassManager &pm);
@@ -46,6 +50,10 @@ std::unique_ptr<::mlir::Pass> createMaterializeSelectedLoweringBoundariesPass();
 std::unique_ptr<::mlir::Pass>
 createMaterializeSelectedLoweringBoundariesPass(
     const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass();
+std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass(
+    const plugin::ExtensionPluginRegistry &plugins,
+    const target::TargetArtifactExporterRegistry &targetExporters);
 
 #define GEN_PASS_DECL
 #include "TianChenRV/Transforms/Passes.h.inc"

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants to verify after implementation."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains compute-free."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check origin/plugin registry delegation and fail-closed handling."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check target-specific semantics remain plugin-local/target-owned."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-path and dispatch coherence expectations."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check lowering-boundary/runtime-ABI/emission-plan/artifact-route coherence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/FileCheck coverage and build evidence."}

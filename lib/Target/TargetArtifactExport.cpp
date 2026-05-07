@@ -41,16 +41,6 @@ struct SelectedPath {
   std::string role;
 };
 
-struct ArtifactCandidate {
-  KernelOp kernel;
-  std::string selectedVariant;
-  std::string role;
-  std::string origin;
-  std::string routeID;
-  std::string emissionKind;
-  std::string artifactKind;
-};
-
 VariantOp getPathVariant(const SelectedPath &path) {
   return const_cast<SelectedPath &>(path).variant;
 }
@@ -450,7 +440,7 @@ llvm::Error collectRequiredCapabilities(KernelOp kernel,
   return llvm::Error::success();
 }
 
-llvm::Expected<std::optional<ArtifactCandidate>>
+llvm::Expected<std::optional<TargetArtifactCandidate>>
 buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                         DiagnosticOp diagnostic) {
   std::string variantOrigin;
@@ -513,9 +503,9 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
     return std::move(error);
 
   if (status != execDiagnostic::kEmissionPlanSupportedStatusValue)
-    return std::optional<ArtifactCandidate>();
+    return std::optional<TargetArtifactCandidate>();
 
-  ArtifactCandidate candidate;
+  TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = getPathVariantSymbol(path).str();
   candidate.role = path.role;
@@ -540,19 +530,45 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                                 candidate.artifactKind))
     return std::move(error);
 
-  std::string loweringBoundary;
   if (llvm::Error error =
           requireSafeStringAttr(kernel, diagnostic.getOperation(),
                                 execDiagnostic::kLoweringBoundaryAttrName,
                                 "supported emission-plan route",
-                                loweringBoundary))
+                                candidate.loweringBoundary))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABIKindAttrName,
+                                "emission-plan diagnostic",
+                                candidate.runtimeABIKind))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABINameAttrName,
+                                "emission-plan diagnostic",
+                                candidate.runtimeABIName))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeGlueRoleAttrName,
+                                "emission-plan diagnostic",
+                                candidate.runtimeGlueRole))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABIAttrName,
+                                "supported emission-plan route",
+                                candidate.runtimeABI))
     return std::move(error);
 
-  return std::optional<ArtifactCandidate>(std::move(candidate));
+  return std::optional<TargetArtifactCandidate>(std::move(candidate));
 }
 
-llvm::Error collectSupportedCandidates(
-    mlir::ModuleOp module, llvm::SmallVectorImpl<ArtifactCandidate> &out) {
+} // namespace
+
+llvm::Error collectTargetArtifactCandidates(
+    mlir::ModuleOp module,
+    llvm::SmallVectorImpl<TargetArtifactCandidate> &out) {
   if (!module)
     return makeModuleArtifactExportError("requires a builtin.module operation");
 
@@ -605,7 +621,7 @@ llvm::Error collectSupportedCandidates(
                         " requires exactly one emission-plan diagnostic before "
                         "target artifact export");
 
-      llvm::Expected<std::optional<ArtifactCandidate>> candidate =
+      llvm::Expected<std::optional<TargetArtifactCandidate>> candidate =
           buildSupportedCandidate(kernel, path, diagnosticIt->getValue());
       if (!candidate)
         return candidate.takeError();
@@ -616,8 +632,8 @@ llvm::Error collectSupportedCandidates(
   return llvm::Error::success();
 }
 
-llvm::Error validateCandidateAgainstExporter(
-    const ArtifactCandidate &candidate,
+llvm::Error validateTargetArtifactCandidateAgainstExporter(
+    const TargetArtifactCandidate &candidate,
     const TargetArtifactExporter &exporter) {
   if (candidate.artifactKind != exporter.getArtifactKind())
     return makeArtifactExportError(
@@ -654,16 +670,19 @@ llvm::Error validateCandidateAgainstExporter(
   return llvm::Error::success();
 }
 
+namespace {
+
 llvm::Error exportTargetArtifactImpl(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::StringRef requiredArtifactKind, llvm::StringRef routeDescription,
     llvm::raw_ostream &os) {
-  llvm::SmallVector<ArtifactCandidate, 2> allCandidates;
-  if (llvm::Error error = collectSupportedCandidates(module, allCandidates))
+  llvm::SmallVector<TargetArtifactCandidate, 2> allCandidates;
+  if (llvm::Error error =
+          collectTargetArtifactCandidates(module, allCandidates))
     return error;
 
-  llvm::SmallVector<ArtifactCandidate, 2> candidates;
-  for (const ArtifactCandidate &candidate : allCandidates) {
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  for (const TargetArtifactCandidate &candidate : allCandidates) {
     if (requiredArtifactKind.empty()) {
       candidates.push_back(candidate);
       continue;
@@ -690,7 +709,7 @@ llvm::Error exportTargetArtifactImpl(
         llvm::Twine("requires exactly one supported ") + routeDescription +
         " emission-plan route; found multiple ambiguous supported artifacts");
 
-  const ArtifactCandidate &candidate = candidates.front();
+  const TargetArtifactCandidate &candidate = candidates.front();
   const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
   if (!exporter)
     return makeArtifactExportError(
@@ -698,7 +717,8 @@ llvm::Error exportTargetArtifactImpl(
                                       "'") +
                               candidate.routeID + "'");
 
-  if (llvm::Error error = validateCandidateAgainstExporter(candidate, *exporter))
+  if (llvm::Error error =
+          validateTargetArtifactCandidateAgainstExporter(candidate, *exporter))
     return error;
 
   return exporter->getExportFn()(module, os);
