@@ -116,6 +116,14 @@ Use lit/FileCheck for:
   boundaries, missing/stale scalar microkernels, route spoofing, unsupported
   metadata-only scalar fallback paths, offload-only paths, and ambiguous
   supported artifacts.
+- RVV + scalar host dispatch C export for the finite i32 vector-add slice,
+  including one selected RVV dispatch case plus one scalar dispatch fallback,
+  matching lowering boundaries, supported runtime-callable C source
+  emission-plan routes for both paths, deterministic dispatcher signature,
+  explicit host-provided `rvv_available` guard, RVV callable branch, scalar
+  fallback branch, RVV intrinsic code preservation, scalar i32 addition
+  preservation, bounded metadata comments, and fail-closed diagnostics when the
+  scalar callable fallback metadata is missing or unsupported.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability

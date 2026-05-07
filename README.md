@@ -265,6 +265,34 @@ lowering, arbitrary scalar source export, object/linking support, runtime
 integration, correctness coverage beyond this explicit microkernel, or
 performance evidence.
 
+## Host RVV + Scalar Dispatch First Slice
+
+The `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c` tool exports
+the first bounded host-side runtime dispatch C source artifact for the finite
+i32 vector-add slice. The input must already contain one selected
+`rvv-plugin` dispatch case with a matching `tcrv_rvv.lowering_boundary`,
+runtime-callable RVV i32-vadd microkernel metadata, and supported RVV emission
+plan, plus one selected `scalar-plugin` dispatch fallback with a matching
+`tcrv_scalar.lowering_boundary`, runtime-callable scalar i32-vadd microkernel
+metadata, and supported scalar emission plan.
+
+The generated source embeds the existing deterministic RVV runtime-callable C
+function and scalar runtime-callable fallback C function, then emits a stable
+dispatcher ABI:
+
+```c
+void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
+                                     const int32_t *rhs,
+                                     int32_t *out, size_t n,
+                                     int rvv_available);
+```
+
+The `rvv_available` argument is an explicit host-provided guard. This export
+does not implement automatic hardware probing, object generation, dynamic
+loading, linking, benchmarking, correctness measurement, or performance
+measurement. RVV runtime/correctness/performance claims still require separate
+real `ssh rvv` evidence.
+
 ## Runtime Offload First Slice
 
 The built-in registry includes a generic C++ `offload-plugin` first slice for

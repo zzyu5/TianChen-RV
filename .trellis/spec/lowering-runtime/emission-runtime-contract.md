@@ -838,6 +838,53 @@ missing or stale scalar microkernel, unavailable fallback capability, unknown
 route id, unsupported artifact kind, route spoofing, offload-only paths, and
 ambiguous multiple supported artifacts must fail before source output.
 
+## Host RVV + Scalar I32 VAdd Dispatch C Export Boundary
+
+Trigger: post-planning MLIR contains one selected `rvv-plugin` dispatch case
+and one selected `scalar-plugin` dispatch fallback for the same
+`tcrv.exec.kernel`. The RVV path must have a matching
+`tcrv_rvv.lowering_boundary`, matching `tcrv_rvv.i32_vadd_microkernel`, and a
+supported runtime-callable C source emission-plan route. The scalar fallback
+path must have a matching `tcrv_scalar.lowering_boundary`, matching
+`tcrv_scalar.i32_vadd_microkernel`, and a supported runtime-callable C source
+emission-plan route.
+
+This export is the first bounded host-side runtime dispatch glue slice. It may
+emit one deterministic C source file that embeds the existing RVV callable
+function and scalar callable fallback function, then adds a dispatcher
+function:
+
+```c
+void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
+                                     const int32_t *rhs,
+                                     int32_t *out, size_t n,
+                                     int rvv_available);
+```
+
+The dispatcher must call the RVV callable function when `rvv_available` is
+non-zero and the scalar fallback callable function otherwise. The guard is an
+explicit host-provided parameter. This slice does not implement automatic
+hardware probing, dynamic loading, object generation, linking, arbitrary
+dispatch lowering, benchmarking, correctness evidence, or performance
+evidence.
+
+Contracts:
+
+- Input must be real post-planning MLIR with one selected RVV dispatch case and
+  one selected scalar dispatch fallback in the same kernel.
+- The exporter must validate selected-path roles, lowering-boundary links,
+  executable microkernel attachments, runtime ABI kind/name, runtime glue role,
+  artifact kind, required capability refs, and export route ids for both paths
+  before source output.
+- Output must preserve bounded metadata comments for the kernel, RVV selected
+  variant, scalar fallback variant, roles, runtime ABI fields, runtime glue
+  roles, artifact kinds, route ids, and required capability refs.
+- Output must preserve RVV intrinsic code in the embedded RVV callable function
+  and scalar i32 addition in the embedded scalar callable fallback function.
+- Missing RVV callable metadata, missing scalar callable fallback metadata,
+  stale lowering boundaries, unsupported artifact kinds, unsupported origins,
+  wrong roles, and ambiguous duplicate paths must fail before source output.
+
 ## Runtime Offload Metadata Boundary
 
 The first runtime-offload plugin slice may return a metadata-only emission

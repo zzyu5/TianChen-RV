@@ -1,0 +1,132 @@
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c > %t.dispatch.c
+// RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
+// RUN: FileCheck %s --check-prefix=BODY --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
+
+module @rvv_scalar_dispatch_input {
+  tcrv.exec.kernel @dispatch_vadd {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.capability @rvv_toolchain_mabi {
+      id = "rvv.toolchain.mabi",
+      kind = "toolchain",
+      status = "available",
+      value = "lp64d"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      condition = "rvv_capability_properties_available",
+      guard = "plugin_local_rvv_property_evidence",
+      origin = "rvv-plugin",
+      policy = "metadata_only_first_slice",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_first_slice {
+        condition = "rvv_capability_properties_available",
+        guard = "plugin_local_rvv_property_evidence",
+        origin = "rvv-plugin",
+        policy = "metadata_only_first_slice"
+      }
+      tcrv.exec.fallback @scalar_fallback_first_slice {
+        fallback_role = "conservative",
+        origin = "scalar-plugin"
+      }
+    }
+    tcrv_rvv.i32_vadd_microkernel {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "dispatch case",
+      selected_mabi = "lp64d",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "dispatch_vadd"
+    }
+    tcrv_scalar.i32_vadd_microkernel {
+      element_count = 16 : i64,
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "dispatch fallback",
+      selected_variant = @scalar_fallback_first_slice,
+      source_kernel = "dispatch_vadd"
+    }
+  }
+}
+
+// HEADER: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+// HEADER: /* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+// HEADER: /* selected_kernel: @dispatch_vadd */
+// HEADER: /* rvv_selected_variant: @rvv_first_slice */
+// HEADER: /* rvv_selected_role: dispatch case */
+// HEADER: /* rvv_artifact_kind: runtime-callable-c-source */
+// HEADER: /* rvv_artifact_route_id: tcrv-export-rvv-microkernel-c */
+// HEADER: /* rvv_runtime_abi: rvv-i32-vadd-runtime-callable-c-abi.v1 */
+// HEADER: /* rvv_runtime_abi_kind: rvv-runtime-callable-c-abi */
+// HEADER: /* rvv_runtime_abi_name: rvv-i32-vadd-runtime-callable-c-function.v1 */
+// HEADER: /* rvv_runtime_glue_role: runtime-callable-i32-vadd-function */
+// HEADER: /* rvv_required_capabilities: @rvv */
+// HEADER: /* scalar_selected_variant: @scalar_fallback_first_slice */
+// HEADER: /* scalar_selected_role: dispatch fallback */
+// HEADER: /* scalar_artifact_kind: runtime-callable-c-source */
+// HEADER: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
+// HEADER: /* scalar_runtime_abi: scalar-i32-vadd-runtime-callable-c-abi.v1 */
+// HEADER: /* scalar_runtime_abi_kind: scalar-runtime-callable-c-abi */
+// HEADER: /* scalar_runtime_abi_name: scalar-i32-vadd-runtime-callable-c-function.v1 */
+// HEADER: /* scalar_runtime_glue_role: runtime-callable-i32-vadd-fallback-function */
+// HEADER: /* scalar_required_capabilities: @scalar_fallback */
+// HEADER: /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice */
+// HEADER: /* scalar_callable_symbol: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice */
+// HEADER: dispatch_runtime_callable_abi
+
+// BODY: riscv_vector.h
+// BODY: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
+// BODY: __riscv_vsetvl_e32m1
+// BODY: __riscv_vle32_v_i32m1
+// BODY: __riscv_vadd_vv_i32m1
+// BODY: __riscv_vse32_v_i32m1
+// BODY: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// BODY: for (size_t index = 0; index < n; ++index)
+// BODY: out[index] = lhs[index] + rhs[index];
+// BODY-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
+// BODY: if (rvv_available)
+// BODY: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
+// BODY: return;
+// BODY: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
