@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Check CLI and review prompt behavior against the supervisor contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check runner validation and cleanup-round testing instructions."}

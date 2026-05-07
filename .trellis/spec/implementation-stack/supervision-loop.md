@@ -33,12 +33,13 @@ python3 scripts/codex_serial_supervisor.py run --repo <repo> --artifact-root <pa
 python3 scripts/codex_serial_supervisor.py loop --repo <repo> --artifact-root <path> [--review-no-llm] [--hermes-review-mode chat|oneshot]
 python3 scripts/codex_serial_supervisor.py status --repo <repo> --artifact-root <path>
 python3 scripts/codex_serial_supervisor.py stop --repo <repo> --artifact-root <path> --reason <text>
+python3 scripts/codex_serial_supervisor.py ask-hermes --repo <repo> --artifact-root <path> --question <text>
 ```
 
 The embedded Hermes review prompt is produced by:
 
 ```text
-build_review_prompt(run_dir, loop_dir, base_prompt, round_index, previous_delta, previous_prompt_mode, max_chars) -> str
+build_review_prompt(run_dir, loop_dir, base_prompt, round_index, previous_delta, previous_prompt_mode, max_chars, manual_steering="") -> str
 ```
 
 ### 3. Contracts
@@ -60,6 +61,14 @@ Hermes review output is strict JSON. It must contain exactly these keys:
 
 When `continue=true`, `next_prompt` must be a complete prompt. The runner may keep legacy `base_prompt_edits` and `delta` handling for fallback compatibility, but the normal path is full-prompt rewrite through `next_prompt`.
 
+Durable human steering is a first-class supervisor input. The runner may read a manual steering file, defaulting to the supervisor artifact root, and include it in every Hermes review prompt. This steering shapes the next owner and next prompt unless it conflicts with repository evidence, user safety, or architecture invariants. It is not itself proof of repository state.
+
+The runner may resume the latest saved Hermes chat session across loop restarts. A user-provided `--hermes-session-id` remains the strongest selector. Auto-resume must be visible in loop, start, and status artifacts and must have an explicit disable path.
+
+Hermes chat access must avoid concurrent writes to the same session. Official review and ask-only self-check commands should share a supervisor-local Hermes session lock.
+
+`ask-hermes` is a read-only self-check command. It packages current repository evidence, optional durable steering, and a user question for Hermes without launching Codex and without writing a next worker prompt. It may write ask artifacts under the supervisor artifact root.
+
 ### 4. Validation & Error Matrix
 
 | Condition | Required behavior |
@@ -71,6 +80,8 @@ When `continue=true`, `next_prompt` must be a complete prompt. The runner may ke
 | Codex implements compiler internals in Python | Hermes must redirect back to C++ / MLIR / LLVM / TableGen / CMake |
 | Prompt rendering fails or base prompt is empty | runner command must fail rather than launch a worker with an empty prompt |
 | No-exec rendering is requested | runner must package evidence without launching Codex |
+| Durable steering exists | Hermes review prompt must include it as control-plane steering, not repository proof |
+| ask-only self-check is requested | runner must not launch Codex or mutate source files |
 
 ### 5. Good / Base / Bad Cases
 

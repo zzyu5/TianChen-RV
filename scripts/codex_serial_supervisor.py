@@ -28,7 +28,9 @@ from urllib import parse, request
 REPO_DEFAULT_ARTIFACT_ROOT = "artifacts/tmp/hermes_codex_supervisor"
 DEFAULT_BASE_PROMPT = Path(__file__).with_name("codex_serial_supervisor_prompt.md")
 DEFAULT_STOP_FILE_NAME = "STOP"
+DEFAULT_MANUAL_STEERING_FILE_NAME = "manual_steering.md"
 ACTIVE_LOOP_FILE_NAME = "active_loop.json"
+HERMES_SESSION_LOCK_FILE_NAME = "hermes_session.lock"
 DEFAULT_HERMES_SESSION_NAME = "TianchenRV Hermes Supervisor"
 DEFAULT_SUPERVISOR_MODEL = "gpt-5.5"
 DEFAULT_CODEX_REASONING_EFFORT = "xhigh"
@@ -282,6 +284,55 @@ def stop_file_path(repo: Path, args: argparse.Namespace) -> Path:
         path = Path(args.stop_file)
         return path if path.is_absolute() else repo / path
     return artifact_root_path(repo, args.artifact_root) / DEFAULT_STOP_FILE_NAME
+
+
+def manual_steering_path(repo: Path, args: argparse.Namespace) -> Path:
+    value = getattr(args, "manual_steering_file", "")
+    if value:
+        path = Path(value)
+        return path if path.is_absolute() else repo / path
+    return artifact_root_path(repo, args.artifact_root) / DEFAULT_MANUAL_STEERING_FILE_NAME
+
+
+def read_manual_steering(repo: Path, args: argparse.Namespace, max_chars: int = 12000) -> str:
+    return read_text(manual_steering_path(repo, args), max_chars=max_chars).strip()
+
+
+def latest_saved_hermes_session(root: Path) -> dict[str, Any]:
+    active_loop = load_json(root / ACTIVE_LOOP_FILE_NAME)
+    if isinstance(active_loop, dict) and active_loop.get("hermes_session_id"):
+        return {
+            "session_id": str(active_loop.get("hermes_session_id") or ""),
+            "source": str(root / ACTIVE_LOOP_FILE_NAME),
+        }
+
+    loops_root = root / "loops"
+    if not loops_root.exists():
+        return {"session_id": "", "source": ""}
+    loop_dirs = [p for p in loops_root.iterdir() if p.is_dir()]
+    loop_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    for loop_dir in loop_dirs:
+        for name in ("hermes_session.json", "loop_manifest.json"):
+            data = load_json(loop_dir / name)
+            if isinstance(data, dict) and data.get("hermes_session_id"):
+                return {
+                    "session_id": str(data.get("hermes_session_id") or ""),
+                    "source": str(loop_dir / name),
+                }
+    return {"session_id": "", "source": ""}
+
+
+def resolve_hermes_session_id(args: argparse.Namespace, repo: Path) -> dict[str, Any]:
+    explicit = str(getattr(args, "hermes_session_id", "") or "")
+    if explicit:
+        return {"session_id": explicit, "source": "explicit"}
+    if not getattr(args, "resume_latest_hermes_session", False):
+        return {"session_id": "", "source": "disabled"}
+    found = latest_saved_hermes_session(artifact_root_path(repo, args.artifact_root))
+    session_id = str(found.get("session_id") or "")
+    if session_id:
+        args.hermes_session_id = session_id
+    return found
 
 
 def read_delta(args: argparse.Namespace) -> str:
@@ -545,6 +596,25 @@ class FileLock:
             fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise SystemExit(f"another codex supervisor run is active: {self.path}") from exc
+        self.handle.write(str(os.getpid()))
+        self.handle.flush()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        if self.handle is not None:
+            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+            self.handle.close()
+
+
+class BlockingFileLock:
+    def __init__(self, path: Path):
+        self.path = path
+        self.handle = None
+
+    def __enter__(self) -> "BlockingFileLock":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = self.path.open("w", encoding="utf-8")
+        fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
         self.handle.write(str(os.getpid()))
         self.handle.flush()
         return self
@@ -1082,6 +1152,7 @@ def build_review_prompt(
     previous_delta: str,
     previous_prompt_mode: str,
     max_chars: int,
+    manual_steering: str = "",
 ) -> str:
     max_chars = max(max_chars, 12000)
     review_input = read_text(run_dir / "review_input.md", max_chars=int(max_chars * 0.30))
@@ -1134,6 +1205,14 @@ Use evidence in this order:
 4. Codex final summary.
 
 If Codex says one thing and repository evidence says another, trust the repository evidence.
+
+## Active Human Steering
+
+The following durable user steering is an active control-plane input for choosing the next owner and shaping the next prompt. Treat it as newer than the canonical base prompt. Do not treat it as proof of repository state, and do not follow it when it conflicts with safety, real repository evidence, or the architecture invariants.
+
+```text
+{manual_steering or "(none)"}
+```
 
 ## Optional Read-Only Inspection
 
@@ -1336,6 +1415,11 @@ def hermes_review(
         previous_delta=previous_delta,
         previous_prompt_mode=previous_prompt_mode,
         max_chars=args.review_max_chars,
+        manual_steering=read_manual_steering(
+            repo,
+            args,
+            max_chars=max(4000, int(args.review_max_chars * 0.12)),
+        ),
     )
     review_prompt_path = loop_dir / f"round_{round_index:04d}_hermes_review_prompt.md"
     review_prompt_path.write_text(prompt, encoding="utf-8")
@@ -1376,14 +1460,15 @@ def hermes_review(
         for skill in [s.strip() for s in args.hermes_skills.split(",") if s.strip()]:
             cmd.extend(["--skills", skill])
 
-    proc = subprocess.run(
-        cmd,
-        cwd=repo,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=args.hermes_timeout,
-    )
+    with BlockingFileLock(artifact_root_path(repo, args.artifact_root) / HERMES_SESSION_LOCK_FILE_NAME):
+        proc = subprocess.run(
+            cmd,
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=args.hermes_timeout,
+        )
     (loop_dir / f"round_{round_index:04d}_hermes.stdout").write_text(proc.stdout, encoding="utf-8")
     (loop_dir / f"round_{round_index:04d}_hermes.stderr").write_text(proc.stderr, encoding="utf-8")
     review = normalize_review(proc.stdout)
@@ -1438,6 +1523,178 @@ def hermes_review(
             "Hermes review failed; supervisor is continuing with canonical fallback prompt."
         )
     return review
+
+
+def read_question(args: argparse.Namespace) -> str:
+    parts: list[str] = []
+    if getattr(args, "question", ""):
+        parts.append(str(args.question).strip())
+    if getattr(args, "question_file", ""):
+        parts.append(read_text(Path(args.question_file), max_chars=20000).strip())
+    return "\n\n".join(p for p in parts if p).strip()
+
+
+def build_hermes_ask_prompt(
+    ask_dir: Path,
+    question: str,
+    manual_steering: str,
+    max_chars: int,
+) -> str:
+    max_chars = max(max_chars, 12000)
+    review_input = read_text(ask_dir / "review_input.md", max_chars=int(max_chars * 0.30))
+    repo_audit = read_text(ask_dir / "repo_audit.md", max_chars=int(max_chars * 0.42))
+    manifest = read_text(ask_dir / "manifest.json", max_chars=6000)
+    question = question or (
+        "Perform a read-only supervisor self-check of the current TianChen-RV repository state. "
+        "Explain whether the next Codex owner should continue the compiler spine, pause for workspace hygiene, "
+        "or stop for human intervention."
+    )
+    return f"""You are Hermes supervisor for the TianChen-RV MLIR repository.
+
+This is an ask-only self-check. Do not modify the repository. Do not launch Codex. Do not generate or write a next worker prompt unless the user explicitly asks for one in this ask-only question.
+
+Use evidence in this order:
+
+1. Real repository state and file contents from the live checkout.
+2. `repo_audit.md` generated by the runner.
+3. `review_input.md` and run manifest.
+4. Prior chat context.
+
+If prior chat context conflicts with current repository evidence, trust current repository evidence.
+
+Answer in concise Markdown. It is okay to name concrete files, commits, risks, and suggested next owner candidates. Keep the answer read-only.
+
+## User Question
+
+```text
+{question}
+```
+
+## Active Human Steering
+
+```text
+{manual_steering or "(none)"}
+```
+
+## Ask Manifest
+
+{manifest or "(missing)"}
+
+## review_input.md
+
+{review_input or "(missing)"}
+
+## repo_audit.md
+
+{repo_audit or "(missing)"}
+"""
+
+
+def command_ask_hermes(args: argparse.Namespace) -> int:
+    repo = Path(args.repo).resolve()
+    root = artifact_root_path(repo, args.artifact_root)
+    root.mkdir(parents=True, exist_ok=True)
+    session_resolution = resolve_hermes_session_id(args, repo)
+    ask_dir = root / "asks" / (args.run_id or utc_run_id())
+    ask_dir.mkdir(parents=True, exist_ok=False)
+
+    before = collect_snapshot(repo)
+    write_json(ask_dir / "snapshot.json", before)
+    (ask_dir / "last_message.md").write_text("(ask-hermes: no Codex worker was launched)\n", encoding="utf-8")
+    repo_audit_path = write_repo_audit(ask_dir, before, before)
+    write_review_input(
+        ask_dir,
+        before,
+        before,
+        None,
+        "ask-hermes read-only self-check; no Codex worker was launched.",
+    )
+    question = read_question(args)
+    manual_steering = read_manual_steering(repo, args, max_chars=max(4000, int(args.review_max_chars * 0.12)))
+    manifest = {
+        "ask_dir": str(ask_dir),
+        "repo": str(repo),
+        "question_chars": len(question),
+        "manual_steering_file": str(manual_steering_path(repo, args)),
+        "manual_steering_chars": len(manual_steering),
+        "repo_audit": str(repo_audit_path),
+        "review_input": str(ask_dir / "review_input.md"),
+        "hermes_review_mode": "chat",
+        "hermes_session_id": args.hermes_session_id,
+        "hermes_session_resolution": session_resolution,
+        "render_only": bool(args.render_only),
+    }
+    write_json(ask_dir / "manifest.json", manifest)
+    prompt = build_hermes_ask_prompt(
+        ask_dir=ask_dir,
+        question=question,
+        manual_steering=manual_steering,
+        max_chars=args.review_max_chars,
+    )
+    (ask_dir / "hermes_ask_prompt.md").write_text(prompt, encoding="utf-8")
+
+    if args.render_only:
+        result = {
+            "ask_dir": str(ask_dir),
+            "prompt": str(ask_dir / "hermes_ask_prompt.md"),
+            "render_only": True,
+            "hermes_session_id": args.hermes_session_id,
+            "hermes_session_resolution": session_resolution,
+        }
+        write_json(ask_dir / "result.json", result)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    cmd = [
+        args.hermes_bin,
+        "chat",
+        "-q",
+        prompt,
+        "-Q",
+        "--source",
+        args.hermes_source,
+        "--max-turns",
+        str(args.hermes_max_turns),
+    ]
+    if args.hermes_session_id:
+        cmd.extend(["--resume", args.hermes_session_id])
+    if args.hermes_model:
+        cmd.extend(["--model", args.hermes_model])
+    if args.hermes_provider:
+        cmd.extend(["--provider", args.hermes_provider])
+    if args.hermes_ignore_rules:
+        cmd.append("--ignore-rules")
+    if args.hermes_pass_session_id:
+        cmd.append("--pass-session-id")
+    for skill in [s.strip() for s in args.hermes_skills.split(",") if s.strip()]:
+        cmd.extend(["--skills", skill])
+
+    with BlockingFileLock(root / HERMES_SESSION_LOCK_FILE_NAME):
+        proc = subprocess.run(
+            cmd,
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=args.hermes_timeout,
+        )
+    (ask_dir / "hermes.stdout").write_text(proc.stdout, encoding="utf-8")
+    (ask_dir / "hermes.stderr").write_text(proc.stderr, encoding="utf-8")
+    hermes_session_id = extract_hermes_session_id(proc.stdout) or args.hermes_session_id
+    result = {
+        "ask_dir": str(ask_dir),
+        "prompt": str(ask_dir / "hermes_ask_prompt.md"),
+        "stdout": str(ask_dir / "hermes.stdout"),
+        "stderr": str(ask_dir / "hermes.stderr"),
+        "returncode": proc.returncode,
+        "hermes_session_id": hermes_session_id,
+        "hermes_session_resolution": session_resolution,
+        "stdout_tail": proc.stdout[-4000:],
+        "stderr_tail": proc.stderr[-2000:],
+    }
+    write_json(ask_dir / "result.json", result)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return proc.returncode
 
 
 def build_run_subprocess_cmd(
@@ -1530,6 +1787,8 @@ def build_loop_subprocess_cmd(args: argparse.Namespace, loop_id: str) -> list[st
     ]
     if args.stop_file:
         cmd.extend(["--stop-file", args.stop_file])
+    if getattr(args, "manual_steering_file", ""):
+        cmd.extend(["--manual-steering-file", args.manual_steering_file])
     if args.initial_delta:
         cmd.extend(["--initial-delta", args.initial_delta])
     if args.initial_delta_file:
@@ -1556,6 +1815,8 @@ def build_loop_subprocess_cmd(args: argparse.Namespace, loop_id: str) -> list[st
         cmd.append("--review-no-llm")
     if args.hermes_session_id:
         cmd.extend(["--hermes-session-id", args.hermes_session_id])
+    if not getattr(args, "resume_latest_hermes_session", True):
+        cmd.append("--no-resume-latest-hermes-session")
     if args.hermes_session_name:
         cmd.extend(["--hermes-session-name", args.hermes_session_name])
     if args.hermes_model:
@@ -1616,6 +1877,7 @@ def command_start(args: argparse.Namespace) -> int:
     stop_file = stop_file_path(repo, args)
     if stop_file.exists() and not args.keep_stop_file:
         stop_file.unlink()
+    session_resolution = resolve_hermes_session_id(args, repo)
     cmd = build_loop_subprocess_cmd(args, loop_id)
     logs_dir = root / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -1639,8 +1901,10 @@ def command_start(args: argparse.Namespace) -> int:
         "stdout_log": str(stdout_path),
         "stderr_log": str(stderr_path),
         "stop_file": str(stop_file),
+        "manual_steering_file": str(manual_steering_path(repo, args)),
         "hermes_review_mode": args.hermes_review_mode,
         "hermes_session_id": args.hermes_session_id,
+        "hermes_session_resolution": session_resolution,
         "hermes_session_name": args.hermes_session_name,
         "codex_multi_agent_disabled": True,
         "cmd": cmd,
@@ -1653,10 +1917,12 @@ def command_start(args: argparse.Namespace) -> int:
 def command_loop(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
     root = artifact_root_path(repo, args.artifact_root)
+    session_resolution = resolve_hermes_session_id(args, repo)
     loop_id = args.loop_id or utc_run_id()
     loop_dir = root / "loops" / loop_id
     loop_dir.mkdir(parents=True, exist_ok=False)
     stop_file = stop_file_path(repo, args)
+    manual_steering_file = manual_steering_path(repo, args)
     active_loop_path = root / ACTIVE_LOOP_FILE_NAME
     events_path = loop_dir / "events.jsonl"
     delta = read_initial_delta(args)
@@ -1674,9 +1940,11 @@ def command_loop(args: argparse.Namespace) -> int:
             "repo": str(repo),
             "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
             "stop_file": str(stop_file),
+            "manual_steering_file": str(manual_steering_file),
             "max_rounds": args.max_rounds,
             "hermes_review_mode": args.hermes_review_mode,
             "hermes_session_id": args.hermes_session_id,
+            "hermes_session_resolution": session_resolution,
             "hermes_session_name": args.hermes_session_name,
             "codex_multi_agent_disabled": True,
             "next_prompt_mode": prompt_mode,
@@ -1689,10 +1957,12 @@ def command_loop(args: argparse.Namespace) -> int:
             "repo": str(repo),
             "artifact_root": str(root),
             "stop_file": str(stop_file),
+            "manual_steering_file": str(manual_steering_file),
             "max_rounds": args.max_rounds,
             "review_no_llm": args.review_no_llm,
             "hermes_review_mode": args.hermes_review_mode,
             "hermes_session_id": args.hermes_session_id,
+            "hermes_session_resolution": session_resolution,
             "hermes_session_name": args.hermes_session_name,
             "codex_multi_agent_disabled": True,
             "initial_prompt_mode": prompt_mode,
@@ -1732,6 +2002,7 @@ def command_loop(args: argparse.Namespace) -> int:
                     "latest_run_dir": worker["run_dir"],
                     "latest_round": next_round,
                     "stop_file": str(stop_file),
+                    "manual_steering_file": str(manual_steering_file),
                     "hermes_review_mode": args.hermes_review_mode,
                     "hermes_session_id": args.hermes_session_id,
                     "hermes_session_name": args.hermes_session_name,
@@ -1833,6 +2104,7 @@ def command_loop(args: argparse.Namespace) -> int:
                     "latest_run_dir": worker["run_dir"],
                     "latest_round": next_round,
                     "stop_file": str(stop_file),
+                    "manual_steering_file": str(manual_steering_file),
                     "hermes_review_mode": args.hermes_review_mode,
                     "hermes_session_id": args.hermes_session_id,
                     "hermes_session_name": args.hermes_session_name,
@@ -1903,6 +2175,7 @@ def command_status(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
     root = artifact_root_path(repo, args.artifact_root)
     stop_file = stop_file_path(repo, args)
+    steering_file = manual_steering_path(repo, args)
     lock_path = root / "codex_serial_supervisor.lock"
     active_loop_path = root / ACTIVE_LOOP_FILE_NAME
     lock_content = read_text(lock_path, max_chars=2000).strip() if lock_path.exists() else ""
@@ -1922,6 +2195,12 @@ def command_status(args: argparse.Namespace) -> int:
             "exists": stop_file.exists(),
             "content": read_text(stop_file, max_chars=2000).strip() if stop_file.exists() else "",
         },
+        "manual_steering": {
+            "path": str(steering_file),
+            "exists": steering_file.exists(),
+            "content": read_text(steering_file, max_chars=4000).strip() if steering_file.exists() else "",
+        },
+        "latest_saved_hermes_session": latest_saved_hermes_session(root),
         "worker_lock": {
             "path": str(lock_path),
             "exists": lock_path.exists(),
@@ -1999,6 +2278,30 @@ def add_stop_file_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_manual_steering_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--manual-steering-file",
+        default="",
+        help="Durable human steering file included in Hermes reviews. Relative paths are resolved from repo. Default: artifact-root/manual_steering.md.",
+    )
+
+
+def add_resume_latest_hermes_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--resume-latest-hermes-session",
+        dest="resume_latest_hermes_session",
+        action="store_true",
+        default=True,
+        help="Resume the latest saved Hermes session when --hermes-session-id is not provided.",
+    )
+    parser.add_argument(
+        "--no-resume-latest-hermes-session",
+        dest="resume_latest_hermes_session",
+        action="store_false",
+        help="Start without auto-resuming the latest saved Hermes session.",
+    )
+
+
 def add_loop_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-prompt", default=str(DEFAULT_BASE_PROMPT))
     parser.add_argument("--loop-id", default="", help="Override loop id.")
@@ -2006,6 +2309,7 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sleep-seconds", type=float, default=0.0, help="Delay between rounds.")
     parser.add_argument("--initial-delta", default="", help="Optional legacy steering delta for the first round.")
     parser.add_argument("--initial-delta-file", default="", help="Optional file containing a first-round legacy delta.")
+    add_manual_steering_arg(parser)
     parser.add_argument("--review-no-llm", action="store_true", help="Skip Hermes review and always continue.")
     parser.add_argument("--review-max-chars", type=int, default=30000, help="Max chars included in Hermes review prompt.")
     parser.add_argument("--hermes-bin", default="hermes")
@@ -2020,6 +2324,7 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
         default="",
         help="Hermes session id to resume for supervisor review.",
     )
+    add_resume_latest_hermes_args(parser)
     parser.add_argument(
         "--hermes-session-name",
         default=DEFAULT_HERMES_SESSION_NAME,
@@ -2084,9 +2389,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
     add_loop_args(p_loop)
     p_loop.set_defaults(func=command_loop)
 
+    p_ask = sub.add_parser("ask-hermes", help="Ask Hermes for a read-only supervisor self-check without launching Codex.")
+    add_common(p_ask)
+    add_manual_steering_arg(p_ask)
+    p_ask.add_argument("--base-prompt", default=str(DEFAULT_BASE_PROMPT))
+    p_ask.add_argument("--run-id", default="", help="Override ask artifact id.")
+    p_ask.add_argument("--question", default="", help="Ask-only question for Hermes.")
+    p_ask.add_argument("--question-file", default="", help="File containing an ask-only question for Hermes.")
+    p_ask.add_argument("--render-only", action="store_true", help="Write the Hermes ask prompt but do not call Hermes.")
+    p_ask.add_argument("--review-max-chars", type=int, default=30000, help="Max chars included in Hermes ask prompt.")
+    p_ask.add_argument("--hermes-bin", default="hermes")
+    p_ask.add_argument("--hermes-source", default="cli", help="Hermes session source tag.")
+    p_ask.add_argument("--hermes-max-turns", type=int, default=8, help="Hermes ask max tool-calling turns.")
+    p_ask.add_argument("--hermes-model", default=DEFAULT_SUPERVISOR_MODEL)
+    p_ask.add_argument("--hermes-provider", default="")
+    p_ask.add_argument("--hermes-timeout", type=int, default=900)
+    p_ask.add_argument("--hermes-skills", default="codex-serial-supervisor")
+    p_ask.add_argument("--hermes-ignore-rules", action="store_true")
+    p_ask.add_argument("--hermes-session-id", default="", help="Hermes session id to resume for ask-only self-check.")
+    add_resume_latest_hermes_args(p_ask)
+    p_ask.add_argument(
+        "--no-hermes-pass-session-id",
+        dest="hermes_pass_session_id",
+        action="store_false",
+        help="Do not pass the Hermes session id into the ask prompt.",
+    )
+    p_ask.set_defaults(hermes_pass_session_id=True)
+    p_ask.set_defaults(func=command_ask_hermes)
+
     p_status = sub.add_parser("status", help="Show active loop, stop file, worker lock, and recent runs.")
     add_common(p_status)
     add_stop_file_arg(p_status)
+    add_manual_steering_arg(p_status)
     p_status.add_argument("--limit", type=int, default=8)
     p_status.set_defaults(func=command_status)
 
