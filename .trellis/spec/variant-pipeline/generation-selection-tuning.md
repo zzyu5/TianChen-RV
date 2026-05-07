@@ -58,6 +58,56 @@ Select variant or generate dispatch
 Lower selected variants through plugin emission paths
 ```
 
+## Public Execution Planning Pipeline
+
+The public `tcrv-opt` front door exposes the bounded metadata planning pipeline
+as:
+
+```text
+--tcrv-execution-planning-pipeline
+```
+
+This is a named MLIR pass pipeline, not a monolithic pass. It composes existing
+pass factories in this order:
+
+```text
+tcrv-materialize-plugin-variants
+  -> tcrv-check-capability-requires
+  -> tcrv-select-variants
+  -> tcrv-check-capability-requires
+  -> tcrv-materialize-selected-lowering-boundaries
+  -> tcrv-materialize-emission-plans
+```
+
+The pipeline consumes existing `tcrv.exec.kernel` and direct
+`tcrv.exec.capability` anchors, routes proposal/cost/lowering/emission-plan
+queries through an injected `ExtensionPluginRegistry`, and materializes only
+compiler-visible planning metadata. In `tcrv-opt`, the tool boundary may inject
+the deterministic built-in registry; embeddable library builders must remain
+usable with an explicitly supplied registry and must not create hidden
+target-specific global state.
+
+The `tcrv-select-variants` stage is the capability-aware selection and dispatch
+planning stage for this pipeline. The older order-based
+`tcrv-synthesize-variant-dispatch` pass remains a separate bounded helper and
+is not inserted before selection, because selection owns cost-aware dispatch or
+selected-marker materialization and must not compete with a pre-existing
+dispatch surface.
+
+Emission readiness is not part of this public planning pipeline while the RVV
+first slice reports unsupported readiness as a fatal boundary. Instead, the
+pipeline materializes plugin-owned emission-plan diagnostics after selected
+lowering-boundary materialization. These diagnostics are reproducibility
+metadata only: they do not lower IR, emit LLVM/RISC-V/RVV code, create runtime
+ABI glue, generate artifacts, run hardware, prove correctness, or measure
+performance.
+
+The pipeline is deterministic but not allowed to paper over stale or competing
+selected surfaces. Re-running on IR that already contains a direct dispatch,
+pre-existing lowering-boundary metadata, mismatched materialized variants, or
+emission-plan diagnostics must produce the existing bounded diagnostics rather
+than duplicating symbols or silently appending stale metadata.
+
 ## Plugin-Driven Proposal
 
 For each high-level op, core asks enabled plugins:

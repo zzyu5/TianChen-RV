@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines durable variant generation, proposal, selection, and fallback pipeline contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin interface and registry boundaries that the pipeline must preserve."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keeps extension-specific semantics plugin-local while composing generic passes."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines target capability anchors and capability-require verification semantics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines the compute-free tcrv.exec boundary for kernel, capability, variant, dispatch, and fallback metadata."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local metadata and proposal behavior that must remain outside generic pipeline branches."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback proposal behavior that the composed pipeline must preserve."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines lowering-boundary and emission/readiness metadata boundaries for the deepest included pipeline stages."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck expectations for public tcrv-opt pipeline coverage."}

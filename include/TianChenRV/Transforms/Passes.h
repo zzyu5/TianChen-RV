@@ -17,6 +17,14 @@ std::unique_ptr<::mlir::Pass> createMaterializeRVVLoweringBoundaryPass();
 
 namespace transforms {
 
+void buildExecutionPlanningPipeline(::mlir::OpPassManager &pm);
+void buildExecutionPlanningPipeline(
+    ::mlir::OpPassManager &pm,
+    const plugin::ExtensionPluginRegistry &registry);
+void registerExecutionPlanningPipeline();
+void registerExecutionPlanningPipeline(
+    const plugin::ExtensionPluginRegistry &registry);
+
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
 std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
 std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass();

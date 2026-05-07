@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check composed pipeline ordering, fallback preservation, and no-viable-proposal diagnostics."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin registry and interface boundaries remain intact."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check target-specific details remain plugin-local."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check capability-require validation remains target-neutral."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec stays execution metadata focused and compute-free."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV metadata preservation and invalid selected RVV behavior."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check fallback proposal preservation and selection behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check lowering/emission metadata boundaries of included pipeline stages."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check lit/FileCheck public pipeline tests and diagnostics."}
