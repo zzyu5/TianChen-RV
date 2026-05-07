@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-check-emission-paths --tcrv-materialize-emission-plans | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-verify-plugin-variant-legality --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-check-emission-paths --tcrv-materialize-emission-plans | FileCheck %s
 
 module {
   // CHECK-LABEL: tcrv.exec.kernel @public_scalar_fallback

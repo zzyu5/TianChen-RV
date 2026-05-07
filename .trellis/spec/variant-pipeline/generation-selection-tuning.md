@@ -73,6 +73,7 @@ pass factories in this order:
 ```text
 tcrv-materialize-plugin-variants
   -> tcrv-check-capability-requires
+  -> tcrv-verify-plugin-variant-legality
   -> tcrv-select-variants
   -> tcrv-check-capability-requires
   -> tcrv-materialize-selected-lowering-boundaries
@@ -95,6 +96,15 @@ planning stage for this pipeline. The older order-based
 is not inserted before selection, because selection owns cost-aware dispatch or
 selected-marker materialization and must not compete with a pre-existing
 dispatch surface.
+
+The `tcrv-verify-plugin-variant-legality` stage is the materialized-variant
+legality boundary before selection. It builds the same generic
+`TargetCapabilitySet` from direct kernel capability anchors and routes each
+direct `tcrv.exec.variant` only to the plugin named by its `origin` attribute.
+Plugin-local legality failures stop the pipeline before selection, dispatch,
+selected lowering-boundary materialization, or emission-plan diagnostics are
+created. This stage complements, and does not replace,
+`tcrv-check-capability-requires`.
 
 Emission readiness is not part of this public planning pipeline while the RVV
 first slice reports unsupported readiness as a fatal boundary. Instead, the

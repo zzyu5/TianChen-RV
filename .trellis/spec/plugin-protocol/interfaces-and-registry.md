@@ -496,18 +496,18 @@ use only a plugin-provided generic fallback role from proposal/materialized
 metadata or cost-estimate metadata; it must not invent fallback coverage from an
 arbitrary available variant.
 
-When selection, emission-readiness, or emission-plan collection is run as an
-MLIR pass, the pass must receive the same registry object explicitly from the
-owning tool or plugin loader. A public tool such as `tcrv-opt` may own a
-deterministic process-local registry and register built-in plugins before pass
-registration; this is a tool/front-door concern and must not move concrete
-extension branches into core orchestration. Default factory constructors with no
-injected plugins remain an honest diagnostic surface for C++ tests and embedded
-users: they must fail on unregistered variant `origin` plugins rather than
-falling back to core-side string attributes, target-family switches, or Python
-cost/readiness models. This keeps the dependency direction
-`tool/plugin loader -> registry -> core orchestration -> abstract plugin
-interface -> concrete extension implementation`.
+When legality verification, selection, emission-readiness, or emission-plan
+collection is run as an MLIR pass, the pass must receive the same registry
+object explicitly from the owning tool or plugin loader. A public tool such as
+`tcrv-opt` may own a deterministic process-local registry and register built-in
+plugins before pass registration; this is a tool/front-door concern and must
+not move concrete extension branches into core orchestration. Default factory
+constructors with no injected plugins remain an honest diagnostic surface for
+C++ tests and embedded users: they must fail on unregistered variant `origin`
+plugins rather than falling back to core-side string attributes, target-family
+switches, or Python legality/cost/readiness models. This keeps the dependency
+direction `tool/plugin loader -> registry -> core orchestration -> abstract
+plugin interface -> concrete extension implementation`.
 
 ## Registration Metadata
 

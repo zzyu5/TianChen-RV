@@ -27,6 +27,7 @@ void buildExecutionPlanningPipeline(
     const plugin::ExtensionPluginRegistry &registry) {
   pm.addPass(createMaterializePluginVariantsPass(registry));
   pm.addPass(createCheckCapabilityRequiresPass());
+  pm.addPass(createVerifyPluginVariantLegalityPass(registry));
   pm.addPass(createSelectVariantsPass(registry));
   pm.addPass(createCheckCapabilityRequiresPass());
   pm.addPass(createMaterializeSelectedLoweringBoundariesPass(registry));

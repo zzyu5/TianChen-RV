@@ -45,6 +45,10 @@ void registerTianChenRVOptPasses(
     return tianchenrv::transforms::createMaterializePluginVariantsPass(plugins);
   });
   mlir::registerPass([&plugins] {
+    return tianchenrv::transforms::createVerifyPluginVariantLegalityPass(
+        plugins);
+  });
+  mlir::registerPass([&plugins] {
     return tianchenrv::transforms::createSelectVariantsPass(plugins);
   });
   mlir::registerPass([&plugins] {

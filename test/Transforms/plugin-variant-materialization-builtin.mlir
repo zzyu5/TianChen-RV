@@ -1,5 +1,5 @@
 // RUN: tcrv-opt %s --split-input-file --tcrv-materialize-plugin-variants | FileCheck %s --check-prefix=MAT
-// RUN: tcrv-opt %s --split-input-file --tcrv-materialize-plugin-variants --tcrv-check-capability-requires --tcrv-select-variants | FileCheck %s --check-prefix=PIPE
+// RUN: tcrv-opt %s --split-input-file --tcrv-materialize-plugin-variants --tcrv-check-capability-requires --tcrv-verify-plugin-variant-legality --tcrv-select-variants | FileCheck %s --check-prefix=PIPE
 // RUN: tcrv-opt %s --split-input-file --tcrv-materialize-plugin-variants --tcrv-materialize-plugin-variants | FileCheck %s --check-prefix=RERUN
 
 module {

@@ -72,6 +72,34 @@ def MaterializePluginVariants
   ];
 }
 
+def VerifyPluginVariantLegality
+    : Pass<"tcrv-verify-plugin-variant-legality", "::mlir::ModuleOp"> {
+  let summary = "Verify materialized variants through origin plugin legality";
+  let description = [{
+    Verifies each direct materialized tcrv.exec.variant child of every
+    tcrv.exec.kernel through the variant's origin plugin before generic
+    selection, dispatch synthesis, selected lowering-boundary materialization,
+    or emission-plan diagnostics.
+
+    The pass builds a target-neutral TargetCapabilitySet from each kernel's
+    direct tcrv.exec.capability anchors and delegates legality to the injected
+    ExtensionPluginRegistry using the existing VariantLegalityRequest protocol.
+    It does not mutate IR and does not branch on RVV, scalar fallback, IME,
+    offload, Sophgo, AME, vendor, runtime, dtype, shape, toolchain,
+    microarchitecture, or probe-evidence semantics.
+
+    Public tcrv-opt registration owns a deterministic built-in registry at the
+    tool boundary, while the default factory constructor owns an empty registry
+    for embedded negative tests and diagnoses unregistered origins instead of
+    inventing core-side legality.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createVerifyPluginVariantLegalityPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def SelectVariants
     : Pass<"tcrv-select-variants", "::mlir::ModuleOp"> {
   let summary = "Run generic capability-aware variant selection planning";

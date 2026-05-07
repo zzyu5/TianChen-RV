@@ -3,6 +3,7 @@ add_mlir_library(TianChenRVTransforms
   EmissionReadiness.cpp
   ExecutionPlanningPipeline.cpp
   LoweringBoundary.cpp
+  PluginVariantLegality.cpp
   VariantDispatchSynthesis.cpp
   VariantMaterialization.cpp
   VariantSelection.cpp

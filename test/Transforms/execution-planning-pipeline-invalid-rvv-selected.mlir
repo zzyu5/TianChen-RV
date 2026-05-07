@@ -45,6 +45,8 @@ module {
   }
 }
 
-// CHECK: error: TianChen-RV selected lowering-boundary materialization failed for variant @rvv_bad_selected in kernel @pipeline_invalid_selected_rvv_metadata as dispatch case
-// CHECK-SAME: selected RVV variant @rvv_bad_selected failed plugin legality before boundary materialization
+// CHECK: error: TianChen-RV variant legality verification failed for variant @rvv_bad_selected in kernel @pipeline_invalid_selected_rvv_metadata
+// CHECK-SAME: origin plugin 'rvv-plugin' rejected variant
 // CHECK: 'tcrv_rvv.required_march' metadata is not satisfied by preserved capability property 'selected_march'
+// CHECK-NOT: TianChen-RV variant selection failed
+// CHECK-NOT: selected lowering-boundary materialization
