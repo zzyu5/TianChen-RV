@@ -47,6 +47,12 @@ constexpr llvm::StringLiteral kStatusAttrName("status");
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
+constexpr llvm::StringLiteral kElementCountAttrName("element_count");
+constexpr llvm::StringLiteral kMicrokernelRequiredMarchAttrName(
+    "required_march");
+constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kMicrokernelEmissionPath(
+    "rvv-explicit-i32-vadd-microkernel-c-source-export");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -397,6 +403,10 @@ llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
   return llvm::Error::success();
 }
 
+mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
+  return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
+}
+
 llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
                                                 tcrv::exec::VariantOp variant) {
   if (!kernel || kernel.getBody().empty())
@@ -421,6 +431,120 @@ llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
   }
 
   return llvm::Error::success();
+}
+
+llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
+                                            llvm::StringRef attrName,
+                                            llvm::StringRef expectedValue) {
+  auto attr = getStringAttr(op, attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeRVVPluginError(llvm::Twine("explicit RVV microkernel emission "
+                                          "plan requires non-empty string "
+                                          "attribute '") +
+                              attrName + "'");
+  if (llvm::Error error =
+          validateRVVPropertyText("explicit RVV microkernel emission plan",
+                                  attrName, attr.getValue().trim()))
+    return error;
+  if (attr.getValue().trim() != expectedValue)
+    return makeRVVPluginError(llvm::Twine("explicit RVV microkernel emission "
+                                          "plan attribute '") +
+                              attrName + "' value '" + attr.getValue().trim() +
+                              "' does not match expected selected-path value '" +
+                              expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Expected<bool> hasMatchingExplicitMicrokernel(
+    const VariantEmissionRequest &request) {
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!kernel || !variant || kernel.getBody().empty())
+    return false;
+
+  llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  auto variantRequiredMarch =
+      variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
+
+  unsigned matches = 0;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<tcrv::rvv::I32VAddMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    auto role = getStringAttr(&op, kRoleAttrName);
+    if (!selectedVariant || !role)
+      return makeRVVPluginError("explicit RVV microkernel emission plan "
+                                "requires selected_variant and role metadata");
+
+    if (selectedVariant.getValue() != variant.getSymName() ||
+        role.getValue() != expectedRole) {
+      return makeRVVPluginError(
+          llvm::Twine("stale tcrv_rvv.i32_vadd_microkernel for @") +
+          selectedVariant.getValue() + " as " + role.getValue() +
+          " is not the selected RVV emission plan path @" +
+          variant.getSymName() + " as " + expectedRole);
+    }
+
+    ++matches;
+
+    if (llvm::Error error =
+            validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
+                                            kernel.getSymName()))
+      return std::move(error);
+    if (llvm::Error error =
+            validateMicrokernelEmissionAttr(&op, kOriginAttrName,
+                                            kRVVPluginName))
+      return std::move(error);
+    if (llvm::Error error =
+            validateMicrokernelEmissionAttr(&op, kRoleAttrName, expectedRole))
+      return std::move(error);
+
+    if (!variantRequires ||
+        microkernel->getAttrOfType<mlir::ArrayAttr>(
+            kRequiredCapabilitiesAttrName) != variantRequires) {
+      return makeRVVPluginError(
+          "explicit RVV microkernel emission plan requires "
+          "tcrv_rvv.i32_vadd_microkernel required_capabilities to match "
+          "selected variant requires metadata");
+    }
+
+    if (!variantRequiredMarch || variantRequiredMarch.getValue().trim().empty())
+      return makeRVVPluginError(
+          "explicit RVV microkernel emission plan requires selected variant "
+          "metadata 'tcrv_rvv.required_march'");
+    if (llvm::Error error = validateMicrokernelEmissionAttr(
+            &op, kMicrokernelRequiredMarchAttrName,
+            variantRequiredMarch.getValue().trim()))
+      return std::move(error);
+
+    if (auto selectedMABI = getStringAttr(&op, kSelectedMABIAttrName))
+      if (llvm::Error error =
+              validateRVVPropertyText("explicit RVV microkernel emission plan",
+                                      kSelectedMABIAttrName,
+                                      selectedMABI.getValue().trim()))
+        return std::move(error);
+
+    auto elementCount =
+        op.getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
+    if (!elementCount || elementCount.getInt() <= 0 ||
+        elementCount.getInt() > 64)
+      return makeRVVPluginError(
+          "explicit RVV microkernel emission plan requires element_count in "
+          "the bounded smoke range [1, 64]");
+  }
+
+  if (matches > 1)
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV emission plan path @") +
+        variant.getSymName() + " as " + expectedRole +
+        " has duplicate tcrv_rvv.i32_vadd_microkernel metadata");
+
+  return matches == 1;
 }
 
 std::string sanitizeRVVDeclineReason(llvm::StringRef reason) {
@@ -657,6 +781,17 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return makeRVVPluginError(
         "emission readiness requires a materialized tcrv.exec.variant");
 
+  llvm::Expected<bool> hasMicrokernel =
+      hasMatchingExplicitMicrokernel(request);
+  if (!hasMicrokernel)
+    return hasMicrokernel.takeError();
+  if (*hasMicrokernel) {
+    out = VariantEmissionStatus::getSupported(
+        kRVVPluginName, request.getVariant().getSymName(),
+        kMicrokernelEmissionPath);
+    return llvm::Error::success();
+  }
+
   out = VariantEmissionStatus::getUnsupported(
       kRVVPluginName, request.getVariant().getSymName(),
       "RVV metadata-only first slice has no RVV lowering, runtime ABI, or "
@@ -674,6 +809,31 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   if (!request.getKernel())
     return makeRVVPluginError(
         "emission planning requires an enclosing tcrv.exec.kernel");
+
+  llvm::Expected<bool> hasMicrokernel =
+      hasMatchingExplicitMicrokernel(request);
+  if (!hasMicrokernel)
+    return hasMicrokernel.takeError();
+  if (*hasMicrokernel) {
+    out = VariantEmissionPlan::getSupported(
+        kRVVPluginName, request.getKernel().getSymName(),
+        request.getVariant().getSymName(), request.getRole(),
+        "rvv-explicit-i32-vadd-microkernel-c-source",
+        "tcrv-export-rvv-microkernel-c",
+        "rvv-i32-vadd-standalone-c-self-check.v1",
+        "standalone-c-source",
+        "explicit RVV i32 vector-add microkernel C source export is available "
+        "for this selected path; this is not generic RVV lowering, runtime ABI "
+        "integration, arbitrary kernel emission, correctness, or performance "
+        "evidence");
+    out.setRuntimeABIKind("rvv-standalone-c-source-export");
+    out.setRuntimeABIName("rvv-i32-vadd-microkernel-standalone-c.v1");
+    out.setRuntimeGlueRole("standalone-self-check-main");
+    if (llvm::Error error =
+            out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+      return error;
+    return llvm::Error::success();
+  }
 
   out = VariantEmissionPlan::getUnsupported(
       kRVVPluginName, request.getKernel().getSymName(),

@@ -487,8 +487,18 @@ llvm::StringRef getBoundaryName(mlir::Operation *op) {
 }
 
 bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
-  return static_cast<bool>(
-      op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName));
+  if (!op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName))
+    return false;
+
+  if (op.getName().getStringRef().ends_with(".lowering_boundary"))
+    return true;
+
+  if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op)) {
+    auto reason = diagnostic->getAttrOfType<mlir::StringAttr>(kReasonAttrName);
+    return reason && reason.getValue().contains("lowering-boundary");
+  }
+
+  return false;
 }
 
 llvm::Error collectSelectedBoundaryCandidate(

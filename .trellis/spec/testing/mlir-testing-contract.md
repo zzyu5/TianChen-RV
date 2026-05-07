@@ -76,6 +76,12 @@ Use lit/FileCheck for:
   missing/stale boundaries, missing/duplicate microkernel ops, malformed
   selected march metadata, and no manifest/runtime-success/raw-log/performance
   numbers.
+- RVV explicit microkernel emission-plan and emission-manifest handoff,
+  including supported standalone C source export metadata only when a selected
+  RVV path has exactly one matching `tcrv_rvv.i32_vadd_microkernel`, manifest
+  serialization of the bounded handoff fields, stale/duplicate microkernel
+  diagnostics, and tests proving the microkernel attachment is not counted as a
+  duplicate selected lowering boundary.
 
 Example test intent:
 

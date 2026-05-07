@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Verify implementation-stack boundary and no Python compiler internals."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free and diagnostics remain generic."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry/plugin locality and no target-family branches in core."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV microkernel support remains explicit and plugin-local."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emission-plan and manifest evidence wording stays bounded."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/FileCheck coverage for new compiler-visible behavior."}

@@ -496,6 +496,23 @@ llvm::Error collectEmissionPlanDiagnostics(
   return llvm::Error::success();
 }
 
+bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
+  if (!op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName))
+    return false;
+
+  if (op.getName().getStringRef().ends_with(".lowering_boundary"))
+    return true;
+
+  if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op)) {
+    auto reason =
+        diagnostic->getAttrOfType<mlir::StringAttr>(
+            execDiagnostic::kReasonAttrName);
+    return reason && reason.getValue().contains("lowering-boundary");
+  }
+
+  return false;
+}
+
 llvm::Error validateBoundaryCandidates(
     KernelOp kernel, llvm::ArrayRef<SelectedPath> selectedPaths,
     llvm::StringSet<> &selectedPathKeys) {
@@ -504,11 +521,11 @@ llvm::Error validateBoundaryCandidates(
 
   llvm::StringSet<> seenBoundaryKeys;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    if (!selectedVariant)
+    if (!isSelectedLoweringBoundaryCandidate(op))
       continue;
 
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
     auto role = op.getAttrOfType<mlir::StringAttr>(
         execDiagnostic::kRoleAttrName);
     if (!role || role.getValue().trim().empty())

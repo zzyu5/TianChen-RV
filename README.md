@@ -87,6 +87,15 @@ kernel executable emission, runtime ABI glue, or performance evidence; default
 RVV selected paths without the explicit microkernel op remain unsupported and
 deferred.
 
+When the selected RVV path has that exact explicit microkernel attachment, the
+RVV plugin may also materialize a supported emission-plan diagnostic and the
+generic emission manifest may serialize the handoff as a deterministic
+standalone C source export route. That manifest record is still compiler
+handoff metadata: it points downstream tooling to
+`tcrv-translate --tcrv-export-rvv-microkernel-c` and does not claim generic RVV
+lowering, runtime ABI integration, arbitrary kernel emission, correctness, or
+performance by itself.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:

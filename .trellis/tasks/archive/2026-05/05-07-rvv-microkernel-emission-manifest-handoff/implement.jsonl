@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Keep implementation in C++/MLIR/TableGen/CMake and avoid Python compiler internals."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Preserve tcrv.exec as execution/capability/variant metadata, not compute or RVV internals."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Route emission planning through plugin interfaces and keep extension-specific decisions plugin-local."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Bound RVV explicit microkernel behavior to the RVV plugin and real RVV evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Define emission plan, manifest, and RVV microkernel export boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Select lit/FileCheck and C++ test coverage for manifest and emission-plan behavior."}

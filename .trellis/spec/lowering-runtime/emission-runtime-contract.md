@@ -70,6 +70,11 @@ Rules:
   `role` must match the selected path, `origin` must match the selected
   variant origin, `required_capabilities` must be a safe subset of the selected
   variant `requires`, and stale or duplicate competing boundaries are fatal;
+- recognize selected lowering-boundary candidates only when they are actual
+  plugin-local `*.lowering_boundary` operations or explicit lowering-boundary
+  diagnostic metadata. A plugin-local executable attachment may also carry
+  selected-path fields, but it is not the generic lowering-boundary operation
+  consumed by emission planning;
 - allow public tools to populate a deterministic built-in plugin registry before
   constructing registry-dependent passes, while keeping the traversal and
   selected-path routing target-neutral in shared pass code;
@@ -523,6 +528,30 @@ the explicit generated i32 vector-add microkernel compiled and passed its
 self-check on that host with the selected compiler flags. It does not prove
 generic TianChen-RV lowering correctness, supported arbitrary RVV kernel
 emission, runtime ABI support, or performance.
+
+### 6. Emission Plan / Manifest Handoff
+
+When the explicit microkernel op matches the selected RVV path, the RVV plugin
+may return a supported emission plan for the standalone C source export route:
+
+```text
+status: supported
+emission kind: rvv-explicit-i32-vadd-microkernel-c-source
+lowering pipeline: tcrv-export-rvv-microkernel-c
+runtime ABI: rvv-i32-vadd-standalone-c-self-check.v1
+runtime ABI kind/name: RVV standalone C source export metadata
+runtime glue role: standalone self-check main
+artifact kind: standalone-c-source
+```
+
+This supported plan is a plugin-owned compiler handoff to the existing RVV
+microkernel exporter. It is more concrete than the default unsupported RVV
+first-slice plan, but it is still not generic RVV lowering, runtime ABI glue,
+object generation, arbitrary kernel emission, correctness evidence, or
+performance evidence by itself. The generic emission manifest may serialize the
+record after validating the selected surface, the `tcrv_rvv.lowering_boundary`
+link, and the emission-plan diagnostic. It must not reinterpret the adjacent
+`tcrv_rvv.i32_vadd_microkernel` attachment as a second lowering boundary.
 
 ## Scalar Fallback Metadata Boundary
 

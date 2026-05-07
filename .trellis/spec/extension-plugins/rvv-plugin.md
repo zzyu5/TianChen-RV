@@ -103,6 +103,18 @@ path for `@rvv_first_slice`. The unsupported reason is a diagnostic boundary
 that prevents accidental RVV lowering/runtime claims until a later slice adds
 real lowering and `ssh rvv` evidence.
 
+The explicit microkernel slice is the first narrow exception to that default
+unsupported first-slice boundary. If the selected `rvv-plugin` path has exactly
+one matching `tcrv_rvv.i32_vadd_microkernel` direct kernel-child attachment,
+with selected variant, role, required capability refs, and required march
+matching the selected path, `RVVExtensionPlugin` may report a supported
+plugin-owned emission path for deterministic standalone C source export through
+`tcrv-translate --tcrv-export-rvv-microkernel-c`. This support is bounded to the
+explicit i32 vector-add microkernel artifact route. It does not make default
+`@rvv_first_slice` paths supported, does not provide generic RVV lowering or
+runtime ABI integration, and does not create correctness or performance
+evidence without separate `ssh rvv` compile/run artifacts.
+
 ## Remote Evidence Probe Contract
 
 The repo-owned RVV evidence probe is `scripts/rvv_remote_probe.py`. It is
