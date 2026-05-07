@@ -129,8 +129,10 @@ Use lit/FileCheck for:
   fallback branch, RVV intrinsic code preservation, scalar i32 addition
   preservation, bounded metadata comments, pipeline-to-dispatch-export coverage
   where the scalar fallback callable is descriptor-materialized rather than
-  hand-authored, and fail-closed diagnostics when the scalar callable fallback
-  metadata is missing or unsupported.
+  hand-authored, an explicit self-check harness export that calls the generated
+  dispatcher with both `rvv_available = 0` and `rvv_available = 1`, and
+  fail-closed diagnostics when the scalar callable fallback metadata is missing
+  or unsupported.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability
@@ -273,6 +275,14 @@ microkernel correctness evidence only for that explicit source and selected
 flags. It must not be reported as generic TianChen-RV lowering correctness,
 arbitrary RVV emission support, full runtime integration, or performance
 evidence.
+
+If the repository exports a generated RVV+scalar dispatch self-check C harness,
+local lit tests must cover the harness structure without requiring `ssh rvv`.
+Any remote compile/run of that generated harness must be reported separately as
+bounded correctness/runtime-invocation evidence for the explicit i32-vadd
+dispatcher only. It must not be reported as generic high-level lowering
+correctness, arbitrary RVV emission support, object generation, dynamic runtime
+integration, or performance evidence.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must

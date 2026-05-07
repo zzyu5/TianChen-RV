@@ -355,8 +355,42 @@ void printDispatcherFunction(llvm::raw_ostream &os,
   os << "}\n";
 }
 
+void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
+                                   llvm::StringRef dispatcherFunctionName) {
+  os << "\n/* Explicit bounded self-check harness for RVV+scalar dispatch "
+        "runtime invocation evidence. */\n";
+  os << "/* Harness scope: calls the generated dispatcher once with "
+        "rvv_available = 0 and once with rvv_available = 1. */\n";
+  os << "/* Runtime n is a target/export-owned ABI parameter in this harness; "
+        "descriptor-local element_count remains metadata only. */\n";
+  os << "#include <stdio.h>\n\n";
+  os << "static int " << dispatcherFunctionName
+     << "_self_check_one(int rvv_available) {\n";
+  os << "  const int32_t lhs[16] = {0, 1, 2, 3, 4, 5, 6, 7, "
+        "8, 9, 10, 11, 12, 13, 14, 15};\n";
+  os << "  const int32_t rhs[16] = {31, 29, 23, 19, 17, 13, 11, 7, "
+        "5, 3, 2, 1, -1, -3, -5, -7};\n";
+  os << "  int32_t out[16] = {0};\n";
+  os << "  " << dispatcherFunctionName
+     << "(lhs, rhs, out, 16, rvv_available);\n";
+  os << "  for (size_t index = 0; index < 16; ++index) {\n";
+  os << "    if (out[index] != lhs[index] + rhs[index])\n";
+  os << "      return 1;\n";
+  os << "  }\n";
+  os << "  return 0;\n";
+  os << "}\n\n";
+  os << "int main(void) {\n";
+  os << "  if (" << dispatcherFunctionName << "_self_check_one(0))\n";
+  os << "    return 1;\n";
+  os << "  if (" << dispatcherFunctionName << "_self_check_one(1))\n";
+  os << "    return 2;\n";
+  os << "  puts(\"tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok\");\n";
+  os << "  return 0;\n";
+  os << "}\n";
+}
+
 void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
-                         llvm::StringRef scalarSource,
+                         llvm::StringRef scalarSource, bool includeSelfCheck,
                          llvm::raw_ostream &os) {
   KernelOp kernel = pair.rvv.kernel;
   std::string rvvFunctionName = makeRVVFunctionName(pair.rvv);
@@ -405,6 +439,8 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   os << "\n/* Host dispatcher over the two validated callable artifacts. */\n";
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
                           scalarFunctionName, dispatchParameters);
+  if (includeSelfCheck)
+    printDispatchSelfCheckHarness(os, dispatcherFunctionName);
 }
 
 } // namespace
@@ -423,7 +459,29 @@ llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
 
   std::string source;
   llvm::raw_string_ostream stream(source);
-  printDispatchSource(*pair, rvvSource, scalarSource, stream);
+  printDispatchSource(*pair, rvvSource, scalarSource,
+                      /*includeSelfCheck=*/false, stream);
+  stream.flush();
+  os << source;
+  return llvm::Error::success();
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
+  if (!pair)
+    return pair.takeError();
+
+  std::string rvvSource;
+  std::string scalarSource;
+  if (llvm::Error error =
+          buildEmbeddedCallableSources(module, rvvSource, scalarSource))
+    return error;
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  printDispatchSource(*pair, rvvSource, scalarSource,
+                      /*includeSelfCheck=*/true, stream);
   stream.flush();
   os << source;
   return llvm::Error::success();

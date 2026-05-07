@@ -96,6 +96,19 @@ mlir::LogicalResult exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
 }
 
 mlir::LogicalResult
+exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                         llvm::raw_ostream &os) {
+  if (llvm::Error error = tianchenrv::target::rvv_scalar::
+                              exportRVVScalarI32VAddDispatchSelfCheckC(module,
+                                                                       os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult
 exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
                                    TargetArtifactExportFn exportFn) {
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
@@ -174,6 +187,14 @@ void registerTianChenRVTranslations() {
       "export one host RVV+scalar i32 vector-add dispatch C source",
       exportRVVScalarI32VAddDispatchC, registerTianChenRVTranslateDialects);
   (void)rvvScalarDispatchC;
+
+  static mlir::TranslateFromMLIRRegistration rvvScalarDispatchSelfCheckC(
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c",
+      "export one host RVV+scalar i32 vector-add dispatch C source with "
+      "self-check harness",
+      exportRVVScalarI32VAddDispatchSelfCheckC,
+      registerTianChenRVTranslateDialects);
+  (void)rvvScalarDispatchSelfCheckC;
 
   static mlir::TranslateFromMLIRRegistration targetSourceArtifact(
       "tcrv-export-target-source-artifact",

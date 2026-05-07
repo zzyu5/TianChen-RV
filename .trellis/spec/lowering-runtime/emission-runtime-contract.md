@@ -927,6 +927,123 @@ hardware probing, dynamic loading, object generation, linking, arbitrary
 dispatch lowering, benchmarking, correctness evidence, or performance
 evidence.
 
+An explicit self-check harness export may wrap the same generated dispatcher in
+a bounded `main` that invokes both branches over fixed local arrays:
+
+```text
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
+```
+
+That harness is target-owned runtime invocation evidence tooling for this
+finite i32-vadd dispatcher only. It may emit one bounded success marker after
+both scalar fallback and RVV branch checks pass. It must not replace the default
+library-style dispatch artifact, broaden selected-path validation, perform
+automatic hardware probing, generate objects, link a runtime library, report
+benchmarks, or claim generic RVV lowering correctness. Real correctness claims
+for the RVV branch still require separate `ssh rvv` compile/run evidence for
+the generated harness source and selected flags.
+
+### Dispatch Self-Check Harness Export
+
+#### 1. Scope / Trigger
+
+Trigger: a post-planning module already satisfies the host RVV+scalar i32-vadd
+dispatch C export boundary, and the caller wants explicit runtime invocation
+evidence for the generated dispatcher rather than the default library-style
+source artifact.
+
+This is a target-owned evidence export mode for the finite i32-vadd dispatcher.
+It must not become a generic object/link/runtime pipeline.
+
+#### 2. Signatures
+
+Public command:
+
+```text
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
+```
+
+C++ entry point:
+
+```cpp
+llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+```
+
+#### 3. Contracts
+
+- The export reuses the same selected-path, lowering-boundary,
+  emission-plan, route-id, artifact-kind, and structured runtime ABI parameter
+  validation as `--tcrv-export-rvv-scalar-i32-vadd-dispatch-c`.
+- The default dispatcher export remains library-style and must not contain a
+  hidden `main`, self-check helper, or success marker.
+- The self-check source embeds the same RVV callable source, scalar callable
+  source, and dispatcher function, then appends a bounded harness.
+- The harness calls the dispatcher with `rvv_available = 0` to exercise the
+  scalar fallback branch and with `rvv_available = 1` to exercise the RVV
+  branch.
+- The harness uses fixed local arrays and a target/export-owned runtime `n`
+  ABI argument. Descriptor-local `element_count` remains metadata only.
+- The harness may print one bounded success marker after both checks pass.
+- Output must not include benchmark sizes, throughput, latency, raw logs,
+  credentials, URLs, absolute artifact paths, or performance claims.
+
+#### 4. Validation & Error Matrix
+
+- Missing selected RVV dispatch case -> same fail-before-source diagnostic as
+  the default dispatch export.
+- Missing selected scalar dispatch fallback -> same fail-before-source
+  diagnostic as the default dispatch export.
+- Missing or stale RVV/scalar lowering boundary -> fail before source output.
+- Missing or unsupported callable emission-plan metadata for either branch ->
+  fail before source output.
+- Missing structured `lhs`, `rhs`, `out`, or runtime `n` ABI parameter metadata
+  on either callable route -> fail before source output.
+- Route spoofing, wrong origin, wrong role, or unsupported artifact kind ->
+  fail before source output.
+- Remote compile/run failure of generated harness -> evidence collection
+  failure only; it must not be converted into a compiler-side success claim.
+
+#### 5. Good / Base / Bad Cases
+
+- Good: execution-planning pipeline materializes RVV and scalar callable paths;
+  the self-check export compiles on `ssh rvv`, runs both branch checks, and
+  prints the bounded success marker.
+- Base: local lit/FileCheck checks prove the harness structure without
+  contacting `ssh rvv`.
+- Bad: the default dispatcher export silently includes a `main`, or the
+  self-check command bypasses runtime ABI metadata validation.
+
+#### 6. Tests Required
+
+- lit/FileCheck must prove the default dispatcher export still lacks `main`,
+  self-check helpers, and runtime success markers.
+- lit/FileCheck must prove the self-check export appends a harness that calls
+  the dispatcher with both `rvv_available = 0` and `rvv_available = 1`.
+- Pipeline-to-self-check coverage must use
+  `tcrv-opt --tcrv-execution-planning-pipeline | tcrv-translate
+  --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`.
+- Any RVV runtime/correctness claim for the self-check source must include
+  separate `ssh rvv` compile/run evidence and must name the selected compile
+  flags.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+The dispatch self-check passed, so TianChen-RV supports generic RVV lowering
+and runtime integration.
+```
+
+Correct:
+
+```text
+The generated bounded RVV+scalar i32-vadd dispatch self-check source compiled
+and ran on ssh rvv with selected flags; this proves only that the finite
+dispatcher harness invoked both callable branches correctly.
+```
+
 Contracts:
 
 - Input must be real post-planning MLIR with one selected RVV dispatch case and

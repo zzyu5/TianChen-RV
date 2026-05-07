@@ -328,6 +328,16 @@ loading, linking, benchmarking, correctness measurement, or performance
 measurement. RVV runtime/correctness/performance claims still require separate
 real `ssh rvv` evidence.
 
+The explicit
+`tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`
+helper emits the same bounded dispatcher source plus a small `main` that calls
+the dispatcher with `rvv_available = 0` and `rvv_available = 1` over fixed local
+arrays. This helper exists only for bounded runtime invocation evidence of the
+current RVV+scalar i32-vadd dispatch slice. A successful `ssh rvv` compile/run
+of that generated source proves only that this dispatcher harness passed on the
+selected host flags; it is not generic RVV lowering, object generation, dynamic
+runtime integration, performance evidence, or broad correctness coverage.
+
 ## Runtime Offload First Slice
 
 The built-in registry includes a generic C++ `offload-plugin` first slice for

@@ -1,7 +1,10 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c > %t.dispatch.c
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
 // RUN: FileCheck %s --check-prefix=BODY --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c > %t.dispatch-self-check.c
+// RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch-self-check.c
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c | FileCheck %s --check-prefix=AUTO --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c | FileCheck %s --check-prefix=AUTO-HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_scalar_dispatch_input {
   tcrv.exec.kernel @dispatch_vadd {
@@ -150,3 +153,33 @@ module @rvv_scalar_dispatch_input {
 // AUTO: if (rvv_available)
 // AUTO: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);
 // AUTO: tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice(lhs, rhs, out, n);
+
+// HARNESS: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+// HARNESS: /* selected_kernel: @dispatch_vadd */
+// HARNESS: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
+// HARNESS: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// HARNESS-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
+// HARNESS: if (rvv_available)
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
+// HARNESS: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+// HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+// HARNESS: /* Harness scope: calls the generated dispatcher once with rvv_available = 0 and once with rvv_available = 1. */
+// HARNESS: Runtime n is a target/export-owned ABI parameter
+// HARNESS: descriptor-local element_count remains metadata only
+// HARNESS: #include <stdio.h>
+// HARNESS-LABEL: {{^}}static int tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(int rvv_available)
+// HARNESS: int32_t out[16] = {0};
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd(lhs, rhs, out, 16, rvv_available);
+// HARNESS: if (out[index] != lhs[index] + rhs[index])
+// HARNESS-LABEL: {{^}}int main(void)
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(0)
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(1)
+// HARNESS: puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok");
+
+// AUTO-HARNESS: /* selected_kernel: @pipeline_manifest */
+// AUTO-HARNESS: void tcrv_dispatch_i32_vadd_pipeline_manifest
+// AUTO-HARNESS: static int tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(int rvv_available)
+// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest(lhs, rhs, out, 16, rvv_available);
+// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(0)
+// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(1)
+// AUTO-HARNESS: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok
