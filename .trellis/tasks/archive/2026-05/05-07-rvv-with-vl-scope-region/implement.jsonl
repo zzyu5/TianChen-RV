@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for compiler stack, extension locality, and evidence boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local dialect boundary and parameter layering for setvl/with_vl"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Clarify with_vl as control-plane IR, not runtime ABI or evidence"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Keep plugin variant and selection flow target-neutral"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and evidence interpretation for MLIR behavior"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure RVV extension semantics stay plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure the new op is not high-level compute IR"}

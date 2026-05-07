@@ -32,15 +32,17 @@ The first compiler slice defines a minimal `tcrv.exec.*` operation family throug
 
 The built-in RVV first slice registers the concrete MLIR namespace
 `tcrv_rvv` through the RVV plugin path. It includes metadata/control-plane
-surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, and
-`tcrv_rvv.setvl` for bounded runtime AVL-to-VL control, plus
-`tcrv_rvv.lowering_boundary` for selected RVV variants. The setvl surface is
-control-plane IR only: it consumes a runtime AVL SSA value, returns a
-`!tcrv_rvv.vl` token, and carries bounded first-slice SEW/LMUL/policy
-metadata. The lowering boundary is pre-executable compiler metadata only:
-these RVV surfaces do not emit RVV intrinsics, lower to LLVM/RISC-V, create
-runtime ABI glue, generate objects, run hardware, prove correctness, or measure
-performance.
+surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, `tcrv_rvv.setvl` for
+bounded runtime AVL-to-VL control, and `tcrv_rvv.with_vl` for the matching
+bounded VL scope region, plus `tcrv_rvv.lowering_boundary` for selected RVV
+variants. The setvl surface is control-plane IR only: it consumes a runtime AVL
+SSA value, returns a `!tcrv_rvv.vl` token, and carries bounded first-slice
+SEW/LMUL/policy metadata. The with_vl surface consumes that runtime VL token and
+creates a single-block plugin-local control-plane region for future RVV body
+work; it is not arithmetic, memory, lowering, runtime ABI, or evidence. The
+lowering boundary is pre-executable compiler metadata only: these RVV surfaces
+do not emit RVV intrinsics, lower to LLVM/RISC-V, create runtime ABI glue,
+generate objects, run hardware, prove correctness, or measure performance.
 
 Selected-path lowering-boundary materialization is routed through the generic
 extension plugin registry. The public `tcrv-opt` pass

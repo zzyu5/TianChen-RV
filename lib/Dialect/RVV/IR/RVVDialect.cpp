@@ -41,6 +41,7 @@ constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
 constexpr llvm::StringLiteral kAVLAttrName("avl");
+constexpr llvm::StringLiteral kVLAttrName("vl");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
@@ -57,6 +58,11 @@ constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVVLenAttrName("tcrv_rvv.vlen");
 constexpr llvm::StringLiteral kRVVVLenBAttrName("tcrv_rvv.vlenb");
+constexpr llvm::StringLiteral kArchitectureAttrName("architecture");
+constexpr llvm::StringLiteral kISAVectorHintsAttrName("isa_vector_hints");
+constexpr llvm::StringLiteral kHartCountAttrName("hart_count");
+constexpr llvm::StringLiteral kSelectedMarchAttrName("selected_march");
+constexpr llvm::StringLiteral kCapabilityFactsAttrName("capability_facts");
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
@@ -201,6 +207,11 @@ bool isAllowedSetVLAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedWithVLAttr(llvm::StringRef name) {
+  return name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
   return name == kAVLAttrName || name == kVLenAttrName ||
          name == kVLenBAttrName || name == kElementCountAttrName ||
@@ -210,6 +221,14 @@ bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
          name == kRVVRequiredCapabilitiesAttrName ||
          name == kRVVElementCountAttrName || name == kRVVVLenAttrName ||
          name == kRVVVLenBAttrName;
+}
+
+bool isForbiddenWithVLParameterAttr(llvm::StringRef name) {
+  return isForbiddenSetVLParameterAttr(name) || name == kVLAttrName ||
+         name == kCapabilitySummaryAttrName ||
+         name == kArchitectureAttrName || name == kISAVectorHintsAttrName ||
+         name == kHartCountAttrName || name == kSelectedMarchAttrName ||
+         name == kCapabilityFactsAttrName;
 }
 
 } // namespace
@@ -267,6 +286,80 @@ mlir::LogicalResult SetVLOp::verify() {
   if (!getPolicy())
     return emitOpError()
            << "requires finite #tcrv_rvv.policy compile-time policy metadata";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult WithVLOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenWithVLParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.with_vl keeps VLEN/vlenb as target capability "
+                "facts, element_count as descriptor-local metadata, "
+                "required_march/required_capabilities as selected-path "
+                "metadata, and AVL/VL as runtime SSA/control values";
+
+    if (!isAllowedWithVLAttr(attrName))
+      return emitOpError()
+             << "only accepts optional bounded compile-time config "
+                "attributes '"
+             << kSEWAttrName << "', '" << kLMULAttrName << "', and '"
+             << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 1)
+    return emitOpError() << "requires exactly one runtime VL SSA operand";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+
+  if (op->getNumRegions() != 1)
+    return emitOpError() << "requires exactly one VL scope region";
+
+  mlir::Region &body = getBody();
+  if (body.empty() || !llvm::hasSingleElement(body))
+    return emitOpError() << "requires a single-block VL scope region";
+  if (body.front().getNumArguments() != 0)
+    return emitOpError()
+           << "requires VL scope region to have no region arguments; the "
+              "consumed !tcrv_rvv.vl operand is the scope control value";
+
+  auto sew = op->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (sew && sew.getInt() != 32)
+    return emitOpError()
+           << "requires optional SEW compile-time config 'sew' to be 32 for "
+              "the bounded RVV first slice";
+
+  auto lmul = op->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (lmul && lmul.getValue() != "m1")
+    return emitOpError()
+           << "requires optional LMUL compile-time config 'lmul' to be "
+              "\"m1\" for the bounded RVV first slice";
+
+  auto policy = op->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (op->hasAttr(kPolicyAttrName) && !policy)
+    return emitOpError()
+           << "requires optional policy metadata to be #tcrv_rvv.policy";
+
+  if (auto setvl = getVl().getDefiningOp<SetVLOp>()) {
+    if (sew && static_cast<int64_t>(setvl.getSew()) != sew.getInt())
+      return emitOpError()
+             << "requires optional 'sew' metadata to match defining "
+                "tcrv_rvv.setvl";
+    if (lmul && setvl.getLmul() != lmul.getValue())
+      return emitOpError()
+             << "requires optional 'lmul' metadata to match defining "
+                "tcrv_rvv.setvl";
+    if (policy && setvl.getPolicy() != policy)
+      return emitOpError()
+             << "requires optional 'policy' metadata to match defining "
+                "tcrv_rvv.setvl";
+  }
 
   return mlir::success();
 }

@@ -224,16 +224,20 @@ The first RVV dialect slice is still metadata/control-plane only. It introduces
 the vector-length token type `!tcrv_rvv.vl`, the finite policy attribute
 `#tcrv_rvv.policy<tail = agnostic|undisturbed, mask =
 agnostic|undisturbed>`, the bounded runtime AVL-to-VL control-plane operation
-`tcrv_rvv.setvl`, and the pre-executable `tcrv_rvv.lowering_boundary`
-operation. The setvl op consumes a runtime AVL SSA value, produces a
-`!tcrv_rvv.vl` token, and carries only bounded first-slice compile-time config
-metadata: SEW 32, LMUL m1, and the finite policy attribute. The boundary op
-records selected RVV source/variant/role/status metadata for a future lowering
-attachment point. These surfaces are not RVV arithmetic, memory operations,
-LLVM/RISC-V lowering, runtime ABI glue, executable emission, correctness
-evidence, or performance evidence. `tcrv_rvv` is the concrete MLIR dialect
-namespace because MLIR dialect namespaces cannot contain `.` characters; the
-architectural extension family remains `tcrv.rvv`.
+`tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`, and
+the pre-executable `tcrv_rvv.lowering_boundary` operation. The setvl op
+consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
+only bounded first-slice compile-time config metadata: SEW 32, LMUL m1, and the
+finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
+owns one single-block region for future RVV control/body work. Optional
+duplicated SEW/LMUL/policy metadata is limited to the same bounded first-slice
+config and must agree with the visible defining setvl when present. The
+boundary op records selected RVV source/variant/role/status metadata for a
+future lowering attachment point. These surfaces are not RVV arithmetic, memory
+operations, LLVM/RISC-V lowering, runtime ABI glue, executable emission,
+correctness evidence, or performance evidence. `tcrv_rvv` is the concrete MLIR
+dialect namespace because MLIR dialect namespaces cannot contain `.` characters;
+the architectural extension family remains `tcrv.rvv`.
 
 ## Capability Fields
 
@@ -302,6 +306,17 @@ Current first-slice runtime VL control-plane op:
 } : index -> !tcrv_rvv.vl
 ```
 
+Current first-slice VL scope control-plane op:
+
+```mlir
+tcrv_rvv.with_vl %vl attributes {
+  lmul = "m1",
+  policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+  sew = 32 : i64
+} {
+} : !tcrv_rvv.vl
+```
+
 Current first-slice lowering boundary op:
 
 ```mlir
@@ -317,15 +332,20 @@ tcrv_rvv.lowering_boundary {
 }
 ```
 
-The type is a non-compute vector-length token used by the bounded setvl surface
-and parser/printer ownership tests. The policy attribute is finite non-compute
-metadata for proposal preservation, setvl configuration, and RVV plugin-local
-legality. The setvl op is the first bounded runtime VL control-plane surface:
-AVL is a runtime SSA operand, vl is a `!tcrv_rvv.vl` result, SEW/LMUL/policy are
-compile-time config metadata for this first slice, and VLEN/vlenb,
-`element_count`, `required_march`, and `required_capabilities` are explicitly
-not accepted on the op. The lowering-boundary op is a direct child of a
-`tcrv.exec.kernel`, references a direct sibling selected RVV
+The type is a non-compute vector-length token used by the bounded setvl and
+with_vl surfaces and parser/printer ownership tests. The policy attribute is
+finite non-compute metadata for proposal preservation, setvl/with_vl
+configuration, and RVV plugin-local legality. The setvl op is the first bounded
+runtime VL control-plane surface: AVL is a runtime SSA operand, vl is a
+`!tcrv_rvv.vl` result, SEW/LMUL/policy are compile-time config metadata for
+this first slice, and VLEN/vlenb, `element_count`, `required_march`, and
+`required_capabilities` are explicitly not accepted on the op. The with_vl op
+is the bounded structural companion to setvl: it consumes one runtime VL SSA
+token, owns one single-block region with no region arguments, may repeat only
+the same bounded SEW/LMUL/policy config, and rejects VLEN/vlenb,
+`element_count`, `required_march`, `required_capabilities`, and raw capability
+facts. The lowering-boundary op is a direct child of a `tcrv.exec.kernel`,
+references a direct sibling selected RVV
 `tcrv.exec.variant`, and only admits `status = "unsupported"` plus direct
 variant or dispatch-case roles. It also carries generic selected-boundary
 contract metadata (`origin = "rvv-plugin"` and `required_capabilities`
@@ -347,9 +367,10 @@ RVV work must keep these parameter layers distinct:
   standalone hardware facts without the surrounding capability/profile evidence.
 - AVL and vl are runtime SSA values / runtime control values. The current
   bounded `tcrv_rvv.setvl` surface models AVL as a real runtime SSA operand and
-  vl as a real `!tcrv_rvv.vl` result. A future `with_vl` surface must not imply
-  that AVL or vl is IR-modeled unless a real op attribute, SSA value, region
-  argument, or ABI parameter exists.
+  vl as a real `!tcrv_rvv.vl` result. The bounded `tcrv_rvv.with_vl` surface
+  models vl only when it consumes a real `!tcrv_rvv.vl` SSA operand. It must not
+  imply that AVL or vl is IR-modeled unless a real op attribute, SSA value,
+  region argument, or ABI parameter exists.
 - `tcrv_rvv.element_count` in the current i32-vadd descriptor, microkernel op,
   and C export path is descriptor-local and bounded. It describes the finite
   emitted source slice or test descriptor, not high-level MLIR tensor shape,
@@ -362,9 +383,9 @@ RVV work must keep these parameter layers distinct:
 Emission plans and manifests for RVV paths must not claim VLEN, vlenb, SEW,
 LMUL, AVL, vl, `setvl`, `with_vl`, `element_count`, or `required_march` are
 IR-modeled unless the real IR has the corresponding attribute, type, SSA value,
-region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` op
-models only runtime AVL-to-VL control-plane IR; it does not make VLEN/vlenb or
-descriptor-local `element_count` runtime values.
+region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` and
+`tcrv_rvv.with_vl` ops model only runtime AVL/VL control-plane IR; they do not
+make VLEN/vlenb or descriptor-local `element_count` runtime values.
 
 ## First Lowering Boundary Slice
 
@@ -403,7 +424,6 @@ Future RVV execution dialect work may add richer types:
 Future RVV execution dialect work may add ops:
 
 ```text
-tcrv.rvv.with_vl
 tcrv.rvv.load
 tcrv.rvv.store
 tcrv.rvv.masked_load

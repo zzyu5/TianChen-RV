@@ -132,9 +132,9 @@ Generated C may contain target-owned local variables such as a local `vl`
 computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
 That does not imply those values were modeled in MLIR unless the input IR has
 the corresponding attribute, type, SSA value, region argument, or ABI/control
-surface. The current bounded `tcrv_rvv.setvl` surface models only runtime
-AVL-to-VL control-plane IR when it appears in the input; the same claim boundary
-applies to any future `with_vl` dialect surface.
+surface. The current bounded `tcrv_rvv.setvl` and `tcrv_rvv.with_vl` surfaces
+model only runtime AVL/VL control-plane IR when they appear in the input. They
+are not emitted runtime ABI evidence by themselves.
 
 ### Execution-Plan / Export Preflight Coherence
 

@@ -18,7 +18,8 @@ def TCRV_RVV_Dialect : Dialect {
     This first slice intentionally exposes only non-compute control-plane
     surfaces and is registered by RVVExtensionPlugin through the
     ExtensionPluginRegistry path. The bounded tcrv_rvv.setvl op is the first
-    runtime AVL-to-VL control-plane surface; RVV arithmetic, memory, reduction,
+    runtime AVL-to-VL control-plane surface, and tcrv_rvv.with_vl provides the
+    matching bounded VL scope region. RVV arithmetic, memory, reduction,
     lowering, emission, runtime ABI, executable behavior, correctness, and
     performance evidence are out of scope for this dialect skeleton.
   }];
@@ -84,7 +85,8 @@ def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {
   let description = [{
     A non-compute token type representing an RVV vector-length control-plane
     value. This type is produced by the bounded tcrv_rvv.setvl runtime
-    AVL-to-VL control-plane op and may also appear in syntax tests proving
+    AVL-to-VL control-plane op, consumed by the bounded tcrv_rvv.with_vl
+    control-plane scope op, and may also appear in syntax tests proving
     plugin-local RVV dialect registration and ownership. It does not model
     vector arithmetic, memory, runtime ABI, lowering, executable behavior,
     correctness, or performance.
@@ -104,7 +106,8 @@ def SetVLOp : TCRVRVV_Op<"setvl", []> {
     counts, required march metadata, required capability metadata, pointer or
     memory operands, RVV arithmetic, vector registers, masks, lowering,
     runtime ABI glue, generated artifacts, hardware execution, correctness, or
-    performance.
+    performance. The companion tcrv_rvv.with_vl op may consume the produced
+    !tcrv_rvv.vl token to form a bounded control-plane region.
   }];
 
   let arguments = (ins
@@ -116,6 +119,38 @@ def SetVLOp : TCRVRVV_Op<"setvl", []> {
   let results = (outs AnyType:$vl);
 
   let assemblyFormat = "$avl attr-dict `:` type($avl) `->` type($vl)";
+  let hasVerifier = 1;
+}
+
+def WithVLOp : TCRVRVV_Op<"with_vl",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "bounded RVV VL scope control-plane region";
+  let description = [{
+    Creates a plugin-local RVV control-plane scope for work that is governed by
+    an existing runtime VL token. The operation consumes one !tcrv_rvv.vl value,
+    normally produced by tcrv_rvv.setvl, and owns one single-block region with
+    no region arguments. Optional duplicated SEW/LMUL/policy attributes are
+    limited to the same bounded first-slice compile-time configuration accepted
+    by setvl and are verified for compatibility when the consumed VL is visibly
+    defined by a tcrv_rvv.setvl op.
+
+    This op is a structural prerequisite for future RVV control/body lowering
+    work only. It does not model VLEN/vlenb hardware facts, descriptor-local
+    element counts, required march metadata, required capability metadata,
+    raw capability facts, pointer or memory operands, RVV arithmetic, vector
+    registers, masks, lowering, runtime ABI glue, generated artifacts,
+    hardware execution, correctness, or performance.
+  }];
+
+  let arguments = (ins
+    AnyType:$vl,
+    OptionalAttr<I64Attr>:$sew,
+    OptionalAttr<StrAttr>:$lmul,
+    OptionalAttr<TCRVRVV_PolicyAttr>:$policy
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = "$vl attr-dict-with-keyword $body `:` type($vl)";
   let hasVerifier = 1;
 }
 
