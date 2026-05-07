@@ -390,6 +390,9 @@ public:
   llvm::StringRef getLoweringPipeline() const { return loweringPipeline; }
   llvm::StringRef getRuntimeABI() const { return runtimeABI; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
+  llvm::StringRef getLoweringBoundaryOpName() const {
+    return loweringBoundaryOpName;
+  }
   llvm::StringRef getDiagnostic() const { return diagnostic; }
   llvm::StringRef getExplanation() const { return explanation; }
 
@@ -414,6 +417,9 @@ public:
   void setArtifactKind(llvm::StringRef value) {
     artifactKind = value.str();
   }
+  void setLoweringBoundaryOpName(llvm::StringRef value) {
+    loweringBoundaryOpName = value.str();
+  }
   void setDiagnostic(llvm::StringRef value) { diagnostic = value.str(); }
   void setExplanation(llvm::StringRef value) { explanation = value.str(); }
 
@@ -427,6 +433,7 @@ private:
   std::string loweringPipeline;
   std::string runtimeABI;
   std::string artifactKind;
+  std::string loweringBoundaryOpName;
   std::string diagnostic;
   std::string explanation;
 };

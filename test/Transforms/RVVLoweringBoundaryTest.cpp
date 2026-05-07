@@ -286,6 +286,18 @@ int expectBoundaryTarget(LoweringBoundaryOp boundary,
                           "boundary remains unsupported"))
     return result;
 
+  auto origin = boundary->getAttrOfType<mlir::StringAttr>("origin");
+  if (int result = expect(origin && origin.getValue() == "rvv-plugin",
+                          "boundary records RVV origin plugin"))
+    return result;
+
+  auto requiredCapabilities =
+      boundary->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
+  if (int result =
+          expect(requiredCapabilities && !requiredCapabilities.empty(),
+                 "boundary records required capability references"))
+    return result;
+
   auto capabilitySummary =
       boundary->getAttrOfType<mlir::StringAttr>("capability_summary");
   return expect(capabilitySummary &&

@@ -40,6 +40,8 @@ module {
     // CHECK: tcrv.exec.fallback @scalar_fallback_first_slice
     // CHECK: tcrv_rvv.lowering_boundary
     // CHECK-SAME: capability_summary = "rvv"
+    // CHECK-SAME: origin = "rvv-plugin"
+    // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "dispatch case"
     // CHECK-SAME: selected_variant = @rvv_first_slice
     // CHECK-SAME: source_kernel = "public_rvv_plus_scalar_boundary"
@@ -52,6 +54,7 @@ module {
     // CHECK-SAME: source_kernel = "public_rvv_plus_scalar_boundary"
     // CHECK-SAME: status = "metadata-only"
     // CHECK: tcrv.exec.diagnostic
+    // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: role = "dispatch case"
     // CHECK-SAME: status = "unsupported"
@@ -59,6 +62,7 @@ module {
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: artifact_kind = "metadata-diagnostic"
     // CHECK-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+    // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // CHECK-SAME: lowering_pipeline = "none-executable-metadata-only"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: role = "dispatch fallback"
@@ -132,11 +136,14 @@ module {
     // CHECK-SAME: status = "missing"
     // CHECK-SAME: target = @rvv_first_slice
     // CHECK: tcrv_rvv.lowering_boundary
+    // CHECK-SAME: origin = "rvv-plugin"
+    // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: selected_variant = @rvv_first_slice
     // CHECK-SAME: source_kernel = "public_rvv_without_scalar_boundary"
     // CHECK-SAME: status = "unsupported"
     // CHECK: tcrv.exec.diagnostic
+    // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: status = "unsupported"

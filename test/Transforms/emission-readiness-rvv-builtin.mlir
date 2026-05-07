@@ -20,6 +20,15 @@ module {
       status = "selected",
       target = @rvv_first_slice
     }
+    tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "public_rvv_readiness",
+      status = "unsupported",
+      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
+    }
   }
 }
 

@@ -57,9 +57,10 @@ metadata/intent and remains separate from executable code generation evidence.
 Core may also materialize those plugin-owned plans into
 `tcrv.exec.diagnostic {reason = "emission_plan"}` metadata after selected-path
 collection succeeds. That materialization is limited to copying generic plan
-fields and validating symbol structure; it is not lowering, runtime glue,
-artifact generation, RVV support, correctness evidence, or performance
-evidence.
+fields, validating symbol structure, and validating the selected plugin-owned
+lowering-boundary metadata when the selected path has such a boundary. It is
+not lowering, runtime glue, artifact generation, RVV support, correctness
+evidence, or performance evidence.
 
 Public tool integration is a front-door/plugin-loader responsibility, not a core
 target-family branch. For example, `tcrv-opt` may construct a deterministic

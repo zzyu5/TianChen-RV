@@ -45,10 +45,15 @@ Use lit/FileCheck for:
 - public `--tcrv-execution-planning-pipeline` coverage through `tcrv-opt`,
   including deterministic built-in RVV/scalar proposal order, selected
   dispatch/fallback materialization, selected lowering-boundary metadata,
-  emission-plan diagnostics, parseable pipeline output, fallback preservation
-  after recoverable RVV proposal declines, no-viable-proposal diagnostics,
-  pre-existing mismatched variant diagnostics, deterministic rerun diagnostics,
-  and fatal invalid selected RVV metadata.
+  boundary-linked emission-plan diagnostics, parseable pipeline output,
+  fallback preservation after recoverable RVV proposal declines,
+  no-viable-proposal diagnostics, pre-existing mismatched variant diagnostics,
+  deterministic rerun diagnostics, and fatal invalid selected RVV metadata.
+- boundary-aware emission planning diagnostics, including missing selected
+  boundary, selected-boundary origin mismatch, selected-variant mismatch, stale
+  boundary after selection changes, duplicate competing boundaries,
+  required-capability mismatch, and no diagnostic append after failed
+  materialization.
 
 Example test intent:
 

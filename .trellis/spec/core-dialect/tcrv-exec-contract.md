@@ -309,6 +309,7 @@ tcrv.exec.diagnostic {
   target = @selected_variant,
   origin = "example-plugin",
   role = "direct variant",
+  lowering_boundary = "example.lowering_boundary",
   plan_kind = "plugin-emission-plan",
   emission_kind = "metadata-intent",
   lowering_pipeline = "example.lowering.pipeline.v1",
@@ -318,14 +319,19 @@ tcrv.exec.diagnostic {
 ```
 
 For `reason = "emission_plan"`, `target`, `origin`, `role`, and `status` are
-required and non-empty. `status` must be `supported` or `unsupported`.
-Supported diagnostics additionally require non-empty `emission_kind`,
-`lowering_pipeline`, `runtime_abi`, and `artifact_kind`. Unsupported
-diagnostics require non-empty diagnostic text through `message`. The target
-must resolve to a direct sibling `tcrv.exec.variant` in the same kernel.
+required and non-empty. `status` must be `supported`, `metadata-only`, or
+`unsupported`. Supported and metadata-only diagnostics additionally require
+non-empty `emission_kind`, `lowering_pipeline`, `runtime_abi`, and
+`artifact_kind`. Unsupported diagnostics require non-empty diagnostic text
+through `message`. The target must resolve to a direct sibling
+`tcrv.exec.variant` in the same kernel.
 Duplicate emission-plan diagnostics for the same target in one kernel are
-invalid. These diagnostics do not prove that executable code was generated,
-linked, run, correct, or performant.
+invalid. When the selected path has a materialized plugin lowering boundary, a
+diagnostic may also carry non-empty `lowering_boundary` metadata naming the
+boundary operation used for the plan. This is a generic diagnostic link only;
+it is not lowering, execution, correctness, or performance evidence. These
+diagnostics do not prove that executable code was generated, linked, run,
+correct, or performant.
 
 ## Core Types And Attributes
 

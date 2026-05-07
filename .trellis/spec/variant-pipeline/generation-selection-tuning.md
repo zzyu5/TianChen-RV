@@ -99,10 +99,13 @@ dispatch surface.
 Emission readiness is not part of this public planning pipeline while the RVV
 first slice reports unsupported readiness as a fatal boundary. Instead, the
 pipeline materializes plugin-owned emission-plan diagnostics after selected
-lowering-boundary materialization. These diagnostics are reproducibility
-metadata only: they do not lower IR, emit LLVM/RISC-V/RVV code, create runtime
-ABI glue, generate artifacts, run hardware, prove correctness, or measure
-performance.
+lowering-boundary materialization. Emission-plan materialization must validate
+the selected plugin-owned boundary surface before producing diagnostics and
+should record a generic `lowering_boundary` diagnostic metadata field naming
+the boundary operation used by each selected plan. These diagnostics are
+reproducibility metadata only: they do not lower IR, emit LLVM/RISC-V/RVV code,
+create runtime ABI glue, generate artifacts, run hardware, prove correctness,
+or measure performance.
 
 The pipeline is deterministic but not allowed to paper over stale or competing
 selected surfaces. Re-running on IR that already contains a direct dispatch,
@@ -664,12 +667,18 @@ The same selected-path traversal may be reused to collect plugin-owned emission
 plans after readiness. Emission-plan collection must keep dispatch cases and
 fallbacks in dispatch body order, consume a single selected-path marker before
 falling back to conservative all-direct-variant traversal, and diagnose the
-same malformed selected-path structure before invoking plugin hooks. Each
-collected plan is a structured compiler decision object for the selected path:
-it records origin plugin, kernel symbol, variant symbol, selected-path role,
-support status, and either supported route metadata or an unsupported
-diagnostic. It does not lower IR, generate executable code, prove runtime
-correctness, or justify performance claims.
+same malformed selected-path structure before invoking plugin hooks. For
+dispatch or selected-marker surfaces that have passed through selected
+lowering-boundary materialization, collection must first validate that each
+selected reference has exactly one matching plugin-owned boundary. Missing,
+stale, duplicate, origin-mismatched, selected-variant-mismatched, or
+required-capability-mismatched boundaries are deterministic failures and must
+not result in appended emission-plan diagnostics. Each collected plan is a
+structured compiler decision object for the selected path: it records origin
+plugin, kernel symbol, variant symbol, selected-path role, support status, the
+validated lowering-boundary operation when present, and either supported route
+metadata or an unsupported diagnostic. It does not lower IR, generate
+executable code, prove runtime correctness, or justify performance claims.
 
 ## Capability-Aware Tuning
 

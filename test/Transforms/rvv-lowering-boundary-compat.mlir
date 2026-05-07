@@ -27,6 +27,8 @@ module {
 
 // CHECK-LABEL: tcrv.exec.kernel @rvv_compat_wrapper
 // CHECK: tcrv_rvv.lowering_boundary
+// CHECK-SAME: origin = "rvv-plugin"
+// CHECK-SAME: required_capabilities = [@rvv]
 // CHECK-SAME: role = "direct variant"
 // CHECK-SAME: selected_variant = @rvv_first_slice
 // CHECK-SAME: source_kernel = "rvv_compat_wrapper"

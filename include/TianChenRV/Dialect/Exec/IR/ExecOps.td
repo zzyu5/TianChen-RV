@@ -156,7 +156,8 @@ def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
                    OptionalAttr<StrAttr>:$emission_kind,
                    OptionalAttr<StrAttr>:$lowering_pipeline,
                    OptionalAttr<StrAttr>:$runtime_abi,
-                   OptionalAttr<StrAttr>:$artifact_kind);
+                   OptionalAttr<StrAttr>:$artifact_kind,
+                   OptionalAttr<StrAttr>:$lowering_boundary);
   let assemblyFormat = "attr-dict";
   let hasVerifier = 1;
 }

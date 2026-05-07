@@ -116,6 +116,11 @@ variant's required capability symbol references. It must not materialize
 cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
+Downstream emission planning may consume this boundary as the validated
+selected-path attachment point before materializing scalar metadata-only
+emission-plan diagnostics. The boundary can satisfy planning consistency only;
+it is not scalar executable lowering or runtime evidence.
+
 The only first-slice status is `metadata-only`. The scalar boundary records a
 plugin-owned attachment point and explicit fallback metadata only; it does not
 mean that TianChen-RV emitted LLVM IR, generated an object, linked a runtime,

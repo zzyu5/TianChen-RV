@@ -58,6 +58,8 @@ module {
     // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
     // PIPE: tcrv_rvv.lowering_boundary
     // PIPE-SAME: capability_summary = "rvv"
+    // PIPE-SAME: origin = "rvv-plugin"
+    // PIPE-SAME: required_capabilities = [@rvv]
     // PIPE-SAME: role = "dispatch case"
     // PIPE-SAME: selected_variant = @rvv_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
@@ -70,6 +72,7 @@ module {
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: role = "dispatch case"
     // PIPE-SAME: status = "unsupported"
@@ -77,6 +80,7 @@ module {
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: artifact_kind = "metadata-diagnostic"
     // PIPE-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+    // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // PIPE-SAME: lowering_pipeline = "none-executable-metadata-only"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: role = "dispatch fallback"
@@ -128,6 +132,7 @@ module {
     // PIPE-SAME: source_kernel = "pipeline_scalar_after_rvv_decline"
     // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: role = "direct variant"
     // PIPE-SAME: status = "metadata-only"

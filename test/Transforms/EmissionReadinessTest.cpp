@@ -404,6 +404,44 @@ llvm::StringRef getTargetAttr(DiagnosticOp diagnostic) {
   return attr ? attr.getValue() : llvm::StringRef();
 }
 
+void addMockLoweringBoundary(mlir::MLIRContext &context, KernelOp kernel,
+                             llvm::StringRef variantSymbol,
+                             llvm::StringRef origin,
+                             llvm::StringRef role) {
+  VariantOp variant = findDirectVariant(kernel, variantSymbol);
+  mlir::OpBuilder builder(&context);
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+
+  mlir::OperationState state(kernel.getLoc(), DiagnosticOp::getOperationName());
+  state.addAttribute("reason",
+                     mlir::StringAttr::get(&context, "mock-lowering-boundary"));
+  state.addAttribute(
+      "message",
+      mlir::StringAttr::get(
+          &context,
+          "mock selected lowering boundary used by generic emission tests"));
+  state.addAttribute("source_kernel",
+                     mlir::StringAttr::get(&context, kernel.getSymName()));
+  state.addAttribute("selected_variant",
+                     mlir::FlatSymbolRefAttr::get(&context, variantSymbol));
+  state.addAttribute("origin", mlir::StringAttr::get(&context, origin));
+  state.addAttribute("role", mlir::StringAttr::get(&context, role));
+  state.addAttribute("status",
+                     mlir::StringAttr::get(&context, "metadata-only"));
+  if (variant) {
+    if (auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires"))
+      state.addAttribute("required_capabilities", requires);
+  }
+  builder.create(state);
+}
+
+void addMockDirectBoundary(mlir::MLIRContext &context, KernelOp kernel,
+                           llvm::StringRef variantSymbol,
+                           llvm::StringRef origin = "mock-emitter") {
+  addMockLoweringBoundary(context, kernel, variantSymbol, origin,
+                          "direct variant");
+}
+
 int expectDiagnosticStringAttr(DiagnosticOp diagnostic, llvm::StringRef name,
                                llvm::StringRef expected,
                                llvm::Twine context) {
@@ -683,6 +721,9 @@ module {
                                  "register selected marker slow plugin"))
     return result;
 
+  KernelOp kernel = findKernel(*module, "selected_marker");
+  addMockDirectBoundary(context, kernel, "fast", "fast-emitter");
+
   mlir::PassManager passManager(&context);
   passManager.addPass(
       tianchenrv::transforms::createCheckEmissionPathsPass(registry));
@@ -752,6 +793,14 @@ module {
                                  "register dispatch pass plugin"))
     return result;
 
+  KernelOp kernel = findKernel(*module, "dispatch_pass");
+  addMockLoweringBoundary(context, kernel, "fast", "mock-emitter",
+                          "dispatch case");
+  addMockLoweringBoundary(context, kernel, "medium", "mock-emitter",
+                          "dispatch case");
+  addMockLoweringBoundary(context, kernel, "fallback", "mock-emitter",
+                          "dispatch fallback");
+
   mlir::PassManager passManager(&context);
   passManager.addPass(
       tianchenrv::transforms::createCheckEmissionPathsPass(registry));
@@ -814,6 +863,13 @@ module {
   if (int result = expectSuccess(registry.registerPlugin(plugin),
                                  "register dispatch emission plan plugin"))
     return result;
+
+  addMockLoweringBoundary(context, kernel, "fast", "mock-emitter",
+                          "dispatch case");
+  addMockLoweringBoundary(context, kernel, "medium", "mock-emitter",
+                          "dispatch case");
+  addMockLoweringBoundary(context, kernel, "fallback", "mock-emitter",
+                          "dispatch fallback");
 
   llvm::SmallVector<VariantEmissionPlan, 4> plans;
   if (int result = expectSuccess(
@@ -895,6 +951,8 @@ module {
   if (int result = expectSuccess(registry.registerPlugin(slowPlugin),
                                  "register selected plan slow plugin"))
     return result;
+
+  addMockDirectBoundary(context, kernel, "fast", "mock-emitter");
 
   llvm::SmallVector<VariantEmissionPlan, 2> plans;
   if (int result = expectSuccess(
@@ -1014,6 +1072,9 @@ module {
                                  "register materialization slow plugin"))
     return result;
 
+  KernelOp kernelBeforePass = findKernel(*module, "materialize_selected");
+  addMockDirectBoundary(context, kernelBeforePass, "fast", "mock-emitter");
+
   mlir::PassManager passManager(&context);
   passManager.addPass(
       tianchenrv::transforms::createMaterializeEmissionPlansPass(registry));
@@ -1090,6 +1151,13 @@ module {
   if (int result = expectSuccess(registry.registerPlugin(plugin),
                                  "register dispatch materialization plugin"))
     return result;
+
+  addMockLoweringBoundary(context, kernel, "fast", "mock-emitter",
+                          "dispatch case");
+  addMockLoweringBoundary(context, kernel, "medium", "mock-emitter",
+                          "dispatch case");
+  addMockLoweringBoundary(context, kernel, "fallback", "mock-emitter",
+                          "dispatch fallback");
 
   if (int result = expectSuccess(
           tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
@@ -1341,6 +1409,67 @@ module {
       return result;
     if (int result = expect(plugin.getPlanCalls() == 0,
                             "missing dispatch target fails before planning"))
+      return result;
+  }
+
+  {
+    constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @stale_boundary_with_existing_plan {
+    tcrv.exec.capability @base {
+      id = "generic.base",
+      kind = "generic"
+    }
+    tcrv.exec.variant @fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.variant @old_fast attributes {
+      origin = "mock-emitter",
+      requires = [@base]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fast selected by generic planner",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      target = @fast
+    }
+    tcrv.exec.diagnostic {
+      message = "stale mock boundary",
+      origin = "mock-emitter",
+      reason = "mock-lowering-boundary",
+      required_capabilities = [@base],
+      role = "direct variant",
+      selected_variant = @old_fast,
+      source_kernel = "stale_boundary_with_existing_plan",
+      status = "metadata-only"
+    }
+    tcrv.exec.diagnostic {
+      message = "existing unsupported plan",
+      origin = "mock-emitter",
+      reason = "emission_plan",
+      role = "direct variant",
+      status = "unsupported",
+      target = @fast
+    }
+  }
+}
+)mlir";
+    EmissionPlugin plugin("mock-emitter");
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(plugin),
+                                   "register stale boundary plugin"))
+      return result;
+    if (int result = expectMaterializationErrorLeavesDiagnosticCount(
+            context, source, registry,
+            {"stale lowering boundary", "selected_variant @old_fast",
+             "not selected by the current dispatch"},
+            1))
+      return result;
+    if (int result = expect(plugin.getPlanCalls() == 0,
+                            "stale boundary fails before planning"))
       return result;
   }
 

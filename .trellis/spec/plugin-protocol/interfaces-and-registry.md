@@ -445,6 +445,13 @@ planning after readiness, without generating executable artifacts:
 - validate returned plans by requiring a present status, non-empty origin
   plugin, non-empty kernel symbol, non-empty variant symbol, matching
   origin/kernel/variant identity, and matching selected-path role;
+- when selected lowering-boundary metadata has been materialized for the
+  selected path, validate it before plugin plan routing and require exactly one
+  matching direct kernel-child boundary for each selected reference;
+- reject selected-boundary absence, stale selected-variant references, role
+  mismatches, origin mismatches, required-capability mismatches, and duplicate
+  competing boundaries generically before materializing emission-plan
+  diagnostics;
 - require supported and metadata-only plans to carry non-empty generic emission
   kind, lowering pipeline identifier, runtime ABI identifier, artifact kind, and
   explanation;
@@ -467,6 +474,9 @@ Materialization is a core orchestration surface only:
 - it copies plugin-owned generic fields such as origin, role, support status,
   emission kind, lowering pipeline id, runtime ABI id, artifact kind, and
   diagnostic/explanation text;
+- for selected paths with a validated plugin boundary, it also records a generic
+  `lowering_boundary` diagnostic metadata field naming the boundary operation
+  used for that plan;
 - it rejects pre-existing materialized emission-plan diagnostics instead of
   appending stale duplicates;
 - it never fills in RVV, IME, offload, scalar, vendor, dtype, shape,

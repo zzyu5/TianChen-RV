@@ -54,6 +54,14 @@ Rules:
   malformed plugin result, mismatched variant symbol, mismatched kernel symbol,
   mismatched selected-path role, duplicate selected markers, and missing
   dispatch targets generically before treating the plan as usable;
+- for selected dispatch or selected-marker paths after lowering-boundary
+  materialization, require exactly one matching plugin-owned boundary operation
+  before emission-plan diagnostics are materialized;
+- validate selected-boundary metadata generically before plugin plan routing:
+  `source_kernel` must match the enclosing kernel, `selected_variant` and
+  `role` must match the selected path, `origin` must match the selected
+  variant origin, `required_capabilities` must be a safe subset of the selected
+  variant `requires`, and stale or duplicate competing boundaries are fatal;
 - allow public tools to populate a deterministic built-in plugin registry before
   constructing registry-dependent passes, while keeping the traversal and
   selected-path routing target-neutral in shared pass code;
@@ -85,6 +93,10 @@ Rules:
   plugin-local metadata and must not receive RVV ops;
 - RVV boundary ops must carry `status = "unsupported"` and a non-empty
   unsupported reason;
+- RVV and scalar fallback boundary ops must carry the generic selected-boundary
+  contract fields needed by downstream emission planning: `source_kernel`,
+  `selected_variant`, `origin`, `role`, `status`, and
+  `required_capabilities`;
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
@@ -260,7 +272,11 @@ emission kind, lowering pipeline id, runtime ABI id, and artifact kind; it does
 not mean that the compiler emitted LLVM/RISC-V/RVV IR, assembled an object,
 linked a runtime, ran hardware, proved correctness, or measured performance.
 Unsupported diagnostics should carry explicit plugin diagnostic text and are
-valid evidence of a boundary, not of executable support.
+valid evidence of a boundary, not of executable support. When a selected-path
+lowering boundary was consumed, the diagnostic should also carry a generic
+`lowering_boundary` metadata field naming the boundary operation used by the
+plan. That field is a diagnostic link only and does not imply executable
+lowering.
 
 The current public `tcrv-opt` built-in registry includes the RVV first-slice
 plugin. Therefore an `origin = "rvv-plugin"` selected path can materialize an

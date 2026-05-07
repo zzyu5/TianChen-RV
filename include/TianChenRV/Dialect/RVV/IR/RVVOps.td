@@ -105,8 +105,10 @@ def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
   let arguments = (ins
     StrAttr:$source_kernel,
     FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
     StrAttr:$role,
     StrAttr:$status,
+    ArrayAttr:$required_capabilities,
     OptionalAttr<StrAttr>:$capability_summary,
     StrAttr:$unsupported_reason
   );

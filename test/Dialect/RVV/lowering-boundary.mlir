@@ -16,12 +16,16 @@ module {
     }
     // CHECK: tcrv_rvv.lowering_boundary
     // CHECK-SAME: capability_summary = "rvv"
+    // CHECK-SAME: origin = "rvv-plugin"
+    // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "dispatch case"
     // CHECK-SAME: selected_variant = @rvv_first_slice
     // CHECK-SAME: source_kernel = "rvv_boundary_valid"
     // CHECK-SAME: status = "unsupported"
     tcrv_rvv.lowering_boundary {
       capability_summary = "rvv",
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
       role = "dispatch case",
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_boundary_valid",
@@ -44,6 +48,8 @@ module {
     }
     // expected-error@+1 {{requires non-empty string attribute 'source_kernel'}}
     tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "",
@@ -66,6 +72,8 @@ module {
     }
     // expected-error@+1 {{requires attribute 'role'}}
     tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_boundary_missing_role",
       status = "unsupported",
@@ -87,6 +95,8 @@ module {
     }
     // expected-error@+1 {{status must be 'unsupported'}}
     tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_boundary_supported_status",
@@ -109,6 +119,8 @@ module {
     }
     // expected-error@+1 {{requires attribute 'status'}}
     tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_boundary_missing_status",
@@ -130,6 +142,8 @@ module {
     }
     // expected-error@+1 {{unsupported_reason must not claim executable RVV emission}}
     tcrv_rvv.lowering_boundary {
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
       role = "direct variant",
       selected_variant = @rvv_first_slice,
       source_kernel = "rvv_boundary_executable_claim",

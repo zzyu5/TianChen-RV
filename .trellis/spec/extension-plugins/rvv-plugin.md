@@ -242,8 +242,10 @@ Current first-slice lowering boundary op:
 tcrv_rvv.lowering_boundary {
   source_kernel = "kernel_symbol",
   selected_variant = @rvv_first_slice,
+  origin = "rvv-plugin",
   role = "dispatch case",
   status = "unsupported",
+  required_capabilities = [@rvv],
   capability_summary = "rvv",
   unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
 }
@@ -255,10 +257,13 @@ The policy attribute is finite non-compute metadata for proposal preservation
 and RVV plugin-local legality. The lowering-boundary op is a direct child of a
 `tcrv.exec.kernel`, references a direct sibling selected RVV
 `tcrv.exec.variant`, and only admits `status = "unsupported"` plus direct
-variant or dispatch-case roles. These surfaces are not `vsetvl`, vector
-registers, masks, memory operations, RVV intrinsics, LLVM/RISC-V lowering,
-runtime ABI, executable emission, correctness evidence, or performance
-evidence.
+variant or dispatch-case roles. It also carries generic selected-boundary
+contract metadata (`origin = "rvv-plugin"` and `required_capabilities`
+matching the selected variant requirement references) so target-neutral
+emission planning can validate the boundary before materializing diagnostics.
+These surfaces are not `vsetvl`, vector registers, masks, memory operations,
+RVV intrinsics, LLVM/RISC-V lowering, runtime ABI, executable emission,
+correctness evidence, or performance evidence.
 
 ## First Lowering Boundary Slice
 

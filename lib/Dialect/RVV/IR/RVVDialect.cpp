@@ -4,6 +4,7 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -27,12 +28,16 @@ namespace {
 
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
+constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRoleAttrName("role");
 constexpr llvm::StringLiteral kStatusAttrName("status");
+constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
+    "required_capabilities");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
+constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
@@ -66,6 +71,17 @@ bool isAllowedLoweringBoundaryRole(llvm::StringRef role) {
   return role == kDirectVariantRoleValue || role == kDispatchCaseRoleValue;
 }
 
+bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
+  if (!lhs || !rhs || lhs.size() != rhs.size())
+    return false;
+
+  for (auto [lhsAttr, rhsAttr] : llvm::zip(lhs, rhs)) {
+    if (lhsAttr != rhsAttr)
+      return false;
+  }
+  return true;
+}
+
 } // namespace
 
 mlir::LogicalResult LoweringBoundaryOp::verify() {
@@ -78,6 +94,10 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   if (hasMissingOrEmptyStringAttr(op, kRoleAttrName))
     return emitOpError()
            << "requires non-empty string attribute '" << kRoleAttrName << "'";
+  if (hasMissingOrEmptyStringAttr(op, kOriginAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kOriginAttrName
+           << "'";
   if (hasMissingOrEmptyStringAttr(op, kStatusAttrName))
     return emitOpError()
            << "requires non-empty string attribute '" << kStatusAttrName
@@ -97,6 +117,12 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
            << "status must be '" << kUnsupportedStatusValue
            << "' because tcrv_rvv.lowering_boundary is pre-executable "
               "metadata and not an RVV executable lowering claim";
+
+  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (origin.getValue() != kRVVPluginName)
+    return emitOpError()
+           << "origin must be '" << kRVVPluginName
+           << "' because this is the RVV plugin boundary surface";
 
   auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
   if (!isAllowedLoweringBoundaryRole(role.getValue()))
@@ -120,6 +146,14 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
            << "requires non-empty variant symbol reference attribute '"
            << kSelectedVariantAttrName << "'";
 
+  auto requiredCapabilities =
+      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
+  if (!requiredCapabilities || requiredCapabilities.empty())
+    return emitOpError()
+           << "requires non-empty array attribute '"
+           << kRequiredCapabilitiesAttrName
+           << "' containing capability symbol references";
+
   auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
   if (!kernel)
     return emitOpError()
@@ -139,17 +173,53 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv.exec.kernel to have a body block";
 
+  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     auto variant =
         llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling);
-    if (variant && variant.getSymName() == selectedVariant.getValue())
-      return mlir::success();
+    if (variant && variant.getSymName() == selectedVariant.getValue()) {
+      resolvedVariant = variant;
+      break;
+    }
   }
 
-  return emitOpError()
-         << "selected_variant @" << selectedVariant.getValue()
-         << " must resolve to a direct sibling tcrv.exec.variant in the "
-            "enclosing tcrv.exec.kernel";
+  if (!resolvedVariant)
+    return emitOpError()
+           << "selected_variant @" << selectedVariant.getValue()
+           << " must resolve to a direct sibling tcrv.exec.variant in the "
+              "enclosing tcrv.exec.kernel";
+
+  for (mlir::Attribute requiredCapability : requiredCapabilities) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef)
+      return emitOpError()
+             << "attribute '" << kRequiredCapabilitiesAttrName
+             << "' must contain only capability symbol references";
+
+    bool foundCapability = false;
+    for (mlir::Operation &sibling : kernel.getBody().front()) {
+      auto capability =
+          llvm::dyn_cast<tianchenrv::tcrv::exec::CapabilityOp>(sibling);
+      if (capability && capability.getSymName() == symbolRef.getValue()) {
+        foundCapability = true;
+        break;
+      }
+    }
+    if (!foundCapability)
+      return emitOpError()
+             << "requires unknown capability @" << symbolRef.getValue()
+             << " in enclosing tcrv.exec.kernel";
+  }
+
+  auto variantRequires =
+      resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!arrayAttrsEqual(requiredCapabilities, variantRequires))
+    return emitOpError()
+           << "required_capabilities must match selected variant requires "
+              "metadata";
+
+  return mlir::success();
 }
 
 void TCRVRVVDialect::initialize() {

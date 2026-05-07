@@ -30,6 +30,7 @@ module {
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: artifact_kind = "metadata-diagnostic"
     // CHECK-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+    // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // CHECK-SAME: lowering_pipeline = "none-executable-metadata-only"
     // CHECK-SAME: message = "scalar fallback first slice records a portable fallback metadata route
     // CHECK-SAME: origin = "scalar-plugin"

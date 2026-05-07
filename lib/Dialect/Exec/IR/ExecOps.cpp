@@ -38,6 +38,7 @@ using diagnostic::kEmissionKindAttrName;
 using diagnostic::kEmissionPlanSupportedStatusValue;
 using diagnostic::kEmissionPlanMetadataOnlyStatusValue;
 using diagnostic::kEmissionPlanUnsupportedStatusValue;
+using diagnostic::kLoweringBoundaryAttrName;
 using diagnostic::kLoweringPipelineAttrName;
 using diagnostic::kMessageAttrName;
 using diagnostic::kOriginAttrName;
@@ -148,6 +149,10 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   if (isPresentButEmptyStringAttr(op, kPlanKindAttrName))
     return diagnostic.emitOpError()
            << "requires non-empty string attribute '" << kPlanKindAttrName
+           << "' when present";
+  if (isPresentButEmptyStringAttr(op, kLoweringBoundaryAttrName))
+    return diagnostic.emitOpError()
+           << "requires non-empty string attribute '" << kLoweringBoundaryAttrName
            << "' when present";
 
   auto targetAttr = op->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);

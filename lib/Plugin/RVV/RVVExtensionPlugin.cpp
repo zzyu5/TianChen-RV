@@ -38,6 +38,8 @@ constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
+    "required_capabilities");
 constexpr llvm::StringLiteral kRoleAttrName("role");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
@@ -466,6 +468,9 @@ tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
     llvm::StringRef capabilitySummary) {
+  auto requiredCapabilities =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+
   mlir::OperationState state(variant.getLoc(),
                              tcrv::rvv::LoweringBoundaryOp::getOperationName());
   state.addAttribute(kSourceKernelAttrName,
@@ -473,10 +478,12 @@ tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
   state.addAttribute(kSelectedVariantAttrName,
                      mlir::FlatSymbolRefAttr::get(builder.getContext(),
                                                   variant.getSymName()));
+  state.addAttribute(kOriginAttrName, builder.getStringAttr(kRVVPluginName));
   state.addAttribute(kRoleAttrName,
                      builder.getStringAttr(stringifyVariantEmissionRole(role)));
   state.addAttribute(kStatusAttrName,
                      builder.getStringAttr(kUnsupportedStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   state.addAttribute(kCapabilitySummaryAttrName,
                      builder.getStringAttr(capabilitySummary));
   state.addAttribute(

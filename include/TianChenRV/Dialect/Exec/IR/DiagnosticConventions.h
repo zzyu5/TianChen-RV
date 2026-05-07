@@ -9,6 +9,8 @@ inline constexpr llvm::StringLiteral kArtifactKindAttrName("artifact_kind");
 inline constexpr llvm::StringLiteral kEmissionKindAttrName("emission_kind");
 inline constexpr llvm::StringLiteral kLoweringPipelineAttrName(
     "lowering_pipeline");
+inline constexpr llvm::StringLiteral kLoweringBoundaryAttrName(
+    "lowering_boundary");
 inline constexpr llvm::StringLiteral kMessageAttrName("message");
 inline constexpr llvm::StringLiteral kOriginAttrName("origin");
 inline constexpr llvm::StringLiteral kPlanKindAttrName("plan_kind");
