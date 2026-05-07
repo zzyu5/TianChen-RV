@@ -356,6 +356,33 @@ It is not evidence that the compiler emitted LLVM IR, assembled an object,
 linked runtime glue, ran a scalar kernel, proved correctness, or measured
 performance.
 
+## Runtime Offload Metadata Boundary
+
+The first runtime-offload plugin slice may return a metadata-only emission
+readiness result and materialize a metadata-only emission-plan diagnostic for a
+generic runtime ABI handoff:
+
+```text
+status: metadata-only
+emission kind: runtime-offload-handoff-metadata-route
+lowering pipeline: offload-runtime-boundary-metadata-only
+runtime ABI: generic-runtime-offload-c-abi-handoff.v1
+runtime ABI kind: runtime-offload-c-abi-handoff
+runtime ABI name: generic-runtime-offload-c-abi-handoff.v1
+runtime glue role: plugin-owned-runtime-offload-glue-boundary
+artifact kind: metadata-handoff-manifest
+```
+
+This is compiler handoff metadata for downstream runtime integration. It does
+not emit vendor runtime calls, allocate or copy device buffers, compile
+accelerator kernels, generate objects, link runtime libraries, run hardware,
+prove correctness, or measure performance. The selected
+`tcrv_offload.lowering_boundary` op records the plugin-local runtime-offload
+handoff boundary, but it remains metadata-only and non-executable. Its
+availability depends on explicit `offload.runtime` capability metadata and
+plugin legality; it cannot resurrect unavailable, malformed, illegal, or
+unselected variants.
+
 ## Emission Manifest Export Boundary
 
 After planning has materialized an explicit selected surface and

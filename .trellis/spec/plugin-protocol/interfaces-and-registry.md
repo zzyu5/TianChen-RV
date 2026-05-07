@@ -550,10 +550,12 @@ first built-in helper set is:
 
 ```cpp
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
+llvm::Error registerOffloadExtensionPlugin(ExtensionPluginRegistry &registry);
 llvm::Error registerScalarExtensionPlugin(ExtensionPluginRegistry &registry);
 llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
 ```
@@ -565,11 +567,14 @@ Duplicate registration continues to be rejected by the generic registry
 diagnostic path. `tcrv-opt` registers the built-in helper set at the tool
 boundary and then registers registry-dependent passes with that owned registry,
 so public `rvv-plugin` and `scalar-plugin` origins route through their plugins
-instead of the empty-registry path. `--tcrv-disable-builtin-plugins` is the
-public tool escape hatch for tests that must exercise a completely empty plugin
-registry, including unregistered plugin dialect diagnostics. Unknown origins
-still diagnose generically as unregistered plugins, and direct factory tests can
-still construct empty-registry passes when that negative behavior is required.
+instead of the empty-registry path. The same front-door rule applies to the
+generic `offload-plugin`: offload dialect and handoff behavior are registered
+through the plugin registry, while shared orchestration continues to route only
+by generic `origin` lookup. `--tcrv-disable-builtin-plugins` is the public tool
+escape hatch for tests that must exercise a completely empty plugin registry,
+including unregistered plugin dialect diagnostics. Unknown origins still
+diagnose generically as unregistered plugins, and direct factory tests can still
+construct empty-registry passes when that negative behavior is required.
 
 `registerPluginDialects` delegates to
 `ExtensionPluginRegistry::registerDialectsForEnabledPlugins`. Therefore a

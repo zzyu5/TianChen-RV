@@ -126,3 +126,20 @@ selected-path role, required capability references, and metadata-only status.
 It is a plugin-local attachment point for future scalar lowering work, not
 scalar computation, LLVM lowering, runtime ABI glue, object generation,
 correctness evidence, or performance evidence.
+
+## Runtime Offload First Slice
+
+The built-in registry includes a generic C++ `offload-plugin` first slice for
+runtime-offload handoff metadata. It is enabled only by an explicit
+`offload.runtime` capability with `kind = "runtime-offload"` and bounded generic
+handoff properties; vendor strings, Sophgo names, RVV facts, or ordinary target
+attributes do not enable it.
+
+The offload plugin owns the concrete `tcrv_offload` MLIR namespace. Its first
+operation, `tcrv_offload.lowering_boundary`, records selected runtime-offload
+handoff metadata such as source kernel, selected variant, origin plugin,
+selected-path role, required capability references, runtime ABI handoff id, and
+metadata-only status. The emission-plan and manifest paths may serialize this
+generic runtime ABI handoff for downstream integration. They do not emit vendor
+runtime calls, implement DMA or buffer management, generate accelerator objects,
+run hardware, prove correctness, or measure performance.

@@ -28,6 +28,7 @@ llvm_config.add_tool_substitutions(
         "tianchenrv-plugin-variant-legality-test",
         "tianchenrv-plugin-variant-proposal-test",
         "tianchenrv-emission-readiness-test",
+        "tianchenrv-offload-extension-plugin-test",
         "tianchenrv-rvv-dialect-test",
         "tianchenrv-rvv-extension-plugin-test",
         "tianchenrv-rvv-lowering-boundary-test",

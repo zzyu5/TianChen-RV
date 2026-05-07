@@ -17,6 +17,55 @@ host-device synchronization
 
 This is a `runtime-offload capability`, not a custom RISC-V ISA extension.
 
+## First C++ Plugin Slice
+
+The first concrete C++ runtime-offload slice is intentionally bounded. It proves
+plugin identity, explicit capability gating, proposal metadata, legality
+routing, conservative preference metadata, selected lowering-boundary
+materialization, plugin-owned runtime ABI handoff metadata, and emission
+manifest serialization through the existing generic registry interfaces.
+
+Stable first-slice names:
+
+```text
+plugin name: offload-plugin
+plugin version: 0.1.0
+plugin capability id: offload.runtime
+plugin capability kind: runtime-offload
+preferred kernel capability symbol: @offload_runtime
+first-slice proposal / variant symbol: @offload_runtime_first_slice
+variant origin: offload-plugin
+required capability id: offload.runtime
+materialized requires form: requires = [@offload_runtime]
+runtime ABI handoff id: generic-runtime-offload-c-abi-handoff.v1
+handoff kind: runtime-offload
+```
+
+The first slice may propose `@offload_runtime_first_slice` only when the kernel
+declares an available structured capability with id `offload.runtime`, kind
+`runtime-offload`, and bounded generic properties:
+
+```text
+runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
+handoff_kind = "runtime-offload"
+```
+
+If the capability is missing or generically unavailable, the plugin proposes no
+variant. If the explicit offload capability is present but required generic
+handoff metadata is missing, malformed, unbounded, secret-like, or not the
+generic first-slice handoff contract, proposal collection records a recoverable
+plugin-local decline and produces no offload proposal. Vendor names, Sophgo
+strings, RVV probe facts, architecture names, and unrelated runtime-offload
+capabilities must not enable the generic offload slice.
+
+The first slice carries generic decision metadata (`condition`, `guard`, and
+`policy`) and plugin-owned discardable string metadata
+`tcrv_offload.runtime_abi` plus `tcrv_offload.handoff_kind` on the materialized
+variant. Plugin legality checks that the selected variant requires
+`offload.runtime`, that the capability remains available, and that the
+plugin-owned variant metadata matches the preserved capability properties. This
+metadata is compiler handoff metadata only; it is not executable runtime glue.
+
 ## Why It Belongs In TianChen-RV
 
 TianChen-RV is a capability-driven execution layer. RISC-V AI systems may include CPU extensions and accelerator runtimes:
@@ -65,13 +114,39 @@ Reference attribute:
 
 ## Dialect
 
-Dialect name:
+Architectural family:
 
 ```text
 tcrv.offload
 ```
 
-Types:
+Concrete MLIR namespace:
+
+```text
+tcrv_offload
+```
+
+Current first-slice op:
+
+```mlir
+tcrv_offload.lowering_boundary {
+  source_kernel = "kernel_symbol",
+  selected_variant = @offload_runtime_first_slice,
+  origin = "offload-plugin",
+  role = "dispatch case",
+  status = "metadata-only",
+  required_capabilities = [@offload_runtime],
+  runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+  handoff_kind = "runtime-offload",
+  handoff_reason = "runtime-offload boundary is plugin-owned handoff metadata only"
+}
+```
+
+This op is a selected-path handoff boundary. It is not a high-level compute op,
+custom RISC-V ISA op, vendor runtime call, DMA operation, accelerator kernel,
+object-generation step, correctness result, or performance result.
+
+Future types may include:
 
 ```text
 !tcrv.offload.buffer<device, dtype, shape>
@@ -80,7 +155,7 @@ Types:
 !tcrv.offload.runtime
 ```
 
-Ops:
+Future ops may include:
 
 ```text
 tcrv.offload.bind

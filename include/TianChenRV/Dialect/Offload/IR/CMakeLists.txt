@@ -1,0 +1,6 @@
+set(LLVM_TARGET_DEFINITIONS OffloadOps.td)
+mlir_tablegen(OffloadOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_offload)
+mlir_tablegen(OffloadOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_offload)
+mlir_tablegen(OffloadOps.h.inc -gen-op-decls)
+mlir_tablegen(OffloadOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIROffloadOpsIncGen)

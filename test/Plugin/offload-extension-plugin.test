@@ -1,0 +1,3 @@
+# RUN: tianchenrv-offload-extension-plugin-test | FileCheck %s
+
+# CHECK: runtime-offload extension plugin smoke test passed
