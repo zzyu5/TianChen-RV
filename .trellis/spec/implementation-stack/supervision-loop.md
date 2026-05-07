@@ -127,7 +127,7 @@ Require real ssh rvv evidence before accepting RVV runtime, correctness, or perf
 
 Hermes reviews completed Codex worker runs. Hermes must not modify the repository.
 
-Hermes may use read-only inspection commands when tool access is available. Read-only inspection may include `pwd`, `git status --short`, `git log`, `git show`, `find`, and text search over source, tests, specs, predoc, and docs. It must not run destructive commands or write files.
+Hermes may use read-only inspection commands when tool access is available. Read-only inspection may include `pwd`, `git status --short`, `git log`, `git show`, `find`, and text search over source, tests, specs, and docs. It must not run destructive commands or write files.
 
 Hermes must interpret evidence in this order:
 

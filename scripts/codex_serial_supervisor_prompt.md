@@ -90,7 +90,6 @@ README.md
 CMakeLists.txt
 .trellis/spec/index.md
 .trellis/spec/**/*.md
-predoc/tianchen_rv_mlir_capability_pack/*.md
 include/**
 lib/**
 tools/**

@@ -763,7 +763,6 @@ def write_repo_audit(run_dir: Path, before: dict[str, Any], after: dict[str, Any
         ("tracked project files", run_shell(repo, "git ls-files | sort | sed -n '1,500p'"), 20000),
         ("top-level tree", run_shell(repo, "find . -maxdepth 3 -type f -not -path './.git/*' -not -path './artifacts/tmp/*' | sort | sed -n '1,300p'"), 16000),
         ("TianchenRV specs", run_shell(repo, "find .trellis/spec -maxdepth 3 -type f | sort | sed -n '1,240p'"), 12000),
-        ("predoc capability pack", run_shell(repo, "find predoc/tianchen_rv_mlir_capability_pack -maxdepth 1 -type f | sort | sed -n '1,120p'"), 8000),
         ("source package directories", run_shell(repo, "find . -maxdepth 3 -type d \\( -name src -o -name include -o -name lib -o -name python -o -name tianchenrv -o -name tests -o -name examples -o -name tools \\) | sort"), 12000),
         ("MLIR and build tool detection", run_shell(repo, "printf 'local:\\n'; for t in mlir-opt mlir-tblgen clang clang++ cmake ninja python3; do printf '%s=' \"$t\"; command -v \"$t\" || true; done"), 12000),
         ("rvv remote quick probe", run_shell(repo, "ssh -o BatchMode=yes -o ConnectTimeout=6 rvv 'hostname; uname -m; nproc; command -v clang || true; command -v mlir-opt || true; command -v cmake || true; sudo -n true && echo sudo_nopass_ok || echo sudo_needs_password'"), 12000),
@@ -1224,8 +1223,8 @@ git status --short
 git log --oneline -8
 git show --name-status --stat --oneline --decorate HEAD
 find . -maxdepth 3 -type f -not -path './.git/*' -not -path './artifacts/tmp/*' | sort | sed -n '1,260p'
-find include lib tools test tests cmake .trellis/spec predoc docs -maxdepth 4 -type f 2>/dev/null | sort | sed -n '1,260p'
-grep -R "tcrv.exec\\|TCRV\\|Dialect\\|TableGen\\|Plugin\\|Capability\\|RVV\\|IME\\|offload\\|AME" -n include lib tools test tests cmake .trellis/spec predoc docs 2>/dev/null | head -240
+find include lib tools test tests cmake .trellis/spec docs -maxdepth 4 -type f 2>/dev/null | sort | sed -n '1,260p'
+grep -R "tcrv.exec\\|TCRV\\|Dialect\\|TableGen\\|Plugin\\|Capability\\|RVV\\|IME\\|offload\\|AME" -n include lib tools test tests cmake .trellis/spec docs 2>/dev/null | head -240
 ```
 
 Do not modify files. Do not run destructive commands.
@@ -2067,7 +2066,7 @@ def command_loop(args: argparse.Namespace) -> int:
                         base_prompt_text
                         + "\n\n## Supervisor Review Parse Fallback\n\n"
                         + "Hermes returned malformed JSON in the previous review, so the runner is continuing with the canonical base prompt instead of stopping. "
-                        + "Before choosing work, inspect the latest `repo_audit.md`, `review_input.md`, git history, TianchenRV specs, predoc, and current code. "
+                        + "Before choosing work, inspect the latest `repo_audit.md`, `review_input.md`, git history, TianchenRV specs, and current code. "
                         + "Do not redo completed scaffolding. Return to the highest-value capability model, tcrv.exec, plugin registry, RVV probe, variant pipeline, or lowering/runtime milestone. "
                         + "Maintain full-access serial execution, no subagents, focused validation, optional TianchenRV Trellis finish/archive when used, and a clean commit.\n"
                     )

@@ -119,7 +119,7 @@ target_link_libraries(tianchenrv-rvv-dialect-test
 )
 
 add_executable(tianchenrv-variant-materialization-test
-  Transforms/VariantMaterializationTest.cpp
+  Transforms/VariantMaterialization/VariantMaterializationTest.cpp
 )
 
 target_link_libraries(tianchenrv-variant-materialization-test
@@ -136,7 +136,7 @@ target_link_libraries(tianchenrv-variant-materialization-test
 )
 
 add_executable(tianchenrv-variant-dispatch-synthesis-test
-  Transforms/VariantDispatchSynthesisTest.cpp
+  Transforms/DispatchSynthesis/VariantDispatchSynthesisTest.cpp
 )
 
 target_link_libraries(tianchenrv-variant-dispatch-synthesis-test
@@ -151,7 +151,7 @@ target_link_libraries(tianchenrv-variant-dispatch-synthesis-test
 )
 
 add_executable(tianchenrv-emission-readiness-test
-  Transforms/EmissionReadinessTest.cpp
+  Transforms/EmissionReadiness/EmissionReadinessTest.cpp
 )
 
 target_link_libraries(tianchenrv-emission-readiness-test
@@ -168,7 +168,7 @@ target_link_libraries(tianchenrv-emission-readiness-test
 )
 
 add_executable(tianchenrv-rvv-lowering-boundary-test
-  Transforms/RVVLoweringBoundaryTest.cpp
+  Transforms/LoweringBoundary/RVVLoweringBoundaryTest.cpp
 )
 
 target_link_libraries(tianchenrv-rvv-lowering-boundary-test
@@ -186,7 +186,7 @@ target_link_libraries(tianchenrv-rvv-lowering-boundary-test
 )
 
 add_executable(tianchenrv-variant-selection-test
-  Transforms/VariantSelectionTest.cpp
+  Transforms/VariantSelection/VariantSelectionTest.cpp
 )
 
 target_link_libraries(tianchenrv-variant-selection-test
