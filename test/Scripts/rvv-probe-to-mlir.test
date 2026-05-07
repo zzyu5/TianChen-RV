@@ -77,7 +77,7 @@
 # PIPE-SAME: selected_variant = @rvv_first_slice
 # PIPE-SAME: source_kernel = "rvv_probe_replay"
 # PIPE: tcrv_rvv.i32_vadd_dataflow
-# PIPE-SAME: runtime_n = "n"
+# PIPE-SAME: runtime_n_role = "runtime-element-count"
 # PIPE: tcrv_scalar.lowering_boundary
 # PIPE-SAME: origin = "scalar-plugin"
 # PIPE-SAME: role = "dispatch fallback"

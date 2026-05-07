@@ -1,6 +1,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -11,6 +12,7 @@
 #include "llvm/ADT/StringSwitch.h"
 
 #include <cctype>
+#include <optional>
 
 using namespace tianchenrv::tcrv::rvv;
 
@@ -48,10 +50,10 @@ constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
-constexpr llvm::StringLiteral kLHSAttrName("lhs");
-constexpr llvm::StringLiteral kRHSAttrName("rhs");
-constexpr llvm::StringLiteral kOutAttrName("out");
-constexpr llvm::StringLiteral kRuntimeNAttrName("runtime_n");
+constexpr llvm::StringLiteral kLHSRoleAttrName("lhs_role");
+constexpr llvm::StringLiteral kRHSRoleAttrName("rhs_role");
+constexpr llvm::StringLiteral kOutRoleAttrName("out_role");
+constexpr llvm::StringLiteral kRuntimeNRoleAttrName("runtime_n_role");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -217,8 +219,8 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
 }
 
 bool isAllowedI32VAddDataflowAttr(llvm::StringRef name) {
-  return name == kLHSAttrName || name == kRHSAttrName ||
-         name == kOutAttrName || name == kRuntimeNAttrName;
+  return name == kLHSRoleAttrName || name == kRHSRoleAttrName ||
+         name == kOutRoleAttrName || name == kRuntimeNRoleAttrName;
 }
 
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
@@ -245,16 +247,40 @@ bool isForbiddenDataflowParameterAttr(llvm::StringRef name) {
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
-mlir::LogicalResult verifyBoundedDataflowABIAttr(I32VAddDataflowOp op,
-                                                 llvm::StringRef attrName) {
+mlir::LogicalResult verifyBoundedDataflowRoleAttr(
+    I32VAddDataflowOp op, llvm::StringRef attrName,
+    tianchenrv::support::RuntimeABIParameterRole expectedRole,
+    llvm::StringSet<> &seenRoles) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   if (!attr || attr.getValue().trim().empty())
     return op.emitOpError()
-           << "requires non-empty string attribute '" << attrName << "'";
+           << "requires non-empty runtime ABI role string attribute '"
+           << attrName << "'";
 
   llvm::StringRef value = attr.getValue().trim();
   if (mlir::failed(verifyBoundedMetadata(op.getOperation(), attrName, value)))
     return mlir::failure();
+
+  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
+      tianchenrv::support::symbolizeRuntimeABIParameterRole(value);
+  if (!parsedRole)
+    return op.emitOpError()
+           << "attribute '" << attrName
+           << "' must reference a supported runtime ABI parameter role";
+
+  if (!seenRoles.insert(value).second)
+    return op.emitOpError()
+           << "requires each dataflow runtime ABI role reference to be unique; "
+              "duplicate role '"
+           << value << "'";
+
+  if (*parsedRole != expectedRole)
+    return op.emitOpError()
+           << "attribute '" << attrName
+           << "' must reference runtime ABI role '"
+           << tianchenrv::support::stringifyRuntimeABIParameterRole(
+                  expectedRole)
+           << "'";
 
   return mlir::success();
 }
@@ -503,9 +529,9 @@ mlir::LogicalResult I32VAddDataflowOp::verify() {
 
     if (!isAllowedI32VAddDataflowAttr(attrName))
       return emitOpError()
-             << "only accepts fixed target/export ABI role attributes '"
-             << kLHSAttrName << "', '" << kRHSAttrName << "', '"
-             << kOutAttrName << "', and '" << kRuntimeNAttrName
+             << "only accepts finite runtime ABI role attributes '"
+             << kLHSRoleAttrName << "', '" << kRHSRoleAttrName << "', '"
+             << kOutRoleAttrName << "', and '" << kRuntimeNRoleAttrName
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
@@ -528,10 +554,23 @@ mlir::LogicalResult I32VAddDataflowOp::verify() {
               "finite microkernel dataflow marker, not a standalone RVV "
               "compute op";
 
-  if (mlir::failed(verifyBoundedDataflowABIAttr(*this, kLHSAttrName)) ||
-      mlir::failed(verifyBoundedDataflowABIAttr(*this, kRHSAttrName)) ||
-      mlir::failed(verifyBoundedDataflowABIAttr(*this, kOutAttrName)) ||
-      mlir::failed(verifyBoundedDataflowABIAttr(*this, kRuntimeNAttrName)))
+  llvm::StringSet<> seenRoles;
+  if (mlir::failed(verifyBoundedDataflowRoleAttr(
+          *this, kLHSRoleAttrName,
+          tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+          seenRoles)) ||
+      mlir::failed(verifyBoundedDataflowRoleAttr(
+          *this, kRHSRoleAttrName,
+          tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
+          seenRoles)) ||
+      mlir::failed(verifyBoundedDataflowRoleAttr(
+          *this, kOutRoleAttrName,
+          tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
+          seenRoles)) ||
+      mlir::failed(verifyBoundedDataflowRoleAttr(
+          *this, kRuntimeNRoleAttrName,
+          tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount,
+          seenRoles)))
     return mlir::failure();
 
   return mlir::success();

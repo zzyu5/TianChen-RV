@@ -106,16 +106,21 @@ variant descriptor during the execution-planning pipeline. The microkernel op
 now carries a structured RVV body with one runtime index body argument for
 target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, one matching
 `tcrv_rvv.with_vl`, and one nested finite `tcrv_rvv.i32_vadd_dataflow` marker
-for the target/export-owned `lhs`/`rhs`/`out`/runtime-`n` ABI roles consumed by
-the exporter. Descriptor-local `element_count` remains metadata and is not
-promoted to AVL or VL. The generated source uses `riscv_vector.h` and RVV i32
-add intrinsics to expose a deterministic runtime-callable C ABI function:
+for the target/export-owned lhs input, rhs input, output, and runtime element
+count ABI roles consumed by the exporter. Descriptor-local `element_count`
+remains metadata and is not promoted to AVL or VL. The generated source uses
+`riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
+runtime-callable C ABI function. The default ABI metadata names those
+parameters `lhs`, `rhs`, `out`, and `n`, and supported emission-plan metadata
+may provide different concrete C names for the same roles:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
 The exporter validates and consumes that `setvl` / `with_vl` /
-`i32_vadd_dataflow` body before emitting the runtime-callable loop, so
-mismatched or stale control/dataflow metadata fails before source output. The
-default artifact has no embedded `main` or self-check harness, so later runtime
-glue can embed it and call the ABI boundary directly. The explicit
+`i32_vadd_dataflow` role body before emitting the runtime-callable loop and
+resolves concrete C parameter names/types structurally from runtime ABI
+metadata when present, so mismatched or stale control/dataflow metadata fails
+before source output. The default artifact has no embedded `main` or
+self-check harness, so later runtime glue can embed it and call the ABI
+boundary directly. The explicit
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
 same callable function plus a bounded self-check `main` for evidence
 collection.

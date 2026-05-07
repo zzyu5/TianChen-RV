@@ -285,10 +285,10 @@ module {
         sew = 32 : i64
       } {
         tcrv_rvv.i32_vadd_dataflow {
-          lhs = "lhs",
-          out = "out",
-          rhs = "rhs",
-          runtime_n = "n"
+          lhs_role = "lhs-input-buffer",
+          out_role = "output-buffer",
+          rhs_role = "rhs-input-buffer",
+          runtime_n_role = "runtime-element-count"
         }
       } : !tcrv_rvv.vl
     }

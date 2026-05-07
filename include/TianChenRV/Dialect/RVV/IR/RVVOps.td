@@ -160,8 +160,9 @@ def I32VAddDataflowOp : TCRVRVV_Op<"i32_vadd_dataflow", []> {
   let description = [{
     Records the finite RVV i32 vector-add dataflow surface consumed by the
     current microkernel C exporter. The op is nested under
-    tcrv_rvv.with_vl, carries only fixed target/export-owned ABI role names
-    for lhs, rhs, out, and runtime n, and has no SSA operands or results.
+    tcrv_rvv.with_vl, carries only finite runtime ABI role references for the
+    lhs input buffer, rhs input buffer, output buffer, and runtime element
+    count, and has no SSA operands or results.
 
     Pointer operands remain target/export ABI-owned parameters, not IR-modeled
     buffers. Runtime n/AVL/VL remains represented by the surrounding
@@ -171,10 +172,10 @@ def I32VAddDataflowOp : TCRVRVV_Op<"i32_vadd_dataflow", []> {
   }];
 
   let arguments = (ins
-    StrAttr:$lhs,
-    StrAttr:$rhs,
-    StrAttr:$out,
-    StrAttr:$runtime_n
+    StrAttr:$lhs_role,
+    StrAttr:$rhs_role,
+    StrAttr:$out_role,
+    StrAttr:$runtime_n_role
   );
 
   let assemblyFormat = "attr-dict";

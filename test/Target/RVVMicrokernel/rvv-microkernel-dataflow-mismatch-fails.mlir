@@ -52,10 +52,10 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "element_count"}
+        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "dispatch-availability-guard"}
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK: tcrv_rvv.i32_vadd_dataflow attribute 'runtime_n' must be fixed target/export ABI role name 'n'
+// CHECK: 'tcrv_rvv.i32_vadd_dataflow' op attribute 'runtime_n_role' must reference runtime ABI role 'runtime-element-count'

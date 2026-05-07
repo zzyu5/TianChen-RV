@@ -7,7 +7,7 @@
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c | FileCheck %s --check-prefix=AUTO-HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
 // RUN: not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object %s 2>&1 | FileCheck %s --check-prefix=OBJECT-NO-PLAN --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/runtime-element-count/malformed-runtime-element-count/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object 2>&1 | FileCheck %s --check-prefix=OBJECT-BAD-ABI --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "malformed-runtime-element-count"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object 2>&1 | FileCheck %s --check-prefix=OBJECT-BAD-ABI --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 module @rvv_scalar_dispatch_input {
   tcrv.exec.kernel @dispatch_vadd {
@@ -90,7 +90,7 @@ module @rvv_scalar_dispatch_input {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs = "lhs", out = "out", rhs = "rhs", runtime_n = "n"}
+        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
       } : !tcrv_rvv.vl
     }
     tcrv_scalar.i32_vadd_microkernel {

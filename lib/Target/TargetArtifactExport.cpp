@@ -791,15 +791,22 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
                 "' requires structured runtime ABI parameter role '" +
                 support::stringifyRuntimeABIParameterRole(expected.role) + "'");
 
-      if (actualIt->cName != expected.cName || actualIt->cType != expected.cType ||
+      if (!expected.cName.empty() && actualIt->cName != expected.cName)
+        return makeArtifactExportError(
+            candidate.kernel,
+            llvm::Twine("route id '") + candidate.routeID +
+                "' runtime ABI parameter role '" +
+                support::stringifyRuntimeABIParameterRole(expected.role) +
+                "' must use c parameter '" + expected.cName + "'");
+
+      if (actualIt->cType != expected.cType ||
           actualIt->ownership != expected.ownership)
         return makeArtifactExportError(
             candidate.kernel,
             llvm::Twine("route id '") + candidate.routeID +
                 "' runtime ABI parameter role '" +
                 support::stringifyRuntimeABIParameterRole(expected.role) +
-                "' must be c parameter '" + expected.cName + "' with type '" +
-                expected.cType + "' and ownership '" +
+                "' must use c type '" + expected.cType + "' and ownership '" +
                 support::stringifyRuntimeABIParameterOwnership(
                     expected.ownership) +
                 "'");

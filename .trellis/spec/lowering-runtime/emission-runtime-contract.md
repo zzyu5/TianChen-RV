@@ -691,8 +691,10 @@ RVV-plugin materialization from the finite selected-variant descriptor
 op must carry the structured RVV control/dataflow body for this bounded slice:
 one runtime index body argument for target/export-owned `n`/AVL, one
 `tcrv_rvv.setvl`, one matching `tcrv_rvv.with_vl`, and one nested finite
-`tcrv_rvv.i32_vadd_dataflow` marker for the target/export-owned
-`lhs`/`rhs`/`out`/runtime-`n` ABI roles consumed by this exporter.
+`tcrv_rvv.i32_vadd_dataflow` marker for the target/export-owned lhs input,
+rhs input, output, and runtime element-count ABI roles consumed by this
+exporter. Concrete C parameter names are resolved from structured runtime ABI
+parameter metadata by role when a supported emission plan is present.
 
 This export is the first bounded RVV executable microkernel slice. It emits a
 deterministic library-style C source file whose primary behavior is a stable
@@ -752,6 +754,11 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   `i32_vadd_dataflow` body. The body runtime index argument is
   runtime/control-plane/ABI state; `element_count` remains descriptor-local
   metadata.
+- If a supported matching emission-plan diagnostic is present, the exporter
+  must resolve exactly the lhs-input-buffer, rhs-input-buffer, output-buffer,
+  and runtime-element-count runtime ABI parameters by role, validate their
+  target/export ABI ownership and C type spelling, and use the resolved C names
+  in the generated callable source.
 - Output must be deterministic library-style C with `riscv_vector.h`, a stable
   runtime-callable i32 vadd C ABI function, RVV i32 load/add/store intrinsics
   inside that callable function, control-flow derived only after validating the

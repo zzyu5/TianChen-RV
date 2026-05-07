@@ -1,0 +1,126 @@
+// RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --check-prefix=ALT --implicit-check-not="while (offset < n)" --implicit-check-not="&lhs[offset]" --implicit-check-not="&rhs[offset]" --implicit-check-not="&out[offset]"
+// RUN: tcrv-translate --tcrv-export-target-source-artifact %s | FileCheck %s --check-prefix=ALT --implicit-check-not="while (offset < n)" --implicit-check-not="&lhs[offset]" --implicit-check-not="&rhs[offset]" --implicit-check-not="&out[offset]"
+// RUN: sed 's#c_name = "a", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#c_name = "a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dispatch-availability-guard"#' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=MISSING --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed 's#c_name = "b", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "rhs-input-buffer"#c_name = "b", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=DUPLICATE --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed 's/c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "unknown-length"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=UNKNOWN --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed 's/c_name = "dst", c_type = "int32_t \*", ownership = "target-export-abi-owned", role = "output-buffer"/c_name = "dst", c_type = "int32_t *", ownership = "ir-modeled", role = "output-buffer"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=OWNERSHIP --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed 's/c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "len", c_type = "uint64_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=TYPE --implicit-check-not="#include <riscv_vector.h>"
+
+module @rvv_runtime_abi_role_binding {
+  tcrv.exec.kernel @abi_names {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.capability @rvv_toolchain_mabi {
+      id = "rvv.toolchain.mabi",
+      kind = "toolchain",
+      status = "available",
+      value = "lp64d"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      condition = "rvv_capability_properties_available",
+      guard = "plugin_local_rvv_property_evidence",
+      origin = "rvv-plugin",
+      policy = "metadata_only_first_slice",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "static RVV microkernel path selected by role-binding fixture",
+      origin = "rvv-plugin",
+      reason = "variant-selected",
+      selection_kind = "static-variant",
+      severity = "note",
+      status = "selected",
+      target = @rvv_first_slice
+    }
+    tcrv_rvv.lowering_boundary {
+      capability_summary = "rvv",
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "abi_names",
+      status = "unsupported",
+      unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
+    }
+    tcrv_rvv.i32_vadd_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_mabi = "lp64d",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "abi_names"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "runtime-callable-c-source",
+      emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source",
+      lowering_boundary = "tcrv_rvv.lowering_boundary",
+      lowering_pipeline = "tcrv-export-rvv-microkernel-c",
+      message = "alternate C names are bound through runtime ABI roles",
+      origin = "rvv-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "rvv-runtime-callable-c-abi",
+      runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1",
+      runtime_abi_parameters = [{c_name = "a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "b", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}],
+      runtime_glue_role = "runtime-callable-i32-vadd-function",
+      severity = "info",
+      status = "supported",
+      target = @rvv_first_slice
+    }
+  }
+}
+
+// ALT: /* runtime_abi_parameter[0]: c_name=a, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// ALT: /* runtime_abi_parameter[1]: c_name=b, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+// ALT: /* runtime_abi_parameter[2]: c_name=dst, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+// ALT: /* runtime_abi_parameter[3]: c_name=len, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// ALT: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice(const int32_t *a, const int32_t *b, int32_t *dst, size_t len)
+// ALT: while (offset < len)
+// ALT: __riscv_vsetvl_e32m1(len - offset)
+// ALT: __riscv_vle32_v_i32m1(&a[offset], vl)
+// ALT: __riscv_vle32_v_i32m1(&b[offset], vl)
+// ALT: __riscv_vse32_v_i32m1(&dst[offset], sum_vec, vl)
+
+// MISSING: requires runtime ABI parameter role 'lhs-input-buffer'
+// DUPLICATE: duplicate runtime ABI parameter role 'lhs-input-buffer'
+// UNKNOWN: unsupported runtime ABI parameter role 'unknown-length'
+// OWNERSHIP: runtime ABI parameter role 'output-buffer' must use ownership 'target-export-abi-owned'
+// TYPE: runtime ABI parameter role 'runtime-element-count' must use c type 'size_t'

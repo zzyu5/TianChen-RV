@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -64,10 +65,10 @@ constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
-constexpr llvm::StringLiteral kLHSAttrName("lhs");
-constexpr llvm::StringLiteral kRHSAttrName("rhs");
-constexpr llvm::StringLiteral kOutAttrName("out");
-constexpr llvm::StringLiteral kRuntimeNAttrName("runtime_n");
+constexpr llvm::StringLiteral kLHSRoleAttrName("lhs_role");
+constexpr llvm::StringLiteral kRHSRoleAttrName("rhs_role");
+constexpr llvm::StringLiteral kOutRoleAttrName("out_role");
+constexpr llvm::StringLiteral kRuntimeNRoleAttrName("runtime_n_role");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
@@ -627,6 +628,13 @@ llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
   return llvm::Error::success();
 }
 
+llvm::Error validateMicrokernelDataflowRoleAttr(
+    mlir::Operation *op, llvm::StringRef attrName,
+    support::RuntimeABIParameterRole expectedRole) {
+  return validateMicrokernelEmissionAttr(
+      op, attrName, support::stringifyRuntimeABIParameterRole(expectedRole));
+}
+
 llvm::Error validateMicrokernelStructuredControlPlane(
     tcrv::exec::VariantOp variant,
     tcrv::rvv::I32VAddMicrokernelOp microkernel) {
@@ -734,17 +742,21 @@ llvm::Error validateMicrokernelStructuredControlPlane(
         "explicit RVV microkernel emission plan requires exactly one "
         "tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body");
 
-  if (llvm::Error error = validateMicrokernelEmissionAttr(
-          dataflow.getOperation(), kLHSAttrName, "lhs"))
+  if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
+          dataflow.getOperation(), kLHSRoleAttrName,
+          support::RuntimeABIParameterRole::LHSInputBuffer))
     return error;
-  if (llvm::Error error = validateMicrokernelEmissionAttr(
-          dataflow.getOperation(), kRHSAttrName, "rhs"))
+  if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
+          dataflow.getOperation(), kRHSRoleAttrName,
+          support::RuntimeABIParameterRole::RHSInputBuffer))
     return error;
-  if (llvm::Error error = validateMicrokernelEmissionAttr(
-          dataflow.getOperation(), kOutAttrName, "out"))
+  if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
+          dataflow.getOperation(), kOutRoleAttrName,
+          support::RuntimeABIParameterRole::OutputBuffer))
     return error;
-  if (llvm::Error error = validateMicrokernelEmissionAttr(
-          dataflow.getOperation(), kRuntimeNAttrName, "n"))
+  if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
+          dataflow.getOperation(), kRuntimeNRoleAttrName,
+          support::RuntimeABIParameterRole::RuntimeElementCount))
     return error;
 
   return llvm::Error::success();
@@ -1017,10 +1029,22 @@ tcrv::rvv::I32VAddMicrokernelOp materializeRVVI32VAddMicrokernelOp(
   withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
   mlir::OperationState dataflowState(
       variant.getLoc(), tcrv::rvv::I32VAddDataflowOp::getOperationName());
-  dataflowState.addAttribute(kLHSAttrName, builder.getStringAttr("lhs"));
-  dataflowState.addAttribute(kRHSAttrName, builder.getStringAttr("rhs"));
-  dataflowState.addAttribute(kOutAttrName, builder.getStringAttr("out"));
-  dataflowState.addAttribute(kRuntimeNAttrName, builder.getStringAttr("n"));
+  dataflowState.addAttribute(
+      kLHSRoleAttrName,
+      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
+          support::RuntimeABIParameterRole::LHSInputBuffer)));
+  dataflowState.addAttribute(
+      kRHSRoleAttrName,
+      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
+          support::RuntimeABIParameterRole::RHSInputBuffer)));
+  dataflowState.addAttribute(
+      kOutRoleAttrName,
+      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
+          support::RuntimeABIParameterRole::OutputBuffer)));
+  dataflowState.addAttribute(
+      kRuntimeNRoleAttrName,
+      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
+          support::RuntimeABIParameterRole::RuntimeElementCount)));
   withVLBodyBuilder.create(dataflowState);
 
   bodyBuilder.create(withVLState);

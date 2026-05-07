@@ -86,10 +86,10 @@ module {
     // PIPE-SAME: selected_variant = @rvv_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE: tcrv_rvv.i32_vadd_dataflow
-    // PIPE-SAME: lhs = "lhs"
-    // PIPE-SAME: out = "out"
-    // PIPE-SAME: rhs = "rhs"
-    // PIPE-SAME: runtime_n = "n"
+    // PIPE-SAME: lhs_role = "lhs-input-buffer"
+    // PIPE-SAME: out_role = "output-buffer"
+    // PIPE-SAME: rhs_role = "rhs-input-buffer"
+    // PIPE-SAME: runtime_n_role = "runtime-element-count"
     // PIPE: tcrv_scalar.lowering_boundary
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: required_capabilities = [@scalar_fallback]

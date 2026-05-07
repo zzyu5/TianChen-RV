@@ -123,11 +123,11 @@ optional selected mabi, bounded element count, and one structured RVV
 dataflow body. That body has a runtime index block argument for the
 target/export-owned runtime `n`/AVL value, one `tcrv_rvv.setvl`, one matching
 `tcrv_rvv.with_vl`, and one nested finite `tcrv_rvv.i32_vadd_dataflow` marker
-for the target/export-owned `lhs`/`rhs`/`out`/runtime-`n` ABI roles consumed by
-the exporter. If descriptor metadata is missing or malformed, required march is
-missing, the structured body is malformed, or an explicit matching microkernel
-would make the selected path ambiguous, the plugin must fail before claiming a
-supported emission path.
+for the target/export-owned lhs input, rhs input, output, and runtime element
+count ABI roles consumed by the exporter. If descriptor metadata is missing or
+malformed, required march is missing, the structured body is malformed, or an
+explicit matching microkernel would make the selected path ambiguous, the
+plugin must fail before claiming a supported emission path.
 
 The microkernel slice is the first narrow exception to the metadata-only RVV
 unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
@@ -142,7 +142,8 @@ metadata must also validate that the attached microkernel's `element_count`
 matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
 must also validate the microkernel's `setvl` / `with_vl` /
 `i32_vadd_dataflow` body against the selected RVV first-slice policy and the
-fixed i32-vadd ABI role contract before reporting the supported handoff. It
+finite i32-vadd runtime ABI role contract before reporting the supported
+handoff. It
 does not provide generic RVV lowering or runtime ABI integration, and it does
 not create correctness or performance evidence without separate `ssh rvv`
 compile/run artifacts.
@@ -258,8 +259,10 @@ finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
 owns one single-block region for bounded RVV control/body work. Optional
 duplicated SEW/LMUL/policy metadata is limited to the same bounded first-slice
 config and must agree with the visible defining setvl when present. The
-dataflow marker carries only fixed target/export ABI role metadata for the
-current i32-vadd route; it is not a generic vector memory model. The boundary
+dataflow marker carries only finite runtime ABI role references for the current
+i32-vadd route; concrete C parameter names are resolved from runtime ABI
+metadata by the target exporter when that metadata is present. It is not a
+generic vector memory model. The boundary
 op records selected RVV source/variant/role/status metadata for a future
 lowering attachment point. These surfaces are not generic RVV arithmetic,
 generic memory operations, LLVM/RISC-V lowering, full runtime ABI glue,
@@ -582,7 +585,7 @@ measured performance.
 ### I32 Vector-Add Microkernel Materialization And Export
 
 `tcrv_rvv.i32_vadd_microkernel` is the first RVV extension-dialect executable
-microkernel op. It represents exactly one bounded i32 vector-add smoke
+microkernel op. It represents exactly one bounded i32 vector-add executable
 microkernel body for a selected RVV path. The op is plugin-local under the
 `tcrv_rvv` dialect and must carry only selected-path metadata: source kernel,
 selected variant, origin, selected role, required capability refs, required
@@ -610,14 +613,16 @@ matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
 `riscv_vector.h` and exposes a deterministic runtime-callable i32 vadd C ABI
 function with `const int32_t *` input pointers, an `int32_t *` output pointer,
 and a `size_t` runtime element count. The supported emission plan must carry
-structured `runtime_abi_parameters` entries for `lhs`, `rhs`, `out`, and
-runtime `n`. For this first slice those parameters are target/export ABI-owned,
-not IR-modeled RVV operands or descriptor-local `element_count`. The exporter
-must validate and consume the microkernel's structured `setvl` / `with_vl` /
-`i32_vadd_dataflow` body before emitting the RVV i32 load/add/store-intrinsic
-loop, so stale or mismatched control/dataflow metadata cannot be silently
-ignored. The default export is a library-style callable source artifact with no
-embedded `main` or self-check harness. If a bounded self-check executable is
+structured `runtime_abi_parameters` entries for the lhs input, rhs input,
+output, and runtime element-count roles. For this first slice those parameters
+are target/export ABI-owned, not IR-modeled RVV operands or descriptor-local
+`element_count`; the exporter resolves the concrete C names and validates the
+C types structurally by role. The exporter must validate and consume the
+microkernel's structured `setvl` / `with_vl` / `i32_vadd_dataflow` role body
+before emitting the RVV i32 load/add/store-intrinsic loop, so stale or
+mismatched control/dataflow metadata cannot be silently ignored. The default
+export is a library-style callable source artifact with no embedded `main` or
+self-check harness. If a bounded self-check executable is
 needed for evidence
 collection, `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the
 explicit harness export and calls the same ABI function over fixed local
