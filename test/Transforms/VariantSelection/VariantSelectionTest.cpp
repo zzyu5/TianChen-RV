@@ -940,6 +940,129 @@ module {
   return 0;
 }
 
+int runConflictAwareRuntimeDispatchSelectionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @conflict_dispatch_anchor attributes {} {
+    tcrv.exec.capability @fast_runtime {
+      id = "generic.fast.runtime",
+      kind = "runtime",
+      conflicts = ["build.policy.disable_fast_runtime"],
+      status = "available"
+    }
+    tcrv.exec.capability @disable_fast_profile {
+      id = "generic.build.profile",
+      kind = "build-policy",
+      provides = ["build.policy.disable_fast_runtime"],
+      status = "available"
+    }
+    tcrv.exec.capability @baseline_capability {
+      id = "generic.baseline",
+      kind = "toolchain",
+      status = "available"
+    }
+    tcrv.exec.variant @conflicting_fast attributes {
+      origin = "conflicting-fast",
+      requires = [@fast_runtime]
+    } {
+    }
+    tcrv.exec.variant @portable_fallback attributes {
+      fallback_role = "conservative",
+      origin = "portable-fallback",
+      requires = [@baseline_capability]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse conflict-aware selection module");
+
+  SelectionCostPlugin conflictingFast("conflicting-fast", 0.25);
+  SelectionCostPlugin portableFallback("portable-fallback", 10.0);
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(conflictingFast),
+                                 "register conflicting fast"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(portableFallback),
+                                 "register portable fallback"))
+    return result;
+
+  KernelOp kernel = findKernel(*module, "conflict_dispatch_anchor");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+      kernel, capabilities, registry);
+  if (!planOrError)
+    return fail("conflict-aware runtime dispatch planning failed: " +
+                llvm::toString(planOrError.takeError()));
+  VariantSelectionPlan plan = std::move(*planOrError);
+
+  if (int result = expect(plan.kind == VariantSelectionKind::RuntimeDispatch,
+                          "conflicting available variant requires runtime dispatch"))
+    return result;
+  if (int result =
+          expect(plan.fallback.getSymName() == "portable_fallback",
+                 "conflict-aware dispatch uses conflict-free fallback"))
+    return result;
+  if (int result =
+          expect(plan.dispatchCases.size() == 1 &&
+                     plan.dispatchCases.front().variant.getSymName() ==
+                         "conflicting_fast" &&
+                     plan.dispatchCases.front().genericallyAvailable &&
+                     !plan.dispatchCases.front().conflictFree &&
+                     plan.dispatchCases.front().requiresRuntimeCapabilityGuard,
+                 "conflicting available variant is retained as guarded case"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  DispatchOp createdDispatch;
+  if (int result =
+          expectSuccess(tianchenrv::transforms::materializeRuntimeDispatchPlan(
+                            builder, plan, &createdDispatch),
+                        "materialize conflict-aware runtime dispatch"))
+    return result;
+
+  llvm::SmallVector<DispatchCaseOp, 1> cases;
+  FallbackOp fallback;
+  for (mlir::Operation &operation : createdDispatch.getBody().front()) {
+    if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(operation)) {
+      cases.push_back(dispatchCase);
+      continue;
+    }
+    if (auto fallbackCandidate = llvm::dyn_cast<FallbackOp>(operation))
+      fallback = fallbackCandidate;
+  }
+
+  if (int result =
+          expect(cases.size() == 1 &&
+                     getTarget(cases.front().getOperation()) ==
+                         "conflicting_fast",
+                 "materialized dispatch case targets conflicting variant"))
+    return result;
+  if (int result =
+          expect(getStringAttr(cases.front().getOperation(), "policy") ==
+                     "capability_dispatch_guard",
+                 "conflicting case receives synthesized generic policy guard"))
+    return result;
+  if (int result =
+          expect(fallback &&
+                     getTarget(fallback.getOperation()) == "portable_fallback",
+                 "materialized fallback remains conflict-free"))
+    return result;
+
+  mlir::PassManager passManager(&context);
+  passManager.addPass(
+      tianchenrv::transforms::createCheckCapabilityRequiresPass());
+  if (int result =
+          expect(mlir::succeeded(passManager.run(*module)),
+                 "check-capability-requires accepts conflict-aware dispatch"))
+    return result;
+
+  return 0;
+}
+
 int runBuiltinRVVScalarFallbackSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1241,6 +1364,26 @@ module {
 	    } {
 	    }
 	  }
+
+  tcrv.exec.kernel @conflict_without_fallback_anchor attributes {} {
+    tcrv.exec.capability @fast_runtime {
+      id = "generic.fast.runtime",
+      kind = "runtime",
+      conflicts = ["build.policy.disable_fast_runtime"],
+      status = "available"
+    }
+    tcrv.exec.capability @disable_fast_profile {
+      id = "generic.build.profile",
+      kind = "build-policy",
+      provides = ["build.policy.disable_fast_runtime"],
+      status = "available"
+    }
+    tcrv.exec.variant @conflicting_only attributes {
+      origin = "conflicting-only",
+      requires = [@fast_runtime]
+    } {
+    }
+  }
 	}
 )mlir";
 
@@ -1250,6 +1393,7 @@ module {
 
   SelectionCostPlugin guardedOnly("guarded-only", 1.0);
   SelectionCostPlugin unguardedUnavailable("unguarded-unavailable", 0.5);
+  SelectionCostPlugin conflictingOnly("conflicting-only", 0.25);
   SelectionCostPlugin fallback("fallback", 1.0);
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(registry.registerPlugin(guardedOnly),
@@ -1257,6 +1401,9 @@ module {
     return result;
   if (int result = expectSuccess(registry.registerPlugin(unguardedUnavailable),
                                  "register unguarded-unavailable"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(conflictingOnly),
+                                 "register conflicting-only"))
     return result;
   if (int result =
           expectSuccess(registry.registerPlugin(fallback), "register fallback"))
@@ -1278,7 +1425,8 @@ module {
           tianchenrv::transforms::planKernelVariantSelection(
               noFallbackKernel,
               TargetCapabilitySet::buildFromKernel(noFallbackKernel), registry),
-          {"no direct variant is generically available", "no_fallback_anchor"}))
+          {"no plugin-provided conflict-free conservative fallback candidate",
+           "no_fallback_anchor"}))
     return result;
 
   KernelOp unguardedKernel =
@@ -1289,6 +1437,17 @@ module {
               TargetCapabilitySet::buildFromKernel(unguardedKernel), registry),
           {"unavailable variant lacks generic condition/guard/policy metadata",
            "unguarded_unavailable", "unguarded_unavailable_anchor"}))
+    return result;
+
+  KernelOp conflictWithoutFallbackKernel =
+      findKernel(*module, "conflict_without_fallback_anchor");
+  if (int result = expectPlanErrorContains(
+          tianchenrv::transforms::planKernelVariantSelection(
+              conflictWithoutFallbackKernel,
+              TargetCapabilitySet::buildFromKernel(conflictWithoutFallbackKernel),
+              registry),
+          {"no plugin-provided conflict-free conservative fallback candidate",
+           "conflict_without_fallback_anchor"}))
     return result;
 
   return 0;
@@ -1384,11 +1543,11 @@ module {
   otherEstimate.setVariantSymbol("other_path");
   crossKernelPlan.rankedVariants.push_back(
       tianchenrv::transforms::VariantSelectionCase{
-          crossKernelPlan.fallback, otherEstimate, 0, true, true});
+          crossKernelPlan.fallback, otherEstimate, 0, true, true, true, false});
   crossKernelPlan.dispatchCases.push_back(
       tianchenrv::transforms::VariantSelectionCase{
           findDirectVariant(kernel, "guarded_path"),
-          VariantCostEstimate(), 0, true, true});
+          VariantCostEstimate(), 0, false, false, true, true});
 
   if (int result = expectErrorContains(
           tianchenrv::transforms::materializeRuntimeDispatchPlan(
@@ -1554,6 +1713,8 @@ int main() {
   if (int result = runRuntimeDispatchPlanningAndMaterializationTest(context))
     return result;
   if (int result = runInjectedRegistrySelectionPassTest(context))
+    return result;
+  if (int result = runConflictAwareRuntimeDispatchSelectionTest(context))
     return result;
   if (int result = runBuiltinRVVScalarFallbackSelectionTest(context))
     return result;

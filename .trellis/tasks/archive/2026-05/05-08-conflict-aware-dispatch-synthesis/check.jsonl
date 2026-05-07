@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check that conflict-aware legality remains generic and capability-model driven."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check that variant dispatch synthesis preserves selection and fallback semantics."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains execution-focused and compute-free."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check that focused lit/FileCheck coverage matches project test conventions."}

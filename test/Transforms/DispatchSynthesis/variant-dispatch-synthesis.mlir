@@ -59,6 +59,47 @@ tcrv.exec.kernel @first_available_is_fallback attributes {} {
   // PIPE: tcrv.exec.fallback @baseline_path
 }
 
+// SYNTH-LABEL: tcrv.exec.kernel @conflicting_available_case_with_clean_fallback
+// PIPE-LABEL: tcrv.exec.kernel @conflicting_available_case_with_clean_fallback
+tcrv.exec.kernel @conflicting_available_case_with_clean_fallback attributes {} {
+  tcrv.exec.capability @fast_runtime {
+    id = "generic.fast.runtime",
+    kind = "runtime",
+    conflicts = ["build.policy.disable_fast_runtime"],
+    status = "available"
+  }
+  tcrv.exec.capability @disable_fast_profile {
+    id = "generic.build.profile",
+    kind = "build-policy",
+    provides = ["build.policy.disable_fast_runtime"],
+    status = "available"
+  }
+  tcrv.exec.capability @baseline_capability {
+    id = "generic.baseline",
+    kind = "toolchain",
+    status = "available"
+  }
+  tcrv.exec.variant @fast_runtime_path attributes {
+    origin = "fast-runtime-plugin",
+    requires = [@fast_runtime]
+  } {
+  }
+  tcrv.exec.variant @baseline_path attributes {
+    fallback_role = "conservative",
+    origin = "baseline-plugin",
+    requires = [@baseline_capability]
+  } {
+  }
+  // SYNTH: tcrv.exec.dispatch
+  // SYNTH: tcrv.exec.case @fast_runtime_path
+  // SYNTH-SAME: policy = "capability_dispatch_guard"
+  // SYNTH: tcrv.exec.fallback @baseline_path
+  // PIPE: tcrv.exec.dispatch
+  // PIPE: tcrv.exec.case @fast_runtime_path
+  // PIPE-SAME: policy = "capability_dispatch_guard"
+  // PIPE: tcrv.exec.fallback @baseline_path
+}
+
 // SYNTH-LABEL: tcrv.exec.kernel @already_dispatched
 // PIPE-LABEL: tcrv.exec.kernel @already_dispatched
 tcrv.exec.kernel @already_dispatched attributes {} {

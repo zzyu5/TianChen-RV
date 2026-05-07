@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --split-input-file --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s
+// RUN: tcrv-opt %s --split-input-file --tcrv-select-variants --tcrv-check-capability-requires --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s
 
 module {
   // CHECK-LABEL: tcrv.exec.kernel @public_rvv_plus_scalar
@@ -80,6 +80,60 @@ module {
     // CHECK-SAME: severity = "note"
     // CHECK-SAME: status = "metadata-only"
     // CHECK-SAME: target = @scalar_fallback_first_slice
+  }
+}
+
+// -----
+
+module {
+  // CHECK-LABEL: tcrv.exec.kernel @public_conflicting_rvv_plus_scalar
+  tcrv.exec.kernel @public_conflicting_rvv_plus_scalar {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      conflicts = ["build.policy.no_rvv"],
+      status = "available"
+    }
+    tcrv.exec.capability @no_rvv_policy {
+      id = "generic.build.profile",
+      kind = "build-policy",
+      provides = ["build.policy.no_rvv"],
+      status = "available"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    // CHECK: tcrv.exec.variant @rvv_first_slice
+    // CHECK-SAME: requires = [@rvv]
+    tcrv.exec.variant @rvv_first_slice attributes {
+      condition = "capability_available",
+      guard = "plugin_local_rvv_first_slice",
+      origin = "rvv-plugin",
+      policy = "metadata_only_first_slice",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+    } {
+    }
+    // CHECK: tcrv.exec.variant @scalar_fallback_first_slice
+    // CHECK-SAME: fallback_role = "conservative"
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    // CHECK: tcrv.exec.dispatch
+    // CHECK: tcrv.exec.case @rvv_first_slice
+    // CHECK-SAME: condition = "capability_available"
+    // CHECK-SAME: guard = "plugin_local_rvv_first_slice"
+    // CHECK-SAME: origin = "rvv-plugin"
+    // CHECK-SAME: policy = "metadata_only_first_slice"
+    // CHECK: tcrv.exec.fallback @scalar_fallback_first_slice
+    // CHECK-SAME: fallback_role = "conservative"
+    // CHECK-SAME: origin = "scalar-plugin"
   }
 }
 

@@ -147,6 +147,69 @@ module {
 // -----
 
 module {
+  // PIPE-LABEL: tcrv.exec.kernel @pipeline_conflicting_rvv_plus_scalar
+  // ROUNDTRIP-LABEL: tcrv.exec.kernel @pipeline_conflicting_rvv_plus_scalar
+  tcrv.exec.kernel @pipeline_conflicting_rvv_plus_scalar {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      conflicts = ["build.policy.no_rvv"],
+      status = "available"
+    }
+    tcrv.exec.capability @no_rvv_policy {
+      id = "generic.build.profile",
+      kind = "build-policy",
+      provides = ["build.policy.no_rvv"],
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+
+    // PIPE: tcrv.exec.variant @rvv_first_slice
+    // PIPE-SAME: requires = [@rvv]
+    // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+    // PIPE-SAME: fallback_role = "conservative"
+    // PIPE: tcrv.exec.dispatch
+    // PIPE: tcrv.exec.case @rvv_first_slice
+    // PIPE-SAME: guard = "plugin_local_rvv_property_evidence"
+    // PIPE-SAME: origin = "rvv-plugin"
+    // PIPE-SAME: policy = "metadata_only_first_slice"
+    // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
+    // PIPE-SAME: fallback_role = "conservative"
+    // PIPE-SAME: origin = "scalar-plugin"
+    // ROUNDTRIP: tcrv.exec.dispatch
+    // ROUNDTRIP: tcrv.exec.case @rvv_first_slice
+    // ROUNDTRIP-SAME: guard = "plugin_local_rvv_property_evidence"
+    // ROUNDTRIP: tcrv.exec.fallback @scalar_fallback_first_slice
+  }
+}
+
+// -----
+
+module {
   // PIPE-LABEL: tcrv.exec.kernel @pipeline_scalar_after_rvv_decline
   // ROUNDTRIP-LABEL: tcrv.exec.kernel @pipeline_scalar_after_rvv_decline
   tcrv.exec.kernel @pipeline_scalar_after_rvv_decline {

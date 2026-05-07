@@ -36,7 +36,9 @@ using tianchenrv::tcrv::exec::VariantOp;
 
 struct VariantAvailability {
   VariantOp variant;
-  bool genericallyAvailable = false;
+  bool requiredCapabilitiesAvailable = false;
+  bool conflictFree = false;
+  bool needsRuntimeCapabilityGuard = false;
 };
 
 struct PlannedDispatchCase {
@@ -78,24 +80,49 @@ llvm::SmallVector<VariantOp, 4> collectDirectVariants(KernelOp kernel) {
   return variants;
 }
 
-bool areRequiredCapabilitiesGenericallyAvailable(
+VariantAvailability analyzeVariantAvailability(
     VariantOp variant, const TargetCapabilitySet &capabilities) {
+  VariantAvailability availability;
+  availability.variant = variant;
+
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   if (!requiresAttr)
-    return false;
+    return availability;
+
+  availability.requiredCapabilitiesAvailable = true;
+  availability.conflictFree = true;
 
   for (mlir::Attribute requiredCapability : requiresAttr) {
     auto symbolRef =
         llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
     if (!symbolRef)
-      return false;
+      return VariantAvailability{variant};
 
-    if (!capabilities.isCapabilityAvailableBySymbolName(symbolRef.getValue()))
-      return false;
+    const support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbolRef.getValue());
+    if (!capability || !capability->isAvailable()) {
+      availability.requiredCapabilitiesAvailable = false;
+      availability.conflictFree = false;
+      availability.needsRuntimeCapabilityGuard = true;
+      continue;
+    }
+
+    llvm::SmallVector<support::CapabilityConflict, 4> conflicts;
+    capabilities.collectAvailableConflictsForCapability(*capability,
+                                                        conflicts);
+    if (!conflicts.empty()) {
+      availability.conflictFree = false;
+      availability.needsRuntimeCapabilityGuard = true;
+    }
   }
 
-  return true;
+  return availability;
+}
+
+bool isConflictFreeAvailable(const VariantAvailability &availability) {
+  return availability.requiredCapabilitiesAvailable &&
+         availability.conflictFree;
 }
 
 bool hasNonEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
@@ -114,6 +141,11 @@ bool hasConservativeFallbackRoleAttr(VariantOp variant) {
       plugin::kVariantFallbackRoleAttrName);
   return roleAttr &&
          roleAttr.getValue() == plugin::kConservativeFallbackRoleValue;
+}
+
+bool isConflictFreeAvailableFallback(const VariantAvailability &availability) {
+  return isConflictFreeAvailable(availability) &&
+         hasConservativeFallbackRoleAttr(availability.variant);
 }
 
 void copyStringAttrIfPresent(mlir::OperationState &state, VariantOp variant,
@@ -143,16 +175,13 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
 
   llvm::SmallVector<VariantAvailability, 4> availabilityByVariant;
   availabilityByVariant.reserve(variants.size());
-  for (VariantOp variant : variants) {
-    availabilityByVariant.push_back(VariantAvailability{
-        variant,
-        areRequiredCapabilitiesGenericallyAvailable(variant, capabilities)});
-  }
+  for (VariantOp variant : variants)
+    availabilityByVariant.push_back(
+        analyzeVariantAvailability(variant, capabilities));
 
   VariantOp fallback;
   for (const VariantAvailability &availability : availabilityByVariant) {
-    if (availability.genericallyAvailable &&
-        hasConservativeFallbackRoleAttr(availability.variant)) {
+    if (isConflictFreeAvailableFallback(availability)) {
       fallback = availability.variant;
       break;
     }
@@ -161,13 +190,13 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
   if (!fallback &&
       !llvm::any_of(availabilityByVariant,
                     [](const VariantAvailability &availability) {
-                      return availability.genericallyAvailable;
+                      return isConflictFreeAvailable(availability);
                     }))
     return kernel.emitError()
            << "cannot synthesize tcrv.exec.dispatch for kernel @"
            << kernel.getSymName()
-           << ": no direct variant is generically available as dispatch "
-              "fallback under the kernel capability set";
+           << ": no direct variant is conflict-free and generically available "
+              "as dispatch fallback under the kernel capability set";
 
   if (variants.size() < 2)
     return mlir::success();
@@ -176,7 +205,8 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
     return kernel.emitError()
            << "cannot synthesize tcrv.exec.dispatch for kernel @"
            << kernel.getSymName()
-           << ": no direct variant carries available generic fallback_role = \""
+           << ": no direct variant carries conflict-free available generic "
+              "fallback_role = \""
            << plugin::kConservativeFallbackRoleValue
            << "\"; refusing to invent an implicit fallback";
 
@@ -186,7 +216,7 @@ mlir::LogicalResult buildDispatchSynthesisPlan(
       continue;
 
     plan.cases.push_back(PlannedDispatchCase{
-        availability.variant, !availability.genericallyAvailable});
+        availability.variant, availability.needsRuntimeCapabilityGuard});
   }
 
   if (plan.cases.empty())

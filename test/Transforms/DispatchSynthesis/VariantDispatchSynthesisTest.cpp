@@ -45,6 +45,18 @@ module {
       id = "generic.baseline",
       kind = "toolchain"
     }
+    tcrv.exec.capability @conflicting_runtime {
+      id = "generic.conflicting.runtime",
+      kind = "runtime",
+      conflicts = ["build.policy.disable_conflicting_runtime"],
+      status = "available"
+    }
+    tcrv.exec.capability @conflict_policy {
+      id = "generic.conflict.policy",
+      kind = "build-policy",
+      provides = ["build.policy.disable_conflicting_runtime"],
+      status = "available"
+    }
     tcrv.exec.capability @extra_capability {
       id = "generic.extra",
       kind = "toolchain"
@@ -55,6 +67,11 @@ module {
       origin = "fast-plugin",
       policy = "prefer_fast_when_guarded",
       requires = [@fast_probe]
+    } {
+    }
+    tcrv.exec.variant @conflicting_path attributes {
+      origin = "conflicting-plugin",
+      requires = [@conflicting_runtime]
     } {
     }
 	    tcrv.exec.variant @baseline_path attributes {
@@ -157,7 +174,7 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
                           "returned dispatch is the direct kernel child"))
     return result;
 
-  llvm::SmallVector<DispatchCaseOp, 2> cases;
+  llvm::SmallVector<DispatchCaseOp, 3> cases;
   FallbackOp fallback;
   for (mlir::Operation &op : createdDispatch.getBody().front()) {
     if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(op)) {
@@ -168,7 +185,7 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
       fallback = fallbackCandidate;
   }
 
-  if (int result = expect(cases.size() == 2,
+  if (int result = expect(cases.size() == 3,
                           "dispatch has typed case ops for non-fallbacks"))
     return result;
   if (int result = expect(static_cast<bool>(fallback),
@@ -179,8 +196,12 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
                  "first case follows original variant order"))
     return result;
   if (int result =
-          expect(getTarget(cases[1].getOperation()) == "extra_path",
-                 "second case skips fallback and preserves order"))
+          expect(getTarget(cases[1].getOperation()) == "conflicting_path",
+                 "conflicting available variant remains a guarded case"))
+    return result;
+  if (int result =
+          expect(getTarget(cases[2].getOperation()) == "extra_path",
+                 "third case skips fallback and preserves order"))
     return result;
   if (int result =
           expect(getTarget(fallback.getOperation()) == "baseline_path",
@@ -202,17 +223,22 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
                  "unavailable case preserves plugin policy metadata"))
     return result;
   if (int result =
-          expect(cases[1]->getAttrOfType<mlir::StringAttr>("condition")
+          expect(cases[1]->getAttrOfType<mlir::StringAttr>("policy")
+                     .getValue() == "capability_dispatch_guard",
+                 "conflicting available case receives synthesized generic policy guard"))
+    return result;
+  if (int result =
+          expect(cases[2]->getAttrOfType<mlir::StringAttr>("condition")
                      .getValue() == "extra_condition",
                  "available case inherits variant condition metadata"))
     return result;
   if (int result =
-          expect(cases[1]->getAttrOfType<mlir::StringAttr>("guard")
+          expect(cases[2]->getAttrOfType<mlir::StringAttr>("guard")
                      .getValue() == "extra_guard",
                  "available case inherits variant guard metadata"))
     return result;
   if (int result =
-          expect(cases[1]->getAttrOfType<mlir::StringAttr>("policy")
+          expect(cases[2]->getAttrOfType<mlir::StringAttr>("policy")
                      .getValue() == "extra_policy",
                  "available case inherits variant policy metadata"))
     return result;

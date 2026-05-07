@@ -72,7 +72,6 @@ pass factories in this order:
 
 ```text
 tcrv-materialize-plugin-variants
-  -> tcrv-check-capability-requires
   -> tcrv-verify-plugin-variant-legality
   -> tcrv-select-variants
   -> tcrv-check-capability-requires
@@ -96,6 +95,10 @@ planning stage for this pipeline. The older order-based
 is not inserted before selection, because selection owns cost-aware dispatch or
 selected-marker materialization and must not compete with a pre-existing
 dispatch surface.
+The generic `tcrv-check-capability-requires` gate runs after this selection
+surface is materialized so conflict-aware planning can turn intended
+runtime-dispatched conflicts into explicit guarded cases before the unchanged
+legality gate rejects unprotected static variants or fallbacks.
 
 The `tcrv-verify-plugin-variant-legality` stage is the materialized-variant
 legality boundary before selection. It builds the same generic
@@ -221,18 +224,18 @@ The deterministic first-slice policy is:
   order;
 - leave kernels with an existing direct `tcrv.exec.dispatch` unchanged rather
   than creating competing dispatch ops;
-- choose the first direct variant whose `requires` are generically available as
-  the `tcrv.exec.fallback` target;
+- choose the first direct conservative-fallback variant whose `requires` are
+  generically available and conflict-free as the `tcrv.exec.fallback` target;
 - emit `tcrv.exec.case` entries for the remaining variants in original variant
   order;
 - inherit any present generic `condition`, `guard`, or `policy` metadata from
   the target variant onto the generated `tcrv.exec.case`;
 - attach a synthesized non-empty generic guard policy only when a case target has
-  unavailable required capabilities and no inherited generic decision metadata,
-  so `--tcrv-check-capability-requires` can treat it as runtime-guarded without
-  overwriting plugin-proposed metadata;
-- diagnose and leave IR unmodified when no direct variant is generically
-  available as an executable fallback.
+  unavailable or conflicting required capabilities and no inherited generic
+  decision metadata, so `--tcrv-check-capability-requires` can treat it as
+  runtime-guarded without overwriting plugin-proposed metadata;
+- diagnose and leave IR unmodified when no direct variant is conflict-free and
+  generically available as an executable fallback.
 
 Dispatch synthesis must stay target-neutral. It must not branch on RVV, IME,
 offload, scalar fallback, vendors, accelerators, or any other target family.
@@ -396,6 +399,14 @@ The generic selection-planning contract is:
   `requires` metadata and origin-owned cost information;
 - treat a variant as generically available only when all required capability
   symbols resolve in the supplied `TargetCapabilitySet` and are available;
+- treat a generically available variant whose required capability conflicts
+  with another available capability as not conflict-free for static selection
+  or fallback selection;
+- retain a conflicting available non-fallback variant as a runtime dispatch
+  case only when a conflict-free conservative fallback exists and the
+  materialized case carries non-empty generic `condition`, `guard`, or `policy`
+  metadata, inherited from the variant or synthesized as a target-neutral
+  guard policy;
 - reject unavailable variants that have no non-empty generic `condition`,
   `guard`, or `policy` metadata, rather than silently selecting them;
 - choose the best selected variant by generic availability and cost ranking;
@@ -405,16 +416,18 @@ The generic selection-planning contract is:
   fallback role when present, and the target-neutral tie-break reason;
 - choose a `tcrv.exec.fallback` only from a generically available variant that a
   plugin marked with an abstract conservative fallback role in proposal,
-  materialized metadata, or cost-estimate metadata;
+  materialized metadata, or cost-estimate metadata, and whose required
+  capabilities are conflict-free under the supplied `TargetCapabilitySet`;
 - do not infer fallback coverage from arbitrary available variants, origin
   strings, capability IDs, target families, dtypes, shapes, or runtime identities;
 - produce an explicit no-variant plan when a kernel has no direct variants;
-- diagnose runtime-dispatch situations that have guarded candidates but no
-  plugin-provided conservative fallback candidate;
+- diagnose runtime-dispatch situations that have guarded or conflicting
+  candidates but no plugin-provided conflict-free conservative fallback
+  candidate;
 - produce a static plan when the lowest ranked executable path is available and
   no lower-cost guarded candidate must be retained;
-- produce a runtime dispatch plan when lower-cost guarded candidates must be
-  retained and a generically available fallback exists.
+- produce a runtime dispatch plan when guarded or conflicting candidates must
+  be retained and a conflict-free generically available fallback exists.
 
 ### 4. Validation & Error Matrix
 
@@ -427,8 +440,8 @@ The generic selection-planning contract is:
   an `llvm::Error`;
 - unavailable variant without generic decision metadata -> return an
   `llvm::Error`;
-- runtime-dispatch plan without a plugin-provided conservative fallback candidate
-  -> return an `llvm::Error`;
+- runtime-dispatch plan without a plugin-provided conflict-free conservative
+  fallback candidate -> return an `llvm::Error`;
 - dispatch materialization for a non-runtime-dispatch plan -> return an
   `llvm::Error`;
 - dispatch materialization when the kernel already contains a direct
@@ -443,7 +456,8 @@ The generic selection-planning contract is:
 
 ### 5. Good / Base / Bad Cases
 
-- Good: lower-cost guarded variants carry non-empty generic metadata, a
+- Good: lower-cost guarded variants carry non-empty generic metadata or
+  conflicting variants receive synthesized generic guard policy, a conflict-free
   generically available fallback exists, and materialization creates ordered
   `tcrv.exec.case` ops plus one `tcrv.exec.fallback`.
 - Base: all candidates are generically available and unguarded; the planner

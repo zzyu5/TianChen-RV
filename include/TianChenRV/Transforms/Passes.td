@@ -29,12 +29,13 @@ def SynthesizeVariantDispatch
   let description = [{
     Scans each tcrv.exec.kernel for direct sibling tcrv.exec.variant operations
     and, when no dispatch already exists, builds one structurally valid
-    tcrv.exec.dispatch. The first direct variant whose requirements are
-    generically available under the kernel TargetCapabilitySet becomes the
-    fallback target. Remaining variants are emitted as deterministic dispatch
-    cases in original kernel order, with a non-empty generic policy attached to
-    cases whose requirements are unavailable and therefore require runtime
-    dispatch guarding. Kernels without a generically available fallback are
+    tcrv.exec.dispatch. The first direct conservative-fallback variant whose
+    requirements are generically available and conflict-free under the kernel
+    TargetCapabilitySet becomes the fallback target. Remaining variants are
+    emitted as deterministic dispatch cases in original kernel order, with a
+    non-empty generic policy attached to cases whose requirements are
+    unavailable or conflicting and therefore require runtime dispatch guarding.
+    Kernels without a conflict-free generically available fallback are
     diagnosed and left unmodified.
   }];
   let constructor =
@@ -117,12 +118,13 @@ def SelectVariants
 
     Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
     tcrv.exec.case, and tcrv.exec.fallback operations only when a plugin-provided
-    generic conservative fallback candidate is available. Static and
-    fallback-only plans materialize a generic selected-path tcrv.exec.diagnostic
-    marker with target and selection_kind metadata; static plans without fallback
-    coverage also materialize a missing-fallback diagnostic instead of inventing
-    an implicit fallback. No-variant plans do not erase variants or inject
-    target-specific IR.
+    generic conservative fallback candidate is available and conflict-free.
+    Conflicting available non-fallback variants are retained only as guarded
+    dispatch cases. Static and fallback-only plans materialize a generic
+    selected-path tcrv.exec.diagnostic marker with target and selection_kind
+    metadata; static plans without fallback coverage also materialize a
+    missing-fallback diagnostic instead of inventing an implicit fallback.
+    No-variant plans do not erase variants or inject target-specific IR.
   }];
   let constructor =
       "::tianchenrv::transforms::createSelectVariantsPass()";

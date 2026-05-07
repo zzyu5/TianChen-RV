@@ -28,7 +28,9 @@ struct VariantSelectionCase {
   plugin::VariantCostEstimate cost;
   std::size_t originalIndex = 0;
   bool genericallyAvailable = false;
+  bool conflictFree = false;
   bool hasGenericDecisionMetadata = false;
+  bool requiresRuntimeCapabilityGuard = false;
 };
 
 struct VariantSelectionPlan {
