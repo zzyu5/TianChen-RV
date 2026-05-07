@@ -16,6 +16,7 @@ using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::TCRVRVVDialect;
@@ -234,6 +235,94 @@ module {
   return 0;
 }
 
+int runI32VAddMicrokernelRoundTripTest() {
+  ExtensionPluginRegistry plugins;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+          "register RVV plugin for microkernel round trip"))
+    return result;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @microkernel_roundtrip attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+    } {
+    }
+    tcrv_rvv.i32_vadd_microkernel {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "microkernel_roundtrip"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV i32 vector-add microkernel op");
+
+  I32VAddMicrokernelOp microkernel;
+  module->walk([&](I32VAddMicrokernelOp candidate) {
+    microkernel = candidate;
+  });
+  if (int result =
+          expect(static_cast<bool>(microkernel),
+                 "module contains tcrv_rvv.i32_vadd_microkernel"))
+    return result;
+
+  auto elementCount =
+      microkernel->getAttrOfType<mlir::IntegerAttr>("element_count");
+  if (int result = expect(elementCount && elementCount.getInt() == 16,
+                          "microkernel element_count is preserved"))
+    return result;
+
+  std::string printedStorage;
+  llvm::raw_string_ostream printedStream(printedStorage);
+  module->print(printedStream);
+  printedStream.flush();
+  if (int result =
+          expect(llvm::StringRef(printedStorage)
+                     .contains("tcrv_rvv.i32_vadd_microkernel"),
+                 "printed module preserves RVV microkernel op"))
+    return result;
+
+  mlir::OwningOpRef<mlir::ModuleOp> reparsed =
+      parseModule(context, printedStorage);
+  if (!reparsed)
+    return fail("failed to reparse printed RVV microkernel module");
+
+  I32VAddMicrokernelOp reparsedMicrokernel;
+  reparsed->walk([&](I32VAddMicrokernelOp candidate) {
+    reparsedMicrokernel = candidate;
+  });
+  if (int result = expect(static_cast<bool>(reparsedMicrokernel),
+                          "reparsed module preserves RVV microkernel op"))
+    return result;
+
+  llvm::outs() << "RVV i32 vector-add microkernel round trip preserved\n";
+  return 0;
+}
+
 int runDefaultCoreDoesNotRegisterRVVDialectTest() {
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
@@ -349,6 +438,8 @@ int main() {
   if (int result = runPluginDialectRegistrationRoundTripTest())
     return result;
   if (int result = runPolicyAttributeRoundTripTest())
+    return result;
+  if (int result = runI32VAddMicrokernelRoundTripTest())
     return result;
   if (int result = runDefaultCoreDoesNotRegisterRVVDialectTest())
     return result;

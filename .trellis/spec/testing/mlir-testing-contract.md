@@ -68,6 +68,14 @@ Use lit/FileCheck for:
   comments, `riscv_vector.h` use, fail-before-source diagnostics for malformed
   selected RVV metadata, and no manifest/runtime-success/raw-log/performance
   claims.
+- RVV explicit microkernel C target export, including dialect parse/verify for
+  `tcrv_rvv.i32_vadd_microkernel`, post-planning or boundary-materialized
+  pipeline-to-export coverage, selected kernel/variant/march comments,
+  `riscv_vector.h` use, RVV i32 load/add/store intrinsics, self-checking
+  `main`, fail-before-source diagnostics for missing selected RVV paths,
+  missing/stale boundaries, missing/duplicate microkernel ops, malformed
+  selected march metadata, and no manifest/runtime-success/raw-log/performance
+  numbers.
 
 Example test intent:
 
@@ -186,3 +194,11 @@ compile/run of that generated source must be reported separately as
 hardware/toolchain evidence only, with bounded sanitized artifacts under
 `artifacts/tmp/...`; it cannot be used as a TianChen-RV kernel correctness,
 supported RVV emission, runtime ABI, or performance result.
+
+If the repository exports generated C for an explicit
+`tcrv_rvv.i32_vadd_microkernel`, local lit tests must cover the dialect op and
+exporter without requiring `ssh rvv`. Any remote compile/run of that generated
+source must be reported separately as bounded microkernel correctness evidence
+only for that explicit source and selected flags. It must not be reported as
+generic TianChen-RV lowering correctness, arbitrary RVV emission support,
+runtime ABI support, or performance evidence.

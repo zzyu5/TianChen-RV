@@ -1,0 +1,105 @@
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-c | FileCheck %s --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+
+module @rvv_microkernel_input {
+  tcrv.exec.kernel @micro_a {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.capability @rvv_toolchain_mabi {
+      id = "rvv.toolchain.mabi",
+      kind = "toolchain",
+      status = "available",
+      value = "lp64d"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      condition = "rvv_capability_properties_available",
+      guard = "plugin_local_rvv_property_evidence",
+      origin = "rvv-plugin",
+      policy = "metadata_only_first_slice",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_first_slice {
+        condition = "rvv_capability_properties_available",
+        guard = "plugin_local_rvv_property_evidence",
+        origin = "rvv-plugin",
+        policy = "metadata_only_first_slice"
+      }
+      tcrv.exec.fallback @scalar_fallback_first_slice {
+        fallback_role = "conservative",
+        origin = "scalar-plugin"
+      }
+    }
+    tcrv_rvv.i32_vadd_microkernel {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "dispatch case",
+      selected_mabi = "lp64d",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "micro_a"
+    }
+  }
+}
+
+// CHECK: /* TianChen-RV RVV explicit microkernel C export. */
+// CHECK: /* Scope: executable C for exactly one tcrv_rvv.i32_vadd_microkernel. */
+// CHECK: #include <riscv_vector.h>
+// CHECK-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
+// CHECK: /* selected_kernel: @micro_a */
+// CHECK: /* selected_variant: @rvv_first_slice */
+// CHECK: /* selected_role: dispatch case */
+// CHECK: /* selected_march: rv64gcv */
+// CHECK: /* selected_mabi: lp64d */
+// CHECK: /* lowering_boundary: tcrv_rvv.lowering_boundary */
+// CHECK: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// CHECK: /* element_count: 16 */
+// CHECK: /* required_capabilities: @rvv */
+// CHECK-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(void)
+// CHECK: enum { kTCRVMicrokernelElements = 16 };
+// CHECK: __riscv_vsetvl_e32m1
+// CHECK: __riscv_vle32_v_i32m1
+// CHECK: __riscv_vadd_vv_i32m1
+// CHECK: __riscv_vse32_v_i32m1
+// CHECK-LABEL: int main(void)
+// CHECK: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice();
+// CHECK: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);

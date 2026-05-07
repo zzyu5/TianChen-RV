@@ -117,4 +117,34 @@ def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
   let hasVerifier = 1;
 }
 
+def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel", []> {
+  let summary = "explicit bounded RVV i32 vector-add executable microkernel";
+  let description = [{
+    Records one plugin-local executable RVV i32 vector-add microkernel body for
+    a selected RVV variant. This is intentionally a finite smoke microkernel
+    surface: it carries selected-path metadata, required RVV capability
+    references, the required march, and a tiny element count that a target-local
+    exporter can turn into deterministic standalone C using RVV intrinsics.
+
+    This op is not a generic tensor, tile, benchmark, bufferization, lowering,
+    runtime ABI, or arbitrary vector math IR. It represents exactly the first
+    bounded RVV executable microkernel slice for i32 vector-add smoke
+    correctness.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    I64Attr:$element_count,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$required_march,
+    OptionalAttr<StrAttr>:$selected_mabi
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 #endif // TIANCHENRV_DIALECT_RVV_IR_RVVOPS_TD

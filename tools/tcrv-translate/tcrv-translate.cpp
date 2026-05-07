@@ -2,6 +2,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/EmissionManifest.h"
+#include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -52,6 +53,17 @@ mlir::LogicalResult exportRVVSmokeProbeC(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportRVVMicrokernelC(mlir::ModuleOp module,
+                                          llvm::raw_ostream &os) {
+  if (llvm::Error error =
+          tianchenrv::target::rvv::exportRVVMicrokernelC(module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
@@ -64,6 +76,12 @@ void registerTianChenRVTranslations() {
       "export a bounded RVV hardware/toolchain smoke-probe C source",
       exportRVVSmokeProbeC, registerTianChenRVTranslateDialects);
   (void)rvvSmokeProbeC;
+
+  static mlir::TranslateFromMLIRRegistration rvvMicrokernelC(
+      "tcrv-export-rvv-microkernel-c",
+      "export one explicit RVV i32 vector-add microkernel C source",
+      exportRVVMicrokernelC, registerTianChenRVTranslateDialects);
+  (void)rvvMicrokernelC;
 }
 
 } // namespace

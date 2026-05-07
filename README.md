@@ -73,6 +73,20 @@ kernel executable emission, runtime ABI glue, kernel correctness evidence, or
 performance evidence, and it does not change the RVV first-slice unsupported
 emission boundary.
 
+The `tcrv-translate --tcrv-export-rvv-microkernel-c` tool exports a distinct
+deterministic standalone C executable for exactly one explicit
+`tcrv_rvv.i32_vadd_microkernel` op attached to a selected RVV path. This is the
+first plugin-local RVV executable microkernel slice: the input MLIR must already
+contain a selected `rvv-plugin` variant, matching `tcrv_rvv.lowering_boundary`,
+preserved selected march metadata, and the explicit bounded RVV microkernel op.
+The generated source uses `riscv_vector.h`, RVV i32 add intrinsics, fixed local
+arrays, and a self-checking `main`. It proves only that this explicit generated
+microkernel source can compile and pass its self-check when real `ssh rvv`
+evidence is recorded. It is not generic high-level lowering, arbitrary RVV
+kernel executable emission, runtime ABI glue, or performance evidence; default
+RVV selected paths without the explicit microkernel op remain unsupported and
+deferred.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:
@@ -128,6 +142,19 @@ This proves only that the exported standalone smoke program can compile and run
 on the RVV host when separate `ssh rvv` evidence is recorded. It does not prove
 TianChen-RV lowered a selected kernel, generated an object for that kernel,
 linked runtime glue, produced a correctness result, or measured performance.
+
+For the explicit first microkernel slice, use a post-planning fixture or
+pipeline output that has been combined with `tcrv_rvv.i32_vadd_microkernel`:
+
+```bash
+tcrv-translate --tcrv-export-rvv-microkernel-c post_planning_microkernel.mlir \
+  > rvv_microkernel.c
+```
+
+Compile and run that source on `ssh rvv` with the selected `-march` and, when
+present, selected `-mabi`. The resulting evidence is bounded to the explicit
+i32 vector-add microkernel self-check and must not be reported as generic
+TianChen-RV RVV lowering correctness or performance.
 
 ## Scalar Fallback First Slice
 

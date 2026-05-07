@@ -460,6 +460,34 @@ It does not prove TianChen-RV lowered a selected kernel, emitted LLVM/RISC-V/RVV
 IR, generated an object, linked runtime glue, proved kernel correctness, or
 measured performance.
 
+### Explicit I32 Vector-Add Microkernel Export
+
+`tcrv_rvv.i32_vadd_microkernel` is the first RVV extension-dialect executable
+microkernel op. It represents exactly one bounded i32 vector-add smoke
+microkernel body for a selected RVV path. The op is plugin-local under the
+`tcrv_rvv` dialect and must carry only selected-path metadata: source kernel,
+selected variant, origin, selected role, required capability refs, required
+march, optional selected mabi, and a tiny element count. It must reject generic
+tensor/tile/benchmark attributes, unbounded or secret-like strings, invalid
+element counts, stale selected variants, missing or unavailable RVV capability
+refs, and required-march mismatches.
+
+`tcrv-translate --tcrv-export-rvv-microkernel-c` consumes post-planning MLIR
+that has exactly one selected `rvv-plugin` path, a matching
+`tcrv_rvv.lowering_boundary`, preserved selected march metadata, and exactly one
+matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
+`riscv_vector.h`, RVV i32 load/add/store intrinsics, bounded local arrays, and a
+self-checking `main`. Successful `ssh rvv` compile/run evidence for that source
+supports only the explicit microkernel correctness claim. It is not generic
+high-level lowering, arbitrary RVV executable emission, runtime ABI glue, or
+performance evidence.
+
+This target export does not change the default RVV emission readiness or
+emission-plan contract. `@rvv_first_slice` without an explicit matching
+microkernel op remains unsupported/deferred for executable RVV kernel emission.
+Generic manifest export and core orchestration must not add RVV-specific
+branches for this microkernel path.
+
 ### MLIR vector / LLVM scalable vector
 
 Use for ordinary vector arithmetic, load/store, and reductions that LLVM reliably lowers.

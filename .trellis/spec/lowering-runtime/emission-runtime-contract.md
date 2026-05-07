@@ -449,6 +449,81 @@ emission remains unsupported/deferred until plugin-local kernel lowering and
 runtime evidence are implemented.
 ```
 
+## RVV Explicit Microkernel Target Export Boundary
+
+### 1. Scope / Trigger
+
+Trigger: post-planning MLIR contains one selected `rvv-plugin` path, a matching
+plugin-owned `tcrv_rvv.lowering_boundary`, preserved selected march metadata,
+and exactly one explicit `tcrv_rvv.i32_vadd_microkernel` op for that selected
+kernel/variant.
+
+This export is the first bounded RVV executable microkernel slice. It may emit
+a deterministic standalone C program that computes and self-checks a finite i32
+vector add using RVV intrinsics. It is not generic high-level MLIR lowering,
+arbitrary RVV kernel emission, runtime ABI glue, benchmarking, or performance
+evidence.
+
+### 2. Signatures
+
+Public command:
+
+```text
+tcrv-translate --tcrv-export-rvv-microkernel-c
+```
+
+C++ entry point:
+
+```cpp
+llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
+                                  llvm::raw_ostream &os);
+```
+
+### 3. Contracts
+
+- Input must be real post-planning MLIR with one selected RVV path.
+- The selected variant must be owned by `origin = "rvv-plugin"` and require an
+  available capability whose id is `rvv`.
+- The selected variant must carry bounded `tcrv_rvv.required_march`, and the
+  enclosing kernel capability set must preserve matching selected march metadata
+  through `rvv.probe.compile_run.selected_march` or
+  `rvv.toolchain.march.value`.
+- A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
+  source kernel, selected variant, origin, role, status, and required
+  capability refs. The boundary may remain `status = "unsupported"` because
+  generic RVV emission readiness is still deferred.
+- A matching direct child `tcrv_rvv.i32_vadd_microkernel` must identify the same
+  selected path, required capability refs, required march, optional selected
+  mabi, and bounded element count.
+- Output must be deterministic standalone C with `riscv_vector.h`, RVV i32
+  load/add/store intrinsics, fixed local arrays, and a self-checking `main`.
+- Output must not include timestamps, absolute paths, raw logs, credentials,
+  benchmark sizes, latency/throughput numbers, or performance claims.
+
+### 4. Validation & Error Matrix
+
+- Missing selected RVV path, scalar-only path, offload-only path, or
+  fallback-only path -> export fails before source output.
+- Missing, duplicate, stale, role-mismatched, status-mismatched, or
+  required-capability-mismatched `tcrv_rvv.lowering_boundary` -> export fails.
+- Missing, duplicate, stale, selected-variant-mismatched,
+  required-capability-mismatched, invalid-element-count, malformed-march, or
+  secret-like `tcrv_rvv.i32_vadd_microkernel` -> export fails.
+- Missing, unavailable, non-symbol, non-RVV, or unknown selected variant
+  requirements -> export fails.
+- Missing or mismatched preserved selected march capability metadata -> export
+  fails.
+- Any validation failure must leave stdout without partial C source and must not
+  fall back to `--tcrv-export-rvv-smoke-probe-c`.
+
+### 5. Evidence Interpretation
+
+Real `ssh rvv` compile/run evidence for generated microkernel C proves only that
+the explicit generated i32 vector-add microkernel compiled and passed its
+self-check on that host with the selected compiler flags. It does not prove
+generic TianChen-RV lowering correctness, supported arbitrary RVV kernel
+emission, runtime ABI support, or performance.
+
 ## Scalar Fallback Metadata Boundary
 
 The first scalar fallback plugin slice may return a metadata-only emission
