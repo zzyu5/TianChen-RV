@@ -699,6 +699,29 @@ validated lowering-boundary operation when present, and either supported route
 metadata or an unsupported diagnostic. It does not lower IR, generate
 executable code, prove runtime correctness, or justify performance claims.
 
+## Parameter Flow Boundary
+
+Variant generation, legality, selection, tuning, and lowering-boundary
+materialization must preserve the project parameter layering rule:
+
+- hardware facts / target capability such as VLEN, vlenb-derived capacity, ISA
+  facts, hart count, toolchain availability, probe evidence, and capability
+  provenance constrain proposal, legality, cost, and selection;
+- compile-time variant config such as SEW, LMUL, tail/mask policy, unroll, and
+  selected lowering strategy is plugin-proposed metadata that must be checked
+  against those capabilities;
+- runtime SSA values / runtime control values such as AVL, vl, pointer
+  arguments, length `n`, `rvv_available`, and dispatch guards must be modeled
+  as real SSA, region/block arguments, explicit ABI/control attributes, or
+  generated C ABI parameters before any pass describes them as modeled;
+- descriptor-local bounded fixture parameters such as the current
+  `tcrv_rvv.element_count` identify a finite descriptor or emitted source
+  slice only. They are not tensor shape, global problem size, AVL, or vl.
+
+Selection and lowering-boundary metadata may name the parameter layer they
+consume, but must not promote a descriptor-local or runtime value into target
+capability, nor freeze hardware facts as per-variant runtime data.
+
 ## Capability-Aware Tuning
 
 Tuning has two layers.

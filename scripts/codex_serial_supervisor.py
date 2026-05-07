@@ -855,6 +855,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did it produce active code/schema/build/RVV evidence, not just docs or scaffolding labels?",
         "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
+        "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and descriptor-local boundaries?",
         "- If continuing, Hermes must generate a full transient next prompt from the base prompt and current evidence.",
     ]
     (run_dir / "review_input.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -1261,6 +1262,7 @@ Check these invariants:
 tcrv.exec expresses execution organization: kernel, target, capability, variant, requires, region, hart_parallel, mem_window, dispatch, fallback, diagnostics.
 concrete computation belongs in extension dialects or extension op families.
 capability objects participate in compiler decisions.
+RVV hardware facts, compile-time variant config, runtime SSA/control values, and descriptor-local bounded parameters are explicitly separated.
 extension-specific logic stays plugin-local through registries and interfaces.
 RVV claims are backed by ssh rvv evidence.
 Sophgo/offload is runtime-offload capability.
@@ -1275,6 +1277,7 @@ implemented compiler internals in Python;
 created generic compute ops inside tcrv.exec;
 hard-coded RVV / IME / Sophgo / AME logic into core passes;
 claimed RVV runtime, correctness, or performance without ssh rvv evidence;
+confused VLEN/vlenb as runtime values, SEW/LMUL as hardware-fact-only, AVL/vl as capability facts, setvl/with_vl as modeled without real IR/ABI surfaces, element_count as tensor shape/AVL, or expanded required_march string-comparison dependence unnecessarily;
 treated Sophgo/offload as a custom RISC-V ISA extension;
 treated IME or AME as the current primary hardware path without real evidence;
 added only status files, metadata, dashboards, unused scripts, or report-only progress;

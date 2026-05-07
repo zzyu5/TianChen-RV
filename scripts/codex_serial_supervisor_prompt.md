@@ -151,7 +151,7 @@ ISA capabilities:
   rv64, rvv, zvl*, zvfh, zvfbf*, ime, future custom ISA
 
 microarchitecture capabilities:
-  core count, VLEN, dtype support, toolchain availability
+  core count, VLEN, vlenb-derived capacity, dtype support, toolchain availability
 
 runtime/offload capabilities:
   runtime name, ABI, PCIe/SoC mode, supported offload operations
@@ -166,6 +166,34 @@ legality verification
 variant selection or dispatch
 lowering diagnostics
 ```
+
+## Parameter Flow Requirements
+
+Keep RVV, lowering, runtime, and artifact parameters in four distinct layers:
+
+```text
+hardware facts / target capability:
+  VLEN, vlenb-derived vector capacity, ISA/profile facts, hart/core count,
+  toolchain availability, remote probe evidence, capability provenance
+
+compile-time variant config:
+  SEW, LMUL, tail policy, mask policy, unroll, selected lowering strategy
+
+runtime SSA values / runtime control values:
+  AVL, vl, pointer arguments, length n, rvv_available, dispatch guard parameters
+
+descriptor-local bounded fixture parameters:
+  explicit microkernel/export fields such as element_count
+```
+
+Do not describe runtime SSA/control values as target capabilities or
+compile-time constants. Do not describe descriptor-local `element_count` as
+high-level tensor shape, global problem size, AVL, or vl. `required_march`
+string matching is only a bounded plugin-owned compatibility bridge; do not
+expand it when structured capabilities/properties are available or should be
+added. `setvl` or `with_vl` surfaces must not imply AVL/vl is IR-modeled unless
+real IR has the matching attribute, type, SSA value, region argument, or ABI
+parameter.
 
 ## Extension Plugin Requirements
 

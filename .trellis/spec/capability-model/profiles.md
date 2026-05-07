@@ -18,7 +18,7 @@ Capability examples:
 ```text
 rv64
 rvv
-zvl128b or actual probed minimum VLEN
+zvl128b or actual probed minimum VLEN / vlenb-derived capacity
 fp32/fp64 depending on hardware
 thread-runtime: OpenMP or pthread
 native compile support
@@ -39,7 +39,9 @@ Rules:
 - Stable profile capability identities must remain plugin-local and generic, such as `rvv`, `rvv.hart_count`, `rvv.toolchain.clang`, `rvv.toolchain.cmake`, `rvv.probe.compile_run`, `rvv.toolchain.march`, and `rvv.toolchain.mabi`; provider identity, benchmark names, logs, and performance measurements must not become capability IDs.
 - Local compile-only, local smoke-only, or unproven docs/spec changes must not be described as RVV runtime evidence.
 - RVV runtime/performance/correctness claims must name this profile or a derived probed profile.
-- VLEN and dtype support should be probed or declared with provenance, not guessed.
+- VLEN, vlenb-derived vector capacity, and dtype support should be probed or
+  declared with provenance, not guessed. They are target capability facts, not
+  runtime SSA/control values and not per-variant constants.
 
 ## K3/IME Later Profile
 

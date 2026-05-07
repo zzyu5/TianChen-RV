@@ -94,6 +94,35 @@ patched compiler available
 runtime library linkable
 ```
 
+## Parameter Layering Rule
+
+RVV, variant, lowering, runtime, and artifact work must keep parameter meaning
+layered. A parameter may cross layers only through an explicit compiler object
+or ABI surface that states the new meaning.
+
+1. Hardware facts / target capabilities belong in capability, profile, or probe
+   objects and constrain legality and selection. Examples include VLEN,
+   vlenb-derived vector capacity, ISA/profile facts, hart or core count,
+   toolchain availability, remote probe evidence, and capability provenance.
+2. Compile-time variant config belongs in plugin-proposed variant metadata,
+   selected config, tuning, or lowering-boundary metadata and must be checked
+   against target capability. Examples include SEW, LMUL, tail policy, mask
+   policy, unroll, and selected lowering strategy.
+3. Runtime SSA values / runtime control values belong in real IR or ABI
+   surfaces: SSA values, region or block arguments, op attributes that
+   explicitly mean ABI/control values, or generated C ABI parameters. Examples
+   include AVL, vl, pointer arguments, length `n`, `rvv_available`, and
+   dispatch guard parameters. These are not target capabilities or
+   compile-time variant constants.
+4. Descriptor-local bounded fixture parameters may describe one finite emitted
+   source slice, fixture, or target artifact descriptor. They must not
+   masquerade as high-level tensor shape, global problem size, AVL, or vl unless
+   real IR carries that meaning.
+
+Emission plans, manifests, diagnostics, and generated artifacts must not claim
+that a parameter is IR-modeled unless the real IR has the corresponding
+attribute, type, SSA value, region argument, or ABI parameter.
+
 ## Logical Shape
 
 Target capability should be represented as a structured target-level or module-level MLIR attribute.

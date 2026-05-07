@@ -78,6 +78,7 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 | Hermes evidence conflicts with Codex final summary | Hermes must trust repository state, then `repo_audit.md`, then `review_input.md`, then Codex summary |
 | Codex claims RVV runtime/correctness/performance without `ssh rvv` evidence | Hermes must redirect or block that claim in the next prompt |
 | Codex implements compiler internals in Python | Hermes must redirect back to C++ / MLIR / LLVM / TableGen / CMake |
+| Codex blurs hardware facts, compile-time variant config, runtime SSA/control values, or descriptor-local fixture parameters | Hermes must redirect the next prompt to restore the parameter layering contract |
 | Prompt rendering fails or base prompt is empty | runner command must fail rather than launch a worker with an empty prompt |
 | No-exec rendering is requested | runner must package evidence without launching Codex |
 | Durable steering exists | Hermes review prompt must include it as control-plane steering, not repository proof |
@@ -148,13 +149,15 @@ Each review must check whether the worker preserved the TianChen-RV project boun
 - `tcrv.exec` remains focused on execution organization, capability, variants, dispatch, fallback, and diagnostics.
 - Concrete computation stays in extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, scalar fallback, or future plugin dialects.
 - Capability objects participate in compiler decisions rather than appearing only as comments or strings.
+- RVV hardware facts, compile-time variant config, runtime SSA/control values,
+  and descriptor-local bounded parameters remain explicitly separated.
 - Extension-specific behavior stays plugin-local through registries and interfaces.
 - RVV correctness, runtime, or performance claims use real `ssh rvv` evidence.
 - Sophgo-style accelerator work is treated as runtime-offload capability, not a custom RISC-V ISA extension.
 - IME remains a later extension plugin path until hardware and toolchain evidence exists.
 - AME and future custom ISA paths remain future plugin slots until real target facts exist.
 
-Hermes must redirect the next worker if a run implements compiler internals in Python, adds generic compute operations to `tcrv.exec`, hard-codes concrete extensions in core passes, claims RVV progress without `ssh rvv` evidence, or delivers only metadata/status/report work when active compiler structure is needed.
+Hermes must redirect the next worker if a run implements compiler internals in Python, adds generic compute operations to `tcrv.exec`, hard-codes concrete extensions in core passes, claims RVV progress without `ssh rvv` evidence, delivers only metadata/status/report work when active compiler structure is needed, or confuses VLEN/vlenb as runtime values, SEW/LMUL as hardware facts only, AVL/vl as capabilities, `setvl`/`with_vl` as modeled without real IR/ABI surfaces, `element_count` as shape/AVL, or grows `required_march` string-comparison dependence when structured capabilities or properties are available.
 
 ## Next Codex Prompt Contract
 
@@ -209,6 +212,9 @@ Worker prompts must preserve these rules:
 - use Python only for tooling, probes, runners, artifact parsing, and small support scripts;
 - keep `tcrv.exec` compute-free;
 - keep extension behavior plugin-local;
+- obey hardware-facts / compile-time-variant-config / runtime-values /
+  descriptor-local-boundary layering, including bounded descriptor-local
+  intrinsic parameters;
 - require `ssh rvv` evidence for RVV runtime, correctness, or performance claims;
 - keep tests minimal and proportional to changed compiler behavior rather than
   using broad smoke coverage as a default completion signal;

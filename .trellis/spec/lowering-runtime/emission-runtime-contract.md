@@ -108,6 +108,32 @@ This does not add generic RVV or scalar lowering, full runtime ABI integration,
 object generation, linking, arbitrary source export, correctness evidence, or
 performance evidence.
 
+### Parameter Claim Boundary
+
+Lowering boundaries, emission plans, manifests, and target artifacts must
+preserve parameter layering:
+
+- hardware facts / target capability such as VLEN, vlenb-derived capacity,
+  hart count, toolchain availability, selected march/mabi capability
+  properties, and remote probe provenance constrain route legality and
+  selection;
+- compile-time variant config such as SEW, LMUL, tail/mask policy, unroll, and
+  selected lowering strategy may be serialized as compiler decision metadata
+  only when it was actually selected or proposed by the plugin and checked
+  against capabilities;
+- runtime SSA values / runtime control values such as AVL, vl, pointer
+  arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
+  only as real IR/control fields or generated ABI parameters;
+- descriptor-local bounded values such as `tcrv_rvv.element_count` describe a
+  finite descriptor or fixture slice only and must not be reported as tensor
+  shape, global problem size, AVL, or vl.
+
+Generated C may contain target-owned local variables such as a local `vl`
+computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
+That does not imply those values were modeled in MLIR unless the input IR has
+the corresponding attribute, type, SSA value, region argument, or ABI/control
+surface. The same rule applies to future `setvl` or `with_vl` dialect surfaces.
+
 ### Execution-Plan / Export Preflight Coherence
 
 Before a module is handed to a generic target artifact export route, the public

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/capability-model/index.md", "reason": "Capability/profile/provenance layer rules for target hardware facts."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant generation and selection rules for compile-time configuration boundaries."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Plugin locality and RVV-owned semantics boundaries."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering boundary, runtime ABI, and emission contract rules."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Supervisor policy and implementation-stack guardrails."}

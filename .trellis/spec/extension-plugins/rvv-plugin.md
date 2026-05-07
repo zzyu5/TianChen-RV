@@ -317,6 +317,33 @@ These surfaces are not `vsetvl`, vector registers, masks, memory operations,
 RVV intrinsics, LLVM/RISC-V lowering, runtime ABI, executable emission,
 correctness evidence, or performance evidence.
 
+## RVV Parameter Boundary
+
+RVV work must keep these parameter layers distinct:
+
+- VLEN and vlenb are hardware facts / target capability evidence. They may
+  constrain legality, vector capacity, and selection after provenance is
+  validated, but they are not per-variant runtime values.
+- SEW and LMUL are compile-time variant config selected or proposed by the RVV
+  plugin and checked against target capabilities. They are not sufficient as
+  standalone hardware facts without the surrounding capability/profile evidence.
+- AVL and vl are runtime SSA values / runtime control values. A `setvl` or
+  `with_vl` surface must not imply that AVL or vl is IR-modeled unless a real
+  op attribute, SSA value, region argument, or ABI parameter exists.
+- `tcrv_rvv.element_count` in the current i32-vadd descriptor, microkernel op,
+  and C export path is descriptor-local and bounded. It describes the finite
+  emitted source slice or test descriptor, not high-level MLIR tensor shape,
+  global problem size, AVL, or vl.
+- `tcrv_rvv.required_march` string matching is a bounded plugin-owned
+  compatibility bridge for the current first slice. Do not expand dependence on
+  `required_march` string comparisons when structured capabilities or
+  properties are available or should be added.
+
+Emission plans and manifests for RVV paths must not claim VLEN, vlenb, SEW,
+LMUL, AVL, vl, `setvl`, `with_vl`, `element_count`, or `required_march` are
+IR-modeled unless the real IR has the corresponding attribute, type, SSA value,
+region argument, or generated ABI parameter.
+
 ## First Lowering Boundary Slice
 
 The canonical public `tcrv-opt` pass
