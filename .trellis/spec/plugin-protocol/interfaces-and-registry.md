@@ -451,7 +451,10 @@ planning after readiness, without generating executable artifacts:
   registry and never a core target-family branch;
 - validate returned plans by requiring a present status, non-empty origin
   plugin, non-empty kernel symbol, non-empty variant symbol, matching
-  origin/kernel/variant identity, and matching selected-path role;
+  origin/kernel/variant identity, matching selected-path role, non-empty
+  runtime ABI kind/name metadata, non-empty runtime glue role metadata, and
+  non-empty required capability symbol refs that are a safe subset of the
+  selected variant `requires` metadata;
 - when selected lowering-boundary metadata has been materialized for the
   selected path, validate it before plugin plan routing and require exactly one
   matching direct kernel-child boundary for each selected reference;
@@ -463,6 +466,9 @@ planning after readiness, without generating executable artifacts:
   kind, lowering pipeline identifier, runtime ABI identifier, artifact kind, and
   explanation;
 - require unsupported plans to carry a non-empty diagnostic string;
+- require plugin-returned route, ABI, glue-role, diagnostic, and explanation
+  text to be bounded single-line metadata, not raw logs, credentials, or
+  unbounded hardware output;
 - treat plans as plugin-owned compiler metadata/intent only; a supported or
   metadata-only plan is not proof that code was generated, linked, executed,
   correct, or performant;
@@ -479,7 +485,8 @@ Materialization is a core orchestration surface only:
 - it creates diagnostics only after plan collection and generic validation have
   succeeded;
 - it copies plugin-owned generic fields such as origin, role, support status,
-  emission kind, lowering pipeline id, runtime ABI id, artifact kind, and
+  emission kind, lowering pipeline id, runtime ABI id, runtime ABI kind/name,
+  runtime glue role, required capability refs, artifact kind, and
   diagnostic/explanation text;
 - for selected paths with a validated plugin boundary, it also records a generic
   `lowering_boundary` diagnostic metadata field naming the boundary operation

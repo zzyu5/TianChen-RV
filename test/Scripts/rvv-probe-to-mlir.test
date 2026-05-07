@@ -72,11 +72,19 @@
 # PIPE: tcrv.exec.diagnostic
 # PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
 # PIPE-SAME: reason = "emission_plan"
+# PIPE-SAME: required_capabilities = [@rvv]
+# PIPE-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+# PIPE-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
+# PIPE-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
 # PIPE-SAME: status = "unsupported"
 # PIPE-SAME: target = @rvv_first_slice
 # PIPE: tcrv.exec.diagnostic
 # PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
 # PIPE-SAME: reason = "emission_plan"
+# PIPE-SAME: required_capabilities = [@scalar_fallback]
+# PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+# PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+# PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
 # PIPE-SAME: status = "metadata-only"
 # PIPE-SAME: target = @scalar_fallback_first_slice
 
@@ -93,6 +101,10 @@
 # SCALAR_ONLY: tcrv.exec.diagnostic
 # SCALAR_ONLY-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
 # SCALAR_ONLY-SAME: reason = "emission_plan"
+# SCALAR_ONLY-SAME: required_capabilities = [@scalar_fallback]
+# SCALAR_ONLY-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+# SCALAR_ONLY-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+# SCALAR_ONLY-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
 # SCALAR_ONLY-SAME: status = "metadata-only"
 # SCALAR_ONLY-NOT: tcrv_rvv.lowering_boundary
 

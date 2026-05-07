@@ -47,6 +47,14 @@ fallback materializes `tcrv_scalar.lowering_boundary` for selected portable
 fallback paths. Both surfaces are compiler metadata only and do not claim
 executable lowering.
 
+Emission-plan materialization also routes through the selected variant's origin
+plugin. The resulting `tcrv.exec.diagnostic {reason = "emission_plan"}`
+metadata records bounded plugin-owned runtime ABI ownership fields such as
+runtime ABI kind/name, runtime glue role, selected variant, lowering boundary,
+status, and required capability refs. These diagnostics are compiler-decision
+metadata only: they are not executable code, runtime ABI glue, correctness
+evidence, or performance evidence.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:

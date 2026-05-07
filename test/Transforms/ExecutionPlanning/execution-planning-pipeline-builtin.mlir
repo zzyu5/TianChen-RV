@@ -83,7 +83,11 @@ module {
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // PIPE-SAME: reason = "emission_plan"
+    // PIPE-SAME: required_capabilities = [@rvv]
     // PIPE-SAME: role = "dispatch case"
+    // PIPE-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+    // PIPE-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
+    // PIPE-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
     // PIPE-SAME: status = "unsupported"
     // PIPE-SAME: target = @rvv_first_slice
     // PIPE: tcrv.exec.diagnostic
@@ -92,8 +96,12 @@ module {
     // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // PIPE-SAME: lowering_pipeline = "none-executable-metadata-only"
     // PIPE-SAME: reason = "emission_plan"
+    // PIPE-SAME: required_capabilities = [@scalar_fallback]
     // PIPE-SAME: role = "dispatch fallback"
     // PIPE-SAME: runtime_abi = "none-metadata-only"
+    // PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+    // PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+    // PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
     // PIPE-SAME: status = "metadata-only"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
@@ -148,7 +156,11 @@ module {
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // PIPE-SAME: reason = "emission_plan"
+    // PIPE-SAME: required_capabilities = [@scalar_fallback]
     // PIPE-SAME: role = "direct variant"
+    // PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+    // PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+    // PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
     // PIPE-SAME: status = "metadata-only"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 

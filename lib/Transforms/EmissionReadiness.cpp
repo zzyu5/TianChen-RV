@@ -47,6 +47,10 @@ using tianchenrv::tcrv::exec::diagnostic::kPlanKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kReasonAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRoleAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIKindAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeABINameAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeGlueRoleAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRequiredCapabilitiesAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kSelectedReasonValue;
 using tianchenrv::tcrv::exec::diagnostic::kSelectionKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kSeverityAttrName;
@@ -58,8 +62,6 @@ constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantEmissionPlan;
@@ -760,6 +762,52 @@ llvm::Error validatePlanString(KernelOp kernel, const VariantEmissionPlan &plan,
           " requires non-empty " + fieldName);
 }
 
+llvm::Error validatePlanRequiredCapabilities(KernelOp kernel,
+                                             const VariantEmissionPlan &plan,
+                                             VariantOp variant) {
+  llvm::ArrayRef<std::string> requiredCapabilities =
+      plan.getRequiredCapabilitySymbols();
+  if (requiredCapabilities.empty())
+    return makeEmissionPlanDiagnosticMaterializationError(
+        kernel,
+        llvm::Twine("plan for variant @") + plan.getVariantSymbol() +
+            " requires non-empty required capability refs");
+
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!variantRequires)
+    return makeEmissionPlanDiagnosticMaterializationError(
+        kernel,
+        llvm::Twine("plan target @") + plan.getVariantSymbol() +
+            " requires structured array attribute '" + kRequiresAttrName +
+            "' before runtime ABI metadata materialization");
+
+  llvm::StringSet<> seenCapabilities;
+  for (const std::string &symbolStorage : requiredCapabilities) {
+    llvm::StringRef symbol(symbolStorage);
+    if (symbol.trim().empty())
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel,
+          llvm::Twine("plan for variant @") + plan.getVariantSymbol() +
+              " requires non-empty required capability ref");
+
+    if (!seenCapabilities.insert(symbol).second)
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel,
+          llvm::Twine("plan for variant @") + plan.getVariantSymbol() +
+              " duplicates required capability ref @" + symbol);
+
+    if (!arrayContainsSymbol(variantRequires, symbol))
+      return makeEmissionPlanDiagnosticMaterializationError(
+          kernel,
+          llvm::Twine("plan for variant @") + plan.getVariantSymbol() +
+              " required capability ref @" + symbol +
+              " is not a safe subset of selected variant requires metadata");
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validatePlansForMaterialization(
     KernelOp kernel, llvm::ArrayRef<VariantEmissionPlan> plans) {
   if (!kernel)
@@ -809,11 +857,28 @@ llvm::Error validatePlansForMaterialization(
                       " does not resolve to a direct sibling "
                       "tcrv.exec.variant");
     }
+    VariantOp planVariant = directVariantIt->getValue();
 
     if (!materializedTargets.insert(plan.getVariantSymbol()).second)
       return makeEmissionPlanDiagnosticMaterializationError(
           kernel, llvm::Twine("duplicate emission plan for target @") +
                       plan.getVariantSymbol());
+
+    if (llvm::Error error =
+            validatePlanString(kernel, plan, "runtime ABI kind",
+                               plan.getRuntimeABIKind()))
+      return error;
+    if (llvm::Error error =
+            validatePlanString(kernel, plan, "runtime ABI name",
+                               plan.getRuntimeABIName()))
+      return error;
+    if (llvm::Error error =
+            validatePlanString(kernel, plan, "runtime glue role",
+                               plan.getRuntimeGlueRole()))
+      return error;
+    if (llvm::Error error =
+            validatePlanRequiredCapabilities(kernel, plan, planVariant))
+      return error;
 
     if (plan.isSupported() || plan.isMetadataOnly()) {
       if (llvm::Error error =
@@ -859,6 +924,16 @@ void addStringAttribute(mlir::MLIRContext &context, mlir::OperationState &state,
   state.addAttribute(name, mlir::StringAttr::get(&context, value));
 }
 
+void addRequiredCapabilityAttribute(mlir::MLIRContext &context,
+                                    mlir::OperationState &state,
+                                    const VariantEmissionPlan &plan) {
+  llvm::SmallVector<mlir::Attribute, 4> capabilities;
+  for (const std::string &symbol : plan.getRequiredCapabilitySymbols())
+    capabilities.push_back(mlir::FlatSymbolRefAttr::get(&context, symbol));
+  state.addAttribute(kRequiredCapabilitiesAttrName,
+                     mlir::ArrayAttr::get(&context, capabilities));
+}
+
 void materializeEmissionPlanDiagnostic(KernelOp kernel,
                                        const VariantEmissionPlan &plan,
                                        mlir::OpBuilder &builder) {
@@ -893,17 +968,30 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
   if (!plan.getLoweringBoundaryOpName().empty())
     addStringAttribute(context, state, kLoweringBoundaryAttrName,
                        plan.getLoweringBoundaryOpName());
+  addStringAttribute(context, state, kRuntimeABIKindAttrName,
+                     plan.getRuntimeABIKind());
+  addStringAttribute(context, state, kRuntimeABINameAttrName,
+                     plan.getRuntimeABIName());
+  addStringAttribute(context, state, kRuntimeGlueRoleAttrName,
+                     plan.getRuntimeGlueRole());
+  addRequiredCapabilityAttribute(context, state, plan);
 
-  if (plan.isSupported() || plan.isMetadataOnly()) {
+  if (plan.isSupported() || plan.isMetadataOnly() ||
+      !plan.getEmissionKind().empty())
     addStringAttribute(context, state, kEmissionKindAttrName,
                        plan.getEmissionKind());
+  if (plan.isSupported() || plan.isMetadataOnly() ||
+      !plan.getLoweringPipeline().empty())
     addStringAttribute(context, state, kLoweringPipelineAttrName,
                        plan.getLoweringPipeline());
+  if (plan.isSupported() || plan.isMetadataOnly() ||
+      !plan.getRuntimeABI().empty())
     addStringAttribute(context, state, kRuntimeABIAttrName,
                        plan.getRuntimeABI());
+  if (plan.isSupported() || plan.isMetadataOnly() ||
+      !plan.getArtifactKind().empty())
     addStringAttribute(context, state, kArtifactKindAttrName,
                        plan.getArtifactKind());
-  }
 
   builder.create(state);
 }

@@ -73,6 +73,10 @@ readiness status: metadata-only
 emission kind: portable-scalar-fallback-metadata-route
 lowering pipeline: none-executable-metadata-only
 runtime ABI: none-metadata-only
+runtime ABI kind: host-scalar-fallback-metadata
+runtime ABI name: portable-scalar-fallback-metadata-abi.v1
+runtime glue role: metadata-only-host-fallback-boundary
+required capabilities: selected scalar fallback variant required capability refs
 artifact kind: metadata-diagnostic
 ```
 

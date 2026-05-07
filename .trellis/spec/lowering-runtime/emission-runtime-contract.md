@@ -46,10 +46,18 @@ Rules:
 
 - route by the same materialized variant `origin` plugin as readiness;
 - carry kernel symbol, variant symbol, selected-path role, support status,
-  origin plugin, and diagnostic/explanation metadata;
+  origin plugin, runtime ABI ownership metadata, required capability refs, and
+  diagnostic/explanation metadata;
+- carry bounded runtime ABI kind/name metadata and a bounded required runtime
+  glue role chosen by the origin plugin;
+- carry required capability symbol refs that are a safe subset of the selected
+  variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
   identifier, runtime ABI identifier, artifact kind, and explanation;
 - for unsupported paths, require a non-empty diagnostic reason;
+- reject plugin-returned empty runtime ABI kind/name, empty runtime glue role,
+  missing required capability refs, or unbounded/secret-like diagnostic and
+  explanation text before materialization;
 - diagnose missing origin, unregistered origin, disabled origin plugin,
   malformed plugin result, mismatched variant symbol, mismatched kernel symbol,
   mismatched selected-path role, duplicate selected markers, and missing
@@ -268,11 +276,15 @@ Before real lowering/runtime work exists, plugin emission plans may be
 materialized as `tcrv.exec.diagnostic {reason = "emission_plan"}` metadata.
 These diagnostics are reproducibility and compiler-decision records only. A
 supported or metadata-only diagnostic records plugin-owned intent such as
-emission kind, lowering pipeline id, runtime ABI id, and artifact kind; it does
-not mean that the compiler emitted LLVM/RISC-V/RVV IR, assembled an object,
-linked a runtime, ran hardware, proved correctness, or measured performance.
+emission kind, lowering pipeline id, runtime ABI id, runtime ABI kind/name,
+runtime glue role, required capability refs, and artifact kind; it does not
+mean that the compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked
+a runtime, ran hardware, proved correctness, or measured performance.
 Unsupported diagnostics should carry explicit plugin diagnostic text and are
-valid evidence of a boundary, not of executable support. When a selected-path
+valid evidence of a boundary, not of executable support. Unsupported
+diagnostics may still carry plugin-owned runtime ABI kind/name and runtime glue
+role metadata so the unsupported boundary is explicit; those fields are not
+runtime ABI glue implementation or executable evidence. When a selected-path
 lowering boundary was consumed, the diagnostic should also carry a generic
 `lowering_boundary` metadata field naming the boundary operation used by the
 plan. That field is a diagnostic link only and does not imply executable
@@ -324,6 +336,9 @@ status: metadata-only
 emission kind: portable-scalar-fallback-metadata-route
 lowering pipeline: none-executable-metadata-only
 runtime ABI: none-metadata-only
+runtime ABI kind: host-scalar-fallback-metadata
+runtime ABI name: portable-scalar-fallback-metadata-abi.v1
+runtime glue role: metadata-only-host-fallback-boundary
 artifact kind: metadata-diagnostic
 ```
 

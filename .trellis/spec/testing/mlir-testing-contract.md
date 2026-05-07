@@ -54,6 +54,10 @@ Use lit/FileCheck for:
   boundary after selection changes, duplicate competing boundaries,
   required-capability mismatch, and no diagnostic append after failed
   materialization.
+- plugin-owned runtime ABI/emission ownership metadata on materialized emission
+  plans, including bounded runtime ABI kind/name, runtime glue role, required
+  capability refs, unsupported RVV metadata boundaries, scalar metadata-only
+  fallback routes, and malformed plugin-returned metadata rejection.
 
 Example test intent:
 

@@ -682,6 +682,16 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       "ABI, artifact contract, or executable emission path; this unsupported "
       "emission plan is a plugin-owned diagnostic boundary and not RVV "
       "hardware/toolchain/runtime/correctness/performance evidence");
+  out.setEmissionKind("rvv-unsupported-metadata-boundary");
+  out.setLoweringPipeline("rvv-none-executable-unsupported");
+  out.setRuntimeABI("rvv-none-executable-unsupported");
+  out.setRuntimeABIKind("rvv-plugin-deferred-runtime-abi");
+  out.setRuntimeABIName("rvv-executable-runtime-abi-deferred");
+  out.setRuntimeGlueRole("deferred-rvv-runtime-glue");
+  out.setArtifactKind("unsupported-emission-diagnostic");
+  if (llvm::Error error =
+          out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+    return error;
   return llvm::Error::success();
 }
 

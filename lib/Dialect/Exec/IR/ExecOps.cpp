@@ -52,6 +52,10 @@ using diagnostic::kPlanKindAttrName;
 using diagnostic::kReasonAttrName;
 using diagnostic::kRoleAttrName;
 using diagnostic::kRuntimeABIAttrName;
+using diagnostic::kRuntimeABIKindAttrName;
+using diagnostic::kRuntimeABINameAttrName;
+using diagnostic::kRuntimeGlueRoleAttrName;
+using diagnostic::kRequiredCapabilitiesAttrName;
 using diagnostic::kSelectionKindAttrName;
 using diagnostic::kSeverityAttrName;
 using diagnostic::kStatusAttrName;
@@ -127,6 +131,18 @@ bool kernelContainsVariant(KernelOp kernel, llvm::StringRef symbolName) {
   return false;
 }
 
+bool arrayContainsSymbol(mlir::ArrayAttr array, llvm::StringRef symbolName) {
+  if (!array)
+    return false;
+
+  for (mlir::Attribute attr : array) {
+    auto symbolRef = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attr);
+    if (symbolRef && symbolRef.getValue() == symbolName)
+      return true;
+  }
+  return false;
+}
+
 mlir::Operation *findDirectKernelSymbol(KernelOp kernel,
                                         llvm::StringRef symbolName) {
   if (!kernel || kernel.getBody().empty())
@@ -161,6 +177,42 @@ mlir::LogicalResult requireEmissionPlanStringAttr(DiagnosticOp diagnostic,
   return mlir::success();
 }
 
+mlir::LogicalResult
+verifyEmissionPlanRequiredCapabilities(DiagnosticOp diagnostic,
+                                       KernelOp kernel) {
+  auto requiredCapabilities =
+      diagnostic->getAttrOfType<mlir::ArrayAttr>(
+          kRequiredCapabilitiesAttrName);
+  if (!requiredCapabilities || requiredCapabilities.empty())
+    return diagnostic.emitOpError()
+           << "emission-plan diagnostic requires non-empty array attribute '"
+           << kRequiredCapabilitiesAttrName << "'";
+
+  llvm::StringSet<> seenCapabilities;
+  for (mlir::Attribute requiredCapability : requiredCapabilities) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef || symbolRef.getValue().trim().empty())
+      return diagnostic.emitOpError()
+             << "emission-plan diagnostic attribute '"
+             << kRequiredCapabilitiesAttrName
+             << "' must contain only non-empty capability symbol references";
+
+    if (!seenCapabilities.insert(symbolRef.getValue()).second)
+      return diagnostic.emitOpError()
+             << "emission-plan diagnostic duplicates required capability @"
+             << symbolRef.getValue();
+
+    if (!kernelContainsCapability(kernel, symbolRef.getValue()))
+      return diagnostic.emitOpError()
+             << "emission-plan diagnostic references unknown required "
+                "capability @"
+             << symbolRef.getValue() << " in enclosing tcrv.exec.kernel";
+  }
+
+  return mlir::success();
+}
+
 mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   mlir::Operation *op = diagnostic.getOperation();
 
@@ -169,6 +221,15 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   if (mlir::failed(requireEmissionPlanStringAttr(diagnostic, kRoleAttrName)))
     return mlir::failure();
   if (mlir::failed(requireEmissionPlanStringAttr(diagnostic, kStatusAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireEmissionPlanStringAttr(diagnostic, kRuntimeABIKindAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireEmissionPlanStringAttr(diagnostic, kRuntimeABINameAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireEmissionPlanStringAttr(diagnostic, kRuntimeGlueRoleAttrName)))
     return mlir::failure();
 
   auto statusAttr = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
@@ -207,11 +268,37 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
            << "references unknown emission-plan diagnostic target variant @"
            << targetAttr.getValue() << " in enclosing tcrv.exec.kernel";
 
-  if (!llvm::isa<VariantOp>(target))
+  auto targetVariant = llvm::dyn_cast<VariantOp>(target);
+  if (!targetVariant)
     return diagnostic.emitOpError()
            << "emission-plan diagnostic target @" << targetAttr.getValue()
            << " resolves to a direct sibling symbol that is not a "
               "tcrv.exec.variant";
+
+  if (mlir::failed(
+          verifyEmissionPlanRequiredCapabilities(diagnostic, kernel)))
+    return mlir::failure();
+
+  auto requiredCapabilities =
+      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
+  auto targetRequires =
+      targetVariant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!targetRequires)
+    return diagnostic.emitOpError()
+           << "emission-plan diagnostic target @" << targetAttr.getValue()
+           << " requires structured array attribute '" << kRequiresAttrName
+           << "'";
+
+  for (mlir::Attribute requiredCapability : requiredCapabilities) {
+    auto symbolRef =
+        llvm::cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!arrayContainsSymbol(targetRequires, symbolRef.getValue()))
+      return diagnostic.emitOpError()
+             << "emission-plan diagnostic required capability @"
+             << symbolRef.getValue()
+             << " is not a safe subset of target variant @"
+             << targetAttr.getValue() << " requires metadata";
+  }
 
   if (statusAttr.getValue() == kEmissionPlanSupportedStatusValue ||
       statusAttr.getValue() == kEmissionPlanMetadataOnlyStatusValue) {

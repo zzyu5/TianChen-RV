@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify architecture boundary and compute-free tcrv.exec invariants."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify metadata does not bypass capability legality or selection."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify ODS/core dialect changes remain execution and diagnostic focused."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry/interface behavior and diagnostics for plugin-owned metadata."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify target-specific runtime semantics stay plugin-local."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify pass ordering and no soft legality regressions."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emitted metadata is bounded and not executable/runtime evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV remains unsupported/deferred without runtime codegen claim."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback remains legally selected and plugin-owned."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests live under organized directories and check-tianchenrv covers them."}

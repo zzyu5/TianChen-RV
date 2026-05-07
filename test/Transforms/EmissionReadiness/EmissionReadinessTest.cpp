@@ -55,8 +55,14 @@ enum class EmissionPlanBehavior {
   SupportedEmptyEmissionKind,
   SupportedEmptyLoweringPipeline,
   SupportedEmptyRuntimeABI,
+  SupportedEmptyRuntimeABIKind,
+  SupportedEmptyRuntimeABIName,
+  SupportedEmptyRuntimeGlueRole,
   SupportedEmptyArtifactKind,
   SupportedEmptyExplanation,
+  SupportedUnboundedExplanation,
+  MissingRequiredCapabilityRefs,
+  MismatchedRequiredCapabilityRef,
   UnsupportedEmptyDiagnostic,
   MismatchedVariantSymbol,
   MismatchedRole,
@@ -157,6 +163,14 @@ public:
           planBehavior == EmissionPlanBehavior::Unsupported
               ? "mock plugin reports unsupported selected emission path"
               : "");
+      out.setRuntimeABIKind("mock-unsupported-runtime-abi-kind");
+      out.setRuntimeABIName("mock.unsupported.runtime.abi.v1");
+      out.setRuntimeGlueRole("mock-unsupported-runtime-glue-role");
+      if (planBehavior != EmissionPlanBehavior::MissingRequiredCapabilityRefs)
+        if (llvm::Error error =
+                out.setRequiredCapabilitySymbolsFromVariant(
+                    request.getVariant()))
+          return error;
       return llvm::Error::success();
     }
 
@@ -169,6 +183,11 @@ public:
       role = request.getRole() == VariantEmissionRole::DispatchCase
                  ? VariantEmissionRole::DirectVariant
                  : VariantEmissionRole::DispatchCase;
+
+    std::string explanation =
+        planBehavior == EmissionPlanBehavior::SupportedUnboundedExplanation
+            ? std::string(600, 'x')
+            : "mock plugin-owned lowering/runtime route for selected path";
 
     out = VariantEmissionPlan::getSupported(
         name, request.getKernel().getSymName(), variantSymbol, role,
@@ -186,7 +205,27 @@ public:
             : "compiler-emission-plan",
         planBehavior == EmissionPlanBehavior::SupportedEmptyExplanation
             ? ""
-            : "mock plugin-owned lowering/runtime route for selected path");
+            : explanation);
+    out.setRuntimeABIKind(
+        planBehavior == EmissionPlanBehavior::SupportedEmptyRuntimeABIKind
+            ? ""
+            : "mock-runtime-abi-kind");
+    out.setRuntimeABIName(
+        planBehavior == EmissionPlanBehavior::SupportedEmptyRuntimeABIName
+            ? ""
+            : "mock.runtime.abi.v1");
+    out.setRuntimeGlueRole(
+        planBehavior == EmissionPlanBehavior::SupportedEmptyRuntimeGlueRole
+            ? ""
+            : "mock-runtime-glue-role");
+    if (planBehavior != EmissionPlanBehavior::MissingRequiredCapabilityRefs)
+      if (llvm::Error error =
+              out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+        return error;
+    if (planBehavior == EmissionPlanBehavior::MismatchedRequiredCapabilityRef) {
+      out.clearRequiredCapabilitySymbols();
+      out.addRequiredCapabilitySymbol("other_capability");
+    }
     return llvm::Error::success();
   }
 
@@ -252,8 +291,18 @@ int expectSuccess(llvm::Error error, llvm::Twine context) {
 
 int expectErrorContains(llvm::Error error,
                         std::initializer_list<llvm::StringRef> fragments) {
-  if (!error)
-    return fail("expected emission readiness error");
+  if (!error) {
+    std::string expected;
+    llvm::raw_string_ostream stream(expected);
+    for (llvm::StringRef fragment : fragments) {
+      if (!expected.empty())
+        stream << ", ";
+      stream << fragment;
+    }
+    stream.flush();
+    return fail(llvm::Twine("expected emission readiness error containing: ") +
+                expected);
+  }
 
   std::string message = llvm::toString(std::move(error));
   for (llvm::StringRef fragment : fragments) {
@@ -292,6 +341,23 @@ int expectSupportedPlan(const VariantEmissionPlan &plan,
   if (int result =
           expect(plan.getRuntimeABI() == "mock.runtime.abi.v1",
                  "emission plan carries runtime ABI id"))
+    return result;
+  if (int result =
+          expect(plan.getRuntimeABIKind() == "mock-runtime-abi-kind",
+                 "emission plan carries runtime ABI kind"))
+    return result;
+  if (int result =
+          expect(plan.getRuntimeABIName() == "mock.runtime.abi.v1",
+                 "emission plan carries runtime ABI name"))
+    return result;
+  if (int result =
+          expect(plan.getRuntimeGlueRole() == "mock-runtime-glue-role",
+                 "emission plan carries runtime glue role"))
+    return result;
+  if (int result =
+          expect(plan.getRequiredCapabilitySymbols().size() == 1 &&
+                     plan.getRequiredCapabilitySymbols().front() == "base",
+                 "emission plan carries required capability refs"))
     return result;
   if (int result =
           expect(plan.getArtifactKind() == "compiler-emission-plan",
@@ -492,6 +558,24 @@ int expectSupportedEmissionPlanDiagnostic(DiagnosticOp diagnostic,
           "mock.runtime.abi.v1", "diagnostic carries runtime ABI"))
     return result;
   if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kRuntimeABIKindAttrName,
+          "mock-runtime-abi-kind", "diagnostic carries runtime ABI kind"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kRuntimeABINameAttrName,
+          "mock.runtime.abi.v1", "diagnostic carries runtime ABI name"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
+          diagnostic, execDiagnostic::kRuntimeGlueRoleAttrName,
+          "mock-runtime-glue-role", "diagnostic carries runtime glue role"))
+    return result;
+  auto requiredCapabilities = diagnostic->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kRequiredCapabilitiesAttrName);
+  if (int result =
+          expect(requiredCapabilities && requiredCapabilities.size() == 1,
+                 "diagnostic carries required capability refs"))
+    return result;
+  if (int result = expectDiagnosticStringAttr(
           diagnostic, execDiagnostic::kArtifactKindAttrName,
           "compiler-emission-plan", "diagnostic carries artifact kind"))
     return result;
@@ -521,6 +605,28 @@ int expectUnsupportedEmissionPlanDiagnostic(DiagnosticOp diagnostic,
           diagnostic, execDiagnostic::kSeverityAttrName,
           execDiagnostic::kEmissionPlanUnsupportedSeverityValue,
           "unsupported diagnostic marks error severity"))
+    return result;
+  if (int result =
+          expect(!getStringAttr(diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABIKindAttrName)
+                      .empty(),
+                 "unsupported diagnostic carries runtime ABI kind"))
+    return result;
+  if (int result =
+          expect(!getStringAttr(diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABINameAttrName)
+                      .empty(),
+                 "unsupported diagnostic carries runtime ABI name"))
+    return result;
+  if (int result =
+          expect(!getStringAttr(diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeGlueRoleAttrName)
+                      .empty(),
+                 "unsupported diagnostic carries runtime glue role"))
+    return result;
+  if (int result = expect(diagnostic->hasAttr(
+                              execDiagnostic::kRequiredCapabilitiesAttrName),
+                          "unsupported diagnostic carries capability refs"))
     return result;
   return expect(getStringAttr(diagnostic.getOperation(),
                               execDiagnostic::kMessageAttrName)
@@ -1450,7 +1556,11 @@ module {
       message = "existing unsupported plan",
       origin = "mock-emitter",
       reason = "emission_plan",
+      required_capabilities = [@base],
       role = "direct variant",
+      runtime_abi_kind = "mock-runtime-abi-kind",
+      runtime_abi_name = "mock.runtime.abi.v1",
+      runtime_glue_role = "mock-runtime-glue-role",
       status = "unsupported",
       target = @fast
     }
@@ -1490,7 +1600,11 @@ module {
       message = "existing unsupported plan",
       origin = "mock-emitter",
       reason = "emission_plan",
+      required_capabilities = [@base],
       role = "direct variant",
+      runtime_abi_kind = "mock-runtime-abi-kind",
+      runtime_abi_name = "mock.runtime.abi.v1",
+      runtime_glue_role = "mock-runtime-glue-role",
       status = "unsupported",
       target = @fast
     }
@@ -1889,10 +2003,22 @@ int runEmissionPlanRegistryTests(mlir::MLIRContext &context) {
        "non-empty lowering pipeline"},
       {EmissionPlanBehavior::SupportedEmptyRuntimeABI,
        "non-empty runtime ABI"},
+      {EmissionPlanBehavior::SupportedEmptyRuntimeABIKind,
+       "non-empty runtime ABI kind"},
+      {EmissionPlanBehavior::SupportedEmptyRuntimeABIName,
+       "non-empty runtime ABI name"},
+      {EmissionPlanBehavior::SupportedEmptyRuntimeGlueRole,
+       "non-empty runtime glue role"},
       {EmissionPlanBehavior::SupportedEmptyArtifactKind,
        "non-empty artifact kind"},
       {EmissionPlanBehavior::SupportedEmptyExplanation,
        "non-empty explanation"},
+      {EmissionPlanBehavior::SupportedUnboundedExplanation,
+       "explanation must be bounded single-line metadata"},
+      {EmissionPlanBehavior::MissingRequiredCapabilityRefs,
+       "non-empty required capability refs"},
+      {EmissionPlanBehavior::MismatchedRequiredCapabilityRef,
+       "not a safe subset of selected variant requires metadata"},
       {EmissionPlanBehavior::UnsupportedEmptyDiagnostic,
        "non-empty diagnostic"},
       {EmissionPlanBehavior::MismatchedVariantSymbol,
@@ -2329,6 +2455,26 @@ module {
                                   VariantEmissionRole::DirectVariant,
                           "RVV unsupported emission plan carries generic "
                           "context"))
+    return result;
+  if (int result = expect(rvvPlan.getRuntimeABIKind() ==
+                              "rvv-plugin-deferred-runtime-abi",
+                          "RVV unsupported emission plan carries plugin-owned "
+                          "runtime ABI kind"))
+    return result;
+  if (int result = expect(rvvPlan.getRuntimeABIName() ==
+                              "rvv-executable-runtime-abi-deferred",
+                          "RVV unsupported emission plan carries runtime ABI "
+                          "name"))
+    return result;
+  if (int result =
+          expect(rvvPlan.getRuntimeGlueRole() == "deferred-rvv-runtime-glue",
+                 "RVV unsupported emission plan carries runtime glue role"))
+    return result;
+  if (int result = expect(rvvPlan.getRequiredCapabilitySymbols().size() == 1 &&
+                              rvvPlan.getRequiredCapabilitySymbols().front() ==
+                                  "rvv",
+                          "RVV unsupported emission plan preserves capability "
+                          "refs"))
     return result;
   if (int result =
           expect(rvvPlan.getDiagnostic().contains("no RVV lowering pipeline") &&

@@ -325,17 +325,25 @@ tcrv.exec.diagnostic {
   emission_kind = "metadata-intent",
   lowering_pipeline = "example.lowering.pipeline.v1",
   runtime_abi = "example.runtime.abi.v1",
+  runtime_abi_kind = "host-runtime-c-abi",
+  runtime_abi_name = "example.runtime.abi.v1",
+  runtime_glue_role = "plugin-owned-runtime-glue",
+  required_capabilities = [@example_capability],
   artifact_kind = "compiler-emission-plan"
 }
 ```
 
-For `reason = "emission_plan"`, `target`, `origin`, `role`, and `status` are
-required and non-empty. `status` must be `supported`, `metadata-only`, or
-`unsupported`. Supported and metadata-only diagnostics additionally require
-non-empty `emission_kind`, `lowering_pipeline`, `runtime_abi`, and
-`artifact_kind`. Unsupported diagnostics require non-empty diagnostic text
-through `message`. The target must resolve to a direct sibling
-`tcrv.exec.variant` in the same kernel.
+For `reason = "emission_plan"`, `target`, `origin`, `role`, `status`,
+`runtime_abi_kind`, `runtime_abi_name`, `runtime_glue_role`, and
+`required_capabilities` are required and non-empty. `status` must be
+`supported`, `metadata-only`, or `unsupported`. `required_capabilities` must
+contain capability symbol references that are a safe subset of the selected
+target variant `requires` metadata. Supported and metadata-only diagnostics
+additionally require non-empty `emission_kind`, `lowering_pipeline`,
+`runtime_abi`, and `artifact_kind`. Unsupported diagnostics require non-empty
+diagnostic text through `message`; they may still carry plugin-owned runtime
+ABI ownership metadata to explain the unsupported boundary. The target must
+resolve to a direct sibling `tcrv.exec.variant` in the same kernel.
 Duplicate emission-plan diagnostics for the same target in one kernel are
 invalid. When the selected path has a materialized plugin lowering boundary, a
 diagnostic may also carry non-empty `lowering_boundary` metadata naming the

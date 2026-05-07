@@ -518,6 +518,26 @@ module {
                                   "no RVV lowering pipeline"),
                           "RVV profile does not enable emission plan support"))
     return result;
+  if (int result = expect(plan.getRuntimeABIKind() ==
+                              "rvv-plugin-deferred-runtime-abi",
+                          "RVV unsupported plan records plugin-owned runtime "
+                          "ABI kind"))
+    return result;
+  if (int result = expect(plan.getRuntimeABIName() ==
+                              "rvv-executable-runtime-abi-deferred",
+                          "RVV unsupported plan records deferred runtime ABI "
+                          "name"))
+    return result;
+  if (int result =
+          expect(plan.getRuntimeGlueRole() == "deferred-rvv-runtime-glue",
+                 "RVV unsupported plan records runtime glue role"))
+    return result;
+  if (int result = expect(plan.getRequiredCapabilitySymbols().size() == 1 &&
+                              plan.getRequiredCapabilitySymbols().front() ==
+                                  "rvv",
+                          "RVV unsupported plan preserves required capability "
+                          "refs"))
+    return result;
 
   return 0;
 }

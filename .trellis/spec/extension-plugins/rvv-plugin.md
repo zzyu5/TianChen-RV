@@ -418,6 +418,11 @@ Current first slice:
 ```text
 rvv-plugin @rvv_first_slice -> unsupported emission readiness
 reason: metadata/control-plane only; no RVV lowering/runtime/executable path
+emission plan status: unsupported
+runtime ABI kind: rvv-plugin-deferred-runtime-abi
+runtime ABI name: rvv-executable-runtime-abi-deferred
+runtime glue role: deferred-rvv-runtime-glue
+required capabilities: selected variant required capability refs
 ```
 
 This unsupported readiness result is required. It is not a failure of the
@@ -433,6 +438,11 @@ hardware execution, correctness result, or performance result. Unknown origins
 must still fail through the generic unregistered-origin registry diagnostic.
 Tests that need the historical empty-registry parser surface should pass
 `--tcrv-disable-builtin-plugins`.
+
+The RVV emission plan may still return bounded runtime ABI ownership metadata
+for the selected unsupported boundary. That metadata explains which plugin owns
+the future RVV executable/runtime ABI slice; it is not runtime ABI glue, code
+generation, hardware execution, correctness evidence, or performance evidence.
 
 ### MLIR vector / LLVM scalable vector
 

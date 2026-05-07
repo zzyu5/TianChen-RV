@@ -18,6 +18,17 @@ namespace tianchenrv::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kOriginAttrName("origin");
+constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kDefaultRuntimeABIKind(
+    "plugin-owned-runtime-abi");
+constexpr llvm::StringLiteral kDefaultRuntimeGlueRole(
+    "plugin-owned-runtime-glue");
+constexpr llvm::StringLiteral kUnsupportedRuntimeABIKind(
+    "unsupported-plugin-runtime-abi");
+constexpr llvm::StringLiteral kUnsupportedRuntimeABIName(
+    "unsupported-emission-runtime-abi");
+constexpr llvm::StringLiteral kUnsupportedRuntimeGlueRole(
+    "no-runtime-glue-unsupported");
 
 bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
@@ -57,6 +68,44 @@ std::string copyBoundedDiagnosticText(llvm::StringRef value) {
   if (value.size() > kMaxDiagnosticTextLength)
     bounded.append("...");
   return bounded;
+}
+
+bool containsForbiddenEmissionMetadataText(llvm::StringRef value) {
+  std::string lower = value.lower();
+  llvm::StringRef normalized(lower);
+  return normalized.contains("password") || normalized.contains("passwd") ||
+         normalized.contains("token") || normalized.contains("secret") ||
+         normalized.contains("private key") ||
+         normalized.contains("authorization:") ||
+         normalized.contains("api_key") || normalized.contains("access_key");
+}
+
+bool isBoundedSingleLineEmissionMetadataText(llvm::StringRef value) {
+  constexpr std::size_t kMaxEmissionMetadataTextLength = 512;
+  if (value.size() > kMaxEmissionMetadataTextLength)
+    return false;
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      return false;
+    if (byte < 0x20 && character != '\t')
+      return false;
+  }
+  return true;
+}
+
+void setDefaultRuntimeOwnershipMetadata(VariantEmissionPlan &plan,
+                                        llvm::StringRef runtimeABIName) {
+  plan.setRuntimeABIKind(kDefaultRuntimeABIKind);
+  plan.setRuntimeABIName(runtimeABIName);
+  plan.setRuntimeGlueRole(kDefaultRuntimeGlueRole);
+}
+
+void setDefaultUnsupportedRuntimeOwnershipMetadata(VariantEmissionPlan &plan) {
+  plan.setRuntimeABIKind(kUnsupportedRuntimeABIKind);
+  plan.setRuntimeABIName(kUnsupportedRuntimeABIName);
+  plan.setRuntimeGlueRole(kUnsupportedRuntimeGlueRole);
 }
 
 void appendVariantContext(llvm::raw_ostream &stream,
@@ -365,6 +414,7 @@ VariantEmissionPlan VariantEmissionPlan::getSupported(
   plan.setEmissionKind(emissionKind);
   plan.setLoweringPipeline(loweringPipeline);
   plan.setRuntimeABI(runtimeABI);
+  setDefaultRuntimeOwnershipMetadata(plan, runtimeABI);
   plan.setArtifactKind(artifactKind);
   plan.setExplanation(explanation);
   return plan;
@@ -385,6 +435,7 @@ VariantEmissionPlan VariantEmissionPlan::getMetadataOnly(
   plan.setEmissionKind(emissionKind);
   plan.setLoweringPipeline(loweringPipeline);
   plan.setRuntimeABI(runtimeABI);
+  setDefaultRuntimeOwnershipMetadata(plan, runtimeABI);
   plan.setArtifactKind(artifactKind);
   plan.setExplanation(explanation);
   return plan;
@@ -400,8 +451,41 @@ VariantEmissionPlan VariantEmissionPlan::getUnsupported(
   plan.setKernelSymbol(kernelSymbol);
   plan.setVariantSymbol(variantSymbol);
   plan.setRole(role);
+  setDefaultUnsupportedRuntimeOwnershipMetadata(plan);
   plan.setDiagnostic(diagnostic);
   return plan;
+}
+
+llvm::Error VariantEmissionPlan::setRequiredCapabilitySymbolsFromVariant(
+    tcrv::exec::VariantOp variant) {
+  clearRequiredCapabilitySymbols();
+
+  if (!variant)
+    return makePluginRegistryError(
+        "emission plan required capability metadata requires a materialized "
+        "tcrv.exec.variant");
+
+  auto requiresAttr =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requiresAttr)
+    return makePluginRegistryError(
+        llvm::Twine("emission plan required capability metadata for variant @") +
+        variant.getSymName() +
+        " requires structured array attribute 'requires'");
+
+  for (mlir::Attribute requiredCapability : requiresAttr) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef)
+      return makePluginRegistryError(
+          llvm::Twine("emission plan required capability metadata for variant @") +
+          variant.getSymName() +
+          " requires only capability symbol references");
+
+    addRequiredCapabilitySymbol(symbolRef.getValue());
+  }
+
+  return llvm::Error::success();
 }
 
 VariantLoweringBoundaryResult VariantLoweringBoundaryResult::getMaterialized(
@@ -509,6 +593,10 @@ llvm::Error ExtensionPlugin::buildVariantEmissionPlan(
                            : llvm::StringRef("<missing>"),
       request.getRole(),
       "origin plugin does not provide a plugin-owned emission plan");
+  if (request.getVariant())
+    if (llvm::Error error =
+            out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+      return error;
   return llvm::Error::success();
 }
 
@@ -1325,6 +1413,98 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionStatus(
   return llvm::Error::success();
 }
 
+llvm::Error validateBoundedPlanText(tcrv::exec::VariantOp variant,
+                                    tcrv::exec::KernelOp kernel,
+                                    VariantEmissionRole role,
+                                    const ExtensionPlugin &plugin,
+                                    const VariantEmissionPlan &plan,
+                                    llvm::StringRef fieldName,
+                                    llvm::StringRef value) {
+  if (!isBoundedSingleLineEmissionMetadataText(value))
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: " + fieldName +
+            " must be bounded single-line metadata");
+
+  if (containsForbiddenEmissionMetadataText(value))
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: " + fieldName +
+            " must not contain secret-like or raw credential text");
+
+  (void)plan;
+  return llvm::Error::success();
+}
+
+llvm::Error validatePlanRequiredCapabilitySymbols(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    VariantEmissionRole role, const ExtensionPlugin &plugin,
+    const VariantEmissionPlan &plan) {
+  auto requiresAttr =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requiresAttr)
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: selected variant requires "
+            "structured array attribute 'requires' before runtime ABI "
+            "metadata");
+
+  llvm::StringSet<> variantRequires;
+  for (mlir::Attribute requiredCapability : requiresAttr) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef || symbolRef.getValue().trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: selected variant requires "
+              "metadata must contain only non-empty capability symbol "
+              "references");
+    variantRequires.insert(symbolRef.getValue());
+  }
+
+  llvm::ArrayRef<std::string> planCapabilities =
+      plan.getRequiredCapabilitySymbols();
+  if (planCapabilities.empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: runtime ABI metadata requires "
+            "non-empty required capability refs");
+
+  llvm::StringSet<> seenPlanCapabilities;
+  for (const std::string &symbolStorage : planCapabilities) {
+    llvm::StringRef symbol(symbolStorage);
+    if (symbol.trim().empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: required capability ref must "
+              "be non-empty");
+
+    if (!seenPlanCapabilities.insert(symbol).second)
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: duplicate required "
+              "capability ref @" +
+              symbol);
+
+    if (!variantRequires.count(symbol))
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: required capability ref @" +
+              symbol +
+              " is not a safe subset of selected variant requires metadata");
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
     const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantEmissionPlan &plan) const {
@@ -1392,6 +1572,47 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
             "' does not match request role '" +
             stringifyVariantEmissionRole(role) + "'");
 
+  if (plan.getRuntimeABIKind().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: runtime ABI metadata requires "
+            "non-empty runtime ABI kind");
+
+  if (plan.getRuntimeABIName().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: runtime ABI metadata requires "
+            "non-empty runtime ABI name");
+
+  if (plan.getRuntimeGlueRole().trim().empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: runtime ABI metadata requires "
+            "non-empty runtime glue role");
+
+  if (llvm::Error error = validatePlanRequiredCapabilitySymbols(
+          variant, kernel, role, plugin, plan))
+    return error;
+
+  if (llvm::Error error =
+          validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                  "runtime ABI kind",
+                                  plan.getRuntimeABIKind()))
+    return error;
+  if (llvm::Error error =
+          validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                  "runtime ABI name",
+                                  plan.getRuntimeABIName()))
+    return error;
+  if (llvm::Error error =
+          validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                  "runtime glue role",
+                                  plan.getRuntimeGlueRole()))
+    return error;
+
   if (plan.isSupported() || plan.isMetadataOnly()) {
     if (plan.getEmissionKind().trim().empty())
       return makeVariantEmissionPlanError(
@@ -1428,6 +1649,27 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
               "' produced invalid emission plan: supported or metadata-only "
               "plan requires "
               "non-empty explanation");
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "emission kind", plan.getEmissionKind()))
+      return error;
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "lowering pipeline",
+                                    plan.getLoweringPipeline()))
+      return error;
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "runtime ABI", plan.getRuntimeABI()))
+      return error;
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "artifact kind", plan.getArtifactKind()))
+      return error;
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "explanation", plan.getExplanation()))
+      return error;
   }
 
   if (plan.isUnsupported() && plan.getDiagnostic().trim().empty())
@@ -1436,6 +1678,12 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
         llvm::Twine("origin plugin '") + plugin.getName() +
             "' produced invalid emission plan: unsupported plan requires "
             "non-empty diagnostic");
+
+  if (plan.isUnsupported())
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "diagnostic", plan.getDiagnostic()))
+      return error;
 
   return llvm::Error::success();
 }

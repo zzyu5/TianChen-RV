@@ -544,6 +544,15 @@ module {
                      emissionPlan.getLoweringPipeline() ==
                          "none-executable-metadata-only" &&
                      emissionPlan.getRuntimeABI() == "none-metadata-only" &&
+                     emissionPlan.getRuntimeABIKind() ==
+                         "host-scalar-fallback-metadata" &&
+                     emissionPlan.getRuntimeABIName() ==
+                         "portable-scalar-fallback-metadata-abi.v1" &&
+                     emissionPlan.getRuntimeGlueRole() ==
+                         "metadata-only-host-fallback-boundary" &&
+                     emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
+                     emissionPlan.getRequiredCapabilitySymbols().front() ==
+                         "scalar_fallback" &&
                      emissionPlan.getArtifactKind() == "metadata-diagnostic",
                  "scalar fallback emission plan records stable metadata-only route"))
     return result;

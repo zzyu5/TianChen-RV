@@ -18,7 +18,11 @@ module {
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: plan_kind = "plugin-emission-plan"
     // CHECK-SAME: reason = "emission_plan"
+    // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "direct variant"
+    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
+    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
     // CHECK-SAME: severity = "error"
     // CHECK-SAME: status = "unsupported"
     // CHECK-SAME: target = @rvv_first_slice
@@ -72,6 +76,10 @@ module {
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
+    // CHECK-SAME: required_capabilities = [@rvv]
+    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
+    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
     // CHECK-SAME: target = @rvv_selected
     // CHECK-NOT: target = @rvv_unselected
   }
@@ -145,17 +153,29 @@ module {
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
+    // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "dispatch case"
+    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
+    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
     // CHECK-SAME: target = @rvv_case_b
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
+    // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "dispatch case"
+    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
+    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
     // CHECK-SAME: target = @rvv_case_a
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
+    // CHECK-SAME: required_capabilities = [@scalar_fallback]
     // CHECK-SAME: role = "dispatch fallback"
+    // CHECK-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+    // CHECK-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+    // CHECK-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
     // CHECK-SAME: target = @scalar_fallback_first_slice
   }
 }

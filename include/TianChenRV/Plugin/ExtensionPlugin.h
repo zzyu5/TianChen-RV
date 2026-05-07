@@ -394,12 +394,18 @@ public:
   llvm::StringRef getEmissionKind() const { return emissionKind; }
   llvm::StringRef getLoweringPipeline() const { return loweringPipeline; }
   llvm::StringRef getRuntimeABI() const { return runtimeABI; }
+  llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
+  llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
+  llvm::StringRef getRuntimeGlueRole() const { return runtimeGlueRole; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
   llvm::StringRef getLoweringBoundaryOpName() const {
     return loweringBoundaryOpName;
   }
   llvm::StringRef getDiagnostic() const { return diagnostic; }
   llvm::StringRef getExplanation() const { return explanation; }
+  llvm::ArrayRef<std::string> getRequiredCapabilitySymbols() const {
+    return requiredCapabilitySymbols;
+  }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
   void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
@@ -418,7 +424,20 @@ public:
   void setLoweringPipeline(llvm::StringRef value) {
     loweringPipeline = value.str();
   }
-  void setRuntimeABI(llvm::StringRef value) { runtimeABI = value.str(); }
+  void setRuntimeABI(llvm::StringRef value) {
+    runtimeABI = value.str();
+    if (runtimeABIName.empty())
+      runtimeABIName = value.str();
+  }
+  void setRuntimeABIKind(llvm::StringRef value) {
+    runtimeABIKind = value.str();
+  }
+  void setRuntimeABIName(llvm::StringRef value) {
+    runtimeABIName = value.str();
+  }
+  void setRuntimeGlueRole(llvm::StringRef value) {
+    runtimeGlueRole = value.str();
+  }
   void setArtifactKind(llvm::StringRef value) {
     artifactKind = value.str();
   }
@@ -427,6 +446,12 @@ public:
   }
   void setDiagnostic(llvm::StringRef value) { diagnostic = value.str(); }
   void setExplanation(llvm::StringRef value) { explanation = value.str(); }
+  void addRequiredCapabilitySymbol(llvm::StringRef symbol) {
+    requiredCapabilitySymbols.push_back(symbol.str());
+  }
+  void clearRequiredCapabilitySymbols() { requiredCapabilitySymbols.clear(); }
+  llvm::Error setRequiredCapabilitySymbolsFromVariant(
+      tcrv::exec::VariantOp variant);
 
 private:
   VariantEmissionSupport support = VariantEmissionSupport::Unknown;
@@ -437,10 +462,14 @@ private:
   std::string emissionKind;
   std::string loweringPipeline;
   std::string runtimeABI;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string runtimeGlueRole;
   std::string artifactKind;
   std::string loweringBoundaryOpName;
   std::string diagnostic;
   std::string explanation;
+  llvm::SmallVector<std::string, 4> requiredCapabilitySymbols;
 };
 
 enum class VariantLoweringBoundaryStatus {

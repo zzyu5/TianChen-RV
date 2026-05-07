@@ -297,6 +297,12 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
       "scalar fallback first slice records a portable fallback metadata route "
       "for compiler decisions only; it does not emit objects, link a runtime, "
       "run hardware, prove correctness, or measure performance");
+  out.setRuntimeABIKind("host-scalar-fallback-metadata");
+  out.setRuntimeABIName("portable-scalar-fallback-metadata-abi.v1");
+  out.setRuntimeGlueRole("metadata-only-host-fallback-boundary");
+  if (llvm::Error error =
+          out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+    return error;
   return llvm::Error::success();
 }
 

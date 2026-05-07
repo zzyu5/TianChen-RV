@@ -17,6 +17,14 @@ inline constexpr llvm::StringLiteral kPlanKindAttrName("plan_kind");
 inline constexpr llvm::StringLiteral kReasonAttrName("reason");
 inline constexpr llvm::StringLiteral kRoleAttrName("role");
 inline constexpr llvm::StringLiteral kRuntimeABIAttrName("runtime_abi");
+inline constexpr llvm::StringLiteral kRuntimeABIKindAttrName(
+    "runtime_abi_kind");
+inline constexpr llvm::StringLiteral kRuntimeABINameAttrName(
+    "runtime_abi_name");
+inline constexpr llvm::StringLiteral kRuntimeGlueRoleAttrName(
+    "runtime_glue_role");
+inline constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
+    "required_capabilities");
 inline constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
 inline constexpr llvm::StringLiteral kSeverityAttrName("severity");
 inline constexpr llvm::StringLiteral kStatusAttrName("status");
