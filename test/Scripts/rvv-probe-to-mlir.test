@@ -81,7 +81,7 @@
 # PIPE-SAME: role = "dispatch fallback"
 # PIPE-SAME: selected_variant = @scalar_fallback_first_slice
 # PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: artifact_kind = "standalone-c-source"
+# PIPE-SAME: artifact_kind = "runtime-callable-c-source"
 # PIPE-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
 # PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
 # PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"

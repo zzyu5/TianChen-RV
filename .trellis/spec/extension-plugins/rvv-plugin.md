@@ -114,10 +114,11 @@ The microkernel slice is the first narrow exception to the metadata-only RVV
 unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
 `tcrv_rvv.i32_vadd_microkernel` direct kernel-child attachment, either explicitly
 authored or plugin-materialized from the finite descriptor, `RVVExtensionPlugin`
-may report a supported plugin-owned emission path for deterministic standalone C
-source export through `tcrv-translate --tcrv-export-rvv-microkernel-c`. This
-support is bounded to the i32 vector-add microkernel artifact route. When the
-selected variant carries the finite descriptor, supported readiness/plan
+may report a supported plugin-owned emission path for deterministic
+runtime-callable C source export through
+`tcrv-translate --tcrv-export-rvv-microkernel-c`. This support is bounded to
+the i32 vector-add microkernel artifact route. When the selected variant
+carries the finite descriptor, supported readiness/plan
 metadata must also validate that the attached microkernel's `element_count`
 matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
 does not provide generic RVV lowering or runtime ABI integration, and it does
@@ -507,12 +508,15 @@ matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
 `riscv_vector.h` and exposes a deterministic runtime-callable i32 vadd C ABI
 function with `const int32_t *` input pointers, an `int32_t *` output pointer,
 and a `size_t` element count. That function owns the RVV i32
-load/add/store-intrinsic loop. Bounded local arrays and `main` remain only as a
-self-check harness that calls the ABI function. Successful `ssh rvv`
-compile/run evidence for that source supports only the bounded microkernel
-correctness claim for the generated callable ABI plus harness. It is not
-generic high-level lowering, arbitrary RVV executable emission, full runtime
-integration, or performance evidence.
+load/add/store-intrinsic loop. The default export is a library-style callable
+source artifact with no embedded `main` or self-check harness. If a bounded
+self-check executable is needed for evidence collection,
+`tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the explicit
+harness export and calls the same ABI function over fixed local arrays.
+Successful `ssh rvv` compile/run evidence for the harness source supports only
+the bounded microkernel correctness claim for the generated callable ABI plus
+harness. It is not generic high-level lowering, arbitrary RVV executable
+emission, full runtime integration, or performance evidence.
 
 This target export does not change the default metadata-only RVV unsupported
 boundary. A selected RVV path without the finite descriptor or exactly one

@@ -74,7 +74,7 @@ performance evidence, and it does not change the RVV first-slice unsupported
 emission boundary.
 
 The `tcrv-translate --tcrv-export-rvv-microkernel-c` tool exports a distinct
-deterministic standalone C executable for exactly one selected
+deterministic library-style C source artifact for exactly one selected
 `tcrv_rvv.i32_vadd_microkernel` op attached to a selected RVV path. This is the
 first plugin-local RVV executable microkernel slice: post-planning MLIR must
 contain a selected `rvv-plugin` variant, matching `tcrv_rvv.lowering_boundary`,
@@ -85,13 +85,16 @@ variant descriptor during the execution-planning pipeline. The generated source
 uses `riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
 runtime-callable C ABI function:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
-Its standalone `main` is only a bounded self-check harness that calls that ABI
-function over fixed local arrays. Real `ssh rvv` compile/run evidence proves
-only that this bounded generated microkernel source compiled and that the
-harness passed on the selected host flags. It is not generic high-level
-lowering, arbitrary RVV kernel executable emission, full runtime integration,
-or performance evidence; selected RVV paths without the finite descriptor or
-matching microkernel op remain unsupported and deferred.
+The default artifact has no embedded `main` or self-check harness, so later
+runtime glue can embed it and call the ABI boundary directly. The explicit
+`tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
+same callable function plus a bounded self-check `main` for evidence collection.
+Real `ssh rvv` compile/run evidence for that harness source proves only that
+this bounded generated microkernel source compiled and that the harness passed
+on the selected host flags. It is not generic high-level lowering, arbitrary
+RVV kernel executable emission, full runtime integration, or performance
+evidence; selected RVV paths without the finite descriptor or matching
+microkernel op remain unsupported and deferred.
 
 The `tcrv-translate --tcrv-export-target-source-artifact` tool adds a generic
 target artifact routing front door for supported post-planning emission-plan
@@ -126,7 +129,7 @@ When the selected RVV path has that exact microkernel attachment, either
 explicitly authored or materialized by the RVV plugin from the finite descriptor,
 the RVV plugin may also materialize a supported emission-plan diagnostic and
 the generic emission manifest may serialize the handoff as a deterministic
-standalone C source export route. That manifest record is still compiler
+runtime-callable C source export route. That manifest record is still compiler
 handoff metadata: it points downstream tooling to
 `tcrv-translate --tcrv-export-rvv-microkernel-c` and does not claim generic RVV
 lowering, runtime ABI integration, arbitrary kernel emission, correctness, or
@@ -218,10 +221,11 @@ python3 scripts/rvv_microkernel_e2e.py --ssh-target rvv
 The dry-run mode runs local compiler tools only and writes sanitized
 post-planning MLIR, emission manifest, generated C source, hashes, and command
 summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Real ssh mode
-adds bounded remote compile/run evidence for the generated
-`tcrv_rvv.i32_vadd_microkernel` callable ABI plus self-check harness only. It
-is not generic RVV lowering, full runtime integration, arbitrary kernel
-emission, broad correctness coverage, or performance evidence.
+uses the explicit self-check harness export and adds bounded remote compile/run
+evidence for the generated `tcrv_rvv.i32_vadd_microkernel` callable ABI plus
+self-check harness only. It is not generic RVV lowering, full runtime
+integration, arbitrary kernel emission, broad correctness coverage, or
+performance evidence.
 
 ## Scalar Fallback First Slice
 

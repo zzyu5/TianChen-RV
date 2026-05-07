@@ -71,6 +71,17 @@ mlir::LogicalResult exportRVVMicrokernelC(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
+                                                   llvm::raw_ostream &os) {
+  if (llvm::Error error =
+          tianchenrv::target::rvv::exportRVVMicrokernelSelfCheckC(module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 mlir::LogicalResult
 exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
                                    TargetArtifactExportFn exportFn) {
@@ -134,9 +145,16 @@ void registerTianChenRVTranslations() {
 
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelC(
       "tcrv-export-rvv-microkernel-c",
-      "export one explicit RVV i32 vector-add microkernel C source",
+      "export one runtime-callable RVV i32 vector-add microkernel C source",
       exportRVVMicrokernelC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelC;
+
+  static mlir::TranslateFromMLIRRegistration rvvMicrokernelSelfCheckC(
+      "tcrv-export-rvv-microkernel-self-check-c",
+      "export one RVV i32 vector-add microkernel C source with self-check "
+      "harness",
+      exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
+  (void)rvvMicrokernelSelfCheckC;
 
   static mlir::TranslateFromMLIRRegistration targetSourceArtifact(
       "tcrv-export-target-source-artifact",

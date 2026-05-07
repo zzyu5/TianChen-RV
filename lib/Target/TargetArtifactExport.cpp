@@ -33,6 +33,8 @@ constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
+constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
+    "runtime-callable-c-source");
 constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
     "standalone-c-source");
 
@@ -79,6 +81,11 @@ llvm::Error makeModuleArtifactExportError(llvm::Twine message) {
       llvm::Twine("TianChen-RV target source artifact export failed: ") +
           message,
       llvm::errc::invalid_argument);
+}
+
+bool isSourceArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kRuntimeCallableCSourceArtifactKind ||
+         artifactKind == kStandaloneCSourceArtifactKind;
 }
 
 bool hasKernelBody(KernelOp kernel) {
@@ -674,8 +681,7 @@ namespace {
 
 llvm::Error exportTargetArtifactImpl(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
-    llvm::StringRef requiredArtifactKind, llvm::StringRef routeDescription,
-    llvm::raw_ostream &os) {
+    bool sourceOnly, llvm::StringRef routeDescription, llvm::raw_ostream &os) {
   llvm::SmallVector<TargetArtifactCandidate, 2> allCandidates;
   if (llvm::Error error =
           collectTargetArtifactCandidates(module, allCandidates))
@@ -683,19 +689,19 @@ llvm::Error exportTargetArtifactImpl(
 
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
   for (const TargetArtifactCandidate &candidate : allCandidates) {
-    if (requiredArtifactKind.empty()) {
+    if (!sourceOnly) {
       candidates.push_back(candidate);
       continue;
     }
 
     const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
     if (!exporter) {
-      if (candidate.artifactKind == requiredArtifactKind)
+      if (isSourceArtifactKind(candidate.artifactKind))
         candidates.push_back(candidate);
       continue;
     }
 
-    if (exporter->getArtifactKind() == requiredArtifactKind ||
+    if (isSourceArtifactKind(exporter->getArtifactKind()) ||
         candidate.artifactKind != exporter->getArtifactKind())
       candidates.push_back(candidate);
   }
@@ -762,15 +768,14 @@ TargetArtifactExporterRegistry::lookup(llvm::StringRef routeID) const {
 llvm::Error exportTargetSourceArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os) {
-  return exportTargetArtifactImpl(module, registry,
-                                  kStandaloneCSourceArtifactKind,
+  return exportTargetArtifactImpl(module, registry, true,
                                   "source artifact", os);
 }
 
 llvm::Error exportTargetArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os) {
-  return exportTargetArtifactImpl(module, registry, llvm::StringRef(),
+  return exportTargetArtifactImpl(module, registry, false,
                                   "target artifact", os);
 }
 

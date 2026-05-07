@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline --tcrv-check-emission-paths | FileCheck %s --check-prefix=READY
-// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_auto_microkernel_input {
   // The input intentionally has capabilities only: no hand-authored
@@ -78,7 +78,7 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "auto_i32_vadd"
 // IR: tcrv.exec.diagnostic
-// IR-SAME: artifact_kind = "standalone-c-source"
+// IR-SAME: artifact_kind = "runtime-callable-c-source"
 // IR-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
 // IR-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
 // IR-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
@@ -92,8 +92,9 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: status = "supported"
 // IR-SAME: target = @rvv_first_slice
 
-// EXPORT: /* TianChen-RV RVV explicit microkernel C export. */
-// EXPORT: /* Scope: executable C for exactly one tcrv_rvv.i32_vadd_microkernel. */
+// EXPORT: /* TianChen-RV RVV runtime-callable microkernel C export. */
+// EXPORT: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
+// EXPORT: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 // EXPORT: #include <riscv_vector.h>
 // EXPORT-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice */
 // EXPORT: /* selected_kernel: @auto_i32_vadd */
@@ -103,17 +104,13 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* selected_mabi: lp64d */
 // EXPORT: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 // EXPORT: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// EXPORT: /* artifact_kind: runtime-callable-c-source */
 // EXPORT: /* element_count: 16 */
 // EXPORT: /* required_capabilities: @rvv */
-// EXPORT-LABEL: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+// EXPORT: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
+// EXPORT: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
 // EXPORT: while (offset < n)
 // EXPORT: __riscv_vsetvl_e32m1
 // EXPORT: __riscv_vle32_v_i32m1
 // EXPORT: __riscv_vadd_vv_i32m1
 // EXPORT: __riscv_vse32_v_i32m1
-// EXPORT-LABEL: static int tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice_self_check(void)
-// EXPORT: enum { kTCRVMicrokernelElements = 16 };
-// EXPORT: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
-// EXPORT-LABEL: int main(void)
-// EXPORT: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice_self_check();
-// EXPORT: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);

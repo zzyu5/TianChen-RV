@@ -83,6 +83,6 @@ module @rvv_microkernel_manifest_input {
 // CHECK: runtime_abi_kind: "rvv-runtime-callable-c-abi"
 // CHECK: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
 // CHECK: runtime_glue_role: "runtime-callable-i32-vadd-function"
-// CHECK: artifact_kind: "standalone-c-source"
+// CHECK: artifact_kind: "runtime-callable-c-source"
 // CHECK: required_capabilities: [@rvv]
-// CHECK: explanation: "explicit RVV i32 vector-add microkernel C source export provides a runtime-callable C ABI function plus a standalone self-check harness for this selected path; this is not generic RVV lowering, runtime integration, arbitrary kernel emission, correctness, or performance evidence"
+// CHECK: explanation: "explicit RVV i32 vector-add microkernel C source export provides a library-style runtime-callable C ABI function for this selected path; any self-check main is an explicit harness export and is not the default artifact contract; this is not generic RVV lowering, runtime integration, arbitrary kernel emission, correctness, or performance evidence"

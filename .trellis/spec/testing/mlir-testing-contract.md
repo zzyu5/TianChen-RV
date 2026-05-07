@@ -75,17 +75,19 @@ Use lit/FileCheck for:
   coverage, selected kernel/variant/march comments, `riscv_vector.h` use, a
   runtime-callable C ABI function with `const int32_t *` inputs, `int32_t *`
   output, and `size_t` length, RVV i32 load/add/store intrinsics in that
-  function, self-checking `main` that calls the ABI function,
+  function, default library-style source without an embedded `main`, and an
+  explicit self-check harness export that calls the ABI function,
   fail-before-source diagnostics for missing selected RVV paths,
   missing/stale boundaries, missing/duplicate microkernel ops, missing or
   malformed finite descriptor metadata, malformed selected march metadata, and no
   manifest/runtime-success/raw-log/performance numbers.
 - RVV microkernel emission-plan and emission-manifest handoff,
-  including supported standalone C source export metadata only when a selected
-  RVV path has exactly one matching `tcrv_rvv.i32_vadd_microkernel`, manifest
-  serialization of the bounded handoff fields, stale/duplicate microkernel
-  diagnostics, and tests proving the microkernel attachment is not counted as a
-  duplicate selected lowering boundary.
+  including supported runtime-callable C source export metadata only when a
+  selected RVV path has exactly one matching
+  `tcrv_rvv.i32_vadd_microkernel`, manifest serialization of the bounded
+  handoff fields, stale/duplicate microkernel diagnostics, and tests proving
+  the microkernel attachment is not counted as a duplicate selected lowering
+  boundary.
 - generic target source artifact export routing, including post-planning
   selected-path/emission-plan consumption, deterministic agreement with the
   direct RVV microkernel C exporter for the checked-in explicit microkernel
@@ -244,11 +246,13 @@ supported RVV emission, runtime ABI, or performance result.
 If the repository exports generated C for an explicit
 `tcrv_rvv.i32_vadd_microkernel`, local lit tests must cover the dialect op and
 exporter without requiring `ssh rvv`, including the runtime-callable C ABI
-function and the harness call into that function. Any remote compile/run of
-that generated source must be reported separately as bounded microkernel
-correctness evidence only for that explicit source and selected flags. It must
-not be reported as generic TianChen-RV lowering correctness, arbitrary RVV
-emission support, full runtime integration, or performance evidence.
+function, absence of an embedded `main` in the default source artifact, and the
+explicit harness call into that function when using the harness export. Any
+remote compile/run of the harness source must be reported separately as bounded
+microkernel correctness evidence only for that explicit source and selected
+flags. It must not be reported as generic TianChen-RV lowering correctness,
+arbitrary RVV emission support, full runtime integration, or performance
+evidence.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must
@@ -257,6 +261,7 @@ recognition, deterministic command-summary/artifact layout below
 `artifacts/tmp`, missing supported-handoff failure, and secret-like metadata
 redaction or rejection. Passing this helper dry-run proves only that existing
 compiler tools can materialize the selected-boundary/emission-plan surface,
-export the bounded manifest handoff, and export deterministic standalone C
-source. It is not RVV runtime, correctness, generic lowering, runtime ABI, or
-performance evidence.
+export the bounded manifest handoff, and export deterministic RVV C source;
+the source is standalone only when explicit harness mode is requested. It is
+not RVV runtime, correctness, generic lowering, runtime ABI, or performance
+evidence.

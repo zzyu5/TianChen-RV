@@ -1058,12 +1058,13 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
         "rvv-explicit-i32-vadd-microkernel-c-source",
         "tcrv-export-rvv-microkernel-c",
         "rvv-i32-vadd-runtime-callable-c-abi.v1",
-        "standalone-c-source",
+        "runtime-callable-c-source",
         "explicit RVV i32 vector-add microkernel C source export provides a "
-        "runtime-callable C ABI function plus a standalone self-check harness "
-        "for this selected path; this is not generic RVV lowering, runtime "
-        "integration, arbitrary kernel emission, correctness, or performance "
-        "evidence");
+        "library-style runtime-callable C ABI function for this selected "
+        "path; any self-check main is an explicit harness export and is not "
+        "the default artifact contract; this is not generic RVV lowering, "
+        "runtime integration, arbitrary kernel emission, correctness, or "
+        "performance evidence");
     out.setRuntimeABIKind("rvv-runtime-callable-c-abi");
     out.setRuntimeABIName("rvv-i32-vadd-runtime-callable-c-function.v1");
     out.setRuntimeGlueRole("runtime-callable-i32-vadd-function");

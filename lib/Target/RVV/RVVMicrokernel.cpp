@@ -70,7 +70,12 @@ constexpr llvm::StringLiteral kMicrokernelEmissionKind(
 constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-rvv-microkernel-c");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
-    "standalone-c-source");
+    "runtime-callable-c-source");
+
+enum class RVVMicrokernelCExportMode {
+  RuntimeCallableLibrary,
+  SelfCheckHarness,
+};
 
 struct SelectedPath {
   VariantOp variant;
@@ -1061,6 +1066,7 @@ void printRecordComment(llvm::raw_ostream &os,
     os << "/* selected_mabi: " << *record.selectedMABI << " */\n";
   os << "/* lowering_boundary: tcrv_rvv.lowering_boundary */\n";
   os << "/* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */\n";
+  os << "/* artifact_kind: runtime-callable-c-source */\n";
   os << "/* element_count: " << record.elementCount << " */\n";
   os << "/* required_capabilities:";
   for (llvm::StringRef capability : record.requiredCapabilities)
@@ -1072,8 +1078,7 @@ void printRecordComment(llvm::raw_ostream &os,
 }
 
 void printMicrokernelFunction(llvm::raw_ostream &os,
-                              llvm::StringRef functionName,
-                              std::int64_t elementCount) {
+                              llvm::StringRef functionName) {
   os << "void " << functionName
      << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) {\n";
   os << "  size_t offset = 0;\n";
@@ -1086,7 +1091,11 @@ void printMicrokernelFunction(llvm::raw_ostream &os,
   os << "    offset += vl;\n";
   os << "  }\n";
   os << "}\n\n";
+}
 
+void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
+                                      llvm::StringRef functionName,
+                                      std::int64_t elementCount) {
   os << "static int " << functionName << "_self_check(void) {\n";
   os << "  enum { kTCRVMicrokernelElements = " << elementCount << " };\n";
   os << "  int32_t lhs[kTCRVMicrokernelElements];\n";
@@ -1113,34 +1122,44 @@ void printMicrokernelFunction(llvm::raw_ostream &os,
   os << "  }\n";
   os << "  return 0;\n";
   os << "}\n\n";
-}
-
-void printMicrokernelSource(const RVVMicrokernelRecord &record,
-                            llvm::raw_ostream &os) {
-  std::string functionName = makeMicrokernelFunctionName(record);
-
-  os << "/* TianChen-RV RVV explicit microkernel C export. */\n";
-  os << "/* Scope: executable C for exactly one "
-        "tcrv_rvv.i32_vadd_microkernel. */\n";
-  os << "/* This is bounded microkernel correctness only when compiled and run "
-        "on ssh rvv; it is not generic TianChen-RV lowering or performance "
-        "evidence. */\n\n";
-  os << "#include <stddef.h>\n";
-  os << "#include <stdint.h>\n";
-  os << "#include <stdio.h>\n";
-  os << "#include <riscv_vector.h>\n\n";
-
-  printRecordComment(os, record, functionName);
-  printMicrokernelFunction(os, functionName, record.elementCount);
 
   os << "int main(void) {\n";
   os << "  int status = " << functionName << "_self_check();\n";
   os << "  if (status != 0)\n";
   os << "    return status;\n";
   os << "  printf(\"tcrv_rvv_microkernel_ok elements=%zu\\n\", (size_t)"
-     << record.elementCount << ");\n";
+     << elementCount << ");\n";
   os << "  return 0;\n";
   os << "}\n";
+}
+
+void printMicrokernelSource(const RVVMicrokernelRecord &record,
+                            llvm::raw_ostream &os,
+                            RVVMicrokernelCExportMode mode) {
+  std::string functionName = makeMicrokernelFunctionName(record);
+  bool includeHarness = mode == RVVMicrokernelCExportMode::SelfCheckHarness;
+
+  os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
+  os << "/* Scope: library-style C source for exactly one "
+        "tcrv_rvv.i32_vadd_microkernel. */\n";
+  os << "/* Default artifact shape: runtime-callable C ABI function with no "
+        "embedded main or self-check harness. */\n";
+  if (includeHarness)
+    os << "/* Harness mode: adds a bounded self-check main for explicit ssh rvv "
+          "evidence only. */\n";
+  os << "/* Correctness claims require the explicit self-check harness and ssh "
+        "rvv evidence; this source is not generic TianChen-RV lowering or "
+        "performance evidence. */\n\n";
+  os << "#include <stddef.h>\n";
+  os << "#include <stdint.h>\n";
+  if (includeHarness)
+    os << "#include <stdio.h>\n";
+  os << "#include <riscv_vector.h>\n\n";
+
+  printRecordComment(os, record, functionName);
+  printMicrokernelFunction(os, functionName);
+  if (includeHarness)
+    printMicrokernelSelfCheckHarness(os, functionName, record.elementCount);
 }
 
 } // namespace
@@ -1153,7 +1172,23 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
 
   std::string source;
   llvm::raw_string_ostream stream(source);
-  printMicrokernelSource(*record, stream);
+  printMicrokernelSource(*record, stream,
+                         RVVMicrokernelCExportMode::RuntimeCallableLibrary);
+  stream.flush();
+  os << source;
+  return llvm::Error::success();
+}
+
+llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
+                                           llvm::raw_ostream &os) {
+  llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record)
+    return record.takeError();
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  printMicrokernelSource(*record, stream,
+                         RVVMicrokernelCExportMode::SelfCheckHarness);
   stream.flush();
   os << source;
   return llvm::Error::success();

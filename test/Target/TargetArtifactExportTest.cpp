@@ -126,7 +126,7 @@ int main() {
     return 1;
   }
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
-                   "standalone-c-source", "rvv-plugin",
+                   "runtime-callable-c-source", "rvv-plugin",
                    "rvv-explicit-i32-vadd-microkernel-c-source"))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",

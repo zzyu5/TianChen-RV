@@ -48,7 +48,7 @@ module {
       source_kernel = "unknown_route_id"
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "standalone-c-source",
+      artifact_kind = "runtime-callable-c-source",
       emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source",
       lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "unknown-target-export-route",

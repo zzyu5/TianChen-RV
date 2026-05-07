@@ -1,11 +1,14 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --self-test | FileCheck %s --check-prefix=SELF
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-e2e --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --generic-route --run-id lit-rvv-microkernel-e2e-generic --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=GENERIC-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --self-check-harness --run-id lit-rvv-microkernel-e2e-harness --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=HARNESS-DRY
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-harness/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=GENERIC-SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/command_summary.json
+# RUN: FileCheck %s --check-prefix=HARNESS-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-harness/rvv_microkernel.c
 # RUN: test ! -f %S/../../rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=MANIFEST < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
@@ -18,6 +21,7 @@
 # DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
 # DRY: "manifest_handoff": true
 # DRY: "mode": "dry-run"
+# DRY: "source_export_mode": "runtime-callable-library"
 # DRY: "source_export_route": "direct-rvv-microkernel"
 # DRY: "ssh_evidence": false
 # DRY: "status": "success"
@@ -27,11 +31,22 @@
 # GENERIC-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic"
 # GENERIC-DRY: "manifest_handoff": true
 # GENERIC-DRY: "mode": "dry-run"
+# GENERIC-DRY: "source_export_mode": "runtime-callable-library"
 # GENERIC-DRY: "source_export_route": "generic-target-source-artifact"
 # GENERIC-DRY: "ssh_evidence": false
 # GENERIC-DRY: "status": "success"
 # GENERIC-DRY-NOT: live-token
 # GENERIC-DRY-NOT: hunter2
+
+# HARNESS-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-harness"
+# HARNESS-DRY: "manifest_handoff": true
+# HARNESS-DRY: "mode": "dry-run"
+# HARNESS-DRY: "source_export_mode": "self-check-harness"
+# HARNESS-DRY: "source_export_route": "direct-rvv-microkernel-self-check-harness"
+# HARNESS-DRY: "ssh_evidence": false
+# HARNESS-DRY: "status": "success"
+# HARNESS-DRY-NOT: live-token
+# HARNESS-DRY-NOT: hunter2
 
 # SUMMARY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e"
 # SUMMARY: "name": "tcrv_opt_materialize_plans"
@@ -48,11 +63,16 @@
 # GENERIC-SUMMARY-NOT: live-token
 # GENERIC-SUMMARY-NOT: hunter2
 
+# HARNESS-SOURCE: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
+# HARNESS-SOURCE: int main(void)
+# HARNESS-SOURCE: tcrv_rvv_microkernel_ok
+
 # MANIFEST: emission_status: "supported"
 # MANIFEST: emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"
 # MANIFEST: lowering_pipeline: "tcrv-export-rvv-microkernel-c"
 # MANIFEST: runtime_abi_kind: "rvv-runtime-callable-c-abi"
 # MANIFEST: runtime_glue_role: "runtime-callable-i32-vadd-function"
+# MANIFEST: artifact_kind: "runtime-callable-c-source"
 # MANIFEST-NOT: runtime_success
 # MANIFEST-NOT: throughput
 # MANIFEST-NOT: latency

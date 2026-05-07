@@ -1,4 +1,5 @@
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-c | FileCheck %s --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-c | FileCheck %s --check-prefix=LIB --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_microkernel_input {
   tcrv.exec.kernel @micro_a {
@@ -81,28 +82,36 @@ module @rvv_microkernel_input {
   }
 }
 
-// CHECK: /* TianChen-RV RVV explicit microkernel C export. */
-// CHECK: /* Scope: executable C for exactly one tcrv_rvv.i32_vadd_microkernel. */
-// CHECK: #include <riscv_vector.h>
-// CHECK-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
-// CHECK: /* selected_kernel: @micro_a */
-// CHECK: /* selected_variant: @rvv_first_slice */
-// CHECK: /* selected_role: dispatch case */
-// CHECK: /* selected_march: rv64gcv */
-// CHECK: /* selected_mabi: lp64d */
-// CHECK: /* lowering_boundary: tcrv_rvv.lowering_boundary */
-// CHECK: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-// CHECK: /* element_count: 16 */
-// CHECK: /* required_capabilities: @rvv */
-// CHECK-LABEL: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
-// CHECK: while (offset < n)
-// CHECK: __riscv_vsetvl_e32m1
-// CHECK: __riscv_vle32_v_i32m1
-// CHECK: __riscv_vadd_vv_i32m1
-// CHECK: __riscv_vse32_v_i32m1
-// CHECK-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check(void)
-// CHECK: enum { kTCRVMicrokernelElements = 16 };
-// CHECK: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
-// CHECK-LABEL: int main(void)
-// CHECK: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check();
-// CHECK: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);
+// LIB: /* TianChen-RV RVV runtime-callable microkernel C export. */
+// LIB: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
+// LIB: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
+// LIB: #include <riscv_vector.h>
+// LIB-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
+// LIB: /* selected_kernel: @micro_a */
+// LIB: /* selected_variant: @rvv_first_slice */
+// LIB: /* selected_role: dispatch case */
+// LIB: /* selected_march: rv64gcv */
+// LIB: /* selected_mabi: lp64d */
+// LIB: /* lowering_boundary: tcrv_rvv.lowering_boundary */
+// LIB: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// LIB: /* artifact_kind: runtime-callable-c-source */
+// LIB: /* element_count: 16 */
+// LIB: /* required_capabilities: @rvv */
+// LIB: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
+// LIB: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
+// LIB: while (offset < n)
+// LIB: __riscv_vsetvl_e32m1
+// LIB: __riscv_vle32_v_i32m1
+// LIB: __riscv_vadd_vv_i32m1
+// LIB: __riscv_vse32_v_i32m1
+
+// HARNESS: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
+// HARNESS: #include <stdio.h>
+// HARNESS: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
+// HARNESS: __riscv_vadd_vv_i32m1
+// HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check(void)
+// HARNESS: enum { kTCRVMicrokernelElements = 16 };
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
+// HARNESS-LABEL: int main(void)
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check();
+// HARNESS: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);

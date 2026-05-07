@@ -44,7 +44,7 @@ REQUIRED_HANDOFF = {
     "runtime_abi_kind": "rvv-runtime-callable-c-abi",
     "runtime_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1",
     "runtime_glue_role": "runtime-callable-i32-vadd-function",
-    "artifact_kind": "standalone-c-source",
+    "artifact_kind": "runtime-callable-c-source",
 }
 
 SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -376,7 +376,7 @@ def parse_source_comment(source: str, field: str, *, required: bool) -> str:
     return value
 
 
-def validate_generated_source(source: str) -> dict[str, str]:
+def validate_generated_source(source: str, *, require_harness: bool) -> dict[str, str]:
     if not source.strip():
         raise BridgeError("generated RVV microkernel C source is empty")
     reject_secret_like_text("generated RVV microkernel C source", source)
@@ -386,8 +386,19 @@ def validate_generated_source(source: str) -> dict[str, str]:
         "__riscv_vle32_v_i32m1",
         "__riscv_vadd_vv_i32m1",
         "__riscv_vse32_v_i32m1",
-        SUCCESS_MARKER,
     ]
+    if require_harness:
+        required_snippets.extend(
+            [
+                "int main(void)",
+                SUCCESS_MARKER,
+            ]
+        )
+    elif "int main(void)" in source or SUCCESS_MARKER in source:
+        raise BridgeError(
+            "default generated RVV microkernel C source must be library-style "
+            "runtime-callable source without the self-check harness"
+        )
     missing = [snippet for snippet in required_snippets if snippet not in source]
     if missing:
         raise BridgeError(
@@ -570,6 +581,16 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root()
     if args.evidence_note:
         reject_secret_like_text("evidence note", args.evidence_note)
+    if args.generic_route and args.self_check_harness:
+        raise BridgeError(
+            "--self-check-harness is explicit direct-export evidence mode and "
+            "cannot be combined with --generic-route"
+        )
+    if args.generic_route and not args.dry_run:
+        raise BridgeError(
+            "--generic-route exports the default runtime-callable library "
+            "source; ssh self-check evidence uses the explicit direct harness"
+        )
 
     run_id = safe_run_id(args.run_id or utc_run_id())
     artifact_dir = prepare_artifact_dir(
@@ -619,16 +640,16 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     write_generated_text(manifest_path, "emission manifest", manifest_text)
     manifest_handoff = find_supported_handoff(manifest_text)
 
-    source_export_flag = (
-        "--tcrv-export-target-source-artifact"
-        if args.generic_route
-        else "--tcrv-export-rvv-microkernel-c"
-    )
-    source_export_name = (
-        "export_target_source_artifact"
-        if args.generic_route
-        else "export_rvv_microkernel_c"
-    )
+    use_harness = args.self_check_harness or not args.dry_run
+    if args.generic_route:
+        source_export_flag = "--tcrv-export-target-source-artifact"
+        source_export_name = "export_target_source_artifact"
+    elif use_harness:
+        source_export_flag = "--tcrv-export-rvv-microkernel-self-check-c"
+        source_export_name = "export_rvv_microkernel_self_check_c"
+    else:
+        source_export_flag = "--tcrv-export-rvv-microkernel-c"
+        source_export_name = "export_rvv_microkernel_c"
     source_text, _, _ = run_command(
         source_export_name,
         [
@@ -642,7 +663,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         timeout_seconds=args.timeout,
     )
     source_path = artifact_dir / "rvv_microkernel.c"
-    source_flags = validate_generated_source(source_text)
+    source_flags = validate_generated_source(
+        source_text, require_harness=use_harness
+    )
     write_generated_text(source_path, "generated RVV microkernel source", source_text)
 
     hashes = {
@@ -665,12 +688,21 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_export_route": (
             "generic-target-source-artifact"
             if args.generic_route
+            else "direct-rvv-microkernel-self-check-harness"
+            if use_harness
             else "direct-rvv-microkernel"
+        ),
+        "source_export_mode": (
+            "self-check-harness" if use_harness else "runtime-callable-library"
         ),
         "selected_compile_flags": [
             "-O2",
             f"-march={source_flags['selected_march']}",
-            *( [f"-mabi={source_flags['selected_mabi']}"] if source_flags.get("selected_mabi") else [] ),
+            *(
+                [f"-mabi={source_flags['selected_mabi']}"]
+                if source_flags.get("selected_mabi")
+                else []
+            ),
         ],
         "hashes": hashes,
         "artifacts": {
@@ -744,7 +776,7 @@ kernel @rvv_microkernel_manifest
     runtime_abi_kind: "rvv-runtime-callable-c-abi"
     runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
     runtime_glue_role: "runtime-callable-i32-vadd-function"
-    artifact_kind: "standalone-c-source"
+    artifact_kind: "runtime-callable-c-source"
     required_capabilities: [@rvv]
     explanation: "bounded"
 """.strip()
@@ -841,6 +873,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Export generated C through the generic target source artifact route",
     )
+    parser.add_argument(
+        "--self-check-harness",
+        action="store_true",
+        help="Use the explicit RVV microkernel self-check harness export",
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
 
@@ -865,6 +902,7 @@ def main(argv: list[str]) -> int:
                 "status": evidence["status"],
                 "manifest_handoff": evidence["manifest_handoff"],
                 "source_sha256": evidence["hashes"]["rvv_microkernel_c_sha256"],
+                "source_export_mode": evidence["source_export_mode"],
                 "source_export_route": evidence["source_export_route"],
                 "ssh_evidence": bool(evidence["ssh_evidence"]),
                 "claim_scope": evidence["claim_scope"],

@@ -101,9 +101,10 @@ target exporters, but the registration is where extension-specific route facts
 belong. Shared generic routing must not branch on RVV, IME, offload, scalar,
 vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics. The
 currently supported source routes are only bounded explicit microkernel
-attachments: the RVV i32 vector-add standalone C exporter registered by RVV
-target/export code, and the scalar fallback i32 vector-add portable standalone
-C exporter registered by scalar target/export code. This does not add generic
+attachments: the RVV i32 vector-add runtime-callable library C exporter
+registered by RVV target/export code, and the scalar fallback i32 vector-add
+portable standalone C exporter registered by scalar target/export code. This
+does not add generic
 RVV or scalar lowering, runtime ABI integration, object generation, linking,
 arbitrary source export, correctness evidence, or performance evidence.
 
@@ -168,7 +169,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - The helper registers every currently supported built-in target artifact route
   by delegating to target-owned registration functions.
 - The current route set is:
-  - RVV explicit i32 vector-add microkernel standalone C source.
+  - RVV explicit i32 vector-add microkernel runtime-callable C source.
   - Scalar explicit i32 vector-add microkernel standalone C source.
   - Offload runtime handoff descriptor.
 - The helper may include RVV/scalar/offload target headers and call their
@@ -199,8 +200,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   calls `registerBuiltinTargetArtifactExporters`, and exports a legal offload
   descriptor through the offload target-owned exporter.
 - Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
-  built-in registry but filters to a legal RVV or scalar standalone C source
-  route.
+  built-in registry but filters to a legal RVV runtime-callable C source or
+  scalar standalone C source route.
 - Bad: each generic translate helper manually repeats
   `registerRVVMicrokernelTargetExporters`,
   `registerScalarMicrokernelTargetExporters`, and
@@ -629,8 +630,8 @@ kernel/variant. The microkernel op may be an explicit fixture attachment or an
 RVV-plugin materialization from the finite selected-variant descriptor
 `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"`.
 
-This export is the first bounded RVV executable microkernel slice. It may emit
-a deterministic standalone C source file whose primary behavior is a stable
+This export is the first bounded RVV executable microkernel slice. It emits a
+deterministic library-style C source file whose primary behavior is a stable
 runtime-callable C ABI function:
 
 ```c
@@ -639,9 +640,12 @@ void <generated_name>(const int32_t *lhs, const int32_t *rhs,
 ```
 
 The callable function computes finite i32 vector add using RVV intrinsics. The
-standalone `main` is only a bounded self-check harness that calls that ABI
-function. This is not generic high-level MLIR lowering, arbitrary RVV kernel
-emission, full runtime integration, benchmarking, or performance evidence.
+default artifact has no embedded `main` or self-check harness; later runtime
+glue can embed the source and call the ABI boundary directly. A separate
+explicit harness export may add fixed local arrays and `main` only for bounded
+evidence collection. This is not generic high-level MLIR lowering, arbitrary
+RVV kernel emission, full runtime integration, benchmarking, or performance
+evidence.
 
 ### 2. Signatures
 
@@ -649,6 +653,7 @@ Public command:
 
 ```text
 tcrv-translate --tcrv-export-rvv-microkernel-c
+tcrv-translate --tcrv-export-rvv-microkernel-self-check-c
 ```
 
 C++ entry point:
@@ -656,6 +661,8 @@ C++ entry point:
 ```cpp
 llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
                                   llvm::raw_ostream &os);
+llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
+                                           llvm::raw_ostream &os);
 ```
 
 ### 3. Contracts
@@ -678,10 +685,13 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
 - A matching direct child `tcrv_rvv.i32_vadd_microkernel` must identify the same
   selected path, required capability refs, required march, optional selected
   mabi, and bounded element count.
-- Output must be deterministic standalone C with `riscv_vector.h`, a stable
+- Output must be deterministic library-style C with `riscv_vector.h`, a stable
   runtime-callable i32 vadd C ABI function, RVV i32 load/add/store intrinsics
-  inside that callable function, fixed local arrays in the self-check harness,
-  and a self-checking `main` that calls the callable ABI.
+  inside that callable function, and no default embedded `main` or self-check
+  harness.
+- The explicit self-check harness export must call the same callable ABI from a
+  bounded helper over fixed local arrays and is evidence tooling, not the
+  default target artifact contract.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
   benchmark sizes, latency/throughput numbers, or performance claims.
 
@@ -703,16 +713,17 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
 
 ### 5. Evidence Interpretation
 
-Real `ssh rvv` compile/run evidence for generated microkernel C proves only that
-the explicit generated i32 vector-add callable ABI source compiled and that its
-self-check harness passed on that host with the selected compiler flags. It
-does not prove generic TianChen-RV lowering correctness, supported arbitrary RVV
-kernel emission, full runtime integration, or performance.
+Real `ssh rvv` compile/run evidence for the generated self-check harness source
+proves only that the explicit generated i32 vector-add callable ABI source
+compiled and that its harness passed on that host with the selected compiler
+flags. It does not prove generic TianChen-RV lowering correctness, supported
+arbitrary RVV kernel emission, full runtime integration, or performance.
 
 ### 6. Emission Plan / Manifest Handoff
 
 When the explicit microkernel op matches the selected RVV path, the RVV plugin
-may return a supported emission plan for the standalone C source export route.
+may return a supported emission plan for the runtime-callable C source export
+route.
 If the selected variant carries the finite
 `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` descriptor, the plan
 must also validate that the attached microkernel's `element_count` matches the
@@ -726,7 +737,7 @@ runtime ABI: rvv-i32-vadd-runtime-callable-c-abi.v1
 runtime ABI kind: rvv-runtime-callable-c-abi
 runtime ABI name: rvv-i32-vadd-runtime-callable-c-function.v1
 runtime glue role: runtime-callable-i32-vadd-function
-artifact kind: standalone-c-source
+artifact kind: runtime-callable-c-source
 ```
 
 This supported plan is a plugin-owned compiler handoff to the existing RVV

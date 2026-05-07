@@ -29,7 +29,7 @@ module {
       status = "metadata-only"
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "standalone-c-source",
+      artifact_kind = "runtime-callable-c-source",
       emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source",
       lowering_boundary = "tcrv_scalar.lowering_boundary",
       lowering_pipeline = "tcrv-export-rvv-microkernel-c",

@@ -7,7 +7,7 @@
 // RVV: tcrv_rvv.lowering_boundary
 // RVV-SAME: selected_variant = @rvv_first_slice
 // RVV: tcrv.exec.diagnostic
-// RVV-SAME: artifact_kind = "standalone-c-source"
+// RVV-SAME: artifact_kind = "runtime-callable-c-source"
 // RVV-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
 // RVV-SAME: origin = "rvv-plugin"
 // RVV-SAME: status = "supported"

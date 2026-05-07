@@ -17,6 +17,9 @@ namespace tianchenrv::target::rvv {
 llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
                                   llvm::raw_ostream &os);
 
+llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
+                                           llvm::raw_ostream &os);
+
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry);
 

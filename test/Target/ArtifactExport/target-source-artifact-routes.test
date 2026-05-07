@@ -2,10 +2,11 @@
 # RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %t.rvv-microkernel-post-planning.mlir > %t.direct.c
 # RUN: tcrv-translate --tcrv-export-target-source-artifact %t.rvv-microkernel-post-planning.mlir > %t.generic.c
 # RUN: diff -u %t.direct.c %t.generic.c
-# RUN: FileCheck %s --check-prefix=POS --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.generic.c
+# RUN: FileCheck %s --check-prefix=POS --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.generic.c
 
-# POS: /* TianChen-RV RVV explicit microkernel C export. */
-# POS: /* Scope: executable C for exactly one tcrv_rvv.i32_vadd_microkernel. */
+# POS: /* TianChen-RV RVV runtime-callable microkernel C export. */
+# POS: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
+# POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # POS: #include <riscv_vector.h>
 # POS: /* selected_kernel: @rvv_microkernel_manifest */
 # POS: /* selected_variant: @rvv_first_slice */
@@ -14,26 +15,26 @@
 # POS: /* selected_mabi: lp64d */
 # POS: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 # POS: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-# POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+# POS: /* artifact_kind: runtime-callable-c-source */
+# POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
 # POS: __riscv_vsetvl_e32m1
 # POS: __riscv_vle32_v_i32m1
 # POS: __riscv_vadd_vv_i32m1
 # POS: __riscv_vse32_v_i32m1
-# POS: tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
-# POS: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);
 
 # RUN: tcrv-opt %S/../RVVMicrokernel/rvv-microkernel-pipeline.mlir --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PLAN --implicit-check-not="#include <riscv_vector.h>"
 # MISSING-PLAN: execution plan coherence check failed for kernel @micro_a
 # MISSING-PLAN-SAME: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before export preflight
 
 # RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact > %t.auto-rvv.c
-# RUN: FileCheck %s --check-prefix=AUTO-RVV --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.auto-rvv.c
+# RUN: FileCheck %s --check-prefix=AUTO-RVV --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.auto-rvv.c
 # AUTO-RVV: /* selected_kernel: @pipeline_manifest */
 # AUTO-RVV: /* selected_variant: @rvv_first_slice */
 # AUTO-RVV: /* selected_role: dispatch case */
 # AUTO-RVV: /* selected_march: rv64gcv */
 # AUTO-RVV: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-# AUTO-RVV: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+# AUTO-RVV: /* artifact_kind: runtime-callable-c-source */
+# AUTO-RVV: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 # AUTO-RVV: __riscv_vadd_vv_i32m1
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE --implicit-check-not="#include <riscv_vector.h>"

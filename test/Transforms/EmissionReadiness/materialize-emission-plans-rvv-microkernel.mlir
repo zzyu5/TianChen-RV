@@ -71,11 +71,11 @@ module @rvv_microkernel_plan_input {
 // CHECK-SAME: selected_variant = @rvv_first_slice
 // CHECK-SAME: status = "unsupported"
 // CHECK: tcrv.exec.diagnostic
-// CHECK-SAME: artifact_kind = "standalone-c-source"
+// CHECK-SAME: artifact_kind = "runtime-callable-c-source"
 // CHECK-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
 // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
 // CHECK-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
-// CHECK-SAME: message = "explicit RVV i32 vector-add microkernel C source export provides a runtime-callable C ABI function plus a standalone self-check harness for this selected path; this is not generic RVV lowering, runtime integration, arbitrary kernel emission, correctness, or performance evidence"
+// CHECK-SAME: message = "explicit RVV i32 vector-add microkernel C source export provides a library-style runtime-callable C ABI function for this selected path; any self-check main is an explicit harness export and is not the default artifact contract; this is not generic RVV lowering, runtime integration, arbitrary kernel emission, correctness, or performance evidence"
 // CHECK-SAME: origin = "rvv-plugin"
 // CHECK-SAME: reason = "emission_plan"
 // CHECK-SAME: required_capabilities = [@rvv]
