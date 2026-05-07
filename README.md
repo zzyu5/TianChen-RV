@@ -165,6 +165,23 @@ present, selected `-mabi`. The resulting evidence is bounded to the explicit
 i32 vector-add microkernel self-check and must not be reported as generic
 TianChen-RV RVV lowering correctness or performance.
 
+The helper below ties the existing manifest-supported microkernel route to
+source export and optional real `ssh rvv` evidence without broadening compiler
+semantics:
+
+```bash
+python3 scripts/rvv_microkernel_e2e.py --dry-run
+python3 scripts/rvv_microkernel_e2e.py --ssh-target rvv
+```
+
+The dry-run mode runs local compiler tools only and writes sanitized
+post-planning MLIR, emission manifest, generated C source, hashes, and command
+summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Real ssh mode
+adds bounded remote compile/run evidence for the explicit generated
+`tcrv_rvv.i32_vadd_microkernel` self-check only. It is not generic RVV lowering,
+runtime ABI integration, arbitrary kernel emission, correctness coverage, or
+performance evidence.
+
 ## Scalar Fallback First Slice
 
 The built-in plugin registry also includes a C++ `scalar-plugin` first slice.

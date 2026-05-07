@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global stack and source-of-truth invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV helper remains plugin-local and claim-bounded"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emission manifest/runtime handoff interpretation"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/Python-tooling and RVV evidence coverage requirements"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify hardware evidence claim wording"}

@@ -208,3 +208,14 @@ source must be reported separately as bounded microkernel correctness evidence
 only for that explicit source and selected flags. It must not be reported as
 generic TianChen-RV lowering correctness, arbitrary RVV emission support,
 runtime ABI support, or performance evidence.
+
+If the repository provides an end-to-end helper for that explicit microkernel
+route, it remains Python runner/evidence tooling only. Local lit coverage must
+exercise the helper without contacting `ssh rvv`, including manifest handoff
+recognition, deterministic command-summary/artifact layout below
+`artifacts/tmp`, missing supported-handoff failure, and secret-like metadata
+redaction or rejection. Passing this helper dry-run proves only that existing
+compiler tools can materialize the selected-boundary/emission-plan surface,
+export the bounded manifest handoff, and export deterministic standalone C
+source. It is not RVV runtime, correctness, generic lowering, runtime ABI, or
+performance evidence.
