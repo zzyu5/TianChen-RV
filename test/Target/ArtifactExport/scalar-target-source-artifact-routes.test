@@ -1,24 +1,38 @@
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-post-planning.mlir
 # RUN: tcrv-translate --tcrv-export-target-source-artifact %t.scalar-post-planning.mlir > %t.scalar.c
-# RUN: FileCheck %s --check-prefix=SCALAR-POS --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not=tcrv-export --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar.c
+# RUN: FileCheck %s --check-prefix=SCALAR-POS --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not=tcrv-export --implicit-check-not="#include <stdio.h>" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar.c
 
-# SCALAR-POS: /* TianChen-RV scalar explicit microkernel C export. */
-# SCALAR-POS: /* Scope: executable C for exactly one tcrv_scalar.i32_vadd_microkernel. */
+# SCALAR-POS: /* TianChen-RV scalar runtime-callable microkernel C export. */
+# SCALAR-POS: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vadd_microkernel. */
+# SCALAR-POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # SCALAR-POS: #include <stddef.h>
 # SCALAR-POS: #include <stdint.h>
-# SCALAR-POS: #include <stdio.h>
 # SCALAR-POS: /* selected_kernel: @scalar_microkernel_export */
 # SCALAR-POS: /* selected_variant: @scalar_fallback_first_slice */
 # SCALAR-POS: /* selected_role: dispatch fallback */
+# SCALAR-POS: /* fallback_role: conservative */
 # SCALAR-POS: /* lowering_boundary: tcrv_scalar.lowering_boundary */
 # SCALAR-POS: /* executable_microkernel: tcrv_scalar.i32_vadd_microkernel */
+# SCALAR-POS: /* artifact_kind: runtime-callable-c-source */
+# SCALAR-POS: /* element_count: 16 */
+# SCALAR-POS: /* required_capabilities: @scalar_fallback */
+# SCALAR-POS: /* runtime_abi_kind: scalar-runtime-callable-c-abi */
+# SCALAR-POS: /* runtime_abi_name: scalar-i32-vadd-runtime-callable-c-function.v1 */
+# SCALAR-POS: /* runtime_glue_role: runtime-callable-i32-vadd-fallback-function */
+# SCALAR-POS: /* runtime_callable_abi: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
+# SCALAR-POS: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+# SCALAR-POS: for (size_t index = 0; index < n; ++index)
 # SCALAR-POS: out[index] = lhs[index] + rhs[index];
-# SCALAR-POS: printf("tcrv_scalar_i32_vadd_microkernel_ok elements=%zu\n", (size_t)16);
 
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=SCALAR-PLAN
+# SCALAR-PLAN: artifact_kind = "runtime-callable-c-source"
 # SCALAR-PLAN: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
 # SCALAR-PLAN-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
 # SCALAR-PLAN-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
+# SCALAR-PLAN-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
+# SCALAR-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+# SCALAR-PLAN-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+# SCALAR-PLAN-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
 # SCALAR-PLAN-SAME: status = "supported"
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/../EmissionManifest/emission-manifest-selected.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-METADATA --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok

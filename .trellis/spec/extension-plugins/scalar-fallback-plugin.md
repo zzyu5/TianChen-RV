@@ -140,7 +140,7 @@ appropriate to that path.
 
 `tcrv_scalar.i32_vadd_microkernel` is the first scalar extension-dialect
 executable source-export microkernel op. It represents exactly one bounded i32
-vector-add self-check body for a selected scalar fallback path. The op is
+vector-add callable body for a selected scalar fallback path. The op is
 plugin-local under the `tcrv_scalar` dialect and must carry only selected-path
 metadata: source kernel, selected variant, origin, selected role, required
 capability refs, and a tiny element count. It must reject generic
@@ -151,20 +151,27 @@ capability refs, and required-capability mismatches.
 When the selected scalar fallback path has exactly one matching
 `tcrv_scalar.lowering_boundary` and exactly one matching
 `tcrv_scalar.i32_vadd_microkernel`, the scalar plugin may return a supported
-standalone C source export route:
+runtime-callable C source export route:
 
 ```text
 status: supported
 emission kind: scalar-explicit-i32-vadd-microkernel-c-source
 lowering pipeline: tcrv-export-scalar-microkernel-c
-runtime ABI: scalar-i32-vadd-standalone-c-self-check.v1
-runtime ABI kind: scalar-standalone-c-source-export
-runtime ABI name: scalar-i32-vadd-microkernel-standalone-c.v1
-runtime glue role: standalone-self-check-main
-artifact kind: standalone-c-source
+runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
+runtime ABI kind: scalar-runtime-callable-c-abi
+runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
+runtime glue role: runtime-callable-i32-vadd-fallback-function
+artifact kind: runtime-callable-c-source
 ```
 
-Default scalar fallback selected paths without this explicit microkernel remain
-metadata-only. The supported route does not add generic scalar lowering,
-runtime ABI integration, arbitrary scalar source export, object generation,
-linking, broad correctness coverage, or performance evidence.
+The exported source must contain a deterministic callable C function with
+`const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, and `size_t n`
+parameters, and no hidden `main`, stdio-only self-check machinery, or success
+marker in the default artifact. The source may include bounded metadata
+comments for selected kernel, selected variant, selected role/fallback role,
+artifact kind, element count, required capabilities, runtime ABI kind/name, and
+runtime glue role. Default scalar fallback selected paths without this explicit
+microkernel remain metadata-only. The supported route does not add generic
+scalar lowering, arbitrary scalar source export, object generation, linking,
+full runtime dispatch integration, broad correctness coverage, or performance
+evidence.

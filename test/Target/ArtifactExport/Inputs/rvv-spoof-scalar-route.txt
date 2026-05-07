@@ -29,7 +29,7 @@ module @rvv_spoof_scalar_route_input {
       unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "standalone-c-source",
+      artifact_kind = "runtime-callable-c-source",
       emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
       lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "tcrv-export-scalar-microkernel-c",
@@ -39,10 +39,10 @@ module @rvv_spoof_scalar_route_input {
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "scalar-i32-vadd-standalone-c-self-check.v1",
-      runtime_abi_kind = "scalar-standalone-c-source-export",
-      runtime_abi_name = "scalar-i32-vadd-microkernel-standalone-c.v1",
-      runtime_glue_role = "standalone-self-check-main",
+      runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "scalar-runtime-callable-c-abi",
+      runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
+      runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
       severity = "info",
       status = "supported",
       target = @rvv_first_slice

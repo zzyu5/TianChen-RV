@@ -618,18 +618,18 @@ module {
                      supportedPlan.getLoweringPipeline() ==
                          "tcrv-export-scalar-microkernel-c" &&
                      supportedPlan.getRuntimeABI() ==
-                         "scalar-i32-vadd-standalone-c-self-check.v1" &&
+                         "scalar-i32-vadd-runtime-callable-c-abi.v1" &&
                      supportedPlan.getRuntimeABIKind() ==
-                         "scalar-standalone-c-source-export" &&
+                         "scalar-runtime-callable-c-abi" &&
                      supportedPlan.getRuntimeABIName() ==
-                         "scalar-i32-vadd-microkernel-standalone-c.v1" &&
+                         "scalar-i32-vadd-runtime-callable-c-function.v1" &&
                      supportedPlan.getRuntimeGlueRole() ==
-                         "standalone-self-check-main" &&
+                         "runtime-callable-i32-vadd-fallback-function" &&
                      supportedPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      supportedPlan.getRequiredCapabilitySymbols().front() ==
                          "scalar_fallback" &&
                      supportedPlan.getArtifactKind() ==
-                         "standalone-c-source",
+                         "runtime-callable-c-source",
                  "explicit scalar microkernel emission plan records stable supported source route"))
     return result;
 

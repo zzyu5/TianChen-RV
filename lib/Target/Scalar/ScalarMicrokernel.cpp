@@ -47,6 +47,7 @@ constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
+constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
@@ -55,7 +56,14 @@ constexpr llvm::StringLiteral kMicrokernelEmissionKind(
     "scalar-explicit-i32-vadd-microkernel-c-source");
 constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-scalar-microkernel-c");
-constexpr llvm::StringLiteral kMicrokernelArtifactKind("standalone-c-source");
+constexpr llvm::StringLiteral kMicrokernelArtifactKind(
+    "runtime-callable-c-source");
+constexpr llvm::StringLiteral kMicrokernelRuntimeABIKind(
+    "scalar-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kMicrokernelRuntimeABIName(
+    "scalar-i32-vadd-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kMicrokernelRuntimeGlueRole(
+    "runtime-callable-i32-vadd-fallback-function");
 
 struct SelectedPath {
   VariantOp variant;
@@ -66,6 +74,7 @@ struct ScalarMicrokernelRecord {
   std::string kernelSymbol;
   std::string variantSymbol;
   std::string role;
+  std::string fallbackRole;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
   std::int64_t elementCount = 0;
 };
@@ -726,6 +735,18 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           kernel, "variant symbol", getPathVariantSymbol(path)))
     return std::move(error);
 
+  std::string fallbackRole;
+  if (auto attr = getStringAttr(getPathVariantOperation(path),
+                                kFallbackRoleAttrName)) {
+    llvm::StringRef value = attr.getValue().trim();
+    if (!value.empty()) {
+      if (llvm::Error error =
+              validateBoundedText(kernel, kFallbackRoleAttrName, value))
+        return std::move(error);
+      fallbackRole = value.str();
+    }
+  }
+
   llvm::SmallVector<std::string, 4> requiredCapabilities;
   if (llvm::Error error = validateRequiredCapabilities(
           kernel, getPathVariant(path), capabilities, requiredCapabilities))
@@ -747,6 +768,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.kernelSymbol = kernel.getSymName().str();
   record.variantSymbol = getPathVariantSymbol(path).str();
   record.role = path.role;
+  record.fallbackRole = std::move(fallbackRole);
   record.requiredCapabilities = std::move(requiredCapabilities);
   record.elementCount = elementCount;
   return record;
@@ -872,38 +894,30 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* selected_kernel: @" << record.kernelSymbol << " */\n";
   os << "/* selected_variant: @" << record.variantSymbol << " */\n";
   os << "/* selected_role: " << record.role << " */\n";
+  if (!record.fallbackRole.empty())
+    os << "/* fallback_role: " << record.fallbackRole << " */\n";
   os << "/* lowering_boundary: tcrv_scalar.lowering_boundary */\n";
   os << "/* executable_microkernel: tcrv_scalar.i32_vadd_microkernel */\n";
+  os << "/* artifact_kind: " << kMicrokernelArtifactKind << " */\n";
   os << "/* element_count: " << record.elementCount << " */\n";
   os << "/* required_capabilities:";
   for (llvm::StringRef capability : record.requiredCapabilities)
     os << " @" << capability;
   os << " */\n";
+  os << "/* runtime_abi_kind: " << kMicrokernelRuntimeABIKind << " */\n";
+  os << "/* runtime_abi_name: " << kMicrokernelRuntimeABIName << " */\n";
+  os << "/* runtime_glue_role: " << kMicrokernelRuntimeGlueRole << " */\n";
+  os << "/* runtime_callable_abi: void " << functionName
+     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) "
+        "*/\n";
 }
 
 void printMicrokernelFunction(llvm::raw_ostream &os,
-                              llvm::StringRef functionName,
-                              std::int64_t elementCount) {
-  os << "static int " << functionName << "(void) {\n";
-  os << "  enum { kTCRVMicrokernelElements = " << elementCount << " };\n";
-  os << "  int32_t lhs[kTCRVMicrokernelElements];\n";
-  os << "  int32_t rhs[kTCRVMicrokernelElements];\n";
-  os << "  int32_t out[kTCRVMicrokernelElements];\n\n";
-  os << "  for (int index = 0; index < kTCRVMicrokernelElements; ++index) {\n";
-  os << "    lhs[index] = index + 1;\n";
-  os << "    rhs[index] = 100 - index;\n";
-  os << "    out[index] = 0;\n";
-  os << "  }\n\n";
-  os << "  for (int index = 0; index < kTCRVMicrokernelElements; ++index)\n";
+                              llvm::StringRef functionName) {
+  os << "void " << functionName
+     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) {\n";
+  os << "  for (size_t index = 0; index < n; ++index)\n";
   os << "    out[index] = lhs[index] + rhs[index];\n\n";
-  os << "  for (int index = 0; index < kTCRVMicrokernelElements; ++index) {\n";
-  os << "    int32_t expected = lhs[index] + rhs[index];\n";
-  os << "    if (out[index] != expected) {\n";
-  os << "      fprintf(stderr, \"scalar microkernel mismatch at %d\\n\", index);\n";
-  os << "      return 3;\n";
-  os << "    }\n";
-  os << "  }\n";
-  os << "  return 0;\n";
   os << "}\n\n";
 }
 
@@ -911,27 +925,18 @@ void printMicrokernelSource(const ScalarMicrokernelRecord &record,
                             llvm::raw_ostream &os) {
   std::string functionName = makeMicrokernelFunctionName(record);
 
-  os << "/* TianChen-RV scalar explicit microkernel C export. */\n";
-  os << "/* Scope: executable C for exactly one "
+  os << "/* TianChen-RV scalar runtime-callable microkernel C export. */\n";
+  os << "/* Scope: library-style C source for exactly one "
         "tcrv_scalar.i32_vadd_microkernel. */\n";
-  os << "/* This is a bounded standalone self-check artifact; it is not "
+  os << "/* Default artifact shape: runtime-callable C ABI function with no "
+        "embedded main or self-check harness. */\n";
+  os << "/* This is a bounded fallback library artifact; it is not "
         "generic lowering, runtime integration, or performance evidence. */\n\n";
   os << "#include <stddef.h>\n";
-  os << "#include <stdint.h>\n";
-  os << "#include <stdio.h>\n\n";
+  os << "#include <stdint.h>\n\n";
 
   printRecordComment(os, record, functionName);
-  printMicrokernelFunction(os, functionName, record.elementCount);
-
-  os << "int main(void) {\n";
-  os << "  int status = " << functionName << "();\n";
-  os << "  if (status != 0)\n";
-  os << "    return status;\n";
-  os << "  printf(\"tcrv_scalar_i32_vadd_microkernel_ok elements=%zu\\n\", "
-        "(size_t)"
-     << record.elementCount << ");\n";
-  os << "  return 0;\n";
-  os << "}\n";
+  printMicrokernelFunction(os, functionName);
 }
 
 } // namespace

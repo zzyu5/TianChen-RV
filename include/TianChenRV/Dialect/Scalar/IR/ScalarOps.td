@@ -61,11 +61,12 @@ def I32VAddMicrokernelOp : TCRVScalar_Op<"i32_vadd_microkernel", []> {
     selected scalar fallback variant. This is intentionally a finite source
     export surface: it carries selected-path metadata, required scalar
     fallback capability references, and a tiny element count that a
-    target-local exporter can turn into deterministic portable standalone C.
+    target-local exporter can turn into deterministic portable
+    runtime-callable C.
 
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary scalar compute IR. It represents exactly the
-    first bounded scalar fallback executable source-export self-check slice for
+    first bounded scalar fallback executable source-export library slice for
     i32 vector add.
   }];
 

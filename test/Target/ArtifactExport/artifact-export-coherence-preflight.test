@@ -6,11 +6,12 @@
 # RVV-OK: /* artifact_kind: runtime-callable-c-source */
 # RVV-OK: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
 
-# RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SCALAR-OK --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
-# SCALAR-OK: /* TianChen-RV scalar explicit microkernel C export. */
+# RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SCALAR-OK --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not="int main(void)" --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+# SCALAR-OK: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-OK: /* selected_kernel: @scalar_microkernel_export */
 # SCALAR-OK: /* selected_variant: @scalar_fallback_first_slice */
-# SCALAR-OK: tcrv_scalar_i32_vadd_microkernel_ok
+# SCALAR-OK: /* artifact_kind: runtime-callable-c-source */
+# SCALAR-OK: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice
 
 # RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-offload-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-artifact | FileCheck %s --check-prefix=OFFLOAD-OK --implicit-check-not=vendor_runtime_call --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token --implicit-check-not=http
 # OFFLOAD-OK: tianchenrv.offload_runtime_handoff_descriptor.version: 1

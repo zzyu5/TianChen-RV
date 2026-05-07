@@ -105,11 +105,12 @@ coherence preflight validates that selected-path, lowering-boundary,
 runtime-ABI, emission-plan, and artifact-route metadata still describe the same
 path. Registered source routes are bounded to plugin-local microkernel
 attachments: the RVV i32 vector-add microkernel C exporter above and the scalar
-fallback explicit i32 vector-add portable C exporter below. Unsupported
+fallback explicit i32 vector-add portable runtime-callable C exporter below.
+Unsupported
 metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
 paths, missing boundaries, missing microkernels, route spoofing, and ambiguous
 multiple supported artifacts fail closed. This tool does not add generic RVV or
-scalar lowering, arbitrary source export, runtime ABI integration, object
+scalar lowering, arbitrary source export, full runtime ABI integration, object
 generation, linking, correctness evidence, or performance evidence.
 
 The `tcrv-translate --tcrv-export-target-artifact` tool is the artifact-kind
@@ -253,13 +254,16 @@ The scalar dialect now also has one bounded explicit microkernel attachment:
 `tcrv_scalar.i32_vadd_microkernel`. It is valid only for a selected
 `scalar-plugin` fallback path with a matching `tcrv_scalar.lowering_boundary`
 and preserved `scalar.fallback` capability metadata. When present, the scalar
-plugin may report a supported standalone C source-export emission plan routed
-through `tcrv-translate --tcrv-export-target-source-artifact`. The generated C
-is portable scalar i32 vector add with a self-checking `main`; it uses no RVV
-headers or intrinsics. This proves only the local generated scalar C self-check
-when compiled and run locally. It is not generic scalar lowering, runtime ABI
-integration, arbitrary scalar source export, object/linking support,
-correctness coverage beyond this explicit microkernel, or performance evidence.
+plugin may report a supported runtime-callable C source-export emission plan
+routed through `tcrv-translate --tcrv-export-target-source-artifact`. The
+generated C is a library-style portable scalar i32 vector-add function with the
+same structural pointer-plus-length callable ABI shape used by the bounded RVV
+microkernel route; the default artifact has no embedded `main` or self-check
+harness and uses no RVV headers or intrinsics. This is a callable fallback
+source artifact for later host dispatch glue. It is not generic scalar
+lowering, arbitrary scalar source export, object/linking support, runtime
+integration, correctness coverage beyond this explicit microkernel, or
+performance evidence.
 
 ## Runtime Offload First Slice
 

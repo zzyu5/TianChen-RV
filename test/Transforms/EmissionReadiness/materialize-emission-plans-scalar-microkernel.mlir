@@ -39,19 +39,19 @@ module @scalar_microkernel_plan_input {
 // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
 // CHECK-SAME: status = "metadata-only"
 // CHECK: tcrv.exec.diagnostic
-// CHECK-SAME: artifact_kind = "standalone-c-source"
+// CHECK-SAME: artifact_kind = "runtime-callable-c-source"
 // CHECK-SAME: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
 // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
 // CHECK-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
-// CHECK-SAME: message = "explicit scalar i32 vector-add microkernel C source export is available for this selected fallback path; this is not generic scalar lowering, runtime ABI integration, arbitrary kernel emission, correctness, or performance evidence"
+// CHECK-SAME: message = "explicit scalar i32 vector-add microkernel C source export is available as a library-style runtime-callable C ABI function for this selected fallback path; no self-check main is part of the default artifact contract; this is not generic scalar lowering, runtime integration, arbitrary kernel emission, correctness, or performance evidence"
 // CHECK-SAME: origin = "scalar-plugin"
 // CHECK-SAME: reason = "emission_plan"
 // CHECK-SAME: required_capabilities = [@scalar_fallback]
 // CHECK-SAME: role = "direct variant"
-// CHECK-SAME: runtime_abi = "scalar-i32-vadd-standalone-c-self-check.v1"
-// CHECK-SAME: runtime_abi_kind = "scalar-standalone-c-source-export"
-// CHECK-SAME: runtime_abi_name = "scalar-i32-vadd-microkernel-standalone-c.v1"
-// CHECK-SAME: runtime_glue_role = "standalone-self-check-main"
+// CHECK-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
+// CHECK-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+// CHECK-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+// CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
 // CHECK-SAME: severity = "info"
 // CHECK-SAME: status = "supported"
 // CHECK-SAME: target = @scalar_fallback_first_slice

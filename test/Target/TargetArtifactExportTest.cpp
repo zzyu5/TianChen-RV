@@ -130,7 +130,7 @@ int main() {
                    "rvv-explicit-i32-vadd-microkernel-c-source"))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
-                   "standalone-c-source", "scalar-plugin",
+                   "runtime-callable-c-source", "scalar-plugin",
                    "scalar-explicit-i32-vadd-microkernel-c-source"))
     return 1;
   if (!expectRoute(builtinRegistry,

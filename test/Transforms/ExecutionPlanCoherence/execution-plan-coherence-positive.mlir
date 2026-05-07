@@ -16,7 +16,7 @@
 // SCALAR-LABEL: tcrv.exec.kernel @scalar_microkernel_export
 // SCALAR: tcrv_scalar.lowering_boundary
 // SCALAR-SAME: selected_variant = @scalar_fallback_first_slice
-// SCALAR: tcrv.exec.diagnostic {{.*}}artifact_kind = "standalone-c-source"
+// SCALAR: tcrv.exec.diagnostic {{.*}}artifact_kind = "runtime-callable-c-source"
 // SCALAR-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
 // SCALAR-SAME: origin = "scalar-plugin"
 // SCALAR-SAME: status = "supported"

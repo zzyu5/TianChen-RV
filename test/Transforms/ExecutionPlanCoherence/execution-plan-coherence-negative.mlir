@@ -210,7 +210,7 @@ module {
       status = "metadata-only"
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "standalone-c-source",
+      artifact_kind = "runtime-callable-c-source",
       emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
       lowering_boundary = "tcrv_scalar.lowering_boundary",
       lowering_pipeline = "tcrv-export-scalar-microkernel-c",
@@ -220,10 +220,10 @@ module {
       reason = "emission_plan",
       required_capabilities = [@scalar_fallback],
       role = "direct variant",
-      runtime_abi = "scalar-i32-vadd-standalone-c-self-check.v1",
-      runtime_abi_kind = "scalar-standalone-c-source-export",
-      runtime_abi_name = "scalar-i32-vadd-microkernel-standalone-c.v1",
-      runtime_glue_role = "standalone-self-check-main",
+      runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "scalar-runtime-callable-c-abi",
+      runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
+      runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
       status = "supported",
       target = @scalar_fallback_first_slice
     }
@@ -353,10 +353,10 @@ module {
       reason = "emission_plan",
       required_capabilities = [@scalar_fallback],
       role = "direct variant",
-      runtime_abi = "scalar-i32-vadd-standalone-c-self-check.v1",
-      runtime_abi_kind = "scalar-standalone-c-source-export",
-      runtime_abi_name = "scalar-i32-vadd-microkernel-standalone-c.v1",
-      runtime_glue_role = "standalone-self-check-main",
+      runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "scalar-runtime-callable-c-abi",
+      runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
+      runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
       status = "supported",
       target = @scalar_fallback_first_slice
     }

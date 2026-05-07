@@ -103,10 +103,10 @@ vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics. The
 currently supported source routes are only bounded explicit microkernel
 attachments: the RVV i32 vector-add runtime-callable library C exporter
 registered by RVV target/export code, and the scalar fallback i32 vector-add
-portable standalone C exporter registered by scalar target/export code. This
-does not add generic
-RVV or scalar lowering, runtime ABI integration, object generation, linking,
-arbitrary source export, correctness evidence, or performance evidence.
+portable runtime-callable C exporter registered by scalar target/export code.
+This does not add generic RVV or scalar lowering, full runtime ABI integration,
+object generation, linking, arbitrary source export, correctness evidence, or
+performance evidence.
 
 ### Execution-Plan / Export Preflight Coherence
 
@@ -170,7 +170,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   by delegating to target-owned registration functions.
 - The current route set is:
   - RVV explicit i32 vector-add microkernel runtime-callable C source.
-  - Scalar explicit i32 vector-add microkernel standalone C source.
+  - Scalar explicit i32 vector-add microkernel runtime-callable C source.
   - Offload runtime handoff descriptor.
 - The helper may include RVV/scalar/offload target headers and call their
   target-owned registration functions, but it must not duplicate route
@@ -201,7 +201,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   descriptor through the offload target-owned exporter.
 - Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
   built-in registry but filters to a legal RVV runtime-callable C source or
-  scalar standalone C source route.
+  scalar runtime-callable C source route.
 - Bad: each generic translate helper manually repeats
   `registerRVVMicrokernelTargetExporters`,
   `registerScalarMicrokernelTargetExporters`, and
@@ -789,10 +789,11 @@ explicit `tcrv_scalar.i32_vadd_microkernel` op for that selected
 kernel/variant/role.
 
 This export is the first bounded scalar fallback executable source slice. It
-may emit a deterministic portable standalone C program that computes and
-self-checks a finite i32 vector add. It is not generic scalar lowering,
-arbitrary scalar kernel emission, runtime ABI glue, object generation, linking,
-benchmarking, or performance evidence.
+may emit a deterministic portable runtime-callable C library source artifact
+that computes finite scalar i32 vector add through a pointer-plus-length C ABI.
+It is not generic scalar lowering, arbitrary scalar kernel emission, generic
+runtime dispatch glue, object generation, linking, benchmarking, or performance
+evidence.
 
 Public route:
 
@@ -806,10 +807,11 @@ Route metadata:
 status: supported
 emission kind: scalar-explicit-i32-vadd-microkernel-c-source
 lowering pipeline: tcrv-export-scalar-microkernel-c
-runtime ABI: scalar-i32-vadd-standalone-c-self-check.v1
-runtime ABI kind/name: scalar standalone C source export metadata
-runtime glue role: standalone self-check main
-artifact kind: standalone-c-source
+runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
+runtime ABI kind: scalar-runtime-callable-c-abi
+runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
+runtime glue role: runtime-callable-i32-vadd-fallback-function
+artifact kind: runtime-callable-c-source
 ```
 
 Contracts:
@@ -822,8 +824,11 @@ Contracts:
   required capability refs.
 - A matching direct child `tcrv_scalar.i32_vadd_microkernel` must identify the
   same selected path and required capability refs with a bounded element count.
-- Output must be deterministic standalone portable C with fixed local arrays,
-  scalar i32 add, and a self-checking `main`.
+- Output must be deterministic portable C with a callable function
+  `void <name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`
+  that performs scalar i32 add over the provided arrays.
+- The default artifact must not include a hidden `main`, stdio-only self-check
+  machinery, or a self-check success marker.
 - Output must not include RVV headers, RVV intrinsics, route-spoof claims,
   timestamps, absolute paths, raw logs, credentials, benchmark sizes,
   latency/throughput numbers, or performance claims.

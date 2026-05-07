@@ -551,15 +551,17 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
         request.getVariant().getSymName(), request.getRole(),
         "scalar-explicit-i32-vadd-microkernel-c-source",
         "tcrv-export-scalar-microkernel-c",
-        "scalar-i32-vadd-standalone-c-self-check.v1",
-        "standalone-c-source",
+        "scalar-i32-vadd-runtime-callable-c-abi.v1",
+        "runtime-callable-c-source",
         "explicit scalar i32 vector-add microkernel C source export is "
-        "available for this selected fallback path; this is not generic "
-        "scalar lowering, runtime ABI integration, arbitrary kernel emission, "
-        "correctness, or performance evidence");
-    out.setRuntimeABIKind("scalar-standalone-c-source-export");
-    out.setRuntimeABIName("scalar-i32-vadd-microkernel-standalone-c.v1");
-    out.setRuntimeGlueRole("standalone-self-check-main");
+        "available as a library-style runtime-callable C ABI function for "
+        "this selected fallback path; no self-check main is part of the "
+        "default artifact contract; this is not generic scalar lowering, "
+        "runtime integration, arbitrary kernel emission, correctness, or "
+        "performance evidence");
+    out.setRuntimeABIKind("scalar-runtime-callable-c-abi");
+    out.setRuntimeABIName("scalar-i32-vadd-runtime-callable-c-function.v1");
+    out.setRuntimeGlueRole("runtime-callable-i32-vadd-fallback-function");
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;

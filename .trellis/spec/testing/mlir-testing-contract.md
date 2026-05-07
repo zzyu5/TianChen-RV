@@ -107,9 +107,12 @@ Use lit/FileCheck for:
 - scalar explicit microkernel C target export through the generic artifact
   route, including dialect parse/verify for
   `tcrv_scalar.i32_vadd_microkernel`, selected scalar fallback plus matching
-  `tcrv_scalar.lowering_boundary`, deterministic portable C output, absence of
-  RVV headers/intrinsics/route claims, local compile/run self-check evidence
-  when available, and fail-closed diagnostics for missing/stale scalar
+  `tcrv_scalar.lowering_boundary`, deterministic portable runtime-callable C
+  output with `const int32_t *` inputs, `int32_t *` output, and `size_t`
+  length, scalar i32 addition inside that callable function, absence of RVV
+  headers/intrinsics/route claims, absence of an embedded `main` or self-check
+  success marker in the default artifact, runtime ABI kind/name and runtime
+  glue role metadata, and fail-closed diagnostics for missing/stale scalar
   boundaries, missing/stale scalar microkernels, route spoofing, unsupported
   metadata-only scalar fallback paths, offload-only paths, and ambiguous
   supported artifacts.
