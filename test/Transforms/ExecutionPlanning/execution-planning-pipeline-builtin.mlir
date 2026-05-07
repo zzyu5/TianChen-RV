@@ -52,6 +52,8 @@ module {
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: policy = "portable_scalar_fallback_first_slice"
     // PIPE-SAME: requires = [@scalar_fallback]
+    // PIPE-SAME: tcrv_scalar.element_count = 16 : i64
+    // PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
     // PIPE: tcrv.exec.dispatch
     // PIPE: tcrv.exec.case @rvv_first_slice
     // PIPE-SAME: condition = "rvv_capability_properties_available"
@@ -90,6 +92,13 @@ module {
     // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE-SAME: status = "metadata-only"
+    // PIPE: tcrv_scalar.i32_vadd_microkernel
+    // PIPE-SAME: element_count = 16 : i64
+    // PIPE-SAME: origin = "scalar-plugin"
+    // PIPE-SAME: required_capabilities = [@scalar_fallback]
+    // PIPE-SAME: role = "dispatch fallback"
+    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+    // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
@@ -103,18 +112,18 @@ module {
     // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @rvv_first_slice
     // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: artifact_kind = "metadata-diagnostic"
-    // PIPE-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+    // PIPE-SAME: artifact_kind = "runtime-callable-c-source"
+    // PIPE-SAME: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
     // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-    // PIPE-SAME: lowering_pipeline = "none-executable-metadata-only"
+    // PIPE-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@scalar_fallback]
     // PIPE-SAME: role = "dispatch fallback"
-    // PIPE-SAME: runtime_abi = "none-metadata-only"
-    // PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-    // PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-    // PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-    // PIPE-SAME: status = "metadata-only"
+    // PIPE-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
+    // PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+    // PIPE-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+    // PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+    // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
     // ROUNDTRIP: tcrv.exec.dispatch
@@ -123,6 +132,8 @@ module {
     // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_scalar.lowering_boundary
+    // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
+    // ROUNDTRIP: tcrv_scalar.i32_vadd_microkernel
     // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
   }
 }
@@ -150,6 +161,8 @@ module {
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: policy = "portable_scalar_fallback_first_slice"
     // PIPE-SAME: requires = [@scalar_fallback]
+    // PIPE-SAME: tcrv_scalar.element_count = 16 : i64
+    // PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
     // PIPE-NOT: tcrv_rvv.lowering_boundary
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: fallback_role = "conservative"
@@ -167,20 +180,32 @@ module {
     // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
     // PIPE-SAME: source_kernel = "pipeline_scalar_after_rvv_decline"
     // PIPE-SAME: status = "metadata-only"
+    // PIPE: tcrv_scalar.i32_vadd_microkernel
+    // PIPE-SAME: element_count = 16 : i64
+    // PIPE-SAME: origin = "scalar-plugin"
+    // PIPE-SAME: required_capabilities = [@scalar_fallback]
+    // PIPE-SAME: role = "direct variant"
+    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+    // PIPE-SAME: source_kernel = "pipeline_scalar_after_rvv_decline"
     // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: artifact_kind = "runtime-callable-c-source"
+    // PIPE-SAME: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
     // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+    // PIPE-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@scalar_fallback]
     // PIPE-SAME: role = "direct variant"
-    // PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-    // PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-    // PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-    // PIPE-SAME: status = "metadata-only"
+    // PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+    // PIPE-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+    // PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+    // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
     // ROUNDTRIP-NOT: tcrv.exec.variant @rvv_first_slice
     // ROUNDTRIP: tcrv.exec.variant @scalar_fallback_first_slice
     // ROUNDTRIP: tcrv_scalar.lowering_boundary
+    // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
+    // ROUNDTRIP: tcrv_scalar.i32_vadd_microkernel
     // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
     // ROUNDTRIP: tcrv.exec.diagnostic
     // ROUNDTRIP-SAME: target = @scalar_fallback_first_slice

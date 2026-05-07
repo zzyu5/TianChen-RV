@@ -29,6 +29,10 @@ required capability id: scalar.fallback
 materialized requires form: requires = [@scalar_fallback]
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
+lowering descriptor attr: tcrv_scalar.lowering_descriptor
+lowering descriptor value: i32-vadd-microkernel.v1
+descriptor-local element attr: tcrv_scalar.element_count
+default descriptor-local element count: 16
 ```
 
 The first-slice scalar plugin may propose `@scalar_fallback_first_slice` only
@@ -38,6 +42,19 @@ when the request contains a real high-level MLIR operation, a
 capability must produce no proposal rather than an implicit always-available
 variant.
 
+The proposal also carries a finite plugin-owned lowering descriptor for the
+bounded i32 vector-add fallback source slice:
+
+```text
+tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+tcrv_scalar.element_count = 16 : i64
+```
+
+The descriptor is a compiler decision handle for one tiny plugin-owned
+microkernel attachment. `tcrv_scalar.element_count` is descriptor-local bounded
+metadata only; it is not high-level shape, problem size, AVL, vl, runtime loop
+trip count, or performance evidence.
+
 ## Capability And Legality
 
 Scalar fallback is still capability-driven:
@@ -46,7 +63,10 @@ Scalar fallback is still capability-driven:
   `tcrv.exec.capability`;
 - generated variants must require that capability through `requires`;
 - plugin legality must reject variants with missing origin, missing fallback
-  capability requirement, or unavailable fallback capability;
+  capability requirement, unavailable fallback capability, malformed
+  `tcrv_scalar.lowering_descriptor`, malformed `tcrv_scalar.element_count`, or
+  descriptor-local element counts outside the bounded first-slice range
+  `[1, 64]`;
 - core passes must not special-case scalar fallback by name.
 
 ## Cost And Selection
@@ -63,10 +83,10 @@ protocol. Scalar fallback does not introduce a new core fallback selector: the
 plugin marks the proposal/cost estimate with the abstract conservative fallback
 role, and the core consumes only that generic role.
 
-## Emission Boundary
+## Metadata-Only Emission Boundary
 
-The default scalar fallback emission readiness path is a metadata-only route for
-compiler decisions:
+Scalar fallback without a matching executable microkernel attachment is a
+metadata-only route for compiler decisions:
 
 ```text
 readiness status: metadata-only
@@ -80,9 +100,11 @@ required capabilities: selected scalar fallback variant required capability refs
 artifact kind: metadata-diagnostic
 ```
 
-This metadata-only emission-plan diagnostic records plugin-owned intent only. It
-does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
-runtime, executed a scalar kernel, proved correctness, or measured performance.
+This metadata-only emission-plan diagnostic records plugin-owned intent only.
+It applies when the selected scalar fallback path has no validated matching
+`tcrv_scalar.i32_vadd_microkernel`. It does not mean that TianChen-RV emitted
+LLVM IR, generated an object, linked a runtime, executed a scalar kernel,
+proved correctness, or measured performance.
 
 ## Selected Lowering Boundary
 
@@ -122,19 +144,26 @@ variant's required capability symbol references. It must not materialize
 cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
+When the selected variant carries
+`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` and a valid
+descriptor-local `tcrv_scalar.element_count`, the same plugin-local
+materialization step must also create exactly one matching direct-child
+`tcrv_scalar.i32_vadd_microkernel`. A pre-existing matching scalar microkernel
+for that selected path is rejected during descriptor materialization so that the
+descriptor has a single owner and stale hand-authored fallback bodies cannot
+silently replace the plugin-owned proposal.
+
 Downstream emission planning may consume this boundary as the validated
-selected-path attachment point before materializing scalar metadata-only
-emission-plan diagnostics. The boundary can satisfy planning consistency only;
-it is not scalar executable lowering or runtime evidence.
+selected-path attachment point before materializing either metadata-only
+diagnostics or, when the matching microkernel exists, a supported scalar C
+source-export plan. The lowering boundary itself still records selected-path
+metadata only. It is not LLVM lowering, object generation, linked runtime glue,
+hardware execution, correctness evidence, or performance evidence.
 
-The only first-slice status is `metadata-only`. The scalar boundary records a
-plugin-owned attachment point and explicit fallback metadata only; it does not
-mean that TianChen-RV emitted LLVM IR, generated an object, linked a runtime,
-executed a scalar kernel, proved correctness, or measured performance.
-
-Real scalar fallback lowering must be added by a later plugin-local lowering
-slice and validated with compiler-generated artifacts and runtime evidence
-appropriate to that path.
+Real scalar fallback lowering beyond the bounded i32 vector-add C source
+microkernel must be added by later plugin-local lowering slices and validated
+with compiler-generated artifacts and runtime evidence appropriate to those
+paths.
 
 ## Explicit I32 Vector-Add Microkernel Export
 
@@ -150,7 +179,8 @@ capability refs, and required-capability mismatches.
 
 When the selected scalar fallback path has exactly one matching
 `tcrv_scalar.lowering_boundary` and exactly one matching
-`tcrv_scalar.i32_vadd_microkernel`, the scalar plugin may return a supported
+`tcrv_scalar.i32_vadd_microkernel`, including the microkernel materialized from
+the finite descriptor above, the scalar plugin may return a supported
 runtime-callable C source export route:
 
 ```text
@@ -170,8 +200,8 @@ parameters, and no hidden `main`, stdio-only self-check machinery, or success
 marker in the default artifact. The source may include bounded metadata
 comments for selected kernel, selected variant, selected role/fallback role,
 artifact kind, element count, required capabilities, runtime ABI kind/name, and
-runtime glue role. Default scalar fallback selected paths without this explicit
-microkernel remain metadata-only. The supported route does not add generic
-scalar lowering, arbitrary scalar source export, object generation, linking,
-full runtime dispatch integration, broad correctness coverage, or performance
-evidence.
+runtime glue role. Scalar fallback selected paths without a valid descriptor or
+explicit matching microkernel remain metadata-only. The supported route does
+not add generic scalar lowering, arbitrary scalar source export, object
+generation, linking, full runtime dispatch integration, broad correctness
+coverage, or performance evidence.

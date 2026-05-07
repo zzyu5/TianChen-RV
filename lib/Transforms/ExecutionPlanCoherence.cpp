@@ -47,6 +47,7 @@ constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kSelectedStatusValue("selected");
+constexpr llvm::StringLiteral kDispatchFallbackRoleName("dispatch fallback");
 
 struct SelectedPath {
   VariantOp variant;
@@ -914,8 +915,19 @@ llvm::Error validateEmissionPlans(
 }
 
 llvm::Error validateSupportedArtifactCandidates(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    llvm::ArrayRef<TargetArtifactCandidate> inputCandidates,
     const TargetArtifactExporterRegistry &targetExporters) {
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates(inputCandidates);
+  bool hasNonFallbackCandidate = llvm::any_of(
+      candidates, [](const TargetArtifactCandidate &candidate) {
+        return candidate.role != kDispatchFallbackRoleName;
+      });
+  if (hasNonFallbackCandidate) {
+    llvm::erase_if(candidates, [](const TargetArtifactCandidate &candidate) {
+      return candidate.role == kDispatchFallbackRoleName;
+    });
+  }
+
   if (candidates.size() > 1)
     return makeCoherenceError(
         KernelOp(),

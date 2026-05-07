@@ -8,6 +8,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
 
 namespace tianchenrv::plugin {
@@ -23,6 +25,12 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
+constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorAttrName(
+    "tcrv_scalar.lowering_descriptor");
+constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorValue(
+    "i32-vadd-microkernel.v1");
+constexpr llvm::StringLiteral kScalarI32VAddElementCountAttrName(
+    "tcrv_scalar.element_count");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -36,6 +44,7 @@ constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "scalar-explicit-i32-vadd-microkernel-c-source-export");
+constexpr std::int64_t kDefaultI32VAddElementCount = 16;
 
 llvm::Error makeScalarPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -101,6 +110,67 @@ llvm::Error validateScalarMetadataText(llvm::StringRef context,
                                  "' must not contain secret-like or raw "
                                  "credential text");
   return llvm::Error::success();
+}
+
+struct ScalarI32VAddMaterializationPlan {
+  std::int64_t elementCount = 0;
+};
+
+llvm::Expected<std::optional<ScalarI32VAddMaterializationPlan>>
+buildI32VAddMaterializationPlan(tcrv::exec::VariantOp variant) {
+  mlir::Attribute rawDescriptor =
+      variant->getAttr(kScalarI32VAddLoweringDescriptorAttrName);
+  if (!rawDescriptor) {
+    if (variant->hasAttr(kScalarI32VAddElementCountAttrName))
+      return makeScalarPluginError(
+          llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+          variant.getSymName() + " requires string attribute '" +
+          kScalarI32VAddLoweringDescriptorAttrName + "'");
+    return std::optional<ScalarI32VAddMaterializationPlan>();
+  }
+
+  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
+  if (!descriptor || descriptor.getValue().trim().empty())
+    return makeScalarPluginError(
+        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " requires string attribute '" +
+        kScalarI32VAddLoweringDescriptorAttrName + "'");
+
+  std::string descriptorContext =
+      (llvm::Twine("variant @") + variant.getSymName() +
+       " finite scalar i32-vadd lowering descriptor")
+          .str();
+  if (llvm::Error error = validateScalarMetadataText(
+          descriptorContext, kScalarI32VAddLoweringDescriptorAttrName,
+          descriptor.getValue().trim()))
+    return std::move(error);
+
+  if (descriptor.getValue().trim() != kScalarI32VAddLoweringDescriptorValue)
+    return makeScalarPluginError(
+        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " must be '" +
+        kScalarI32VAddLoweringDescriptorValue + "'");
+
+  auto elementCountAttr =
+      variant->getAttrOfType<mlir::IntegerAttr>(
+          kScalarI32VAddElementCountAttrName);
+  if (!elementCountAttr)
+    return makeScalarPluginError(
+        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " requires integer attribute '" +
+        kScalarI32VAddElementCountAttrName + "'");
+
+  std::int64_t elementCount = elementCountAttr.getInt();
+  if (elementCount <= 0 || elementCount > 64)
+    return makeScalarPluginError(
+        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() +
+        " requires tcrv_scalar.element_count in the bounded smoke range "
+        "[1, 64]");
+
+  ScalarI32VAddMaterializationPlan plan;
+  plan.elementCount = elementCount;
+  return plan;
 }
 
 llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
@@ -351,6 +421,32 @@ tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
   return llvm::cast<tcrv::scalar::LoweringBoundaryOp>(builder.create(state));
 }
 
+tcrv::scalar::I32VAddMicrokernelOp materializeScalarI32VAddMicrokernelOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role,
+    const ScalarI32VAddMaterializationPlan &plan) {
+  auto requiredCapabilities =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+
+  mlir::OperationState state(
+      variant.getLoc(),
+      tcrv::scalar::I32VAddMicrokernelOp::getOperationName());
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  variant.getSymName()));
+  state.addAttribute(kOriginAttrName,
+                     builder.getStringAttr(kScalarPluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(kElementCountAttrName,
+                     builder.getI64IntegerAttr(plan.elementCount));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
+  return llvm::cast<tcrv::scalar::I32VAddMicrokernelOp>(
+      builder.create(state));
+}
+
 llvm::Error rejectExistingScalarBoundaryForVariant(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
   if (!kernel || kernel.getBody().empty())
@@ -372,6 +468,39 @@ llvm::Error rejectExistingScalarBoundaryForVariant(
         llvm::Twine("requires no pre-existing "
                     "tcrv_scalar.lowering_boundary for target @") +
         targetSymbol);
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error rejectExistingScalarMicrokernelForSelectedPath(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    VariantEmissionRole role) {
+  if (!kernel || kernel.getBody().empty())
+    return llvm::Error::success();
+
+  llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel =
+        llvm::dyn_cast<tcrv::scalar::I32VAddMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+
+    auto target =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    auto microkernelRole = getStringAttr(&op, kRoleAttrName);
+    llvm::StringRef targetSymbol =
+        target ? target.getValue() : llvm::StringRef("<missing>");
+    llvm::StringRef roleValue = microkernelRole
+                                    ? microkernelRole.getValue()
+                                    : llvm::StringRef("<missing>");
+    if (targetSymbol != variant.getSymName() || roleValue != expectedRole)
+      continue;
+
+    return makeScalarPluginError(
+        llvm::Twine("requires no pre-existing "
+                    "tcrv_scalar.i32_vadd_microkernel for target @") +
+        targetSymbol + " as " + expectedRole);
   }
 
   return llvm::Error::success();
@@ -452,6 +581,17 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
   proposal.addRequiredCapabilityID(kScalarFallbackCapabilityID);
   proposal.setPolicy(kScalarFallbackPolicy);
   proposal.setFallbackRole(VariantFallbackRole::ConservativeFallback);
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kScalarI32VAddLoweringDescriptorAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kScalarI32VAddLoweringDescriptorValue));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kScalarI32VAddElementCountAttrName),
+      mlir::IntegerAttr::get(
+          mlir::IntegerType::get(request.getKernel()->getContext(), 64),
+          kDefaultI32VAddElementCount));
   out.push_back(proposal);
   return llvm::Error::success();
 }
@@ -485,6 +625,14 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
     return makeScalarPluginError(
         "materialized scalar fallback variant must require capability id "
         "'scalar.fallback'");
+
+  if (variant->hasAttr(kScalarI32VAddLoweringDescriptorAttrName) ||
+      variant->hasAttr(kScalarI32VAddElementCountAttrName)) {
+    llvm::Expected<std::optional<ScalarI32VAddMaterializationPlan>>
+        microkernelPlan = buildI32VAddMaterializationPlan(variant);
+    if (!microkernelPlan)
+      return microkernelPlan.takeError();
+  }
 
   return llvm::Error::success();
 }
@@ -613,9 +761,23 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
           request.getKernel(), request.getVariant()))
     return error;
 
+  llvm::Expected<std::optional<ScalarI32VAddMaterializationPlan>>
+      microkernelPlan = buildI32VAddMaterializationPlan(request.getVariant());
+  if (!microkernelPlan)
+    return microkernelPlan.takeError();
+
+  if (*microkernelPlan)
+    if (llvm::Error error = rejectExistingScalarMicrokernelForSelectedPath(
+            request.getKernel(), request.getVariant(), request.getRole()))
+      return error;
+
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
       request.getBuilder(), request.getKernel(), request.getVariant(),
       request.getRole());
+  if (*microkernelPlan)
+    materializeScalarI32VAddMicrokernelOp(
+        request.getBuilder(), request.getKernel(), request.getVariant(),
+        request.getRole(), **microkernelPlan);
 
   out = VariantLoweringBoundaryResult::getMaterialized(
       kScalarPluginName, request.getKernel().getSymName(),

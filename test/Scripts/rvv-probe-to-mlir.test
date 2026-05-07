@@ -97,10 +97,10 @@
 # PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
 # PIPE-SAME: reason = "emission_plan"
 # PIPE-SAME: required_capabilities = [@scalar_fallback]
-# PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-# PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-# PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-# PIPE-SAME: status = "metadata-only"
+# PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+# PIPE-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+# PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+# PIPE-SAME: status = "supported"
 # PIPE-SAME: target = @scalar_fallback_first_slice
 
 # SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
@@ -117,10 +117,10 @@
 # SCALAR_ONLY-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
 # SCALAR_ONLY-SAME: reason = "emission_plan"
 # SCALAR_ONLY-SAME: required_capabilities = [@scalar_fallback]
-# SCALAR_ONLY-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-# SCALAR_ONLY-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-# SCALAR_ONLY-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-# SCALAR_ONLY-SAME: status = "metadata-only"
+# SCALAR_ONLY-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+# SCALAR_ONLY-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+# SCALAR_ONLY-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+# SCALAR_ONLY-SAME: status = "supported"
 # SCALAR_ONLY-NOT: tcrv_rvv.lowering_boundary
 
 # SECRET: rvv_probe_to_mlir:

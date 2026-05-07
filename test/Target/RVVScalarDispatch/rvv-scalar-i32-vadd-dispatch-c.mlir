@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c > %t.dispatch.c
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
 // RUN: FileCheck %s --check-prefix=BODY --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
+// RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c | FileCheck %s --check-prefix=AUTO --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_scalar_dispatch_input {
   tcrv.exec.kernel @dispatch_vadd {
@@ -130,3 +131,17 @@ module @rvv_scalar_dispatch_input {
 // BODY: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
 // BODY: return;
 // BODY: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+
+// AUTO: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+// AUTO: /* selected_kernel: @pipeline_manifest */
+// AUTO: /* rvv_selected_variant: @rvv_first_slice */
+// AUTO: /* scalar_selected_variant: @scalar_fallback_first_slice */
+// AUTO: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
+// AUTO: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
+// AUTO: __riscv_vadd_vv_i32m1
+// AUTO: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
+// AUTO: out[index] = lhs[index] + rhs[index];
+// AUTO-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
+// AUTO: if (rvv_available)
+// AUTO: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);
+// AUTO: tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice(lhs, rhs, out, n);

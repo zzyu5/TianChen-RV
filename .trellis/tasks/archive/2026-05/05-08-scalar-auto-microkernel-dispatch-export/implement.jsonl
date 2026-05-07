@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin contract and bounded executable source-export behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime artifact boundaries for scalar callable and RVV+scalar dispatch export"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected path, lowering-boundary, emission-plan, and parameter-layering invariants"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin locality and selected lowering-boundary materializer contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and CMake validation expectations"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Guard against extension-specific core orchestration branches"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep tcrv.exec compute-free while scalar computation stays plugin-local"}

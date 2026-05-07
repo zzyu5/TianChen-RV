@@ -108,6 +108,17 @@ This does not add generic RVV or scalar lowering, full runtime ABI integration,
 object generation, linking, arbitrary source export, correctness evidence, or
 performance evidence.
 
+When a selected dispatch contains a primary supported non-fallback route plus a
+supported `dispatch fallback` route, generic single-artifact export must choose
+the primary non-fallback route and ignore the fallback candidate for ambiguity
+purposes. This keeps `--tcrv-export-target-source-artifact` and
+`--tcrv-export-target-artifact` deterministic for RVV/offload primary paths
+while preserving the scalar fallback candidate for the specialized host
+dispatch exporter. A scalar-only selected fallback remains exportable through
+the generic route when it is the only supported candidate. If multiple
+non-fallback candidates remain supported for one generic export request, the
+request is still ambiguous and must fail closed.
+
 ### Parameter Claim Boundary
 
 Lowering boundaries, emission plans, manifests, and target artifacts must
@@ -124,9 +135,10 @@ preserve parameter layering:
 - runtime SSA values / runtime control values such as AVL, vl, pointer
   arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
   only as real IR/control fields or generated ABI parameters;
-- descriptor-local bounded values such as `tcrv_rvv.element_count` describe a
-  finite descriptor or fixture slice only and must not be reported as tensor
-  shape, global problem size, AVL, or vl.
+- descriptor-local bounded values such as `tcrv_rvv.element_count` or
+  `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
+  and must not be reported as tensor shape, global problem size, AVL, vl,
+  runtime loop trip count, correctness coverage, or performance evidence.
 
 Generated C may contain target-owned local variables such as a local `vl`
 computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
@@ -305,6 +317,12 @@ Rules:
   `required_capabilities`;
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
+- when the selected scalar fallback variant carries the bounded descriptor
+  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` and a valid
+  descriptor-local `tcrv_scalar.element_count`, scalar plugin-local boundary
+  materialization also creates exactly one matching direct-child
+  `tcrv_scalar.i32_vadd_microkernel`; this is an explicit portable C source
+  microkernel attachment, not generic scalar lowering;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.

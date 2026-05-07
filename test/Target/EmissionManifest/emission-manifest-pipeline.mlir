@@ -59,9 +59,13 @@ module {
 // CHECK: selected_variant: @scalar_fallback_first_slice
 // CHECK: role: "dispatch fallback"
 // CHECK: origin: "scalar-plugin"
-// CHECK: emission_status: "metadata-only"
+// CHECK: emission_status: "supported"
+// CHECK: emission_kind: "scalar-explicit-i32-vadd-microkernel-c-source"
+// CHECK: lowering_pipeline: "tcrv-export-scalar-microkernel-c"
 // CHECK: lowering_boundary: "tcrv_scalar.lowering_boundary"
-// CHECK: runtime_abi_kind: "host-scalar-fallback-metadata"
-// CHECK: runtime_abi_name: "portable-scalar-fallback-metadata-abi.v1"
-// CHECK: runtime_glue_role: "metadata-only-host-fallback-boundary"
+// CHECK: runtime_abi: "scalar-i32-vadd-runtime-callable-c-abi.v1"
+// CHECK: runtime_abi_kind: "scalar-runtime-callable-c-abi"
+// CHECK: runtime_abi_name: "scalar-i32-vadd-runtime-callable-c-function.v1"
+// CHECK: runtime_glue_role: "runtime-callable-i32-vadd-fallback-function"
+// CHECK: artifact_kind: "runtime-callable-c-source"
 // CHECK: required_capabilities: [@scalar_fallback]

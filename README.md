@@ -248,6 +248,16 @@ metadata-only readiness/plan diagnostics by default. It does not add a new
 high-level compute op, generic scalar lowering, runtime ABI integration, object
 generation, correctness evidence, or performance evidence.
 
+For the bounded i32 vector-add slice, the scalar proposal also carries the
+finite plugin-owned descriptor
+`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` with
+descriptor-local `tcrv_scalar.element_count = 16`. When that selected path is
+materialized, the scalar plugin creates both the selected
+`tcrv_scalar.lowering_boundary` and one matching
+`tcrv_scalar.i32_vadd_microkernel`; the element count is descriptor metadata,
+not tensor shape, AVL, vl, runtime loop trip count, correctness coverage, or
+performance evidence.
+
 The scalar fallback plugin also owns the concrete `tcrv_scalar` MLIR namespace.
 Its first operation, `tcrv_scalar.lowering_boundary`, records selected fallback
 boundary metadata such as source kernel, selected variant, origin plugin,
@@ -259,17 +269,20 @@ correctness evidence, or performance evidence.
 The scalar dialect now also has one bounded explicit microkernel attachment:
 `tcrv_scalar.i32_vadd_microkernel`. It is valid only for a selected
 `scalar-plugin` fallback path with a matching `tcrv_scalar.lowering_boundary`
-and preserved `scalar.fallback` capability metadata. When present, the scalar
-plugin may report a supported runtime-callable C source-export emission plan
-routed through `tcrv-translate --tcrv-export-target-source-artifact`. The
-generated C is a library-style portable scalar i32 vector-add function with the
-same structural pointer-plus-length callable ABI shape used by the bounded RVV
-microkernel route; the default artifact has no embedded `main` or self-check
-harness and uses no RVV headers or intrinsics. This is a callable fallback
-source artifact for later host dispatch glue. It is not generic scalar
-lowering, arbitrary scalar source export, object/linking support, runtime
-integration, correctness coverage beyond this explicit microkernel, or
-performance evidence.
+and preserved `scalar.fallback` capability metadata, and it may be generated
+directly from the descriptor above. When present, the scalar plugin reports a
+supported runtime-callable C source-export emission plan routed through
+`tcrv-translate --tcrv-export-target-source-artifact`. The generated C is a
+library-style portable scalar i32 vector-add function with the same structural
+pointer-plus-length callable ABI shape used by the bounded RVV microkernel
+route; the default artifact has no embedded `main` or self-check harness and
+uses no RVV headers or intrinsics. This is a callable fallback source artifact
+for later host dispatch glue. It is not generic scalar lowering, arbitrary
+scalar source export, object/linking support, runtime integration, correctness
+coverage beyond this explicit microkernel, or performance evidence. For generic
+single-artifact export, a supported primary non-fallback route wins over a
+supported `dispatch fallback` candidate; scalar-only selected fallback remains
+exportable when it is the only supported route.
 
 ## Host RVV + Scalar Dispatch First Slice
 
@@ -281,6 +294,12 @@ runtime-callable RVV i32-vadd microkernel metadata, and supported RVV emission
 plan, plus one selected `scalar-plugin` dispatch fallback with a matching
 `tcrv_scalar.lowering_boundary`, runtime-callable scalar i32-vadd microkernel
 metadata, and supported scalar emission plan.
+
+The normal `--tcrv-execution-planning-pipeline` can now produce both callable
+sides for the built-in RVV+scalar dispatch fixture: RVV from the finite RVV
+descriptor and scalar fallback from the finite scalar descriptor. A hand-authored
+scalar microkernel is no longer required for that pipeline-to-dispatch-export
+path.
 
 The generated source embeds the existing deterministic RVV runtime-callable C
 function and scalar runtime-callable fallback C function, then emits a stable

@@ -706,6 +706,16 @@ llvm::Error exportTargetArtifactImpl(
       candidates.push_back(candidate);
   }
 
+  bool hasNonFallbackCandidate = llvm::any_of(
+      allCandidates, [](const TargetArtifactCandidate &candidate) {
+        return candidate.role != kDispatchFallbackRole;
+      });
+  if (hasNonFallbackCandidate) {
+    llvm::erase_if(candidates, [](const TargetArtifactCandidate &candidate) {
+      return candidate.role == kDispatchFallbackRole;
+    });
+  }
+
   if (candidates.empty())
     return makeModuleArtifactExportError(
         llvm::Twine("requires exactly one supported ") + routeDescription +

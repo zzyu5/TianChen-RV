@@ -127,6 +127,25 @@ LoweringBoundaryOp findScalarBoundary(KernelOp kernel,
   return result;
 }
 
+I32VAddMicrokernelOp findScalarMicrokernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  I32VAddMicrokernelOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = microkernel;
+  }
+  return result;
+}
+
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
@@ -247,6 +266,24 @@ module {
                          tianchenrv::plugin::scalar::
                              getScalarFallbackCapabilityID(),
                  "scalar fallback proposal requires fallback capability id"))
+    return result;
+  bool hasDescriptor = false;
+  bool hasElementCount = false;
+  for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
+    llvm::StringRef name = attr.getName().getValue();
+    if (name == "tcrv_scalar.lowering_descriptor") {
+      auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
+      hasDescriptor = value &&
+                      value.getValue() == "i32-vadd-microkernel.v1";
+    }
+    if (name == "tcrv_scalar.element_count") {
+      auto value = llvm::dyn_cast<mlir::IntegerAttr>(attr.getValue());
+      hasElementCount = value && value.getInt() == 16;
+    }
+  }
+  if (int result =
+          expect(hasDescriptor && hasElementCount,
+                 "scalar fallback proposal carries finite i32-vadd descriptor"))
     return result;
 
   TargetCapabilitySet unavailableCapabilities =
@@ -506,9 +543,47 @@ module {
   if (int result = expect(boundaryRequires && boundaryRequires == requiresAttr,
                           "scalar boundary preserves capability references"))
     return result;
+  I32VAddMicrokernelOp scalarMicrokernel =
+      findScalarMicrokernel(kernel, variant.getSymName());
+  if (int result =
+          expect(scalarMicrokernel,
+                 "scalar fallback descriptor materializes a microkernel"))
+    return result;
+  if (int result =
+          expect(scalarMicrokernel->getParentOp() == kernel.getOperation(),
+                 "scalar fallback microkernel is a direct kernel child"))
+    return result;
+  if (int result =
+          expect(scalarMicrokernel->getAttrOfType<mlir::StringAttr>(
+                     "source_kernel")
+                         .getValue() == kernel.getSymName(),
+                 "scalar microkernel preserves source kernel metadata"))
+    return result;
+  if (int result =
+          expect(scalarMicrokernel->getAttrOfType<mlir::FlatSymbolRefAttr>(
+                     "selected_variant")
+                         .getValue() == variant.getSymName(),
+                 "scalar microkernel preserves selected variant reference"))
+    return result;
+  if (int result =
+          expect(scalarMicrokernel->getAttrOfType<mlir::StringAttr>("role")
+                         .getValue() == "direct variant" &&
+                     scalarMicrokernel
+                             ->getAttrOfType<mlir::IntegerAttr>(
+                                 "element_count")
+                             .getInt() == 16,
+                 "scalar microkernel records direct role and bounded element count"))
+    return result;
+  auto microkernelRequires =
+      scalarMicrokernel->getAttrOfType<mlir::ArrayAttr>(
+          "required_capabilities");
+  if (int result = expect(microkernelRequires &&
+                              microkernelRequires == requiresAttr,
+                          "scalar microkernel preserves capability references"))
+    return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
-                 "scalar boundary module verifies after materialization"))
+                 "scalar boundary and microkernel module verifies after materialization"))
     return result;
 
   VariantEmissionStatus status;
@@ -520,10 +595,10 @@ module {
           "scalar fallback emission readiness is plugin-owned"))
     return result;
   if (int result =
-          expect(status.isMetadataOnly() &&
+          expect(status.isSupported() &&
                      status.getEmissionPath() ==
-                         "portable-scalar-fallback-non-executable-metadata-route",
-                 "scalar fallback readiness reports metadata-only route"))
+                         "scalar-explicit-i32-vadd-microkernel-c-source-export",
+                 "scalar fallback readiness reports supported source route"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -535,102 +610,30 @@ module {
           "scalar fallback emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isMetadataOnly() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::scalar::
                              getScalarExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() == variant.getSymName() &&
                      emissionPlan.getEmissionKind() ==
-                         "portable-scalar-fallback-metadata-route" &&
+                         "scalar-explicit-i32-vadd-microkernel-c-source" &&
                      emissionPlan.getLoweringPipeline() ==
-                         "none-executable-metadata-only" &&
-                     emissionPlan.getRuntimeABI() == "none-metadata-only" &&
+                         "tcrv-export-scalar-microkernel-c" &&
+                     emissionPlan.getRuntimeABI() ==
+                         "scalar-i32-vadd-runtime-callable-c-abi.v1" &&
                      emissionPlan.getRuntimeABIKind() ==
-                         "host-scalar-fallback-metadata" &&
+                         "scalar-runtime-callable-c-abi" &&
                      emissionPlan.getRuntimeABIName() ==
-                         "portable-scalar-fallback-metadata-abi.v1" &&
+                         "scalar-i32-vadd-runtime-callable-c-function.v1" &&
                      emissionPlan.getRuntimeGlueRole() ==
-                         "metadata-only-host-fallback-boundary" &&
+                         "runtime-callable-i32-vadd-fallback-function" &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          "scalar_fallback" &&
-                     emissionPlan.getArtifactKind() == "metadata-diagnostic",
-                 "scalar fallback emission plan records stable metadata-only route"))
-    return result;
-
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToEnd(&kernel.getBody().front());
-    mlir::OperationState state(
-        variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
-    state.addAttribute("source_kernel",
-                       builder.getStringAttr(kernel.getSymName()));
-    state.addAttribute("selected_variant",
-                       mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                    variant.getSymName()));
-    state.addAttribute(
-        "origin",
-        builder.getStringAttr(
-            tianchenrv::plugin::scalar::getScalarExtensionPluginName()));
-    state.addAttribute("role", builder.getStringAttr("direct variant"));
-    state.addAttribute("element_count", builder.getI64IntegerAttr(16));
-    state.addAttribute("required_capabilities", requiresAttr);
-    builder.create(state);
-  }
-  if (int result =
-          expect(mlir::succeeded(mlir::verify(*module)),
-                 "explicit scalar microkernel module verifies"))
-    return result;
-
-  VariantEmissionStatus supportedStatus;
-  if (int result = expectSuccess(
-          registry.checkVariantEmissionReadiness(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              supportedStatus),
-          "explicit scalar microkernel readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(supportedStatus.isSupported() &&
-                     supportedStatus.getEmissionPath() ==
-                         "scalar-explicit-i32-vadd-microkernel-c-source-export",
-                 "explicit scalar microkernel readiness reports supported source route"))
-    return result;
-
-  VariantEmissionPlan supportedPlan;
-  if (int result = expectSuccess(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              supportedPlan),
-          "explicit scalar microkernel emission plan is plugin-owned"))
-    return result;
-  if (int result =
-          expect(supportedPlan.isSupported() &&
-                     supportedPlan.getOriginPlugin() ==
-                         tianchenrv::plugin::scalar::
-                             getScalarExtensionPluginName() &&
-                     supportedPlan.getKernelSymbol() == kernel.getSymName() &&
-                     supportedPlan.getVariantSymbol() == variant.getSymName() &&
-                     supportedPlan.getEmissionKind() ==
-                         "scalar-explicit-i32-vadd-microkernel-c-source" &&
-                     supportedPlan.getLoweringPipeline() ==
-                         "tcrv-export-scalar-microkernel-c" &&
-                     supportedPlan.getRuntimeABI() ==
-                         "scalar-i32-vadd-runtime-callable-c-abi.v1" &&
-                     supportedPlan.getRuntimeABIKind() ==
-                         "scalar-runtime-callable-c-abi" &&
-                     supportedPlan.getRuntimeABIName() ==
-                         "scalar-i32-vadd-runtime-callable-c-function.v1" &&
-                     supportedPlan.getRuntimeGlueRole() ==
-                         "runtime-callable-i32-vadd-fallback-function" &&
-                     supportedPlan.getRequiredCapabilitySymbols().size() == 1 &&
-                     supportedPlan.getRequiredCapabilitySymbols().front() ==
-                         "scalar_fallback" &&
-                     supportedPlan.getArtifactKind() ==
+                     emissionPlan.getArtifactKind() ==
                          "runtime-callable-c-source",
-                 "explicit scalar microkernel emission plan records stable supported source route"))
+                 "scalar fallback emission plan records stable supported source route"))
     return result;
 
   return 0;
@@ -777,6 +780,10 @@ module {
   if (int result =
           expect(findScalarBoundary(kernel, scalarVariant.getSymName()),
                  "RVV decline does not block scalar boundary materialization"))
+    return result;
+  if (int result =
+          expect(findScalarMicrokernel(kernel, scalarVariant.getSymName()),
+                 "RVV decline scalar fallback materializes microkernel"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
