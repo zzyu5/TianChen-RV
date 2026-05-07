@@ -444,6 +444,22 @@ for the selected unsupported boundary. That metadata explains which plugin owns
 the future RVV executable/runtime ABI slice; it is not runtime ABI glue, code
 generation, hardware execution, correctness evidence, or performance evidence.
 
+### Smoke-Probe Target Export
+
+`tcrv-translate --tcrv-export-rvv-smoke-probe-c` is an RVV-specific target
+export surface for post-planning MLIR. It consumes selected `rvv-plugin`
+metadata, `tcrv_rvv.required_march`, and the matching
+`tcrv_rvv.lowering_boundary` to emit a standalone C program that includes
+`riscv_vector.h` and performs a tiny RVV intrinsic smoke check.
+
+This target export does not change `RVVExtensionPlugin` emission readiness:
+`@rvv_first_slice` still reports unsupported executable emission and a deferred
+runtime ABI boundary. Successful `ssh rvv` compile/run of the generated smoke C
+only proves the generated smoke program can use the RVV toolchain on that host.
+It does not prove TianChen-RV lowered a selected kernel, emitted LLVM/RISC-V/RVV
+IR, generated an object, linked runtime glue, proved kernel correctness, or
+measured performance.
+
 ### MLIR vector / LLVM scalable vector
 
 Use for ordinary vector arithmetic, load/store, and reductions that LLVM reliably lowers.

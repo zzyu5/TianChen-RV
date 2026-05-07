@@ -63,6 +63,11 @@ Use lit/FileCheck for:
   paths, unsupported/deferred RVV emission metadata, pipeline-to-export
   coverage, and negative tests proving invalid selected surfaces or malformed
   runtime ABI ownership metadata produce no manifest.
+- RVV smoke-probe C target export, including pipeline-to-export coverage,
+  deterministic multi-kernel ordering, selected RVV kernel/variant/march
+  comments, `riscv_vector.h` use, fail-before-source diagnostics for malformed
+  selected RVV metadata, and no manifest/runtime-success/raw-log/performance
+  claims.
 
 Example test intent:
 
@@ -174,3 +179,10 @@ Python tooling and as MLIR pipeline input. Required coverage:
   capability is included and RVV evidence is unavailable or declined;
 - helper tests must not use raw credentials, private keys, tokens, unbounded
   command dumps, correctness claims, runtime claims, or performance claims.
+
+If the repository exports generated RVV smoke-probe C from post-planning MLIR,
+local lit tests must cover the exporter without requiring `ssh rvv`. Any remote
+compile/run of that generated source must be reported separately as
+hardware/toolchain evidence only, with bounded sanitized artifacts under
+`artifacts/tmp/...`; it cannot be used as a TianChen-RV kernel correctness,
+supported RVV emission, runtime ABI, or performance result.

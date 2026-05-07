@@ -2,6 +2,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/EmissionManifest.h"
+#include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -40,12 +41,29 @@ mlir::LogicalResult exportEmissionManifest(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportRVVSmokeProbeC(mlir::ModuleOp module,
+                                         llvm::raw_ostream &os) {
+  if (llvm::Error error =
+          tianchenrv::target::rvv::exportRVVSmokeProbeC(module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
       "export TianChen-RV selected emission handoff manifest",
       exportEmissionManifest, registerTianChenRVTranslateDialects);
   (void)emissionManifest;
+
+  static mlir::TranslateFromMLIRRegistration rvvSmokeProbeC(
+      "tcrv-export-rvv-smoke-probe-c",
+      "export a bounded RVV hardware/toolchain smoke-probe C source",
+      exportRVVSmokeProbeC, registerTianChenRVTranslateDialects);
+  (void)rvvSmokeProbeC;
 }
 
 } // namespace

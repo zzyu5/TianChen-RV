@@ -63,6 +63,16 @@ to consume the generic handoff contract. It does not emit LLVM/RISC-V/RVV IR,
 generate objects, link runtime libraries, run hardware, prove correctness, or
 measure performance.
 
+The `tcrv-translate --tcrv-export-rvv-smoke-probe-c` tool exports a
+deterministic standalone C RVV hardware/toolchain smoke probe from post-planning
+MLIR that has selected RVV metadata and a matching
+`tcrv_rvv.lowering_boundary`. The generated source uses `riscv_vector.h` and a
+tiny RVV intrinsic load/add/store check so it can be compiled and run on the
+`ssh rvv` host as toolchain evidence. It is not TianChen-RV kernel lowering,
+kernel executable emission, runtime ABI glue, kernel correctness evidence, or
+performance evidence, and it does not change the RVV first-slice unsupported
+emission boundary.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:
@@ -104,6 +114,20 @@ TianChen-RV-generated executable, correctness result, or performance result.
 The JSON also exposes sanitized `capability_facts` for the plugin-local C++
 RVV capability profile; Python remains evidence/artifact tooling and is not the
 compiler capability model.
+
+After `tcrv-opt --tcrv-execution-planning-pipeline` has selected an RVV path,
+the generated smoke probe can be exported and compiled on `ssh rvv` for a
+narrower source-to-toolchain evidence slice:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
+  | tcrv-translate --tcrv-export-rvv-smoke-probe-c > rvv_smoke_probe.c
+```
+
+This proves only that the exported standalone smoke program can compile and run
+on the RVV host when separate `ssh rvv` evidence is recorded. It does not prove
+TianChen-RV lowered a selected kernel, generated an object for that kernel,
+linked runtime glue, produced a correctness result, or measured performance.
 
 ## Scalar Fallback First Slice
 

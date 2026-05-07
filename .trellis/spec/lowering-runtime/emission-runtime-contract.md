@@ -325,6 +325,130 @@ Future supported RVV emission must add plugin-local lowering/runtime work and
 then cite both compiler-generated artifact evidence and separate `ssh rvv`
 hardware/toolchain evidence.
 
+## RVV Smoke-Probe Target Export Boundary
+
+### 1. Scope / Trigger
+
+Trigger: post-planning MLIR contains a selected RVV path and a matching
+plugin-owned `tcrv_rvv.lowering_boundary`, but RVV kernel lowering is still
+unsupported. A target/export tool may emit a deterministic standalone C smoke
+program to exercise the RVV host toolchain and `riscv_vector.h` path.
+
+This export is hardware/toolchain smoke evidence only. It is not RVV lowering,
+LLVM/RISC-V/RVV IR emission, runtime ABI glue, generated kernel object,
+TianChen-RV kernel correctness, or performance evidence.
+
+### 2. Signatures
+
+Public command:
+
+```text
+tcrv-translate --tcrv-export-rvv-smoke-probe-c
+```
+
+C++ entry point:
+
+```cpp
+llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
+                                 llvm::raw_ostream &os);
+```
+
+Expected pipeline use:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
+  | tcrv-translate --tcrv-export-rvv-smoke-probe-c > rvv_smoke_probe.c
+```
+
+### 3. Contracts
+
+- Input must be real post-planning MLIR with one or more `tcrv.exec.kernel`
+  operations.
+- Each exported selected path must be a selected direct variant or dispatch case
+  whose variant carries `origin = "rvv-plugin"`.
+- The selected variant must require an available `rvv` capability through
+  structured `requires = [@...]` metadata.
+- The selected variant must carry bounded single-line
+  `tcrv_rvv.required_march` metadata containing RVV vector evidence.
+- The kernel capability set must preserve matching selected march metadata
+  through available `rvv.probe.compile_run.selected_march` or
+  `rvv.toolchain.march.value`.
+- A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
+  `source_kernel`, `selected_variant`, `origin`, `role`, `status`, and
+  `required_capabilities`.
+- RVV smoke export must stay under RVV target/plugin-specific code. It must not
+  add RVV branches to core orchestration, generic manifest export, or
+  `tcrv.exec`.
+- Output is deterministic standalone C using `riscv_vector.h` and tiny RVV
+  intrinsics. It may include bounded comments naming selected kernel, variant,
+  role, selected march, optional selected ABI, and required capability refs.
+- Output must not serialize raw probe logs, credentials, absolute build paths,
+  timestamps, benchmark sizes, latency/throughput numbers, manifest success, or
+  runtime-success claims.
+
+### 4. Validation & Error Matrix
+
+- No `tcrv.exec.kernel` -> export fails before source output.
+- Missing selected surface -> export fails before source output.
+- Scalar-only, offload-only, or fallback-only selected paths -> export fails as
+  not an RVV smoke-probe input.
+- Selected RVV-like origin other than `rvv-plugin` -> export fails through a
+  bounded unknown-origin diagnostic.
+- Missing, malformed, unavailable, or non-symbol `requires` metadata -> export
+  fails before source output.
+- Selected variant does not require available capability id `rvv` -> export
+  fails.
+- Missing, non-RVV, secret-like, newline-containing, or unbounded
+  `tcrv_rvv.required_march` -> export fails.
+- Missing or mismatched preserved selected march capability metadata -> export
+  fails.
+- Missing, duplicate, stale, role-mismatched, status-mismatched, or
+  required-capability-mismatched `tcrv_rvv.lowering_boundary` -> export fails.
+- Any validation failure must leave stdout without partial C source.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `tcrv-opt --tcrv-execution-planning-pipeline` selects an RVV dispatch
+  case, materializes `tcrv_rvv.lowering_boundary`, preserves
+  `tcrv_rvv.required_march = "rv64gcv"`, and the exporter emits stable C with
+  `#include <riscv_vector.h>`.
+- Base: multiple kernels with selected RVV paths are exported in deterministic
+  symbol order with one bounded probe function per selected RVV path.
+- Bad: an offload dispatch case plus scalar fallback is selected and the RVV
+  smoke exporter silently emits a generic probe. It must fail instead because no
+  selected `rvv-plugin` path exists.
+
+### 6. Tests Required
+
+- lit/FileCheck positive coverage for pipeline-to-export C source.
+- Positive checks for deterministic multi-kernel ordering, bounded probe names,
+  `riscv_vector.h`, selected kernel/variant comments, selected march metadata,
+  and absence of manifest/runtime-success/raw-log/performance claims.
+- Negative checks for scalar-only and offload-only selection.
+- Negative checks for stale selected boundary, missing/malformed selected march,
+  secret-like or newline metadata, unknown RVV-like origin, and unavailable RVV
+  requirement.
+- Full project check must still pass through `check-tianchenrv`.
+- If an RVV runtime/toolchain claim is made, record separate `ssh rvv`
+  compile/run evidence under `artifacts/tmp/...` and state that it proves only
+  the generated smoke program compiled and ran.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+Generated RVV smoke probe compiled, therefore RVV kernel emission is supported.
+```
+
+Correct:
+
+```text
+Generated standalone RVV smoke probe C compiled and ran on ssh rvv; RVV kernel
+emission remains unsupported/deferred until plugin-local kernel lowering and
+runtime evidence are implemented.
+```
+
 ## Scalar Fallback Metadata Boundary
 
 The first scalar fallback plugin slice may return a metadata-only emission
