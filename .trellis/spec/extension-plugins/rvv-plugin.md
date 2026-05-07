@@ -576,10 +576,13 @@ that has exactly one selected `rvv-plugin` path, a matching
 matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
 `riscv_vector.h` and exposes a deterministic runtime-callable i32 vadd C ABI
 function with `const int32_t *` input pointers, an `int32_t *` output pointer,
-and a `size_t` element count. That function owns the RVV i32
-load/add/store-intrinsic loop. The default export is a library-style callable
-source artifact with no embedded `main` or self-check harness. If a bounded
-self-check executable is needed for evidence collection,
+and a `size_t` runtime element count. The supported emission plan must carry
+structured `runtime_abi_parameters` entries for `lhs`, `rhs`, `out`, and
+runtime `n`. For this first slice those parameters are target/export ABI-owned,
+not IR-modeled RVV operands or descriptor-local `element_count`. That function
+owns the RVV i32 load/add/store-intrinsic loop. The default export is a
+library-style callable source artifact with no embedded `main` or self-check
+harness. If a bounded self-check executable is needed for evidence collection,
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the explicit
 harness export and calls the same ABI function over fixed local arrays.
 Successful `ssh rvv` compile/run evidence for the harness source supports only

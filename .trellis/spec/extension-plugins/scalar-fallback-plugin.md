@@ -196,12 +196,16 @@ artifact kind: runtime-callable-c-source
 
 The exported source must contain a deterministic callable C function with
 `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, and `size_t n`
-parameters, and no hidden `main`, stdio-only self-check machinery, or success
-marker in the default artifact. The source may include bounded metadata
-comments for selected kernel, selected variant, selected role/fallback role,
-artifact kind, element count, required capabilities, runtime ABI kind/name, and
-runtime glue role. Scalar fallback selected paths without a valid descriptor or
-explicit matching microkernel remain metadata-only. The supported route does
+parameters, and the supported emission plan must carry structured
+`runtime_abi_parameters` entries for `lhs`, `rhs`, `out`, and runtime `n`.
+For this first slice those parameters are target/export ABI-owned, not
+IR-modeled scalar operands or high-level tensor shape. The default artifact has
+no hidden `main`, stdio-only self-check machinery, or success marker. The source
+may include bounded metadata comments for selected kernel, selected variant,
+selected role/fallback role, artifact kind, element count, required
+capabilities, runtime ABI kind/name, runtime glue role, and ABI parameter roles.
+Scalar fallback selected paths without a valid descriptor or explicit matching
+microkernel remain metadata-only. The supported route does
 not add generic scalar lowering, arbitrary scalar source export, object
 generation, linking, full runtime dispatch integration, broad correctness
 coverage, or performance evidence.

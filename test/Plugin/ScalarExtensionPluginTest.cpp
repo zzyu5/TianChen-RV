@@ -631,6 +631,16 @@ module {
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          "scalar_fallback" &&
+                     emissionPlan.getRuntimeABIParameters().size() == 4 &&
+                     emissionPlan.getRuntimeABIParameters()[0].role ==
+                         tianchenrv::support::RuntimeABIParameterRole::
+                             LHSInputBuffer &&
+                     emissionPlan.getRuntimeABIParameters()[3].role ==
+                         tianchenrv::support::RuntimeABIParameterRole::
+                             RuntimeElementCount &&
+                     emissionPlan.getRuntimeABIParameters()[3].ownership ==
+                         tianchenrv::support::RuntimeABIParameterOwnership::
+                             TargetExportABIOwned &&
                      emissionPlan.getArtifactKind() ==
                          "runtime-callable-c-source",
                  "scalar fallback emission plan records stable supported source route"))

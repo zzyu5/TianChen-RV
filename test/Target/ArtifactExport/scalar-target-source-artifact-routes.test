@@ -19,6 +19,8 @@
 # SCALAR-POS: /* runtime_abi_kind: scalar-runtime-callable-c-abi */
 # SCALAR-POS: /* runtime_abi_name: scalar-i32-vadd-runtime-callable-c-function.v1 */
 # SCALAR-POS: /* runtime_glue_role: runtime-callable-i32-vadd-fallback-function */
+# SCALAR-POS: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# SCALAR-POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # SCALAR-POS: /* runtime_callable_abi: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
 # SCALAR-POS: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
 # SCALAR-POS: for (size_t index = 0; index < n; ++index)
@@ -32,6 +34,7 @@
 # SCALAR-PLAN-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
 # SCALAR-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
 # SCALAR-PLAN-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+# SCALAR-PLAN-SAME: runtime_abi_parameters = [{{.*}}role = "lhs-input-buffer"{{.*}}ownership = "target-export-abi-owned"{{.*}}role = "runtime-element-count"
 # SCALAR-PLAN-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
 # SCALAR-PLAN-SAME: status = "supported"
 

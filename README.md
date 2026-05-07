@@ -57,9 +57,12 @@ Emission-plan materialization also routes through the selected variant's origin
 plugin. The resulting `tcrv.exec.diagnostic {reason = "emission_plan"}`
 metadata records bounded plugin-owned runtime ABI ownership fields such as
 runtime ABI kind/name, runtime glue role, selected variant, lowering boundary,
-status, and required capability refs. These diagnostics are compiler-decision
-metadata only: they are not executable code, runtime ABI glue, correctness
-evidence, or performance evidence.
+status, required capability refs, and structured `runtime_abi_parameters` for
+supported callable C source exports. Those parameter entries record C name, C
+type spelling, semantic role, and whether the value is IR-modeled or
+target/export ABI-owned. These diagnostics are compiler-decision metadata only:
+they are not executable code, runtime ABI glue, correctness evidence, or
+performance evidence.
 
 The `tcrv-translate --tcrv-export-emission-manifest` tool exports a
 deterministic compiler handoff manifest from post-planning MLIR that already
@@ -109,9 +112,11 @@ lowering-boundary, and plugin-owned emission-plan diagnostics, then dispatched
 through a registered target-owned exporter only after a generic execution-plan
 coherence preflight validates that selected-path, lowering-boundary,
 runtime-ABI, emission-plan, and artifact-route metadata still describe the same
-path. Registered source routes are bounded to plugin-local microkernel
-attachments: the RVV i32 vector-add microkernel C exporter above and the scalar
-fallback explicit i32 vector-add portable runtime-callable C exporter below.
+path, including the structured ABI parameter roles required by the target-owned
+source exporter. Registered source routes are bounded to plugin-local
+microkernel attachments: the RVV i32 vector-add microkernel C exporter above
+and the scalar fallback explicit i32 vector-add portable runtime-callable C
+exporter below.
 Unsupported
 metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
 paths, missing boundaries, missing microkernels, route spoofing, and ambiguous
@@ -312,7 +317,12 @@ void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
                                      int rvv_available);
 ```
 
-The `rvv_available` argument is an explicit host-provided guard. This export
+For the current bounded RVV, scalar, and RVV+scalar dispatch source exports,
+`lhs`, `rhs`, `out`, runtime `n`, and dispatcher `rvv_available` are structured
+target/export-owned ABI parameters unless a future IR surface models them
+directly. Descriptor-local `element_count` remains finite microkernel metadata;
+it is not high-level shape, runtime `n`, AVL, or VL. The `rvv_available`
+argument is an explicit host-provided guard. This export
 does not implement automatic hardware probing, object generation, dynamic
 loading, linking, benchmarking, correctness measurement, or performance
 measurement. RVV runtime/correctness/performance claims still require separate

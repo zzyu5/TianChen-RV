@@ -1068,6 +1068,8 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind("rvv-runtime-callable-c-abi");
     out.setRuntimeABIName("rvv-i32-vadd-runtime-callable-c-function.v1");
     out.setRuntimeGlueRole("runtime-callable-i32-vadd-function");
+    out.addRuntimeABIParameters(
+        support::getI32VAddRuntimeABIParameters());
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;

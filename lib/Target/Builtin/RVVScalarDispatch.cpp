@@ -6,6 +6,7 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -112,6 +113,21 @@ llvm::Error validateAgainstRegisteredRoute(
   return validateTargetArtifactCandidateAgainstExporter(candidate, *exporter);
 }
 
+llvm::Error validateCallableI32VAddABIParameters(
+    const TargetArtifactCandidate &candidate) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
+      support::getI32VAddRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(candidate.runtimeABIParameters,
+                                         expected))
+    return llvm::Error::success();
+
+  return makeDispatchError(
+      candidate.kernel,
+      llvm::Twine("selected callable artifact route '") + candidate.routeID +
+          "' must carry structured lhs/rhs/out/n target-export-owned runtime "
+          "ABI parameter metadata");
+}
+
 llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
   llvm::SmallVector<TargetArtifactCandidate, 4> candidates;
   if (llvm::Error error = collectTargetArtifactCandidates(module, candidates))
@@ -139,6 +155,9 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
       if (llvm::Error error =
               validateAgainstRegisteredRoute(candidate, registry))
         return std::move(error);
+      if (llvm::Error error =
+              validateCallableI32VAddABIParameters(candidate))
+        return std::move(error);
       rvvCandidate = &candidate;
       continue;
     }
@@ -154,6 +173,9 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
             "route; found duplicate");
       if (llvm::Error error =
               validateAgainstRegisteredRoute(candidate, registry))
+        return std::move(error);
+      if (llvm::Error error =
+              validateCallableI32VAddABIParameters(candidate))
         return std::move(error);
       scalarCandidate = &candidate;
       continue;
@@ -283,6 +305,16 @@ void printCandidateMetadata(llvm::raw_ostream &os, llvm::StringRef label,
      << candidate.runtimeABIName << " */\n";
   os << "/* " << label << "_runtime_glue_role: "
      << candidate.runtimeGlueRole << " */\n";
+  for (auto [index, parameter] :
+       llvm::enumerate(candidate.runtimeABIParameters)) {
+    os << "/* " << label << "_runtime_abi_parameter[" << index
+       << "]: c_name=" << parameter.cName << ", c_type=" << parameter.cType
+       << ", role="
+       << support::stringifyRuntimeABIParameterRole(parameter.role)
+       << ", ownership="
+       << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+       << " */\n";
+  }
   printRequiredCapabilitiesComment(os, label, candidate.kernel,
                                    candidate.selectedVariant);
 }
@@ -305,10 +337,16 @@ llvm::Error buildEmbeddedCallableSources(mlir::ModuleOp module,
 void printDispatcherFunction(llvm::raw_ostream &os,
                              llvm::StringRef dispatcherFunctionName,
                              llvm::StringRef rvvFunctionName,
-                             llvm::StringRef scalarFunctionName) {
-  os << "void " << dispatcherFunctionName
-     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, "
-        "int rvv_available) {\n";
+                             llvm::StringRef scalarFunctionName,
+                             llvm::ArrayRef<support::RuntimeABIParameter>
+                                 parameters) {
+  os << "void " << dispatcherFunctionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") {\n";
   os << "  if (rvv_available) {\n";
   os << "    " << rvvFunctionName << "(lhs, rhs, out, n);\n";
   os << "    return;\n";
@@ -324,6 +362,8 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   std::string rvvFunctionName = makeRVVFunctionName(pair.rvv);
   std::string scalarFunctionName = makeScalarFunctionName(pair.scalar);
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
+  llvm::SmallVector<support::RuntimeABIParameter, 5> dispatchParameters =
+      support::getI32VAddDispatchRuntimeABIParameters();
 
   os << "/* TianChen-RV RVV+scalar host runtime dispatch C export. */\n";
   os << "/* Scope: one selected RVV i32-vadd dispatch case plus one scalar "
@@ -335,9 +375,23 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   printCandidateMetadata(os, "scalar", pair.scalar);
   os << "/* rvv_callable_symbol: " << rvvFunctionName << " */\n";
   os << "/* scalar_callable_symbol: " << scalarFunctionName << " */\n";
+  for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {
+    os << "/* dispatch_runtime_abi_parameter[" << index
+       << "]: c_name=" << parameter.cName << ", c_type=" << parameter.cType
+       << ", role="
+       << support::stringifyRuntimeABIParameterRole(parameter.role)
+       << ", ownership="
+       << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+       << " */\n";
+  }
   os << "/* dispatch_runtime_callable_abi: void " << dispatcherFunctionName
-     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, "
-        "int rvv_available) */\n\n";
+     << "(";
+  for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") */\n\n";
 
   os << "/* Embedded selected RVV runtime-callable source artifact. */\n";
   os << rvvSource;
@@ -350,7 +404,7 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
     os << "\n";
   os << "\n/* Host dispatcher over the two validated callable artifacts. */\n";
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
-                          scalarFunctionName);
+                          scalarFunctionName, dispatchParameters);
 }
 
 } // namespace

@@ -1505,6 +1505,81 @@ llvm::Error validatePlanRequiredCapabilitySymbols(
   return llvm::Error::success();
 }
 
+llvm::Error validateRuntimeABIParameters(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    VariantEmissionRole role, const ExtensionPlugin &plugin,
+    const VariantEmissionPlan &plan) {
+  llvm::ArrayRef<support::RuntimeABIParameter> parameters =
+      plan.getRuntimeABIParameters();
+  llvm::StringSet<> seenNames;
+  llvm::StringSet<> seenRoles;
+
+  for (const support::RuntimeABIParameter &parameter : parameters) {
+    if (parameter.cName.empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: runtime ABI parameter "
+              "requires non-empty C parameter name");
+    if (parameter.cType.empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: runtime ABI parameter '" +
+              parameter.cName + "' requires non-empty C type spelling");
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "runtime ABI parameter C name",
+                                    parameter.cName))
+      return error;
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "runtime ABI parameter C type",
+                                    parameter.cType))
+      return error;
+
+    if (!seenNames.insert(parameter.cName).second)
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: duplicate runtime ABI "
+              "parameter C name '" +
+              parameter.cName + "'");
+
+    llvm::StringRef roleName =
+        support::stringifyRuntimeABIParameterRole(parameter.role);
+    if (!seenRoles.insert(roleName).second)
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: duplicate runtime ABI "
+              "parameter role '" +
+              roleName + "'");
+
+    if (llvm::Error error =
+            validateBoundedPlanText(variant, kernel, role, plugin, plan,
+                                    "runtime ABI parameter role", roleName))
+      return error;
+    if (llvm::Error error = validateBoundedPlanText(
+            variant, kernel, role, plugin, plan,
+            "runtime ABI parameter ownership",
+            support::stringifyRuntimeABIParameterOwnership(
+                parameter.ownership)))
+      return error;
+  }
+
+  if ((plan.isSupported() || plan.isMetadataOnly()) &&
+      plan.getArtifactKind() == "runtime-callable-c-source" &&
+      parameters.empty())
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin.getName() +
+            "' produced invalid emission plan: runtime-callable C source "
+            "artifact requires structured runtime ABI parameters");
+
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
     const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantEmissionPlan &plan) const {
@@ -1595,6 +1670,9 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
 
   if (llvm::Error error = validatePlanRequiredCapabilitySymbols(
           variant, kernel, role, plugin, plan))
+    return error;
+  if (llvm::Error error =
+          validateRuntimeABIParameters(variant, kernel, role, plugin, plan))
     return error;
 
   if (llvm::Error error =

@@ -76,6 +76,7 @@ struct ScalarMicrokernelRecord {
   std::string role;
   std::string fallbackRole;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   std::int64_t elementCount = 0;
 };
 
@@ -770,6 +771,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.role = path.role;
   record.fallbackRole = std::move(fallbackRole);
   record.requiredCapabilities = std::move(requiredCapabilities);
+  record.runtimeABIParameters = support::getI32VAddRuntimeABIParameters();
   record.elementCount = elementCount;
   return record;
 }
@@ -907,15 +909,38 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* runtime_abi_kind: " << kMicrokernelRuntimeABIKind << " */\n";
   os << "/* runtime_abi_name: " << kMicrokernelRuntimeABIName << " */\n";
   os << "/* runtime_glue_role: " << kMicrokernelRuntimeGlueRole << " */\n";
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    os << "/* runtime_abi_parameter[" << index << "]: c_name="
+       << parameter.cName << ", c_type=" << parameter.cType
+       << ", role="
+       << support::stringifyRuntimeABIParameterRole(parameter.role)
+       << ", ownership="
+       << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+       << " */\n";
+  }
   os << "/* runtime_callable_abi: void " << functionName
-     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) "
-        "*/\n";
+     << "(";
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") */\n";
 }
 
 void printMicrokernelFunction(llvm::raw_ostream &os,
-                              llvm::StringRef functionName) {
-  os << "void " << functionName
-     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) {\n";
+                              llvm::StringRef functionName,
+                              llvm::ArrayRef<support::RuntimeABIParameter>
+                                  parameters) {
+  os << "void " << functionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") {\n";
   os << "  for (size_t index = 0; index < n; ++index)\n";
   os << "    out[index] = lhs[index] + rhs[index];\n\n";
   os << "}\n\n";
@@ -936,7 +961,7 @@ void printMicrokernelSource(const ScalarMicrokernelRecord &record,
   os << "#include <stdint.h>\n\n";
 
   printRecordComment(os, record, functionName);
-  printMicrokernelFunction(os, functionName);
+  printMicrokernelFunction(os, functionName, record.runtimeABIParameters);
 }
 
 } // namespace
@@ -959,7 +984,8 @@ llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
       kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
-      kMicrokernelEmissionKind, exportScalarMicrokernelC));
+      kMicrokernelEmissionKind, exportScalarMicrokernelC,
+      support::getI32VAddRuntimeABIParameters()));
 }
 
 } // namespace tianchenrv::target::scalar

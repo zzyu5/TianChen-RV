@@ -51,6 +51,13 @@ module {
 // CHECK: runtime_abi: "rvv-i32-vadd-runtime-callable-c-abi.v1"
 // CHECK: runtime_abi_kind: "rvv-runtime-callable-c-abi"
 // CHECK: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// CHECK: runtime_abi_parameters:
+// CHECK: c_name: "lhs"
+// CHECK: c_type: "const int32_t *"
+// CHECK: role: "lhs-input-buffer"
+// CHECK: ownership: "target-export-abi-owned"
+// CHECK: c_name: "n"
+// CHECK: role: "runtime-element-count"
 // CHECK: runtime_glue_role: "runtime-callable-i32-vadd-function"
 // CHECK: artifact_kind: "runtime-callable-c-source"
 // CHECK: required_capabilities: [@rvv]
@@ -66,6 +73,11 @@ module {
 // CHECK: runtime_abi: "scalar-i32-vadd-runtime-callable-c-abi.v1"
 // CHECK: runtime_abi_kind: "scalar-runtime-callable-c-abi"
 // CHECK: runtime_abi_name: "scalar-i32-vadd-runtime-callable-c-function.v1"
+// CHECK: runtime_abi_parameters:
+// CHECK: c_name: "lhs"
+// CHECK: role: "lhs-input-buffer"
+// CHECK: c_name: "n"
+// CHECK: role: "runtime-element-count"
 // CHECK: runtime_glue_role: "runtime-callable-i32-vadd-fallback-function"
 // CHECK: artifact_kind: "runtime-callable-c-source"
 // CHECK: required_capabilities: [@scalar_fallback]

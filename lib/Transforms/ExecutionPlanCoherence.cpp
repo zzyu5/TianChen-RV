@@ -693,6 +693,75 @@ llvm::Error validateRuntimeOwnershipMetadata(KernelOp kernel,
   return llvm::Error::success();
 }
 
+llvm::Error collectRuntimeABIParameters(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
+  auto parameters = diagnostic->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kRuntimeABIParametersAttrName);
+  if (!parameters)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenNames;
+  llvm::StringSet<> seenRoles;
+  for (auto [index, attr] : llvm::enumerate(parameters)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeCoherenceError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] must be a dictionary attribute");
+
+    auto cName = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterCNameAttrName);
+    auto cType = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterCTypeAttrName);
+    auto role = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterRoleAttrName);
+    auto ownership = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterOwnershipAttrName);
+    if (!cName || cName.getValue().trim().empty() || !cType ||
+        cType.getValue().trim().empty() || !role ||
+        role.getValue().trim().empty() || !ownership ||
+        ownership.getValue().trim().empty())
+      return makeCoherenceError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] requires c_name, c_type, role, and ownership");
+
+    llvm::StringRef cNameValue = cName.getValue().trim();
+    llvm::StringRef cTypeValue = cType.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef ownershipValue = ownership.getValue().trim();
+    if (!seenNames.insert(cNameValue).second)
+      return makeCoherenceError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter c_name '") +
+                      cNameValue + "'");
+    if (!seenRoles.insert(roleValue).second)
+      return makeCoherenceError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter role '") +
+                      roleValue + "'");
+
+    std::optional<support::RuntimeABIParameterRole> parsedRole =
+        support::symbolizeRuntimeABIParameterRole(roleValue);
+    if (!parsedRole)
+      return makeCoherenceError(
+          kernel, llvm::Twine("unsupported runtime ABI parameter role '") +
+                      roleValue + "'");
+    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+        support::symbolizeRuntimeABIParameterOwnership(ownershipValue);
+    if (!parsedOwnership)
+      return makeCoherenceError(
+          kernel,
+          llvm::Twine("unsupported runtime ABI parameter ownership '") +
+              ownershipValue + "'");
+
+    out.push_back(support::RuntimeABIParameter(cNameValue, cTypeValue,
+                                               *parsedRole, *parsedOwnership));
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateSupportedOrMetadataRoute(KernelOp kernel,
                                              DiagnosticOp diagnostic,
                                              SelectedPath &path,
@@ -750,6 +819,10 @@ llvm::Error validateSupportedOrMetadataRoute(KernelOp kernel,
   candidate.artifactKind = std::move(artifactKind);
   candidate.loweringBoundary = loweringBoundary.str();
   candidate.runtimeABI = std::move(runtimeABI);
+  if (llvm::Error error =
+          collectRuntimeABIParameters(kernel, diagnostic,
+                                      candidate.runtimeABIParameters))
+    return error;
 
   if (llvm::Error error =
           requireStringAttr(kernel, diagnostic.getOperation(),

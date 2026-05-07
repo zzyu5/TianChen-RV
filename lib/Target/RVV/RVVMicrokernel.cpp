@@ -90,6 +90,7 @@ struct RVVMicrokernelRecord {
   std::string selectedMarch;
   std::optional<std::string> selectedMABI;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   std::int64_t elementCount = 0;
 };
 
@@ -937,6 +938,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.selectedMarch = std::move(*selectedMarch);
   record.selectedMABI = std::move(selectedMABI);
   record.requiredCapabilities = std::move(requiredCapabilities);
+  record.runtimeABIParameters = support::getI32VAddRuntimeABIParameters();
   record.elementCount = elementCount;
   return record;
 }
@@ -1072,15 +1074,38 @@ void printRecordComment(llvm::raw_ostream &os,
   for (llvm::StringRef capability : record.requiredCapabilities)
     os << " @" << capability;
   os << " */\n";
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    os << "/* runtime_abi_parameter[" << index << "]: c_name="
+       << parameter.cName << ", c_type=" << parameter.cType
+       << ", role="
+       << support::stringifyRuntimeABIParameterRole(parameter.role)
+       << ", ownership="
+       << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+       << " */\n";
+  }
   os << "/* runtime_callable_abi: void " << functionName
-     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) "
-        "*/\n";
+     << "(";
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") */\n";
 }
 
 void printMicrokernelFunction(llvm::raw_ostream &os,
-                              llvm::StringRef functionName) {
-  os << "void " << functionName
-     << "(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) {\n";
+                              llvm::StringRef functionName,
+                              llvm::ArrayRef<support::RuntimeABIParameter>
+                                  parameters) {
+  os << "void " << functionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") {\n";
   os << "  size_t offset = 0;\n";
   os << "  while (offset < n) {\n";
   os << "    size_t vl = __riscv_vsetvl_e32m1(n - offset);\n";
@@ -1157,7 +1182,7 @@ void printMicrokernelSource(const RVVMicrokernelRecord &record,
   os << "#include <riscv_vector.h>\n\n";
 
   printRecordComment(os, record, functionName);
-  printMicrokernelFunction(os, functionName);
+  printMicrokernelFunction(os, functionName, record.runtimeABIParameters);
   if (includeHarness)
     printMicrokernelSelfCheckHarness(os, functionName, record.elementCount);
 }
@@ -1198,7 +1223,8 @@ llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
       kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
-      kMicrokernelEmissionKind, exportRVVMicrokernelC));
+      kMicrokernelEmissionKind, exportRVVMicrokernelC,
+      support::getI32VAddRuntimeABIParameters()));
 }
 
 } // namespace tianchenrv::target::rvv

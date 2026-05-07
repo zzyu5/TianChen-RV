@@ -21,6 +21,8 @@ inline constexpr llvm::StringLiteral kRuntimeABIKindAttrName(
     "runtime_abi_kind");
 inline constexpr llvm::StringLiteral kRuntimeABINameAttrName(
     "runtime_abi_name");
+inline constexpr llvm::StringLiteral kRuntimeABIParametersAttrName(
+    "runtime_abi_parameters");
 inline constexpr llvm::StringLiteral kRuntimeGlueRoleAttrName(
     "runtime_glue_role");
 inline constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(

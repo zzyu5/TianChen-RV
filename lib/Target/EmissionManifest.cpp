@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -48,6 +49,8 @@ constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
     "preference_explanation");
 constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
     "preference_tie_break");
+constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
+    "runtime-callable-c-source");
 
 struct SelectedPath {
   VariantOp variant;
@@ -78,6 +81,7 @@ struct PathRecord {
   std::optional<std::string> runtimeABI;
   std::string runtimeABIKind;
   std::string runtimeABIName;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
   std::string runtimeGlueRole;
   std::optional<std::string> artifactKind;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
@@ -452,6 +456,100 @@ llvm::Error collectRequiredCapabilities(
   return llvm::Error::success();
 }
 
+llvm::Error collectRuntimeABIParameters(
+    KernelOp kernel, DiagnosticOp diagnostic, bool requireNonEmpty,
+    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
+  auto parameters = diagnostic->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kRuntimeABIParametersAttrName);
+  if (!parameters) {
+    if (requireNonEmpty)
+      return makeManifestError(
+          kernel, "runtime-callable C source emission-plan diagnostic requires "
+                  "structured runtime_abi_parameters metadata");
+    return llvm::Error::success();
+  }
+  if (requireNonEmpty && parameters.empty())
+    return makeManifestError(
+        kernel, "runtime-callable C source emission-plan diagnostic requires "
+                "non-empty runtime_abi_parameters metadata");
+
+  llvm::StringSet<> seenNames;
+  llvm::StringSet<> seenRoles;
+  for (auto [index, attr] : llvm::enumerate(parameters)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeManifestError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] must be a dictionary attribute");
+
+    auto cName = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterCNameAttrName);
+    auto cType = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterCTypeAttrName);
+    auto role = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterRoleAttrName);
+    auto ownership = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterOwnershipAttrName);
+    if (!cName || cName.getValue().trim().empty() || !cType ||
+        cType.getValue().trim().empty() || !role ||
+        role.getValue().trim().empty() || !ownership ||
+        ownership.getValue().trim().empty())
+      return makeManifestError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] requires c_name, c_type, role, and ownership");
+
+    llvm::StringRef cNameValue = cName.getValue().trim();
+    llvm::StringRef cTypeValue = cType.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef ownershipValue = ownership.getValue().trim();
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter c_name",
+                                cNameValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter c_type",
+                                cTypeValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter role",
+                                roleValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter ownership",
+                                ownershipValue))
+      return error;
+    if (!seenNames.insert(cNameValue).second)
+      return makeManifestError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter c_name '") +
+                      cNameValue + "'");
+    if (!seenRoles.insert(roleValue).second)
+      return makeManifestError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter role '") +
+                      roleValue + "'");
+
+    std::optional<support::RuntimeABIParameterRole> parsedRole =
+        support::symbolizeRuntimeABIParameterRole(roleValue);
+    if (!parsedRole)
+      return makeManifestError(
+          kernel, llvm::Twine("unsupported runtime ABI parameter role '") +
+                      roleValue + "'");
+    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+        support::symbolizeRuntimeABIParameterOwnership(ownershipValue);
+    if (!parsedOwnership)
+      return makeManifestError(
+          kernel,
+          llvm::Twine("unsupported runtime ABI parameter ownership '") +
+              ownershipValue + "'");
+
+    out.push_back(support::RuntimeABIParameter(cNameValue, cTypeValue,
+                                               *parsedRole, *parsedOwnership));
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error collectEmissionPlanDiagnostics(
     KernelOp kernel,
     llvm::StringMap<DiagnosticOp> &diagnosticsByTarget) {
@@ -744,6 +842,13 @@ llvm::Error buildPathRecord(KernelOp kernel, const SelectedPath &path,
                                     execDiagnostic::kArtifactKindAttrName,
                                     record.artifactKind))
     return error;
+  bool requiresRuntimeABIParameters =
+      record.artifactKind &&
+      *record.artifactKind == kRuntimeCallableCSourceArtifactKind;
+  if (llvm::Error error = collectRuntimeABIParameters(
+          kernel, diagnostic, requiresRuntimeABIParameters,
+          record.runtimeABIParameters))
+    return error;
 
   if (record.status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
       record.status == execDiagnostic::kEmissionPlanMetadataOnlyStatusValue) {
@@ -918,6 +1023,31 @@ void printPreference(llvm::raw_ostream &os,
                           preference.fallbackRole);
 }
 
+void printRuntimeABIParameters(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  if (parameters.empty())
+    return;
+
+  os << "    runtime_abi_parameters:\n";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    os << "      parameter[" << index << "]:\n";
+    os << "        c_name: ";
+    printQuoted(os, parameter.cName);
+    os << "\n";
+    os << "        c_type: ";
+    printQuoted(os, parameter.cType);
+    os << "\n";
+    os << "        role: ";
+    printQuoted(os, support::stringifyRuntimeABIParameterRole(parameter.role));
+    os << "\n";
+    os << "        ownership: ";
+    printQuoted(os, support::stringifyRuntimeABIParameterOwnership(
+                        parameter.ownership));
+    os << "\n";
+  }
+}
+
 void printModuleRecord(const ModuleRecord &record, llvm::raw_ostream &os) {
   os << "tianchenrv.emission_manifest.version: 1\n";
   os << "module: ";
@@ -966,6 +1096,7 @@ void printModuleRecord(const ModuleRecord &record, llvm::raw_ostream &os) {
       os << "    runtime_abi_name: ";
       printQuoted(os, path.runtimeABIName);
       os << "\n";
+      printRuntimeABIParameters(os, path.runtimeABIParameters);
       os << "    runtime_glue_role: ";
       printQuoted(os, path.runtimeGlueRole);
       os << "\n";

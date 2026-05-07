@@ -103,6 +103,8 @@ module @rvv_scalar_dispatch_input {
 // HEADER: /* rvv_runtime_abi_kind: rvv-runtime-callable-c-abi */
 // HEADER: /* rvv_runtime_abi_name: rvv-i32-vadd-runtime-callable-c-function.v1 */
 // HEADER: /* rvv_runtime_glue_role: runtime-callable-i32-vadd-function */
+// HEADER: /* rvv_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// HEADER: /* rvv_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // HEADER: /* rvv_required_capabilities: @rvv */
 // HEADER: /* scalar_selected_variant: @scalar_fallback_first_slice */
 // HEADER: /* scalar_selected_role: dispatch fallback */
@@ -112,9 +114,12 @@ module @rvv_scalar_dispatch_input {
 // HEADER: /* scalar_runtime_abi_kind: scalar-runtime-callable-c-abi */
 // HEADER: /* scalar_runtime_abi_name: scalar-i32-vadd-runtime-callable-c-function.v1 */
 // HEADER: /* scalar_runtime_glue_role: runtime-callable-i32-vadd-fallback-function */
+// HEADER: /* scalar_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// HEADER: /* scalar_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // HEADER: /* scalar_required_capabilities: @scalar_fallback */
 // HEADER: /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice */
 // HEADER: /* scalar_callable_symbol: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice */
+// HEADER: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
 // HEADER: dispatch_runtime_callable_abi
 
 // BODY: riscv_vector.h

@@ -2,6 +2,7 @@
 #define TIANCHENRV_TARGET_TARGETARTIFACTEXPORT_H
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/SmallVector.h"
@@ -28,13 +29,19 @@ public:
                          llvm::StringRef artifactKind,
                          llvm::StringRef originPlugin,
                          llvm::StringRef emissionKind,
-                         TargetArtifactExportFn exportFn);
+                         TargetArtifactExportFn exportFn,
+                         llvm::ArrayRef<support::RuntimeABIParameter>
+                             requiredRuntimeABIParameters = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
   llvm::StringRef getOriginPlugin() const { return originPlugin; }
   llvm::StringRef getEmissionKind() const { return emissionKind; }
   TargetArtifactExportFn getExportFn() const { return exportFn; }
+  llvm::ArrayRef<support::RuntimeABIParameter>
+  getRequiredRuntimeABIParameters() const {
+    return requiredRuntimeABIParameters;
+  }
 
 private:
   std::string routeID;
@@ -42,6 +49,8 @@ private:
   std::string originPlugin;
   std::string emissionKind;
   TargetArtifactExportFn exportFn = nullptr;
+  llvm::SmallVector<support::RuntimeABIParameter, 5>
+      requiredRuntimeABIParameters;
 };
 
 struct TargetArtifactCandidate {
@@ -57,6 +66,7 @@ struct TargetArtifactCandidate {
   std::string runtimeABIKind;
   std::string runtimeABIName;
   std::string runtimeGlueRole;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
 class TargetArtifactExporterRegistry {

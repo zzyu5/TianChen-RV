@@ -59,6 +59,7 @@ module @stale_scalar_selected_variant_input {
       runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1",
       runtime_abi_kind = "scalar-runtime-callable-c-abi",
       runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
+      runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}],
       runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
       severity = "info",
       status = "supported",

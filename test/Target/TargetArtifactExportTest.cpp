@@ -31,7 +31,8 @@ bool expectFailure(llvm::Error error, llvm::StringRef context) {
 bool expectRoute(const TargetArtifactExporterRegistry &registry,
                  llvm::StringRef routeID, llvm::StringRef artifactKind,
                  llvm::StringRef originPlugin,
-                 llvm::StringRef emissionKind) {
+                 llvm::StringRef emissionKind,
+                 std::size_t expectedABIParameterCount = 0) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
   if (!exporter) {
     llvm::errs() << "missing built-in exporter route '" << routeID << "'\n";
@@ -39,7 +40,9 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
   }
   if (exporter->getArtifactKind() != artifactKind ||
       exporter->getOriginPlugin() != originPlugin ||
-      exporter->getEmissionKind() != emissionKind || !exporter->getExportFn()) {
+      exporter->getEmissionKind() != emissionKind || !exporter->getExportFn() ||
+      exporter->getRequiredRuntimeABIParameters().size() !=
+          expectedABIParameterCount) {
     llvm::errs() << "malformed built-in exporter metadata for route '"
                  << routeID << "'\n";
     return false;
@@ -127,11 +130,11 @@ int main() {
   }
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
-                   "rvv-explicit-i32-vadd-microkernel-c-source"))
+                   "rvv-explicit-i32-vadd-microkernel-c-source", 4))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
-                   "scalar-explicit-i32-vadd-microkernel-c-source"))
+                   "scalar-explicit-i32-vadd-microkernel-c-source", 4))
     return 1;
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-offload-runtime-descriptor",

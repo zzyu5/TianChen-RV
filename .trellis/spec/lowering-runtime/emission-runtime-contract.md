@@ -50,6 +50,10 @@ Rules:
   diagnostic/explanation metadata;
 - carry bounded runtime ABI kind/name metadata and a bounded required runtime
   glue role chosen by the origin plugin;
+- for supported `runtime-callable-c-source` paths, carry structured
+  `runtime_abi_parameters` metadata for every exported C ABI parameter. Each
+  entry records the C parameter name, C type spelling, semantic role, and
+  ownership (`ir-modeled` or `target-export-abi-owned`);
 - carry required capability symbol refs that are a safe subset of the selected
   variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -98,8 +102,12 @@ paths, duplicate or ambiguous supported artifacts, and malformed bounded text.
 
 Concrete artifact generation remains target-owned. Built-in tools may register
 target exporters, but the registration is where extension-specific route facts
-belong. Shared generic routing must not branch on RVV, IME, offload, scalar,
-vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics. The
+belong. Source exporters that declare required runtime ABI parameter roles also
+verify that the selected emission-plan diagnostic carries the exact structured
+parameter boundary, including role, C name, C type, and ownership. Missing,
+spoofed, or extra required roles fail before target-owned C source emission.
+Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
+dtype, shape, runtime, toolchain, or microarchitecture semantics. The
 currently supported source routes are only bounded explicit microkernel
 attachments: the RVV i32 vector-add runtime-callable library C exporter
 registered by RVV target/export code, and the scalar fallback i32 vector-add
@@ -135,6 +143,11 @@ preserve parameter layering:
 - runtime SSA values / runtime control values such as AVL, vl, pointer
   arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
   only as real IR/control fields or generated ABI parameters;
+- generated ABI parameters must state whether they are actually IR-modeled or
+  target/export ABI-owned. The current bounded i32-vadd RVV and scalar source
+  exports mark `lhs`, `rhs`, `out`, and runtime `n` as
+  `target-export-abi-owned`; the RVV+scalar host dispatcher additionally marks
+  `rvv_available` as a target/export-owned dispatch guard;
 - descriptor-local bounded values such as `tcrv_rvv.element_count` or
   `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
   and must not be reported as tensor shape, global problem size, AVL, vl,

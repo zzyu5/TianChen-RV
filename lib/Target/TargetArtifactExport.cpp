@@ -447,6 +447,103 @@ llvm::Error collectRequiredCapabilities(KernelOp kernel,
   return llvm::Error::success();
 }
 
+llvm::Error collectRuntimeABIParameters(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
+  auto parameters = diagnostic->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kRuntimeABIParametersAttrName);
+  if (!parameters)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenNames;
+  llvm::StringSet<> seenRoles;
+  for (auto [index, attr] : llvm::enumerate(parameters)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] must be a dictionary attribute");
+
+    auto cName = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterCNameAttrName);
+    auto cType = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterCTypeAttrName);
+    auto role = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterRoleAttrName);
+    auto ownership = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterOwnershipAttrName);
+    if (!cName || cName.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] requires non-empty c_name");
+    if (!cType || cType.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] requires non-empty c_type");
+    if (!role || role.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] requires non-empty role");
+    if (!ownership || ownership.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) +
+                      "] requires non-empty ownership");
+
+    llvm::StringRef cNameValue = cName.getValue().trim();
+    llvm::StringRef cTypeValue = cType.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef ownershipValue = ownership.getValue().trim();
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter c_name",
+                                cNameValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter c_type",
+                                cTypeValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter role",
+                                roleValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "runtime ABI parameter ownership",
+                                ownershipValue))
+      return error;
+    if (!seenNames.insert(cNameValue).second)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter c_name '") +
+                      cNameValue + "'");
+    if (!seenRoles.insert(roleValue).second)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter role '") +
+                      roleValue + "'");
+
+    std::optional<support::RuntimeABIParameterRole> parsedRole =
+        support::symbolizeRuntimeABIParameterRole(roleValue);
+    if (!parsedRole)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("unsupported runtime ABI parameter role '") +
+                      roleValue + "'");
+    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+        support::symbolizeRuntimeABIParameterOwnership(ownershipValue);
+    if (!parsedOwnership)
+      return makeArtifactExportError(
+          kernel,
+          llvm::Twine("unsupported runtime ABI parameter ownership '") +
+              ownershipValue + "'");
+
+    out.push_back(support::RuntimeABIParameter(cNameValue, cTypeValue,
+                                               *parsedRole, *parsedOwnership));
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<std::optional<TargetArtifactCandidate>>
 buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                         DiagnosticOp diagnostic) {
@@ -567,6 +664,10 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                                 "supported emission-plan route",
                                 candidate.runtimeABI))
     return std::move(error);
+  if (llvm::Error error =
+          collectRuntimeABIParameters(kernel, diagnostic,
+                                      candidate.runtimeABIParameters))
+    return std::move(error);
 
   return std::optional<TargetArtifactCandidate>(std::move(candidate));
 }
@@ -674,6 +775,51 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
         llvm::Twine("route id '") + candidate.routeID +
             "' has no registered export callback");
 
+  llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters =
+      exporter.getRequiredRuntimeABIParameters();
+  if (!expectedParameters.empty()) {
+    for (const support::RuntimeABIParameter &expected : expectedParameters) {
+      auto actualIt = llvm::find_if(
+          candidate.runtimeABIParameters,
+          [&](const support::RuntimeABIParameter &actual) {
+            return actual.role == expected.role;
+          });
+      if (actualIt == candidate.runtimeABIParameters.end())
+        return makeArtifactExportError(
+            candidate.kernel,
+            llvm::Twine("route id '") + candidate.routeID +
+                "' requires structured runtime ABI parameter role '" +
+                support::stringifyRuntimeABIParameterRole(expected.role) + "'");
+
+      if (actualIt->cName != expected.cName || actualIt->cType != expected.cType ||
+          actualIt->ownership != expected.ownership)
+        return makeArtifactExportError(
+            candidate.kernel,
+            llvm::Twine("route id '") + candidate.routeID +
+                "' runtime ABI parameter role '" +
+                support::stringifyRuntimeABIParameterRole(expected.role) +
+                "' must be c parameter '" + expected.cName + "' with type '" +
+                expected.cType + "' and ownership '" +
+                support::stringifyRuntimeABIParameterOwnership(
+                    expected.ownership) +
+                "'");
+    }
+
+    for (const support::RuntimeABIParameter &actual :
+         candidate.runtimeABIParameters) {
+      bool expectedRole = llvm::any_of(
+          expectedParameters, [&](const support::RuntimeABIParameter &expected) {
+            return expected.role == actual.role;
+          });
+      if (!expectedRole)
+        return makeArtifactExportError(
+            candidate.kernel,
+            llvm::Twine("route id '") + candidate.routeID +
+                "' received unsupported runtime ABI parameter role '" +
+                support::stringifyRuntimeABIParameterRole(actual.role) + "'");
+    }
+  }
+
   return llvm::Error::success();
 }
 
@@ -745,10 +891,15 @@ llvm::Error exportTargetArtifactImpl(
 TargetArtifactExporter::TargetArtifactExporter(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
     llvm::StringRef originPlugin, llvm::StringRef emissionKind,
-    TargetArtifactExportFn exportFn)
+    TargetArtifactExportFn exportFn,
+    llvm::ArrayRef<support::RuntimeABIParameter>
+        requiredRuntimeABIParameters)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
-      exportFn(exportFn) {}
+      exportFn(exportFn) {
+  this->requiredRuntimeABIParameters.append(
+      requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());
+}
 
 llvm::Error TargetArtifactExporterRegistry::registerExporter(
     const TargetArtifactExporter &exporter) {

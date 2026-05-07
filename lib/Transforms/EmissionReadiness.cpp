@@ -49,6 +49,7 @@ using tianchenrv::tcrv::exec::diagnostic::kRoleAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeABINameAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIParametersAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeGlueRoleAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRequiredCapabilitiesAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kSelectedReasonValue;
@@ -944,6 +945,44 @@ void addRequiredCapabilityAttribute(mlir::MLIRContext &context,
                      mlir::ArrayAttr::get(&context, capabilities));
 }
 
+void addRuntimeABIParametersAttribute(mlir::MLIRContext &context,
+                                      mlir::OperationState &state,
+                                      const VariantEmissionPlan &plan) {
+  llvm::ArrayRef<support::RuntimeABIParameter> parameters =
+      plan.getRuntimeABIParameters();
+  if (parameters.empty())
+    return;
+
+  llvm::SmallVector<mlir::Attribute, 5> entries;
+  for (const support::RuntimeABIParameter &parameter : parameters) {
+    llvm::SmallVector<mlir::NamedAttribute, 4> fields;
+    fields.push_back(mlir::NamedAttribute(
+        mlir::StringAttr::get(&context,
+                              support::kRuntimeABIParameterCNameAttrName),
+        mlir::StringAttr::get(&context, parameter.cName)));
+    fields.push_back(mlir::NamedAttribute(
+        mlir::StringAttr::get(&context,
+                              support::kRuntimeABIParameterCTypeAttrName),
+        mlir::StringAttr::get(&context, parameter.cType)));
+    fields.push_back(mlir::NamedAttribute(
+        mlir::StringAttr::get(&context,
+                              support::kRuntimeABIParameterRoleAttrName),
+        mlir::StringAttr::get(
+            &context,
+            support::stringifyRuntimeABIParameterRole(parameter.role))));
+    fields.push_back(mlir::NamedAttribute(
+        mlir::StringAttr::get(
+            &context, support::kRuntimeABIParameterOwnershipAttrName),
+        mlir::StringAttr::get(
+            &context, support::stringifyRuntimeABIParameterOwnership(
+                          parameter.ownership))));
+    entries.push_back(mlir::DictionaryAttr::get(&context, fields));
+  }
+
+  state.addAttribute(kRuntimeABIParametersAttrName,
+                     mlir::ArrayAttr::get(&context, entries));
+}
+
 void materializeEmissionPlanDiagnostic(KernelOp kernel,
                                        const VariantEmissionPlan &plan,
                                        mlir::OpBuilder &builder) {
@@ -982,6 +1021,7 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
                      plan.getRuntimeABIKind());
   addStringAttribute(context, state, kRuntimeABINameAttrName,
                      plan.getRuntimeABIName());
+  addRuntimeABIParametersAttribute(context, state, plan);
   addStringAttribute(context, state, kRuntimeGlueRoleAttrName,
                      plan.getRuntimeGlueRole());
   addRequiredCapabilityAttribute(context, state, plan);

@@ -16,6 +16,8 @@
 # POS: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 # POS: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 # POS: /* artifact_kind: runtime-callable-c-source */
+# POS: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
 # POS: __riscv_vsetvl_e32m1
 # POS: __riscv_vle32_v_i32m1
@@ -34,6 +36,8 @@
 # AUTO-RVV: /* selected_march: rv64gcv */
 # AUTO-RVV: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 # AUTO-RVV: /* artifact_kind: runtime-callable-c-source */
+# AUTO-RVV: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# AUTO-RVV: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # AUTO-RVV: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 # AUTO-RVV: __riscv_vadd_vv_i32m1
 
@@ -54,6 +58,9 @@
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-microkernel.txt 2>&1 | FileCheck %s --check-prefix=MISSING-MICRO --implicit-check-not="#include <riscv_vector.h>"
 # MISSING-MICRO: selected RVV path @rvv_first_slice as direct variant requires exactly one matching tcrv_rvv.i32_vadd_microkernel
+
+# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-runtime-abi-parameter-role.txt 2>&1 | FileCheck %s --check-prefix=MISSING-ABI-ROLE --implicit-check-not="#include <riscv_vector.h>"
+# MISSING-ABI-ROLE: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/scalar-spoof-route.txt 2>&1 | FileCheck %s --check-prefix=SCALAR --implicit-check-not="#include <riscv_vector.h>"
 # SCALAR: route id 'tcrv-export-rvv-microkernel-c' is registered for origin 'rvv-plugin' but selected emission-plan origin is 'scalar-plugin'

@@ -83,6 +83,7 @@ module @rvv_microkernel_plan_input {
 // CHECK-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
 // CHECK-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // CHECK-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
+// CHECK-SAME: runtime_abi_parameters = [{{.*}}role = "lhs-input-buffer"{{.*}}ownership = "target-export-abi-owned"{{.*}}role = "runtime-element-count"
 // CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
 // CHECK-SAME: severity = "info"
 // CHECK-SAME: status = "supported"

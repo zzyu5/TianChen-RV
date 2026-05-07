@@ -51,6 +51,7 @@ module @scalar_microkernel_plan_input {
 // CHECK-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
 // CHECK-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
 // CHECK-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+// CHECK-SAME: runtime_abi_parameters = [{{.*}}role = "lhs-input-buffer"{{.*}}ownership = "target-export-abi-owned"{{.*}}role = "runtime-element-count"
 // CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
 // CHECK-SAME: severity = "info"
 // CHECK-SAME: status = "supported"

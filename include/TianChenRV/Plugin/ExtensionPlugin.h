@@ -3,6 +3,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -406,6 +407,10 @@ public:
   llvm::ArrayRef<std::string> getRequiredCapabilitySymbols() const {
     return requiredCapabilitySymbols;
   }
+  llvm::ArrayRef<support::RuntimeABIParameter>
+  getRuntimeABIParameters() const {
+    return runtimeABIParameters;
+  }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
   void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
@@ -450,6 +455,14 @@ public:
     requiredCapabilitySymbols.push_back(symbol.str());
   }
   void clearRequiredCapabilitySymbols() { requiredCapabilitySymbols.clear(); }
+  void addRuntimeABIParameter(const support::RuntimeABIParameter &parameter) {
+    runtimeABIParameters.push_back(parameter);
+  }
+  void addRuntimeABIParameters(
+      llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+    runtimeABIParameters.append(parameters.begin(), parameters.end());
+  }
+  void clearRuntimeABIParameters() { runtimeABIParameters.clear(); }
   llvm::Error setRequiredCapabilitySymbolsFromVariant(
       tcrv::exec::VariantOp variant);
 
@@ -470,6 +483,7 @@ private:
   std::string diagnostic;
   std::string explanation;
   llvm::SmallVector<std::string, 4> requiredCapabilitySymbols;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
 enum class VariantLoweringBoundaryStatus {

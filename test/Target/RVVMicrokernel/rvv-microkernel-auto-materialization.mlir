@@ -107,6 +107,8 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* artifact_kind: runtime-callable-c-source */
 // EXPORT: /* element_count: 16 */
 // EXPORT: /* required_capabilities: @rvv */
+// EXPORT: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// EXPORT: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // EXPORT: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
 // EXPORT: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
 // EXPORT: while (offset < n)

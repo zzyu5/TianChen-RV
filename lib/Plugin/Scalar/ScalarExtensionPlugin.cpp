@@ -710,6 +710,8 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind("scalar-runtime-callable-c-abi");
     out.setRuntimeABIName("scalar-i32-vadd-runtime-callable-c-function.v1");
     out.setRuntimeGlueRole("runtime-callable-i32-vadd-fallback-function");
+    out.addRuntimeABIParameters(
+        support::getI32VAddRuntimeABIParameters());
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;

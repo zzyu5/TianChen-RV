@@ -1,5 +1,5 @@
 module {
-  tcrv.exec.kernel @generic_missing_microkernel {
+  tcrv.exec.kernel @missing_runtime_abi_parameter_role {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -32,16 +32,25 @@ module {
       required_capabilities = [@rvv],
       role = "direct variant",
       selected_variant = @rvv_first_slice,
-      source_kernel = "generic_missing_microkernel",
+      source_kernel = "missing_runtime_abi_parameter_role",
       status = "unsupported",
       unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
+    }
+    tcrv_rvv.i32_vadd_microkernel {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_first_slice,
+      source_kernel = "missing_runtime_abi_parameter_role"
     }
     tcrv.exec.diagnostic {
       artifact_kind = "runtime-callable-c-source",
       emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source",
       lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "tcrv-export-rvv-microkernel-c",
-      message = "supported route without a matching microkernel op",
+      message = "supported route with incomplete runtime ABI parameter roles",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
@@ -50,7 +59,7 @@ module {
       runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1",
       runtime_abi_kind = "rvv-runtime-callable-c-abi",
       runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1",
-      runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}],
+      runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}],
       runtime_glue_role = "runtime-callable-i32-vadd-function",
       status = "supported",
       target = @rvv_first_slice
