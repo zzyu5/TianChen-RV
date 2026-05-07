@@ -33,6 +33,7 @@ llvm_config.add_tool_substitutions(
         "tianchenrv-rvv-extension-plugin-test",
         "tianchenrv-rvv-lowering-boundary-test",
         "tianchenrv-scalar-extension-plugin-test",
+        "tianchenrv-target-artifact-export-test",
         "tianchenrv-variant-dispatch-synthesis-test",
         "tianchenrv-variant-materialization-test",
         "tianchenrv-variant-selection-test",

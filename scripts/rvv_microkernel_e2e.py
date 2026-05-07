@@ -619,11 +619,21 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     write_generated_text(manifest_path, "emission manifest", manifest_text)
     manifest_handoff = find_supported_handoff(manifest_text)
 
+    source_export_flag = (
+        "--tcrv-export-target-source-artifact"
+        if args.generic_route
+        else "--tcrv-export-rvv-microkernel-c"
+    )
+    source_export_name = (
+        "export_target_source_artifact"
+        if args.generic_route
+        else "export_rvv_microkernel_c"
+    )
     source_text, _, _ = run_command(
-        "export_rvv_microkernel_c",
+        source_export_name,
         [
             tcrv_translate,
-            "--tcrv-export-rvv-microkernel-c",
+            source_export_flag,
             str(post_planning_path),
         ],
         cwd=root,
@@ -651,6 +661,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "manifest_handoff": True,
         "manifest_record": manifest_handoff,
+        "source_export_flag": source_export_flag,
+        "source_export_route": (
+            "generic-target-source-artifact"
+            if args.generic_route
+            else "direct-rvv-microkernel"
+        ),
         "selected_compile_flags": [
             "-O2",
             f"-march={source_flags['selected_march']}",
@@ -820,6 +836,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--connect-timeout", type=int, default=10)
     parser.add_argument("--ssh-option", action="append", default=[])
     parser.add_argument("--evidence-note", default="")
+    parser.add_argument(
+        "--generic-route",
+        action="store_true",
+        help="Export generated C through the generic target source artifact route",
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
 
@@ -844,6 +865,7 @@ def main(argv: list[str]) -> int:
                 "status": evidence["status"],
                 "manifest_handoff": evidence["manifest_handoff"],
                 "source_sha256": evidence["hashes"]["rvv_microkernel_c_sha256"],
+                "source_export_route": evidence["source_export_route"],
                 "ssh_evidence": bool(evidence["ssh_evidence"]),
                 "claim_scope": evidence["claim_scope"],
             },

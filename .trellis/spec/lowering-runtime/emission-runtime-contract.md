@@ -84,6 +84,29 @@ Rules:
 - do not claim generated code, runtime ABI glue, linked artifacts, RVV hardware
   execution, correctness, or performance from an emission plan alone.
 
+## Target Artifact Export Route
+
+Public artifact export tools may add a generic routing front door after
+selected-path, lowering-boundary, and emission-plan metadata already exist in
+MLIR. The generic layer consumes only target-neutral emission-plan fields such
+as selected variant, role, origin, support status, lowering pipeline route id,
+emission kind, artifact kind, lowering-boundary reference, runtime ABI metadata,
+and required capability refs. It must fail closed for missing selected paths,
+missing emission-plan diagnostics, unsupported or metadata-only plans, unknown
+route ids, artifact-kind mismatch, origin/emission-kind mismatch, stale selected
+paths, duplicate or ambiguous supported artifacts, and malformed bounded text.
+
+Concrete artifact generation remains target-owned. Built-in tools may register
+target exporters, but the registration is where extension-specific route facts
+belong. Shared generic routing must not branch on RVV, IME, offload, scalar,
+vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics. The
+first route is only the explicit RVV i32 vector-add microkernel standalone C
+source exporter, registered by the RVV target/export code and reused by the
+generic `tcrv-translate --tcrv-export-target-source-artifact` entry point. This
+does not add generic RVV lowering, runtime ABI integration, object generation,
+linking, arbitrary source export, correctness evidence, or performance
+evidence.
+
 ## Selected Lowering Boundary First Slice
 
 Before executable lowering exists, the compiler may materialize selected-path

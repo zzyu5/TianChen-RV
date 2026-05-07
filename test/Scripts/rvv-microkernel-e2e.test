@@ -1,8 +1,11 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --self-test | FileCheck %s --check-prefix=SELF
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-e2e --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --generic-route --run-id lit-rvv-microkernel-e2e-generic --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=GENERIC-DRY
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/rvv_microkernel.c
+# RUN: FileCheck %s --check-prefix=GENERIC-SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/command_summary.json
 # RUN: test ! -f %S/../../rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=MANIFEST < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
@@ -15,10 +18,20 @@
 # DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
 # DRY: "manifest_handoff": true
 # DRY: "mode": "dry-run"
+# DRY: "source_export_route": "direct-rvv-microkernel"
 # DRY: "ssh_evidence": false
 # DRY: "status": "success"
 # DRY-NOT: live-token
 # DRY-NOT: hunter2
+
+# GENERIC-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic"
+# GENERIC-DRY: "manifest_handoff": true
+# GENERIC-DRY: "mode": "dry-run"
+# GENERIC-DRY: "source_export_route": "generic-target-source-artifact"
+# GENERIC-DRY: "ssh_evidence": false
+# GENERIC-DRY: "status": "success"
+# GENERIC-DRY-NOT: live-token
+# GENERIC-DRY-NOT: hunter2
 
 # SUMMARY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e"
 # SUMMARY: "name": "tcrv_opt_materialize_plans"
@@ -27,6 +40,13 @@
 # SUMMARY-NOT: live-token
 # SUMMARY-NOT: hunter2
 # SUMMARY-NOT: "artifact_dir": "rvv_microkernel_e2e"
+
+# GENERIC-SUMMARY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic"
+# GENERIC-SUMMARY: "name": "tcrv_opt_materialize_plans"
+# GENERIC-SUMMARY: "name": "export_emission_manifest"
+# GENERIC-SUMMARY: "name": "export_target_source_artifact"
+# GENERIC-SUMMARY-NOT: live-token
+# GENERIC-SUMMARY-NOT: hunter2
 
 # MANIFEST: emission_status: "supported"
 # MANIFEST: emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"

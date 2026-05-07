@@ -4,6 +4,7 @@
 #include "TianChenRV/Target/EmissionManifest.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -64,6 +65,27 @@ mlir::LogicalResult exportRVVMicrokernelC(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
+                                               llvm::raw_ostream &os) {
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
+  if (llvm::Error error =
+          tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(
+              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error =
+          tianchenrv::target::exportTargetSourceArtifact(module, exporters,
+                                                         os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
@@ -82,6 +104,12 @@ void registerTianChenRVTranslations() {
       "export one explicit RVV i32 vector-add microkernel C source",
       exportRVVMicrokernelC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelC;
+
+  static mlir::TranslateFromMLIRRegistration targetSourceArtifact(
+      "tcrv-export-target-source-artifact",
+      "export one supported TianChen-RV target source artifact route",
+      exportTargetSourceArtifact, registerTianChenRVTranslateDialects);
+  (void)targetSourceArtifact;
 }
 
 } // namespace

@@ -1,0 +1,50 @@
+module {
+  tcrv.exec.kernel @scalar_spoof_route {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "fallback-only variant selected",
+      reason = "variant-selected",
+      selection_kind = "fallback-only",
+      status = "selected",
+      target = @scalar_fallback_first_slice
+    }
+    tcrv_scalar.lowering_boundary {
+      fallback_reason = "scalar fallback selected boundary is plugin-owned metadata only",
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      selected_variant = @scalar_fallback_first_slice,
+      source_kernel = "scalar_spoof_route",
+      status = "metadata-only"
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "standalone-c-source",
+      emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source",
+      lowering_boundary = "tcrv_scalar.lowering_boundary",
+      lowering_pipeline = "tcrv-export-rvv-microkernel-c",
+      message = "malformed scalar metadata must not route through RVV exporter",
+      origin = "scalar-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@scalar_fallback],
+      role = "direct variant",
+      runtime_abi = "none-metadata-only",
+      runtime_abi_kind = "host-scalar-fallback-metadata",
+      runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1",
+      runtime_glue_role = "metadata-only-host-fallback-boundary",
+      status = "supported",
+      target = @scalar_fallback_first_slice
+    }
+  }
+}

@@ -236,6 +236,17 @@ target_link_libraries(tianchenrv-capability-model-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-target-artifact-export-test
+  Target/TargetArtifactExportTest.cpp
+)
+
+target_link_libraries(tianchenrv-target-artifact-export-test
+  PRIVATE
+  TianChenRVTarget
+  MLIRIR
+  MLIRSupport
+)
+
 add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
@@ -252,6 +263,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-rvv-extension-plugin-test
   tianchenrv-rvv-lowering-boundary-test
   tianchenrv-scalar-extension-plugin-test
+  tianchenrv-target-artifact-export-test
   tianchenrv-variant-dispatch-synthesis-test
   tianchenrv-variant-materialization-test
   tianchenrv-variant-selection-test

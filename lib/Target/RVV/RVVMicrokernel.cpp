@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -64,6 +65,12 @@ constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
+constexpr llvm::StringLiteral kMicrokernelEmissionKind(
+    "rvv-explicit-i32-vadd-microkernel-c-source");
+constexpr llvm::StringLiteral kMicrokernelRouteID(
+    "tcrv-export-rvv-microkernel-c");
+constexpr llvm::StringLiteral kMicrokernelArtifactKind(
+    "standalone-c-source");
 
 struct SelectedPath {
   VariantOp variant;
@@ -1141,6 +1148,13 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
   stream.flush();
   os << source;
   return llvm::Error::success();
+}
+
+llvm::Error registerRVVMicrokernelTargetExporters(
+    TargetArtifactExporterRegistry &registry) {
+  return registry.registerExporter(TargetArtifactExporter(
+      kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
+      kMicrokernelEmissionKind, exportRVVMicrokernelC));
 }
 
 } // namespace tianchenrv::target::rvv

@@ -87,6 +87,18 @@ kernel executable emission, runtime ABI glue, or performance evidence; default
 RVV selected paths without the explicit microkernel op remain unsupported and
 deferred.
 
+The `tcrv-translate --tcrv-export-target-source-artifact` tool adds a generic
+target artifact routing front door for supported post-planning emission-plan
+metadata. The route is selected from compiler-owned selected-path,
+lowering-boundary, and plugin-owned emission-plan diagnostics, then dispatched
+through a registered target-owned exporter. The first registered source route is
+only the existing explicit RVV microkernel C exporter above; scalar, offload,
+unsupported RVV metadata-only paths, unknown routes, stale selected paths,
+missing boundaries, missing microkernels, and ambiguous multiple supported
+artifacts fail closed. This tool does not add generic RVV lowering, arbitrary
+RVV source export, runtime ABI integration, object generation, linking,
+correctness evidence, or performance evidence.
+
 When the selected RVV path has that exact explicit microkernel attachment, the
 RVV plugin may also materialize a supported emission-plan diagnostic and the
 generic emission manifest may serialize the handoff as a deterministic
@@ -158,6 +170,8 @@ pipeline output that has been combined with `tcrv_rvv.i32_vadd_microkernel`:
 ```bash
 tcrv-translate --tcrv-export-rvv-microkernel-c post_planning_microkernel.mlir \
   > rvv_microkernel.c
+tcrv-translate --tcrv-export-target-source-artifact post_planning_microkernel.mlir \
+  > rvv_microkernel.c
 ```
 
 Compile and run that source on `ssh rvv` with the selected `-march` and, when
@@ -171,6 +185,7 @@ semantics:
 
 ```bash
 python3 scripts/rvv_microkernel_e2e.py --dry-run
+python3 scripts/rvv_microkernel_e2e.py --dry-run --generic-route
 python3 scripts/rvv_microkernel_e2e.py --ssh-target rvv
 ```
 

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final review"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check generic registry/interface behavior"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check core/plugin locality"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emission handoff and fail-closed behavior"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check bounded RVV route scope"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check test obligations"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check RVV evidence claims"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Check C++/MLIR and Python boundary"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review extension locality risks"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute-boundary risks"}

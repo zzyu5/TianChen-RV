@@ -82,6 +82,14 @@ Use lit/FileCheck for:
   serialization of the bounded handoff fields, stale/duplicate microkernel
   diagnostics, and tests proving the microkernel attachment is not counted as a
   duplicate selected lowering boundary.
+- generic target source artifact export routing, including post-planning
+  selected-path/emission-plan consumption, deterministic agreement with the
+  direct RVV microkernel C exporter for the checked-in explicit microkernel
+  fixture, fail-closed diagnostics for unsupported metadata-only paths, missing
+  plan/route metadata, unknown route ids, unsupported artifact kinds, stale
+  selected paths, missing lowering boundaries, missing microkernels, ambiguous
+  multiple supported artifacts, and scalar/offload paths not being routed
+  through the RVV exporter.
 
 Example test intent:
 

@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and Python/C++ boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry/interface routing constraints for plugin-owned emission"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Core versus plugin locality boundary for export routing"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan, lowering-boundary, and artifact handoff contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Bounded RVV explicit microkernel export scope"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and evidence coverage"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV evidence and claim-scope discipline"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR implementation stack and Python helper boundary"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-aware export decision checklist"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure RVV details remain target/plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure no high-level compute leaks into tcrv.exec"}
