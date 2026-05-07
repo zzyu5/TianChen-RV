@@ -43,6 +43,22 @@ module {
     tcrv.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
     tcrv.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", availability = "disabled"}
     tcrv.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
+    tcrv.exec.capability @rvv_uarch {
+      id = "rvv.uarch",
+      kind = "uarch",
+      dtypes = ["f32", "bf16"],
+      harts = 64 : i64,
+      launch_overhead_us = 1.5 : f64,
+      vector_enabled = true,
+      vlen_bits = 256 : i64
+    }
+    tcrv.exec.capability @sophgo_runtime {
+      id = "sophgo.runtime",
+      kind = "runtime-offload",
+      abi = @sophgo_c_abi,
+      mode = "pcie",
+      runtime = "sophgo"
+    }
   }
 }
 )mlir";
@@ -59,7 +75,7 @@ module {
 
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
-  if (int result = expect(capabilities.size() == 4,
+  if (int result = expect(capabilities.size() == 6,
                           "all declared capabilities are collected"))
     return result;
 
@@ -102,6 +118,61 @@ module {
                               "present") ==
                               CapabilityAvailability::Available,
                           "non-blocking generic status remains available"))
+    return result;
+
+  const CapabilityDescriptor *rvvUarch =
+      capabilities.lookupByID("rvv.uarch");
+  if (int result = expect(rvvUarch && rvvUarch->getKind() == "uarch",
+                          "uarch capability is available by id"))
+    return result;
+  if (int result = expect(rvvUarch->getProperty("harts") == "64",
+                          "integer MLIR capability attributes become "
+                          "descriptor properties"))
+    return result;
+  if (int result = expect(rvvUarch->getProperty("vlen_bits") == "256",
+                          "VLEN-like integer property is preserved"))
+    return result;
+  if (int result = expect(rvvUarch->getProperty("vector_enabled") == "true",
+                          "boolean MLIR capability attributes become "
+                          "descriptor properties"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(rvvUarch->getProperty("launch_overhead_us"))
+                     .contains("1.5"),
+                 "float MLIR capability attributes become descriptor "
+                 "properties"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(rvvUarch->getProperty("dtypes"))
+                         .contains("f32") &&
+                     llvm::StringRef(rvvUarch->getProperty("dtypes"))
+                         .contains("bf16"),
+                 "aggregate MLIR capability attributes become descriptor "
+                 "properties"))
+    return result;
+  if (int result = expect(rvvUarch->getProperty("id").empty() &&
+                              rvvUarch->getProperty("kind").empty(),
+                          "core capability identity attributes are not "
+                          "duplicated as generic properties"))
+    return result;
+
+  const CapabilityDescriptor *sophgoRuntime =
+      capabilities.lookupByID("sophgo.runtime");
+  if (int result = expect(sophgoRuntime &&
+                              sophgoRuntime->getKind() == "runtime-offload",
+                          "runtime-offload capability is available by id"))
+    return result;
+  if (int result = expect(sophgoRuntime->getProperty("runtime") == "sophgo",
+                          "string MLIR capability attributes become "
+                          "descriptor properties"))
+    return result;
+  if (int result = expect(sophgoRuntime->getProperty("mode") == "pcie",
+                          "offload mode property is preserved"))
+    return result;
+  if (int result = expect(sophgoRuntime->getProperty("abi") ==
+                              "sophgo_c_abi",
+                          "symbol MLIR capability attributes become "
+                          "descriptor properties"))
     return result;
 
   TargetCapabilitySet syntheticCapabilities;

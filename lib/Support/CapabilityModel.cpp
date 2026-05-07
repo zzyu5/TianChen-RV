@@ -2,7 +2,9 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <utility>
 
@@ -22,6 +24,53 @@ llvm::StringRef getCapabilityStatus(tcrv::exec::CapabilityOp capability) {
       !status.empty())
     return status;
   return getStringAttr(capability.getOperation(), "availability");
+}
+
+bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
+  return attrName == "sym_name" || attrName == "id" || attrName == "kind" ||
+         attrName == "status" || attrName == "availability";
+}
+
+std::string stringifyCapabilityProperty(mlir::Attribute attribute) {
+  if (auto stringAttr = llvm::dyn_cast<mlir::StringAttr>(attribute))
+    return stringAttr.getValue().str();
+
+  if (auto boolAttr = llvm::dyn_cast<mlir::BoolAttr>(attribute))
+    return boolAttr.getValue() ? "true" : "false";
+
+  if (auto integerAttr = llvm::dyn_cast<mlir::IntegerAttr>(attribute)) {
+    llvm::SmallString<32> text;
+    integerAttr.getValue().toString(text, 10, /*Signed=*/true);
+    return text.str().str();
+  }
+
+  if (auto floatAttr = llvm::dyn_cast<mlir::FloatAttr>(attribute)) {
+    llvm::SmallString<32> text;
+    floatAttr.getValue().toString(text);
+    return text.str().str();
+  }
+
+  if (auto symbolAttr = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attribute))
+    return symbolAttr.getValue().str();
+
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  attribute.print(stream);
+  return stream.str();
+}
+
+std::map<std::string, std::string>
+collectCapabilityProperties(tcrv::exec::CapabilityOp capability) {
+  std::map<std::string, std::string> properties;
+  for (mlir::NamedAttribute namedAttribute : capability->getAttrs()) {
+    llvm::StringRef attrName = namedAttribute.getName().getValue();
+    if (isCoreCapabilityAttribute(attrName))
+      continue;
+
+    properties.try_emplace(
+        attrName.str(), stringifyCapabilityProperty(namedAttribute.getValue()));
+  }
+  return properties;
 }
 
 } // namespace
@@ -56,7 +105,8 @@ TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp kernel) {
     capabilitySet.addCapability(CapabilityDescriptor(
         capability.getSymName(), capability.getId().value_or(""),
         capability.getKind().value_or(""), status,
-        availabilityFromStatus(status)));
+        availabilityFromStatus(status),
+        collectCapabilityProperties(capability)));
   }
 
   return capabilitySet;

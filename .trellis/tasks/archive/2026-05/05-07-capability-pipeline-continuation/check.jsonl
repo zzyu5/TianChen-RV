@@ -1,0 +1,3 @@
+{"file":".trellis/spec/capability-model/capability-contract.md","reason":"verify structured capability attributes are preserved in the C++ decision object"}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"verify focused test coverage and missing-toolchain reporting"}
+{"file":".trellis/spec/guides/capability-first-design-guide.md","reason":"review that decisions remain capability-driven, not target-family branches"}

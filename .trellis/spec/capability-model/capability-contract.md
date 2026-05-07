@@ -199,6 +199,17 @@ strings `unavailable`, `disabled`, and `missing` mean unavailable for core
 requires checks. Core code must not interpret concrete target-family status
 values; extension-specific availability semantics remain plugin-owned.
 
+Non-core attributes on `tcrv.exec.capability` are structured capability
+properties. `TargetCapabilitySet::buildFromKernel` must preserve them in the
+C++ `CapabilityDescriptor` property map so microarchitecture, dtype,
+toolchain, runtime/offload mode, ABI, and cost/probe facts remain available to
+compiler decisions. Core identity/status fields (`sym_name`, `id`, `kind`,
+`status`, `availability`) stay first-class descriptor fields and must not be
+duplicated as generic properties. Property values are deterministic textual
+renderings of MLIR attributes for diagnostics and plugin decisions; they are
+derived from structured IR attributes, not from comments, JSON blobs, or
+Python-only records.
+
 ## Generic Capability Query Contract
 
 ### 1. Scope / Trigger
@@ -215,6 +226,8 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 
 - Each query descriptor records capability symbol name, `id`, `kind`, generic
   status, and available/unavailable state.
+- Each query descriptor preserves additional non-core MLIR attributes as
+  structured property entries queryable by property name.
 - Lookup must be available by capability symbol name and by capability `id`.
 - Collection/query by `kind` must treat kind values as an open string set.
 - Missing generic status means available/present.
@@ -256,6 +269,8 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - C++ smoke coverage for symbol-name lookup, id lookup, kind collection, and
   generic availability status handling when textual IR cannot directly assert
   helper API behavior.
+- C++ smoke coverage for textual MLIR capability properties, including scalar
+  facts such as hart/VLEN counts and runtime-offload mode/ABI metadata.
 
 ### 7. Wrong vs Correct
 
