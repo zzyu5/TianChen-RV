@@ -432,6 +432,28 @@ tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
 The source-only front door continues to emit the library-style dispatcher C
 source without an embedded `main` or self-check harness.
 
+The bounded executable evidence bridge below drives the planned dispatch
+pipeline, exports the default generic library-style dispatch source and the
+explicit target-owned self-check source, and optionally compiles that generated
+self-check source on `ssh rvv` into a relocatable object, links an executable,
+and runs it:
+
+```bash
+python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run
+python3 scripts/rvv_scalar_dispatch_e2e.py --ssh-target rvv
+```
+
+Dry-run mode writes sanitized post-planning MLIR, emission manifest, generated
+dispatch C sources, hashes, and command summaries under
+`artifacts/tmp/rvv_scalar_dispatch_e2e/<run-id>/` without making a runtime
+claim. Real ssh mode copies the compiler-generated self-check source to the RVV
+host, compiles it with selected `-march`/optional `-mabi`, links the executable,
+and runs the harness that calls both `rvv_available = 0` and
+`rvv_available = 1` branches. A successful run proves only that this finite
+RVV+scalar i32-vadd dispatcher self-check executable passed on the selected RVV
+host flags. It is not generic RVV lowering, arbitrary kernel support, dynamic
+runtime integration, performance evidence, or broad correctness coverage.
+
 ## Runtime Offload First Slice
 
 The built-in registry includes a generic C++ `offload-plugin` first slice for

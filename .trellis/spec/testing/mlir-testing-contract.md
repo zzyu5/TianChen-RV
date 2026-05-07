@@ -317,6 +317,20 @@ requires separate `ssh rvv` evidence for the bounded dispatcher self-check
 source/object path and must not be widened to generic RVV lowering, dynamic
 runtime integration, or performance.
 
+If the repository provides an RVV+scalar dispatch executable evidence bridge,
+it remains Python runner/evidence tooling only. Local lit coverage must exercise
+the bridge without contacting `ssh rvv`, including self-test coverage,
+execution-planning pipeline use, generic library dispatch source export,
+explicit self-check source export, deterministic artifact layout below
+`artifacts/tmp`, command-summary redaction, and failure on secret-like evidence
+metadata. Passing dry-run proves only planned dispatch handoff and source
+export. Any runtime/correctness claim must use real `ssh rvv` evidence where
+the generated self-check dispatch source is compiled to an object, linked to an
+executable, and run with the bounded success marker observed. That claim must
+remain limited to the finite RVV+scalar i32-vadd dispatcher executable path and
+must not be reported as generic RVV lowering, arbitrary kernel support, dynamic
+runtime integration, broad correctness, or performance evidence.
+
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must
 exercise the helper without contacting `ssh rvv`, including manifest handoff

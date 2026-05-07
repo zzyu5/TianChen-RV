@@ -1,0 +1,59 @@
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --self-test | FileCheck %s --check-prefix=SELF
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-e2e --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir | FileCheck %s --check-prefix=DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/post_planning.mlir
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/emission_manifest.txt
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_library.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/command_summary.json
+# RUN: FileCheck %s --check-prefix=SOURCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=LIBRARY --implicit-check-not="int main(void)" --implicit-check-not="tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_library.c
+# RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/command_summary.json
+# RUN: FileCheck %s --check-prefix=EVIDENCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/evidence.json
+# RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
+
+# SELF: rvv_scalar_dispatch_e2e self-test passed
+
+# DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e"
+# DRY: "claim_scope": "local dry-run verifies planned dispatch, manifest handoff, and source export only"
+# DRY: "mode": "dry-run"
+# DRY: "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline"
+# DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# DRY: "source_export_mode": "self-check-harness"
+# DRY: "ssh_evidence": false
+# DRY: "status": "success"
+# DRY-NOT: live-token
+# DRY-NOT: hunter2
+
+# SOURCE: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+# SOURCE: rvv_available = 0
+# SOURCE: rvv_available = 1
+# SOURCE: int main(void)
+# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(0)
+# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(1)
+# SOURCE: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok
+# SOURCE-NOT: runtime_success
+# SOURCE-NOT: throughput
+# SOURCE-NOT: latency
+
+# LIBRARY: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+# LIBRARY: /* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+# LIBRARY: void tcrv_dispatch_i32_vadd_conflict_planned_dispatch
+
+# SUMMARY: "name": "tcrv_opt_execution_planning_pipeline"
+# SUMMARY: "name": "export_emission_manifest"
+# SUMMARY: "name": "export_dispatch_library_source"
+# SUMMARY: "name": "export_dispatch_self_check_source"
+# SUMMARY-NOT: live-token
+# SUMMARY-NOT: hunter2
+
+# EVIDENCE: "library_source_export_route": "generic-target-source-artifact"
+# EVIDENCE: "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline"
+# EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# EVIDENCE: "ssh_evidence": null
+# EVIDENCE: "status": "success"
+# EVIDENCE-NOT: runtime_success
+# EVIDENCE-NOT: throughput
+# EVIDENCE-NOT: latency
+
+# SECRET: rvv_scalar_dispatch_e2e:
+# SECRET-SAME: evidence note contains secret-like, credential, or URL text

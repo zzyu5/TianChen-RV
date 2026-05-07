@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "project spec index and cross-layer routing for this task"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability metadata and hardware fact boundaries for RVV dispatch decisions"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant generation, legality, selection, and dispatch constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local responsibilities and RVV/scalar boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin behavior for explicit dispatch fallback path"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact emission, runtime ABI, and executable-path ownership contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and runtime evidence requirements"}

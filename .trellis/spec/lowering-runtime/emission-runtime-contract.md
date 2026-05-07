@@ -1187,6 +1187,46 @@ Contracts:
   stale lowering boundaries, unsupported artifact kinds, unsupported origins,
   wrong roles, and ambiguous duplicate paths must fail before source output.
 
+### Dispatch Self-Check Executable Evidence Bridge
+
+The repo-owned executable evidence bridge is
+`scripts/rvv_scalar_dispatch_e2e.py`. It is Python runner/evidence tooling
+only. It must not implement compiler IR, plugin decisions, target selection,
+capability modeling, lowering, emission, runtime ABI, correctness logic, or
+performance measurement.
+
+The bridge must consume compiler-generated artifacts from the planned dispatch
+pipeline:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline
+tcrv-translate --tcrv-export-target-source-artifact post_planning.mlir
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c \
+  post_planning.mlir
+```
+
+Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
+library dispatch source, generated self-check dispatch source, hashes, command
+logs, and evidence JSON under
+`artifacts/tmp/rvv_scalar_dispatch_e2e/<run-id>/`. It proves only that the
+existing compiler tools can produce the planned dispatch handoff and bounded
+source artifacts.
+
+Real ssh mode may copy the generated self-check source to `ssh rvv`, compile it
+with selected `-march` and optional `-mabi` metadata into a relocatable object,
+link an executable, run that executable, and require the bounded success marker
+from the harness. This is a runtime/evidence bridge over target-owned generated
+C. The bridge must fail closed on ssh, scp, compiler, header, object, link,
+run, timeout, or success-marker failure and must record sanitized command logs
+rather than synthesizing runtime evidence.
+
+Successful ssh evidence proves only that the finite generated RVV+scalar
+i32-vadd dispatcher self-check executable compiled, linked, and ran both the
+scalar fallback and RVV dispatch branches on the selected RVV host flags. It is
+not generic high-level lowering correctness, arbitrary RVV emission support,
+object-route proof for unrelated kernels, dynamic runtime integration,
+performance evidence, or broad correctness coverage.
+
 ## Runtime Offload Metadata Boundary
 
 The first runtime-offload plugin slice may return a metadata-only emission

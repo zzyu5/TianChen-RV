@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "project spec index for final compliance check"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify hardware/capability/runtime parameter layering"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify variant dispatch selection stays capability-driven"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV-specific behavior remains plugin-local or target-owned"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar fallback dispatch path remains explicit and bounded"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify executable artifact route and runtime ABI contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify local and ssh rvv evidence claims use approved test categories"}
