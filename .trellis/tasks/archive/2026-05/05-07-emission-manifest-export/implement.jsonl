@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Repository-wide spec map and pre-development routing for this compiler export task."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Ensures the manifest remains a compiler handoff artifact and does not turn tcrv.exec into compute IR."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability metadata that must participate before manifest export."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec kernel/variant/dispatch/fallback and diagnostic metadata boundaries consumed by the exporter."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin-owned runtime ABI and registry-local ownership rules."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Ensures target-specific meanings remain plugin-local behind generic metadata."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines selected variant and preference metadata semantics before export."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Primary contract for emission readiness and target/export handoff manifest."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV-specific expectations for unsupported/deferred emission metadata without executable claims."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin metadata expectations when legally selected."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck testing structure and evidence discipline."}

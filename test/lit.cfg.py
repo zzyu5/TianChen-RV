@@ -20,6 +20,7 @@ tool_dirs = [config.tianchenrv_tools_dir, config.llvm_tools_dir]
 llvm_config.add_tool_substitutions(
     [
         "tcrv-opt",
+        "tcrv-translate",
         "FileCheck",
         "tianchenrv-capability-model-test",
         "tianchenrv-plugin-registry-test",

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check that the exporter preserves architecture boundaries and makes no executable evidence claims."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that tcrv.exec remains execution/capability/variant/dispatch/fallback/diagnostic focused."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin-owned runtime ABI metadata remains behind generic interfaces."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check target-neutral exporter locality and absence of target/vendor-specific interpretation."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected variant and preference metadata are consumed after legality/selection."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emission manifest handoff contract and non-runtime-evidence language."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check lit/FileCheck organization and test evidence discipline."}

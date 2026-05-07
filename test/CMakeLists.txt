@@ -221,6 +221,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
   tcrv-opt
+  tcrv-translate
   tianchenrv-capability-model-test
   tianchenrv-plugin-variant-cost-test
   tianchenrv-plugin-registry-test

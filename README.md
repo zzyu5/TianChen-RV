@@ -55,6 +55,14 @@ status, and required capability refs. These diagnostics are compiler-decision
 metadata only: they are not executable code, runtime ABI glue, correctness
 evidence, or performance evidence.
 
+The `tcrv-translate --tcrv-export-emission-manifest` tool exports a
+deterministic compiler handoff manifest from post-planning MLIR that already
+contains selected-path, lowering-boundary, and plugin-owned emission-plan
+metadata. The manifest is intended for downstream lowering/runtime-glue tooling
+to consume the generic handoff contract. It does not emit LLVM/RISC-V/RVV IR,
+generate objects, link runtime libraries, run hardware, prove correctness, or
+measure performance.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:

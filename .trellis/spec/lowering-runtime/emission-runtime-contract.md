@@ -355,3 +355,31 @@ required capability references, but it remains metadata-only and non-executable.
 It is not evidence that the compiler emitted LLVM IR, assembled an object,
 linked runtime glue, ran a scalar kernel, proved correctness, or measured
 performance.
+
+## Emission Manifest Export Boundary
+
+After planning has materialized an explicit selected surface and
+`tcrv.exec.diagnostic {reason = "emission_plan"}` metadata, a target/export
+tool may serialize a deterministic emission handoff manifest. The manifest is a
+compiler handoff artifact for downstream lowering/runtime-glue integration. It
+may include module and kernel symbols, selected variant symbols, origin plugin,
+selected-path role, dispatch cases and fallback targets, lowering-boundary
+diagnostic links, runtime ABI kind/name, runtime glue role, emission status,
+required capability refs, preference metadata, and bounded plugin
+explanation/diagnostic text.
+
+The exporter must validate the post-planning MLIR before writing any manifest.
+It must reject missing selected surfaces, stale selected references, selected
+paths without exactly one complete emission-plan diagnostic, duplicate runtime
+ABI ownership diagnostics, malformed runtime ABI ownership fields, unknown
+diagnostic targets, and unbounded or credential-like explanatory text. Export
+failure must not produce a partial manifest.
+
+The manifest does not perform plugin registry routing, legality recovery,
+variant selection, lowering-boundary materialization, LLVM lowering, RVV
+intrinsic emission, scalar code generation, object generation, runtime library
+linking, hardware execution, correctness validation, or performance
+measurement. It must remain target-neutral: it serializes generic selected-path
+and diagnostic metadata without interpreting RVV, scalar fallback, IME, offload,
+Sophgo, AME, vendor, dtype, shape, microarchitecture, probe evidence, runtime,
+correctness, or performance semantics.

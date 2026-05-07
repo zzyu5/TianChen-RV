@@ -58,6 +58,11 @@ Use lit/FileCheck for:
   plans, including bounded runtime ABI kind/name, runtime glue role, required
   capability refs, unsupported RVV metadata boundaries, scalar metadata-only
   fallback routes, and malformed plugin-returned metadata rejection.
+- target/export emission handoff manifests, including public tool coverage,
+  deterministic symbol/path ordering, scalar fallback metadata-only selected
+  paths, unsupported/deferred RVV emission metadata, pipeline-to-export
+  coverage, and negative tests proving invalid selected surfaces or malformed
+  runtime ABI ownership metadata produce no manifest.
 
 Example test intent:
 
