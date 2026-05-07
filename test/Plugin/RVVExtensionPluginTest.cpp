@@ -148,6 +148,29 @@ int expectStringAttr(mlir::Operation *operation, llvm::StringRef attrName,
                     " preserves expected value");
 }
 
+mlir::Attribute findProposalAttribute(const VariantProposal &proposal,
+                                      llvm::StringRef attrName) {
+  for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
+    if (attribute.getName().getValue() == attrName)
+      return attribute.getValue();
+  }
+  return {};
+}
+
+int expectProposalStringAttr(const VariantProposal &proposal,
+                             llvm::StringRef attrName,
+                             llvm::StringRef expectedValue) {
+  auto attr = llvm::dyn_cast_if_present<mlir::StringAttr>(
+      findProposalAttribute(proposal, attrName));
+  if (int result =
+          expect(static_cast<bool>(attr),
+                 llvm::Twine("proposal carries string attribute ") + attrName))
+    return result;
+  return expect(attr.getValue() == expectedValue,
+                llvm::Twine("proposal string attribute ") + attrName +
+                    " preserves expected value");
+}
+
 mlir::OwningOpRef<mlir::ModuleOp>
 parseModule(mlir::MLIRContext &context, llvm::StringRef source) {
   return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
@@ -454,6 +477,9 @@ module {
   if (int result = expect(proposals.size() == 1,
                           "profile-derived RVV capabilities propose variant"))
     return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
+    return result;
 
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
@@ -543,6 +569,352 @@ int runRVVCapabilityProfileRejectionTest() {
   return 0;
 }
 
+int runRVVCapabilityPropertyDecisionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral positiveSource = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @mlir_property_rvv attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available",
+      vendor_note = "kept-generic"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.capability @sophgo_runtime {
+      id = "sophgo.runtime",
+      kind = "runtime-offload",
+      mode = "pcie",
+      runtime = "sophgo",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, positiveSource);
+  if (!module)
+    return fail("failed to parse RVV property decision positive module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "mlir_property_rvv");
+  if (int result = expect(highLevelOp && kernel,
+                          "RVV property decision test has op and kernel"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  const CapabilityDescriptor *rvvCapability = capabilities.lookupByID("rvv");
+  if (int result =
+          expect(rvvCapability &&
+                     rvvCapability->getProperty("isa_vector_hints") ==
+                         "rv64gcv_zvl128b" &&
+                     rvvCapability->getProperty("vendor_note") ==
+                         "kept-generic",
+                 "RVV plugin sees preserved non-core MLIR properties"))
+    return result;
+  const CapabilityDescriptor *sophgo =
+      capabilities.lookupByID("sophgo.runtime");
+  if (int result = expect(sophgo && sophgo->getKind() == "runtime-offload" &&
+                              sophgo->getProperty("runtime") == "sophgo" &&
+                              sophgo->getProperty("mode") == "pcie",
+                          "Sophgo/offload remains generic descriptor data"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for property decision test"))
+    return result;
+
+  VariantProposalRequest request =
+      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result =
+          expectSuccess(registry.collectVariantProposals(request, proposals),
+                        "collect RVV proposal from preserved MLIR properties"))
+    return result;
+  if (int result =
+          expect(proposals.size() == 1 &&
+                     proposals[0].getCondition() ==
+                         "rvv_capability_properties_available" &&
+                     proposals[0].getGuard() ==
+                         "plugin_local_rvv_property_evidence" &&
+                     proposals[0].getRequiredCapabilityIDs().size() == 1 &&
+                     proposals[0].getRequiredCapabilityIDs()[0] == "rvv",
+                 "RVV property evidence enables proposal metadata"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize RVV property-enabled proposal"))
+    return result;
+  if (int result = expect(materializedVariants.size() == 1,
+                          "materialized one property-enabled RVV variant"))
+    return result;
+
+  VariantOp variant = materializedVariants.front();
+  auto originAttr = variant->getAttrOfType<mlir::StringAttr>("origin");
+  auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (int result =
+          expect(originAttr && originAttr.getValue() == "rvv-plugin" &&
+                     requiresAttr && requiresAttr.size() == 1,
+                 "materialized RVV variant preserves origin and requires"))
+    return result;
+  auto requiredSymbol =
+      llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiresAttr[0]);
+  if (int result =
+          expect(requiredSymbol && requiredSymbol.getValue() == "rvv",
+                 "materialized RVV variant keeps generic @rvv requirement"))
+    return result;
+  if (int result =
+          expectSuccess(registry.verifyVariantLegality(
+                            tianchenrv::plugin::VariantLegalityRequest(
+                                variant, kernel, capabilities)),
+                        "RVV legality accepts property-enabled variant"))
+    return result;
+
+  auto expectProposalError =
+      [&](llvm::StringRef kernelName, llvm::StringRef source,
+          std::initializer_list<llvm::StringRef> fragments) -> int {
+    mlir::OwningOpRef<mlir::ModuleOp> negativeModule =
+        parseModule(context, source);
+    if (!negativeModule)
+      return fail(llvm::Twine("failed to parse negative RVV property module ") +
+                  kernelName);
+
+    mlir::func::FuncOp negativeHighLevelOp =
+        findHighLevelPlaceholder(*negativeModule);
+    KernelOp negativeKernel = findKernel(*negativeModule, kernelName);
+    TargetCapabilitySet negativeCapabilities =
+        TargetCapabilitySet::buildFromKernel(negativeKernel);
+    VariantProposalRequest negativeRequest =
+        makeRequest(negativeHighLevelOp.getOperation(), negativeKernel,
+                    negativeCapabilities);
+    llvm::SmallVector<VariantProposal, 1> negativeProposals;
+    return expectErrorContains(
+        registry.collectVariantProposals(negativeRequest, negativeProposals),
+        fragments);
+  };
+
+  if (int result = expectProposalError(
+          "missing_hint",
+          R"mlir(
+module {
+  func.func @high_level_placeholder() { return }
+  tcrv.exec.kernel @missing_hint attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+  }
+}
+)mlir",
+          {"rvv", "isa_vector_hints", "requires preserved property"}))
+    return result;
+
+  if (int result = expectProposalError(
+          "malformed_harts",
+          R"mlir(
+module {
+  func.func @high_level_placeholder() { return }
+  tcrv.exec.kernel @malformed_harts attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = "sixty-four",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+  }
+}
+)mlir",
+          {"rvv.hart_count", "count", "positive integer"}))
+    return result;
+
+  if (int result = expectProposalError(
+          "secret_hint",
+          R"mlir(
+module {
+  func.func @high_level_placeholder() { return }
+  tcrv.exec.kernel @secret_hint attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "TOKEN=rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+  }
+}
+)mlir",
+          {"isa_vector_hints", "secret-like"}))
+    return result;
+
+  if (int result = expectProposalError(
+          "conflicting_march",
+          R"mlir(
+module {
+  func.func @high_level_placeholder() { return }
+  tcrv.exec.kernel @conflicting_march attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gc"
+    }
+  }
+}
+)mlir",
+          {"conflicting RVV property values", "rvv.toolchain.march",
+           "selected_march"}))
+    return result;
+
+  constexpr llvm::StringLiteral unsupportedMetadataSource = R"mlir(
+module {
+  tcrv.exec.kernel @unsupported_metadata attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.variant @wrong_march attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gc"
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> unsupportedModule =
+      parseModule(context, unsupportedMetadataSource);
+  if (!unsupportedModule)
+    return fail("failed to parse unsupported RVV metadata module");
+  KernelOp unsupportedKernel =
+      findKernel(*unsupportedModule, "unsupported_metadata");
+  TargetCapabilitySet unsupportedCapabilities =
+      TargetCapabilitySet::buildFromKernel(unsupportedKernel);
+  VariantOp wrongMarch;
+  unsupportedKernel->walk([&](VariantOp candidate) {
+    if (candidate.getSymName() == "wrong_march")
+      wrongMarch = candidate;
+  });
+
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(
+              tianchenrv::plugin::VariantLegalityRequest(
+                  wrongMarch, unsupportedKernel, unsupportedCapabilities)),
+          {"tcrv_rvv.required_march", "selected_march"}))
+    return result;
+
+  return 0;
+}
+
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -554,7 +926,28 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
     }
   }
 }
@@ -580,6 +973,13 @@ module {
                      tianchenrv::plugin::rvv::
                          getRVVPreferredCapabilitySymbol()),
                  "RVV capability is available by documented symbol"))
+    return result;
+  const CapabilityDescriptor *rvvCapability = capabilities.lookupByID("rvv");
+  if (int result =
+          expect(rvvCapability &&
+                     rvvCapability->getProperty("isa_vector_hints") ==
+                         "rv64gcv_zvl128b",
+                 "RVV plugin test sees preserved MLIR RVV property"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -614,16 +1014,21 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 1,
-                 "RVV proposal carries one plugin-owned typed attribute"))
+          expect(proposalAttributes.size() == 2,
+                 "RVV proposal carries typed policy and property evidence "
+                 "attributes"))
     return result;
-  if (int result = expect(proposalAttributes[0].getName().getValue() ==
-                              tianchenrv::plugin::rvv::getRVVPolicyAttrName(),
-                          "RVV proposal attribute name is tcrv_rvv.policy"))
+  mlir::Attribute rvvPolicy =
+      findProposalAttribute(proposals[0],
+                            tianchenrv::plugin::rvv::getRVVPolicyAttrName());
+  if (int result = expect(static_cast<bool>(rvvPolicy),
+                          "RVV proposal carries tcrv_rvv.policy"))
     return result;
-  if (int result = expectRVVPolicyAttr(proposalAttributes[0].getValue(),
-                                       TailPolicy::Agnostic,
+  if (int result = expectRVVPolicyAttr(rvvPolicy, TailPolicy::Agnostic,
                                        MaskPolicy::Agnostic))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -642,12 +1047,15 @@ module {
   auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   auto rvvPolicyAttr =
       variant->getAttr(tianchenrv::plugin::rvv::getRVVPolicyAttrName());
+  auto requiredMarchAttr =
+      variant->getAttrOfType<mlir::StringAttr>("tcrv_rvv.required_march");
   if (int result =
           expect(originAttr && originAttr.getValue() == "rvv-plugin" &&
                      requiresAttr && requiresAttr.size() == 1 &&
-                     static_cast<bool>(rvvPolicyAttr),
+                     static_cast<bool>(rvvPolicyAttr) && requiredMarchAttr &&
+                     requiredMarchAttr.getValue() == "rv64gcv",
                  "materialized RVV variant has typed origin, requires, and "
-                 "plugin-owned policy"))
+                 "plugin-owned property metadata"))
     return result;
   if (int result = expectRVVPolicyAttr(rvvPolicyAttr, TailPolicy::Agnostic,
                                        MaskPolicy::Agnostic))
@@ -717,18 +1125,40 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
     }
     tcrv.exec.variant @missing_policy attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      policy = "metadata_only_first_slice"
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.required_march = "rv64gcv"
     } {
     }
     tcrv.exec.variant @wrong_type_policy attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       policy = "metadata_only_first_slice",
+      tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.policy = "not_a_typed_policy"
     } {
     }
@@ -736,6 +1166,7 @@ module {
       origin = "rvv-plugin",
       requires = [@rvv],
       policy = "metadata_only_first_slice",
+      tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = undisturbed, mask = agnostic>
     } {
     }
@@ -860,6 +1291,8 @@ int main() {
   if (int result = runRVVCapabilityProfileTest(context))
     return result;
   if (int result = runRVVCapabilityProfileRejectionTest())
+    return result;
+  if (int result = runRVVCapabilityPropertyDecisionTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

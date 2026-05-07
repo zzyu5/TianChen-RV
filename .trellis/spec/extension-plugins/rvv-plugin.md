@@ -50,21 +50,43 @@ required capability id: rvv
 materialized requires form: requires = [@rvv]
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+property requirement attr name: tcrv_rvv.required_march
 ```
 
 The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
 contains a real high-level MLIR operation, a `tcrv.exec.kernel`, and a
-`TargetCapabilitySet` where capability id `rvv` is explicitly available. If
-the capability is missing or generically unavailable (`status = "disabled"`,
-`"missing"`, or `"unavailable"`), the plugin proposes no variant.
+`TargetCapabilitySet` where capability id `rvv` is explicitly available and
+where preserved RVV capability properties provide bounded plugin-local evidence.
+The current minimal proposal gate is:
+
+- capability id `rvv` has bounded `architecture` and `isa_vector_hints`
+  properties, and `isa_vector_hints` contains RVV vector evidence;
+- capability id `rvv.hart_count` is available and has a positive integer
+  `count` property;
+- capability id `rvv.probe.compile_run` is available and has a bounded
+  `selected_march` property containing RVV vector evidence;
+- if capability id `rvv.toolchain.march` is present and available, its `value`
+  property must agree with `rvv.probe.compile_run.selected_march`;
+- all consumed property text must be bounded, single-line, and free of
+  secret-like/raw-log text.
+
+If the `rvv` capability is missing or generically unavailable
+(`status = "disabled"`, `"missing"`, or `"unavailable"`), the plugin proposes
+no variant. If `rvv` is available but the required RVV property evidence is
+missing, malformed, secret-like, or internally conflicting, proposal collection
+fails with a deterministic RVV plugin diagnostic rather than synthesizing a
+partial variant.
 
 The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`), one typed non-compute RVV policy attribute
 (`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), and a
-plugin-owned neutral cost estimate. The generic string policy remains the input
-for core selection/dispatch; the typed `tcrv_rvv.policy` attribute is
-plugin-local metadata preserved by the generic proposal/materialization path and
-validated by `RVVExtensionPlugin`. These fields are compiler-visible metadata
+plugin-owned `tcrv_rvv.required_march` string attribute derived from the
+validated `rvv.probe.compile_run.selected_march` property. The generic string
+policy remains the input for core selection/dispatch; the typed
+`tcrv_rvv.policy` attribute and the `tcrv_rvv.required_march` property
+requirement are plugin-local metadata preserved by the generic
+proposal/materialization path and validated by `RVVExtensionPlugin` when
+present on a materialized variant. These fields are compiler-visible metadata
 for the existing generic materialization, legality, capability, and selection
 helpers. They are not RVV lowering, code emission, runtime ABI, correctness
 evidence, or performance evidence.

@@ -7,10 +7,13 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cctype>
+#include <cstdint>
 #include <string>
 
 namespace tianchenrv::plugin {
@@ -23,6 +26,13 @@ constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
+constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
+    "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
+constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
+constexpr llvm::StringLiteral kHartCountPropertyName("count");
+constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
+constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -42,9 +52,217 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+struct RVVCapabilityPropertyView {
+  std::string architecture;
+  std::string isaVectorHints;
+  std::string selectedMarch;
+  std::uint64_t hartCount = 0;
+};
+
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
   return request.getKernel() &&
          request.getCapabilities().isCapabilityAvailableByID(kRVVCapabilityID);
+}
+
+bool containsForbiddenRVVPropertyText(llvm::StringRef value) {
+  std::string lower = value.lower();
+  llvm::StringRef normalized(lower);
+  return normalized.contains("password") || normalized.contains("passwd") ||
+         normalized.contains("token") || normalized.contains("secret") ||
+         normalized.contains("private key") ||
+         normalized.contains("authorization:") ||
+         normalized.contains("api_key") || normalized.contains("access_key");
+}
+
+bool isSingleBoundedRVVPropertyText(llvm::StringRef value) {
+  if (value.size() > 512)
+    return false;
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      return false;
+    if (byte < 0x20 && character != '\t')
+      return false;
+  }
+  return true;
+}
+
+bool hasRVVVectorHint(llvm::StringRef hints) {
+  std::string lower = hints.lower();
+  llvm::StringRef normalized(lower);
+  if (normalized.contains("zve") || normalized.contains("zvl") ||
+      normalized.contains("zvfh") || normalized.contains("gcv"))
+    return true;
+
+  std::size_t position = lower.find("rv64");
+  while (position != std::string::npos) {
+    std::size_t end = position;
+    while (end < lower.size()) {
+      unsigned char byte = static_cast<unsigned char>(lower[end]);
+      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
+        break;
+      ++end;
+    }
+    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
+      return true;
+    position = lower.find("rv64", position + 4);
+  }
+  return false;
+}
+
+llvm::Error validateRVVPropertyText(llvm::StringRef context,
+                                    llvm::StringRef propertyName,
+                                    llvm::StringRef value) {
+  if (!isSingleBoundedRVVPropertyText(value))
+    return makeRVVPluginError(llvm::Twine(context) + " property '" +
+                              propertyName +
+                              "' must be a bounded single-line fact");
+
+  if (containsForbiddenRVVPropertyText(value))
+    return makeRVVPluginError(llvm::Twine(context) + " property '" +
+                              propertyName +
+                              "' must not contain secret-like or raw-log text");
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<std::string>
+getRequiredRVVProperty(const support::CapabilityDescriptor &capability,
+                       llvm::StringRef propertyName) {
+  llvm::StringRef value = capability.getProperty(propertyName).trim();
+  std::string context = (llvm::Twine("capability id '") +
+                         capability.getID() + "'").str();
+  if (value.empty())
+    return makeRVVPluginError(llvm::Twine(context) +
+                              " requires preserved property '" +
+                              propertyName + "'");
+
+  if (llvm::Error error = validateRVVPropertyText(context, propertyName, value))
+    return std::move(error);
+
+  return value.str();
+}
+
+llvm::Expected<std::uint64_t>
+getRequiredPositiveIntegerRVVProperty(
+    const support::CapabilityDescriptor &capability,
+    llvm::StringRef propertyName) {
+  llvm::Expected<std::string> property =
+      getRequiredRVVProperty(capability, propertyName);
+  if (!property)
+    return property.takeError();
+
+  llvm::StringRef value(*property);
+  if (!llvm::all_of(value, [](char character) {
+        unsigned char byte = static_cast<unsigned char>(character);
+        return std::isdigit(byte);
+      })) {
+    return makeRVVPluginError(llvm::Twine("capability id '") +
+                              capability.getID() + "' property '" +
+                              propertyName +
+                              "' must be a positive integer");
+  }
+
+  std::uint64_t parsed = 0;
+  if (value.getAsInteger(10, parsed) || parsed == 0)
+    return makeRVVPluginError(llvm::Twine("capability id '") +
+                              capability.getID() + "' property '" +
+                              propertyName +
+                              "' must be a positive integer");
+
+  return parsed;
+}
+
+llvm::Error requireAvailableCapability(
+    const support::TargetCapabilitySet &capabilities, llvm::StringRef id,
+    const support::CapabilityDescriptor *&out) {
+  out = capabilities.lookupByID(id);
+  if (!out)
+    return makeRVVPluginError(llvm::Twine("RVV property decision requires "
+                                          "capability id '") +
+                              id + "'");
+  if (!out->isAvailable())
+    return makeRVVPluginError(llvm::Twine("RVV property decision requires "
+                                          "available capability id '") +
+                              id + "'");
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVCapabilityPropertyView>
+buildRVVCapabilityPropertyView(
+    const support::TargetCapabilitySet &capabilities) {
+  const support::CapabilityDescriptor *rvvCapability = nullptr;
+  if (llvm::Error error =
+          requireAvailableCapability(capabilities, kRVVCapabilityID,
+                                     rvvCapability))
+    return std::move(error);
+
+  llvm::Expected<std::string> architecture =
+      getRequiredRVVProperty(*rvvCapability, kArchitecturePropertyName);
+  if (!architecture)
+    return architecture.takeError();
+  if (llvm::StringRef(*architecture).lower() != "riscv64")
+    return makeRVVPluginError(
+        "capability id 'rvv' property 'architecture' must be riscv64");
+
+  llvm::Expected<std::string> isaVectorHints =
+      getRequiredRVVProperty(*rvvCapability, kISAVectorHintsPropertyName);
+  if (!isaVectorHints)
+    return isaVectorHints.takeError();
+  if (!hasRVVVectorHint(*isaVectorHints))
+    return makeRVVPluginError(
+        "capability id 'rvv' property 'isa_vector_hints' must contain RVV "
+        "vector evidence");
+
+  const support::CapabilityDescriptor *hartCountCapability = nullptr;
+  if (llvm::Error error = requireAvailableCapability(
+          capabilities, rvv::getRVVHartCountCapabilityID(),
+          hartCountCapability))
+    return std::move(error);
+
+  llvm::Expected<std::uint64_t> hartCount =
+      getRequiredPositiveIntegerRVVProperty(*hartCountCapability,
+                                            kHartCountPropertyName);
+  if (!hartCount)
+    return hartCount.takeError();
+
+  const support::CapabilityDescriptor *compileRunCapability = nullptr;
+  if (llvm::Error error = requireAvailableCapability(
+          capabilities, rvv::getRVVProbeCompileRunCapabilityID(),
+          compileRunCapability))
+    return std::move(error);
+
+  llvm::Expected<std::string> selectedMarch =
+      getRequiredRVVProperty(*compileRunCapability, kSelectedMarchPropertyName);
+  if (!selectedMarch)
+    return selectedMarch.takeError();
+  if (!hasRVVVectorHint(*selectedMarch))
+    return makeRVVPluginError(
+        "capability id 'rvv.probe.compile_run' property 'selected_march' must "
+        "contain RVV vector evidence");
+
+  if (const support::CapabilityDescriptor *selectedMarchCapability =
+          capabilities.lookupByID(rvv::getRVVSelectedMarchCapabilityID())) {
+    if (selectedMarchCapability->isAvailable()) {
+      llvm::Expected<std::string> selectedMarchValue = getRequiredRVVProperty(
+          *selectedMarchCapability, kSelectedMarchValuePropertyName);
+      if (!selectedMarchValue)
+        return selectedMarchValue.takeError();
+      if (*selectedMarchValue != *selectedMarch)
+        return makeRVVPluginError(
+            "conflicting RVV property values between capability id "
+            "'rvv.toolchain.march' property 'value' and capability id "
+            "'rvv.probe.compile_run' property 'selected_march'");
+    }
+  }
+
+  RVVCapabilityPropertyView view;
+  view.architecture = std::move(*architecture);
+  view.isaVectorHints = std::move(*isaVectorHints);
+  view.selectedMarch = std::move(*selectedMarch);
+  view.hartCount = *hartCount;
+  return view;
 }
 
 llvm::Expected<bool>
@@ -136,6 +354,44 @@ buildRVVCapabilitySummary(tcrv::exec::VariantOp variant,
     summaries.push_back(kRVVCapabilityID.str());
 
   return llvm::join(summaries, ",");
+}
+
+llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
+                                    const RVVCapabilityPropertyView &view) {
+  mlir::Attribute rawRequiredMarch =
+      variant->getAttr(kRVVRequiredMarchAttrName);
+  if (!rawRequiredMarch)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " requires string 'tcrv_rvv.required_march' metadata");
+
+  auto requiredMarch = llvm::dyn_cast<mlir::StringAttr>(rawRequiredMarch);
+  if (!requiredMarch)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " 'tcrv_rvv.required_march' metadata must be a string attribute");
+
+  llvm::StringRef requiredMarchValue = requiredMarch.getValue().trim();
+  if (requiredMarchValue.empty())
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " 'tcrv_rvv.required_march' metadata must be non-empty");
+
+  std::string context =
+      (llvm::Twine("variant @") + variant.getSymName() +
+       " attribute 'tcrv_rvv.required_march'")
+          .str();
+  if (llvm::Error error = validateRVVPropertyText(
+          context, kRVVRequiredMarchAttrName, requiredMarchValue))
+    return error;
+
+  if (requiredMarchValue != view.selectedMarch)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " 'tcrv_rvv.required_march' metadata is not satisfied by preserved "
+        "capability property 'selected_march'");
+
+  return llvm::Error::success();
 }
 
 llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
@@ -253,14 +509,24 @@ llvm::Error RVVExtensionPlugin::proposeVariants(
   if (!supportsOperation(request))
     return llvm::Error::success();
 
+  llvm::Expected<RVVCapabilityPropertyView> propertyView =
+      buildRVVCapabilityPropertyView(request.getCapabilities());
+  if (!propertyView)
+    return propertyView.takeError();
+
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
-  proposal.setCondition("capability_available");
-  proposal.setGuard("plugin_local_rvv_first_slice");
+  proposal.setCondition("rvv_capability_properties_available");
+  proposal.setGuard("plugin_local_rvv_property_evidence");
   proposal.setPolicy("metadata_only_first_slice");
   proposal.addPluginAttribute(
       getRVVPolicyAttrNameAttr(request.getKernel()->getContext()),
       getExpectedRVVPolicyAttr(request.getKernel()->getContext()));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kRVVRequiredMarchAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            propertyView->selectedMarch));
   out.push_back(proposal);
   return llvm::Error::success();
 }
@@ -299,6 +565,16 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
 
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
+
+  if (variant->hasAttr(kRVVRequiredMarchAttrName)) {
+    llvm::Expected<RVVCapabilityPropertyView> propertyView =
+        buildRVVCapabilityPropertyView(request.getCapabilities());
+    if (!propertyView)
+      return propertyView.takeError();
+
+    if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
+      return error;
+  }
 
   return llvm::Error::success();
 }
