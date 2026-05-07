@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global stack and evidence boundaries for final review"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify core dialect remains compute-free"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify generic passes still route through plugin interfaces"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify RVV-specific semantics stay plugin-local"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify pipeline behavior and selected-path metadata"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify microkernel export and artifact gate semantics"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV bounded microkernel scope"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify tests/evidence satisfy compiler-only claim"}

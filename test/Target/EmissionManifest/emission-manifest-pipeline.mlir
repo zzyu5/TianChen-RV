@@ -44,12 +44,17 @@ module {
 // CHECK: selected_variant: @rvv_first_slice
 // CHECK: role: "dispatch case"
 // CHECK: origin: "rvv-plugin"
-// CHECK: emission_status: "unsupported"
+// CHECK: emission_status: "supported"
+// CHECK: emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"
+// CHECK: lowering_pipeline: "tcrv-export-rvv-microkernel-c"
 // CHECK: lowering_boundary: "tcrv_rvv.lowering_boundary"
-// CHECK: runtime_abi_kind: "rvv-plugin-deferred-runtime-abi"
-// CHECK: runtime_abi_name: "rvv-executable-runtime-abi-deferred"
-// CHECK: runtime_glue_role: "deferred-rvv-runtime-glue"
+// CHECK: runtime_abi: "rvv-i32-vadd-standalone-c-self-check.v1"
+// CHECK: runtime_abi_kind: "rvv-standalone-c-source-export"
+// CHECK: runtime_abi_name: "rvv-i32-vadd-microkernel-standalone-c.v1"
+// CHECK: runtime_glue_role: "standalone-self-check-main"
+// CHECK: artifact_kind: "standalone-c-source"
 // CHECK: required_capabilities: [@rvv]
+// CHECK: explanation: "explicit RVV i32 vector-add microkernel C source export is available for this selected path; this is not generic RVV lowering, runtime ABI integration, arbitrary kernel emission, correctness, or performance evidence"
 // CHECK: path[1]:
 // CHECK: selected_variant: @scalar_fallback_first_slice
 // CHECK: role: "dispatch fallback"

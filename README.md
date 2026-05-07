@@ -74,18 +74,21 @@ performance evidence, and it does not change the RVV first-slice unsupported
 emission boundary.
 
 The `tcrv-translate --tcrv-export-rvv-microkernel-c` tool exports a distinct
-deterministic standalone C executable for exactly one explicit
+deterministic standalone C executable for exactly one selected
 `tcrv_rvv.i32_vadd_microkernel` op attached to a selected RVV path. This is the
-first plugin-local RVV executable microkernel slice: the input MLIR must already
+first plugin-local RVV executable microkernel slice: post-planning MLIR must
 contain a selected `rvv-plugin` variant, matching `tcrv_rvv.lowering_boundary`,
-preserved selected march metadata, and the explicit bounded RVV microkernel op.
-The generated source uses `riscv_vector.h`, RVV i32 add intrinsics, fixed local
-arrays, and a self-checking `main`. It proves only that this explicit generated
-microkernel source can compile and pass its self-check when real `ssh rvv`
-evidence is recorded. It is not generic high-level lowering, arbitrary RVV
-kernel executable emission, runtime ABI glue, or performance evidence; default
-RVV selected paths without the explicit microkernel op remain unsupported and
-deferred.
+preserved selected march metadata, and the bounded RVV microkernel op. The op
+may come from an explicit fixture or from the RVV plugin materializing the
+finite `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` selected
+variant descriptor during the execution-planning pipeline. The generated source
+uses `riscv_vector.h`, RVV i32 add intrinsics, fixed local arrays, and a
+self-checking `main`. It proves only that this bounded generated microkernel
+source can compile and pass its self-check when real `ssh rvv` evidence is
+recorded. It is not generic high-level lowering, arbitrary RVV kernel
+executable emission, runtime ABI glue, or performance evidence; selected RVV
+paths without the finite descriptor or matching microkernel op remain
+unsupported and deferred.
 
 The `tcrv-translate --tcrv-export-target-source-artifact` tool adds a generic
 target artifact routing front door for supported post-planning emission-plan
@@ -94,8 +97,8 @@ lowering-boundary, and plugin-owned emission-plan diagnostics, then dispatched
 through a registered target-owned exporter only after a generic execution-plan
 coherence preflight validates that selected-path, lowering-boundary,
 runtime-ABI, emission-plan, and artifact-route metadata still describe the same
-path. Registered source routes are bounded to explicit plugin-local microkernel
-attachments: the existing RVV microkernel C exporter above and the scalar
+path. Registered source routes are bounded to plugin-local microkernel
+attachments: the RVV i32 vector-add microkernel C exporter above and the scalar
 fallback explicit i32 vector-add portable C exporter below. Unsupported
 metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
 paths, missing boundaries, missing microkernels, route spoofing, and ambiguous
@@ -116,9 +119,10 @@ runtime calls, implement DMA or buffer management, generate accelerator
 objects, link runtime libraries, run offload hardware, prove correctness, or
 measure performance.
 
-When the selected RVV path has that exact explicit microkernel attachment, the
-RVV plugin may also materialize a supported emission-plan diagnostic and the
-generic emission manifest may serialize the handoff as a deterministic
+When the selected RVV path has that exact microkernel attachment, either
+explicitly authored or materialized by the RVV plugin from the finite descriptor,
+the RVV plugin may also materialize a supported emission-plan diagnostic and
+the generic emission manifest may serialize the handoff as a deterministic
 standalone C source export route. That manifest record is still compiler
 handoff metadata: it points downstream tooling to
 `tcrv-translate --tcrv-export-rvv-microkernel-c` and does not claim generic RVV
@@ -181,8 +185,10 @@ on the RVV host when separate `ssh rvv` evidence is recorded. It does not prove
 TianChen-RV lowered a selected kernel, generated an object for that kernel,
 linked runtime glue, produced a correctness result, or measured performance.
 
-For the explicit first microkernel slice, use a post-planning fixture or
-pipeline output that has been combined with `tcrv_rvv.i32_vadd_microkernel`:
+For the first microkernel slice, use post-planning MLIR that contains the
+selected RVV path and matching `tcrv_rvv.i32_vadd_microkernel`. The op may be
+an explicit fixture attachment or a plugin-materialized op produced from the
+finite RVV i32-vadd descriptor by `tcrv-opt --tcrv-execution-planning-pipeline`:
 
 ```bash
 tcrv-translate --tcrv-export-rvv-microkernel-c post_planning_microkernel.mlir \
@@ -192,8 +198,8 @@ tcrv-translate --tcrv-export-target-source-artifact post_planning_microkernel.ml
 ```
 
 Compile and run that source on `ssh rvv` with the selected `-march` and, when
-present, selected `-mabi`. The resulting evidence is bounded to the explicit
-i32 vector-add microkernel self-check and must not be reported as generic
+present, selected `-mabi`. The resulting evidence is bounded to the i32
+vector-add microkernel self-check and must not be reported as generic
 TianChen-RV RVV lowering correctness or performance.
 
 The helper below ties the existing manifest-supported microkernel route to
@@ -209,7 +215,7 @@ python3 scripts/rvv_microkernel_e2e.py --ssh-target rvv
 The dry-run mode runs local compiler tools only and writes sanitized
 post-planning MLIR, emission manifest, generated C source, hashes, and command
 summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Real ssh mode
-adds bounded remote compile/run evidence for the explicit generated
+adds bounded remote compile/run evidence for the generated
 `tcrv_rvv.i32_vadd_microkernel` self-check only. It is not generic RVV lowering,
 runtime ABI integration, arbitrary kernel emission, correctness coverage, or
 performance evidence.

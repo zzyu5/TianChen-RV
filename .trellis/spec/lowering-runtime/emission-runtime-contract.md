@@ -618,14 +618,16 @@ emission remains unsupported/deferred until plugin-local kernel lowering and
 runtime evidence are implemented.
 ```
 
-## RVV Explicit Microkernel Target Export Boundary
+## RVV I32 VAdd Microkernel Target Export Boundary
 
 ### 1. Scope / Trigger
 
 Trigger: post-planning MLIR contains one selected `rvv-plugin` path, a matching
 plugin-owned `tcrv_rvv.lowering_boundary`, preserved selected march metadata,
-and exactly one explicit `tcrv_rvv.i32_vadd_microkernel` op for that selected
-kernel/variant.
+and exactly one `tcrv_rvv.i32_vadd_microkernel` op for that selected
+kernel/variant. The microkernel op may be an explicit fixture attachment or an
+RVV-plugin materialization from the finite selected-variant descriptor
+`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"`.
 
 This export is the first bounded RVV executable microkernel slice. It may emit
 a deterministic standalone C program that computes and self-checks a finite i32
@@ -657,10 +659,14 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
   enclosing kernel capability set must preserve matching selected march metadata
   through `rvv.probe.compile_run.selected_march` or
   `rvv.toolchain.march.value`.
+- If the selected variant asks the RVV plugin to materialize the microkernel,
+  it must carry exactly the finite descriptor
+  `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` and a bounded
+  integer `tcrv_rvv.element_count`; no generic tensor, dtype family, shape, or
+  microarchitecture semantics are implied.
 - A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
   source kernel, selected variant, origin, role, status, and required
-  capability refs. The boundary may remain `status = "unsupported"` because
-  generic RVV emission readiness is still deferred.
+  capability refs.
 - A matching direct child `tcrv_rvv.i32_vadd_microkernel` must identify the same
   selected path, required capability refs, required march, optional selected
   mabi, and bounded element count.

@@ -68,15 +68,17 @@ Use lit/FileCheck for:
   comments, `riscv_vector.h` use, fail-before-source diagnostics for malformed
   selected RVV metadata, and no manifest/runtime-success/raw-log/performance
   claims.
-- RVV explicit microkernel C target export, including dialect parse/verify for
-  `tcrv_rvv.i32_vadd_microkernel`, post-planning or boundary-materialized
-  pipeline-to-export coverage, selected kernel/variant/march comments,
-  `riscv_vector.h` use, RVV i32 load/add/store intrinsics, self-checking
-  `main`, fail-before-source diagnostics for missing selected RVV paths,
-  missing/stale boundaries, missing/duplicate microkernel ops, malformed
-  selected march metadata, and no manifest/runtime-success/raw-log/performance
-  numbers.
-- RVV explicit microkernel emission-plan and emission-manifest handoff,
+- RVV i32 vector-add microkernel materialization and C target export, including
+  dialect parse/verify for `tcrv_rvv.i32_vadd_microkernel`, execution-planning
+  coverage proving the RVV plugin materializes the op from the finite selected
+  descriptor without a hand-authored input microkernel, pipeline-to-export
+  coverage, selected kernel/variant/march comments, `riscv_vector.h` use, RVV
+  i32 load/add/store intrinsics, self-checking `main`, fail-before-source
+  diagnostics for missing selected RVV paths, missing/stale boundaries,
+  missing/duplicate microkernel ops, missing or malformed finite descriptor
+  metadata, malformed selected march metadata, and no
+  manifest/runtime-success/raw-log/performance numbers.
+- RVV microkernel emission-plan and emission-manifest handoff,
   including supported standalone C source export metadata only when a selected
   RVV path has exactly one matching `tcrv_rvv.i32_vadd_microkernel`, manifest
   serialization of the bounded handoff fields, stale/duplicate microkernel

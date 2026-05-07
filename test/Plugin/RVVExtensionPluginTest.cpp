@@ -149,6 +149,18 @@ int expectStringAttr(mlir::Operation *operation, llvm::StringRef attrName,
                     " preserves expected value");
 }
 
+int expectIntegerAttr(mlir::Operation *operation, llvm::StringRef attrName,
+                      int64_t expectedValue) {
+  auto attr = operation->getAttrOfType<mlir::IntegerAttr>(attrName);
+  if (int result =
+          expect(static_cast<bool>(attr),
+                 llvm::Twine("expected integer attribute ") + attrName))
+    return result;
+  return expect(attr.getInt() == expectedValue,
+                llvm::Twine("integer attribute ") + attrName +
+                    " preserves expected value");
+}
+
 mlir::Attribute findProposalAttribute(const VariantProposal &proposal,
                                       llvm::StringRef attrName) {
   for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
@@ -169,6 +181,19 @@ int expectProposalStringAttr(const VariantProposal &proposal,
     return result;
   return expect(attr.getValue() == expectedValue,
                 llvm::Twine("proposal string attribute ") + attrName +
+                    " preserves expected value");
+}
+
+int expectProposalIntegerAttr(const VariantProposal &proposal,
+                              llvm::StringRef attrName, int64_t expectedValue) {
+  auto attr = llvm::dyn_cast_if_present<mlir::IntegerAttr>(
+      findProposalAttribute(proposal, attrName));
+  if (int result =
+          expect(static_cast<bool>(attr),
+                 llvm::Twine("proposal carries integer attribute ") + attrName))
+    return result;
+  return expect(attr.getInt() == expectedValue,
+                llvm::Twine("proposal integer attribute ") + attrName +
                     " preserves expected value");
 }
 
@@ -1061,7 +1086,7 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 2,
+          expect(proposalAttributes.size() == 4,
                  "RVV proposal carries typed policy and property evidence "
                  "attributes"))
     return result;
@@ -1076,6 +1101,14 @@ module {
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
+    return result;
+  if (int result =
+          expectProposalStringAttr(proposals[0],
+                                   "tcrv_rvv.lowering_descriptor",
+                                   "i32-vadd-microkernel.v1"))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1103,6 +1136,14 @@ module {
                      requiredMarchAttr.getValue() == "rv64gcv",
                  "materialized RVV variant has typed origin, requires, and "
                  "plugin-owned property metadata"))
+    return result;
+  if (int result =
+          expectStringAttr(variant.getOperation(),
+                           "tcrv_rvv.lowering_descriptor",
+                           "i32-vadd-microkernel.v1"))
+    return result;
+  if (int result = expectIntegerAttr(variant.getOperation(),
+                                     "tcrv_rvv.element_count", 16))
     return result;
   if (int result = expectRVVPolicyAttr(rvvPolicyAttr, TailPolicy::Agnostic,
                                        MaskPolicy::Agnostic))

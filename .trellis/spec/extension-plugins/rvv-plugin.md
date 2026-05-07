@@ -51,6 +51,9 @@ materialized requires form: requires = [@rvv]
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
+finite lowering descriptor attr name: tcrv_rvv.lowering_descriptor
+finite lowering descriptor value: i32-vadd-microkernel.v1
+finite element-count attr name: tcrv_rvv.element_count
 ```
 
 The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
@@ -83,37 +86,40 @@ legality remains strict: malformed explicit RVV metadata such as
 
 The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`), one typed non-compute RVV policy attribute
-(`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), and a
+(`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), a
 plugin-owned `tcrv_rvv.required_march` string attribute derived from the
-validated `rvv.probe.compile_run.selected_march` property. The generic string
-policy remains the input for core selection/dispatch; the typed
-`tcrv_rvv.policy` attribute and the `tcrv_rvv.required_march` property
-requirement are plugin-local metadata preserved by the generic
-proposal/materialization path and validated by `RVVExtensionPlugin` when
-present on a materialized variant. These fields are compiler-visible metadata
-for the existing generic materialization, legality, capability, and selection
-helpers. They are not RVV lowering, code emission, runtime ABI, correctness
-evidence, or performance evidence.
+validated `rvv.probe.compile_run.selected_march` property, and the finite
+plugin-owned lowering descriptor for exactly the i32 vector-add microkernel
+slice: `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded
+integer `tcrv_rvv.element_count`. The generic string policy remains the input
+for core selection/dispatch; the typed policy, required march, lowering
+descriptor, and element count are plugin-local metadata preserved by the
+generic proposal/materialization path and validated by `RVVExtensionPlugin`
+when present on a materialized variant. These fields are compiler-visible
+metadata for the existing generic materialization, legality, capability, and
+selection helpers. They are not generic tensor semantics, arbitrary RVV
+lowering, runtime correctness evidence, or performance evidence.
 
-The RVV first slice participates in the generic emission-readiness protocol
-only to report an explicit unsupported status. Because this slice has no RVV
-ops, lowering patterns, runtime ABI, executable kernel, toolchain invocation,
-or runtime proof, `RVVExtensionPlugin` must not return a supported emission
-path for `@rvv_first_slice`. The unsupported reason is a diagnostic boundary
-that prevents accidental RVV lowering/runtime claims until a later slice adds
-real lowering and `ssh rvv` evidence.
+When the selected `rvv-plugin` path carries the finite descriptor above,
+`RVVExtensionPlugin` owns the lowering-boundary materialization step that
+creates the matching plugin-local `tcrv_rvv.i32_vadd_microkernel` direct
+kernel-child op. The materialized op must preserve source kernel, selected
+variant, origin, selected role, required capability refs, required march,
+optional selected mabi, and bounded element count. If descriptor metadata is
+missing or malformed, required march is missing, or an explicit matching
+microkernel would make the selected path ambiguous, the plugin must fail before
+claiming a supported emission path.
 
-The explicit microkernel slice is the first narrow exception to that default
-unsupported first-slice boundary. If the selected `rvv-plugin` path has exactly
-one matching `tcrv_rvv.i32_vadd_microkernel` direct kernel-child attachment,
-with selected variant, role, required capability refs, and required march
-matching the selected path, `RVVExtensionPlugin` may report a supported
-plugin-owned emission path for deterministic standalone C source export through
-`tcrv-translate --tcrv-export-rvv-microkernel-c`. This support is bounded to the
-explicit i32 vector-add microkernel artifact route. It does not make default
-`@rvv_first_slice` paths supported, does not provide generic RVV lowering or
-runtime ABI integration, and does not create correctness or performance
-evidence without separate `ssh rvv` compile/run artifacts.
+The microkernel slice is the first narrow exception to the metadata-only RVV
+unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
+`tcrv_rvv.i32_vadd_microkernel` direct kernel-child attachment, either explicitly
+authored or plugin-materialized from the finite descriptor, `RVVExtensionPlugin`
+may report a supported plugin-owned emission path for deterministic standalone C
+source export through `tcrv-translate --tcrv-export-rvv-microkernel-c`. This
+support is bounded to the i32 vector-add microkernel artifact route. It does not
+provide generic RVV lowering or runtime ABI integration, and it does not create
+correctness or performance evidence without separate `ssh rvv` compile/run
+artifacts.
 
 ## Remote Evidence Probe Contract
 
@@ -472,7 +478,7 @@ It does not prove TianChen-RV lowered a selected kernel, emitted LLVM/RISC-V/RVV
 IR, generated an object, linked runtime glue, proved kernel correctness, or
 measured performance.
 
-### Explicit I32 Vector-Add Microkernel Export
+### I32 Vector-Add Microkernel Materialization And Export
 
 `tcrv_rvv.i32_vadd_microkernel` is the first RVV extension-dialect executable
 microkernel op. It represents exactly one bounded i32 vector-add smoke
@@ -484,21 +490,28 @@ tensor/tile/benchmark attributes, unbounded or secret-like strings, invalid
 element counts, stale selected variants, missing or unavailable RVV capability
 refs, and required-march mismatches.
 
+During selected-boundary materialization, `RVVExtensionPlugin` may create this
+op automatically from the selected variant's finite
+`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` and bounded
+`tcrv_rvv.element_count`. This materialization is plugin-owned and must remain
+local to `tcrv_rvv`; generic transforms and `tcrv.exec` must not learn RVV
+compute semantics, dtype dispatch, or microarchitecture-specific branches.
+
 `tcrv-translate --tcrv-export-rvv-microkernel-c` consumes post-planning MLIR
 that has exactly one selected `rvv-plugin` path, a matching
 `tcrv_rvv.lowering_boundary`, preserved selected march metadata, and exactly one
 matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
 `riscv_vector.h`, RVV i32 load/add/store intrinsics, bounded local arrays, and a
 self-checking `main`. Successful `ssh rvv` compile/run evidence for that source
-supports only the explicit microkernel correctness claim. It is not generic
+supports only the bounded microkernel correctness claim. It is not generic
 high-level lowering, arbitrary RVV executable emission, runtime ABI glue, or
 performance evidence.
 
-This target export does not change the default RVV emission readiness or
-emission-plan contract. `@rvv_first_slice` without an explicit matching
-microkernel op remains unsupported/deferred for executable RVV kernel emission.
-Generic manifest export and core orchestration must not add RVV-specific
-branches for this microkernel path.
+This target export does not change the default metadata-only RVV unsupported
+boundary. A selected RVV path without the finite descriptor or exactly one
+matching microkernel op remains unsupported/deferred for executable RVV kernel
+emission. Generic manifest export and core orchestration must not add
+RVV-specific branches for this microkernel path.
 
 ### MLIR vector / LLVM scalable vector
 

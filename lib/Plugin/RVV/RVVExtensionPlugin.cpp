@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
@@ -15,6 +16,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace tianchenrv::plugin {
@@ -29,10 +31,17 @@ constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorAttrName(
+    "tcrv_rvv.lowering_descriptor");
+constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorValue(
+    "i32-vadd-microkernel.v1");
+constexpr llvm::StringLiteral kRVVI32VAddElementCountAttrName(
+    "tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
+constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
@@ -53,6 +62,7 @@ constexpr llvm::StringLiteral kMicrokernelRequiredMarchAttrName(
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
+constexpr std::int64_t kDefaultI32VAddElementCount = 16;
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -66,6 +76,12 @@ struct RVVCapabilityPropertyView {
   std::string isaVectorHints;
   std::string selectedMarch;
   std::uint64_t hartCount = 0;
+};
+
+struct RVVI32VAddMaterializationPlan {
+  std::int64_t elementCount = 0;
+  std::string requiredMarch;
+  std::optional<std::string> selectedMABI;
 };
 
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
@@ -403,6 +419,122 @@ llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
   return llvm::Error::success();
 }
 
+llvm::Expected<std::optional<std::string>> getOptionalSelectedMABI(
+    const support::TargetCapabilitySet &capabilities) {
+  std::optional<std::string> selectedMABI;
+
+  auto mergeMABI = [&](const support::CapabilityDescriptor &capability,
+                       llvm::StringRef propertyName) -> llvm::Error {
+    llvm::StringRef value = capability.getProperty(propertyName).trim();
+    if (value.empty())
+      return llvm::Error::success();
+
+    std::string context =
+        (llvm::Twine("capability id '") + capability.getID() + "'").str();
+    if (llvm::Error error =
+            validateRVVPropertyText(context, propertyName, value))
+      return error;
+
+    if (selectedMABI && *selectedMABI != value)
+      return makeRVVPluginError(
+          "conflicting RVV selected_mabi capability metadata");
+
+    selectedMABI = value.str();
+    return llvm::Error::success();
+  };
+
+  if (const support::CapabilityDescriptor *compileRunCapability =
+          capabilities.lookupByID(rvv::getRVVProbeCompileRunCapabilityID())) {
+    if (compileRunCapability->isAvailable()) {
+      if (llvm::Error error =
+              mergeMABI(*compileRunCapability, kSelectedMABIPropertyName))
+        return std::move(error);
+    }
+  }
+
+  if (const support::CapabilityDescriptor *selectedMABICapability =
+          capabilities.lookupByID(rvv::getRVVSelectedMABICapabilityID())) {
+    if (selectedMABICapability->isAvailable()) {
+      if (llvm::Error error = mergeMABI(*selectedMABICapability,
+                                        kSelectedMarchValuePropertyName))
+        return std::move(error);
+    }
+  }
+
+  return selectedMABI;
+}
+
+llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>>
+buildI32VAddMaterializationPlan(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities,
+    const RVVCapabilityPropertyView &view) {
+  mlir::Attribute rawDescriptor =
+      variant->getAttr(kRVVI32VAddLoweringDescriptorAttrName);
+  if (!rawDescriptor)
+    return std::optional<RVVI32VAddMaterializationPlan>();
+
+  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
+  if (!descriptor || descriptor.getValue().trim().empty())
+    return makeRVVPluginError(
+        llvm::Twine("finite RVV i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " requires string attribute '" +
+        kRVVI32VAddLoweringDescriptorAttrName + "'");
+
+  std::string descriptorContext =
+      (llvm::Twine("variant @") + variant.getSymName() +
+       " finite RVV i32-vadd lowering descriptor")
+          .str();
+  if (llvm::Error error = validateRVVPropertyText(
+          descriptorContext, kRVVI32VAddLoweringDescriptorAttrName,
+          descriptor.getValue().trim()))
+    return std::move(error);
+
+  if (descriptor.getValue().trim() != kRVVI32VAddLoweringDescriptorValue)
+    return makeRVVPluginError(
+        llvm::Twine("finite RVV i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " must be '" +
+        kRVVI32VAddLoweringDescriptorValue + "'");
+
+  auto elementCountAttr =
+      variant->getAttrOfType<mlir::IntegerAttr>(
+          kRVVI32VAddElementCountAttrName);
+  if (!elementCountAttr)
+    return makeRVVPluginError(
+        llvm::Twine("finite RVV i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " requires integer attribute '" +
+        kRVVI32VAddElementCountAttrName + "'");
+
+  std::int64_t elementCount = elementCountAttr.getInt();
+  if (elementCount <= 0 || elementCount > 64)
+    return makeRVVPluginError(
+        llvm::Twine("finite RVV i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() +
+        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
+
+  auto requiredMarch =
+      variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
+  if (!requiredMarch || requiredMarch.getValue().trim().empty())
+    return makeRVVPluginError(
+        llvm::Twine("finite RVV i32-vadd lowering descriptor on variant @") +
+        variant.getSymName() + " requires string 'tcrv_rvv.required_march' "
+                               "metadata");
+
+  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
+    return std::move(error);
+
+  llvm::Expected<std::optional<std::string>> selectedMABI =
+      getOptionalSelectedMABI(capabilities);
+  if (!selectedMABI)
+    return selectedMABI.takeError();
+
+  RVVI32VAddMaterializationPlan plan;
+  plan.elementCount = elementCount;
+  plan.requiredMarch = requiredMarch.getValue().trim().str();
+  plan.selectedMABI = std::move(*selectedMABI);
+  return plan;
+}
+
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
 }
@@ -428,6 +560,38 @@ llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
         llvm::Twine("requires no pre-existing tcrv_rvv.lowering_boundary for "
                     "target @") +
         targetSymbol);
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error rejectExistingRVVMicrokernelForSelectedPath(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    VariantEmissionRole role) {
+  if (!kernel || kernel.getBody().empty())
+    return llvm::Error::success();
+
+  llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<tcrv::rvv::I32VAddMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+
+    auto target =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    auto microkernelRole = getStringAttr(&op, kRoleAttrName);
+    llvm::StringRef targetSymbol =
+        target ? target.getValue() : llvm::StringRef("<missing>");
+    llvm::StringRef roleValue = microkernelRole
+                                    ? microkernelRole.getValue()
+                                    : llvm::StringRef("<missing>");
+    if (targetSymbol != variant.getSymName() || roleValue != expectedRole)
+      continue;
+
+    return makeRVVPluginError(
+        llvm::Twine("requires no pre-existing "
+                    "tcrv_rvv.i32_vadd_microkernel for target @") +
+        targetSymbol + " as " + expectedRole);
   }
 
   return llvm::Error::success();
@@ -585,6 +749,17 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
                             kRVVRequiredMarchAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             propertyView->selectedMarch));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kRVVI32VAddLoweringDescriptorAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kRVVI32VAddLoweringDescriptorValue));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kRVVI32VAddElementCountAttrName),
+      mlir::IntegerAttr::get(mlir::IntegerType::get(
+                                 request.getKernel()->getContext(), 64),
+                             kDefaultI32VAddElementCount));
   return proposal;
 }
 
@@ -617,6 +792,34 @@ tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
           "lowering pipeline, runtime ABI, generated artifact, correctness "
           "proof, or performance measurement is produced"));
   return llvm::cast<tcrv::rvv::LoweringBoundaryOp>(builder.create(state));
+}
+
+tcrv::rvv::I32VAddMicrokernelOp materializeRVVI32VAddMicrokernelOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role,
+    const RVVI32VAddMaterializationPlan &plan) {
+  auto requiredCapabilities =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+
+  mlir::OperationState state(
+      variant.getLoc(), tcrv::rvv::I32VAddMicrokernelOp::getOperationName());
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  variant.getSymName()));
+  state.addAttribute(kOriginAttrName, builder.getStringAttr(kRVVPluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(kElementCountAttrName,
+                     builder.getI64IntegerAttr(plan.elementCount));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
+  state.addAttribute(kMicrokernelRequiredMarchAttrName,
+                     builder.getStringAttr(plan.requiredMarch));
+  if (plan.selectedMABI)
+    state.addAttribute(kSelectedMABIAttrName,
+                       builder.getStringAttr(*plan.selectedMABI));
+  return llvm::cast<tcrv::rvv::I32VAddMicrokernelOp>(builder.create(state));
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -745,14 +948,22 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
 
-  if (variant->hasAttr(kRVVRequiredMarchAttrName)) {
+  if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
+      variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName)) {
     llvm::Expected<RVVCapabilityPropertyView> propertyView =
         buildRVVCapabilityPropertyView(request.getCapabilities());
     if (!propertyView)
       return propertyView.takeError();
 
-    if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
-      return error;
+    if (variant->hasAttr(kRVVRequiredMarchAttrName))
+      if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
+        return error;
+
+    llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>>
+        microkernelPlan = buildI32VAddMaterializationPlan(
+            variant, request.getCapabilities(), *propertyView);
+    if (!microkernelPlan)
+      return microkernelPlan.takeError();
   }
 
   return llvm::Error::success();
@@ -895,9 +1106,33 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   if (!capabilitySummary)
     return capabilitySummary.takeError();
 
+  std::optional<RVVI32VAddMaterializationPlan> microkernelPlan;
+  if (variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName)) {
+    llvm::Expected<RVVCapabilityPropertyView> propertyView =
+        buildRVVCapabilityPropertyView(request.getCapabilities());
+    if (!propertyView)
+      return propertyView.takeError();
+
+    llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>> planned =
+        buildI32VAddMaterializationPlan(variant, request.getCapabilities(),
+                                        *propertyView);
+    if (!planned)
+      return planned.takeError();
+    microkernelPlan = std::move(*planned);
+  }
+
+  if (microkernelPlan)
+    if (llvm::Error error =
+            rejectExistingRVVMicrokernelForSelectedPath(kernel, variant,
+                                                        request.getRole()))
+      return error;
+
   tcrv::rvv::LoweringBoundaryOp boundary = materializeRVVBoundaryOp(
       request.getBuilder(), kernel, variant, request.getRole(),
       *capabilitySummary);
+  if (microkernelPlan)
+    materializeRVVI32VAddMicrokernelOp(request.getBuilder(), kernel, variant,
+                                       request.getRole(), *microkernelPlan);
   out = VariantLoweringBoundaryResult::getMaterialized(
       kRVVPluginName, kernel.getSymName(), variant.getSymName(),
       request.getRole(), boundary.getOperation());

@@ -24,8 +24,14 @@
 # MISSING-PLAN: execution plan coherence check failed for kernel @micro_a
 # MISSING-PLAN-SAME: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before export preflight
 
-# RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-RVV --implicit-check-not="#include <riscv_vector.h>"
-# UNSUPPORTED-RVV: requires exactly one supported source artifact emission-plan route; found none
+# RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact > %t.auto-rvv.c
+# RUN: FileCheck %s --check-prefix=AUTO-RVV --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.auto-rvv.c
+# AUTO-RVV: /* selected_kernel: @pipeline_manifest */
+# AUTO-RVV: /* selected_variant: @rvv_first_slice */
+# AUTO-RVV: /* selected_role: dispatch case */
+# AUTO-RVV: /* selected_march: rv64gcv */
+# AUTO-RVV: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+# AUTO-RVV: __riscv_vadd_vv_i32m1
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE --implicit-check-not="#include <riscv_vector.h>"
 # STALE: stale emission-plan diagnostic is not selected by the current execution plan surface

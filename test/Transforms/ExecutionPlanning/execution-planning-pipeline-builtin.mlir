@@ -43,6 +43,8 @@ module {
     // PIPE-SAME: origin = "rvv-plugin"
     // PIPE-SAME: policy = "metadata_only_first_slice"
     // PIPE-SAME: requires = [@rvv]
+    // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
+    // PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
     // PIPE-SAME: tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
     // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
@@ -73,6 +75,14 @@ module {
     // PIPE-SAME: selected_variant = @rvv_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE-SAME: status = "unsupported"
+    // PIPE: tcrv_rvv.i32_vadd_microkernel
+    // PIPE-SAME: element_count = 16 : i64
+    // PIPE-SAME: origin = "rvv-plugin"
+    // PIPE-SAME: required_capabilities = [@rvv]
+    // PIPE-SAME: required_march = "rv64gcv"
+    // PIPE-SAME: role = "dispatch case"
+    // PIPE-SAME: selected_variant = @rvv_first_slice
+    // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE: tcrv_scalar.lowering_boundary
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: required_capabilities = [@scalar_fallback]
@@ -82,13 +92,15 @@ module {
     // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
+    // PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@rvv]
     // PIPE-SAME: role = "dispatch case"
-    // PIPE-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-    // PIPE-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-    // PIPE-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
-    // PIPE-SAME: status = "unsupported"
+    // PIPE-SAME: runtime_abi = "rvv-i32-vadd-standalone-c-self-check.v1"
+    // PIPE-SAME: runtime_abi_kind = "rvv-standalone-c-source-export"
+    // PIPE-SAME: runtime_abi_name = "rvv-i32-vadd-microkernel-standalone-c.v1"
+    // PIPE-SAME: runtime_glue_role = "standalone-self-check-main"
+    // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @rvv_first_slice
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: artifact_kind = "metadata-diagnostic"
@@ -107,6 +119,8 @@ module {
 
     // ROUNDTRIP: tcrv.exec.dispatch
     // ROUNDTRIP: tcrv_rvv.lowering_boundary
+    // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
+    // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_scalar.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
