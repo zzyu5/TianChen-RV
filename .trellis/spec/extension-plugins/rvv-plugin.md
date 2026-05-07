@@ -275,7 +275,7 @@ Rules:
 - RVV-specific interpretation stays in the RVV plugin/dialect implementation.
 - The generic pass routes dispatch fallback references to their origin plugin;
   the RVV first slice returns no boundary for fallback role, and scalar fallback
-  returns a metadata-only no-boundary result without receiving RVV ops.
+  materializes `tcrv_scalar.lowering_boundary` without receiving RVV ops.
 - Kernels without a dispatch or direct selected-path diagnostic are diagnosed
   before any plugin lowering-boundary hook is invoked.
 - The boundary op remains `status = "unsupported"` until a later RVV lowering

@@ -1,6 +1,8 @@
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 
+#include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -20,8 +22,16 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
+constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
+constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kRoleAttrName("role");
+constexpr llvm::StringLiteral kStatusAttrName("status");
+constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
+    "required_capabilities");
+constexpr llvm::StringLiteral kFallbackReasonAttrName("fallback_reason");
+constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 
 llvm::Error makeScalarPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -66,6 +76,63 @@ llvm::Expected<bool> variantRequiresScalarFallback(
   }
 
   return false;
+}
+
+tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role) {
+  builder.getContext()->getOrLoadDialect<tcrv::scalar::TCRVScalarDialect>();
+
+  auto requiredCapabilities =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+
+  mlir::OperationState state(
+      variant.getLoc(), tcrv::scalar::LoweringBoundaryOp::getOperationName());
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  variant.getSymName()));
+  state.addAttribute(kOriginAttrName,
+                     builder.getStringAttr(kScalarPluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kMetadataOnlyStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
+  state.addAttribute(
+      kFallbackReasonAttrName,
+      builder.getStringAttr(
+          "scalar fallback selected boundary is plugin-owned metadata only; "
+          "no scalar executable lowering, runtime ABI, generated artifact, "
+          "correctness proof, or performance measurement is produced"));
+  return llvm::cast<tcrv::scalar::LoweringBoundaryOp>(builder.create(state));
+}
+
+llvm::Error rejectExistingScalarBoundaryForVariant(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
+  if (!kernel || kernel.getBody().empty())
+    return llvm::Error::success();
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto boundary = llvm::dyn_cast<tcrv::scalar::LoweringBoundaryOp>(op);
+    if (!boundary)
+      continue;
+
+    auto target =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    llvm::StringRef targetSymbol =
+        target ? target.getValue() : llvm::StringRef("<missing>");
+    if (targetSymbol != variant.getSymName())
+      continue;
+
+    return makeScalarPluginError(
+        llvm::Twine("requires no pre-existing "
+                    "tcrv_scalar.lowering_boundary for target @") +
+        targetSymbol);
+  }
+
+  return llvm::Error::success();
 }
 
 const scalar::ScalarExtensionPlugin &getBuiltinScalarExtensionPlugin() {
@@ -123,7 +190,7 @@ ScalarExtensionPlugin::getCapabilities() const {
 
 void ScalarExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
-  (void)registry;
+  registry.insert<tcrv::scalar::TCRVScalarDialect>();
 }
 
 bool ScalarExtensionPlugin::supportsOperation(
@@ -255,11 +322,18 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  out = VariantLoweringBoundaryResult::getNoBoundary(
+  if (llvm::Error error = rejectExistingScalarBoundaryForVariant(
+          request.getKernel(), request.getVariant()))
+    return error;
+
+  tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
+      request.getBuilder(), request.getKernel(), request.getVariant(),
+      request.getRole());
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "scalar fallback first slice is metadata-only and does not materialize "
-      "plugin lowering-boundary operations");
+      boundary.getOperation());
   return llvm::Error::success();
 }
 

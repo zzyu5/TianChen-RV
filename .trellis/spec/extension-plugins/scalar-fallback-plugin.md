@@ -81,11 +81,45 @@ runtime, executed a scalar kernel, proved correctness, or measured performance.
 ## Selected Lowering Boundary
 
 Scalar fallback participates in the generic selected lowering-boundary registry
-path. Its first slice validates the selected scalar fallback variant through the
-same plugin-local legality rules, then returns a no-boundary result. It must not
-materialize `tcrv_rvv` operations, must not be treated as executable lowering,
-and must not cause a missing-plugin diagnostic when selected as a fallback-only
-or dispatch fallback path.
+path. Its first selected-boundary slice validates the selected scalar fallback
+variant through the same plugin-local legality rules, then materializes the
+plugin-local scalar metadata operation:
+
+```mlir
+tcrv_scalar.lowering_boundary {
+  source_kernel = "kernel_symbol",
+  selected_variant = @scalar_fallback_first_slice,
+  origin = "scalar-plugin",
+  role = "direct variant",
+  status = "metadata-only",
+  required_capabilities = [@scalar_fallback],
+  fallback_reason = "portable scalar fallback metadata boundary"
+}
+```
+
+Architectural family:
+
+```text
+tcrv.scalar
+```
+
+Concrete MLIR namespace:
+
+```text
+tcrv_scalar
+```
+
+The boundary op is a direct child of a `tcrv.exec.kernel`, references a direct
+sibling selected scalar fallback `tcrv.exec.variant`, and carries the selected
+variant's required capability symbol references. It must not materialize
+`tcrv_rvv` operations, must not be treated as executable lowering, and must not
+cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
+fallback path.
+
+The only first-slice status is `metadata-only`. The scalar boundary records a
+plugin-owned attachment point and explicit fallback metadata only; it does not
+mean that TianChen-RV emitted LLVM IR, generated an object, linked a runtime,
+executed a scalar kernel, proved correctness, or measured performance.
 
 Real scalar fallback lowering must be added by a later plugin-local lowering
 slice and validated with compiler-generated artifacts and runtime evidence

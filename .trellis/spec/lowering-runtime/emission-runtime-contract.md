@@ -68,9 +68,10 @@ Rules:
 Before executable lowering exists, the compiler may materialize selected-path
 lowering-boundary metadata through the generic extension plugin registry. RVV is
 the first plugin that creates a plugin-local `tcrv_rvv.lowering_boundary`
-operation for selected RVV direct variants or dispatch cases. Scalar fallback is
-a valid metadata-only no-boundary response. These structures are attachment
-points for future lowering work, not executable lowering products.
+operation for selected RVV direct variants or dispatch cases. Scalar fallback
+creates a plugin-local `tcrv_scalar.lowering_boundary` operation for selected
+portable fallback paths. These structures are attachment points for future
+lowering work, not executable lowering products.
 
 Rules:
 
@@ -79,10 +80,13 @@ Rules:
 - ownership and legality are routed through the `ExtensionPluginRegistry` and
   the selected variant's origin plugin before any plugin-local metadata is
   created;
-- scalar or other fallback references remain `tcrv.exec.fallback` metadata and
-  may return a no-boundary result without receiving RVV ops;
+- scalar or other fallback references remain selected `tcrv.exec` metadata and
+  are routed to their origin plugin; scalar fallback materializes scalar
+  plugin-local metadata and must not receive RVV ops;
 - RVV boundary ops must carry `status = "unsupported"` and a non-empty
   unsupported reason;
+- scalar fallback boundary ops must carry `status = "metadata-only"` and
+  selected variant, origin, role, and required capability reference metadata;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.
@@ -312,3 +316,11 @@ emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
 reporting executable support.
+
+The selected scalar fallback boundary is slightly more concrete than an
+emission-plan diagnostic because it is a scalar extension-dialect op:
+`tcrv_scalar.lowering_boundary`. It records selected fallback metadata and
+required capability references, but it remains metadata-only and non-executable.
+It is not evidence that the compiler emitted LLVM IR, assembled an object,
+linked runtime glue, ran a scalar kernel, proved correctness, or measured
+performance.

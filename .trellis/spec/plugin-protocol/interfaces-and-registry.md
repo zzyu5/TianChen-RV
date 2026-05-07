@@ -37,9 +37,11 @@ Responsibilities:
 - RVV plugin registers the RVV extension dialect family. The current concrete
   MLIR namespace is `tcrv_rvv` because MLIR dialect namespaces cannot contain
   `.` characters; the architectural family remains `tcrv.rvv`;
-- scalar fallback first slice may register no dialect when it only contributes
-  variant/fallback metadata and emission-plan routing; future scalar execution
-  ops must be plugin-local rather than added to `tcrv.exec`;
+- scalar fallback registers the scalar extension metadata dialect family. The
+  current concrete MLIR namespace is `tcrv_scalar`; the architectural family
+  remains `tcrv.scalar`. First-slice scalar operations are selected-boundary
+  metadata only, and future scalar execution ops must stay plugin-local rather
+  than being added to `tcrv.exec`;
 - IME plugin registers `tcrv.ime`;
 - offload plugin registers `tcrv.offload`;
 - future plugins register their own extension dialects.
@@ -276,15 +278,18 @@ relationships, missing or empty origins, unknown origin plugins, disabled
 origin plugins, plugin failures, unsupported plugin responses, and malformed or
 mismatched results with generic diagnostics. A materialized result must identify
 the request origin/kernel/variant/role and return a direct child operation in
-the request kernel. A no-boundary result is valid when the origin plugin owns a
-metadata-only selected path such as scalar fallback.
+the request kernel. Scalar fallback materializes
+`tcrv_scalar.lowering_boundary` for selected fallback metadata. A no-boundary
+result remains valid only for an origin plugin whose durable selected-path
+contract explicitly says no plugin-local boundary operation is needed.
 
 The generic pass `--tcrv-materialize-selected-lowering-boundaries` traverses
 selected dispatch cases followed by fallback, or a direct selected-path marker
 when no dispatch exists, and delegates each reference to the registry. The pass
 must not branch on RVV, scalar, IME, offload, vendor, runtime, dtype, shape, or
 microarchitecture semantics. Plugin-local implementations decide whether to
-create extension-dialect metadata such as `tcrv_rvv.lowering_boundary`.
+create extension-dialect metadata such as `tcrv_rvv.lowering_boundary` or
+`tcrv_scalar.lowering_boundary`.
 
 ### EmissionProvider
 

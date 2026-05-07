@@ -44,6 +44,13 @@ module {
     // CHECK-SAME: selected_variant = @rvv_first_slice
     // CHECK-SAME: source_kernel = "public_rvv_plus_scalar_boundary"
     // CHECK-SAME: status = "unsupported"
+    // CHECK: tcrv_scalar.lowering_boundary
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: required_capabilities = [@scalar_fallback]
+    // CHECK-SAME: role = "dispatch fallback"
+    // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
+    // CHECK-SAME: source_kernel = "public_rvv_plus_scalar_boundary"
+    // CHECK-SAME: status = "metadata-only"
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: role = "dispatch case"
@@ -64,8 +71,8 @@ module {
 // -----
 
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @public_scalar_only_no_rvv_boundary
-  tcrv.exec.kernel @public_scalar_only_no_rvv_boundary {
+  // CHECK-LABEL: tcrv.exec.kernel @public_scalar_only_scalar_boundary
+  tcrv.exec.kernel @public_scalar_only_scalar_boundary {
     tcrv.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -78,10 +85,17 @@ module {
       requires = [@scalar_fallback]
     } {
     }
-    // CHECK-NOT: tcrv_rvv.lowering_boundary
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: selection_kind = "fallback-only"
     // CHECK-SAME: target = @scalar_fallback_first_slice
+    // CHECK: tcrv_scalar.lowering_boundary
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: required_capabilities = [@scalar_fallback]
+    // CHECK-SAME: role = "direct variant"
+    // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
+    // CHECK-SAME: source_kernel = "public_scalar_only_scalar_boundary"
+    // CHECK-SAME: status = "metadata-only"
+    // CHECK-NOT: tcrv_rvv.lowering_boundary
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: status = "metadata-only"
     // CHECK-SAME: target = @scalar_fallback_first_slice

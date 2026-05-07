@@ -1,0 +1,6 @@
+set(LLVM_TARGET_DEFINITIONS ScalarOps.td)
+mlir_tablegen(ScalarOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_scalar)
+mlir_tablegen(ScalarOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_scalar)
+mlir_tablegen(ScalarOps.h.inc -gen-op-decls)
+mlir_tablegen(ScalarOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRScalarOpsIncGen)

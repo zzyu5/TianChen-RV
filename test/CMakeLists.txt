@@ -92,6 +92,7 @@ add_executable(tianchenrv-scalar-extension-plugin-test
 target_link_libraries(tianchenrv-scalar-extension-plugin-test
   PRIVATE
   TianChenRVInitAll
+  TianChenRVBuiltinPlugins
   TianChenRVPlugin
   TianChenRVScalarPlugin
   TianChenRVSupport

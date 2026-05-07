@@ -42,8 +42,10 @@ Selected-path lowering-boundary materialization is routed through the generic
 extension plugin registry. The public `tcrv-opt` pass
 `--tcrv-materialize-selected-lowering-boundaries` delegates selected direct,
 dispatch-case, and dispatch-fallback variant references to their origin plugin.
-RVV is the first materializing implementation; scalar fallback is a valid
-metadata-only no-boundary response.
+RVV materializes `tcrv_rvv.lowering_boundary` for selected RVV paths; scalar
+fallback materializes `tcrv_scalar.lowering_boundary` for selected portable
+fallback paths. Both surfaces are compiler metadata only and do not claim
+executable lowering.
 
 ## Build
 
@@ -100,3 +102,11 @@ It marks a generic conservative fallback role for dispatch synthesis and emits
 metadata-only readiness/plan diagnostics. It does not add a new high-level
 compute op, emit executable code, prove correctness, or measure performance in
 this slice.
+
+The scalar fallback plugin also owns the concrete `tcrv_scalar` MLIR namespace.
+Its first operation, `tcrv_scalar.lowering_boundary`, records selected fallback
+boundary metadata such as source kernel, selected variant, origin plugin,
+selected-path role, required capability references, and metadata-only status.
+It is a plugin-local attachment point for future scalar lowering work, not
+scalar computation, LLVM lowering, runtime ABI glue, object generation,
+correctness evidence, or performance evidence.

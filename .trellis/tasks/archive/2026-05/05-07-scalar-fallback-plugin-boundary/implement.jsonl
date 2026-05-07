@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for compiler stack and extension boundaries"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec execution-only and compute-free"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin names, capability, metadata-only emission, and selected-boundary contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Mirror RVV plugin-owned boundary pattern without changing RVV behavior"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Use registry interfaces and plugin-owned selected lowering-boundary materialization"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keep extension-specific logic plugin-local"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Preserve non-executable lowering/emission/runtime evidence boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Maintain public planning pipeline and fallback-preserving proposal behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++ coverage and evidence boundaries"}

@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-select-variants --tcrv-check-emission-paths --tcrv-materialize-emission-plans | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-check-emission-paths --tcrv-materialize-emission-plans | FileCheck %s
 
 module {
   // CHECK-LABEL: tcrv.exec.kernel @public_scalar_fallback
@@ -20,6 +20,13 @@ module {
     // CHECK-SAME: selection_kind = "fallback-only"
     // CHECK-SAME: status = "selected"
     // CHECK-SAME: target = @scalar_fallback_first_slice
+    // CHECK: tcrv_scalar.lowering_boundary
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: required_capabilities = [@scalar_fallback]
+    // CHECK-SAME: role = "direct variant"
+    // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
+    // CHECK-SAME: source_kernel = "public_scalar_fallback"
+    // CHECK-SAME: status = "metadata-only"
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: artifact_kind = "metadata-diagnostic"
     // CHECK-SAME: emission_kind = "portable-scalar-fallback-metadata-route"

@@ -62,6 +62,13 @@ module {
     // PIPE-SAME: selected_variant = @rvv_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
     // PIPE-SAME: status = "unsupported"
+    // PIPE: tcrv_scalar.lowering_boundary
+    // PIPE-SAME: origin = "scalar-plugin"
+    // PIPE-SAME: required_capabilities = [@scalar_fallback]
+    // PIPE-SAME: role = "dispatch fallback"
+    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+    // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
+    // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: role = "dispatch case"
@@ -80,6 +87,8 @@ module {
     // ROUNDTRIP: tcrv.exec.dispatch
     // ROUNDTRIP: tcrv_rvv.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
+    // ROUNDTRIP: tcrv_scalar.lowering_boundary
+    // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
   }
 }
 
@@ -111,6 +120,13 @@ module {
     // PIPE-SAME: reason = "variant-selected"
     // PIPE-SAME: selection_kind = "fallback-only"
     // PIPE-SAME: target = @scalar_fallback_first_slice
+    // PIPE: tcrv_scalar.lowering_boundary
+    // PIPE-SAME: origin = "scalar-plugin"
+    // PIPE-SAME: required_capabilities = [@scalar_fallback]
+    // PIPE-SAME: role = "direct variant"
+    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+    // PIPE-SAME: source_kernel = "pipeline_scalar_after_rvv_decline"
+    // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: role = "direct variant"
@@ -119,6 +135,8 @@ module {
 
     // ROUNDTRIP-NOT: tcrv.exec.variant @rvv_first_slice
     // ROUNDTRIP: tcrv.exec.variant @scalar_fallback_first_slice
+    // ROUNDTRIP: tcrv_scalar.lowering_boundary
+    // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
     // ROUNDTRIP: tcrv.exec.diagnostic
     // ROUNDTRIP-SAME: target = @scalar_fallback_first_slice
   }

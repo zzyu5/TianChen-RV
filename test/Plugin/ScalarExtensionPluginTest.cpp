@@ -1,4 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -25,9 +27,12 @@ using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
+using tianchenrv::plugin::VariantLoweringBoundaryRequest;
+using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -98,6 +103,25 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
     if (variant.getSymName() == symbolName)
       result = variant;
   });
+  return result;
+}
+
+LoweringBoundaryOp findScalarBoundary(KernelOp kernel,
+                                      llvm::StringRef selectedVariantSymbol) {
+  LoweringBoundaryOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto boundary = llvm::dyn_cast<LoweringBoundaryOp>(op);
+    if (!boundary)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = boundary;
+  }
   return result;
 }
 
@@ -414,6 +438,76 @@ module {
   if (int result = expect(marker, "selected-path marker was created"))
     return result;
 
+  VariantLoweringBoundaryResult boundaryResult;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                boundaryResult),
+            "scalar fallback selected boundary materializes through plugin"))
+      return result;
+  }
+  if (int result =
+          expect(boundaryResult.isMaterialized(),
+                 "scalar fallback boundary result is materialized"))
+    return result;
+  auto scalarBoundary =
+      llvm::dyn_cast_or_null<LoweringBoundaryOp>(
+          boundaryResult.getMaterializedOperation());
+  if (int result = expect(scalarBoundary,
+                          "scalar fallback boundary is a tcrv_scalar op"))
+    return result;
+  if (int result =
+          expect(scalarBoundary->getParentOp() == kernel.getOperation(),
+                 "scalar fallback boundary is a direct kernel child"))
+    return result;
+  if (int result =
+          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>(
+                     "source_kernel")
+                         .getValue() == kernel.getSymName(),
+                 "scalar boundary preserves source kernel metadata"))
+    return result;
+  if (int result =
+          expect(scalarBoundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
+                     "selected_variant")
+                         .getValue() == variant.getSymName(),
+                 "scalar boundary preserves selected variant reference"))
+    return result;
+  if (int result =
+          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>("origin")
+                         .getValue() ==
+                     tianchenrv::plugin::scalar::
+                         getScalarExtensionPluginName(),
+                 "scalar boundary preserves origin plugin metadata"))
+    return result;
+  if (int result =
+          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>("role")
+                         .getValue() == "direct variant" &&
+                     scalarBoundary->getAttrOfType<mlir::StringAttr>("status")
+                         .getValue() == "metadata-only",
+                 "scalar boundary records direct metadata-only selected path"))
+    return result;
+  if (int result =
+          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>(
+                     "fallback_reason")
+                         .getValue()
+                         .contains("plugin-owned metadata only"),
+                 "scalar boundary carries non-executable fallback reason"))
+    return result;
+  auto boundaryRequires =
+      scalarBoundary->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
+  if (int result = expect(boundaryRequires && boundaryRequires == requiresAttr,
+                          "scalar boundary preserves capability references"))
+    return result;
+  if (int result =
+          expect(mlir::succeeded(mlir::verify(*module)),
+                 "scalar boundary module verifies after materialization"))
+    return result;
+
   VariantEmissionStatus status;
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
@@ -451,6 +545,156 @@ module {
                      emissionPlan.getRuntimeABI() == "none-metadata-only" &&
                      emissionPlan.getArtifactKind() == "metadata-diagnostic",
                  "scalar fallback emission plan records stable metadata-only route"))
+    return result;
+
+  return 0;
+}
+
+int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @scalar_boundary_rejections attributes {} {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.capability @portable {
+      id = "portable",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @malformed_scalar_selected attributes {
+      origin = "scalar-plugin",
+      requires = [@portable]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse scalar boundary rejection module");
+
+  KernelOp kernel = findKernel(*module, "scalar_boundary_rejections");
+  VariantOp malformed = findVariant(kernel, "malformed_scalar_selected");
+  if (int result = expect(kernel && malformed,
+                          "boundary rejection module has anchors"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+                            registry),
+                        "register scalar fallback plugin for boundary rejection"))
+    return result;
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  mlir::OpBuilder builder(&context);
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+  VariantLoweringBoundaryResult boundaryResult;
+  return expectErrorContains(
+      registry.materializeSelectedLoweringBoundary(
+          VariantLoweringBoundaryRequest(malformed, kernel, capabilities,
+                                         VariantEmissionRole::DirectVariant,
+                                         builder),
+          boundaryResult),
+      {"selected scalar fallback variant @malformed_scalar_selected",
+       "failed plugin legality before boundary materialization",
+       "must require capability id", "scalar.fallback"});
+}
+
+int runRVVDeclineStillMaterializesScalarBoundaryTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @rvv_decline_scalar_boundary attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV-decline scalar boundary module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "rvv_decline_scalar_boundary");
+  if (int result =
+          expect(highLevelOp && kernel,
+                 "RVV-decline scalar boundary module has anchors"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
+                            registry),
+                        "register built-in plugins for RVV decline coverage"))
+    return result;
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
+                                 capabilities);
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 2> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize scalar proposal after recoverable RVV decline"))
+    return result;
+  if (int result =
+          expect(materializedVariants.size() == 1,
+                 "RVV decline leaves one scalar fallback proposal"))
+    return result;
+
+  VariantOp scalarVariant =
+      findVariant(kernel, tianchenrv::plugin::scalar::
+                              getScalarFallbackFirstSliceVariantName());
+  if (int result = expect(scalarVariant,
+                          "scalar fallback variant exists after RVV decline"))
+    return result;
+
+  llvm::Expected<VariantSelectionPlan> planOrError =
+      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+                                                         registry);
+  if (!planOrError)
+    return fail("RVV-decline scalar selection planning failed: " +
+                llvm::toString(planOrError.takeError()));
+
+  DiagnosticOp marker;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, *planOrError, &marker),
+          "materialize selected marker after RVV decline"))
+    return result;
+
+  if (int result = expectSuccess(
+          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+              kernel, capabilities, registry),
+          "materialize scalar boundary after RVV decline"))
+    return result;
+
+  if (int result =
+          expect(findScalarBoundary(kernel, scalarVariant.getSymName()),
+                 "RVV decline does not block scalar boundary materialization"))
+    return result;
+  if (int result =
+          expect(mlir::succeeded(mlir::verify(*module)),
+                 "RVV-decline scalar boundary module verifies"))
     return result;
 
   return 0;
@@ -562,6 +806,10 @@ int main() {
   if (int result = runProposalGatingTest(context))
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
+    return result;
+  if (int result = runBoundaryMaterializationRejectionTest(context))
+    return result;
+  if (int result = runRVVDeclineStillMaterializesScalarBoundaryTest(context))
     return result;
   if (int result = runLegalityRejectionTest(context))
     return result;

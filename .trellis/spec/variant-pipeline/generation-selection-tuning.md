@@ -82,10 +82,12 @@ tcrv-materialize-plugin-variants
 The pipeline consumes existing `tcrv.exec.kernel` and direct
 `tcrv.exec.capability` anchors, routes proposal/cost/lowering/emission-plan
 queries through an injected `ExtensionPluginRegistry`, and materializes only
-compiler-visible planning metadata. In `tcrv-opt`, the tool boundary may inject
-the deterministic built-in registry; embeddable library builders must remain
-usable with an explicitly supplied registry and must not create hidden
-target-specific global state.
+compiler-visible planning metadata, including plugin-local selected-boundary
+ops such as `tcrv_rvv.lowering_boundary` and
+`tcrv_scalar.lowering_boundary`. In `tcrv-opt`, the tool boundary may inject the
+deterministic built-in registry; embeddable library builders must remain usable
+with an explicitly supplied registry and must not create hidden target-specific
+global state.
 
 The `tcrv-select-variants` stage is the capability-aware selection and dispatch
 planning stage for this pipeline. The older order-based

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global C++/MLIR/TableGen/CMake/lit implementation invariants"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check scalar boundary did not move compute or extension metadata into tcrv.exec"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback boundary contract and non-executable wording"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin registry routing and materialized boundary result validation"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check extension details remain plugin-local"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no lowering/runtime/correctness/performance claim is introduced"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check public pipeline behavior and rerun diagnostics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/C++ evidence coverage"}

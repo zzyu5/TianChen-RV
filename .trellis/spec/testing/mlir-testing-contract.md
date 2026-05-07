@@ -38,10 +38,10 @@ Use lit/FileCheck for:
   `--tcrv-disable-builtin-plugins` negative coverage for empty-registry plugin
   dialect behavior.
 - generic selected lowering-boundary pass routing, RVV lowering-boundary syntax,
-  verifier diagnostics, selected dispatch-case materialization, scalar fallback
-  preservation, scalar-only no-op behavior, missing selected-surface
-  diagnostics, old RVV pass compatibility, and unsupported RVV evidence
-  wording.
+  scalar fallback lowering-boundary syntax, verifier diagnostics, selected
+  dispatch-case materialization, scalar fallback preservation, scalar-only
+  metadata-boundary behavior, missing selected-surface diagnostics, old RVV pass
+  compatibility, and unsupported RVV evidence wording.
 - public `--tcrv-execution-planning-pipeline` coverage through `tcrv-opt`,
   including deterministic built-in RVV/scalar proposal order, selected
   dispatch/fallback materialization, selected lowering-boundary metadata,
