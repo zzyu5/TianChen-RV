@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV implementation and dialect invariants"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify parameter-layering invariants remain preserved"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV plugin-local setvl surface and scope text"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify no unsupported runtime/emission/hardware claim"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify required lit/FileCheck diagnostic coverage"}

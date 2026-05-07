@@ -40,11 +40,23 @@ constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
+constexpr llvm::StringLiteral kAVLAttrName("avl");
+constexpr llvm::StringLiteral kSEWAttrName("sew");
+constexpr llvm::StringLiteral kLMULAttrName("lmul");
+constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kVLenAttrName("vlen");
+constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
     "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kRVVRequiredCapabilitiesAttrName(
+    "tcrv_rvv.required_capabilities");
+constexpr llvm::StringLiteral kRVVElementCountAttrName(
+    "tcrv_rvv.element_count");
+constexpr llvm::StringLiteral kRVVVLenAttrName("tcrv_rvv.vlen");
+constexpr llvm::StringLiteral kRVVVLenBAttrName("tcrv_rvv.vlenb");
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
@@ -184,7 +196,80 @@ bool isAllowedMicrokernelAttr(llvm::StringRef name) {
          name == kRequiredMarchAttrName || name == kSelectedMABIAttrName;
 }
 
+bool isAllowedSetVLAttr(llvm::StringRef name) {
+  return name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
+bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
+  return name == kAVLAttrName || name == kVLenAttrName ||
+         name == kVLenBAttrName || name == kElementCountAttrName ||
+         name == kRequiredMarchAttrName ||
+         name == kRequiredCapabilitiesAttrName ||
+         name == kRVVVariantRequiredMarchAttrName ||
+         name == kRVVRequiredCapabilitiesAttrName ||
+         name == kRVVElementCountAttrName || name == kRVVVLenAttrName ||
+         name == kRVVVLenBAttrName;
+}
+
 } // namespace
+
+mlir::LogicalResult SetVLOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (attrName == kAVLAttrName)
+      return emitOpError()
+             << "requires AVL to be a runtime SSA operand; attribute '"
+             << kAVLAttrName
+             << "' is not accepted as an AVL substitute";
+
+    if (isForbiddenSetVLParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.setvl keeps VLEN/vlenb as target capability "
+                "facts, element_count as descriptor-local metadata, and "
+                "required_march/required_capabilities as selected-path "
+                "metadata";
+
+    if (!isAllowedSetVLAttr(attrName))
+      return emitOpError()
+             << "only accepts bounded compile-time config attributes '"
+             << kSEWAttrName << "', '" << kLMULAttrName << "', and '"
+             << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 1)
+    return emitOpError()
+           << "requires exactly one runtime AVL SSA operand";
+  if (!getAvl().getType().isIndex())
+    return emitOpError()
+           << "requires runtime AVL operand to have index type";
+
+  if (op->getNumResults() != 1)
+    return emitOpError() << "requires exactly one VL result";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires result type to be !tcrv_rvv.vl";
+
+  if (getSew() != 32)
+    return emitOpError()
+           << "requires SEW compile-time config 'sew' to be 32 for the "
+              "bounded RVV first slice";
+
+  if (getLmul() != "m1")
+    return emitOpError()
+           << "requires LMUL compile-time config 'lmul' to be \"m1\" for the "
+              "bounded RVV first slice";
+
+  if (!getPolicy())
+    return emitOpError()
+           << "requires finite #tcrv_rvv.policy compile-time policy metadata";
+
+  return mlir::success();
+}
 
 mlir::LogicalResult LoweringBoundaryOp::verify() {
   mlir::Operation *op = getOperation();

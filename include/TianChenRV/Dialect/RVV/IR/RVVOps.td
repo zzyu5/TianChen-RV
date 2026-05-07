@@ -16,10 +16,11 @@ def TCRV_RVV_Dialect : Dialect {
     namespaces cannot contain '.' characters.
 
     This first slice intentionally exposes only non-compute control-plane
-    surface and is registered by RVVExtensionPlugin through the
-    ExtensionPluginRegistry path. RVV arithmetic, memory, reduction, lowering,
-    emission, runtime ABI, executable behavior, correctness, and performance
-    evidence are out of scope for this dialect skeleton.
+    surfaces and is registered by RVVExtensionPlugin through the
+    ExtensionPluginRegistry path. The bounded tcrv_rvv.setvl op is the first
+    runtime AVL-to-VL control-plane surface; RVV arithmetic, memory, reduction,
+    lowering, emission, runtime ABI, executable behavior, correctness, and
+    performance evidence are out of scope for this dialect skeleton.
   }];
 
   let useDefaultTypePrinterParser = 1;
@@ -82,10 +83,40 @@ def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {
   let summary = "RVV vector-length token type";
   let description = [{
     A non-compute token type representing an RVV vector-length control-plane
-    value. This type proves plugin-local RVV dialect registration and syntax
-    ownership only; it does not model vsetvl, vector arithmetic, memory,
-    runtime ABI, lowering, or executable behavior.
+    value. This type is produced by the bounded tcrv_rvv.setvl runtime
+    AVL-to-VL control-plane op and may also appear in syntax tests proving
+    plugin-local RVV dialect registration and ownership. It does not model
+    vector arithmetic, memory, runtime ABI, lowering, executable behavior,
+    correctness, or performance.
   }];
+}
+
+def SetVLOp : TCRVRVV_Op<"setvl", []> {
+  let summary = "bounded RVV runtime AVL to VL control-plane op";
+  let description = [{
+    Models the first plugin-local RVV runtime vector-length control-plane
+    surface. The operation consumes one runtime AVL SSA value, produces one
+    !tcrv_rvv.vl token, and carries bounded compile-time first-slice
+    configuration metadata: SEW 32, LMUL m1, and a finite #tcrv_rvv.policy
+    attribute.
+
+    This op does not model VLEN/vlenb hardware facts, descriptor-local element
+    counts, required march metadata, required capability metadata, pointer or
+    memory operands, RVV arithmetic, vector registers, masks, lowering,
+    runtime ABI glue, generated artifacts, hardware execution, correctness, or
+    performance.
+  }];
+
+  let arguments = (ins
+    AnyType:$avl,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+  let results = (outs AnyType:$vl);
+
+  let assemblyFormat = "$avl attr-dict `:` type($avl) `->` type($vl)";
+  let hasVerifier = 1;
 }
 
 def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
