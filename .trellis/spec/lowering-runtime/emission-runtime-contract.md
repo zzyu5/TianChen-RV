@@ -712,7 +712,11 @@ kernel emission, full runtime integration, or performance.
 ### 6. Emission Plan / Manifest Handoff
 
 When the explicit microkernel op matches the selected RVV path, the RVV plugin
-may return a supported emission plan for the standalone C source export route:
+may return a supported emission plan for the standalone C source export route.
+If the selected variant carries the finite
+`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` descriptor, the plan
+must also validate that the attached microkernel's `element_count` matches the
+selected variant's bounded `tcrv_rvv.element_count` descriptor metadata:
 
 ```text
 status: supported

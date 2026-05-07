@@ -1,4 +1,5 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline --tcrv-check-emission-paths | FileCheck %s --check-prefix=READY
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_auto_microkernel_input {
@@ -46,6 +47,14 @@ module @rvv_auto_microkernel_input {
 }
 
 // IR-LABEL: tcrv.exec.kernel @auto_i32_vadd
+// READY-LABEL: tcrv.exec.kernel @auto_i32_vadd
+// READY: tcrv_rvv.i32_vadd_microkernel
+// READY-SAME: element_count = 16 : i64
+// READY-SAME: required_march = "rv64gcv"
+// READY: tcrv.exec.diagnostic
+// READY-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
+// READY-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
+// READY-SAME: status = "supported"
 // IR: tcrv.exec.variant @rvv_first_slice
 // IR-SAME: origin = "rvv-plugin"
 // IR-SAME: requires = [@rvv]

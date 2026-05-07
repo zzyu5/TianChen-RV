@@ -116,10 +116,13 @@ unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
 authored or plugin-materialized from the finite descriptor, `RVVExtensionPlugin`
 may report a supported plugin-owned emission path for deterministic standalone C
 source export through `tcrv-translate --tcrv-export-rvv-microkernel-c`. This
-support is bounded to the i32 vector-add microkernel artifact route. It does not
-provide generic RVV lowering or runtime ABI integration, and it does not create
-correctness or performance evidence without separate `ssh rvv` compile/run
-artifacts.
+support is bounded to the i32 vector-add microkernel artifact route. When the
+selected variant carries the finite descriptor, supported readiness/plan
+metadata must also validate that the attached microkernel's `element_count`
+matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
+does not provide generic RVV lowering or runtime ABI integration, and it does
+not create correctness or performance evidence without separate `ssh rvv`
+compile/run artifacts.
 
 ## Remote Evidence Probe Contract
 

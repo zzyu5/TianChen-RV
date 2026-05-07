@@ -619,12 +619,32 @@ llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
   return llvm::Error::success();
 }
 
+llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>>
+buildDescriptorPlanForEmission(const VariantEmissionRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!variant || !variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName))
+    return std::optional<RVVI32VAddMaterializationPlan>();
+
+  llvm::Expected<RVVCapabilityPropertyView> propertyView =
+      buildRVVCapabilityPropertyView(request.getCapabilities());
+  if (!propertyView)
+    return propertyView.takeError();
+
+  return buildI32VAddMaterializationPlan(variant, request.getCapabilities(),
+                                         *propertyView);
+}
+
 llvm::Expected<bool> hasMatchingExplicitMicrokernel(
     const VariantEmissionRequest &request) {
   tcrv::exec::KernelOp kernel = request.getKernel();
   tcrv::exec::VariantOp variant = request.getVariant();
   if (!kernel || !variant || kernel.getBody().empty())
     return false;
+
+  llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>>
+      descriptorPlan = buildDescriptorPlanForEmission(request);
+  if (!descriptorPlan)
+    return descriptorPlan.takeError();
 
   llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
   auto variantRequires =
@@ -700,6 +720,12 @@ llvm::Expected<bool> hasMatchingExplicitMicrokernel(
       return makeRVVPluginError(
           "explicit RVV microkernel emission plan requires element_count in "
           "the bounded smoke range [1, 64]");
+    if (*descriptorPlan &&
+        elementCount.getInt() != (*descriptorPlan)->elementCount)
+      return makeRVVPluginError(
+          "explicit RVV microkernel emission plan requires "
+          "tcrv_rvv.i32_vadd_microkernel element_count to match selected "
+          "variant finite descriptor metadata 'tcrv_rvv.element_count'");
   }
 
   if (matches > 1)
