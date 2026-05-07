@@ -276,11 +276,21 @@ ssh rvv probe and evidence path
 offload runtime boundary
 ```
 
-A useful round should leave the repo with stronger compiler structure, stronger MLIR integration, stronger tests, or stronger real hardware evidence.
+A useful round should leave the repo with stronger compiler structure, stronger MLIR integration, stronger lowering/emission/runtime behavior, or stronger real hardware evidence that is necessary for a concrete compiler claim.
+
+Do not choose smoke tests, tiny guardrails, small harnesses, broad negative fixture matrices, extra evidence packaging, export wrappers, registries, or dashboard-like reports as default round owners. They consume token budget and attention without necessarily advancing the compiler. They are allowed only when the prompt can name the concrete necessity:
+
+```text
+the work directly verifies a real lowering/runtime semantic change in the same round;
+the work prevents a specific observed regression in an already implemented path;
+the work is the single blocker to the next real compiler implementation step.
+```
+
+If none of those conditions holds, skip the smoke/probe/guardrail/test-harness work and choose the next real compiler implementation owner instead. When the RVV path has enough capability/variant/boundary/export scaffolding, prefer a minimal real RVV lowering or plugin-owned computation/emission slice over another standalone smoke artifact.
 
 ## Validation Discipline
 
-For each code change, add relevant tests.
+For each code change, add only the relevant minimal tests needed to validate the changed compiler behavior. Tests are verification, not the round owner.
 
 Preferred tests:
 
@@ -290,6 +300,8 @@ C++ tests when appropriate
 CMake configure/build checks
 ssh rvv probe output when RVV runtime evidence is claimed
 ```
+
+Do not ask for broad negative matrices, duplicate tiny fixtures, standalone smoke coverage, or helper-only evidence unless they satisfy the concrete-necessity rule in Work Selection. Prefer one or two focused tests that prove the new compiler behavior over many small tests that merely make the round look complete.
 
 If a test cannot be run because of missing local dependencies, document the exact missing tool and add detection or diagnostics.
 

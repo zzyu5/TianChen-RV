@@ -1245,11 +1245,13 @@ tcrv.exec dialect contract
 RVV extension dialect or lowering path
 variant generation / legality / selection pipeline
 tcrv-opt or other MLIR tool integration
-lit/FileCheck or C++ tests
-ssh rvv evidence for RVV claims
+lit/FileCheck or C++ tests only when they are minimal verification of changed compiler behavior
+ssh rvv evidence only when it is required for a concrete RVV compiler claim
 ```
 
 Documentation is useful when it constrains or explains active design. Documentation alone should not repeatedly replace compiler structure, tests, or hardware evidence.
+
+Smoke tests, tiny guardrails, small harnesses, broad negative fixture matrices, extra evidence packaging, export wrappers, registries, and dashboard-like reports are not default engineering owners. They are allowed only when you can name a concrete necessity: they directly verify a real lowering/runtime semantic change in the same round, prevent a specific observed regression in an already implemented path, or are the single blocker to the next real compiler implementation step. If that standard is not met, skip them and choose the next real compiler implementation owner instead.
 
 ### Architecture invariants
 
@@ -1276,6 +1278,7 @@ claimed RVV runtime, correctness, or performance without ssh rvv evidence;
 treated Sophgo/offload as a custom RISC-V ISA extension;
 treated IME or AME as the current primary hardware path without real evidence;
 added only status files, metadata, dashboards, unused scripts, or report-only progress;
+chose smoke/probe/guardrail/test-harness work without a concrete necessity tied to compiler implementation;
 left Trellis specs inconsistent with the code direction.
 ```
 
@@ -1294,13 +1297,15 @@ state invalid work patterns for that round;
 state final reporting requirements.
 ```
 
+Required tests or evidence must be minimal and proportional to the changed compiler behavior. Do not ask Codex for broad negative matrices, duplicate small fixtures, standalone smoke coverage, or helper-only evidence merely to make the round look complete.
+
 Choose the next owner from repository evidence. Prefer work that moves the repo toward a real MLIR system:
 
 ```text
 capability model
 tcrv.exec ODS contract
 plugin registry interfaces
-RVV extension first slice
+RVV extension lowering / plugin-owned computation or emission slice
 variant generation / legality / selection
 CMake + lit/FileCheck integration
 ssh rvv evidence-producing RVV probe
@@ -1309,7 +1314,7 @@ offload runtime boundary
 
 If the previous run drifted into Python-only compiler logic, the next prompt must redirect to C++/MLIR/TableGen and require the Python code to be moved to tooling, quarantined, or documented as a risk.
 
-If evidence shows project work is repeatedly too small, metadata-only, test-only, or status-only, the next prompt must choose a bounded active engineering owner and require a clean commit with the minimum relevant verification.
+If evidence shows project work is repeatedly too small, metadata-only, test-only, guardrail-only, probe-only, wrapper-only, or status-only, the next prompt must choose a bounded active compiler implementation owner and require only the minimum relevant verification.
 
 ## Stop Conditions
 
@@ -2067,7 +2072,8 @@ def command_loop(args: argparse.Namespace) -> int:
                         + "\n\n## Supervisor Review Parse Fallback\n\n"
                         + "Hermes returned malformed JSON in the previous review, so the runner is continuing with the canonical base prompt instead of stopping. "
                         + "Before choosing work, inspect the latest `repo_audit.md`, `review_input.md`, git history, TianchenRV specs, and current code. "
-                        + "Do not redo completed scaffolding. Return to the highest-value capability model, tcrv.exec, plugin registry, RVV probe, variant pipeline, or lowering/runtime milestone. "
+                        + "Do not redo completed scaffolding. Return to the highest-value capability model, tcrv.exec, plugin registry, variant pipeline, RVV lowering/plugin-owned emission, or lowering/runtime milestone. "
+                        + "Do not choose smoke/probe/guardrail/test-harness work unless it is strictly necessary for the concrete compiler change. "
                         + "Maintain full-access serial execution, no subagents, focused validation, optional TianchenRV Trellis finish/archive when used, and a clean commit.\n"
                     )
                     review["reason"] = (

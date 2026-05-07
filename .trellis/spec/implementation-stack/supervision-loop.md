@@ -185,6 +185,16 @@ The next prompt must choose one coherent engineering owner. Good owners include:
 - `ssh rvv` evidence-producing RVV probe;
 - offload runtime boundary.
 
+Smoke tests, tiny guardrails, small harnesses, broad negative fixture matrices,
+extra evidence packaging, export wrappers, registries, and dashboard-like
+reports are not default engineering owners. They consume loop tokens and review
+attention, so Hermes must skip them unless the review can name a concrete
+necessity. A necessity exists only when the work directly verifies a real
+lowering or runtime semantic change in the same round, prevents a specific
+observed regression in an already implemented path, or is the single blocker to
+the next real compiler implementation step. If that standard is not met, Hermes
+must choose the next real compiler implementation owner instead.
+
 The next prompt must state the files or directories to inspect first, the implementation area to modify, required tests or evidence, invalid work patterns for the round, final reporting requirements, and whether a clean commit is expected.
 
 ## Codex Worker Invariants
@@ -200,6 +210,11 @@ Worker prompts must preserve these rules:
 - keep `tcrv.exec` compute-free;
 - keep extension behavior plugin-local;
 - require `ssh rvv` evidence for RVV runtime, correctness, or performance claims;
+- keep tests minimal and proportional to changed compiler behavior rather than
+  using broad smoke coverage as a default completion signal;
+- avoid helper-only, guardrail-only, fixture-only, probe-only, wrapper-only, or
+  registry-only rounds unless the prompt states the concrete necessity under
+  the work-selection rule;
 - treat generated loop artifacts as artifacts, not durable compiler source;
 - avoid committing temporary prompt packs or raw run scratch data.
 
