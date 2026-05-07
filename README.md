@@ -30,6 +30,14 @@ CMakeLists.txt
 
 The first compiler slice defines a minimal `tcrv.exec.*` operation family through TableGen/ODS and C++ registration. MLIR registers the concrete namespace as `tcrv` so operations parse and print as `tcrv.exec.kernel`, `tcrv.exec.variant`, and related core execution ops. The family is intentionally limited to execution organization concepts such as kernels, targets, capabilities, variants, dispatch, and fallback. Concrete computation belongs in extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, or future plugin-local dialects.
 
+The built-in RVV first slice registers the concrete MLIR namespace
+`tcrv_rvv` through the RVV plugin path. It includes metadata/control-plane
+surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, and
+`tcrv_rvv.lowering_boundary` for selected RVV variants. The lowering boundary
+is pre-executable compiler metadata only: it does not emit RVV intrinsics,
+lower to LLVM/RISC-V, create runtime ABI glue, generate objects, run hardware,
+prove correctness, or measure performance.
+
 ## Build
 
 Configure with an installed LLVM/MLIR package:

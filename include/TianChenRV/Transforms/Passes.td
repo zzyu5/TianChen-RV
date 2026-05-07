@@ -130,4 +130,28 @@ def MaterializeEmissionPlans
   ];
 }
 
+def MaterializeRVVLoweringBoundary
+    : Pass<"tcrv-materialize-rvv-lowering-boundary", "::mlir::ModuleOp"> {
+  let summary = "Materialize pre-executable RVV lowering-boundary metadata";
+  let description = [{
+    Materializes plugin-owned `tcrv_rvv.lowering_boundary` operations for
+    selected RVV dispatch-case or direct selected variants. The pass consumes
+    generic `tcrv.exec` selected-path structure and routes RVV-owned variants
+    through the extension plugin registry before creating RVV dialect metadata.
+    It does not materialize dispatch fallback boundaries, lower to LLVM/RISC-V,
+    emit RVV intrinsics, create runtime ABI glue, generate objects, run
+    hardware, prove correctness, or claim performance.
+
+    Public tools should construct this pass with a populated
+    ExtensionPluginRegistry. The default constructor owns an empty registry and
+    is useful for negative registration tests.
+  }];
+  let constructor =
+      "::tianchenrv::plugin::rvv::createMaterializeRVVLoweringBoundaryPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect",
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

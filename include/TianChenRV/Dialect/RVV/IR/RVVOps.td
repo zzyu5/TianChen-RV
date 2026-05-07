@@ -36,6 +36,9 @@ class TCRVRVV_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   let mnemonic = attrMnemonic;
 }
 
+class TCRVRVV_Op<string mnemonic, list<Trait> traits = []>
+    : Op<TCRV_RVV_Dialect, mnemonic, traits>;
+
 def TCRVRVV_TailAgnostic
     : I32EnumAttrCase<"Agnostic", 0, "agnostic">;
 def TCRVRVV_TailUndisturbed
@@ -83,6 +86,33 @@ def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {
     ownership only; it does not model vsetvl, vector arithmetic, memory,
     runtime ABI, lowering, or executable behavior.
   }];
+}
+
+def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
+  let summary = "pre-executable RVV lowering boundary metadata";
+  let description = [{
+    Records the plugin-owned RVV lowering boundary for a selected RVV
+    tcrv.exec.variant. The op is intentionally pre-executable metadata: it
+    carries source kernel, selected variant, dispatch role, capability summary,
+    unsupported status, and diagnostic reason so later RVV lowering slices have
+    a stable plugin-local attachment point.
+
+    This op does not model RVV arithmetic, tensor computation, vector
+    intrinsics, memory effects, LLVM/RISC-V lowering, runtime ABI glue,
+    generated artifacts, hardware execution, correctness, or performance.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$role,
+    StrAttr:$status,
+    OptionalAttr<StrAttr>:$capability_summary,
+    StrAttr:$unsupported_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
 }
 
 #endif // TIANCHENRV_DIALECT_RVV_IR_RVVOPS_TD

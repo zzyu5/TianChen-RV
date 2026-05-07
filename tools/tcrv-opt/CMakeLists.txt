@@ -7,6 +7,7 @@ target_link_libraries(tcrv-opt
   TianChenRVBuiltinPlugins
   TianChenRVInitAll
   TianChenRVExecDialect
+  TianChenRVRVVPlugin
   TianChenRVTransforms
   MLIROptLib
   MLIRIR

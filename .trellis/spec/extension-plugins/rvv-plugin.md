@@ -143,13 +143,15 @@ dialect availability is proven by populating an `ExtensionPluginRegistry` with
 the RVV plugin and calling `registerPluginDialects`.
 
 The first RVV dialect slice is still metadata/control-plane only. It introduces
-the vector-length token type `!tcrv_rvv.vl` and the finite policy attribute
+the vector-length token type `!tcrv_rvv.vl`, the finite policy attribute
 `#tcrv_rvv.policy<tail = agnostic|undisturbed, mask =
-agnostic|undisturbed>`. These surfaces do not introduce RVV ops, lowering,
-emission, runtime ABI, executable behavior, correctness claims, or performance
-claims. `tcrv_rvv` is the concrete MLIR dialect namespace because MLIR dialect
-namespaces cannot contain `.` characters; the architectural extension family
-remains `tcrv.rvv`.
+agnostic|undisturbed>`, and the pre-executable
+`tcrv_rvv.lowering_boundary` operation. The boundary op records selected RVV
+source/variant/role/status metadata for a future lowering attachment point; it
+is not RVV arithmetic, LLVM/RISC-V lowering, runtime ABI glue, executable
+emission, correctness evidence, or performance evidence. `tcrv_rvv` is the
+concrete MLIR dialect namespace because MLIR dialect namespaces cannot contain
+`.` characters; the architectural extension family remains `tcrv.rvv`.
 
 ## Capability Fields
 
@@ -208,12 +210,50 @@ Current first-slice policy attribute:
 #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 ```
 
+Current first-slice lowering boundary op:
+
+```mlir
+tcrv_rvv.lowering_boundary {
+  source_kernel = "kernel_symbol",
+  selected_variant = @rvv_first_slice,
+  role = "dispatch case",
+  status = "unsupported",
+  capability_summary = "rvv",
+  unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
+}
+```
+
 The type is a non-compute vector-length token used to prove plugin-local dialect
 registration, parser/printer ownership, and enabled-plugin registry behavior.
 The policy attribute is finite non-compute metadata for proposal preservation
-and RVV plugin-local legality. Neither surface is `vsetvl`, a vector register,
-a mask, a memory operation, lowering, runtime ABI, correctness evidence, or
-performance evidence.
+and RVV plugin-local legality. The lowering-boundary op is a direct child of a
+`tcrv.exec.kernel`, references a direct sibling selected RVV
+`tcrv.exec.variant`, and only admits `status = "unsupported"` plus direct
+variant or dispatch-case roles. These surfaces are not `vsetvl`, vector
+registers, masks, memory operations, RVV intrinsics, LLVM/RISC-V lowering,
+runtime ABI, executable emission, correctness evidence, or performance
+evidence.
+
+## First Lowering Boundary Slice
+
+The public `tcrv-opt` pass
+`--tcrv-materialize-rvv-lowering-boundary` materializes
+`tcrv_rvv.lowering_boundary` for selected RVV-owned direct variants or dispatch
+cases. It consumes already selected `tcrv.exec` structure, uses the generic
+variant `origin` metadata and `ExtensionPluginRegistry`, and validates selected
+RVV variants through the RVV plugin legality path before mutating IR.
+
+Rules:
+
+- RVV-specific interpretation stays in the RVV plugin/dialect implementation.
+- The pass materializes no boundary for `tcrv.exec.fallback`, including scalar
+  fallback variants.
+- Kernels without a dispatch or direct selected-path diagnostic are diagnosed
+  before any RVV boundary is materialized.
+- The boundary op remains `status = "unsupported"` until a later RVV lowering
+  and runtime slice adds executable evidence.
+- The boundary is a compiler structure/evidence boundary only; it must not be
+  reported as hardware execution, correctness, or performance evidence.
 
 ## Future Dialect Surface
 

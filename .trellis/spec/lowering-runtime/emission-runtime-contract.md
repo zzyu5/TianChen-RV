@@ -63,6 +63,26 @@ Rules:
 - do not claim generated code, runtime ABI glue, linked artifacts, RVV hardware
   execution, correctness, or performance from an emission plan alone.
 
+## RVV Lowering Boundary First Slice
+
+Before executable RVV lowering exists, the RVV plugin may materialize a
+plugin-local `tcrv_rvv.lowering_boundary` operation for selected RVV direct
+variants or dispatch cases. This operation is an extension-dialect attachment
+point for future lowering work, not an executable lowering product.
+
+Rules:
+
+- materialization consumes selected `tcrv.exec` dispatch or selected-marker
+  structure and generic variant `origin` metadata;
+- RVV ownership and legality are routed through the `ExtensionPluginRegistry`
+  and RVV plugin before the boundary op is created;
+- scalar or other fallback references remain `tcrv.exec.fallback` metadata and
+  do not receive RVV lowering-boundary ops;
+- the boundary op must carry `status = "unsupported"` and a non-empty
+  unsupported reason;
+- the boundary op must not claim RVV intrinsics, LLVM/RISC-V lowering, runtime
+  ABI glue, generated objects, hardware execution, correctness, or performance.
+
 ## EmissionProvider Responsibilities
 
 Each plugin emission provider:
@@ -241,6 +261,13 @@ unregistered-origin failure. This remains compiler metadata only and must not be
 reported as RVV lowering, runtime, correctness, or performance evidence. The
 tool-level `--tcrv-disable-builtin-plugins` option preserves an explicit
 empty-registry surface for negative parser/diagnostic tests.
+
+The `tcrv_rvv.lowering_boundary` first slice is one step more concrete than an
+emission-plan diagnostic because it is an RVV extension-dialect op, but it is
+still pre-executable and unsupported. It is valid evidence that selected-path
+metadata reached a plugin-local RVV boundary. It is not evidence that the
+compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked runtime glue,
+ran hardware, proved correctness, or measured performance.
 
 ## RVV Probe Evidence Boundary
 

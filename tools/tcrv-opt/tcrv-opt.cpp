@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVLoweringBoundary.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/IR/DialectRegistry.h"
@@ -48,6 +49,10 @@ void registerTianChenRVOptPasses(
   });
   mlir::registerPass([&plugins] {
     return tianchenrv::transforms::createMaterializeEmissionPlansPass(plugins);
+  });
+  mlir::registerPass([&plugins] {
+    return tianchenrv::plugin::rvv::
+        createMaterializeRVVLoweringBoundaryPass(plugins);
   });
 }
 
