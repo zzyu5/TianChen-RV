@@ -2,20 +2,20 @@
 
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --self-test | FileCheck %s --check-prefix=SELF
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --run-id lit-rvv-scalar-dispatch-bundle-e2e --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir | FileCheck %s --check-prefix=DRY
-# RUN: test -f %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/post_planning.mlir
-# RUN: test -f %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/bundle_export_stdout.txt
-# RUN: test -f %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
-# RUN: test -f %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/rvv_bundle_dispatch_external_caller.c
-# RUN: python3 -c "import json, pathlib, re; root=pathlib.Path('%S/../..').resolve(); evidence=json.load(open(root/'artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/evidence.json', encoding='utf-8')); artifacts=evidence['artifacts']; path=lambda value: pathlib.Path(value) if pathlib.Path(value).is_absolute() else root/pathlib.Path(value); source=path(artifacts['bundle_dispatch_source']); header=path(artifacts['bundle_dispatch_header']); obj=path(artifacts['bundle_dispatch_object']); caller=path(artifacts['bundle_external_caller_c']).read_text(encoding='utf-8'); assert source.is_file(); assert header.is_file(); assert obj.is_file() and obj.stat().st_size > 0; assert f'#include \"{header.name}\"' in caller; assert not pathlib.PurePosixPath(header.name).is_absolute(); assert '/' not in header.name; assert re.fullmatch(r'artifact-[0-9]+-.+\\.h', header.name)"
-# RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
-# RUN: FileCheck %s --check-prefix=CALLER < %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/rvv_bundle_dispatch_external_caller.c
-# RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/command_summary.json
-# RUN: FileCheck %s --check-prefix=EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/evidence.json
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/post_planning.mlir
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/bundle_export_stdout.txt
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/rvv_bundle_dispatch_external_caller.c
+# RUN: python3 -c "import json, pathlib, re; root=pathlib.Path('%S/../..').resolve(); evidence=json.load(open(root/'artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/evidence.json', encoding='utf-8')); artifacts=evidence['artifacts']; selected=evidence['selected_artifact_paths']; assert re.fullmatch(r'[0-9a-f]{40}', evidence['git_sha']); path=lambda value: pathlib.Path(value) if pathlib.Path(value).is_absolute() else root/pathlib.Path(value); source=path(artifacts['bundle_dispatch_source']); header=path(artifacts['bundle_dispatch_header']); obj=path(artifacts['bundle_dispatch_object']); caller=path(artifacts['bundle_external_caller_c']).read_text(encoding='utf-8'); assert source.is_file(); assert header.is_file(); assert obj.is_file() and obj.stat().st_size > 0; assert path(selected['source']) == source; assert path(selected['header']) == header; assert path(selected['object']) == obj; assert f'#include \"{header.name}\"' in caller; assert not pathlib.PurePosixPath(header.name).is_absolute(); assert '/' not in header.name; assert re.fullmatch(r'artifact-[0-9]+-.+\\.h', header.name)"
+# RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=CALLER < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/command_summary.json
+# RUN: FileCheck %s --check-prefix=EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --run-id lit-rvv-scalar-dispatch-bundle-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
 
-# DRY: "artifact_dir": "artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e"
+# DRY: "artifact_dir": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e"
 # DRY: "bundle_export_mode": "target-artifact-bundle"
 # DRY: "claim_scope": "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
 # DRY: "mode": "dry-run"
@@ -54,13 +54,17 @@
 # SUMMARY-NOT: hunter2
 
 # EVIDENCE: "bundle_export_mode": "target-artifact-bundle"
-# EVIDENCE: "bundle_index": "artifacts/tmp/rvv_bundle_e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index"
+# EVIDENCE: "bundle_index": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index"
 # EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"
 # EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
 # EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
 # EVIDENCE: "branches_exercised": [
 # EVIDENCE: "rvv_available=0"
 # EVIDENCE: "rvv_available=1"
+# EVIDENCE: "git_sha": "
+# EVIDENCE: "pass_fail_result": "pass"
+# EVIDENCE: "selected_artifact_paths": {
+# EVIDENCE: "source": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c"
 # EVIDENCE: "ssh_evidence": null
 # EVIDENCE: "status": "success"
 

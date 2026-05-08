@@ -405,9 +405,10 @@ command-summary redaction, and absence of any dry-run runtime/correctness
 claim. Passing bundle dry-run proves only compiler bundle export, index
 parsing, file discovery, and caller construction. Any bundle external ABI
 runtime/correctness claim must use real `ssh rvv` evidence where only the
-generated header, generated object, and generated caller are copied to the RVV
-host, the caller is compiled, linked with the generated object, and run with
-the bounded success marker observed.
+generated source, generated header, generated object, and generated caller are
+copied to the RVV host, the generated source and caller are compiled there,
+the caller is linked and run against the source-built object and the generated
+bundle object, and the bounded success marker is observed.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must

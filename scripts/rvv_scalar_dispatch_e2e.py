@@ -32,7 +32,9 @@ DEFAULT_INPUT = Path(
     "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir"
 )
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_scalar_dispatch_e2e")
-DEFAULT_BUNDLE_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_bundle_e2e")
+DEFAULT_BUNDLE_ARTIFACT_ROOT = Path(
+    "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e"
+)
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 SUCCESS_MARKER = "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok"
@@ -166,6 +168,29 @@ def relative_to_repo(path: Path, root: Path) -> str:
 
 def resolve_repo_path(path: Path, root: Path) -> Path:
     return path if path.is_absolute() else root / path
+
+
+def git_sha(root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BridgeError(f"failed to read git sha: {error}") from error
+    if completed.returncode != 0:
+        raise BridgeError(
+            "failed to read git sha: " + bounded_tail(completed.stderr, limit=400)
+        )
+    sha = sanitize_text(completed.stdout).strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+        raise BridgeError("git rev-parse HEAD returned a malformed sha")
+    return sha
 
 
 def require_under_artifacts_tmp(path: Path, root: Path) -> None:
@@ -817,15 +842,31 @@ def build_remote_bundle_compile_caller_object_command(
     )
 
 
+def build_remote_bundle_compile_dispatch_source_object_command(
+    remote_dir: str, source_file_name: str, flags: dict[str, str]
+) -> str:
+    validate_bundle_file_name(source_file_name)
+    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        f"clang {quoted_flags} -c {shlex.quote(source_file_name)} "
+        "-o rvv_bundle_dispatch_from_source.o"
+    )
+
+
 def build_remote_bundle_link_executable_command(
-    remote_dir: str, object_file_name: str, flags: dict[str, str]
+    remote_dir: str,
+    object_file_name: str,
+    executable_file_name: str,
+    flags: dict[str, str],
 ) -> str:
     validate_bundle_file_name(object_file_name)
+    validate_bundle_file_name(executable_file_name)
     quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
     return (
         f"cd {quote_remote_path(remote_dir)} && "
         f"clang {quoted_flags} rvv_bundle_dispatch_external_caller.o "
-        f"{shlex.quote(object_file_name)} -o rvv_bundle_dispatch_external_caller"
+        f"{shlex.quote(object_file_name)} -o {shlex.quote(executable_file_name)}"
     )
 
 
@@ -835,9 +876,11 @@ def run_remote_bundle_external_abi_evidence(
     root: Path,
     artifact_dir: Path,
     commands: list[dict[str, Any]],
+    source_path: Path,
     header_path: Path,
     object_path: Path,
     caller_path: Path,
+    source_file_name: str,
     object_file_name: str,
     flags: dict[str, str],
     run_id: str,
@@ -892,9 +935,10 @@ def run_remote_bundle_external_abi_evidence(
     )
 
     run_command(
-        "scp_bundle_header_object_and_external_caller",
+        "scp_bundle_source_header_object_and_external_caller",
         [
             *scp_base_command(args),
+            relative_to_repo(source_path, root),
             relative_to_repo(header_path, root),
             relative_to_repo(object_path, root),
             relative_to_repo(caller_path, root),
@@ -929,11 +973,11 @@ def run_remote_bundle_external_abi_evidence(
     )
 
     run_command(
-        "ssh_link_bundle_external_caller",
+        "ssh_compile_bundle_dispatch_source_object",
         remote_shell_command(
             args,
-            build_remote_bundle_link_executable_command(
-                remote_dir, object_file_name, flags
+            build_remote_bundle_compile_dispatch_source_object_command(
+                remote_dir, source_file_name, flags
             ),
         ),
         cwd=root,
@@ -941,10 +985,11 @@ def run_remote_bundle_external_abi_evidence(
         commands=commands,
         timeout_seconds=args.timeout,
     )
-    executable_hash_stdout, _, _ = run_command(
-        "ssh_bundle_executable_sha256",
+    source_object_hash_stdout, _, _ = run_command(
+        "ssh_bundle_dispatch_source_object_sha256",
         remote_shell_command(
-            args, remote_sha256_command(remote_dir, "rvv_bundle_dispatch_external_caller")
+            args,
+            remote_sha256_command(remote_dir, "rvv_bundle_dispatch_from_source.o"),
         ),
         cwd=root,
         artifact_dir=artifact_dir,
@@ -952,20 +997,99 @@ def run_remote_bundle_external_abi_evidence(
         timeout_seconds=args.timeout,
     )
 
-    run_stdout, _, _ = run_command(
-        "ssh_run_bundle_external_caller",
+    run_command(
+        "ssh_link_bundle_source_external_caller",
         remote_shell_command(
             args,
-            f"cd {quote_remote_path(remote_dir)} && ./rvv_bundle_dispatch_external_caller",
+            build_remote_bundle_link_executable_command(
+                remote_dir,
+                "rvv_bundle_dispatch_from_source.o",
+                "rvv_bundle_dispatch_external_caller_from_source",
+                flags,
+            ),
         ),
         cwd=root,
         artifact_dir=artifact_dir,
         commands=commands,
         timeout_seconds=args.timeout,
     )
-    if BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER not in run_stdout:
+    source_executable_hash_stdout, _, _ = run_command(
+        "ssh_bundle_source_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_bundle_dispatch_external_caller_from_source"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    source_run_stdout, _, _ = run_command(
+        "ssh_run_bundle_source_external_caller",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && "
+            "./rvv_bundle_dispatch_external_caller_from_source",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER not in source_run_stdout:
         raise BridgeError(
-            "remote bundle external caller stdout missing expected marker: "
+            "remote bundle source-built external caller stdout missing expected marker: "
+            + BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER
+        )
+
+    run_command(
+        "ssh_link_bundle_index_object_external_caller",
+        remote_shell_command(
+            args,
+            build_remote_bundle_link_executable_command(
+                remote_dir,
+                object_file_name,
+                "rvv_bundle_dispatch_external_caller_from_bundle_object",
+                flags,
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    bundle_object_executable_hash_stdout, _, _ = run_command(
+        "ssh_bundle_index_object_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_bundle_dispatch_external_caller_from_bundle_object"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    bundle_object_run_stdout, _, _ = run_command(
+        "ssh_run_bundle_index_object_external_caller",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && "
+            "./rvv_bundle_dispatch_external_caller_from_bundle_object",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER not in bundle_object_run_stdout:
+        raise BridgeError(
+            "remote bundle object external caller stdout missing expected marker: "
             + BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER
         )
 
@@ -991,21 +1115,53 @@ def run_remote_bundle_external_abi_evidence(
             "clang_path": first_non_empty_line(clang_path_stdout),
             "clang_version": first_non_empty_line(clang_version_stdout),
         },
+        "remote_artifacts": {
+            "source_file": source_file_name,
+            "header_file": header_path.name,
+            "bundle_object_file": object_file_name,
+            "caller_file": caller_path.name,
+            "caller_object_file": "rvv_bundle_dispatch_external_caller.o",
+            "source_built_object_file": "rvv_bundle_dispatch_from_source.o",
+            "source_built_executable": (
+                "rvv_bundle_dispatch_external_caller_from_source"
+            ),
+            "bundle_object_executable": (
+                "rvv_bundle_dispatch_external_caller_from_bundle_object"
+            ),
+        },
         "compile_flags": remote_compile_flags(flags),
         "caller_object_compile_exit_code": 0,
-        "link_exit_code": 0,
-        "run_exit_code": 0,
+        "source_object_compile_exit_code": 0,
+        "source_link_exit_code": 0,
+        "source_run_exit_code": 0,
+        "bundle_object_link_exit_code": 0,
+        "bundle_object_run_exit_code": 0,
         "expected_stdout_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
-        "stdout_marker_observed": True,
+        "source_stdout_marker_observed": True,
+        "bundle_object_stdout_marker_observed": True,
         "caller_object_sha256": sanitize_text(caller_object_hash_stdout)
         .strip()
         .splitlines()[0]
         if sanitize_text(caller_object_hash_stdout).strip()
         else "",
-        "executable_sha256": sanitize_text(executable_hash_stdout)
+        "source_built_object_sha256": sanitize_text(source_object_hash_stdout)
         .strip()
         .splitlines()[0]
-        if sanitize_text(executable_hash_stdout).strip()
+        if sanitize_text(source_object_hash_stdout).strip()
+        else "",
+        "source_built_executable_sha256": sanitize_text(
+            source_executable_hash_stdout
+        )
+        .strip()
+        .splitlines()[0]
+        if sanitize_text(source_executable_hash_stdout).strip()
+        else "",
+        "bundle_object_executable_sha256": sanitize_text(
+            bundle_object_executable_hash_stdout
+        )
+        .strip()
+        .splitlines()[0]
+        if sanitize_text(bundle_object_executable_hash_stdout).strip()
         else "",
         "cleanup_status": cleanup_status,
     }
@@ -1254,6 +1410,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "runner": SCRIPT_NAME,
         "run_id": run_id,
+        "git_sha": git_sha(root),
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
         "input": relative_to_repo(input_path, root),
@@ -1267,6 +1424,13 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             label: bundle_records_summary([record])[0]
             for label, record in selected_records.items()
         },
+        "selected_artifact_paths": {
+            "bundle_index": relative_to_repo(index_path, root),
+            "source": relative_to_repo(source_path, root),
+            "header": relative_to_repo(header_path, root),
+            "object": relative_to_repo(object_path, root),
+            "external_caller": relative_to_repo(caller_path, root),
+        },
         "source_export_mode": "runtime-callable-library",
         "external_caller": {
             "kind": "generated-c-caller",
@@ -1275,6 +1439,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "branches_exercised": ["rvv_available=0", "rvv_available=1"],
         },
         "selected_compile_flags": remote_compile_flags(source_flags),
+        "pass_fail_result": "pass",
         "hashes": hashes,
         "artifacts": {
             "post_planning_mlir": relative_to_repo(post_planning_path, root),
@@ -1302,9 +1467,11 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 root=root,
                 artifact_dir=artifact_dir,
                 commands=commands,
+                source_path=source_path,
                 header_path=header_path,
                 object_path=object_path,
                 caller_path=caller_path,
+                source_file_name=str(selected_records["source"]["file_name"]),
                 object_file_name=str(selected_records["object"]["file_name"]),
                 flags=source_flags,
                 run_id=run_id,
@@ -1312,6 +1479,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
+            evidence["pass_fail_result"] = "fail"
             evidence["error"] = sanitize_text(str(error))
             evidence["commands"] = commands
             write_json(
@@ -1673,11 +1841,21 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
     bundle_link_command = build_remote_bundle_link_executable_command(
         "/tmp/tianchenrv_rvv_bundle_e2e_self_test",
         "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o",
+        "rvv_bundle_dispatch_external_caller_from_bundle_object",
         flags,
     )
     assert_self_test(
         "rvv_bundle_dispatch_external_caller.o" in bundle_link_command,
         "bundle link command missing caller object",
+    )
+    source_compile_command = build_remote_bundle_compile_dispatch_source_object_command(
+        "/tmp/tianchenrv_rvv_bundle_e2e_self_test",
+        "artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c",
+        flags,
+    )
+    assert_self_test(
+        "rvv_bundle_dispatch_from_source.o" in source_compile_command,
+        "bundle source compile command missing source-built object",
     )
 
     try:

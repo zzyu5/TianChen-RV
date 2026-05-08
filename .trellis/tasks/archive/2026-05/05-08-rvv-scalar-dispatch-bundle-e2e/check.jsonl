@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality and generated artifact boundaries"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback locality and fallback path behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check bundle export and runtime ABI contract"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check evidence provenance and ssh rvv claim discipline"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/FileCheck/script validation behavior"}

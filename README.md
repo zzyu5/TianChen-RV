@@ -511,15 +511,16 @@ host flags. It is not generic RVV lowering, arbitrary kernel support, dynamic
 runtime integration, performance evidence, or broad correctness coverage.
 
 The optional target-artifact-bundle mode writes sanitized bundle evidence under
-`artifacts/tmp/rvv_bundle_e2e/<run-id>/`. Dry-run bundle mode proves only that
-the compiler exported the selected registry-derived bundle, the bridge parsed
-the bundle index, discovered the generated source/header/object files, and
-generated an external caller. Real ssh bundle mode copies only the generated
-header, generated relocatable object, and generated external caller to
-`ssh rvv`, compiles the caller, links it with the generated dispatch object,
-and runs both explicit guard branches. A successful run proves only the bounded
-RVV+scalar i32-vadd bundle external ABI handoff for that generated
-header/object/caller path.
+`artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/<run-id>/`. Dry-run bundle
+mode proves only that the compiler exported the selected registry-derived
+bundle, the bridge parsed the bundle index, discovered the generated
+source/header/object files, and generated an external caller. Real ssh bundle
+mode copies the generated source, generated header, generated relocatable
+object, and generated external caller to `ssh rvv`; compiles the generated
+dispatch source on that host, links and runs the external caller against the
+source-built object, then also links and runs the same caller against the
+bundle object. A successful run proves only the bounded RVV+scalar i32-vadd
+bundle external ABI handoff for those compiler-produced bundle artifacts.
 
 ## Runtime Offload First Slice
 

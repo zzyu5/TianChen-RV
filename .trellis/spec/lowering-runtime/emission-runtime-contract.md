@@ -1411,18 +1411,20 @@ index, validate artifact kind, route, owner, runtime ABI kind/name, component
 selected paths, and evidence role, then generate a small external C caller
 from the emitted header prototype. Dry-run bundle mode records bundle export,
 index parsing, file discovery, caller generation, hashes, command logs, and
-evidence JSON under `artifacts/tmp/rvv_bundle_e2e/<run-id>/`; it is not runtime
-or correctness evidence. Real ssh bundle mode may copy only the generated
-header, generated relocatable object, and generated external caller to
-`ssh rvv`, compile the caller object, link it with the generated dispatch
-object, run the executable, and require the bounded bundle external ABI success
-marker. It must also record sanitized host/toolchain facts such as `uname`,
-architecture, and clang path/version. Successful ssh bundle evidence proves
-only that the finite RVV+scalar i32-vadd compiler-generated bundle header/object
-external ABI caller executed both `rvv_available = 0` and `rvv_available = 1`
-branches on that host. It is not generic lowering, arbitrary RVV support,
-dynamic runtime integration, performance evidence, or broad correctness
-coverage.
+evidence JSON under
+`artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/<run-id>/`; it is not runtime
+or correctness evidence. Real ssh bundle mode may copy the generated source,
+generated header, generated relocatable object, and generated external caller
+to `ssh rvv`, compile the generated dispatch source and caller object on that
+host, link and run the caller against the source-built object, then also link
+and run the same caller against the generated bundle object. It must require
+the bounded bundle external ABI success marker and record sanitized
+host/toolchain facts such as `uname`, architecture, and clang path/version.
+Successful ssh bundle evidence proves only that the finite RVV+scalar i32-vadd
+compiler-generated bundle source/header/object external ABI caller executed
+both `rvv_available = 0` and `rvv_available = 1` branches on that host. It is
+not generic lowering, arbitrary RVV support, dynamic runtime integration,
+performance evidence, or broad correctness coverage.
 
 Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
 library dispatch source, generated self-check dispatch source, hashes, command
