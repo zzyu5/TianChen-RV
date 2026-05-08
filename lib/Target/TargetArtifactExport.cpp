@@ -11,9 +11,12 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -56,6 +59,8 @@ constexpr llvm::StringLiteral kHeaderDeclarationEvidenceRole(
     "header-declaration");
 constexpr llvm::StringLiteral kRelocatableObjectEvidenceRole(
     "relocatable-object");
+constexpr llvm::StringLiteral kTargetArtifactBundleIndexFileName(
+    "tianchenrv-target-artifact-bundle.index");
 
 enum class ArtifactSelectionMode {
   SourceOnly,
@@ -108,6 +113,13 @@ llvm::Error makeModuleArtifactExportError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+llvm::Error makeTargetArtifactBundleExportError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV target artifact bundle export failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
 bool isSourceArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRuntimeCallableCSourceArtifactKind ||
          artifactKind == kStandaloneCSourceArtifactKind;
@@ -148,6 +160,39 @@ llvm::StringRef getEvidenceRoleForArtifactKind(llvm::StringRef artifactKind) {
   if (isSourceArtifactKind(artifactKind))
     return kCompilerArtifactEvidenceRole;
   return kCompilerArtifactEvidenceRole;
+}
+
+llvm::StringRef getFileExtensionForArtifactKind(llvm::StringRef artifactKind) {
+  if (artifactKind == kRuntimeCallableCSourceArtifactKind ||
+      artifactKind == kStandaloneCSourceArtifactKind)
+    return ".c";
+  if (artifactKind == kRuntimeCallableCHeaderArtifactKind)
+    return ".h";
+  if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
+    return ".o";
+  if (artifactKind == kRuntimeOffloadHandoffDescriptorArtifactKind)
+    return ".txt";
+  return ".artifact";
+}
+
+std::string sanitizeFileNameComponent(llvm::StringRef value) {
+  std::string result;
+  result.reserve(std::min<std::size_t>(value.size(), 96));
+  for (char character : value.take_front(96)) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (std::isalnum(byte) || character == '-' || character == '_' ||
+        character == '.')
+      result.push_back(character);
+    else
+      result.push_back('_');
+  }
+  while (!result.empty() && result.front() == '.')
+    result.erase(result.begin());
+  while (!result.empty() && result.back() == '.')
+    result.pop_back();
+  if (result.empty())
+    result = "artifact";
+  return result;
 }
 
 bool hasKernelBody(KernelOp kernel) {
@@ -1034,6 +1079,181 @@ llvm::Error collectTargetArtifactBundleRecords(
   return llvm::Error::success();
 }
 
+std::string
+deriveTargetArtifactBundleFileName(const TargetArtifactBundleRecord &record,
+                                   std::size_t index) {
+  std::string fileName;
+  llvm::raw_string_ostream stream(fileName);
+  stream << "artifact-" << index << "-"
+         << sanitizeFileNameComponent(record.artifactKind) << "-"
+         << sanitizeFileNameComponent(record.routeID)
+         << getFileExtensionForArtifactKind(record.artifactKind);
+  stream.flush();
+  return fileName;
+}
+
+namespace {
+
+llvm::SmallString<256> makeBundleOutputPath(llvm::StringRef outputDirectory,
+                                            llvm::StringRef fileName) {
+  llvm::SmallString<256> path(outputDirectory);
+  llvm::sys::path::append(path, fileName);
+  return path;
+}
+
+llvm::Error validateBundleOutputDirectory(llvm::StringRef outputDirectory) {
+  if (outputDirectory.trim().empty())
+    return makeTargetArtifactBundleExportError(
+        "requires --tcrv-target-artifact-bundle-output-dir=<directory>");
+  if (!llvm::sys::fs::exists(outputDirectory))
+    return makeTargetArtifactBundleExportError(
+        "output directory must already exist");
+  if (!llvm::sys::fs::is_directory(outputDirectory))
+    return makeTargetArtifactBundleExportError(
+        "output directory path is not a directory");
+  return llvm::Error::success();
+}
+
+llvm::Error ensureBundleOutputsAreNew(
+    llvm::StringRef outputDirectory, llvm::ArrayRef<std::string> fileNames) {
+  llvm::StringSet<> seenFileNames;
+  for (llvm::StringRef fileName : fileNames) {
+    if (!seenFileNames.insert(fileName).second)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("derived duplicate bundle artifact file name '") +
+          fileName + "'");
+
+    llvm::SmallString<256> path =
+        makeBundleOutputPath(outputDirectory, fileName);
+    if (llvm::sys::fs::exists(path))
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("refuses to overwrite existing bundle artifact file '") +
+          fileName + "'");
+  }
+
+  llvm::SmallString<256> indexPath =
+      makeBundleOutputPath(outputDirectory, kTargetArtifactBundleIndexFileName);
+  if (llvm::sys::fs::exists(indexPath))
+    return makeTargetArtifactBundleExportError(
+        llvm::Twine("refuses to overwrite existing bundle index file '") +
+        kTargetArtifactBundleIndexFileName + "'");
+  return llvm::Error::success();
+}
+
+TargetArtifactExportFn
+getBundleRecordExportFn(const TargetArtifactBundleRecord &record,
+                        const TargetArtifactExporterRegistry &registry) {
+  if (const TargetArtifactExporter *exporter = registry.lookup(record.routeID))
+    return exporter->getExportFn();
+  if (const TargetArtifactCompositeExporter *exporter =
+          registry.lookupComposite(record.routeID))
+    return exporter->getExportFn();
+  return nullptr;
+}
+
+llvm::Error writeBytesToBundleFile(llvm::StringRef path,
+                                   llvm::StringRef fileName,
+                                   llvm::StringRef bytes) {
+  std::error_code ec;
+  llvm::raw_fd_ostream file(path, ec, llvm::sys::fs::OF_None);
+  if (ec)
+    return makeTargetArtifactBundleExportError(
+        llvm::Twine("failed to open bundle file '") + fileName +
+        "' for writing");
+
+  file.write(bytes.data(), bytes.size());
+  file.close();
+  if (file.has_error()) {
+    llvm::sys::fs::remove(path);
+    return makeTargetArtifactBundleExportError(
+        llvm::Twine("failed to write bundle file '") + fileName + "'");
+  }
+  return llvm::Error::success();
+}
+
+void removeBundleFiles(llvm::ArrayRef<std::string> paths) {
+  for (llvm::StringRef path : paths)
+    llvm::sys::fs::remove(path);
+}
+
+void printBundleQuoted(llvm::raw_ostream &os, llvm::StringRef value) {
+  os << "\"";
+  for (char character : value) {
+    switch (character) {
+    case '\\':
+      os << "\\\\";
+      break;
+    case '"':
+      os << "\\\"";
+      break;
+    case '\t':
+      os << "\\t";
+      break;
+    default:
+      os << character;
+      break;
+    }
+  }
+  os << "\"";
+}
+
+void printTargetArtifactBundleIndex(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<TargetArtifactBundleRecord> records,
+    llvm::ArrayRef<std::string> fileNames) {
+  os << "tianchenrv.target_artifact_bundle.version: 1\n";
+  os << "bundle_status: \"complete\"\n";
+  os << "artifact_count: " << records.size() << "\n";
+
+  for (auto [index, record] : llvm::enumerate(records)) {
+    os << "artifact[" << index << "]:\n";
+    os << "  file_name: ";
+    printBundleQuoted(os, fileNames[index]);
+    os << "\n";
+    if (!record.selectedVariant.empty()) {
+      os << "  selected_variant: @" << record.selectedVariant << "\n";
+      os << "  role: ";
+      printBundleQuoted(os, record.role);
+      os << "\n";
+    } else if (record.componentVariants.size() > 1) {
+      os << "  selected_surface: \"dispatch\"\n";
+    }
+
+    for (auto [componentIndex, variant] :
+         llvm::enumerate(record.componentVariants)) {
+      os << "  component[" << componentIndex << "]:\n";
+      os << "    selected_variant: @" << variant << "\n";
+      os << "    role: ";
+      if (componentIndex < record.componentRoles.size())
+        printBundleQuoted(os, record.componentRoles[componentIndex]);
+      else
+        printBundleQuoted(os, "");
+      os << "\n";
+    }
+
+    os << "  artifact_kind: ";
+    printBundleQuoted(os, record.artifactKind);
+    os << "\n";
+    os << "  route: ";
+    printBundleQuoted(os, record.routeID);
+    os << "\n";
+    os << "  owner: ";
+    printBundleQuoted(os, record.owner);
+    os << "\n";
+    os << "  runtime_abi_kind: ";
+    printBundleQuoted(os, record.runtimeABIKind);
+    os << "\n";
+    os << "  runtime_abi_name: ";
+    printBundleQuoted(os, record.runtimeABIName);
+    os << "\n";
+    os << "  evidence_role: ";
+    printBundleQuoted(os, record.evidenceRole);
+    os << "\n";
+  }
+}
+
+} // namespace
+
 llvm::Error validateTargetArtifactCandidateAgainstExporter(
     const TargetArtifactCandidate &candidate,
     const TargetArtifactExporter &exporter) {
@@ -1302,6 +1522,14 @@ TargetArtifactExporterRegistry::lookup(llvm::StringRef routeID) const {
   return &it->getValue();
 }
 
+const TargetArtifactCompositeExporter *
+TargetArtifactExporterRegistry::lookupComposite(llvm::StringRef routeID) const {
+  for (const TargetArtifactCompositeExporter &exporter : compositeExporters)
+    if (exporter.getRouteID() == routeID)
+      return &exporter;
+  return nullptr;
+}
+
 llvm::Error exportTargetSourceArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os) {
@@ -1324,6 +1552,84 @@ llvm::Error exportTargetHeaderArtifact(
   return exportTargetArtifactImpl(module, registry,
                                   ArtifactSelectionMode::HeaderOnly,
                                   "header artifact", os);
+}
+
+llvm::Error exportTargetArtifactBundle(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::StringRef outputDirectory) {
+  if (llvm::Error error = validateBundleOutputDirectory(outputDirectory))
+    return error;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 8> records;
+  if (llvm::Error error =
+          collectTargetArtifactBundleRecords(module, registry, records)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeTargetArtifactBundleExportError(message);
+  }
+  if (records.empty())
+    return makeTargetArtifactBundleExportError(
+        "requires at least one supported target artifact route; found none");
+
+  llvm::SmallVector<std::string, 8> fileNames;
+  fileNames.reserve(records.size());
+  for (auto [index, record] : llvm::enumerate(records))
+    fileNames.push_back(deriveTargetArtifactBundleFileName(record, index));
+
+  if (llvm::Error error =
+          ensureBundleOutputsAreNew(outputDirectory, fileNames))
+    return error;
+
+  llvm::SmallVector<std::string, 8> writtenPaths;
+  for (auto [index, record] : llvm::enumerate(records)) {
+    TargetArtifactExportFn exportFn = getBundleRecordExportFn(record, registry);
+    if (!exportFn) {
+      removeBundleFiles(writtenPaths);
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("unknown target artifact bundle route id '") +
+          record.routeID + "'");
+    }
+
+    std::string artifactBytes;
+    llvm::raw_string_ostream artifactStream(artifactBytes);
+    if (llvm::Error error = exportFn(module, artifactStream)) {
+      removeBundleFiles(writtenPaths);
+      return error;
+    }
+    artifactStream.flush();
+    if (artifactBytes.empty()) {
+      removeBundleFiles(writtenPaths);
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("target artifact bundle route '") + record.routeID +
+          "' produced an empty artifact");
+    }
+
+    llvm::SmallString<256> outputPath =
+        makeBundleOutputPath(outputDirectory, fileNames[index]);
+    if (llvm::Error error =
+            writeBytesToBundleFile(outputPath, fileNames[index],
+                                   llvm::StringRef(artifactBytes))) {
+      removeBundleFiles(writtenPaths);
+      return error;
+    }
+    writtenPaths.push_back(outputPath.str().str());
+  }
+
+  std::string indexText;
+  llvm::raw_string_ostream indexStream(indexText);
+  printTargetArtifactBundleIndex(indexStream, records, fileNames);
+  indexStream.flush();
+
+  llvm::SmallString<256> indexPath =
+      makeBundleOutputPath(outputDirectory, kTargetArtifactBundleIndexFileName);
+  if (llvm::Error error =
+          writeBytesToBundleFile(indexPath, kTargetArtifactBundleIndexFileName,
+                                 llvm::StringRef(indexText))) {
+    writtenPaths.push_back(indexPath.str().str());
+    removeBundleFiles(writtenPaths);
+    return error;
+  }
+
+  return llvm::Error::success();
 }
 
 } // namespace tianchenrv::target

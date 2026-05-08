@@ -15,6 +15,7 @@
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -25,6 +26,11 @@ namespace {
 using TargetArtifactExportFn = llvm::Error (*)(
     mlir::ModuleOp, const tianchenrv::target::TargetArtifactExporterRegistry &,
     llvm::raw_ostream &);
+
+llvm::cl::opt<std::string> targetArtifactBundleOutputDirectory(
+    "tcrv-target-artifact-bundle-output-dir",
+    llvm::cl::desc("output directory for --tcrv-export-target-artifact-bundle"),
+    llvm::cl::value_desc("directory"), llvm::cl::init(""));
 
 void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
   tianchenrv::registerAllDialects(registry);
@@ -254,6 +260,45 @@ mlir::LogicalResult exportTargetHeaderArtifact(mlir::ModuleOp module,
       module, os, tianchenrv::target::exportTargetHeaderArtifact);
 }
 
+mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
+                                               llvm::raw_ostream &os) {
+  tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  if (llvm::Error error =
+          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
+  if (llvm::Error error =
+          tianchenrv::target::registerBuiltinTargetArtifactExporters(
+              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error =
+          tianchenrv::transforms::checkExecutionPlanCoherence(module, plugins,
+                                                              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error = tianchenrv::target::exportTargetArtifactBundle(
+          module, exporters, targetArtifactBundleOutputDirectory)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  os << "tianchenrv.target_artifact_bundle_export: complete\n";
+  os << "index_file: \"tianchenrv-target-artifact-bundle.index\"\n";
+  return mlir::success();
+}
+
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
@@ -346,6 +391,12 @@ void registerTianChenRVTranslations() {
       "export one supported TianChen-RV target C header artifact route",
       exportTargetHeaderArtifact, registerTianChenRVTranslateDialects);
   (void)targetHeaderArtifact;
+
+  static mlir::TranslateFromMLIRRegistration targetArtifactBundle(
+      "tcrv-export-target-artifact-bundle",
+      "export selected TianChen-RV target artifacts into an output directory",
+      exportTargetArtifactBundle, registerTianChenRVTranslateDialects);
+  (void)targetArtifactBundle;
 }
 
 } // namespace

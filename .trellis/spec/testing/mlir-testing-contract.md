@@ -111,6 +111,18 @@ Use lit/FileCheck for:
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
   multiple supported artifacts, and scalar/offload paths not being routed
   through the RVV exporter.
+- target artifact bundle export routing, including an explicit output-directory
+  front door, deterministic source/header/object file names derived from
+  registry artifact route metadata, direct RVV microkernel bundle coverage,
+  RVV+scalar dispatch composite bundle coverage that preserves dispatch route
+  identity, a deterministic bundle index recording file name, artifact kind,
+  route, owner, runtime ABI kind/name, component selected paths, and
+  conservative evidence role, preservation of existing single-artifact
+  source/header/object front doors, fail-closed diagnostics for missing or
+  invalid output directories, and fail-closed behavior for unsupported or
+  metadata-only selected paths without a fake complete bundle. Bundle tests
+  must not commit generated binary artifacts or treat object creation as link,
+  runtime, correctness, or performance evidence.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;
   existing execution-planning pipeline output followed by the preflight pass;

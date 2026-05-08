@@ -536,6 +536,49 @@ module {
   return true;
 }
 
+bool expectTargetArtifactBundleFileNames() {
+  TargetArtifactBundleRecord sourceRecord;
+  sourceRecord.artifactKind = "runtime-callable-c-source";
+  sourceRecord.routeID = "tcrv-export-rvv/microkernel:c";
+  std::string sourceName =
+      deriveTargetArtifactBundleFileName(sourceRecord, /*index=*/7);
+  if (sourceName !=
+      "artifact-7-runtime-callable-c-source-tcrv-export-rvv_microkernel_c.c") {
+    llvm::errs() << "unexpected sanitized source bundle file name: "
+                 << sourceName << "\n";
+    return false;
+  }
+
+  TargetArtifactBundleRecord headerRecord;
+  headerRecord.artifactKind = "runtime-callable-c-header";
+  headerRecord.routeID = "tcrv-export-rvv-microkernel-header";
+  if (deriveTargetArtifactBundleFileName(headerRecord, /*index=*/1) !=
+      "artifact-1-runtime-callable-c-header-tcrv-export-rvv-microkernel-header.h") {
+    llvm::errs() << "unexpected header bundle file name\n";
+    return false;
+  }
+
+  TargetArtifactBundleRecord objectRecord;
+  objectRecord.artifactKind = "riscv-elf-relocatable-object";
+  objectRecord.routeID = "tcrv-export-rvv-microkernel-object";
+  if (deriveTargetArtifactBundleFileName(objectRecord, /*index=*/2) !=
+      "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-microkernel-object.o") {
+    llvm::errs() << "unexpected object bundle file name\n";
+    return false;
+  }
+
+  TargetArtifactBundleRecord descriptorRecord;
+  descriptorRecord.artifactKind = "runtime-offload-handoff-descriptor";
+  descriptorRecord.routeID = "tcrv-export-offload-runtime-descriptor";
+  if (deriveTargetArtifactBundleFileName(descriptorRecord, /*index=*/3) !=
+      "artifact-3-runtime-offload-handoff-descriptor-tcrv-export-offload-runtime-descriptor.txt") {
+    llvm::errs() << "unexpected descriptor bundle file name\n";
+    return false;
+  }
+
+  return true;
+}
+
 } // namespace
 
 int main() {
@@ -687,6 +730,8 @@ int main() {
   if (!expectGenericHeaderArtifactRouteSelection(context))
     return 1;
   if (!expectTargetArtifactBundleDiscovery(context))
+    return 1;
+  if (!expectTargetArtifactBundleFileNames())
     return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;

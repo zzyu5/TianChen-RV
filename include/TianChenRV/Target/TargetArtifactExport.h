@@ -132,6 +132,8 @@ public:
   llvm::Error registerCompositeExporter(
       const TargetArtifactCompositeExporter &exporter);
   const TargetArtifactExporter *lookup(llvm::StringRef routeID) const;
+  const TargetArtifactCompositeExporter *
+  lookupComposite(llvm::StringRef routeID) const;
   std::size_t size() const { return exporters.size(); }
   std::size_t compositeSize() const { return compositeExporters.size(); }
   llvm::ArrayRef<TargetArtifactCompositeExporter>
@@ -151,6 +153,10 @@ llvm::Error collectTargetArtifactCandidates(
 llvm::Error collectTargetArtifactBundleRecords(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::SmallVectorImpl<TargetArtifactBundleRecord> &out);
+
+std::string
+deriveTargetArtifactBundleFileName(const TargetArtifactBundleRecord &record,
+                                   std::size_t index);
 
 llvm::Error validateTargetArtifactCandidateAgainstExporter(
     const TargetArtifactCandidate &candidate,
@@ -172,6 +178,10 @@ llvm::Error exportTargetArtifact(
 llvm::Error exportTargetHeaderArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os);
+
+llvm::Error exportTargetArtifactBundle(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::StringRef outputDirectory);
 
 } // namespace tianchenrv::target
 

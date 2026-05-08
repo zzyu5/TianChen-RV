@@ -395,6 +395,27 @@ kind, selected path, lowering-boundary reference, runtime ABI metadata, and
 required capability refs; offload-specific descriptor content stays in the
 offload target exporter.
 
+The target artifact bundle export is a directory materialization layer over the
+same registry-derived artifact records that the emission manifest serializes.
+It may iterate `collectTargetArtifactBundleRecords`, call the registered
+source/header/object/descriptor exporter callbacks, and write a deterministic
+bundle index plus the selected artifact files under an explicit existing output
+directory. The generic bundle layer must not branch on RVV, scalar, IME,
+Sophgo, offload, vendor, target family, dtype, shape, runtime, toolchain, or
+microarchitecture semantics to decide which files exist; route availability
+comes from selected-path/emission-plan metadata and the target artifact
+exporter registry. Bundle file names and the index must be deterministic,
+safe, and metadata-derived, and must not contain local absolute paths,
+credentials, timestamps, random values, `artifacts/tmp` paths, raw logs, or
+secret-like text. Unsupported or metadata-only selected paths must not produce
+a fake complete bundle. If artifact materialization fails, the exporter must
+fail before writing a complete index and must either remove partial outputs or
+otherwise avoid claiming a complete bundle. The bundle index is build handoff
+metadata only: it may record file names, artifact kind, route, owner, runtime
+ABI kind/name, component selected paths, and conservative evidence roles, but
+it does not claim link success, runtime success, RVV execution, correctness, or
+performance.
+
 ## Selected Lowering Boundary First Slice
 
 Before executable lowering exists, the compiler may materialize selected-path
