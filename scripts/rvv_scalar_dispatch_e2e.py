@@ -498,6 +498,7 @@ def validate_self_check_dispatch_source(source: str) -> dict[str, str]:
         "/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */",
         "rvv_available = 0",
         "rvv_available = 1",
+        "runtime_counts=7,16",
         "int main(void)",
         SUCCESS_MARKER,
         "__riscv_vadd_vv_i32m1",
@@ -923,7 +924,7 @@ def build_dispatch_external_caller_source(
         elif role == "output-buffer":
             call_arguments.append("out")
         elif role == "runtime-element-count":
-            call_arguments.append("(size_t)kElements")
+            call_arguments.append("runtime_n")
         elif role == "dispatch-availability-guard":
             call_arguments.append("rvv_available")
         else:
@@ -937,33 +938,48 @@ def build_dispatch_external_caller_source(
 
 #include "{escaped_header}"
 
-static int run_dispatch_case(int rvv_available) {{
-  enum {{ kElements = 16 }};
-  const int32_t lhs[kElements] = {{0, 1, 2, 3, 4, 5, 6, 7,
-                                  8, 9, 10, 11, 12, 13, 14, 15}};
-  const int32_t rhs[kElements] = {{31, 29, 23, 19, 17, 13, 11, 7,
-                                  5, 3, 2, 1, -1, -3, -5, -7}};
-  int32_t out[kElements] = {{0}};
+static int run_dispatch_case(size_t runtime_n, int rvv_available) {{
+  enum {{ kCapacity = 32 }};
+  int32_t lhs[kCapacity];
+  int32_t rhs[kCapacity];
+  int32_t out[kCapacity];
+
+  for (size_t index = 0; index < (size_t)kCapacity; ++index) {{
+    lhs[index] = (int32_t)index;
+    rhs[index] = (int32_t)(31 - (int)index);
+    out[index] = -12345;
+  }}
 
   {function_name}({rendered_call_arguments});
-  for (size_t index = 0; index < (size_t)kElements; ++index) {{
+  for (size_t index = 0; index < runtime_n; ++index) {{
     if (out[index] != lhs[index] + rhs[index]) {{
       fprintf(stderr,
-              "rvv scalar dispatch bundle external ABI mismatch guard=%d index=%zu\\n",
-              rvv_available, index);
+              "rvv scalar dispatch bundle external ABI mismatch n=%zu guard=%d index=%zu\\n",
+              runtime_n, rvv_available, index);
       return rvv_available ? 11 : 10;
+    }}
+  }}
+  for (size_t index = runtime_n; index < (size_t)kCapacity; ++index) {{
+    if (out[index] != -12345) {{
+      fprintf(stderr,
+              "rvv scalar dispatch bundle external ABI overrun n=%zu guard=%d index=%zu\\n",
+              runtime_n, rvv_available, index);
+      return rvv_available ? 13 : 12;
     }}
   }}
   return 0;
 }}
 
 int main(void) {{
-  if (run_dispatch_case(0))
+  if (run_dispatch_case(7, 0))
     return 10;
-  if (run_dispatch_case(1))
+  if (run_dispatch_case(16, 0))
     return 11;
-  printf("{BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER} elements=%zu branches=scalar_and_rvv\\n",
-         (size_t)16);
+  if (run_dispatch_case(7, 1))
+    return 12;
+  if (run_dispatch_case(16, 1))
+    return 13;
+  printf("{BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER} runtime_counts=7,16 branches=scalar_and_rvv\\n");
   return 0;
 }}
 """
@@ -1712,6 +1728,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "runtime_abi_signature": dispatch_signature,
             "success_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
             "branches_exercised": ["rvv_available=0", "rvv_available=1"],
+            "runtime_element_counts": [7, 16],
         },
         "selected_compile_flags": remote_compile_flags(source_flags),
         "pass_fail_result": "pass",
@@ -1877,6 +1894,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "library_source_export_route": "generic-target-source-artifact",
         "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check",
         "source_export_mode": "self-check-harness",
+        "self_check": {
+            "branches_exercised": ["rvv_available=0", "rvv_available=1"],
+            "runtime_element_counts": [7, 16],
+            "success_marker": SUCCESS_MARKER,
+        },
         "selected_compile_flags": remote_compile_flags(source_flags),
         "hashes": hashes,
         "artifacts": {
@@ -1963,8 +1985,8 @@ def run_self_test() -> None:
 void tcrv_dispatch_i32_vadd_self_test(void) {}
 void f(void) { __riscv_vadd_vv_i32m1; out[index] = lhs[index] + rhs[index]; }
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
-/* Harness scope: calls the generated dispatcher once with rvv_available = 0 and once with rvv_available = 1. */
-int main(void) { puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok"); }
+/* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+int main(void) { puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }
 """.strip()
     flags = validate_self_check_dispatch_source(sample_source)
     assert_self_test(flags["selected_march"] == "rv64gcv", "selected march parser failed")
@@ -2248,6 +2270,11 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
     assert_self_test(
         BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in caller,
         "bundle external caller success marker missing",
+    )
+    assert_self_test(
+        "run_dispatch_case(7, 0)" in caller
+        and "run_dispatch_case(16, 1)" in caller,
+        "bundle external caller did not exercise multiple runtime element counts",
     )
     bundle_link_command = build_remote_bundle_link_executable_command(
         "/tmp/tianchenrv_rvv_bundle_e2e_self_test",

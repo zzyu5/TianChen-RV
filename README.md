@@ -445,12 +445,16 @@ RVV runtime/correctness/performance claims still require separate real
 The explicit
 `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`
 helper emits the same bounded dispatcher source plus a small `main` that calls
-the dispatcher with `rvv_available = 0` and `rvv_available = 1` over fixed local
-arrays. This helper exists only for bounded runtime invocation evidence of the
-current RVV+scalar i32-vadd dispatch slice. A successful `ssh rvv` compile/run
-of that generated source proves only that this dispatcher harness passed on the
-selected host flags; it is not generic RVV lowering, object generation, dynamic
-runtime integration, performance evidence, or broad correctness coverage.
+the dispatcher with explicit runtime element-count ABI values for both
+`rvv_available = 0` and `rvv_available = 1` over bounded local arrays. The
+current harness covers `n = 7` and `n = 16`, so the runtime loop bound is a
+caller-provided ABI/control input rather than descriptor-local `element_count`
+metadata. This helper exists only for bounded runtime invocation evidence of
+the current RVV+scalar i32-vadd dispatch slice. A successful `ssh rvv`
+compile/run of that generated source proves only that this dispatcher harness
+passed on the selected host flags; it is not generic RVV lowering, object
+generation, dynamic runtime integration, performance evidence, or broad
+correctness coverage.
 
 The `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object` tool is
 the bounded library object route for that same dispatcher. It reuses the
@@ -470,7 +474,7 @@ evidence, or broad correctness coverage.
 The explicit
 `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object`
 helper remains available for evidence-oriented object generation from the
-self-check source. It may contain `main` and the fixed local-array harness, and
+self-check source. It may contain `main` and the bounded local-array harness, and
 it is intentionally not the generic `--tcrv-export-target-artifact` route.
 
 The same object route is also available through the generic artifact-kind-aware
@@ -527,10 +531,12 @@ dispatch C sources, hashes, and command summaries under
 claim. Real ssh mode copies the compiler-generated self-check source to the RVV
 host, compiles it with selected `-march`/optional `-mabi`, links the executable,
 and runs the harness that calls both `rvv_available = 0` and
-`rvv_available = 1` branches. A successful run proves only that this finite
-RVV+scalar i32-vadd dispatcher self-check executable passed on the selected RVV
-host flags. It is not generic RVV lowering, arbitrary kernel support, dynamic
-runtime integration, performance evidence, or broad correctness coverage.
+`rvv_available = 1` branches with explicit runtime `n = 7` and `n = 16` values.
+A successful run proves only that this finite RVV+scalar i32-vadd dispatcher
+self-check executable passed on the selected RVV host flags for those runtime
+count ABI inputs. It is not generic RVV lowering, arbitrary kernel support,
+dynamic runtime integration, performance evidence, or broad correctness
+coverage.
 
 The optional target-artifact-bundle mode writes sanitized bundle evidence under
 `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/<run-id>/`. Dry-run bundle
@@ -542,7 +548,8 @@ object, and generated external caller to `ssh rvv`; compiles the generated
 dispatch source on that host, links and runs the external caller against the
 source-built object, then also links and runs the same caller against the
 bundle object. A successful run proves only the bounded RVV+scalar i32-vadd
-bundle external ABI handoff for those compiler-produced bundle artifacts.
+bundle external ABI handoff for those compiler-produced bundle artifacts and
+the explicit runtime `n = 7` and `n = 16` caller inputs.
 
 ## Runtime Offload First Slice
 

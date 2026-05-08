@@ -70,11 +70,14 @@
 # INDEX: evidence_role: "relocatable-object"
 
 # CALLER: #include "artifact-
-# CALLER: static int run_dispatch_case(int rvv_available)
-# CALLER: tcrv_dispatch_i32_vadd_conflict_planned_dispatch(lhs, rhs, out, (size_t)kElements, rvv_available);
-# CALLER: run_dispatch_case(0)
-# CALLER: run_dispatch_case(1)
+# CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
+# CALLER: tcrv_dispatch_i32_vadd_conflict_planned_dispatch(lhs, rhs, out, runtime_n, rvv_available);
+# CALLER: run_dispatch_case(7, 0)
+# CALLER: run_dispatch_case(16, 0)
+# CALLER: run_dispatch_case(7, 1)
+# CALLER: run_dispatch_case(16, 1)
 # CALLER: tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok
+# CALLER-SAME: runtime_counts=7,16
 
 # SUMMARY: "name": "tcrv_opt_execution_planning_pipeline"
 # SUMMARY: "name": "export_target_artifact_bundle"
@@ -102,6 +105,9 @@
 # EVIDENCE: "role": "lhs-input-buffer"
 # EVIDENCE: "role": "runtime-element-count"
 # EVIDENCE: "role": "dispatch-availability-guard"
+# EVIDENCE: "runtime_element_counts": [
+# EVIDENCE: 7
+# EVIDENCE: 16
 # EVIDENCE: "git_sha": "
 # EVIDENCE: "pass_fail_result": "pass"
 # EVIDENCE: "selected_artifact_paths": {

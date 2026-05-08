@@ -270,26 +270,30 @@ module @rvv_scalar_dispatch_input {
 // HARNESS: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
 // HARNESS: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
-// HARNESS: /* Harness scope: calls the generated dispatcher once with rvv_available = 0 and once with rvv_available = 1. */
-// HARNESS: Runtime n is a target/export-owned ABI parameter
+// HARNESS: /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+// HARNESS: Runtime element count is a target/export-owned ABI parameter
 // HARNESS: descriptor-local element_count remains metadata only
 // HARNESS: #include <stdio.h>
-// HARNESS-LABEL: {{^}}static int tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(int rvv_available)
-// HARNESS: int32_t out[16] = {0};
-// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd(lhs, rhs, out, 16, rvv_available);
+// HARNESS-LABEL: {{^}}static int tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(size_t runtime_n, int rvv_available)
+// HARNESS: enum { kCapacity = 32 };
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd(lhs, rhs, out, runtime_n, rvv_available);
+// HARNESS: for (size_t index = 0; index < runtime_n; ++index)
 // HARNESS: if (out[index] != lhs[index] + rhs[index])
+// HARNESS: for (size_t index = runtime_n; index < (size_t)kCapacity; ++index)
 // HARNESS-LABEL: {{^}}int main(void)
-// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(0)
-// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(1)
-// HARNESS: puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok");
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(7, 0)
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(16, 0)
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(7, 1)
+// HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(16, 1)
+// HARNESS: puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv");
 
 // AUTO-HARNESS: /* selected_kernel: @pipeline_manifest */
 // AUTO-HARNESS: void tcrv_dispatch_i32_vadd_pipeline_manifest
-// AUTO-HARNESS: static int tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(int rvv_available)
-// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest(lhs, rhs, out, 16, rvv_available);
-// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(0)
-// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(1)
-// AUTO-HARNESS: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok
+// AUTO-HARNESS: static int tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(size_t runtime_n, int rvv_available)
+// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest(lhs, rhs, out, runtime_n, rvv_available);
+// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(7, 0)
+// AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(16, 1)
+// AUTO-HARNESS: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
 // HELP: tcrv-export-rvv-scalar-i32-vadd-dispatch-header
 // HELP: tcrv-export-rvv-scalar-i32-vadd-dispatch-object

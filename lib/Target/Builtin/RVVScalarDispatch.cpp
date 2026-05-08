@@ -1268,36 +1268,54 @@ void printDispatchHeader(const DispatchPair &pair, llvm::raw_ostream &os) {
 
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
                                    llvm::StringRef dispatcherFunctionName,
+                                   llvm::StringRef runtimeElementCountName,
                                    llvm::StringRef guardParameterName) {
   os << "\n/* Explicit bounded self-check harness for RVV+scalar dispatch "
         "runtime invocation evidence. */\n";
-  os << "/* Harness scope: calls the generated dispatcher once with "
-     << guardParameterName << " = 0 and once with " << guardParameterName
+  os << "/* Harness scope: calls the generated dispatcher with explicit "
+     << runtimeElementCountName << " values 7 and 16 for "
+     << guardParameterName << " = 0 and " << guardParameterName
      << " = 1. */\n";
-  os << "/* Runtime n is a target/export-owned ABI parameter in this harness; "
+  os << "/* Runtime element count is a target/export-owned ABI parameter in "
+        "this harness; "
         "descriptor-local element_count remains metadata only. */\n";
   os << "#include <stdio.h>\n\n";
   os << "static int " << dispatcherFunctionName
-     << "_self_check_one(int " << guardParameterName << ") {\n";
-  os << "  const int32_t lhs[16] = {0, 1, 2, 3, 4, 5, 6, 7, "
-        "8, 9, 10, 11, 12, 13, 14, 15};\n";
-  os << "  const int32_t rhs[16] = {31, 29, 23, 19, 17, 13, 11, 7, "
-        "5, 3, 2, 1, -1, -3, -5, -7};\n";
-  os << "  int32_t out[16] = {0};\n";
+     << "_self_check_one(size_t runtime_n, int " << guardParameterName
+     << ") {\n";
+  os << "  enum { kCapacity = 32 };\n";
+  os << "  int32_t lhs[kCapacity];\n";
+  os << "  int32_t rhs[kCapacity];\n";
+  os << "  int32_t out[kCapacity];\n";
+  os << "  for (size_t index = 0; index < (size_t)kCapacity; ++index) {\n";
+  os << "    lhs[index] = (int32_t)index;\n";
+  os << "    rhs[index] = (int32_t)(31 - (int)index);\n";
+  os << "    out[index] = -12345;\n";
+  os << "  }\n";
   os << "  " << dispatcherFunctionName
-     << "(lhs, rhs, out, 16, " << guardParameterName << ");\n";
-  os << "  for (size_t index = 0; index < 16; ++index) {\n";
+     << "(lhs, rhs, out, runtime_n, " << guardParameterName << ");\n";
+  os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
   os << "    if (out[index] != lhs[index] + rhs[index])\n";
   os << "      return 1;\n";
+  os << "  }\n";
+  os << "  for (size_t index = runtime_n; index < (size_t)kCapacity; "
+        "++index) {\n";
+  os << "    if (out[index] != -12345)\n";
+  os << "      return 2;\n";
   os << "  }\n";
   os << "  return 0;\n";
   os << "}\n\n";
   os << "int main(void) {\n";
-  os << "  if (" << dispatcherFunctionName << "_self_check_one(0))\n";
+  os << "  if (" << dispatcherFunctionName << "_self_check_one(7, 0))\n";
   os << "    return 1;\n";
-  os << "  if (" << dispatcherFunctionName << "_self_check_one(1))\n";
+  os << "  if (" << dispatcherFunctionName << "_self_check_one(16, 0))\n";
   os << "    return 2;\n";
-  os << "  puts(\"tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok\");\n";
+  os << "  if (" << dispatcherFunctionName << "_self_check_one(7, 1))\n";
+  os << "    return 3;\n";
+  os << "  if (" << dispatcherFunctionName << "_self_check_one(16, 1))\n";
+  os << "    return 4;\n";
+  os << "  puts(\"tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok "
+        "runtime_counts=7,16 branches=scalar_and_rvv\");\n";
   os << "  return 0;\n";
   os << "}\n";
 }
@@ -1311,6 +1329,8 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
   llvm::ArrayRef<support::RuntimeABIParameter> dispatchParameters =
       pair.abiPlan.parameters;
+  const support::RuntimeABIParameter &runtimeElementCountParameter =
+      dispatchParameters[3];
   const support::RuntimeABIParameter &guardParameter =
       dispatchParameters.back();
 
@@ -1365,6 +1385,7 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
                           scalarFunctionName, dispatchParameters);
   if (includeSelfCheck)
     printDispatchSelfCheckHarness(os, dispatcherFunctionName,
+                                  runtimeElementCountParameter.cName,
                                   guardParameter.cName);
 }
 

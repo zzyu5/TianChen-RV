@@ -881,7 +881,7 @@ void <generated_name>(const int32_t *lhs, const int32_t *rhs,
 The callable function computes finite i32 vector add using RVV intrinsics. The
 default artifact has no embedded `main` or self-check harness; later runtime
 glue can embed the source and call the ABI boundary directly. A separate
-explicit harness export may add fixed local arrays and `main` only for bounded
+  explicit harness export may add bounded local arrays and `main` only for bounded
 evidence collection. This is not generic high-level MLIR lowering, arbitrary
 RVV kernel emission, full runtime integration, benchmarking, or performance
 evidence.
@@ -941,7 +941,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   structured control/dataflow body, and no default embedded `main` or
   self-check harness.
 - The explicit self-check harness export must call the same callable ABI from a
-  bounded helper over fixed local arrays and is evidence tooling, not the
+  bounded helper over bounded local arrays and is evidence tooling, not the
   default target artifact contract.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
   benchmark sizes, latency/throughput numbers, or performance claims.
@@ -1194,7 +1194,8 @@ generation, linking, arbitrary dispatch lowering, benchmarking, correctness
 evidence, or performance evidence.
 
 An explicit self-check harness export may wrap the same generated dispatcher in
-a bounded `main` that invokes both branches over fixed local arrays:
+a bounded `main` that invokes both branches over bounded local arrays with
+explicit runtime element-count ABI inputs:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
@@ -1248,8 +1249,11 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
 - The harness calls the dispatcher with `rvv_available = 0` to exercise the
   scalar fallback branch and with `rvv_available = 1` to exercise the RVV
   branch.
-- The harness uses fixed local arrays and a target/export-owned runtime `n`
-  ABI argument. Descriptor-local `element_count` remains metadata only.
+- The harness must exercise more than one target/export-owned runtime `n` ABI
+  value. The current bounded slice uses `n = 7` and `n = 16` for each branch.
+- The harness uses bounded local arrays and a target/export-owned runtime `n`
+  ABI argument. Descriptor-local `element_count` remains metadata only and
+  must not become the callable runtime loop bound.
 - The harness may print one bounded success marker after both checks pass.
 - Output must not include benchmark sizes, throughput, latency, raw logs,
   credentials, URLs, absolute artifact paths, or performance claims.
@@ -1286,6 +1290,9 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
   self-check helpers, and runtime success markers.
 - lit/FileCheck must prove the self-check export appends a harness that calls
   the dispatcher with both `rvv_available = 0` and `rvv_available = 1`.
+- lit/FileCheck must prove the harness passes explicit runtime element-count
+  ABI values through the dispatcher rather than hard-coding descriptor-local
+  `element_count` as the runtime loop bound.
 - Pipeline-to-self-check coverage must use
   `tcrv-opt --tcrv-execution-planning-pipeline | tcrv-translate
   --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`.
@@ -1307,7 +1314,8 @@ Correct:
 ```text
 The generated bounded RVV+scalar i32-vadd dispatch self-check source compiled
 and ran on ssh rvv with selected flags; this proves only that the finite
-dispatcher harness invoked both callable branches correctly.
+dispatcher harness invoked both callable branches correctly for the explicit
+runtime element-count ABI values in the harness.
 ```
 
 ### Dispatch Library Object Export
@@ -1474,9 +1482,10 @@ the bounded bundle external ABI success marker and record sanitized
 host/toolchain facts such as `uname`, architecture, and clang path/version.
 Successful ssh bundle evidence proves only that the finite RVV+scalar i32-vadd
 compiler-generated bundle source/header/object external ABI caller executed
-both `rvv_available = 0` and `rvv_available = 1` branches on that host. It is
-not generic lowering, arbitrary RVV support, dynamic runtime integration,
-performance evidence, or broad correctness coverage.
+both `rvv_available = 0` and `rvv_available = 1` branches on that host for the
+explicit runtime `n = 7` and `n = 16` caller inputs. It is not generic lowering,
+arbitrary RVV support, dynamic runtime integration, performance evidence, or
+broad correctness coverage.
 
 Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
 library dispatch source, generated self-check dispatch source, hashes, command
@@ -1495,10 +1504,11 @@ rather than synthesizing runtime evidence.
 
 Successful ssh evidence proves only that the finite generated RVV+scalar
 i32-vadd dispatcher self-check executable compiled, linked, and ran both the
-scalar fallback and RVV dispatch branches on the selected RVV host flags. It is
-not generic high-level lowering correctness, arbitrary RVV emission support,
-object-route proof for unrelated kernels, dynamic runtime integration,
-performance evidence, or broad correctness coverage.
+scalar fallback and RVV dispatch branches on the selected RVV host flags for
+the explicit runtime `n = 7` and `n = 16` ABI inputs. It is not generic
+high-level lowering correctness, arbitrary RVV emission support, object-route
+proof for unrelated kernels, dynamic runtime integration, performance evidence,
+or broad correctness coverage.
 
 ### Dispatch ABI Header Export
 

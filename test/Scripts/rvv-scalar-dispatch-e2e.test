@@ -28,9 +28,12 @@
 # SOURCE: rvv_available = 0
 # SOURCE: rvv_available = 1
 # SOURCE: int main(void)
-# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(0)
-# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(1)
+# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(7, 0)
+# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(16, 0)
+# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(7, 1)
+# SOURCE: tcrv_dispatch_i32_vadd_conflict_planned_dispatch_self_check_one(16, 1)
 # SOURCE: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok
+# SOURCE-SAME: runtime_counts=7,16
 # SOURCE-NOT: runtime_success
 # SOURCE-NOT: throughput
 # SOURCE-NOT: latency
@@ -48,6 +51,10 @@
 
 # EVIDENCE: "library_source_export_route": "generic-target-source-artifact"
 # EVIDENCE: "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline"
+# EVIDENCE: "self_check": {
+# EVIDENCE: "runtime_element_counts": [
+# EVIDENCE: 7
+# EVIDENCE: 16
 # EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
 # EVIDENCE: "ssh_evidence": null
 # EVIDENCE: "status": "success"
