@@ -1583,13 +1583,17 @@ lowering boundaries, route spoofing, unknown route ids, and unsupported artifact
 kinds must fail before descriptor output.
 The emitted descriptor should expose a stable schema version, descriptor kind,
 descriptor status, external adapter contract id, lowering-boundary metadata
-status, runtime ABI, runtime-offload handoff kind, and explicit non-claim
-metadata stating that no vendor runtime call, DMA/buffer management,
-accelerator kernel, object generation, hardware execution, correctness proof,
-or performance claim was produced. When the descriptor is emitted through the
-target artifact bundle route, the bundle index must carry the descriptor route,
-owner/origin, runtime ABI, and handoff kind metadata and must remain a build
-handoff index only.
+status, runtime ABI, runtime-offload handoff kind, artifact component role,
+evidence role, and explicit non-claim metadata stating that no vendor runtime
+call, DMA/buffer management, accelerator kernel, object generation, hardware
+execution, correctness proof, or performance claim was produced. The offload
+emission plan may also carry bounded `selected_plan_metadata` for the
+runtime-offload capability id, handoff kind, and descriptor-only scope; the
+descriptor exporter and bundle index must preserve that metadata when present.
+When the descriptor is emitted through the target artifact bundle route, the
+bundle index must carry the descriptor route, owner/origin, runtime ABI,
+component role, selected-plan metadata, and handoff kind metadata and must
+remain a build handoff index only.
 
 ## Emission Manifest Export Boundary
 

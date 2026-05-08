@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for MLIR/C++ implementation, capability-driven design, and offload as runtime handoff."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Confirms runtime offload is not a custom RISC-V ISA extension and RVV evidence claims require ssh rvv."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Defines offload first-slice capability, selected boundary, descriptor route, and non-claim behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin-owned proposal, legality, selection, lowering-boundary, and emission-plan interfaces."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keeps extension-specific behavior plugin-local or target-export-local."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission-plan, runtime ABI, descriptor, bundle, and target artifact handoff contracts."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines generic variant materialization, legality, selection, pipeline, and target artifact route validation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines lit/FileCheck and C++ testing requirements for compiler behavior."}

@@ -55,6 +55,12 @@ constexpr llvm::StringLiteral kOffloadDescriptorArtifactKind(
     "runtime-offload-handoff-descriptor");
 constexpr llvm::StringLiteral kOffloadDescriptorRuntimeGlueRole(
     "plugin-owned-runtime-offload-glue-boundary");
+constexpr llvm::StringLiteral kSelectedPlanRuntimeCapabilityIDName(
+    "runtime_offload_capability_id");
+constexpr llvm::StringLiteral kSelectedPlanHandoffKindName(
+    "runtime_offload_handoff_kind");
+constexpr llvm::StringLiteral kSelectedPlanDescriptorScopeName(
+    "runtime_offload_descriptor_scope");
 
 struct OffloadRuntimeCapabilityView {
   std::string runtimeABI;
@@ -588,6 +594,21 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
+  out.addSelectedPlanMetadata(
+      kSelectedPlanRuntimeCapabilityIDName, kOffloadRuntimeCapabilityID,
+      "capability-requirement",
+      "records the generic capability id required by the runtime-offload "
+      "handoff descriptor");
+  out.addSelectedPlanMetadata(
+      kSelectedPlanHandoffKindName, kExpectedHandoffKind,
+      "runtime-offload-handoff",
+      "mirrors the capability handoff_kind property for descriptor and bundle "
+      "validation");
+  out.addSelectedPlanMetadata(
+      kSelectedPlanDescriptorScopeName, "descriptor-only",
+      "evidence-scope",
+      "records that this route exports compiler handoff metadata without "
+      "runtime execution");
   return llvm::Error::success();
 }
 

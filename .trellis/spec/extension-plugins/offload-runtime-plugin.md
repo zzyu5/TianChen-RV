@@ -69,6 +69,14 @@ variant. Plugin legality checks that the selected variant requires
 plugin-owned variant metadata matches the preserved capability properties. This
 metadata is compiler handoff metadata only; it is not executable runtime glue.
 
+The supported first-slice emission plan must also preserve bounded
+`selected_plan_metadata` for the descriptor handoff. At minimum, it records the
+generic runtime-offload capability id, the selected runtime-offload handoff
+kind, and the descriptor-only evidence scope. Generic target artifact bundle
+export and the offload runtime descriptor exporter may serialize these fields
+as deterministic handoff metadata, but they remain compiler metadata and do not
+claim vendor runtime execution.
+
 ## Why It Belongs In TianChen-RV
 
 TianChen-RV is a capability-driven execution layer. RISC-V AI systems may include CPU extensions and accelerator runtimes:
@@ -157,11 +165,13 @@ fields such as source kernel, selected variant, origin plugin, required
 capability refs, descriptor schema version, descriptor kind/status, adapter
 contract, runtime ABI kind/name, emission kind, artifact kind,
 lowering-boundary op name/status, runtime-offload handoff kind, handoff reason,
-and explicit non-claim metadata. The generic target artifact bundle exporter
-may materialize the selected non-fallback offload path as one descriptor
-artifact with an index entry carrying route, owner/origin, runtime ABI, and
-handoff kind metadata. It is not runtime execution, vendor integration, DMA,
-object generation, correctness evidence, or performance evidence.
+selected-plan handoff metadata, artifact component role/evidence role, and
+explicit non-claim metadata. The generic target artifact bundle exporter may
+materialize the selected non-fallback offload path as one descriptor artifact
+with an index entry carrying route, owner/origin, runtime ABI, selected-plan
+metadata, and handoff kind metadata. It is not runtime execution, vendor
+integration, DMA, object generation, correctness evidence, or performance
+evidence.
 
 Future types may include:
 

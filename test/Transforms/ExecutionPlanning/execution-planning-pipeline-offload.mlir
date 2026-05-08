@@ -60,6 +60,16 @@ module {
     // PIPE-SAME: runtime_abi_kind = "runtime-offload-c-abi-handoff"
     // PIPE-SAME: runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1"
     // PIPE-SAME: runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary"
+    // PIPE-SAME: selected_plan_metadata =
+    // PIPE-SAME: name = "runtime_offload_capability_id"
+    // PIPE-SAME: role = "capability-requirement"
+    // PIPE-SAME: value = "offload.runtime"
+    // PIPE-SAME: name = "runtime_offload_handoff_kind"
+    // PIPE-SAME: role = "runtime-offload-handoff"
+    // PIPE-SAME: value = "runtime-offload"
+    // PIPE-SAME: name = "runtime_offload_descriptor_scope"
+    // PIPE-SAME: role = "evidence-scope"
+    // PIPE-SAME: value = "descriptor-only"
     // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @offload_runtime_first_slice
     // ROUNDTRIP: tcrv_offload.lowering_boundary

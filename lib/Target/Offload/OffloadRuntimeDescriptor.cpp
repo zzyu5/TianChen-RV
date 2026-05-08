@@ -63,6 +63,9 @@ constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
+constexpr llvm::StringLiteral kDescriptorComponentRole("descriptor");
+constexpr llvm::StringLiteral kCompilerArtifactEvidenceRole(
+    "compiler-artifact");
 
 struct SelectedPath {
   VariantOp variant;
@@ -88,7 +91,11 @@ struct DescriptorRecord {
   std::string loweringBoundaryStatus;
   std::string handoffKind;
   std::string handoffReason;
+  std::string artifactComponentRole;
+  std::string evidenceRole;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
+  llvm::SmallVector<tianchenrv::target::SelectedPlanMetadataEntry, 4>
+      selectedPlanMetadata;
 };
 
 llvm::Error makeDescriptorError(KernelOp kernel, llvm::Twine message) {
@@ -452,6 +459,75 @@ llvm::Error collectRequiredCapabilities(
   return llvm::Error::success();
 }
 
+llvm::Error collectSelectedPlanMetadata(
+    KernelOp kernel, DiagnosticOp plan,
+    llvm::SmallVectorImpl<tianchenrv::target::SelectedPlanMetadataEntry> &out) {
+  auto metadata = plan->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kSelectedPlanMetadataAttrName);
+  if (!metadata)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenNames;
+  for (auto [index, attr] : llvm::enumerate(metadata)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeDescriptorError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] must be a dictionary attribute");
+
+    auto name = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataNameAttrName);
+    auto value = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataValueAttrName);
+    auto role = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataRoleAttrName);
+    auto note = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataNoteAttrName);
+    if (!name || name.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty name");
+    if (!value || value.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty value");
+    if (!role || role.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty role");
+    if (!note || note.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty note");
+
+    llvm::StringRef nameValue = name.getValue().trim();
+    llvm::StringRef metadataValue = value.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef noteValue = note.getValue().trim();
+    if (!seenNames.insert(nameValue).second)
+      return makeDescriptorError(
+          kernel, llvm::Twine("duplicate selected_plan_metadata name '") +
+                      nameValue + "'");
+    if (llvm::Error error =
+            validateSafeText(kernel, "selected_plan_metadata name", nameValue))
+      return error;
+    if (llvm::Error error = validateSafeText(
+            kernel, "selected_plan_metadata value", metadataValue))
+      return error;
+    if (llvm::Error error =
+            validateSafeText(kernel, "selected_plan_metadata role", roleValue))
+      return error;
+    if (llvm::Error error =
+            validateSafeText(kernel, "selected_plan_metadata note", noteValue))
+      return error;
+
+    out.push_back({nameValue.str(), metadataValue.str(), roleValue.str(),
+                   noteValue.str()});
+  }
+
+  return llvm::Error::success();
+}
+
 bool arrayContainsSymbol(mlir::ArrayAttr array, llvm::StringRef symbol) {
   if (!array)
     return false;
@@ -650,6 +726,11 @@ llvm::Error buildDescriptorFromPath(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error =
           validateCapabilitySubset(kernel, variant, record.requiredCapabilities))
     return error;
+  if (llvm::Error error =
+          collectSelectedPlanMetadata(kernel, plan, record.selectedPlanMetadata))
+    return error;
+  record.artifactComponentRole = kDescriptorComponentRole.str();
+  record.evidenceRole = kCompilerArtifactEvidenceRole.str();
 
   return llvm::Error::success();
 }
@@ -913,6 +994,26 @@ void printStringList(llvm::raw_ostream &os,
   os << "]";
 }
 
+void printSelectedPlanMetadata(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<tianchenrv::target::SelectedPlanMetadataEntry> metadata) {
+  for (auto [index, entry] : llvm::enumerate(metadata)) {
+    os << "selected_plan_metadata[" << index << "]:\n";
+    os << "  name: ";
+    printQuoted(os, entry.name);
+    os << "\n";
+    os << "  value: ";
+    printQuoted(os, entry.value);
+    os << "\n";
+    os << "  role: ";
+    printQuoted(os, entry.role);
+    os << "\n";
+    os << "  note: ";
+    printQuoted(os, entry.note);
+    os << "\n";
+  }
+}
+
 void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
   os << "tianchenrv.offload_runtime_handoff_descriptor.version: 1\n";
   os << "descriptor_schema_version: " << record.descriptorSchemaVersion << "\n";
@@ -969,6 +1070,13 @@ void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
   os << "required_capabilities: ";
   printCapabilityList(os, record.requiredCapabilities);
   os << "\n";
+  os << "artifact_component_role: ";
+  printQuoted(os, record.artifactComponentRole);
+  os << "\n";
+  os << "evidence_role: ";
+  printQuoted(os, record.evidenceRole);
+  os << "\n";
+  printSelectedPlanMetadata(os, record.selectedPlanMetadata);
   os << "evidence_scope: ";
   printQuoted(os,
               "descriptor export only; no offload runtime execution, vendor "

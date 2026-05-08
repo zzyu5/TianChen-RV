@@ -562,6 +562,34 @@ module {
                              getOffloadRuntimePreferredCapabilitySymbol(),
                  "offload emission plan records stable handoff metadata"))
     return result;
+  llvm::ArrayRef<tianchenrv::plugin::VariantSelectedPlanMetadata> metadata =
+      emissionPlan.getSelectedPlanMetadata();
+  if (int result =
+          expect(metadata.size() == 3,
+                 "offload emission plan records selected handoff metadata"))
+    return result;
+  if (int result =
+          expect(metadata[0].name == "runtime_offload_capability_id" &&
+                     llvm::StringRef(metadata[0].value) ==
+                         tianchenrv::plugin::offload::
+                             getOffloadRuntimeCapabilityID() &&
+                     metadata[0].role == "capability-requirement",
+                 "offload selected metadata records runtime capability id"))
+    return result;
+  if (int result =
+          expect(metadata[1].name == "runtime_offload_handoff_kind" &&
+                     llvm::StringRef(metadata[1].value) ==
+                         tianchenrv::plugin::offload::
+                             getOffloadExpectedHandoffKind() &&
+                     metadata[1].role == "runtime-offload-handoff",
+                 "offload selected metadata records handoff kind"))
+    return result;
+  if (int result =
+          expect(metadata[2].name == "runtime_offload_descriptor_scope" &&
+                     metadata[2].value == "descriptor-only" &&
+                     metadata[2].role == "evidence-scope",
+                 "offload selected metadata records descriptor-only scope"))
+    return result;
 
   if (int result = expectSuccess(
           tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
