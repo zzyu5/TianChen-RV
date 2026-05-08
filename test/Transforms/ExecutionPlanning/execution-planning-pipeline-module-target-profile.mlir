@@ -1,4 +1,15 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not="int main(void)" --implicit-check-not=_self_check --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+
+// EXPORT: /* TianChen-RV RVV runtime-callable microkernel C export. */
+// EXPORT: #include <riscv_vector.h>
+// EXPORT: /* selected_kernel: @module_profile_pipeline */
+// EXPORT: /* selected_variant: @rvv_first_slice */
+// EXPORT: /* selected_march: rv64gcv */
+// EXPORT: /* required_capabilities: @module_rvv_profile */
+// EXPORT: void tcrv_rvv_i32_vadd_microkernel_module_profile_pipeline_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+// EXPORT: __riscv_vsetvl_e32m1
+// EXPORT: __riscv_vadd_vv_i32m1
 
 module {
   // CHECK-LABEL: tcrv.exec.target @module_rvv_profile

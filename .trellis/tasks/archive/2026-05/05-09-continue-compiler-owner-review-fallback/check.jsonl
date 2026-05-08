@@ -1,0 +1,3 @@
+{"file": "test/Transforms/ExecutionPlanning/execution-planning-pipeline-module-target-profile.mlir", "reason": "Focused lit and manual export verification for profile-backed direct RVV source artifact"}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-module-target-profile-object.mlir", "reason": "Focused lit verification for profile-backed RVV+scalar dispatch object preflight"}
+{"file": "artifacts/tmp/tianchenrv-build/test/lit.site.cfg.py", "reason": "Build-tree lit entry used for selected and full check-tianchenrv validation"}

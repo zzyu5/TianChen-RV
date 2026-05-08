@@ -80,10 +80,13 @@ The current minimal proposal gate is:
   `target = @profile`, they must appear as a pair, preserve positive integer
   `bytes`/`lanes` properties, and satisfy `lanes = bytes / 4` for the current
   i32 m1 first slice;
-- capability id `rvv.probe.compile_run` is available and has a bounded
+- capability id `rvv.probe.compile_run` is available, either as an exact
+  capability provider or through the explicit kernel capability-provider
+  relation scope such as a module-level `target = @profile`, and has a bounded
   `selected_march` property containing RVV vector evidence;
-- if capability id `rvv.toolchain.march` is present and available, its `value`
-  property must agree with `rvv.probe.compile_run.selected_march`;
+- if capability id `rvv.toolchain.march` is present and available, either as an
+  exact capability provider or through the same explicit relation scope, its
+  `value` property must agree with `rvv.probe.compile_run.selected_march`;
 - all consumed property text must be bounded, single-line, and free of
   secret-like/raw-log text.
 
@@ -172,8 +175,9 @@ direct `tcrv-translate --tcrv-export-rvv-microkernel-object` command or
 through the generic artifact-kind-aware front door when it selects the RVV
 microkernel object route. This remains target-owned emission: it consumes the
 already selected callable source candidate, structured RVV architecture
-capability metadata, selected march/mabi capability metadata, and local
-toolchain diagnostics. The generic object helper route must preflight the
+capability metadata, selected march/mabi capability metadata from either exact
+RVV capability providers or explicit relation-provider target profiles, and
+local toolchain diagnostics. The generic object helper route must preflight the
 matched RVV callable source candidate through the same typed runtime ABI role
 contract used by the direct source route before compiling generated source.
 It does not introduce a new lowering dialect, a hidden self-check `main`,

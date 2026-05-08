@@ -949,8 +949,8 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   available capability whose id is `rvv`.
 - The selected variant must carry bounded `tcrv_rvv.required_march`, and the
   enclosing kernel capability set must preserve matching selected march metadata
-  through `rvv.probe.compile_run.selected_march` or
-  `rvv.toolchain.march.value`.
+  through exact providers or explicit relation-provider target profile scope
+  for `rvv.probe.compile_run.selected_march` or `rvv.toolchain.march.value`.
 - If the selected variant asks the RVV plugin to materialize the microkernel,
   it must carry exactly the finite descriptor
   `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` and a bounded
@@ -1415,8 +1415,9 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
   `--tcrv-export-target-artifact` route.
 - The selected compile facts are target-owned RVV dispatch facts. The route may
   pass the architecture-derived target, selected `-march`, and optional
-  `-mabi` values already preserved by RVV capabilities or microkernel metadata.
-  Shared generic routing must not learn RVV, scalar, dtype, vendor, runtime, or
+  `-mabi` values already preserved by exact RVV capabilities, explicit
+  relation-provider target profile metadata, or microkernel metadata. Shared
+  generic routing must not learn RVV, scalar, dtype, vendor, runtime, or
   toolchain semantics for this.
 - Direct binary stdout is the public output contract: success writes only the
   generated object bytes to stdout. Diagnostics go through the normal

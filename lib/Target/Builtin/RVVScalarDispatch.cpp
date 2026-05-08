@@ -1037,7 +1037,7 @@ buildDispatchObjectCompileConfig(const DispatchPair &pair) {
 
   llvm::SmallVector<std::string, 2> preservedMarches;
   if (const CapabilityDescriptor *compileRun =
-          capabilities->lookupByID(kRVVProbeCompileRunCapabilityID)) {
+          capabilities->lookupProviderByID(kRVVProbeCompileRunCapabilityID)) {
     if (compileRun->isAvailable()) {
       llvm::StringRef value =
           compileRun->getProperty(kSelectedMarchPropertyName).trim();
@@ -1051,7 +1051,7 @@ buildDispatchObjectCompileConfig(const DispatchPair &pair) {
   }
 
   if (const CapabilityDescriptor *march =
-          capabilities->lookupByID(kRVVToolchainMarchCapabilityID)) {
+          capabilities->lookupProviderByID(kRVVToolchainMarchCapabilityID)) {
     if (march->isAvailable()) {
       llvm::StringRef value = march->getProperty(kValuePropertyName).trim();
       if (!value.empty()) {
@@ -1077,7 +1077,7 @@ buildDispatchObjectCompileConfig(const DispatchPair &pair) {
 
   std::optional<std::string> selectedMABI;
   if (const CapabilityDescriptor *compileRun =
-          capabilities->lookupByID(kRVVProbeCompileRunCapabilityID)) {
+          capabilities->lookupProviderByID(kRVVProbeCompileRunCapabilityID)) {
     if (compileRun->isAvailable())
       if (llvm::Error error =
               mergeOptionalMABI(kernel, kSelectedMABIPropertyName,
@@ -1088,7 +1088,7 @@ buildDispatchObjectCompileConfig(const DispatchPair &pair) {
   }
 
   if (const CapabilityDescriptor *mabi =
-          capabilities->lookupByID(kRVVToolchainMABICapabilityID)) {
+          capabilities->lookupProviderByID(kRVVToolchainMABICapabilityID)) {
     if (mabi->isAvailable())
       if (llvm::Error error =
               mergeOptionalMABI(kernel, kValuePropertyName,
