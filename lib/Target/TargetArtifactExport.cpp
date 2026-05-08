@@ -1160,6 +1160,8 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.runtimeABI = candidate.runtimeABI;
   record.runtimeABIKind = candidate.runtimeABIKind;
   record.runtimeABIName = candidate.runtimeABIName;
+  record.runtimeABIParameters.append(candidate.runtimeABIParameters.begin(),
+                                     candidate.runtimeABIParameters.end());
   record.handoffKind = exporter->getHandoffKind().str();
   record.evidenceRole =
       getEvidenceRoleForArtifactKind(candidate.artifactKind).str();
@@ -1207,6 +1209,20 @@ llvm::Error appendCompositeBundleRecords(
         deriveCompositeRuntimeABIKind(group.candidates, exporter);
     record.runtimeABIName =
         deriveCompositeRuntimeABIName(group.candidates, exporter);
+    if (TargetArtifactCompositeRuntimeABIParametersFn parametersFn =
+            exporter.getRuntimeABIParametersFn()) {
+      llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
+          runtimeABIParameters = parametersFn(group.candidates);
+      if (!runtimeABIParameters)
+        return runtimeABIParameters.takeError();
+      record.runtimeABIParameters.append(runtimeABIParameters->begin(),
+                                         runtimeABIParameters->end());
+    } else {
+      llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters =
+          exporter.getRuntimeABIParameters();
+      record.runtimeABIParameters.append(runtimeABIParameters.begin(),
+                                         runtimeABIParameters.end());
+    }
     if (!record.componentGroup.empty())
       record.externalABIName = exporter.getExternalABIName().empty()
                                    ? record.runtimeABIName
@@ -1216,6 +1232,104 @@ llvm::Error appendCompositeBundleRecords(
     out.push_back(std::move(record));
   }
   return llvm::Error::success();
+}
+
+llvm::Error validateBundleRuntimeABIParameters(
+    const TargetArtifactBundleRecord &record) {
+  if (record.runtimeABIParameters.empty())
+    return makeTargetArtifactBundleExportError(
+        llvm::Twine("bundle artifact route '") + record.routeID +
+        "' in component_group '" + record.componentGroup +
+        "' requires non-empty runtime ABI parameter signature");
+
+  llvm::StringSet<> seenRoles;
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    if (parameter.cName.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' runtime_abi_parameter[" + llvm::Twine(index) +
+          "] requires non-empty c_name");
+    if (parameter.cType.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' runtime_abi_parameter[" + llvm::Twine(index) +
+          "] requires non-empty c_type");
+
+    llvm::StringRef role =
+        support::stringifyRuntimeABIParameterRole(parameter.role);
+    llvm::StringRef ownership =
+        support::stringifyRuntimeABIParameterOwnership(parameter.ownership);
+    if (llvm::Error error =
+            validateBundleRecordText("runtime_abi_parameter c_name",
+                                     parameter.cName))
+      return error;
+    if (llvm::Error error =
+            validateBundleRecordText("runtime_abi_parameter c_type",
+                                     parameter.cType))
+      return error;
+    if (llvm::Error error =
+            validateBundleRecordText("runtime_abi_parameter role", role))
+      return error;
+    if (llvm::Error error = validateBundleRecordText(
+            "runtime_abi_parameter ownership", ownership))
+      return error;
+
+    if (!seenRoles.insert(role).second)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle component_group '") + record.componentGroup +
+          "' has duplicate runtime ABI parameter role '" + role + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+const support::RuntimeABIParameter *
+findRuntimeABIParameterByRole(
+    llvm::ArrayRef<support::RuntimeABIParameter> params,
+    support::RuntimeABIParameterRole role) {
+  for (const support::RuntimeABIParameter &parameter : params)
+    if (parameter.role == role)
+      return &parameter;
+  return nullptr;
+}
+
+llvm::Error validateBundleRuntimeABISignatureMatches(
+    llvm::StringRef componentGroup,
+    llvm::ArrayRef<support::RuntimeABIParameter> expected,
+    llvm::ArrayRef<support::RuntimeABIParameter> actual) {
+  if (support::runtimeABIParametersEqual(expected, actual))
+    return llvm::Error::success();
+
+  if (expected.size() == actual.size()) {
+    bool sameRoleSetAndValues = true;
+    for (const support::RuntimeABIParameter &expectedParameter : expected) {
+      const support::RuntimeABIParameter *actualParameter =
+          findRuntimeABIParameterByRole(actual, expectedParameter.role);
+      if (!actualParameter) {
+        sameRoleSetAndValues = false;
+        break;
+      }
+      if (actualParameter->cName != expectedParameter.cName ||
+          actualParameter->cType != expectedParameter.cType ||
+          actualParameter->ownership != expectedParameter.ownership) {
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + componentGroup +
+            "' has mismatched runtime ABI parameter signature for role '" +
+            support::stringifyRuntimeABIParameterRole(expectedParameter.role) +
+            "'");
+      }
+    }
+
+    if (sameRoleSetAndValues)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle component_group '") + componentGroup +
+          "' has mismatched runtime ABI parameter order");
+  }
+
+  return makeTargetArtifactBundleExportError(
+      llvm::Twine("bundle component_group '") + componentGroup +
+      "' has mismatched runtime ABI parameter signature");
 }
 
 } // namespace
@@ -1230,6 +1344,7 @@ llvm::Error validateTargetArtifactBundleComponentContract(
     std::string runtimeABIName;
     llvm::SmallVector<std::string, 4> componentVariants;
     llvm::SmallVector<std::string, 4> selectedPathRoles;
+    llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
     llvm::StringSet<> artifactComponentRoles;
   };
 
@@ -1292,6 +1407,8 @@ llvm::Error validateTargetArtifactBundleComponentContract(
           llvm::Twine("bundle artifact route '") + record.routeID +
           "' in component_group '" + record.componentGroup +
           "' requires non-empty runtime_abi_name");
+    if (llvm::Error error = validateBundleRuntimeABIParameters(record))
+      return error;
 
     ComponentGroupState &state = groups[record.componentGroup];
     if (!state.initialized) {
@@ -1304,6 +1421,8 @@ llvm::Error validateTargetArtifactBundleComponentContract(
                                      record.componentVariants.end());
       state.selectedPathRoles.append(record.componentRoles.begin(),
                                      record.componentRoles.end());
+      state.runtimeABIParameters.append(record.runtimeABIParameters.begin(),
+                                        record.runtimeABIParameters.end());
     } else {
       if (state.owner != record.owner)
         return makeTargetArtifactBundleExportError(
@@ -1335,6 +1454,10 @@ llvm::Error validateTargetArtifactBundleComponentContract(
         return makeTargetArtifactBundleExportError(
             llvm::Twine("bundle component_group '") + record.componentGroup +
             "' has mismatched selected component roles");
+      if (llvm::Error error = validateBundleRuntimeABISignatureMatches(
+              record.componentGroup, state.runtimeABIParameters,
+              record.runtimeABIParameters))
+        return error;
     }
 
     if (!state.artifactComponentRoles.insert(record.componentRole).second)
@@ -1529,6 +1652,28 @@ void printBundleQuoted(llvm::raw_ostream &os, llvm::StringRef value) {
   os << "\"";
 }
 
+void printBundleRuntimeABIParameters(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    os << "  runtime_abi_parameter[" << index << "]:\n";
+    os << "    c_name: ";
+    printBundleQuoted(os, parameter.cName);
+    os << "\n";
+    os << "    c_type: ";
+    printBundleQuoted(os, parameter.cType);
+    os << "\n";
+    os << "    role: ";
+    printBundleQuoted(os,
+                      support::stringifyRuntimeABIParameterRole(parameter.role));
+    os << "\n";
+    os << "    ownership: ";
+    printBundleQuoted(os, support::stringifyRuntimeABIParameterOwnership(
+                              parameter.ownership));
+    os << "\n";
+  }
+}
+
 void printTargetArtifactBundleIndex(
     llvm::raw_ostream &os,
     llvm::ArrayRef<TargetArtifactBundleRecord> records,
@@ -1594,6 +1739,7 @@ void printTargetArtifactBundleIndex(
     os << "  runtime_abi_name: ";
     printBundleQuoted(os, record.runtimeABIName);
     os << "\n";
+    printBundleRuntimeABIParameters(os, record.runtimeABIParameters);
     if (!record.handoffKind.empty()) {
       os << "  handoff_kind: ";
       printBundleQuoted(os, record.handoffKind);
@@ -1815,6 +1961,40 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
       directHelperRoute(directHelperRoute),
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()) {}
+
+TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
+    llvm::StringRef routeID, llvm::StringRef artifactKind,
+    TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
+    llvm::StringRef owner, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+    bool directHelperRoute, llvm::StringRef componentGroup,
+    llvm::StringRef externalABIName)
+    : routeID(routeID.str()), artifactKind(artifactKind.str()),
+      matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
+      runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
+      directHelperRoute(directHelperRoute),
+      componentGroup(componentGroup.str()),
+      externalABIName(externalABIName.str()) {
+  this->runtimeABIParameters.append(runtimeABIParameters.begin(),
+                                    runtimeABIParameters.end());
+}
+
+TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
+    llvm::StringRef routeID, llvm::StringRef artifactKind,
+    TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
+    llvm::StringRef owner, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName,
+    TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn,
+    bool directHelperRoute, llvm::StringRef componentGroup,
+    llvm::StringRef externalABIName)
+    : routeID(routeID.str()), artifactKind(artifactKind.str()),
+      matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
+      runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
+      directHelperRoute(directHelperRoute),
+      componentGroup(componentGroup.str()),
+      externalABIName(externalABIName.str()),
+      runtimeABIParametersFn(runtimeABIParametersFn) {}
 
 llvm::Error TargetArtifactExporterRegistry::registerExporter(
     const TargetArtifactExporter &exporter) {

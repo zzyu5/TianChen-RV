@@ -48,6 +48,38 @@ DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP = (
 DISPATCH_EXTERNAL_ABI_NAME = (
     "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 )
+DISPATCH_RUNTIME_ABI_SIGNATURE = [
+    {
+        "c_name": "lhs",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int32_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rvv_available",
+        "c_type": "int",
+        "role": "dispatch-availability-guard",
+        "ownership": "target-export-abi-owned",
+    },
+]
 
 DISPATCH_BUNDLE_ROUTES = {
     "source": {
@@ -523,6 +555,7 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     current_component: dict[str, str] | None = None
+    current_runtime_abi_parameter: dict[str, str] | None = None
 
     for raw_line in index_text.splitlines():
         line = raw_line.rstrip()
@@ -542,9 +575,11 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
             current = {
                 "index": int(artifact_match.group(1)),
                 "components": [],
+                "runtime_abi_parameters": [],
             }
             records.append(current)
             current_component = None
+            current_runtime_abi_parameter = None
             continue
         component_match = re.match(r"^  component\[([0-9]+)\]:$", line)
         if component_match:
@@ -552,6 +587,17 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
                 raise BridgeError("bundle index component appears before artifact")
             current_component = {"index": component_match.group(1)}
             current["components"].append(current_component)
+            current_runtime_abi_parameter = None
+            continue
+        parameter_match = re.match(r"^  runtime_abi_parameter\[([0-9]+)\]:$", line)
+        if parameter_match:
+            if current is None:
+                raise BridgeError(
+                    "bundle index runtime_abi_parameter appears before artifact"
+                )
+            current_runtime_abi_parameter = {"index": parameter_match.group(1)}
+            current["runtime_abi_parameters"].append(current_runtime_abi_parameter)
+            current_component = None
             continue
 
         field_match = re.match(r"^  ([A-Za-z0-9_]+):\s*(.*)$", line)
@@ -561,6 +607,7 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
             reject_secret_like_text(f"bundle index field {key}", value)
             current[key] = value
             current_component = None
+            current_runtime_abi_parameter = None
             continue
 
         component_field_match = re.match(r"^    ([A-Za-z0-9_]+):\s*(.*)$", line)
@@ -569,6 +616,14 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
             value = parse_bundle_index_value(raw_value)
             reject_secret_like_text(f"bundle index component field {key}", value)
             current_component[key] = value
+            continue
+        if component_field_match and current_runtime_abi_parameter is not None:
+            key, raw_value = component_field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(
+                f"bundle index runtime_abi_parameter field {key}", value
+            )
+            current_runtime_abi_parameter[key] = value
             continue
 
     if bundle_status != "complete":
@@ -598,6 +653,58 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
                 )
         validate_bundle_file_name(str(record["file_name"]))
     return records
+
+
+def require_dispatch_runtime_abi_signature(record: dict[str, Any]) -> list[dict[str, str]]:
+    raw_parameters = record.get("runtime_abi_parameters")
+    if not isinstance(raw_parameters, list) or not raw_parameters:
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must publish runtime_abi_parameter signature metadata"
+        )
+
+    parameters: list[dict[str, str]] = []
+    seen_roles: set[str] = set()
+    for index, raw_parameter in enumerate(raw_parameters):
+        if not isinstance(raw_parameter, dict):
+            raise BridgeError(
+                f"bundle record route {record.get('route')} runtime_abi_parameter[{index}] must be a dictionary"
+            )
+        parameter = {
+            "c_name": str(raw_parameter.get("c_name", "")),
+            "c_type": str(raw_parameter.get("c_type", "")),
+            "role": str(raw_parameter.get("role", "")),
+            "ownership": str(raw_parameter.get("ownership", "")),
+        }
+        for field, value in parameter.items():
+            if not value.strip():
+                raise BridgeError(
+                    f"bundle record route {record.get('route')} runtime_abi_parameter[{index}] missing {field}"
+                )
+            reject_secret_like_text(f"runtime ABI parameter {field}", value)
+        if parameter["role"] in seen_roles:
+            raise BridgeError(
+                f"bundle record route {record.get('route')} has duplicate runtime ABI parameter role {parameter['role']}"
+            )
+        seen_roles.add(parameter["role"])
+        parameters.append(parameter)
+
+    if len(parameters) != len(DISPATCH_RUNTIME_ABI_SIGNATURE):
+        raise BridgeError(
+            f"bundle record route {record.get('route')} runtime ABI signature must contain {len(DISPATCH_RUNTIME_ABI_SIGNATURE)} parameters"
+        )
+    for index, (parameter, expected) in enumerate(
+        zip(parameters, DISPATCH_RUNTIME_ABI_SIGNATURE)
+    ):
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", parameter["c_name"]):
+            raise BridgeError(
+                f"bundle record route {record.get('route')} runtime_abi_parameter[{index}] c_name is not a valid C identifier"
+            )
+        for field in ("c_type", "role", "ownership"):
+            if parameter[field] != expected[field]:
+                raise BridgeError(
+                    f"bundle record route {record.get('route')} runtime_abi_parameter[{index}] {field}={parameter[field]!r} does not match expected {expected[field]!r}"
+                )
+    return parameters
 
 
 def require_dispatch_component_roles(record: dict[str, Any]) -> None:
@@ -648,6 +755,7 @@ def select_dispatch_bundle_records(
                     f"bundle {label} record field {field}={record.get(field)!r} does not match expected {expected[field]!r}"
                 )
         require_dispatch_component_roles(record)
+        require_dispatch_runtime_abi_signature(record)
         artifact_path = bundle_dir / str(record["file_name"])
         if not artifact_path.exists() or artifact_path.stat().st_size == 0:
             raise BridgeError(
@@ -674,6 +782,14 @@ def select_dispatch_bundle_records(
             "selected dispatch bundle records must share the compiler-emitted "
             f"external_abi_name {DISPATCH_EXTERNAL_ABI_NAME}"
         )
+    signatures = {
+        json.dumps(record.get("runtime_abi_parameters", []), sort_keys=True)
+        for record in selected.values()
+    }
+    if len(signatures) != 1:
+        raise BridgeError(
+            "selected dispatch bundle records must share the compiler-emitted runtime ABI parameter signature"
+        )
     return selected
 
 
@@ -693,6 +809,7 @@ def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]
                 "runtime_abi_kind": record.get("runtime_abi_kind"),
                 "runtime_abi_name": record.get("runtime_abi_name"),
                 "evidence_role": record.get("evidence_role"),
+                "runtime_abi_parameters": record.get("runtime_abi_parameters", []),
                 "selected_surface": record.get("selected_surface", ""),
                 "components": record.get("components", []),
             }
@@ -700,7 +817,20 @@ def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]
     return summary
 
 
-def validate_generated_dispatch_header(header: str) -> str:
+def runtime_abi_parameter_c_declaration(parameter: dict[str, str]) -> str:
+    c_type = parameter["c_type"]
+    c_name = parameter["c_name"]
+    separator = "" if c_type.endswith("*") else " "
+    return f"{c_type}{separator}{c_name}"
+
+
+def normalize_c_parameter_list(parameters: str) -> str:
+    return re.sub(r"\s+", " ", parameters.strip())
+
+
+def validate_generated_dispatch_header(
+    header: str, signature: list[dict[str, str]]
+) -> str:
     if not header.strip():
         raise BridgeError("generated dispatch C header is empty")
     reject_secret_like_text("generated dispatch C header", header)
@@ -727,29 +857,49 @@ def validate_generated_dispatch_header(header: str) -> str:
                 f"generated dispatch C header missing required snippet: {snippet}"
             )
     prototypes = re.findall(
-        r"(?m)^\s*void\s+([A-Za-z_][A-Za-z0-9_]*)\s*"
-        r"\(\s*const\s+int32_t\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
-        r"const\s+int32_t\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
-        r"int32_t\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
-        r"size_t\s+[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
-        r"int\s+[A-Za-z_][A-Za-z0-9_]*\s*\)\s*;\s*$",
+        r"(?m)^\s*void\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^;{}]*)\)\s*;\s*$",
         header,
     )
     if len(prototypes) != 1:
         raise BridgeError(
             "generated dispatch C header must contain exactly one runtime-callable dispatch prototype"
         )
+    expected_parameters = ", ".join(
+        runtime_abi_parameter_c_declaration(parameter) for parameter in signature
+    )
+    if normalize_c_parameter_list(prototypes[0][1]) != normalize_c_parameter_list(
+        expected_parameters
+    ):
+        raise BridgeError(
+            "generated dispatch C header prototype does not match bundle index runtime ABI signature"
+        )
     if re.search(r"(?m)^\s*void\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^;]*\)\s*\{", header):
         raise BridgeError("generated dispatch C header must not contain a function body")
-    return prototypes[0]
+    return prototypes[0][0]
 
 
 def build_dispatch_external_caller_source(
-    function_name: str, header_file_name: str
+    function_name: str, header_file_name: str, signature: list[dict[str, str]]
 ) -> str:
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", function_name):
         raise BridgeError("generated dispatch header function name is not a valid C identifier")
     validate_bundle_file_name(header_file_name)
+    call_arguments: list[str] = []
+    for parameter in signature:
+        role = parameter["role"]
+        if role == "lhs-input-buffer":
+            call_arguments.append("lhs")
+        elif role == "rhs-input-buffer":
+            call_arguments.append("rhs")
+        elif role == "output-buffer":
+            call_arguments.append("out")
+        elif role == "runtime-element-count":
+            call_arguments.append("(size_t)kElements")
+        elif role == "dispatch-availability-guard":
+            call_arguments.append("rvv_available")
+        else:
+            raise BridgeError(f"unsupported runtime ABI parameter role in bundle index: {role}")
+    rendered_call_arguments = ", ".join(call_arguments)
     escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
     return f"""\
 #include <stddef.h>
@@ -766,7 +916,7 @@ static int run_dispatch_case(int rvv_available) {{
                                   5, 3, 2, 1, -1, -3, -5, -7}};
   int32_t out[kElements] = {{0}};
 
-  {function_name}(lhs, rhs, out, (size_t)kElements, rvv_available);
+  {function_name}({rendered_call_arguments});
   for (size_t index = 0; index < (size_t)kElements; ++index) {{
     if (out[index] != lhs[index] + rhs[index]) {{
       fprintf(stderr,
@@ -1427,9 +1577,16 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     if "v" not in source_flags["selected_march"].lower():
         raise BridgeError("selected_march from bundled dispatch source must contain RVV vector evidence")
 
-    dispatcher_function = validate_generated_dispatch_header(header_text)
+    dispatch_signature = require_dispatch_runtime_abi_signature(
+        selected_records["header"]
+    )
+    dispatcher_function = validate_generated_dispatch_header(
+        header_text, dispatch_signature
+    )
     caller_text = build_dispatch_external_caller_source(
-        dispatcher_function, str(selected_records["header"]["file_name"])
+        dispatcher_function,
+        str(selected_records["header"]["file_name"]),
+        dispatch_signature,
     )
     caller_path = artifact_dir / "rvv_bundle_dispatch_external_caller.c"
     write_generated_text(
@@ -1477,6 +1634,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "external_caller": {
             "kind": "generated-c-caller",
             "dispatcher_function": dispatcher_function,
+            "runtime_abi_signature": dispatch_signature,
             "success_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
             "branches_exercised": ["rvv_available=0", "rvv_available=1"],
         },
@@ -1779,6 +1937,31 @@ artifact[0]:
   owner: "rvv-scalar-dispatch-target"
   runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
   runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+  runtime_abi_parameter[0]:
+    c_name: "lhs"
+    c_type: "const int32_t *"
+    role: "lhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[1]:
+    c_name: "rhs"
+    c_type: "const int32_t *"
+    role: "rhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[2]:
+    c_name: "out"
+    c_type: "int32_t *"
+    role: "output-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[3]:
+    c_name: "n"
+    c_type: "size_t"
+    role: "runtime-element-count"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[4]:
+    c_name: "rvv_available"
+    c_type: "int"
+    role: "dispatch-availability-guard"
+    ownership: "target-export-abi-owned"
   evidence_role: "compiler-artifact"
 artifact[1]:
   file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
@@ -1797,6 +1980,31 @@ artifact[1]:
   owner: "rvv-scalar-dispatch-target"
   runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
   runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+  runtime_abi_parameter[0]:
+    c_name: "lhs"
+    c_type: "const int32_t *"
+    role: "lhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[1]:
+    c_name: "rhs"
+    c_type: "const int32_t *"
+    role: "rhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[2]:
+    c_name: "out"
+    c_type: "int32_t *"
+    role: "output-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[3]:
+    c_name: "n"
+    c_type: "size_t"
+    role: "runtime-element-count"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[4]:
+    c_name: "rvv_available"
+    c_type: "int"
+    role: "dispatch-availability-guard"
+    ownership: "target-export-abi-owned"
   evidence_role: "header-declaration"
 artifact[2]:
   file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
@@ -1815,6 +2023,31 @@ artifact[2]:
   owner: "rvv-scalar-dispatch-target"
   runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
   runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+  runtime_abi_parameter[0]:
+    c_name: "lhs"
+    c_type: "const int32_t *"
+    role: "lhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[1]:
+    c_name: "rhs"
+    c_type: "const int32_t *"
+    role: "rhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[2]:
+    c_name: "out"
+    c_type: "int32_t *"
+    role: "output-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[3]:
+    c_name: "n"
+    c_type: "size_t"
+    role: "runtime-element-count"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[4]:
+    c_name: "rvv_available"
+    c_type: "int"
+    role: "dispatch-availability-guard"
+    ownership: "target-export-abi-owned"
   evidence_role: "relocatable-object"
 """.strip()
     bundle_records = parse_target_artifact_bundle_index(sample_bundle_index)
@@ -1836,6 +2069,11 @@ artifact[2]:
         bundle_records[2]["external_abi_name"] == DISPATCH_EXTERNAL_ABI_NAME,
         "bundle index parser lost external_abi_name",
     )
+    assert_self_test(
+        bundle_records[0]["runtime_abi_parameters"][4]["role"]
+        == "dispatch-availability-guard",
+        "bundle index parser lost runtime ABI signature",
+    )
     root = repo_root()
     with tempfile.TemporaryDirectory(dir=root / "artifacts" / "tmp") as temp_dir:
         bundle_dir = Path(temp_dir)
@@ -1849,6 +2087,11 @@ artifact[2]:
         assert_self_test(
             selected["source"]["component_role"] == "source",
             "bundle dispatch source record did not use explicit component_role",
+        )
+        assert_self_test(
+            require_dispatch_runtime_abi_signature(selected["header"])
+            == DISPATCH_RUNTIME_ABI_SIGNATURE,
+            "bundle dispatch header record did not use explicit runtime ABI signature",
         )
         try:
             select_dispatch_bundle_records(
@@ -1864,6 +2107,23 @@ artifact[2]:
             assert_self_test("component_group" in str(error), "group mismatch error changed")
         else:
             raise AssertionError("bundle index with mismatched component_group was accepted")
+        try:
+            select_dispatch_bundle_records(
+                [
+                    dict(record, runtime_abi_parameters=[])
+                    if record["component_role"] == "header"
+                    else record
+                    for record in bundle_records
+                ],
+                bundle_dir=bundle_dir,
+            )
+        except BridgeError as error:
+            assert_self_test(
+                "runtime_abi_parameter" in str(error),
+                "missing runtime ABI signature error changed",
+            )
+        else:
+            raise AssertionError("bundle index with missing runtime ABI signature was accepted")
     try:
         parse_target_artifact_bundle_index(
             sample_bundle_index.replace(
@@ -1907,7 +2167,9 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
 
 #endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_SELF_TEST_H */
 """
-    dispatch_function = validate_generated_dispatch_header(dispatch_header)
+    dispatch_function = validate_generated_dispatch_header(
+        dispatch_header, DISPATCH_RUNTIME_ABI_SIGNATURE
+    )
     assert_self_test(
         dispatch_function == "tcrv_dispatch_i32_vadd_self_test",
         "dispatch header prototype parser failed",
@@ -1915,6 +2177,7 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
     caller = build_dispatch_external_caller_source(
         dispatch_function,
         "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h",
+        DISPATCH_RUNTIME_ABI_SIGNATURE,
     )
     assert_self_test(
         BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in caller,

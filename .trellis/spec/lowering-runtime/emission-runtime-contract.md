@@ -1421,10 +1421,12 @@ tcrv-translate --tcrv-export-target-artifact-bundle \
 Bundle mode must parse only `tianchenrv-target-artifact-bundle.index` as the
 stable file name, discover generated source/header/object file names from that
 index, validate artifact kind, route, owner, runtime ABI kind/name, component
-selected paths, and evidence role, then generate a small external C caller
-from the emitted header prototype. Dry-run bundle mode records bundle export,
-index parsing, file discovery, caller generation, hashes, command logs, and
-evidence JSON under
+selected paths, explicit external ABI component metadata, the ordered
+`runtime_abi_parameter[index]` signature (`c_name`, `c_type`, `role`, and
+`ownership`), and evidence role, then generate a small external C caller from
+the emitted header prototype and the compiler-emitted signature metadata.
+Dry-run bundle mode records bundle export, index parsing, file discovery,
+caller generation, hashes, command logs, and evidence JSON under
 `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/<run-id>/`; it is not runtime
 or correctness evidence. Real ssh bundle mode may copy the generated source,
 generated header, generated relocatable object, and generated external caller
@@ -1578,10 +1580,17 @@ or performant. Each record should name the artifact kind, route/exporter id,
 target or plugin owner, whether the generic front door can select it, the
 command-facing generic selector, whether a direct helper route exists, the
 matching runtime ABI kind/name when applicable, and a bounded evidence role such
-as `compiler-artifact`, `header-declaration`, or `relocatable-object`. Source,
-header, and object routes must remain separate records. Composite dispatch
-records may be attached to the selected dispatch surface and must preserve the
-component selected variants/roles rather than moving RVV/scalar branch
-semantics into `tcrv.exec` or generic manifest code. Unsupported or
-metadata-only selected paths must omit target artifact records instead of
-fabricating route data.
+as `compiler-artifact`, `header-declaration`, or `relocatable-object`. When a
+record belongs to a non-empty external ABI `component_group`, the bundle/index
+contract must also publish an ordered runtime ABI signature with
+`runtime_abi_parameter[index].c_name`, `.c_type`, `.role`, and `.ownership`.
+All source/header/object records in that external ABI group must agree on
+runtime ABI kind/name, external ABI name, component selected variants/roles,
+and the full ordered runtime ABI signature; missing signatures, duplicate roles,
+mismatched name/type/ownership for the same role, or reordered parameters fail
+closed before bundle export. Source, header, and object routes must remain
+separate records. Composite dispatch records may be attached to the selected
+dispatch surface and must preserve the component selected variants/roles rather
+than moving RVV/scalar branch semantics into `tcrv.exec` or generic manifest
+code. Unsupported or metadata-only selected paths must omit target artifact
+records instead of fabricating route data.

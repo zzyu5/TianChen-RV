@@ -136,6 +136,27 @@ module @target_artifact_bundle_positive_input {
 // DISPATCH-INDEX: owner: "rvv-scalar-dispatch-target"
 // DISPATCH-INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
 // DISPATCH-INDEX: runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+// DISPATCH-INDEX: runtime_abi_parameter[0]:
+// DISPATCH-INDEX: c_name: "lhs"
+// DISPATCH-INDEX: c_type: "const int32_t *"
+// DISPATCH-INDEX: role: "lhs-input-buffer"
+// DISPATCH-INDEX: ownership: "target-export-abi-owned"
+// DISPATCH-INDEX: runtime_abi_parameter[1]:
+// DISPATCH-INDEX: c_name: "rhs"
+// DISPATCH-INDEX: role: "rhs-input-buffer"
+// DISPATCH-INDEX: runtime_abi_parameter[2]:
+// DISPATCH-INDEX: c_name: "out"
+// DISPATCH-INDEX: c_type: "int32_t *"
+// DISPATCH-INDEX: role: "output-buffer"
+// DISPATCH-INDEX: runtime_abi_parameter[3]:
+// DISPATCH-INDEX: c_name: "n"
+// DISPATCH-INDEX: c_type: "size_t"
+// DISPATCH-INDEX: role: "runtime-element-count"
+// DISPATCH-INDEX: runtime_abi_parameter[4]:
+// DISPATCH-INDEX: c_name: "rvv_available"
+// DISPATCH-INDEX: c_type: "int"
+// DISPATCH-INDEX: role: "dispatch-availability-guard"
+// DISPATCH-INDEX: ownership: "target-export-abi-owned"
 // DISPATCH-INDEX: evidence_role: "compiler-artifact"
 // DISPATCH-INDEX: artifact[1]:
 // DISPATCH-INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
@@ -144,6 +165,8 @@ module @target_artifact_bundle_positive_input {
 // DISPATCH-INDEX: external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 // DISPATCH-INDEX: artifact_kind: "runtime-callable-c-header"
 // DISPATCH-INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
+// DISPATCH-INDEX: runtime_abi_parameter[4]:
+// DISPATCH-INDEX: role: "dispatch-availability-guard"
 // DISPATCH-INDEX: evidence_role: "header-declaration"
 // DISPATCH-INDEX: artifact[2]:
 // DISPATCH-INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
@@ -152,6 +175,10 @@ module @target_artifact_bundle_positive_input {
 // DISPATCH-INDEX: external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 // DISPATCH-INDEX: artifact_kind: "riscv-elf-relocatable-object"
 // DISPATCH-INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
+// DISPATCH-INDEX: runtime_abi_parameter[0]:
+// DISPATCH-INDEX: role: "lhs-input-buffer"
+// DISPATCH-INDEX: runtime_abi_parameter[4]:
+// DISPATCH-INDEX: role: "dispatch-availability-guard"
 // DISPATCH-INDEX: evidence_role: "relocatable-object"
 
 // DISPATCH-SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */

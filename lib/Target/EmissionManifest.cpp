@@ -1106,6 +1106,27 @@ void printRuntimeABIParameters(
   }
 }
 
+void printTargetArtifactRuntimeABIParameters(
+    llvm::raw_ostream &os, llvm::StringRef indent,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    os << indent << "    runtime_abi_parameter[" << index << "]:\n";
+    os << indent << "      c_name: ";
+    printQuoted(os, parameter.cName);
+    os << "\n";
+    os << indent << "      c_type: ";
+    printQuoted(os, parameter.cType);
+    os << "\n";
+    os << indent << "      role: ";
+    printQuoted(os, support::stringifyRuntimeABIParameterRole(parameter.role));
+    os << "\n";
+    os << indent << "      ownership: ";
+    printQuoted(os, support::stringifyRuntimeABIParameterOwnership(
+                        parameter.ownership));
+    os << "\n";
+  }
+}
+
 void printTargetArtifactRecords(
     llvm::raw_ostream &os, llvm::StringRef indent,
     llvm::ArrayRef<TargetArtifactBundleRecord> artifacts) {
@@ -1178,6 +1199,8 @@ void printTargetArtifactRecords(
       printQuoted(os, artifact.runtimeABIName);
       os << "\n";
     }
+    printTargetArtifactRuntimeABIParameters(os, indent,
+                                            artifact.runtimeABIParameters);
     os << indent << "    evidence_role: ";
     printQuoted(os, artifact.evidenceRole);
     os << "\n";

@@ -855,6 +855,16 @@ llvm::Expected<bool> matchRVVScalarI32VAddDispatchCandidates(
   return true;
 }
 
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
+resolveRVVScalarI32VAddDispatchRuntimeABIParameters(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  llvm::Expected<DispatchPair> pair =
+      collectDispatchPairFromCandidates(candidates);
+  if (!pair)
+    return pair.takeError();
+  return std::move(pair->abiPlan.parameters);
+}
+
 std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   std::string result;
   result.reserve(std::min<std::size_t>(value.size(), 64));
@@ -1637,8 +1647,10 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
     TargetArtifactExporterRegistry &registry) {
+  const support::I32VAddRuntimeABIContract &contract =
+      support::getI32VAddRuntimeABIContract();
   const support::RuntimeABIDispatchIdentity &abi =
-      support::getI32VAddRuntimeABIContract().getDispatchIdentity();
+      contract.getDispatchIdentity();
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
@@ -1646,6 +1658,7 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
               abi.runtimeABIKind, abi.runtimeABIName,
+              resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
               /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
               abi.runtimeABIName)))
     return error;
@@ -1657,6 +1670,7 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchHeader, kDispatchTargetOwner,
               abi.runtimeABIKind, abi.runtimeABIName,
+              resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
               /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
               abi.runtimeABIName)))
     return error;
@@ -1667,6 +1681,7 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
       matchRVVScalarI32VAddDispatchCandidates,
       exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
       abi.runtimeABIKind, abi.runtimeABIName,
+      resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
       /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
       abi.runtimeABIName));
 }

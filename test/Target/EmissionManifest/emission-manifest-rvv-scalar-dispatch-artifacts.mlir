@@ -24,6 +24,23 @@
 // CHECK: direct_helper_route: true
 // CHECK: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
 // CHECK: runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+// CHECK: runtime_abi_parameter[0]:
+// CHECK: c_name: "lhs"
+// CHECK: c_type: "const int32_t *"
+// CHECK: role: "lhs-input-buffer"
+// CHECK: ownership: "target-export-abi-owned"
+// CHECK: runtime_abi_parameter[1]:
+// CHECK: c_name: "rhs"
+// CHECK: role: "rhs-input-buffer"
+// CHECK: runtime_abi_parameter[2]:
+// CHECK: c_name: "out"
+// CHECK: role: "output-buffer"
+// CHECK: runtime_abi_parameter[3]:
+// CHECK: c_name: "n"
+// CHECK: role: "runtime-element-count"
+// CHECK: runtime_abi_parameter[4]:
+// CHECK: c_name: "rvv_available"
+// CHECK: role: "dispatch-availability-guard"
 // CHECK: evidence_role: "compiler-artifact"
 
 // CHECK: artifact[1]:
@@ -36,6 +53,8 @@
 // CHECK: direct_helper_route: true
 // CHECK: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
 // CHECK: runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+// CHECK: runtime_abi_parameter[4]:
+// CHECK: role: "dispatch-availability-guard"
 // CHECK: evidence_role: "header-declaration"
 
 // CHECK: artifact[2]:
@@ -48,6 +67,10 @@
 // CHECK: direct_helper_route: true
 // CHECK: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
 // CHECK: runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+// CHECK: runtime_abi_parameter[0]:
+// CHECK: role: "lhs-input-buffer"
+// CHECK: runtime_abi_parameter[4]:
+// CHECK: role: "dispatch-availability-guard"
 // CHECK: evidence_role: "relocatable-object"
 
 // CHECK: path[0]:

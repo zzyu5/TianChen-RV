@@ -125,12 +125,16 @@ Use lit/FileCheck for:
   conservative evidence role, preservation of existing single-artifact
   source/header/object front doors, explicit dispatch external ABI component
   metadata (`component_group`, `component_role`, and `external_abi_name`) for
-  RVV+scalar source/header/object bundle records, generic rejection of
-  incoherent grouped bundle records such as missing source/header/object roles,
-  duplicate component roles, missing external ABI identity, mismatched runtime
-  ABI metadata, or mismatched selected component paths, fail-closed diagnostics
-  for missing or invalid output directories, and fail-closed behavior for
-  unsupported or metadata-only selected paths without a fake complete bundle.
+  RVV+scalar source/header/object bundle records, explicit ordered
+  `runtime_abi_parameter[index]` signature metadata for the dispatch external
+  ABI boundary, generic rejection of incoherent grouped bundle records such as
+  missing source/header/object roles, duplicate component roles, missing
+  external ABI identity, missing runtime ABI signature, duplicate parameter
+  roles, mismatched runtime ABI parameter name/type/ownership, mismatched
+  parameter order, mismatched runtime ABI metadata, or mismatched selected
+  component paths, fail-closed diagnostics for missing or invalid output
+  directories, and fail-closed behavior for unsupported or metadata-only
+  selected paths without a fake complete bundle.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
@@ -405,17 +409,18 @@ must exercise the mode without contacting `ssh rvv`, including bundle export
 through `tcrv-translate --tcrv-export-target-artifact-bundle`, parsing
 `tianchenrv-target-artifact-bundle.index`, discovery of generated source,
 header, and object file names from index metadata, required consumption of the
-compiler-emitted `component_group`, `component_role`, and `external_abi_name`
-fields instead of route/file-name heuristics, malformed or incomplete index
-rejection, external caller generation from the emitted header prototype,
-command-summary redaction, and absence of any dry-run runtime/correctness
-claim. Passing bundle dry-run proves only compiler bundle export, typed index
-parsing, file discovery, and caller construction. Any bundle external ABI
-runtime/correctness claim must use real `ssh rvv` evidence where only the
-generated source, generated header, generated object, and generated caller are
-copied to the RVV host, the generated source and caller are compiled there,
-the caller is linked and run against the source-built object and the generated
-bundle object, and the bounded success marker is observed.
+compiler-emitted `component_group`, `component_role`, `external_abi_name`, and
+`runtime_abi_parameter[index]` fields instead of route/file-name or hardcoded C
+signature heuristics, malformed or incomplete index rejection, external caller
+generation from the emitted header prototype plus the emitted ordered ABI
+signature, command-summary redaction, and absence of any dry-run
+runtime/correctness claim. Passing bundle dry-run proves only compiler bundle
+export, typed index parsing, file discovery, and caller construction. Any
+bundle external ABI runtime/correctness claim must use real `ssh rvv` evidence
+where only the generated source, generated header, generated object, and
+generated caller are copied to the RVV host, the generated source and caller are
+compiled there, the caller is linked and run against the source-built object and
+the generated bundle object, and the bounded success marker is observed.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must

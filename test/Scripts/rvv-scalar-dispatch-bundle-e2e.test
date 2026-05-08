@@ -36,13 +36,26 @@
 # INDEX: role: "dispatch fallback"
 # INDEX: artifact_kind: "runtime-callable-c-source"
 # INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"
+# INDEX: runtime_abi_parameter[0]:
+# INDEX: c_name: "lhs"
+# INDEX: role: "lhs-input-buffer"
+# INDEX: runtime_abi_parameter[3]:
+# INDEX: c_name: "n"
+# INDEX: role: "runtime-element-count"
+# INDEX: runtime_abi_parameter[4]:
+# INDEX: c_name: "rvv_available"
+# INDEX: role: "dispatch-availability-guard"
 # INDEX: component_role: "header"
 # INDEX: artifact_kind: "runtime-callable-c-header"
 # INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
+# INDEX: runtime_abi_parameter[4]:
+# INDEX: role: "dispatch-availability-guard"
 # INDEX: component_role: "object"
 # INDEX: artifact_kind: "riscv-elf-relocatable-object"
 # INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
 # INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+# INDEX: runtime_abi_parameter[0]:
+# INDEX: role: "lhs-input-buffer"
 # INDEX: evidence_role: "relocatable-object"
 
 # CALLER: #include "artifact-
@@ -71,6 +84,10 @@
 # EVIDENCE: "branches_exercised": [
 # EVIDENCE: "rvv_available=0"
 # EVIDENCE: "rvv_available=1"
+# EVIDENCE: "runtime_abi_signature": [
+# EVIDENCE: "role": "lhs-input-buffer"
+# EVIDENCE: "role": "runtime-element-count"
+# EVIDENCE: "role": "dispatch-availability-guard"
 # EVIDENCE: "git_sha": "
 # EVIDENCE: "pass_fail_result": "pass"
 # EVIDENCE: "selected_artifact_paths": {

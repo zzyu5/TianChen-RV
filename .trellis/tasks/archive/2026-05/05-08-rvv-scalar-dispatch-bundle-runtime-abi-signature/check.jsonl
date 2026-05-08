@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global compiler stack and project boundary verification"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI signature and target artifact bundle contract verification"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused local and ssh rvv evidence policy verification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV-locality and parameter-layering review"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback dispatch boundary review"}

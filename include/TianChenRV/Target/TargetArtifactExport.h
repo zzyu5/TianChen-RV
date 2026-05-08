@@ -26,6 +26,9 @@ using TargetArtifactExportFn = llvm::Error (*)(mlir::ModuleOp module,
                                                llvm::raw_ostream &os);
 using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
     llvm::ArrayRef<TargetArtifactCandidate> candidates);
+using TargetArtifactCompositeRuntimeABIParametersFn =
+    llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>> (*)(
+        llvm::ArrayRef<TargetArtifactCandidate> candidates);
 
 class TargetArtifactExporter {
 public:
@@ -98,6 +101,7 @@ struct TargetArtifactBundleRecord {
   std::string runtimeABI;
   std::string runtimeABIKind;
   std::string runtimeABIName;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
   std::string handoffKind;
   std::string evidenceRole;
 };
@@ -115,6 +119,22 @@ public:
                                   bool directHelperRoute = false,
                                   llvm::StringRef componentGroup = {},
                                   llvm::StringRef externalABIName = {});
+  TargetArtifactCompositeExporter(
+      llvm::StringRef routeID, llvm::StringRef artifactKind,
+      TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
+      llvm::StringRef owner, llvm::StringRef runtimeABIKind,
+      llvm::StringRef runtimeABIName,
+      llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+      bool directHelperRoute = false, llvm::StringRef componentGroup = {},
+      llvm::StringRef externalABIName = {});
+  TargetArtifactCompositeExporter(
+      llvm::StringRef routeID, llvm::StringRef artifactKind,
+      TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
+      llvm::StringRef owner, llvm::StringRef runtimeABIKind,
+      llvm::StringRef runtimeABIName,
+      TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn,
+      bool directHelperRoute = false, llvm::StringRef componentGroup = {},
+      llvm::StringRef externalABIName = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -126,6 +146,14 @@ public:
   bool hasDirectHelperRoute() const { return directHelperRoute; }
   llvm::StringRef getComponentGroup() const { return componentGroup; }
   llvm::StringRef getExternalABIName() const { return externalABIName; }
+  llvm::ArrayRef<support::RuntimeABIParameter>
+  getRuntimeABIParameters() const {
+    return runtimeABIParameters;
+  }
+  TargetArtifactCompositeRuntimeABIParametersFn
+  getRuntimeABIParametersFn() const {
+    return runtimeABIParametersFn;
+  }
 
 private:
   std::string routeID;
@@ -138,6 +166,9 @@ private:
   bool directHelperRoute = false;
   std::string componentGroup;
   std::string externalABIName;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn =
+      nullptr;
 };
 
 class TargetArtifactExporterRegistry {

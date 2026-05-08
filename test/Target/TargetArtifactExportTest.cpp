@@ -758,6 +758,10 @@ TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
   record.runtimeABIKind = "rvv-scalar-dispatch-runtime-callable-c-abi";
   record.runtimeABIName =
       "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1";
+  llvm::SmallVector<RuntimeABIParameter, 5> parameters =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getDispatchRuntimeABIParameters();
+  record.runtimeABIParameters.append(parameters.begin(), parameters.end());
   return record;
 }
 
@@ -816,6 +820,65 @@ bool expectTargetArtifactBundleComponentContractValidation() {
           validateTargetArtifactBundleComponentContract(mismatchedComponents),
           "mismatched dispatch bundle selected component roles rejected",
           {"mismatched selected component roles"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> missingSignature(records);
+  missingSignature[2].runtimeABIParameters.clear();
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(missingSignature),
+          "missing dispatch bundle runtime ABI signature rejected",
+          {"requires non-empty runtime ABI parameter signature"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> duplicateParameterRole(
+      records);
+  duplicateParameterRole[2].runtimeABIParameters[4] =
+      duplicateParameterRole[2].runtimeABIParameters[3];
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(duplicateParameterRole),
+          "duplicate dispatch bundle runtime ABI parameter role rejected",
+          {"duplicate runtime ABI parameter role", "runtime-element-count"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterType(
+      records);
+  mismatchedParameterType[2].runtimeABIParameters[3].cType = "long";
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(mismatchedParameterType),
+          "mismatched dispatch bundle runtime ABI parameter type rejected",
+          {"mismatched runtime ABI parameter signature",
+           "runtime-element-count"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterName(
+      records);
+  mismatchedParameterName[2].runtimeABIParameters[4].cName = "rvv_ready";
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(mismatchedParameterName),
+          "mismatched dispatch bundle runtime ABI parameter name rejected",
+          {"mismatched runtime ABI parameter signature",
+           "dispatch-availability-guard"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterOwnership(
+      records);
+  mismatchedParameterOwnership[2].runtimeABIParameters[0].ownership =
+      RuntimeABIParameterOwnership::IRModeled;
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(
+              mismatchedParameterOwnership),
+          "mismatched dispatch bundle runtime ABI parameter ownership rejected",
+          {"mismatched runtime ABI parameter signature", "lhs-input-buffer"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterOrder(
+      records);
+  std::swap(mismatchedParameterOrder[2].runtimeABIParameters[0],
+            mismatchedParameterOrder[2].runtimeABIParameters[1]);
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(mismatchedParameterOrder),
+          "mismatched dispatch bundle runtime ABI parameter order rejected",
+          {"mismatched runtime ABI parameter order"}))
     return false;
 
   return true;
@@ -1047,6 +1110,15 @@ int main() {
           /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
           dispatchABI.runtimeABIName))
     return 1;
+  const TargetArtifactCompositeExporter *dispatchSourceComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-c");
+  if (!dispatchSourceComposite ||
+      !dispatchSourceComposite->getRuntimeABIParametersFn()) {
+    llvm::errs() << "dispatch source composite route must publish runtime ABI "
+                    "parameters through a C++ callback\n";
+    return 1;
+  }
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
