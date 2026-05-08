@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
@@ -85,6 +86,13 @@ bool isPresentButEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   return attr && attr.getValue().trim().empty();
+}
+
+llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return {};
+  return attr.getValue();
 }
 
 mlir::LogicalResult requireNonEmptyWhenPresent(mlir::Operation *op,
@@ -218,6 +226,35 @@ KernelOp getEnclosingKernel(mlir::Operation *op) {
   return op->getParentOfType<KernelOp>();
 }
 
+bool isCapabilityProviderTarget(TargetOp target) {
+  return target &&
+         !getStringAttr(target.getOperation(), kIdAttrName).trim().empty() &&
+         !getStringAttr(target.getOperation(), kKindAttrName).trim().empty();
+}
+
+mlir::Operation *findModuleLevelSymbol(KernelOp kernel,
+                                       llvm::StringRef symbolName) {
+  auto module = kernel ? kernel->getParentOfType<mlir::ModuleOp>()
+                       : mlir::ModuleOp();
+  if (!module || module.getBodyRegion().empty())
+    return nullptr;
+
+  for (mlir::Operation &op : module.getBody()->getOperations()) {
+    auto symbolAttr = op.getAttrOfType<mlir::StringAttr>(
+        mlir::SymbolTable::getSymbolAttrName());
+    if (symbolAttr && symbolAttr.getValue() == symbolName)
+      return &op;
+  }
+  return nullptr;
+}
+
+TargetOp findReferencedModuleTarget(KernelOp kernel,
+                                    llvm::StringRef symbolName) {
+  if (mlir::Operation *symbol = findModuleLevelSymbol(kernel, symbolName))
+    return llvm::dyn_cast<TargetOp>(symbol);
+  return {};
+}
+
 bool kernelContainsCapability(KernelOp kernel, llvm::StringRef symbolName) {
   if (!kernel || kernel.getBody().empty())
     return false;
@@ -233,6 +270,13 @@ bool kernelContainsCapability(KernelOp kernel, llvm::StringRef symbolName) {
         !isMissingOrEmptyStringAttr(target.getOperation(), kKindAttrName))
       return true;
   }
+
+  auto targetAttr =
+      kernel->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
+  if (targetAttr && targetAttr.getValue() == symbolName)
+    return isCapabilityProviderTarget(
+        findReferencedModuleTarget(kernel, symbolName));
+
   return false;
 }
 
@@ -496,8 +540,49 @@ mlir::LogicalResult KernelOp::verify() {
 
   llvm::StringSet<> emissionPlanTargets;
   llvm::StringSet<> directCapabilityIDs;
+  llvm::StringSet<> capabilityProviderSymbols;
   llvm::StringSet<> directMemWindowABIRoles;
   llvm::StringSet<> directRuntimeParamABIRoles;
+
+  mlir::Attribute rawTargetAttr = getOperation()->getAttr(kTargetAttrName);
+  if (rawTargetAttr) {
+    auto targetAttr = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(rawTargetAttr);
+    if (!targetAttr)
+      return emitOpError()
+             << "requires attribute '" << kTargetAttrName
+             << "' to be a module-level tcrv.exec.target symbol reference";
+
+    mlir::Operation *resolved =
+        findModuleLevelSymbol(*this, targetAttr.getValue());
+    if (!resolved)
+      return emitOpError()
+             << "target references unknown module-level tcrv.exec.target @"
+             << targetAttr.getValue();
+
+    auto target = llvm::dyn_cast<TargetOp>(resolved);
+    if (!target)
+      return emitOpError()
+             << "target @" << targetAttr.getValue()
+             << " resolves to a module-level symbol that is not a "
+                "tcrv.exec.target";
+
+    if (!isCapabilityProviderTarget(target))
+      return emitOpError()
+             << "target @" << targetAttr.getValue()
+             << " must reference a capability-provider tcrv.exec.target with "
+                "non-empty id and kind";
+
+    if (findDirectKernelSymbol(*this, targetAttr.getValue()))
+      return emitOpError()
+             << "target @" << targetAttr.getValue()
+             << " is shadowed by a direct symbol in the same "
+                "tcrv.exec.kernel";
+
+    directCapabilityIDs.insert(
+        getStringAttr(target.getOperation(), kIdAttrName));
+    capabilityProviderSymbols.insert(target.getSymName());
+  }
+
   auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> mlir::LogicalResult {
     if (!isEmissionPlanDiagnostic(diagnostic))
       return mlir::success();
@@ -517,6 +602,12 @@ mlir::LogicalResult KernelOp::verify() {
 
   for (mlir::Operation &op : getBody().front()) {
     if (auto capability = llvm::dyn_cast<CapabilityOp>(op)) {
+      if (!capabilityProviderSymbols.insert(capability.getSymName()).second)
+        return capability.emitOpError()
+               << "duplicates capability-provider symbol @"
+               << capability.getSymName()
+               << " in enclosing tcrv.exec.kernel capability scope";
+
       auto idAttr = capability->getAttrOfType<mlir::StringAttr>(kIdAttrName);
       if (idAttr && !idAttr.getValue().trim().empty() &&
           !directCapabilityIDs.insert(idAttr.getValue()).second)
@@ -529,6 +620,14 @@ mlir::LogicalResult KernelOp::verify() {
     if (auto target = llvm::dyn_cast<TargetOp>(op)) {
       auto idAttr = target->getAttrOfType<mlir::StringAttr>(kIdAttrName);
       auto kindAttr = target->getAttrOfType<mlir::StringAttr>(kKindAttrName);
+      if (idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
+          !kindAttr.getValue().trim().empty() &&
+          !capabilityProviderSymbols.insert(target.getSymName()).second)
+        return target.emitOpError()
+               << "duplicates capability-provider symbol @"
+               << target.getSymName()
+               << " in enclosing tcrv.exec.kernel capability scope";
+
       if (idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
           !kindAttr.getValue().trim().empty() &&
           !directCapabilityIDs.insert(idAttr.getValue()).second)

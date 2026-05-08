@@ -1,7 +1,9 @@
 #include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSet.h"
@@ -22,6 +24,9 @@ constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
 constexpr llvm::StringLiteral kTargetHartCountCapabilityID(
     "target.hart_count");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
+
+llvm::Error makeCapabilitySetError(llvm::Twine message);
+std::string makeKernelExtractionContext(tcrv::exec::KernelOp kernel);
 
 llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
@@ -115,6 +120,66 @@ bool hasCapabilityProviderIdentity(tcrv::exec::TargetOp target) {
          !getStringAttr(target.getOperation(), "kind").trim().empty();
 }
 
+mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
+                                       llvm::StringRef symbolName) {
+  auto module = kernel ? kernel->getParentOfType<mlir::ModuleOp>()
+                       : mlir::ModuleOp();
+  if (!module || module.getBodyRegion().empty())
+    return nullptr;
+
+  for (mlir::Operation &op : module.getBody()->getOperations()) {
+    auto symbolAttr = op.getAttrOfType<mlir::StringAttr>(
+        mlir::SymbolTable::getSymbolAttrName());
+    if (symbolAttr && symbolAttr.getValue() == symbolName)
+      return &op;
+  }
+  return nullptr;
+}
+
+llvm::Expected<tcrv::exec::TargetOp>
+getReferencedModuleTargetProvider(tcrv::exec::KernelOp kernel) {
+  if (!kernel)
+    return tcrv::exec::TargetOp();
+
+  mlir::Attribute rawTargetAttr = kernel->getAttr("target");
+  if (!rawTargetAttr)
+    return tcrv::exec::TargetOp();
+
+  auto targetAttr = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(rawTargetAttr);
+  if (!targetAttr)
+    return makeCapabilitySetError(
+        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        makeKernelExtractionContext(kernel) +
+        " rejected malformed kernel target attribute; expected a module-level "
+        "tcrv.exec.target symbol reference");
+
+  mlir::Operation *resolved =
+      findModuleLevelSymbol(kernel, targetAttr.getValue());
+  if (!resolved)
+    return makeCapabilitySetError(
+        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        makeKernelExtractionContext(kernel) +
+        " rejected unknown module-level target @" + targetAttr.getValue());
+
+  auto target = llvm::dyn_cast<tcrv::exec::TargetOp>(resolved);
+  if (!target)
+    return makeCapabilitySetError(
+        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        makeKernelExtractionContext(kernel) + " rejected target @" +
+        targetAttr.getValue() +
+        " because it resolves to a module-level symbol that is not a "
+        "tcrv.exec.target");
+
+  if (!hasCapabilityProviderIdentity(target))
+    return makeCapabilitySetError(
+        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        makeKernelExtractionContext(kernel) + " rejected target @" +
+        targetAttr.getValue() +
+        " because it lacks capability-provider id/kind identity");
+
+  return target;
+}
+
 CapabilityDescriptor makeDescriptor(mlir::Operation *op,
                                     llvm::StringRef symbolName,
                                     llvm::StringRef id,
@@ -206,6 +271,21 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
     return capabilitySet;
 
   std::string constructionContext = makeKernelExtractionContext(kernel);
+  llvm::Expected<tcrv::exec::TargetOp> referencedTarget =
+      getReferencedModuleTargetProvider(kernel);
+  if (!referencedTarget)
+    return referencedTarget.takeError();
+
+  if (*referencedTarget) {
+    tcrv::exec::TargetOp target = *referencedTarget;
+    if (llvm::Error error = capabilitySet.tryAddCapability(
+            makeDescriptor(target.getOperation(), target.getSymName(),
+                           getStringAttr(target.getOperation(), "id"),
+                           getStringAttr(target.getOperation(), "kind")),
+            constructionContext))
+      return std::move(error);
+  }
+
   for (mlir::Operation &op : kernel.getBody().front()) {
     if (auto capability = llvm::dyn_cast<tcrv::exec::CapabilityOp>(op)) {
       if (llvm::Error error = capabilitySet.tryAddCapability(

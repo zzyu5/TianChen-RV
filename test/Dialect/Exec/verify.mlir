@@ -162,6 +162,56 @@ tcrv.exec.kernel @target_profile_requires_ok attributes {} {
 
 // -----
 
+tcrv.exec.target @module_rvv_profile {id = "rvv.profile.module", kind = "profile", provides = ["rvv"]}
+
+tcrv.exec.kernel @module_target_profile_requires_ok attributes {target = @module_rvv_profile} {
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@module_rvv_profile]} {
+  }
+}
+
+// -----
+
+// expected-error @+1 {{target references unknown module-level tcrv.exec.target @missing_module_profile}}
+tcrv.exec.kernel @missing_module_target_profile attributes {target = @missing_module_profile} {
+}
+
+// -----
+
+tcrv.exec.kernel @not_a_target attributes {} {
+}
+
+// expected-error @+1 {{target @not_a_target resolves to a module-level symbol that is not a tcrv.exec.target}}
+tcrv.exec.kernel @module_target_profile_non_target attributes {target = @not_a_target} {
+}
+
+// -----
+
+tcrv.exec.target @parse_only_module_target {arch = "riscv64"}
+
+// expected-error @+1 {{target @parse_only_module_target must reference a capability-provider tcrv.exec.target with non-empty id and kind}}
+tcrv.exec.kernel @module_target_profile_parse_only attributes {target = @parse_only_module_target} {
+}
+
+// -----
+
+tcrv.exec.target @shadowed_module_target {id = "rvv.profile.shadowed", kind = "profile", provides = ["rvv"]}
+
+// expected-error @+1 {{target @shadowed_module_target is shadowed by a direct symbol in the same tcrv.exec.kernel}}
+tcrv.exec.kernel @module_target_profile_shadowed attributes {target = @shadowed_module_target} {
+  tcrv.exec.capability @shadowed_module_target {id = "local.shadow", kind = "profile"}
+}
+
+// -----
+
+tcrv.exec.target @module_duplicate_id_profile {id = "rvv", kind = "profile", provides = ["rvv"]}
+
+tcrv.exec.kernel @module_target_profile_duplicate_id attributes {target = @module_duplicate_id_profile} {
+  // expected-error @+1 {{duplicates capability id 'rvv' in enclosing tcrv.exec.kernel}}
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+}
+
+// -----
+
 tcrv.exec.kernel @target_profile_duplicate_id attributes {} {
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
   // expected-error @+1 {{duplicates capability-provider id 'rvv' in enclosing tcrv.exec.kernel}}

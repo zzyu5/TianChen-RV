@@ -28,7 +28,9 @@ Use lit/FileCheck for:
 - core capability identity verifier diagnostics, including rejection of
   duplicate direct capability-provider ids within one `tcrv.exec.kernel`,
   target-profile provider `id`/`kind` pairing diagnostics, and preservation of
-  relation-provider lookup behavior for unique profile ids;
+  relation-provider lookup behavior for unique profile ids, plus explicit
+  module-level `tcrv.exec.target` profile attachment through
+  `tcrv.exec.kernel target = @profile`;
 - public plugin-variant materialization pass behavior, including built-in
   registry proposal routing, deterministic proposal order, parseable downstream
   pass pipelines, no-built-in-registry diagnostics, plugin-local proposal

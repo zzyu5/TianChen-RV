@@ -65,7 +65,19 @@ int main() {
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @generic_target attributes {} {
+  tcrv.exec.target @module_rvv_profile {
+    id = "rvv.profile.module",
+    kind = "profile",
+    status = "available",
+    provides = ["module.rvv"],
+    architecture = "riscv64"
+  }
+  tcrv.exec.target @unreferenced_module_profile {
+    id = "unreferenced.profile",
+    kind = "profile",
+    status = "available"
+  }
+  tcrv.exec.kernel @generic_target attributes {target = @module_rvv_profile} {
     tcrv.exec.target @parse_only_anchor {arch = "riscv64"}
     tcrv.exec.capability @toolchain_available {id = "generic.toolchain", kind = "toolchain"}
     tcrv.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
@@ -135,8 +147,31 @@ module {
 
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
-  if (int result = expect(capabilities.size() == 11,
+  if (int result = expect(capabilities.size() == 12,
                           "all declared capabilities are collected"))
+    return result;
+
+  const CapabilityDescriptor *moduleRVVProfile =
+      capabilities.lookupBySymbolName("module_rvv_profile");
+  if (int result =
+          expect(moduleRVVProfile &&
+                     moduleRVVProfile->getID() == "rvv.profile.module" &&
+                     moduleRVVProfile->getKind() == "profile",
+                 "referenced module-level target profile is collected"))
+    return result;
+  if (int result = expect(moduleRVVProfile->providesID("module.rvv"),
+                          "referenced module-level target profile preserves "
+                          "provides relation"))
+    return result;
+  if (int result = expect(capabilities.lookupProviderByID("module.rvv") ==
+                              moduleRVVProfile,
+                          "provider lookup resolves referenced module-level "
+                          "target profile relation"))
+    return result;
+  if (int result = expect(!capabilities.lookupBySymbolName(
+                              "unreferenced_module_profile"),
+                          "unreferenced module-level target profiles do not "
+                          "enter kernel capability decisions"))
     return result;
 
   const CapabilityDescriptor *toolchain =

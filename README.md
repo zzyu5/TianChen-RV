@@ -32,12 +32,15 @@ The first compiler slice defines a minimal `tcrv.exec.*` operation family throug
 
 The C++ capability model consumes direct `tcrv.exec.capability` anchors and
 preserves structured properties plus first-slice capability relations:
-`provides`, `implies`, and `conflicts`. Relation-aware provider lookup lets a
-profile capability such as `id = "rvv.profile.rv64gcv", provides = ["rvv"]`
-satisfy plugin proposals that require capability id `rvv`, while an exact
-capability id remains authoritative when present. These relations participate
-in compiler decisions such as RVV plugin proposal, variant materialization, and
-RVV legality. The generic `--tcrv-check-capability-requires` pass also uses a
+`provides`, `implies`, and `conflicts`. A kernel may also reference one
+module-level capability-provider `tcrv.exec.target` profile with
+`target = @profile`; only that explicitly attached profile enters the kernel's
+`TargetCapabilitySet`. Relation-aware provider lookup lets a profile capability
+such as `id = "rvv.profile.rv64gcv", provides = ["rvv"]` satisfy plugin
+proposals that require capability id `rvv`, while an exact capability id
+remains authoritative when present. These relations participate in compiler
+decisions such as RVV plugin proposal, variant materialization, and RVV
+legality. The generic `--tcrv-check-capability-requires` pass also uses a
 bounded conflict query: unprotected static variants and dispatch fallbacks fail
 when a required available capability conflicts with another available
 capability, while dispatch cases must carry an explicit generic guard surface

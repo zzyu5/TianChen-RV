@@ -258,11 +258,13 @@ semantics. Core materialization must remain free of target-family branches.
 The public compiler pass surface for this slice is
 `--tcrv-materialize-plugin-variants`. It scans existing `tcrv.exec.kernel`
 anchors, builds each kernel's generic `TargetCapabilitySet` from direct
-`tcrv.exec.capability` objects, routes proposal collection through an injected
-`ExtensionPluginRegistry`, and materializes the validated proposal set through
-the shared helper above. Public tools may inject the deterministic built-in
-registry at the tool boundary; the default factory uses an empty registry for
-negative/embedded tests and must not invent core-owned variants.
+kernel-local capability providers plus the explicitly referenced module-level
+`tcrv.exec.target` profile named by `target = @profile`, routes proposal
+collection through an injected `ExtensionPluginRegistry`, and materializes the
+validated proposal set through the shared helper above. Public tools may inject
+the deterministic built-in registry at the tool boundary; the default factory
+uses an empty registry for negative/embedded tests and must not invent
+core-owned variants.
 
 Recoverable plugin-local proposal declines are diagnostics, not variants. The
 pass must keep collecting later plugins after such a decline so explicitly

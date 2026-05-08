@@ -164,6 +164,70 @@ module {
 // -----
 
 module {
+  tcrv.exec.target @module_rvv_profile {
+    id = "rvv.profile.module",
+    kind = "profile",
+    provides = ["rvv"],
+    architecture = "riscv64",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    status = "available"
+  }
+
+  // MAT-LABEL: tcrv.exec.kernel @module_rvv_profile_provides_rvv
+  // MAT-SAME: target = @module_rvv_profile
+  tcrv.exec.kernel @module_rvv_profile_provides_rvv attributes {target = @module_rvv_profile} {
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+
+    // MAT: tcrv.exec.variant @rvv_first_slice
+    // MAT-SAME: origin = "rvv-plugin"
+    // MAT-SAME: requires = [@module_rvv_profile]
+    // MAT-SAME: tcrv_rvv.required_march = "rv64gcv"
+    // MAT: tcrv.exec.variant @scalar_fallback_first_slice
+    // MAT-SAME: requires = [@scalar_fallback]
+
+    // PIPE-LABEL: tcrv.exec.kernel @module_rvv_profile_provides_rvv
+    // PIPE-SAME: target = @module_rvv_profile
+    // PIPE: tcrv.exec.variant @rvv_first_slice
+    // PIPE-SAME: requires = [@module_rvv_profile]
+    // PIPE-NOT: tcrv.exec.dispatch
+    // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: reason = "variant-selected"
+    // PIPE-SAME: selection_kind = "static-variant"
+    // PIPE-SAME: target = @rvv_first_slice
+
+    // RERUN-LABEL: tcrv.exec.kernel @module_rvv_profile_provides_rvv
+    // RERUN-COUNT-1: tcrv.exec.variant @rvv_first_slice
+    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
+    // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
+    // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
+  }
+}
+
+// -----
+
+module {
   // MAT-LABEL: tcrv.exec.kernel @scalar_independent_from_unavailable_rvv
   tcrv.exec.kernel @scalar_independent_from_unavailable_rvv {
     tcrv.exec.capability @rvv {

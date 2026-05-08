@@ -64,7 +64,8 @@ tcrv.exec.kernel
 Responsibilities:
 
 - define callable kernel inputs and outputs;
-- bind target capability;
+- bind target capability, either through kernel-local capability providers or
+  an explicit module-level `tcrv.exec.target` reference;
 - contain one or more execution variants;
 - define fallback strategy;
 - declare whether runtime dispatch is allowed.
@@ -72,8 +73,13 @@ Responsibilities:
 Reference shape:
 
 ```mlir
-tcrv.exec.kernel @matmul(%A, %B, %C)
-  attributes { target = #tcrv.target<...> } {
+tcrv.exec.target @rvv_profile attributes {
+  id = "rvv.profile.rv64gcv",
+  kind = "profile",
+  provides = ["rvv"]
+}
+
+tcrv.exec.kernel @matmul attributes { target = @rvv_profile } {
   ... variants ...
 }
 ```
@@ -98,6 +104,18 @@ Rules:
   `tcrv.exec.kernel` uniqueness domain with direct `tcrv.exec.capability`
   ids, because plugin proposal, legality, and requires mapping use the same
   capability lookup object.
+- a kernel may reference exactly one module-level capability-provider
+  `tcrv.exec.target` using `target = @profile`. That referenced profile enters
+  the kernel's `TargetCapabilitySet` before direct kernel-local capability
+  providers and may satisfy variant `requires` through exact id, `provides`,
+  or `implies` lookup. The reference must resolve to a direct module-level
+  `tcrv.exec.target` with non-empty `id` and `kind`; parse-only targets,
+  missing targets, non-target symbols, and direct kernel symbols that shadow
+  the referenced profile are invalid.
+- module-level targets are not collected implicitly. A kernel receives only its
+  explicit `target = @profile` attachment plus its direct kernel-local
+  capability providers, so unrelated module targets cannot silently affect
+  plugin availability or selection.
 
 ### `tcrv.exec.capability`
 
@@ -158,8 +176,11 @@ tcrv.exec.variant @rvv
 ```
 
 For this compatibility form, `requires` must be an `ArrayAttr` of
-`FlatSymbolRefAttr` capability references resolved inside the enclosing
-`tcrv.exec.kernel`. This is a compiler-visible structured requirement field,
+`FlatSymbolRefAttr` capability references resolved in the kernel capability
+scope. That scope contains direct `tcrv.exec.capability` providers,
+kernel-local capability-provider `tcrv.exec.target` anchors, and the explicitly
+referenced module-level `tcrv.exec.target` profile when the kernel has
+`target = @profile`. This is a compiler-visible structured requirement field,
 not an arbitrary string list.
 
 Optional `condition`, `guard`, and `policy` attributes on

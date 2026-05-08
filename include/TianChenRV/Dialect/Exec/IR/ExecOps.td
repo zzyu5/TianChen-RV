@@ -60,7 +60,8 @@ def KernelOp : TCRVExec_Op<"exec.kernel",
     dispatch, and fallback organization for one high-level kernel realization.
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name);
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                   OptionalAttr<FlatSymbolRefAttr>:$target);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name attr-dict-with-keyword $body";
   let hasVerifier = 1;
