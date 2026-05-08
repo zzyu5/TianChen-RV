@@ -19,6 +19,7 @@ using namespace tianchenrv::target;
 namespace {
 
 using tianchenrv::support::I32VAddRuntimeABIContract;
+using tianchenrv::support::I32VAddCallableRuntimeABIParameterBindings;
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
@@ -296,6 +297,125 @@ bool expectRuntimeABIParameterRoleLookup() {
     return false;
 
   return true;
+}
+
+bool expectDirectCallableRuntimeABIBindingFailure(
+    llvm::Expected<I32VAddCallableRuntimeABIParameterBindings> bindings,
+    llvm::StringRef context,
+    std::initializer_list<llvm::StringRef> fragments) {
+  if (bindings) {
+    llvm::errs() << context << ": expected failure\n";
+    return false;
+  }
+  return expectErrorContains(bindings.takeError(), context, fragments);
+}
+
+bool expectDirectCallableRuntimeABIBinding() {
+  constexpr RuntimeABIParameterOwnership owned =
+      RuntimeABIParameterOwnership::TargetExportABIOwned;
+  llvm::SmallVector<RuntimeABIParameter, 4> reordered;
+  reordered.push_back(RuntimeABIParameter(
+      "runtime_n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
+      owned));
+  reordered.push_back(RuntimeABIParameter(
+      "dst", "int32_t *", RuntimeABIParameterRole::OutputBuffer, owned));
+  reordered.push_back(RuntimeABIParameter(
+      "left", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
+      owned));
+  reordered.push_back(RuntimeABIParameter(
+      "right", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer,
+      owned));
+
+  llvm::Expected<I32VAddCallableRuntimeABIParameterBindings> bindings =
+      tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          reordered, "reordered direct callable ABI parameter test");
+  if (!bindings) {
+    llvm::errs() << llvm::toString(bindings.takeError()) << "\n";
+    return false;
+  }
+  if (bindings->lhs->cName != "left" ||
+      bindings->rhs->cName != "right" ||
+      bindings->out->cName != "dst" ||
+      bindings->runtimeElementCount->cName != "runtime_n") {
+    llvm::errs() << "direct callable role binding returned positional names\n";
+    return false;
+  }
+
+  llvm::SmallVector<RuntimeABIParameter, 4> emptyName;
+  emptyName.append(reordered.begin(), reordered.end());
+  emptyName[2].cName.clear();
+  if (!expectDirectCallableRuntimeABIBindingFailure(
+          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+              emptyName, "empty direct callable C name test"),
+          "empty direct callable C name rejected",
+          {"runtime ABI callable parameter role binding failed",
+           "empty direct callable C name test", "lhs-input-buffer",
+           "requires non-empty C name"}))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 4> wrongType;
+  wrongType.append(reordered.begin(), reordered.end());
+  wrongType[0].cType = "uint64_t";
+  if (!expectDirectCallableRuntimeABIBindingFailure(
+          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+              wrongType, "wrong direct callable runtime count type test"),
+          "wrong direct callable runtime count type rejected",
+          {"runtime ABI callable parameter role binding failed",
+           "wrong direct callable runtime count type test",
+           "runtime-element-count", "must use C type 'size_t'"}))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 4> wrongOwnership;
+  wrongOwnership.append(reordered.begin(), reordered.end());
+  wrongOwnership[1].ownership = RuntimeABIParameterOwnership::IRModeled;
+  if (!expectDirectCallableRuntimeABIBindingFailure(
+          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+              wrongOwnership, "wrong direct callable output ownership test"),
+          "wrong direct callable output ownership rejected",
+          {"runtime ABI callable parameter role binding failed",
+           "wrong direct callable output ownership test", "output-buffer",
+           "must use ownership 'target-export-abi-owned'"}))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 3> missingRHS;
+  missingRHS.append(reordered.begin(), reordered.end() - 1);
+  if (!expectDirectCallableRuntimeABIBindingFailure(
+          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+              missingRHS, "missing direct callable rhs role test"),
+          "missing direct callable rhs role rejected",
+          {"runtime ABI callable parameter role binding failed",
+           "missing direct callable rhs role test", "rhs-input-buffer",
+           "found none"}))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 5> duplicateLHS;
+  duplicateLHS.append(reordered.begin(), reordered.end());
+  duplicateLHS.push_back(RuntimeABIParameter(
+      "also_left", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
+      owned));
+  if (!expectDirectCallableRuntimeABIBindingFailure(
+          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+              duplicateLHS, "duplicate direct callable lhs role test"),
+          "duplicate direct callable lhs role rejected",
+          {"runtime ABI callable parameter role binding failed",
+           "duplicate direct callable lhs role test", "lhs-input-buffer",
+           "found duplicate parameters"}))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 5> directWithDispatchGuard;
+  directWithDispatchGuard.append(reordered.begin(), reordered.end());
+  directWithDispatchGuard.push_back(RuntimeABIParameter(
+      "rvv_available", "int",
+      RuntimeABIParameterRole::DispatchAvailabilityGuard, owned));
+  return expectDirectCallableRuntimeABIBindingFailure(
+      tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          directWithDispatchGuard,
+          "direct callable rejects dispatch guard role test"),
+      "direct callable dispatch guard role rejected",
+      {"runtime ABI callable parameter role binding failed",
+       "direct callable rejects dispatch guard role test",
+       "unsupported direct callable runtime ABI parameter role",
+       "dispatch-availability-guard"});
 }
 
 bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
@@ -1127,6 +1247,8 @@ int main() {
   if (!expectI32VAddRuntimeABIContractShape())
     return 1;
   if (!expectRuntimeABIParameterRoleLookup())
+    return 1;
+  if (!expectDirectCallableRuntimeABIBinding())
     return 1;
   if (builtinRegistry.size() != 3) {
     llvm::errs() << "expected exactly 3 built-in target artifact routes, got "

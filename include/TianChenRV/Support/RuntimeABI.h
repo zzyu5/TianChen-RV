@@ -49,6 +49,13 @@ struct RuntimeABIParameter {
       RuntimeABIParameterOwnership::TargetExportABIOwned;
 };
 
+struct I32VAddCallableRuntimeABIParameterBindings {
+  const RuntimeABIParameter *lhs = nullptr;
+  const RuntimeABIParameter *rhs = nullptr;
+  const RuntimeABIParameter *out = nullptr;
+  const RuntimeABIParameter *runtimeElementCount = nullptr;
+};
+
 inline llvm::StringRef stringifyRuntimeABIParameterRole(
     RuntimeABIParameterRole role) {
   switch (role) {
@@ -156,6 +163,10 @@ inline bool runtimeABIParametersEqual(
 llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters,
     RuntimeABIParameterRole role, llvm::StringRef context);
+
+llvm::Expected<I32VAddCallableRuntimeABIParameterBindings>
+bindI32VAddCallableRuntimeABIParametersByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context);
 
 inline void printRuntimeABIParameterCDeclaration(
     llvm::raw_ostream &os, const RuntimeABIParameter &parameter) {

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final review."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check exec runtime ABI boundaries remain compute-free."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check direct callable ABI role binding and emission boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV exporter behavior remains plugin/target-local."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar exporter behavior remains plugin/target-local."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required ABI/export tests are covered."}

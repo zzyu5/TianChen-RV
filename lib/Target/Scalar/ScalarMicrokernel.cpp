@@ -1172,14 +1172,20 @@ void printRecordComment(llvm::raw_ostream &os,
   os << ") */\n";
 }
 
-void printMicrokernelFunction(llvm::raw_ostream &os,
-                              llvm::StringRef functionName,
-                              llvm::ArrayRef<support::RuntimeABIParameter>
-                                  parameters) {
-  const support::RuntimeABIParameter &lhs = parameters[0];
-  const support::RuntimeABIParameter &rhs = parameters[1];
-  const support::RuntimeABIParameter &out = parameters[2];
-  const support::RuntimeABIParameter &runtimeN = parameters[3];
+llvm::Error printMicrokernelFunction(
+    llvm::raw_ostream &os, llvm::StringRef functionName,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  llvm::Expected<support::I32VAddCallableRuntimeABIParameterBindings> bindings =
+      support::bindI32VAddCallableRuntimeABIParametersByRole(
+          parameters, "scalar direct microkernel C emission");
+  if (!bindings)
+    return bindings.takeError();
+
+  const support::RuntimeABIParameter &lhs = *bindings->lhs;
+  const support::RuntimeABIParameter &rhs = *bindings->rhs;
+  const support::RuntimeABIParameter &out = *bindings->out;
+  const support::RuntimeABIParameter &runtimeN =
+      *bindings->runtimeElementCount;
 
   os << "void " << functionName << "(";
   for (auto [index, parameter] : llvm::enumerate(parameters)) {
@@ -1193,10 +1199,11 @@ void printMicrokernelFunction(llvm::raw_ostream &os,
   os << "    " << out.cName << "[index] = " << lhs.cName << "[index] + "
      << rhs.cName << "[index];\n\n";
   os << "}\n\n";
+  return llvm::Error::success();
 }
 
-void printMicrokernelSource(const ScalarMicrokernelRecord &record,
-                            llvm::raw_ostream &os) {
+llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
+                                   llvm::raw_ostream &os) {
   std::string functionName = makeMicrokernelFunctionName(record);
 
   os << "/* TianChen-RV scalar runtime-callable microkernel C export. */\n";
@@ -1210,7 +1217,10 @@ void printMicrokernelSource(const ScalarMicrokernelRecord &record,
   os << "#include <stdint.h>\n\n";
 
   printRecordComment(os, record, functionName);
-  printMicrokernelFunction(os, functionName, record.runtimeABIParameters);
+  if (llvm::Error error =
+          printMicrokernelFunction(os, functionName, record.runtimeABIParameters))
+    return error;
+  return llvm::Error::success();
 }
 
 } // namespace
@@ -1223,7 +1233,8 @@ llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
 
   std::string source;
   llvm::raw_string_ostream stream(source);
-  printMicrokernelSource(*record, stream);
+  if (llvm::Error error = printMicrokernelSource(*record, stream))
+    return error;
   stream.flush();
   os << source;
   return llvm::Error::success();

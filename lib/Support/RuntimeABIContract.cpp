@@ -4,6 +4,87 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace tianchenrv::support {
+namespace {
+
+llvm::Error makeCallableBindingError(llvm::StringRef context,
+                                     llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "runtime ABI callable parameter role binding failed";
+  if (!context.empty())
+    stream << " for " << context;
+  stream << ": " << message;
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
+bool isI32VAddCallableRole(RuntimeABIParameterRole role) {
+  switch (role) {
+  case RuntimeABIParameterRole::LHSInputBuffer:
+  case RuntimeABIParameterRole::RHSInputBuffer:
+  case RuntimeABIParameterRole::OutputBuffer:
+  case RuntimeABIParameterRole::RuntimeElementCount:
+    return true;
+  case RuntimeABIParameterRole::DispatchAvailabilityGuard:
+    return false;
+  }
+  return false;
+}
+
+const RuntimeABIParameter *
+getI32VAddCallableRoleRequirement(RuntimeABIParameterRole role) {
+  for (const RuntimeABIParameter &requirement :
+       getI32VAddRuntimeABIContract().getCallableRoleRequirements())
+    if (requirement.role == role)
+      return &requirement;
+  return nullptr;
+}
+
+llvm::Expected<const RuntimeABIParameter *>
+bindOneI32VAddCallableParameterByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters,
+    RuntimeABIParameterRole role, llvm::StringRef context) {
+  llvm::Expected<const RuntimeABIParameter *> parameter =
+      findUniqueRuntimeABIParameterByRole(parameters, role, context);
+  if (!parameter) {
+    std::string message = llvm::toString(parameter.takeError());
+    return makeCallableBindingError(context, message);
+  }
+
+  const RuntimeABIParameter *bound = *parameter;
+  if (llvm::StringRef(bound->cName).trim().empty())
+    return makeCallableBindingError(
+        context, llvm::Twine("runtime ABI parameter role '") +
+                     stringifyRuntimeABIParameterRole(role) +
+                     "' requires non-empty C name");
+
+  const RuntimeABIParameter *requirement =
+      getI32VAddCallableRoleRequirement(role);
+  if (!requirement)
+    return makeCallableBindingError(
+        context, llvm::Twine("missing i32-vadd callable role requirement for '") +
+                     stringifyRuntimeABIParameterRole(role) + "'");
+
+  if (bound->cType != requirement->cType)
+    return makeCallableBindingError(
+        context, llvm::Twine("runtime ABI parameter role '") +
+                     stringifyRuntimeABIParameterRole(role) +
+                     "' must use C type '" + requirement->cType + "'");
+
+  if (bound->ownership != requirement->ownership)
+    return makeCallableBindingError(
+        context, llvm::Twine("runtime ABI parameter role '") +
+                     stringifyRuntimeABIParameterRole(role) +
+                     "' must use ownership '" +
+                     stringifyRuntimeABIParameterOwnership(
+                         requirement->ownership) +
+                     "'");
+
+  return bound;
+}
+
+} // namespace
 
 I32VAddRuntimeABIContract::I32VAddRuntimeABIContract()
     : rvvCallableIdentity{
@@ -181,6 +262,52 @@ llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
   stream.flush();
   return llvm::make_error<llvm::StringError>(message,
                                              llvm::errc::invalid_argument);
+}
+
+llvm::Expected<I32VAddCallableRuntimeABIParameterBindings>
+bindI32VAddCallableRuntimeABIParametersByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context) {
+  using Role = RuntimeABIParameterRole;
+  I32VAddCallableRuntimeABIParameterBindings bindings;
+
+  llvm::Expected<const RuntimeABIParameter *> lhs =
+      bindOneI32VAddCallableParameterByRole(parameters, Role::LHSInputBuffer,
+                                            context);
+  if (!lhs)
+    return lhs.takeError();
+  bindings.lhs = *lhs;
+
+  llvm::Expected<const RuntimeABIParameter *> rhs =
+      bindOneI32VAddCallableParameterByRole(parameters, Role::RHSInputBuffer,
+                                            context);
+  if (!rhs)
+    return rhs.takeError();
+  bindings.rhs = *rhs;
+
+  llvm::Expected<const RuntimeABIParameter *> out =
+      bindOneI32VAddCallableParameterByRole(parameters, Role::OutputBuffer,
+                                            context);
+  if (!out)
+    return out.takeError();
+  bindings.out = *out;
+
+  llvm::Expected<const RuntimeABIParameter *> runtimeElementCount =
+      bindOneI32VAddCallableParameterByRole(parameters,
+                                            Role::RuntimeElementCount, context);
+  if (!runtimeElementCount)
+    return runtimeElementCount.takeError();
+  bindings.runtimeElementCount = *runtimeElementCount;
+
+  for (const RuntimeABIParameter &parameter : parameters) {
+    if (isI32VAddCallableRole(parameter.role))
+      continue;
+    return makeCallableBindingError(
+        context, llvm::Twine("contains unsupported direct callable runtime ABI "
+                             "parameter role '") +
+                     stringifyRuntimeABIParameterRole(parameter.role) + "'");
+  }
+
+  return bindings;
 }
 
 llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
