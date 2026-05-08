@@ -32,6 +32,9 @@ namespace {
 namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::VariantEmissionRole;
+using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
+using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::target::TargetArtifactCandidate;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
@@ -584,7 +587,9 @@ bool sameSymbolSet(llvm::ArrayRef<std::string> lhs,
 }
 
 llvm::Error validateLoweringBoundaries(KernelOp kernel,
-                                       llvm::MutableArrayRef<SelectedPath> paths) {
+                                       llvm::MutableArrayRef<SelectedPath> paths,
+                                       const TargetCapabilitySet &capabilities,
+                                       const ExtensionPluginRegistry &plugins) {
   llvm::StringMap<unsigned> selectedByKey;
   for (auto [index, path] : llvm::enumerate(paths)) {
     if (!selectedByKey.try_emplace(makePathKey(path), index).second)
@@ -681,6 +686,19 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
                     " as " + path.role +
                     " requires one materialized plugin lowering boundary "
                     "before export preflight");
+  }
+
+  for (const SelectedPath &path : paths) {
+    VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+    if (path.role == "dispatch case")
+      role = VariantEmissionRole::DispatchCase;
+    else if (path.role == "dispatch fallback")
+      role = VariantEmissionRole::DispatchFallback;
+
+    VariantLoweringBoundaryValidationRequest request(
+        path.variant, kernel, capabilities, role, path.loweringBoundary);
+    if (llvm::Error error = plugins.validateSelectedLoweringBoundary(request))
+      return error;
   }
 
   return llvm::Error::success();
@@ -1063,10 +1081,16 @@ llvm::Error validateSupportedArtifactCandidates(
 llvm::Error checkKernelExecutionPlanCoherence(
     KernelOp kernel, const ExtensionPluginRegistry &plugins,
     llvm::SmallVectorImpl<TargetArtifactCandidate> &supportedCandidates) {
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
   llvm::SmallVector<SelectedPath, 4> paths;
   if (llvm::Error error = collectSelectedPaths(kernel, plugins, paths))
     return error;
-  if (llvm::Error error = validateLoweringBoundaries(kernel, paths))
+  if (llvm::Error error =
+          validateLoweringBoundaries(kernel, paths, *capabilities, plugins))
     return error;
   if (llvm::Error error =
           validateEmissionPlans(kernel, paths, supportedCandidates))

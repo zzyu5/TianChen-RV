@@ -157,6 +157,29 @@ private:
   mlir::OpBuilder &builder;
 };
 
+class VariantLoweringBoundaryValidationRequest {
+public:
+  VariantLoweringBoundaryValidationRequest(
+      tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role, mlir::Operation *boundary);
+
+  tcrv::exec::VariantOp getVariant() const { return variant; }
+  tcrv::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+  mlir::Operation *getBoundary() const { return boundary; }
+
+private:
+  tcrv::exec::VariantOp variant;
+  tcrv::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  mlir::Operation *boundary = nullptr;
+};
+
 class VariantProposal {
 public:
   VariantProposal() = default;
@@ -299,6 +322,13 @@ private:
   VariantFallbackRole fallbackRole = VariantFallbackRole::None;
 };
 
+struct VariantSelectedPlanMetadata {
+  std::string name;
+  std::string value;
+  std::string role;
+  std::string note;
+};
+
 enum class VariantEmissionSupport {
   Unknown,
   Supported,
@@ -411,6 +441,10 @@ public:
   getRuntimeABIParameters() const {
     return runtimeABIParameters;
   }
+  llvm::ArrayRef<VariantSelectedPlanMetadata>
+  getSelectedPlanMetadata() const {
+    return selectedPlanMetadata;
+  }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
   void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
@@ -463,6 +497,12 @@ public:
     runtimeABIParameters.append(parameters.begin(), parameters.end());
   }
   void clearRuntimeABIParameters() { runtimeABIParameters.clear(); }
+  void addSelectedPlanMetadata(llvm::StringRef name, llvm::StringRef value,
+                               llvm::StringRef role, llvm::StringRef note) {
+    selectedPlanMetadata.push_back(
+        {name.str(), value.str(), role.str(), note.str()});
+  }
+  void clearSelectedPlanMetadata() { selectedPlanMetadata.clear(); }
   llvm::Error setRequiredCapabilitySymbolsFromVariant(
       tcrv::exec::VariantOp variant);
 
@@ -484,6 +524,7 @@ private:
   std::string explanation;
   llvm::SmallVector<std::string, 4> requiredCapabilitySymbols;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<VariantSelectedPlanMetadata, 4> selectedPlanMetadata;
 };
 
 enum class VariantLoweringBoundaryStatus {
@@ -595,6 +636,8 @@ public:
   virtual llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const;
+  virtual llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const;
 };
 
 class ExtensionPluginRegistry {
@@ -648,6 +691,8 @@ public:
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const;
+  llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const;
   llvm::Error checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel) const;
   llvm::Error
   checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel,
@@ -685,6 +730,9 @@ private:
       const VariantLoweringBoundaryRequest &request,
       const ExtensionPlugin &plugin, llvm::StringRef origin,
       const VariantLoweringBoundaryResult &result) const;
+  llvm::Error validateVariantLoweringBoundaryValidationRequest(
+      const VariantLoweringBoundaryValidationRequest &request,
+      const ExtensionPlugin *&plugin, llvm::StringRef &origin) const;
 
   llvm::SmallVector<const ExtensionPlugin *, 8> plugins;
   llvm::StringMap<const ExtensionPlugin *> pluginsByName;

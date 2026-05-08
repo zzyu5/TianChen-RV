@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariant verification"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV runtime/correctness/performance evidence boundary verification"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "parameter layering verification"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec remains compute-free"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local metadata verification"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "manifest/bundle self-description and fail-closed checks"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "test and evidence quality bar"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected-path coherence verification"}

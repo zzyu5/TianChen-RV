@@ -28,6 +28,13 @@ inline constexpr llvm::StringLiteral kRuntimeGlueRoleAttrName(
 inline constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 inline constexpr llvm::StringLiteral kSelectionKindAttrName("selection_kind");
+inline constexpr llvm::StringLiteral kSelectedPlanMetadataAttrName(
+    "selected_plan_metadata");
+inline constexpr llvm::StringLiteral kSelectedPlanMetadataNameAttrName("name");
+inline constexpr llvm::StringLiteral kSelectedPlanMetadataValueAttrName(
+    "value");
+inline constexpr llvm::StringLiteral kSelectedPlanMetadataRoleAttrName("role");
+inline constexpr llvm::StringLiteral kSelectedPlanMetadataNoteAttrName("note");
 inline constexpr llvm::StringLiteral kSeverityAttrName("severity");
 inline constexpr llvm::StringLiteral kStatusAttrName("status");
 inline constexpr llvm::StringLiteral kTargetAttrName("target");

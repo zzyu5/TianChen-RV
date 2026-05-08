@@ -419,6 +419,13 @@ RVV work must keep these parameter layers distinct:
   validated, including plugin-owned `tcrv_rvv.vlenb_bytes` /
   `tcrv_rvv.i32_m1_lanes` variant metadata. They are not per-variant runtime
   values.
+- Selected RVV lowering-boundary capacity metadata, when present, is a
+  plugin-owned copy of selected variant metadata on `tcrv_rvv.lowering_boundary`
+  using `vlenb_bytes` and `i32_m1_lanes`. The pair must be integer, present
+  together, positive, ratio-valid for i32 m1 lanes, and validated against both
+  the selected variant and the preserved target capability facts by the RVV
+  plugin. It is diagnostic selected-plan metadata, not runtime IR, shape, AVL,
+  VL, runtime `n`, or performance evidence.
 - SEW and LMUL are compile-time variant config selected or proposed by the RVV
   plugin and checked against target capabilities. They are not sufficient as
   standalone hardware facts without the surrounding capability/profile evidence.
@@ -443,6 +450,11 @@ IR-modeled unless the real IR has the corresponding attribute, type, SSA value,
 region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` and
 `tcrv_rvv.with_vl` ops model only runtime AVL/VL control-plane IR; they do not
 make VLEN/vlenb or descriptor-local `element_count` runtime values.
+RVV emission plans may carry bounded `selected_plan_metadata` entries such as
+`tcrv_rvv.vlenb_bytes` and `tcrv_rvv.i32_m1_lanes` only as plugin-owned
+selected-plan self-description. Those entries must be generated from validated
+selected variant metadata and must not become runtime ABI parameters, generated
+control values, shapes, or performance claims.
 
 ## First Lowering Boundary Slice
 
@@ -464,6 +476,11 @@ Rules:
   before any plugin lowering-boundary hook is invoked.
 - The boundary op remains `status = "unsupported"` until a later RVV lowering
   and runtime slice adds executable evidence.
+- If a selected RVV variant carries capacity metadata, the RVV boundary hook
+  must copy that metadata into the plugin-local boundary and plugin-local
+  validation must reject missing, stale, unpaired, non-integer, ratio-invalid,
+  or target-capability-mismatched capacity metadata before emission planning or
+  target bundle export can report success.
 - The boundary is a compiler structure/evidence boundary only; it must not be
   reported as hardware execution, correctness, or performance evidence.
 

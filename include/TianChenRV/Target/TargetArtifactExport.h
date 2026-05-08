@@ -67,6 +67,13 @@ private:
       requiredRuntimeABIParameters;
 };
 
+struct SelectedPlanMetadataEntry {
+  std::string name;
+  std::string value;
+  std::string role;
+  std::string note;
+};
+
 struct TargetArtifactCandidate {
   tcrv::exec::KernelOp kernel;
   std::string selectedVariant;
@@ -81,6 +88,7 @@ struct TargetArtifactCandidate {
   std::string runtimeABIName;
   std::string runtimeGlueRole;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
 };
 
 struct TargetArtifactBundleRecord {
@@ -102,6 +110,7 @@ struct TargetArtifactBundleRecord {
   std::string runtimeABIKind;
   std::string runtimeABIName;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
   std::string handoffKind;
   std::string evidenceRole;
 };

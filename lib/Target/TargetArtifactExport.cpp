@@ -712,6 +712,78 @@ llvm::Error collectRuntimeABIParameters(
   return llvm::Error::success();
 }
 
+llvm::Error collectSelectedPlanMetadata(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    llvm::SmallVectorImpl<SelectedPlanMetadataEntry> &out) {
+  auto metadata = diagnostic->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kSelectedPlanMetadataAttrName);
+  if (!metadata)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenNames;
+  for (auto [index, attr] : llvm::enumerate(metadata)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] must be a dictionary attribute");
+
+    auto name = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataNameAttrName);
+    auto value = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataValueAttrName);
+    auto role = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataRoleAttrName);
+    auto note = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataNoteAttrName);
+    if (!name || name.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty name");
+    if (!value || value.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty value");
+    if (!role || role.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty role");
+    if (!note || note.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty note");
+
+    llvm::StringRef nameValue = name.getValue().trim();
+    llvm::StringRef metadataValue = value.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef noteValue = note.getValue().trim();
+    if (!seenNames.insert(nameValue).second)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("duplicate selected_plan_metadata name '") +
+                      nameValue + "'");
+    if (llvm::Error error =
+            validateBoundedText(kernel, "selected plan metadata name",
+                                nameValue))
+      return error;
+    if (llvm::Error error = validateBoundedText(
+            kernel, "selected plan metadata value", metadataValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "selected plan metadata role",
+                                roleValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "selected plan metadata note",
+                                noteValue))
+      return error;
+
+    out.push_back({nameValue.str(), metadataValue.str(), roleValue.str(),
+                   noteValue.str()});
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<std::optional<TargetArtifactCandidate>>
 buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                         DiagnosticOp diagnostic) {
@@ -835,6 +907,10 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error =
           collectRuntimeABIParameters(kernel, diagnostic,
                                       candidate.runtimeABIParameters))
+    return std::move(error);
+  if (llvm::Error error =
+          collectSelectedPlanMetadata(kernel, diagnostic,
+                                      candidate.selectedPlanMetadata))
     return std::move(error);
 
   return std::optional<TargetArtifactCandidate>(std::move(candidate));
@@ -1007,6 +1083,8 @@ void appendComponentMetadata(
   for (const TargetArtifactCandidate &candidate : candidates) {
     record.componentVariants.push_back(candidate.selectedVariant);
     record.componentRoles.push_back(candidate.role);
+    record.selectedPlanMetadata.append(candidate.selectedPlanMetadata.begin(),
+                                       candidate.selectedPlanMetadata.end());
   }
 }
 
@@ -1162,6 +1240,8 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.runtimeABIName = candidate.runtimeABIName;
   record.runtimeABIParameters.append(candidate.runtimeABIParameters.begin(),
                                      candidate.runtimeABIParameters.end());
+  record.selectedPlanMetadata.append(candidate.selectedPlanMetadata.begin(),
+                                     candidate.selectedPlanMetadata.end());
   record.handoffKind = exporter->getHandoffKind().str();
   record.evidenceRole =
       getEvidenceRoleForArtifactKind(candidate.artifactKind).str();
@@ -1284,6 +1364,54 @@ llvm::Error validateBundleRuntimeABIParameters(
   return llvm::Error::success();
 }
 
+llvm::Error validateBundleSelectedPlanMetadata(
+    const TargetArtifactBundleRecord &record) {
+  llvm::StringSet<> seenNames;
+  for (auto [index, metadata] : llvm::enumerate(record.selectedPlanMetadata)) {
+    if (metadata.name.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' selected_plan_metadata[" + llvm::Twine(index) +
+          "] requires non-empty name");
+    if (metadata.value.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' selected_plan_metadata[" + llvm::Twine(index) +
+          "] requires non-empty value");
+    if (metadata.role.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' selected_plan_metadata[" + llvm::Twine(index) +
+          "] requires non-empty role");
+    if (metadata.note.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' selected_plan_metadata[" + llvm::Twine(index) +
+          "] requires non-empty note");
+    if (!seenNames.insert(metadata.name).second)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' duplicates selected_plan_metadata name '" + metadata.name + "'");
+    if (llvm::Error error =
+            validateBundleRecordText("selected_plan_metadata name",
+                                     metadata.name))
+      return error;
+    if (llvm::Error error =
+            validateBundleRecordText("selected_plan_metadata value",
+                                     metadata.value))
+      return error;
+    if (llvm::Error error =
+            validateBundleRecordText("selected_plan_metadata role",
+                                     metadata.role))
+      return error;
+    if (llvm::Error error =
+            validateBundleRecordText("selected_plan_metadata note",
+                                     metadata.note))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
 const support::RuntimeABIParameter *
 findRuntimeABIParameterByRole(
     llvm::ArrayRef<support::RuntimeABIParameter> params,
@@ -1292,6 +1420,19 @@ findRuntimeABIParameterByRole(
     if (parameter.role == role)
       return &parameter;
   return nullptr;
+}
+
+bool selectedPlanMetadataEqual(
+    llvm::ArrayRef<SelectedPlanMetadataEntry> lhs,
+    llvm::ArrayRef<SelectedPlanMetadataEntry> rhs) {
+  if (lhs.size() != rhs.size())
+    return false;
+  for (auto [left, right] : llvm::zip(lhs, rhs)) {
+    if (left.name != right.name || left.value != right.value ||
+        left.role != right.role || left.note != right.note)
+      return false;
+  }
+  return true;
 }
 
 llvm::Error validateBundleRuntimeABISignatureMatches(
@@ -1345,6 +1486,7 @@ llvm::Error validateTargetArtifactBundleComponentContract(
     llvm::SmallVector<std::string, 4> componentVariants;
     llvm::SmallVector<std::string, 4> selectedPathRoles;
     llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+    llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
     llvm::StringSet<> artifactComponentRoles;
   };
 
@@ -1371,6 +1513,8 @@ llvm::Error validateTargetArtifactBundleComponentContract(
           "' expected role '" + expectedComponentRole + "'");
     if (llvm::Error error =
             validateBundleRecordText("component_role", record.componentRole))
+      return error;
+    if (llvm::Error error = validateBundleSelectedPlanMetadata(record))
       return error;
 
     if (record.componentGroup.empty()) {
@@ -1423,6 +1567,8 @@ llvm::Error validateTargetArtifactBundleComponentContract(
                                      record.componentRoles.end());
       state.runtimeABIParameters.append(record.runtimeABIParameters.begin(),
                                         record.runtimeABIParameters.end());
+      state.selectedPlanMetadata.append(record.selectedPlanMetadata.begin(),
+                                        record.selectedPlanMetadata.end());
     } else {
       if (state.owner != record.owner)
         return makeTargetArtifactBundleExportError(
@@ -1458,6 +1604,11 @@ llvm::Error validateTargetArtifactBundleComponentContract(
               record.componentGroup, state.runtimeABIParameters,
               record.runtimeABIParameters))
         return error;
+      if (!selectedPlanMetadataEqual(state.selectedPlanMetadata,
+                                     record.selectedPlanMetadata))
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched selected plan metadata");
     }
 
     if (!state.artifactComponentRoles.insert(record.componentRole).second)
@@ -1674,6 +1825,26 @@ void printBundleRuntimeABIParameters(
   }
 }
 
+void printBundleSelectedPlanMetadata(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<SelectedPlanMetadataEntry> metadata) {
+  for (auto [index, entry] : llvm::enumerate(metadata)) {
+    os << "  selected_plan_metadata[" << index << "]:\n";
+    os << "    name: ";
+    printBundleQuoted(os, entry.name);
+    os << "\n";
+    os << "    value: ";
+    printBundleQuoted(os, entry.value);
+    os << "\n";
+    os << "    role: ";
+    printBundleQuoted(os, entry.role);
+    os << "\n";
+    os << "    note: ";
+    printBundleQuoted(os, entry.note);
+    os << "\n";
+  }
+}
+
 void printTargetArtifactBundleIndex(
     llvm::raw_ostream &os,
     llvm::ArrayRef<TargetArtifactBundleRecord> records,
@@ -1740,6 +1911,7 @@ void printTargetArtifactBundleIndex(
     printBundleQuoted(os, record.runtimeABIName);
     os << "\n";
     printBundleRuntimeABIParameters(os, record.runtimeABIParameters);
+    printBundleSelectedPlanMetadata(os, record.selectedPlanMetadata);
     if (!record.handoffKind.empty()) {
       os << "  handoff_kind: ";
       printBundleQuoted(os, record.handoffKind);

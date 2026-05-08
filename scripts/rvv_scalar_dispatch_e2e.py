@@ -556,6 +556,7 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
     current: dict[str, Any] | None = None
     current_component: dict[str, str] | None = None
     current_runtime_abi_parameter: dict[str, str] | None = None
+    current_selected_plan_metadata: dict[str, str] | None = None
 
     for raw_line in index_text.splitlines():
         line = raw_line.rstrip()
@@ -576,10 +577,12 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
                 "index": int(artifact_match.group(1)),
                 "components": [],
                 "runtime_abi_parameters": [],
+                "selected_plan_metadata": [],
             }
             records.append(current)
             current_component = None
             current_runtime_abi_parameter = None
+            current_selected_plan_metadata = None
             continue
         component_match = re.match(r"^  component\[([0-9]+)\]:$", line)
         if component_match:
@@ -588,6 +591,7 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
             current_component = {"index": component_match.group(1)}
             current["components"].append(current_component)
             current_runtime_abi_parameter = None
+            current_selected_plan_metadata = None
             continue
         parameter_match = re.match(r"^  runtime_abi_parameter\[([0-9]+)\]:$", line)
         if parameter_match:
@@ -598,6 +602,22 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
             current_runtime_abi_parameter = {"index": parameter_match.group(1)}
             current["runtime_abi_parameters"].append(current_runtime_abi_parameter)
             current_component = None
+            current_selected_plan_metadata = None
+            continue
+        selected_metadata_match = re.match(
+            r"^  selected_plan_metadata\[([0-9]+)\]:$", line
+        )
+        if selected_metadata_match:
+            if current is None:
+                raise BridgeError(
+                    "bundle index selected_plan_metadata appears before artifact"
+                )
+            current_selected_plan_metadata = {
+                "index": selected_metadata_match.group(1)
+            }
+            current["selected_plan_metadata"].append(current_selected_plan_metadata)
+            current_component = None
+            current_runtime_abi_parameter = None
             continue
 
         field_match = re.match(r"^  ([A-Za-z0-9_]+):\s*(.*)$", line)
@@ -608,6 +628,7 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
             current[key] = value
             current_component = None
             current_runtime_abi_parameter = None
+            current_selected_plan_metadata = None
             continue
 
         component_field_match = re.match(r"^    ([A-Za-z0-9_]+):\s*(.*)$", line)
@@ -624,6 +645,14 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
                 f"bundle index runtime_abi_parameter field {key}", value
             )
             current_runtime_abi_parameter[key] = value
+            continue
+        if component_field_match and current_selected_plan_metadata is not None:
+            key, raw_value = component_field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(
+                f"bundle index selected_plan_metadata field {key}", value
+            )
+            current_selected_plan_metadata[key] = value
             continue
 
     if bundle_status != "complete":

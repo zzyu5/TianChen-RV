@@ -40,6 +40,8 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
+constexpr llvm::StringLiteral kBoundaryVLenBBytesAttrName("vlenb_bytes");
+constexpr llvm::StringLiteral kBoundaryI32M1LanesAttrName("i32_m1_lanes");
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
 constexpr llvm::StringLiteral kAVLAttrName("avl");
@@ -710,6 +712,25 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
     return emitOpError()
            << "required_capabilities must match selected variant requires "
               "metadata";
+
+  auto vlenbBytes = op->getAttrOfType<mlir::IntegerAttr>(
+      kBoundaryVLenBBytesAttrName);
+  auto i32M1Lanes = op->getAttrOfType<mlir::IntegerAttr>(
+      kBoundaryI32M1LanesAttrName);
+  if (static_cast<bool>(vlenbBytes) != static_cast<bool>(i32M1Lanes))
+    return emitOpError()
+           << "selected capacity metadata requires both '"
+           << kBoundaryVLenBBytesAttrName << "' and '"
+           << kBoundaryI32M1LanesAttrName << "'";
+  if (vlenbBytes) {
+    std::int64_t vlenb = vlenbBytes.getInt();
+    std::int64_t lanes = i32M1Lanes.getInt();
+    if (vlenb <= 0 || lanes <= 0 || vlenb < 4 || vlenb % 4 != 0 ||
+        vlenb / 4 != lanes)
+      return emitOpError()
+             << "selected capacity metadata requires i32_m1_lanes to equal "
+                "vlenb_bytes divided by four";
+  }
 
   return mlir::success();
 }

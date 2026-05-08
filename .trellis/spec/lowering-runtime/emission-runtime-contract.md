@@ -678,6 +678,15 @@ lowering boundary was consumed, the diagnostic should also carry a generic
 `lowering_boundary` metadata field naming the boundary operation used by the
 plan. That field is a diagnostic link only and does not imply executable
 lowering.
+Plugins may additionally attach bounded `selected_plan_metadata` dictionaries
+to emission-plan diagnostics when the selected plan needs durable
+self-description across the lowering/export boundary. Each entry must have
+non-empty name, value, role, and note fields. The generic layer validates and
+serializes these entries but does not interpret plugin-specific names such as
+RVV capacity facts. For RVV, any capacity metadata must already have been
+validated by the RVV plugin against the selected variant and target
+capabilities; generic emission/export code must not turn it into runtime ABI,
+shape, VL/AVL, or performance evidence.
 
 The current public `tcrv-opt` built-in registry includes the RVV first-slice
 plugin. Therefore an `origin = "rvv-plugin"` selected path can materialize an
@@ -1595,11 +1604,13 @@ contract must also publish an ordered runtime ABI signature with
 `runtime_abi_parameter[index].c_name`, `.c_type`, `.role`, and `.ownership`.
 All source/header/object records in that external ABI group must agree on
 runtime ABI kind/name, external ABI name, component selected variants/roles,
-and the full ordered runtime ABI signature; missing signatures, duplicate roles,
-mismatched name/type/ownership for the same role, or reordered parameters fail
-closed before bundle export. Source, header, and object routes must remain
-separate records. Composite dispatch records may be attached to the selected
-dispatch surface and must preserve the component selected variants/roles rather
-than moving RVV/scalar branch semantics into `tcrv.exec` or generic manifest
-code. Unsupported or metadata-only selected paths must omit target artifact
-records instead of fabricating route data.
+the full ordered runtime ABI signature, and any selected-plan metadata entries.
+Missing signatures, duplicate roles, mismatched name/type/ownership for the
+same role, reordered parameters, malformed selected-plan metadata, or
+mismatched selected-plan metadata fail closed before bundle export. Source,
+header, and object routes must remain separate records. Composite dispatch
+records may be attached to the selected dispatch surface and must preserve the
+component selected variants/roles rather than moving RVV/scalar branch
+semantics into `tcrv.exec` or generic manifest code. Unsupported or
+metadata-only selected paths must omit target artifact records instead of
+fabricating route data.

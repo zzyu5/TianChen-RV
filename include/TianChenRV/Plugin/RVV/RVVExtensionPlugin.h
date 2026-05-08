@@ -48,6 +48,8 @@ public:
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const override;
+  llvm::Error validateSelectedLoweringBoundary(
+      const VariantLoweringBoundaryValidationRequest &request) const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

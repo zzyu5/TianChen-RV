@@ -203,6 +203,8 @@ def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
     StrAttr:$role,
     StrAttr:$status,
     ArrayAttr:$required_capabilities,
+    OptionalAttr<I64Attr>:$vlenb_bytes,
+    OptionalAttr<I64Attr>:$i32_m1_lanes,
     OptionalAttr<StrAttr>:$capability_summary,
     StrAttr:$unsupported_reason
   );

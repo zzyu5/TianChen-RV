@@ -143,17 +143,18 @@ Use lit/FileCheck for:
   lowering-boundary metadata, or emission-plan diagnostics; successful
   RVV+scalar dispatch bundle index checks for selected dispatch surface,
   component_group/component_role/external_abi_name metadata, and ordered
-  runtime_abi_parameter signature fields; and a focused fail-closed negative
-  case proving planning failure does not print bundle completion or emit a
-  complete bundle index.
+  runtime_abi_parameter signature fields plus bounded selected-plan metadata
+  self-description when RVV capacity facts are present; and a focused
+  fail-closed negative case proving planning failure does not print bundle
+  completion or emit a complete bundle index.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;
   existing execution-planning pipeline output followed by the preflight pass;
   and fail-closed diagnostics for stale selected paths, selected origin
   mismatch, lowering-boundary kernel/variant/origin mismatch, emission-plan
   route/origin mismatch, missing runtime ABI ownership metadata, source versus
-  descriptor artifact route spoofing, unregistered origins, and ambiguous
-  supported artifact candidates.
+  descriptor artifact route spoofing, stale or mismatched selected RVV capacity
+  metadata, unregistered origins, and ambiguous supported artifact candidates.
 - scalar explicit microkernel C target export through the generic artifact
   route, including dialect parse/verify for
   `tcrv_scalar.i32_vadd_microkernel`, selected scalar fallback plus matching
@@ -358,7 +359,8 @@ Python tooling and as MLIR pipeline input. Required coverage:
 - the replayed MLIR can drive `tcrv-opt --tcrv-execution-planning-pipeline` to
   materialize RVV proposal metadata, selected lowering-boundary metadata, and
   boundary-linked emission-plan diagnostics when the required RVV facts are
-  present;
+  present, including selected RVV capacity metadata preserved as diagnostic
+  self-description rather than runtime input or performance evidence;
 - missing, malformed, failed, secret-like, or unbounded probe facts do not
   invent RVV support;
 - scalar fallback remains available when an explicit `scalar.fallback`

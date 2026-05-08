@@ -190,6 +190,7 @@ def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
                    OptionalAttr<StrAttr>:$artifact_kind,
                    OptionalAttr<StrAttr>:$lowering_boundary,
                    OptionalAttr<ArrayAttr>:$required_capabilities,
+                   OptionalAttr<ArrayAttr>:$selected_plan_metadata,
                    OptionalAttr<BoolAttr>:$preference_available,
                    OptionalAttr<F64Attr>:$preference_score,
                    OptionalAttr<I64Attr>:$preference_rank,

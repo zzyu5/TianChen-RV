@@ -24,6 +24,18 @@ module @plan_and_export_target_artifact_bundle_input {
       count = 64 : i64,
       status = "available"
     }
+    tcrv.exec.capability @rvv_vlenb_bytes {
+      id = "rvv.vlenb_bytes",
+      kind = "uarch",
+      bytes = 16 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_lanes {
+      id = "rvv.i32_m1_lane_count",
+      kind = "uarch",
+      lanes = 4 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -99,6 +111,14 @@ module @plan_and_export_target_artifact_bundle_input {
 // INDEX: c_type: "int"
 // INDEX: role: "dispatch-availability-guard"
 // INDEX: ownership: "target-export-abi-owned"
+// INDEX: selected_plan_metadata[0]:
+// INDEX: name: "tcrv_rvv.vlenb_bytes"
+// INDEX: value: "16"
+// INDEX: role: "selected-rvv-capacity-fact"
+// INDEX: note: "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
+// INDEX: selected_plan_metadata[1]:
+// INDEX: name: "tcrv_rvv.i32_m1_lanes"
+// INDEX: value: "4"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"

@@ -327,6 +327,14 @@ VariantLoweringBoundaryRequest::VariantLoweringBoundaryRequest(
     : variant(variant), kernel(kernel), capabilities(capabilities), role(role),
       builder(builder) {}
 
+VariantLoweringBoundaryValidationRequest::
+    VariantLoweringBoundaryValidationRequest(
+        tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+        const support::TargetCapabilitySet &capabilities,
+        VariantEmissionRole role, mlir::Operation *boundary)
+    : variant(variant), kernel(kernel), capabilities(capabilities), role(role),
+      boundary(boundary) {}
+
 VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
     : variantName(variantName.str()), originPlugin(originPlugin.str()) {}
@@ -612,6 +620,12 @@ llvm::Error ExtensionPlugin::materializeSelectedLoweringBoundary(
       request.getRole(),
       "origin plugin does not provide selected lowering-boundary "
       "materialization");
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::validateSelectedLoweringBoundary(
+    const VariantLoweringBoundaryValidationRequest &request) const {
+  (void)request;
   return llvm::Error::success();
 }
 
@@ -1084,6 +1098,75 @@ llvm::Error ExtensionPluginRegistry::materializeSelectedLoweringBoundary(
             result.getReason());
 
   out = result;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::
+    validateVariantLoweringBoundaryValidationRequest(
+        const VariantLoweringBoundaryValidationRequest &request,
+        const ExtensionPlugin *&plugin, llvm::StringRef &origin) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!variant)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+
+  if (!request.getBoundary())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        "requires a materialized selected lowering-boundary operation");
+
+  if (variant->getParentOp() != kernel.getOperation())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        "variant is not directly enclosed by the request tcrv.exec.kernel");
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  origin = originAttr.getValue();
+  plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantLoweringBoundaryError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateSelectedLoweringBoundary(
+    const VariantLoweringBoundaryValidationRequest &request) const {
+  const ExtensionPlugin *plugin = nullptr;
+  llvm::StringRef origin;
+  if (llvm::Error error = validateVariantLoweringBoundaryValidationRequest(
+          request, plugin, origin))
+    return error;
+
+  if (llvm::Error error = plugin->validateSelectedLoweringBoundary(request)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantLoweringBoundaryError(
+        request.getVariant(), request.getKernel(), request.getRole(),
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' failed lowering-boundary validation: " + pluginMessage);
+  }
+
+  (void)origin;
   return llvm::Error::success();
 }
 
@@ -1588,6 +1671,67 @@ llvm::Error validateRuntimeABIParameters(
   return llvm::Error::success();
 }
 
+llvm::Error validateSelectedPlanMetadata(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    VariantEmissionRole role, const ExtensionPlugin &plugin,
+    const VariantEmissionPlan &plan) {
+  llvm::StringSet<> seenNames;
+  for (const VariantSelectedPlanMetadata &metadata :
+       plan.getSelectedPlanMetadata()) {
+    if (metadata.name.empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: selected plan metadata "
+              "requires non-empty name");
+    if (metadata.value.empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: selected plan metadata '" +
+              metadata.name + "' requires non-empty value");
+    if (metadata.role.empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: selected plan metadata '" +
+              metadata.name + "' requires non-empty role");
+    if (metadata.note.empty())
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: selected plan metadata '" +
+              metadata.name + "' requires non-empty note");
+
+    if (!seenNames.insert(metadata.name).second)
+      return makeVariantEmissionPlanError(
+          variant, kernel, role,
+          llvm::Twine("origin plugin '") + plugin.getName() +
+              "' produced invalid emission plan: duplicate selected plan "
+              "metadata name '" +
+              metadata.name + "'");
+
+    if (llvm::Error error = validateBoundedPlanText(
+            variant, kernel, role, plugin, plan, "selected plan metadata name",
+            metadata.name))
+      return error;
+    if (llvm::Error error = validateBoundedPlanText(
+            variant, kernel, role, plugin, plan, "selected plan metadata value",
+            metadata.value))
+      return error;
+    if (llvm::Error error = validateBoundedPlanText(
+            variant, kernel, role, plugin, plan, "selected plan metadata role",
+            metadata.role))
+      return error;
+    if (llvm::Error error = validateBoundedPlanText(
+            variant, kernel, role, plugin, plan, "selected plan metadata note",
+            metadata.note))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
     const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantEmissionPlan &plan) const {
@@ -1681,6 +1825,9 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
     return error;
   if (llvm::Error error =
           validateRuntimeABIParameters(variant, kernel, role, plugin, plan))
+    return error;
+  if (llvm::Error error =
+          validateSelectedPlanMetadata(variant, kernel, role, plugin, plan))
     return error;
 
   if (llvm::Error error =

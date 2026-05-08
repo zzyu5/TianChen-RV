@@ -47,6 +47,8 @@ constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
     "tcrv_rvv.i32_m1_lanes");
+constexpr llvm::StringLiteral kRVVBoundaryVLenBBytesAttrName("vlenb_bytes");
+constexpr llvm::StringLiteral kRVVBoundaryI32M1LanesAttrName("i32_m1_lanes");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
@@ -83,6 +85,11 @@ constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
+constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataRole(
+    "selected-rvv-capacity-fact");
+constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
+    "diagnostic self-description only; not runtime input, shape, VL/AVL, or "
+    "performance evidence");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
@@ -105,6 +112,11 @@ struct RVVI32VAddMaterializationPlan {
   std::int64_t elementCount = 0;
   std::string requiredMarch;
   std::optional<std::string> selectedMABI;
+};
+
+struct RVVCapacityMetadata {
+  std::int64_t vlenbBytes = 0;
+  std::int64_t i32M1Lanes = 0;
 };
 
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
@@ -520,6 +532,131 @@ verifyOptionalCapacityAttrs(tcrv::exec::VariantOp variant,
         " capacity metadata is not satisfied by preserved RVV vlenb/i32 lane "
         "capability facts");
 
+  return llvm::Error::success();
+}
+
+llvm::Expected<std::optional<RVVCapacityMetadata>>
+parseCapacityMetadataAttrs(mlir::Operation *op, llvm::StringRef context,
+                           llvm::StringRef vlenbAttrName,
+                           llvm::StringRef lanesAttrName) {
+  mlir::Attribute rawVLenB = op->getAttr(vlenbAttrName);
+  mlir::Attribute rawI32Lanes = op->getAttr(lanesAttrName);
+  if (!rawVLenB && !rawI32Lanes)
+    return std::optional<RVVCapacityMetadata>();
+  if (!rawVLenB || !rawI32Lanes)
+    return makeRVVPluginError(
+        llvm::Twine(context) + " capacity metadata requires both '" +
+        vlenbAttrName + "' and '" + lanesAttrName + "'");
+
+  auto vlenbAttr = llvm::dyn_cast<mlir::IntegerAttr>(rawVLenB);
+  auto lanesAttr = llvm::dyn_cast<mlir::IntegerAttr>(rawI32Lanes);
+  if (!vlenbAttr || !lanesAttr)
+    return makeRVVPluginError(
+        llvm::Twine(context) +
+        " capacity metadata must use integer attributes");
+
+  RVVCapacityMetadata metadata;
+  metadata.vlenbBytes = vlenbAttr.getInt();
+  metadata.i32M1Lanes = lanesAttr.getInt();
+  if (metadata.vlenbBytes <= 0 || metadata.i32M1Lanes <= 0 ||
+      metadata.vlenbBytes < 4 || metadata.vlenbBytes % 4 != 0 ||
+      metadata.vlenbBytes / 4 != metadata.i32M1Lanes)
+    return makeRVVPluginError(
+        llvm::Twine(context) +
+        " capacity metadata requires i32 lanes to equal vlenb bytes divided "
+        "by four");
+
+  return std::optional<RVVCapacityMetadata>(metadata);
+}
+
+llvm::Error copyCapacityMetadataToBoundary(mlir::OperationState &state,
+                                           tcrv::exec::VariantOp variant,
+                                           mlir::OpBuilder &builder) {
+  llvm::Expected<std::optional<RVVCapacityMetadata>> metadata =
+      parseCapacityMetadataAttrs(
+          variant.getOperation(),
+          (llvm::Twine("selected RVV variant @") + variant.getSymName()).str(),
+          kRVVVLenBBytesAttrName, kRVVI32M1LanesAttrName);
+  if (!metadata)
+    return metadata.takeError();
+  if (!*metadata)
+    return llvm::Error::success();
+
+  state.addAttribute(kRVVBoundaryVLenBBytesAttrName,
+                     builder.getI64IntegerAttr((*metadata)->vlenbBytes));
+  state.addAttribute(kRVVBoundaryI32M1LanesAttrName,
+                     builder.getI64IntegerAttr((*metadata)->i32M1Lanes));
+  return llvm::Error::success();
+}
+
+llvm::Error validateBoundaryCapacityMetadata(tcrv::exec::VariantOp variant,
+                                             mlir::Operation *boundary) {
+  llvm::Expected<std::optional<RVVCapacityMetadata>> variantMetadata =
+      parseCapacityMetadataAttrs(
+          variant.getOperation(),
+          (llvm::Twine("selected RVV variant @") + variant.getSymName()).str(),
+          kRVVVLenBBytesAttrName, kRVVI32M1LanesAttrName);
+  if (!variantMetadata)
+    return variantMetadata.takeError();
+
+  llvm::Expected<std::optional<RVVCapacityMetadata>> boundaryMetadata =
+      parseCapacityMetadataAttrs(
+          boundary,
+          (llvm::Twine("selected RVV lowering boundary for @") +
+           variant.getSymName())
+              .str(),
+          kRVVBoundaryVLenBBytesAttrName, kRVVBoundaryI32M1LanesAttrName);
+  if (!boundaryMetadata)
+    return boundaryMetadata.takeError();
+
+  if (*variantMetadata && !*boundaryMetadata)
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV lowering boundary for @") +
+        variant.getSymName() +
+        " must preserve selected capacity metadata from the variant");
+  if (!*variantMetadata && *boundaryMetadata)
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV lowering boundary for @") +
+        variant.getSymName() +
+        " claims capacity metadata absent from the selected variant");
+  if (!*variantMetadata && !*boundaryMetadata)
+    return llvm::Error::success();
+
+  if ((*variantMetadata)->vlenbBytes != (*boundaryMetadata)->vlenbBytes ||
+      (*variantMetadata)->i32M1Lanes != (*boundaryMetadata)->i32M1Lanes)
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV lowering boundary for @") +
+        variant.getSymName() +
+        " capacity metadata does not match the selected variant");
+
+  return llvm::Error::success();
+}
+
+bool hasAnyCapacityMetadata(mlir::Operation *op, llvm::StringRef vlenbAttrName,
+                            llvm::StringRef lanesAttrName) {
+  return op && (op->hasAttr(vlenbAttrName) || op->hasAttr(lanesAttrName));
+}
+
+llvm::Error addSelectedCapacityMetadataToPlan(VariantEmissionPlan &plan,
+                                              tcrv::exec::VariantOp variant) {
+  llvm::Expected<std::optional<RVVCapacityMetadata>> metadata =
+      parseCapacityMetadataAttrs(
+          variant.getOperation(),
+          (llvm::Twine("selected RVV variant @") + variant.getSymName()).str(),
+          kRVVVLenBBytesAttrName, kRVVI32M1LanesAttrName);
+  if (!metadata)
+    return metadata.takeError();
+  if (!*metadata)
+    return llvm::Error::success();
+
+  plan.addSelectedPlanMetadata(kRVVVLenBBytesAttrName,
+                               std::to_string((*metadata)->vlenbBytes),
+                               kSelectedRVVCapacityMetadataRole,
+                               kSelectedRVVCapacityMetadataNote);
+  plan.addSelectedPlanMetadata(kRVVI32M1LanesAttrName,
+                               std::to_string((*metadata)->i32M1Lanes),
+                               kSelectedRVVCapacityMetadataRole,
+                               kSelectedRVVCapacityMetadataNote);
   return llvm::Error::success();
 }
 
@@ -1125,7 +1262,7 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
+llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
     llvm::StringRef capabilitySummary) {
@@ -1145,6 +1282,9 @@ tcrv::rvv::LoweringBoundaryOp materializeRVVBoundaryOp(
   state.addAttribute(kStatusAttrName,
                      builder.getStringAttr(kUnsupportedStatusValue));
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
+  if (llvm::Error error =
+          copyCapacityMetadataToBoundary(state, variant, builder))
+    return std::move(error);
   state.addAttribute(kCapabilitySummaryAttrName,
                      builder.getStringAttr(capabilitySummary));
   state.addAttribute(
@@ -1490,6 +1630,9 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
+    if (llvm::Error error =
+            addSelectedCapacityMetadataToPlan(out, request.getVariant()))
+      return error;
     return llvm::Error::success();
   }
 
@@ -1509,6 +1652,9 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   out.setArtifactKind("unsupported-emission-diagnostic");
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+    return error;
+  if (llvm::Error error =
+          addSelectedCapacityMetadataToPlan(out, request.getVariant()))
     return error;
   return llvm::Error::success();
 }
@@ -1618,16 +1764,57 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     }
   }
 
-  tcrv::rvv::LoweringBoundaryOp boundary = materializeRVVBoundaryOp(
+  llvm::Expected<tcrv::rvv::LoweringBoundaryOp> boundary =
+      materializeRVVBoundaryOp(
       request.getBuilder(), kernel, variant, request.getRole(),
       *capabilitySummary);
+  if (!boundary)
+    return boundary.takeError();
   if (microkernelPlan)
     materializeRVVI32VAddMicrokernelOp(request.getBuilder(), kernel, variant,
                                        request.getRole(), *microkernelPlan);
   out = VariantLoweringBoundaryResult::getMaterialized(
       kRVVPluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(), boundary.getOperation());
+      request.getRole(), boundary->getOperation());
   return llvm::Error::success();
+}
+
+llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
+    const VariantLoweringBoundaryValidationRequest &request) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!variant)
+    return makeRVVPluginError(
+        "lowering-boundary validation requires a materialized "
+        "tcrv.exec.variant");
+
+  mlir::Operation *boundary = request.getBoundary();
+  if (!boundary)
+    return makeRVVPluginError(
+        "lowering-boundary validation requires a materialized boundary op");
+
+  if (!llvm::isa<tcrv::rvv::LoweringBoundaryOp>(boundary))
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV path @") + variant.getSymName() +
+        " requires tcrv_rvv.lowering_boundary metadata");
+
+  bool hasCapacityMetadata =
+      hasAnyCapacityMetadata(variant.getOperation(), kRVVVLenBBytesAttrName,
+                             kRVVI32M1LanesAttrName) ||
+      hasAnyCapacityMetadata(boundary, kRVVBoundaryVLenBBytesAttrName,
+                             kRVVBoundaryI32M1LanesAttrName);
+  if (!hasCapacityMetadata)
+    return llvm::Error::success();
+
+  VariantLegalityRequest legality(variant, request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV variant @") + variant.getSymName() +
+        " failed plugin legality before boundary validation: " + message);
+  }
+
+  return validateBoundaryCapacityMetadata(variant, boundary);
 }
 
 } // namespace rvv
