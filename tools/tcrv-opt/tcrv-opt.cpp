@@ -73,7 +73,8 @@ void registerTianChenRVOptPasses(
     return tianchenrv::plugin::rvv::
         createMaterializeRVVLoweringBoundaryPass(plugins);
   });
-  tianchenrv::transforms::registerExecutionPlanningPipeline(plugins);
+  tianchenrv::transforms::registerExecutionPlanningPipeline(plugins,
+                                                            targetExporters);
 }
 
 } // namespace

@@ -51,7 +51,9 @@ Use lit/FileCheck for:
   boundary-linked emission-plan diagnostics, parseable pipeline output,
   fallback preservation after recoverable RVV proposal declines,
   no-viable-proposal diagnostics, pre-existing mismatched variant diagnostics,
-  deterministic rerun diagnostics, and fatal invalid selected RVV metadata.
+  deterministic rerun diagnostics, fatal invalid selected RVV metadata, and
+  final execution-plan coherence gate behavior against the built-in target
+  artifact exporter registry.
 - boundary-aware emission planning diagnostics, including missing selected
   boundary, selected-boundary origin mismatch, selected-variant mismatch, stale
   boundary after selection changes, duplicate competing boundaries,

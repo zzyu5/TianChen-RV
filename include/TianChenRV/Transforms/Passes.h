@@ -25,9 +25,16 @@ void buildExecutionPlanningPipeline(::mlir::OpPassManager &pm);
 void buildExecutionPlanningPipeline(
     ::mlir::OpPassManager &pm,
     const plugin::ExtensionPluginRegistry &registry);
+void buildExecutionPlanningPipeline(
+    ::mlir::OpPassManager &pm,
+    const plugin::ExtensionPluginRegistry &registry,
+    const target::TargetArtifactExporterRegistry &targetExporters);
 void registerExecutionPlanningPipeline();
 void registerExecutionPlanningPipeline(
     const plugin::ExtensionPluginRegistry &registry);
+void registerExecutionPlanningPipeline(
+    const plugin::ExtensionPluginRegistry &registry,
+    const target::TargetArtifactExporterRegistry &targetExporters);
 
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
 std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();

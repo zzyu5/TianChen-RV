@@ -243,6 +243,16 @@ to validate route metadata. Target-specific proof of a concrete microkernel,
 descriptor body, toolchain, or runtime remains target-owned and must not move
 into the shared transform.
 
+The canonical `tcrv-opt --tcrv-execution-planning-pipeline` must run this same
+preflight verifier as its final gate after emission-plan materialization when a
+target artifact exporter registry is available at the tool boundary. The
+pipeline builder must inject the active plugin registry and target artifact
+exporter registry into the existing coherence pass instead of implementing a
+second coherence check. Builders that only receive plugins may use an explicit
+empty target artifact exporter registry, which preserves fail-closed diagnostics
+for supported artifact front doors until the caller supplies registered target
+exporters.
+
 ### Built-In Target Artifact Exporter Registration Boundary
 
 #### 1. Scope / Trigger

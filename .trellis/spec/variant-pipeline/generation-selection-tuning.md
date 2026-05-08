@@ -77,17 +77,22 @@ tcrv-materialize-plugin-variants
   -> tcrv-check-capability-requires
   -> tcrv-materialize-selected-lowering-boundaries
   -> tcrv-materialize-emission-plans
+  -> tcrv-check-execution-plan-coherence
 ```
 
 The pipeline consumes existing `tcrv.exec.kernel` and direct
 `tcrv.exec.capability` anchors, routes proposal/cost/lowering/emission-plan
-queries through an injected `ExtensionPluginRegistry`, and materializes only
-compiler-visible planning metadata, including plugin-local selected-boundary
-ops such as `tcrv_rvv.lowering_boundary` and
+queries through an injected `ExtensionPluginRegistry`, checks final selected
+artifact-route metadata through an injected `TargetArtifactExporterRegistry`,
+and materializes only compiler-visible planning metadata, including
+plugin-local selected-boundary ops such as `tcrv_rvv.lowering_boundary` and
 `tcrv_scalar.lowering_boundary`. In `tcrv-opt`, the tool boundary may inject the
-deterministic built-in registry; embeddable library builders must remain usable
-with an explicitly supplied registry and must not create hidden target-specific
-global state.
+deterministic built-in plugin registry plus built-in target artifact exporter
+registry; embeddable library builders must remain usable with explicitly
+supplied registries and must not create hidden target-specific global state.
+Compatibility builders that only receive plugins use an explicit empty target
+artifact exporter registry, so supported artifact front-door validation remains
+a clear fail-closed diagnostic until a populated exporter registry is supplied.
 
 The `tcrv-select-variants` stage is the capability-aware selection and dispatch
 planning stage for this pipeline. The older order-based
@@ -119,6 +124,15 @@ the boundary operation used by each selected plan. These diagnostics are
 reproducibility metadata only: they do not lower IR, emit LLVM/RISC-V/RVV code,
 create runtime ABI glue, generate artifacts, run hardware, prove correctness,
 or measure performance.
+
+After emission-plan materialization, the canonical pipeline runs the existing
+execution-plan coherence gate over the same selected-path metadata. This final
+gate validates selected-path, plugin origin, lowering-boundary, runtime ABI
+ownership, emission-plan, and target artifact route metadata against the active
+plugin and target artifact exporter registries before downstream target/export
+front doors consume the planned IR. It reuses the shared
+`tcrv-check-execution-plan-coherence` pass and must not duplicate target route
+logic in the pipeline builder.
 
 The pipeline is deterministic but not allowed to paper over stale or competing
 selected surfaces. Re-running on IR that already contains a direct dispatch,

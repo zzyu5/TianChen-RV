@@ -1,7 +1,7 @@
 // RUN: tcrv-opt %S/../../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans --tcrv-check-execution-plan-coherence | FileCheck %s --check-prefix=RVV
 // RUN: tcrv-opt %S/../../Target/ArtifactExport/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans --tcrv-check-execution-plan-coherence | FileCheck %s --check-prefix=SCALAR
-// RUN: tcrv-opt %S/../../Target/EmissionManifest/emission-manifest-offload-pipeline.mlir --tcrv-execution-planning-pipeline --tcrv-check-execution-plan-coherence | FileCheck %s --check-prefix=OFFLOAD
-// RUN: tcrv-opt %S/../ExecutionPlanning/execution-planning-pipeline-builtin.mlir --split-input-file --tcrv-execution-planning-pipeline --tcrv-check-execution-plan-coherence | FileCheck %s --check-prefix=PIPE
+// RUN: tcrv-opt %S/../../Target/EmissionManifest/emission-manifest-offload-pipeline.mlir --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=OFFLOAD
+// RUN: tcrv-opt %S/../ExecutionPlanning/execution-planning-pipeline-builtin.mlir --split-input-file --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
 
 // RVV-LABEL: tcrv.exec.kernel @rvv_microkernel_manifest
 // RVV: tcrv_rvv.lowering_boundary

@@ -1127,15 +1127,17 @@ llvm::Error checkExecutionPlanCoherence(
     return makeCoherenceError(KernelOp(),
                               "requires at least one tcrv.exec.kernel");
 
-  llvm::SmallVector<TargetArtifactCandidate, 2> supportedCandidates;
   for (KernelOp kernel : kernels) {
+    llvm::SmallVector<TargetArtifactCandidate, 2> supportedCandidates;
     if (llvm::Error error = checkKernelExecutionPlanCoherence(
             kernel, plugins, supportedCandidates))
       return error;
+    if (llvm::Error error = validateSupportedArtifactCandidates(
+            supportedCandidates, targetExporters))
+      return error;
   }
 
-  return validateSupportedArtifactCandidates(supportedCandidates,
-                                             targetExporters);
+  return llvm::Error::success();
 }
 
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass() {

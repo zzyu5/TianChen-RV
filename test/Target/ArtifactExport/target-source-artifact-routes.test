@@ -61,7 +61,7 @@
 # BAD-KIND: route id 'tcrv-export-rvv-microkernel-c' does not support artifact_kind 'object-file'
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/multiple-supported-artifacts.txt 2>&1 | FileCheck %s --check-prefix=MULTIPLE --implicit-check-not="#include <riscv_vector.h>"
-# MULTIPLE: requires at most one supported target artifact emission-plan route; found multiple ambiguous supported artifacts
+# MULTIPLE: requires exactly one supported source artifact emission-plan route; found multiple ambiguous supported artifacts
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-boundary.txt 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="#include <riscv_vector.h>"
 # MISSING-BOUNDARY: selected path @rvv_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight
