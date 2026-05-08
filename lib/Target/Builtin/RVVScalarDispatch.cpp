@@ -175,6 +175,14 @@ llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+llvm::Error makeModuleDispatchHeaderError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch header export "
+                  "failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
 bool containsForbiddenText(llvm::StringRef value) {
   std::string lower = value.lower();
   llvm::StringRef normalized(lower);
@@ -900,6 +908,17 @@ std::string makeDispatcherFunctionName(const DispatchPair &pair) {
   return name;
 }
 
+std::string makeDispatchHeaderIncludeGuard(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  std::string guard = "TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_";
+  guard += sanitizeCIdentifierComponent(kernel.getSymName());
+  guard += "_H";
+  for (char &character : guard)
+    character = static_cast<char>(
+        std::toupper(static_cast<unsigned char>(character)));
+  return guard;
+}
+
 VariantOp findDirectVariant(KernelOp kernel, llvm::StringRef symbol) {
   if (!kernel || kernel.getBody().empty())
     return VariantOp();
@@ -1214,6 +1233,32 @@ void printDispatcherFunction(llvm::raw_ostream &os,
   os << "}\n";
 }
 
+void printDispatchHeader(const DispatchPair &pair, llvm::raw_ostream &os) {
+  std::string includeGuard = makeDispatchHeaderIncludeGuard(pair);
+  std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
+
+  os << "#ifndef " << includeGuard << "\n";
+  os << "#define " << includeGuard << "\n\n";
+  os << "#include <stddef.h>\n";
+  os << "#include <stdint.h>\n\n";
+  os << "#ifdef __cplusplus\n";
+  os << "extern \"C\" {\n";
+  os << "#endif\n\n";
+
+  os << "void " << dispatcherFunctionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(pair.abiPlan.parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ");\n\n";
+
+  os << "#ifdef __cplusplus\n";
+  os << "}\n";
+  os << "#endif\n\n";
+  os << "#endif /* " << includeGuard << " */\n";
+}
+
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
                                    llvm::StringRef dispatcherFunctionName,
                                    llvm::StringRef guardParameterName) {
@@ -1481,6 +1526,33 @@ llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
                       /*includeSelfCheck=*/false, stream);
   stream.flush();
   os << source;
+  return llvm::Error::success();
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchHeaderError(message);
+  }
+
+  std::string rvvSource;
+  std::string scalarSource;
+  if (llvm::Error error =
+          buildEmbeddedCallableSources(module, rvvSource, scalarSource)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchHeaderError(message);
+  }
+
+  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
+      buildDispatchObjectCompileConfig(*pair);
+  if (!compileConfig) {
+    std::string message = llvm::toString(compileConfig.takeError());
+    return makeModuleDispatchHeaderError(message);
+  }
+
+  printDispatchHeader(*pair, os);
   return llvm::Error::success();
 }
 

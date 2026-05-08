@@ -170,6 +170,19 @@ Use lit/FileCheck for:
   `--tcrv-export-target-artifact` front door must select the library-style
   dispatch object with dispatcher/callable symbols and no `main`; the explicit
   self-check object helper may define `main`.
+  When the bounded ABI header export is present, lit/FileCheck coverage must
+  prove the header-only runtime-caller surface: deterministic include guard,
+  standard integer/size includes, `extern "C"` guard, and the dispatcher
+  prototype with the same parameter order and C type spellings as the generated
+  dispatcher definition. Negative coverage must prove the header exporter fails
+  closed on shared exec-IR boundary errors such as missing selected-case
+  `runtime_guard` linkage or scalar fallback mismatch. Header tests must also
+  prove that no callable bodies, RVV intrinsics, self-check helper, hidden
+  `main`, runtime success marker, performance text, raw logs, credentials, or
+  artifact paths are emitted. If local object-link evidence is added, it must
+  remain bounded to compiling an external C caller against the generated header
+  and linking that caller with the generated RISC-V relocatable library object;
+  it is not an RVV runtime/correctness/performance claim.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability

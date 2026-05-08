@@ -69,6 +69,7 @@ llvm_config.add_tool_substitutions(
         "tcrv-opt",
         "tcrv-translate",
         "FileCheck",
+        "clang",
         "llvm-readobj",
         "tianchenrv-capability-model-test",
         "tianchenrv-plugin-registry-test",

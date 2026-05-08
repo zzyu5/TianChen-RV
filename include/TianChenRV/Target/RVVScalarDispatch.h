@@ -17,6 +17,9 @@ namespace rvv_scalar {
 llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
                                             llvm::raw_ostream &os);
 
+llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 

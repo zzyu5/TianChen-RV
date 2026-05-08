@@ -379,6 +379,18 @@ void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
                                      int rvv_available);
 ```
 
+The matching
+`tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header` tool emits
+the bounded C ABI header for that dispatcher. The header is generated from the
+same exec-IR-backed dispatch ABI plan as the dispatch source/object route: direct
+`tcrv.exec.mem_window` supplies the `lhs`, `rhs`, and `out` buffer parameters,
+direct `tcrv.exec.runtime_param` supplies runtime `n`, and the selected RVV
+`tcrv.exec.case runtime_guard` supplies the explicit dispatch availability
+parameter. It contains only the include guard, required standard integer/size
+headers, the `extern "C"` guard, and the dispatcher prototype. It does not
+embed callable bodies, computation, a `main`, a self-check harness, runtime
+probing, linking logic, correctness evidence, or performance evidence.
+
 For emission-plan-backed dispatch export, the RVV and scalar callable
 candidates must both mirror the same IR-backed callable ABI plan: direct
 `tcrv.exec.mem_window` IR supplies the callable `lhs`, `rhs`, and `out` buffer
@@ -443,6 +455,12 @@ tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
 
 The source-only front door continues to emit the library-style dispatcher C
 source without an embedded `main` or self-check harness.
+
+Together, the explicit dispatch header and the library-object route form the
+bounded runtime-caller handoff for this finite i32-vadd dispatcher: an external
+C caller can compile against the emitted prototype and link the generated
+RISC-V relocatable object. That handoff remains a compiler artifact boundary;
+runtime or correctness claims still require separate real `ssh rvv` evidence.
 
 The bounded executable evidence bridge below drives the planned dispatch
 pipeline, exports the default generic library-style dispatch source and the

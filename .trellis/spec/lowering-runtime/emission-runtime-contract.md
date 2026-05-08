@@ -1283,6 +1283,39 @@ not generic high-level lowering correctness, arbitrary RVV emission support,
 object-route proof for unrelated kernels, dynamic runtime integration,
 performance evidence, or broad correctness coverage.
 
+### Dispatch ABI Header Export
+
+Trigger: the same post-planning module satisfies the host RVV+scalar i32-vadd
+dispatch C export boundary and carries the selected RVV compile metadata needed
+by the matching library-object route. A target/export tool may emit a bounded C
+header for an external runtime caller:
+
+```text
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header
+```
+
+The header exporter must reuse the same selected-path, lowering-boundary,
+callable route metadata, scalar `tcrv.exec.fallback` link,
+`tcrv.exec.case runtime_guard` link, and structured runtime ABI parameter
+validation as the dispatch source exporter. It must build the prototype from
+the same exec-IR-backed `DispatchABIPlan` consumed by the dispatch source and
+object exporters, not by parsing generated C comments or trusting detached
+candidate metadata. The `lhs`, `rhs`, and `out` parameters come from direct
+`tcrv.exec.mem_window` ABI roles; runtime `n` and the dispatch availability
+guard come from direct `tcrv.exec.runtime_param` ABI/control roles, with the
+guard linked through the selected RVV case's `runtime_guard` symbol.
+
+Output is limited to a deterministic include guard, required standard
+integer/size headers, an `extern "C"` guard for C++ callers, and exactly one
+dispatcher function prototype whose parameter order and C type spellings match
+the generated dispatch definition. The header must not embed computation,
+callable source bodies, a hidden `main`, self-check code, runtime probing,
+linking commands, correctness claims, performance claims, raw logs, credentials,
+or artifact paths. Successful header export proves only that the compiler can
+materialize the bounded external C ABI handoff for this dispatcher. Linking or
+runtime claims require separate object/link or real `ssh rvv` evidence with
+the claim scope stated explicitly.
+
 ## Runtime Offload Metadata Boundary
 
 The first runtime-offload plugin slice may return a metadata-only emission

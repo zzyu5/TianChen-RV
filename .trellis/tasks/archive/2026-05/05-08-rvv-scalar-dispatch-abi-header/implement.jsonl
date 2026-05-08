@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Exec dispatch/fallback/runtime-boundary contract for ABI header generation"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability model boundaries used by selected RVV dispatch artifacts"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant selection and dispatch legality requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local responsibility and target-owned emission constraints"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback ownership and fallback route constraints"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Header/object/runtime-caller ABI handoff contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and bounded evidence expectations"}
