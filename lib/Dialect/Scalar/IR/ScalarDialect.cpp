@@ -1,6 +1,7 @@
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
@@ -106,24 +107,6 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
   return true;
 }
 
-bool isUnavailableCapability(tianchenrv::tcrv::exec::CapabilityOp capability) {
-  auto status = capability->getAttrOfType<mlir::StringAttr>("status");
-  if (status) {
-    llvm::StringRef value = status.getValue();
-    if (value == "unavailable" || value == "disabled" || value == "missing")
-      return true;
-  }
-
-  auto availability =
-      capability->getAttrOfType<mlir::StringAttr>("availability");
-  if (availability) {
-    llvm::StringRef value = availability.getValue();
-    if (value == "unavailable" || value == "disabled" || value == "missing")
-      return true;
-  }
-  return false;
-}
-
 bool isAllowedMicrokernelAttr(llvm::StringRef name) {
   return name == kSourceKernelAttrName || name == kSelectedVariantAttrName ||
          name == kOriginAttrName || name == kRoleAttrName ||
@@ -219,6 +202,17 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv.exec.kernel to have a body block";
 
+  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+      capabilitiesOrError =
+          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+              kernel);
+  if (!capabilitiesOrError) {
+    std::string message = llvm::toString(capabilitiesOrError.takeError());
+    return emitOpError() << message;
+  }
+  const tianchenrv::support::TargetCapabilitySet &capabilities =
+      *capabilitiesOrError;
+
   tianchenrv::tcrv::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     if (auto variant =
@@ -252,26 +246,18 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
              << "attribute '" << kRequiredCapabilitiesAttrName
              << "' must contain only capability symbol references";
 
-    tianchenrv::tcrv::exec::CapabilityOp foundCapability;
-    for (mlir::Operation &sibling : kernel.getBody().front()) {
-      auto capability =
-          llvm::dyn_cast<tianchenrv::tcrv::exec::CapabilityOp>(sibling);
-      if (capability && capability.getSymName() == symbolRef.getValue()) {
-        foundCapability = capability;
-        break;
-      }
-    }
-    if (!foundCapability)
+    const tianchenrv::support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbolRef.getValue());
+    if (!capability)
       return emitOpError()
              << "requires unknown capability @" << symbolRef.getValue()
              << " in enclosing tcrv.exec.kernel";
 
-    if (isUnavailableCapability(foundCapability))
+    if (!capability->isAvailable())
       return emitOpError()
              << "requires unavailable capability @" << symbolRef.getValue();
 
-    auto id = foundCapability->getAttrOfType<mlir::StringAttr>("id");
-    if (id && id.getValue() == kScalarFallbackCapabilityID)
+    if (capability->satisfiesID(kScalarFallbackCapabilityID))
       requiresScalarFallback = true;
   }
 
@@ -379,6 +365,17 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv.exec.kernel to have a body block";
 
+  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+      capabilitiesOrError =
+          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+              kernel);
+  if (!capabilitiesOrError) {
+    std::string message = llvm::toString(capabilitiesOrError.takeError());
+    return emitOpError() << message;
+  }
+  const tianchenrv::support::TargetCapabilitySet &capabilities =
+      *capabilitiesOrError;
+
   tianchenrv::tcrv::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     auto variant =
@@ -417,26 +414,18 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
              << "attribute '" << kRequiredCapabilitiesAttrName
              << "' must contain only capability symbol references";
 
-    tianchenrv::tcrv::exec::CapabilityOp foundCapability;
-    for (mlir::Operation &sibling : kernel.getBody().front()) {
-      auto capability =
-          llvm::dyn_cast<tianchenrv::tcrv::exec::CapabilityOp>(sibling);
-      if (capability && capability.getSymName() == symbolRef.getValue()) {
-        foundCapability = capability;
-        break;
-      }
-    }
-    if (!foundCapability)
+    const tianchenrv::support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbolRef.getValue());
+    if (!capability)
       return emitOpError()
              << "requires unknown capability @" << symbolRef.getValue()
              << " in enclosing tcrv.exec.kernel";
 
-    if (isUnavailableCapability(foundCapability))
+    if (!capability->isAvailable())
       return emitOpError()
              << "requires unavailable capability @" << symbolRef.getValue();
 
-    auto id = foundCapability->getAttrOfType<mlir::StringAttr>("id");
-    if (id && id.getValue() == kScalarFallbackCapabilityID)
+    if (capability->satisfiesID(kScalarFallbackCapabilityID))
       requiresScalarFallback = true;
   }
 

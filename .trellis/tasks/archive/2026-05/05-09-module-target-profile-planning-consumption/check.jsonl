@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check capability-provider scope, fail-closed behavior, and relation lookup semantics"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec operation boundary and module target binding invariants"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check public planning pipeline behavior and selection metadata"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no lowering/runtime claim is introduced by planning metadata"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required lit/FileCheck evidence and RVV evidence boundaries"}

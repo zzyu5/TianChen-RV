@@ -6,5 +6,6 @@ add_mlir_dialect_library(TianChenRVOffloadDialect
 
   LINK_LIBS PUBLIC
   TianChenRVExecDialect
+  TianChenRVSupport
   MLIRIR
 )

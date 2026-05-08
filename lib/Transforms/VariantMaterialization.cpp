@@ -34,9 +34,7 @@ using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::exec::CapabilityOp;
 using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::TargetOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
 struct PlannedVariant {
@@ -126,31 +124,6 @@ bool isValidPluginAttributeName(llvm::StringRef name) {
 
 bool kernelHasBody(KernelOp kernel) {
   return kernel && !kernel.getBody().empty();
-}
-
-bool isCapabilityProviderOp(mlir::Operation &op) {
-  if (llvm::isa<CapabilityOp>(op))
-    return true;
-
-  auto target = llvm::dyn_cast<TargetOp>(op);
-  if (!target)
-    return false;
-
-  auto idAttr = target->getAttrOfType<mlir::StringAttr>("id");
-  auto kindAttr = target->getAttrOfType<mlir::StringAttr>("kind");
-  return idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
-         !kindAttr.getValue().trim().empty();
-}
-
-bool kernelHasDirectCapabilityProvider(KernelOp kernel) {
-  if (!kernelHasBody(kernel))
-    return false;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    if (isCapabilityProviderOp(op))
-      return true;
-  }
-  return false;
 }
 
 std::string getNonEmptyDecisionMetadata(llvm::StringRef value) {
@@ -605,16 +578,16 @@ llvm::Error materializeKernelPluginVariants(
         kernel.getSymName() +
         " requires at least one enabled extension plugin in the registry");
 
-  if (!kernelHasDirectCapabilityProvider(kernel))
-    return makeMaterializationError(
-        llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
-        kernel.getSymName() +
-        " requires existing direct capability-provider anchors");
-
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);
   if (!capabilities)
     return capabilities.takeError();
+  if (capabilities->empty())
+    return makeMaterializationError(
+        llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
+        kernel.getSymName() +
+        " requires at least one capability provider in the kernel capability "
+        "scope");
   VariantProposalRequest request(kernel.getOperation(), kernel, *capabilities);
 
   llvm::SmallVector<VariantProposal, 4> proposals;

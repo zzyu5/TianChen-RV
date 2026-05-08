@@ -76,7 +76,7 @@ def MaterializePluginVariants
   let summary = "Collect plugin proposals and materialize tcrv.exec variants";
   let description = [{
     Scans existing tcrv.exec.kernel operations, builds a generic
-    TargetCapabilitySet from each kernel's direct capability-provider anchors,
+    TargetCapabilitySet from each kernel's capability-provider scope,
     asks an injected ExtensionPluginRegistry for validated plugin proposals, and
     materializes those proposals as typed tcrv.exec.variant operations through
     the shared materialization API.
@@ -109,7 +109,7 @@ def VerifyPluginVariantLegality
     or emission-plan diagnostics.
 
     The pass builds a target-neutral TargetCapabilitySet from each kernel's
-    direct capability-provider anchors and delegates legality to the injected
+    capability-provider scope and delegates legality to the injected
     ExtensionPluginRegistry using the existing VariantLegalityRequest protocol.
     It does not mutate IR and does not branch on RVV, scalar fallback, IME,
     offload, Sophgo, AME, vendor, runtime, dtype, shape, toolchain,

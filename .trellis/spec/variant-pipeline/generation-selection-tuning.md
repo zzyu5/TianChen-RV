@@ -112,9 +112,12 @@ tcrv-materialize-plugin-variants
   -> tcrv-check-execution-plan-coherence
 ```
 
-The pipeline consumes existing `tcrv.exec.kernel` and direct
-`tcrv.exec.capability` anchors, routes proposal/cost/lowering/emission-plan
-queries through an injected `ExtensionPluginRegistry`, checks final selected
+The pipeline consumes existing `tcrv.exec.kernel` anchors and each kernel's
+explicit capability-provider scope: direct `tcrv.exec.capability` providers,
+kernel-local capability-provider `tcrv.exec.target` anchors, and the one
+module-level capability-provider `tcrv.exec.target` explicitly referenced by
+`target = @profile`. It routes proposal/cost/lowering/emission-plan queries
+through an injected `ExtensionPluginRegistry`, checks final selected
 artifact-route metadata through an injected `TargetArtifactExporterRegistry`,
 and materializes only compiler-visible planning metadata, including
 plugin-local selected-boundary ops such as `tcrv_rvv.lowering_boundary` and
@@ -160,10 +163,8 @@ does not receive `runtime_guard_required` or `runtime_guard` case metadata.
 
 The `tcrv-verify-plugin-variant-legality` stage is the materialized-variant
 legality boundary before selection. It builds the same generic
-`TargetCapabilitySet` from direct kernel capability-provider anchors
-(`tcrv.exec.capability`, plus kernel-local `tcrv.exec.target` profiles that
-carry both `id` and `kind`) and routes each direct `tcrv.exec.variant` only to
-the plugin named by its `origin` attribute.
+`TargetCapabilitySet` from the kernel capability-provider scope and routes each
+direct `tcrv.exec.variant` only to the plugin named by its `origin` attribute.
 Plugin-local legality failures stop the pipeline before selection, dispatch,
 selected lowering-boundary materialization, or emission-plan diagnostics are
 created. This stage complements, and does not replace,

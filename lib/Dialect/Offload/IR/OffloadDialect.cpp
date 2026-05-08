@@ -1,6 +1,7 @@
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
@@ -174,6 +175,17 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv.exec.kernel to have a body block";
 
+  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+      capabilitiesOrError =
+          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+              kernel);
+  if (!capabilitiesOrError) {
+    std::string message = llvm::toString(capabilitiesOrError.takeError());
+    return emitOpError() << message;
+  }
+  const tianchenrv::support::TargetCapabilitySet &capabilities =
+      *capabilitiesOrError;
+
   tianchenrv::tcrv::exec::VariantOp resolvedVariant;
   for (mlir::Operation &sibling : kernel.getBody().front()) {
     if (auto variant =
@@ -199,16 +211,7 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
              << "attribute '" << kRequiredCapabilitiesAttrName
              << "' must contain only capability symbol references";
 
-    bool foundCapability = false;
-    for (mlir::Operation &sibling : kernel.getBody().front()) {
-      auto capability =
-          llvm::dyn_cast<tianchenrv::tcrv::exec::CapabilityOp>(sibling);
-      if (capability && capability.getSymName() == symbolRef.getValue()) {
-        foundCapability = true;
-        break;
-      }
-    }
-    if (!foundCapability)
+    if (!capabilities.lookupBySymbolName(symbolRef.getValue()))
       return emitOpError()
              << "requires unknown capability @" << symbolRef.getValue()
              << " in enclosing tcrv.exec.kernel";
