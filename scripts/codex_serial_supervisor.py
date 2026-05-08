@@ -29,6 +29,7 @@ REPO_DEFAULT_ARTIFACT_ROOT = "artifacts/tmp/hermes_codex_supervisor"
 DEFAULT_BASE_PROMPT = Path(__file__).with_name("codex_serial_supervisor_prompt.md")
 DEFAULT_STOP_FILE_NAME = "STOP"
 DEFAULT_MANUAL_STEERING_FILE_NAME = "manual_steering.md"
+DEFAULT_MANUAL_STEERING_ONCE_FILE_NAME = "manual_steering_once.md"
 ACTIVE_LOOP_FILE_NAME = "active_loop.json"
 HERMES_SESSION_LOCK_FILE_NAME = "hermes_session.lock"
 DEFAULT_HERMES_SESSION_NAME = "TianchenRV Hermes Supervisor"
@@ -294,8 +295,90 @@ def manual_steering_path(repo: Path, args: argparse.Namespace) -> Path:
     return artifact_root_path(repo, args.artifact_root) / DEFAULT_MANUAL_STEERING_FILE_NAME
 
 
+def manual_steering_once_path(repo: Path, args: argparse.Namespace) -> Path:
+    value = getattr(args, "manual_steering_once_file", "")
+    if value:
+        path = Path(value)
+        return path if path.is_absolute() else repo / path
+    return artifact_root_path(repo, args.artifact_root) / DEFAULT_MANUAL_STEERING_ONCE_FILE_NAME
+
+
 def read_manual_steering(repo: Path, args: argparse.Namespace, max_chars: int = 12000) -> str:
     return read_text(manual_steering_path(repo, args), max_chars=max_chars).strip()
+
+
+def read_review_steering(repo: Path, args: argparse.Namespace, max_chars: int = 12000) -> str:
+    durable_path = manual_steering_path(repo, args)
+    once_path = manual_steering_once_path(repo, args)
+    per_file_chars = max(2000, max_chars // 2)
+    durable = read_text(durable_path, max_chars=per_file_chars).strip()
+    once = ""
+    if once_path.resolve() != durable_path.resolve():
+        once = read_text(once_path, max_chars=per_file_chars).strip()
+
+    sections: list[str] = []
+    if durable:
+        sections.append(
+            "## Durable Manual Steering\n"
+            f"path: {durable_path}\n\n"
+            f"{durable}"
+        )
+    if once:
+        sections.append(
+            "## One-Shot Manual Steering\n"
+            f"path: {once_path}\n"
+            "This one-shot steering is consumed after it is included in an official Hermes review prompt.\n\n"
+            f"{once}"
+        )
+    return "\n\n".join(sections)
+
+
+def consume_manual_steering_once(
+    repo: Path,
+    args: argparse.Namespace,
+    loop_dir: Path,
+    round_index: int,
+    review_prompt_path: Path,
+) -> dict[str, Any]:
+    once_path = manual_steering_once_path(repo, args)
+    durable_path = manual_steering_path(repo, args)
+    result: dict[str, Any] = {
+        "path": str(once_path),
+        "exists": once_path.exists(),
+        "consumed": False,
+        "archived_to": "",
+        "review_prompt": str(review_prompt_path),
+    }
+    if once_path.resolve() == durable_path.resolve():
+        result["reason"] = "one-shot path matches durable manual steering path; not consuming durable steering"
+        return result
+
+    text = read_text(once_path, max_chars=2_000_000).strip()
+    if not text:
+        result["reason"] = "empty_or_missing"
+        return result
+
+    archive_dir = loop_dir / "consumed_manual_steering"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = archive_dir / f"round_{round_index:04d}_{once_path.name}"
+    archive_path.write_text(text + "\n", encoding="utf-8")
+    try:
+        once_path.unlink()
+        result["cleared_by"] = "unlink"
+    except FileNotFoundError:
+        result["cleared_by"] = "already_missing"
+    except OSError as exc:
+        try:
+            once_path.write_text("", encoding="utf-8")
+            result["cleared_by"] = "truncate"
+            result["clear_warning"] = str(exc)
+        except OSError as second_exc:
+            result["cleared_by"] = "failed"
+            result["clear_error"] = f"{exc}; truncate failed: {second_exc}"
+    result["consumed"] = True
+    result["archived_to"] = str(archive_path)
+    result["chars"] = len(text)
+    return result
 
 
 def latest_saved_hermes_session(root: Path) -> dict[str, Any]:
@@ -1208,7 +1291,7 @@ If Codex says one thing and repository evidence says another, trust the reposito
 
 ## Active Human Steering
 
-The following durable user steering is an active control-plane input for choosing the next owner and shaping the next prompt. Treat it as newer than the canonical base prompt. Do not treat it as proof of repository state, and do not follow it when it conflicts with safety, real repository evidence, or the architecture invariants.
+The following manual user steering is an active control-plane input for choosing the next owner and shaping the next prompt. It may contain durable steering and/or one-shot steering. Treat it as newer than the canonical base prompt. Do not treat it as proof of repository state, and do not follow it when it conflicts with safety, real repository evidence, or the architecture invariants.
 
 ```text
 {manual_steering or "(none)"}
@@ -1426,7 +1509,7 @@ def hermes_review(
         previous_delta=previous_delta,
         previous_prompt_mode=previous_prompt_mode,
         max_chars=args.review_max_chars,
-        manual_steering=read_manual_steering(
+        manual_steering=read_review_steering(
             repo,
             args,
             max_chars=max(4000, int(args.review_max_chars * 0.12)),
@@ -1434,6 +1517,7 @@ def hermes_review(
     )
     review_prompt_path = loop_dir / f"round_{round_index:04d}_hermes_review_prompt.md"
     review_prompt_path.write_text(prompt, encoding="utf-8")
+    one_shot_consumption = consume_manual_steering_once(repo, args, loop_dir, round_index, review_prompt_path)
 
     if args.hermes_review_mode == "oneshot":
         cmd = [args.hermes_bin]
@@ -1518,6 +1602,7 @@ def hermes_review(
             "hermes_session_name": args.hermes_session_name,
             "hermes_session_lookup": session_lookup,
             "hermes_session_rename": rename_result,
+            "manual_steering_once_consumption": one_shot_consumption,
         }
     )
     if proc.returncode != 0:
@@ -1800,6 +1885,8 @@ def build_loop_subprocess_cmd(args: argparse.Namespace, loop_id: str) -> list[st
         cmd.extend(["--stop-file", args.stop_file])
     if getattr(args, "manual_steering_file", ""):
         cmd.extend(["--manual-steering-file", args.manual_steering_file])
+    if getattr(args, "manual_steering_once_file", ""):
+        cmd.extend(["--manual-steering-once-file", args.manual_steering_once_file])
     if args.initial_delta:
         cmd.extend(["--initial-delta", args.initial_delta])
     if args.initial_delta_file:
@@ -1913,6 +2000,7 @@ def command_start(args: argparse.Namespace) -> int:
         "stderr_log": str(stderr_path),
         "stop_file": str(stop_file),
         "manual_steering_file": str(manual_steering_path(repo, args)),
+        "manual_steering_once_file": str(manual_steering_once_path(repo, args)),
         "hermes_review_mode": args.hermes_review_mode,
         "hermes_session_id": args.hermes_session_id,
         "hermes_session_resolution": session_resolution,
@@ -1934,6 +2022,7 @@ def command_loop(args: argparse.Namespace) -> int:
     loop_dir.mkdir(parents=True, exist_ok=False)
     stop_file = stop_file_path(repo, args)
     manual_steering_file = manual_steering_path(repo, args)
+    manual_steering_once_file = manual_steering_once_path(repo, args)
     active_loop_path = root / ACTIVE_LOOP_FILE_NAME
     events_path = loop_dir / "events.jsonl"
     delta = read_initial_delta(args)
@@ -1952,6 +2041,7 @@ def command_loop(args: argparse.Namespace) -> int:
             "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
             "stop_file": str(stop_file),
             "manual_steering_file": str(manual_steering_file),
+            "manual_steering_once_file": str(manual_steering_once_file),
             "max_rounds": args.max_rounds,
             "hermes_review_mode": args.hermes_review_mode,
             "hermes_session_id": args.hermes_session_id,
@@ -1969,6 +2059,7 @@ def command_loop(args: argparse.Namespace) -> int:
             "artifact_root": str(root),
             "stop_file": str(stop_file),
             "manual_steering_file": str(manual_steering_file),
+            "manual_steering_once_file": str(manual_steering_once_file),
             "max_rounds": args.max_rounds,
             "review_no_llm": args.review_no_llm,
             "hermes_review_mode": args.hermes_review_mode,
@@ -2014,6 +2105,7 @@ def command_loop(args: argparse.Namespace) -> int:
                     "latest_round": next_round,
                     "stop_file": str(stop_file),
                     "manual_steering_file": str(manual_steering_file),
+                    "manual_steering_once_file": str(manual_steering_once_file),
                     "hermes_review_mode": args.hermes_review_mode,
                     "hermes_session_id": args.hermes_session_id,
                     "hermes_session_name": args.hermes_session_name,
@@ -2117,6 +2209,7 @@ def command_loop(args: argparse.Namespace) -> int:
                     "latest_round": next_round,
                     "stop_file": str(stop_file),
                     "manual_steering_file": str(manual_steering_file),
+                    "manual_steering_once_file": str(manual_steering_once_file),
                     "hermes_review_mode": args.hermes_review_mode,
                     "hermes_session_id": args.hermes_session_id,
                     "hermes_session_name": args.hermes_session_name,
@@ -2188,6 +2281,7 @@ def command_status(args: argparse.Namespace) -> int:
     root = artifact_root_path(repo, args.artifact_root)
     stop_file = stop_file_path(repo, args)
     steering_file = manual_steering_path(repo, args)
+    steering_once_file = manual_steering_once_path(repo, args)
     lock_path = root / "codex_serial_supervisor.lock"
     active_loop_path = root / ACTIVE_LOOP_FILE_NAME
     lock_content = read_text(lock_path, max_chars=2000).strip() if lock_path.exists() else ""
@@ -2211,6 +2305,11 @@ def command_status(args: argparse.Namespace) -> int:
             "path": str(steering_file),
             "exists": steering_file.exists(),
             "content": read_text(steering_file, max_chars=4000).strip() if steering_file.exists() else "",
+        },
+        "manual_steering_once": {
+            "path": str(steering_once_file),
+            "exists": steering_once_file.exists(),
+            "content": read_text(steering_once_file, max_chars=4000).strip() if steering_once_file.exists() else "",
         },
         "latest_saved_hermes_session": latest_saved_hermes_session(root),
         "worker_lock": {
@@ -2295,6 +2394,11 @@ def add_manual_steering_arg(parser: argparse.ArgumentParser) -> None:
         "--manual-steering-file",
         default="",
         help="Durable human steering file included in Hermes reviews. Relative paths are resolved from repo. Default: artifact-root/manual_steering.md.",
+    )
+    parser.add_argument(
+        "--manual-steering-once-file",
+        default="",
+        help="One-shot human steering file included in the next official Hermes review, then archived and cleared. Relative paths are resolved from repo. Default: artifact-root/manual_steering_once.md.",
     )
 
 
