@@ -174,30 +174,6 @@ MemWindowOp createWindow(mlir::OpBuilder &builder, KernelOp kernel,
 
 } // namespace
 
-llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
-getI32VAddBufferMemWindowSpecs() {
-  llvm::SmallVector<RuntimeABIMemWindowSpec, 3> specs;
-  specs.push_back(RuntimeABIMemWindowSpec(
-      "abi_lhs_input_buffer", RuntimeABIParameterRole::LHSInputBuffer,
-      kRuntimeABIReadAccess,
-      stringifyRuntimeABIParameterOwnership(
-          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "const int32_t *"));
-  specs.push_back(RuntimeABIMemWindowSpec(
-      "abi_rhs_input_buffer", RuntimeABIParameterRole::RHSInputBuffer,
-      kRuntimeABIReadAccess,
-      stringifyRuntimeABIParameterOwnership(
-          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "const int32_t *"));
-  specs.push_back(RuntimeABIMemWindowSpec(
-      "abi_output_buffer", RuntimeABIParameterRole::OutputBuffer,
-      kRuntimeABIWriteAccess,
-      stringifyRuntimeABIParameterOwnership(
-          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "int32_t *"));
-  return specs;
-}
-
 llvm::Error ensureRuntimeABIBufferMemWindows(
     KernelOp kernel, mlir::OpBuilder &builder,
     llvm::ArrayRef<RuntimeABIMemWindowSpec> specs) {

@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "mlir/IR/Attributes.h"
@@ -1341,12 +1342,13 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   if (!hasMicrokernel)
     return hasMicrokernel.takeError();
   if (*hasMicrokernel) {
+    const support::RuntimeABICallableIdentity &abi =
+        support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
     out = VariantEmissionPlan::getSupported(
         kRVVPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
         "rvv-explicit-i32-vadd-microkernel-c-source",
-        "tcrv-export-rvv-microkernel-c",
-        "rvv-i32-vadd-runtime-callable-c-abi.v1",
+        "tcrv-export-rvv-microkernel-c", abi.runtimeABI,
         "runtime-callable-c-source",
         "explicit RVV i32 vector-add microkernel C source export provides a "
         "library-style runtime-callable C ABI function for this selected "
@@ -1354,9 +1356,9 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
         "the default artifact contract; this is not generic RVV lowering, "
         "runtime integration, arbitrary kernel emission, correctness, or "
         "performance evidence");
-    out.setRuntimeABIKind("rvv-runtime-callable-c-abi");
-    out.setRuntimeABIName("rvv-i32-vadd-runtime-callable-c-function.v1");
-    out.setRuntimeGlueRole("runtime-callable-i32-vadd-function");
+    out.setRuntimeABIKind(abi.runtimeABIKind);
+    out.setRuntimeABIName(abi.runtimeABIName);
+    out.setRuntimeGlueRole(abi.runtimeGlueRole);
     llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
         support::buildI32VAddCallableABIPlan(request.getKernel());
     if (!callablePlan)

@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -100,15 +101,6 @@ constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kMicrokernelRuntimeABI(
-    "rvv-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kMicrokernelRuntimeABIKind(
-    "rvv-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kMicrokernelRuntimeABIName(
-    "rvv-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kMicrokernelRuntimeGlueRole(
-    "runtime-callable-i32-vadd-function");
-
 enum class RVVMicrokernelCExportMode {
   RuntimeCallableLibrary,
   SelfCheckHarness,
@@ -1840,14 +1832,16 @@ void printMicrokernelSource(const RVVMicrokernelRecord &record,
 
 bool isRVVMicrokernelSourceCandidate(
     const tianchenrv::target::TargetArtifactCandidate &candidate) {
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
   return candidate.origin == kRVVPluginName &&
          candidate.routeID == kMicrokernelRouteID &&
          candidate.emissionKind == kMicrokernelEmissionKind &&
          candidate.artifactKind == kMicrokernelArtifactKind &&
-         candidate.runtimeABI == kMicrokernelRuntimeABI &&
-         candidate.runtimeABIKind == kMicrokernelRuntimeABIKind &&
-         candidate.runtimeABIName == kMicrokernelRuntimeABIName &&
-         candidate.runtimeGlueRole == kMicrokernelRuntimeGlueRole;
+         candidate.runtimeABI == abi.runtimeABI &&
+         candidate.runtimeABIKind == abi.runtimeABIKind &&
+         candidate.runtimeABIName == abi.runtimeABIName &&
+         candidate.runtimeGlueRole == abi.runtimeGlueRole;
 }
 
 llvm::Expected<bool> matchRVVMicrokernelObjectCandidate(
@@ -2088,10 +2082,12 @@ llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
 
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
           kMicrokernelEmissionKind, exportRVVMicrokernelC,
-          support::getI32VAddRuntimeABIRoleRequirements(),
+          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/true)))
     return error;
 
@@ -2099,15 +2095,15 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
               matchRVVMicrokernelHeaderCandidate,
-              exportRVVMicrokernelHeader, kRVVPluginName,
-              kMicrokernelRuntimeABIKind, kMicrokernelRuntimeABIName,
+              exportRVVMicrokernelHeader, kRVVPluginName, abi.runtimeABIKind,
+              abi.runtimeABIName,
               /*directHelperRoute=*/true)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
       matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject,
-      kRVVPluginName, kMicrokernelRuntimeABIKind, kMicrokernelRuntimeABIName,
+      kRVVPluginName, abi.runtimeABIKind, abi.runtimeABIName,
       /*directHelperRoute=*/true));
 }
 

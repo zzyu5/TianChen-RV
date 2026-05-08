@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -700,12 +701,13 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
   if (!hasMicrokernel)
     return hasMicrokernel.takeError();
   if (*hasMicrokernel) {
+    const support::RuntimeABICallableIdentity &abi =
+        support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
     out = VariantEmissionPlan::getSupported(
         kScalarPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
         "scalar-explicit-i32-vadd-microkernel-c-source",
-        "tcrv-export-scalar-microkernel-c",
-        "scalar-i32-vadd-runtime-callable-c-abi.v1",
+        "tcrv-export-scalar-microkernel-c", abi.runtimeABI,
         "runtime-callable-c-source",
         "explicit scalar i32 vector-add microkernel C source export is "
         "available as a library-style runtime-callable C ABI function for "
@@ -713,9 +715,9 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
         "default artifact contract; this is not generic scalar lowering, "
         "runtime integration, arbitrary kernel emission, correctness, or "
         "performance evidence");
-    out.setRuntimeABIKind("scalar-runtime-callable-c-abi");
-    out.setRuntimeABIName("scalar-i32-vadd-runtime-callable-c-function.v1");
-    out.setRuntimeGlueRole("runtime-callable-i32-vadd-fallback-function");
+    out.setRuntimeABIKind(abi.runtimeABIKind);
+    out.setRuntimeABIName(abi.runtimeABIName);
+    out.setRuntimeGlueRole(abi.runtimeGlueRole);
     llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
         support::buildI32VAddCallableABIPlan(request.getKernel());
     if (!callablePlan)

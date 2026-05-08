@@ -1,5 +1,6 @@
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
 
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 
@@ -8,6 +9,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstddef>
 #include <optional>
 
 namespace tianchenrv::support {
@@ -39,21 +41,6 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   return attr.getValue();
 }
 
-llvm::StringRef getDefaultCNameForBufferRole(RuntimeABIParameterRole role) {
-  switch (role) {
-  case RuntimeABIParameterRole::LHSInputBuffer:
-    return "lhs";
-  case RuntimeABIParameterRole::RHSInputBuffer:
-    return "rhs";
-  case RuntimeABIParameterRole::OutputBuffer:
-    return "out";
-  case RuntimeABIParameterRole::RuntimeElementCount:
-  case RuntimeABIParameterRole::DispatchAvailabilityGuard:
-    break;
-  }
-  return {};
-}
-
 llvm::Expected<RuntimeABIParameter>
 makeParameterFromMemWindow(KernelOp kernel, MemWindowOp window,
                            RuntimeABIParameterRole expectedRole) {
@@ -78,8 +65,15 @@ makeParameterFromMemWindow(KernelOp kernel, MemWindowOp window,
         kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
                     " has unsupported ownership '" + ownership + "'");
 
-  return RuntimeABIParameter(getDefaultCNameForBufferRole(expectedRole), cType,
-                             expectedRole, *parsedOwnership);
+  llvm::StringRef cName =
+      getI32VAddRuntimeABIContract().getCallableBufferCName(expectedRole);
+  if (cName.empty())
+    return makeCallablePlanError(
+        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+                    " has no callable ABI C parameter name for role '" +
+                    stringifyRuntimeABIParameterRole(expectedRole) + "'");
+
+  return RuntimeABIParameter(cName, cType, expectedRole, *parsedOwnership);
 }
 
 llvm::Expected<RuntimeABIParameter>
@@ -141,8 +135,9 @@ buildI32VAddCallableABIPlan(KernelOp kernel) {
                                  "body");
 
   I32VAddCallableABIPlan plan;
-  llvm::SmallVector<RuntimeABIMemWindowSpec, 3> windowSpecs =
-      getI32VAddBufferMemWindowSpecs();
+  const I32VAddRuntimeABIContract &contract = getI32VAddRuntimeABIContract();
+  llvm::ArrayRef<RuntimeABIMemWindowSpec> windowSpecs =
+      contract.getBufferMemWindowSpecs();
   if (llvm::Error error = collectRuntimeABIBufferMemWindows(
           kernel, windowSpecs, plan.bufferWindows))
     return std::move(error);
@@ -165,7 +160,7 @@ buildI32VAddCallableABIPlan(KernelOp kernel) {
   }
 
   RuntimeABIParamSpec countSpec =
-      getI32VAddRuntimeElementCountParamSpec(/*cName=*/"");
+      contract.getRuntimeElementCountParamSpec(/*cName=*/"");
   llvm::SmallVector<RuntimeABIParamSpec, 1> countSpecs;
   countSpecs.push_back(countSpec);
   llvm::SmallVector<RuntimeParamOp, 1> runtimeParams;
@@ -195,11 +190,14 @@ llvm::Error validateI32VAddCallableABIParameterMirror(
                     " requires runtime_abi_parameters metadata mirroring the "
                     "IR-backed callable ABI plan");
 
-  if (irBackedParameters.size() != 4)
+  std::size_t expectedParameterCount =
+      getI32VAddRuntimeABIContract().getCallableParameters().size();
+  if (irBackedParameters.size() != expectedParameterCount)
     return makeCallablePlanError(
         kernel,
-        "IR-backed i32-vadd callable ABI plan must contain exactly four "
-        "parameters");
+        llvm::Twine("IR-backed i32-vadd callable ABI plan must contain "
+                    "exactly ") +
+            llvm::Twine(expectedParameterCount) + " parameters");
 
   for (const RuntimeABIParameter &expected : irBackedParameters) {
     const RuntimeABIParameter *actual = nullptr;

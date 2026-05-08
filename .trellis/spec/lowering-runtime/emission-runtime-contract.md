@@ -1044,6 +1044,57 @@ missing or stale scalar microkernel, unavailable fallback capability, unknown
 route id, unsupported artifact kind, route spoofing, offload-only paths, and
 ambiguous multiple supported artifacts must fail before source output.
 
+## Support-Layer I32 VAdd Runtime ABI Contract
+
+The current bounded i32-vadd executable slice must have one compiler-owned C++
+runtime ABI contract in the support layer. The stable entry point is:
+
+```cpp
+const tianchenrv::support::I32VAddRuntimeABIContract &
+tianchenrv::support::getI32VAddRuntimeABIContract();
+```
+
+The contract owns only reusable runtime ABI metadata for this bounded callable
+shape:
+
+- ordered callable C parameters:
+  `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, `size_t n`;
+- callable role requirements used by target artifact route validation;
+- `tcrv.exec.mem_window` specs for lhs/rhs/out buffer roles;
+- `tcrv.exec.runtime_param` specs for runtime element count and the optional
+  dispatch availability guard;
+- stable runtime ABI identity strings for the RVV callable, scalar callable,
+  and RVV+scalar dispatch callable surfaces.
+
+Existing wrapper APIs such as `getI32VAddRuntimeABIParameters`,
+`getI32VAddRuntimeABIRoleRequirements`,
+`getI32VAddDispatchRuntimeABIParameters`,
+`getI32VAddBufferMemWindowSpecs`,
+`getI32VAddRuntimeElementCountParamSpec`,
+`getI32VAddDispatchAvailabilityGuardParamSpec`, and
+`buildI32VAddCallableABIPlan` remain valid compatibility entry points, but they
+must delegate to the support-layer contract instead of rebuilding separate
+literal lists. Active RVV, scalar, dispatch, and target artifact exporter code
+should consume the contract directly when it needs ABI shape or ABI identity.
+
+The contract must not own target artifact route ids, artifact kinds, source vs
+header vs object selection policy, bundle metadata, descriptor-local metadata,
+evidence paths, ssh facts, target capabilities, selected march/mabi, or
+performance/correctness claims. It also must not turn runtime SSA/control values
+into compile-time facts: the dispatch availability guard remains a
+`tcrv.exec.runtime_param` role and the selected dispatch case must still link to
+that guard through `runtime_guard`.
+
+Required tests for changes to this contract:
+
+- C++ tests must prove the callable parameter order, roles, C spellings, and
+  ownership match the contract;
+- at least one active target exporter or validation path must reject metadata
+  that disagrees with the contract;
+- existing lit/FileCheck coverage must continue proving that RVV, scalar, and
+  RVV+scalar dispatch exports consume the same `tcrv.exec.mem_window` and
+  `tcrv.exec.runtime_param` IR-backed ABI plan.
+
 ## Host RVV + Scalar I32 VAdd Dispatch C Export Boundary
 
 Trigger: post-planning MLIR contains one selected `rvv-plugin` dispatch case

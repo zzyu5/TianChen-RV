@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -64,13 +65,6 @@ constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-scalar-microkernel-c");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
-constexpr llvm::StringLiteral kMicrokernelRuntimeABIKind(
-    "scalar-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kMicrokernelRuntimeABIName(
-    "scalar-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kMicrokernelRuntimeGlueRole(
-    "runtime-callable-i32-vadd-fallback-function");
-
 struct SelectedPath {
   VariantOp variant;
   std::string role;
@@ -1149,9 +1143,11 @@ void printRecordComment(llvm::raw_ostream &os,
   for (llvm::StringRef capability : record.requiredCapabilities)
     os << " @" << capability;
   os << " */\n";
-  os << "/* runtime_abi_kind: " << kMicrokernelRuntimeABIKind << " */\n";
-  os << "/* runtime_abi_name: " << kMicrokernelRuntimeABIName << " */\n";
-  os << "/* runtime_glue_role: " << kMicrokernelRuntimeGlueRole << " */\n";
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
+  os << "/* runtime_abi_kind: " << abi.runtimeABIKind << " */\n";
+  os << "/* runtime_abi_name: " << abi.runtimeABIName << " */\n";
+  os << "/* runtime_glue_role: " << abi.runtimeGlueRole << " */\n";
   printCallableBoundaryMetadata(os, record);
   for (auto [index, parameter] :
        llvm::enumerate(record.runtimeABIParameters)) {
@@ -1236,7 +1232,7 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   return registry.registerExporter(TargetArtifactExporter(
       kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
       kMicrokernelEmissionKind, exportScalarMicrokernelC,
-      support::getI32VAddRuntimeABIRoleRequirements()));
+      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements()));
 }
 
 } // namespace tianchenrv::target::scalar

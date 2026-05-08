@@ -113,49 +113,20 @@ inline RuntimeABIParameter makeTargetExportABIRoleRequirement(
                              RuntimeABIParameterOwnership::TargetExportABIOwned);
 }
 
-inline void appendI32VAddRuntimeABIParameters(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
-  out.push_back(makeTargetExportABIParameter(
-      "lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer));
-  out.push_back(makeTargetExportABIParameter(
-      "rhs", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer));
-  out.push_back(makeTargetExportABIParameter(
-      "out", "int32_t *", RuntimeABIParameterRole::OutputBuffer));
-  out.push_back(makeTargetExportABIParameter(
-      "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount));
-}
+void appendI32VAddRuntimeABIParameters(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out);
 
-inline llvm::SmallVector<RuntimeABIParameter, 4>
-getI32VAddRuntimeABIParameters() {
-  llvm::SmallVector<RuntimeABIParameter, 4> parameters;
-  appendI32VAddRuntimeABIParameters(parameters);
-  return parameters;
-}
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32VAddRuntimeABIParameters();
 
-inline void appendI32VAddRuntimeABIRoleRequirements(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
-  out.push_back(makeTargetExportABIRoleRequirement(
-      "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer));
-  out.push_back(makeTargetExportABIRoleRequirement(
-      "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer));
-  out.push_back(makeTargetExportABIRoleRequirement(
-      "int32_t *", RuntimeABIParameterRole::OutputBuffer));
-  out.push_back(makeTargetExportABIRoleRequirement(
-      "size_t", RuntimeABIParameterRole::RuntimeElementCount));
-}
+void appendI32VAddRuntimeABIRoleRequirements(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out);
 
-inline llvm::SmallVector<RuntimeABIParameter, 4>
-getI32VAddRuntimeABIRoleRequirements() {
-  llvm::SmallVector<RuntimeABIParameter, 4> parameters;
-  appendI32VAddRuntimeABIRoleRequirements(parameters);
-  return parameters;
-}
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32VAddRuntimeABIRoleRequirements();
 
-inline RuntimeABIParameter makeI32VAddDispatchAvailabilityGuard(
-    llvm::StringRef cName = "rvv_available") {
-  return makeTargetExportABIParameter(
-      cName, "int", RuntimeABIParameterRole::DispatchAvailabilityGuard);
-}
+RuntimeABIParameter makeI32VAddDispatchAvailabilityGuard(
+    llvm::StringRef cName = "rvv_available");
 
 inline void appendI32VAddDispatchRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out,
@@ -165,13 +136,8 @@ inline void appendI32VAddDispatchRuntimeABIParameters(
   out.push_back(guardParameter);
 }
 
-inline llvm::SmallVector<RuntimeABIParameter, 5>
-getI32VAddDispatchRuntimeABIParameters() {
-  llvm::SmallVector<RuntimeABIParameter, 5> parameters;
-  appendI32VAddRuntimeABIParameters(parameters);
-  parameters.push_back(makeI32VAddDispatchAvailabilityGuard());
-  return parameters;
-}
+llvm::SmallVector<RuntimeABIParameter, 5>
+getI32VAddDispatchRuntimeABIParameters();
 
 inline bool runtimeABIParametersEqual(
     llvm::ArrayRef<RuntimeABIParameter> lhs,

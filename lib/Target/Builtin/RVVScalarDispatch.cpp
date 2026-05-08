@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
@@ -60,33 +61,13 @@ constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 constexpr llvm::StringLiteral kRVVRouteID("tcrv-export-rvv-microkernel-c");
 constexpr llvm::StringLiteral kRVVEmissionKind(
     "rvv-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kRVVRuntimeABI(
-    "rvv-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kRVVRuntimeABIKind(
-    "rvv-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kRVVRuntimeABIName(
-    "rvv-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kRVVRuntimeGlueRole(
-    "runtime-callable-i32-vadd-function");
 
 constexpr llvm::StringLiteral kScalarRouteID(
     "tcrv-export-scalar-microkernel-c");
 constexpr llvm::StringLiteral kScalarEmissionKind(
     "scalar-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kScalarRuntimeABI(
-    "scalar-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kScalarRuntimeABIKind(
-    "scalar-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kScalarRuntimeABIName(
-    "scalar-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kScalarRuntimeGlueRole(
-    "runtime-callable-i32-vadd-fallback-function");
 constexpr llvm::StringLiteral kDispatchTargetOwner(
     "rvv-scalar-dispatch-target");
-constexpr llvm::StringLiteral kDispatchRuntimeABIKind(
-    "rvv-scalar-dispatch-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kDispatchRuntimeABIName(
-    "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -269,17 +250,21 @@ bool hasCandidateShape(const TargetArtifactCandidate &candidate,
 }
 
 bool isRVVCallableCandidate(const TargetArtifactCandidate &candidate) {
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
   return hasCandidateShape(candidate, kRVVPluginName, kDispatchCaseRole,
-                           kRVVRouteID, kRVVEmissionKind, kRVVRuntimeABI,
-                           kRVVRuntimeABIKind, kRVVRuntimeABIName,
-                           kRVVRuntimeGlueRole);
+                           kRVVRouteID, kRVVEmissionKind, abi.runtimeABI,
+                           abi.runtimeABIKind, abi.runtimeABIName,
+                           abi.runtimeGlueRole);
 }
 
 bool isScalarCallableCandidate(const TargetArtifactCandidate &candidate) {
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
   return hasCandidateShape(candidate, kScalarPluginName, kDispatchFallbackRole,
                            kScalarRouteID, kScalarEmissionKind,
-                           kScalarRuntimeABI, kScalarRuntimeABIKind,
-                           kScalarRuntimeABIName, kScalarRuntimeGlueRole);
+                           abi.runtimeABI, abi.runtimeABIKind,
+                           abi.runtimeABIName, abi.runtimeGlueRole);
 }
 
 llvm::Error validateRegisteredCallableRouteMetadata(
@@ -1648,13 +1633,15 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
     TargetArtifactExporterRegistry &registry) {
+  const support::RuntimeABIDispatchIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getDispatchIdentity();
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
               kRuntimeCallableCSourceArtifactKind,
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
-              kDispatchRuntimeABIKind, kDispatchRuntimeABIName,
+              abi.runtimeABIKind, abi.runtimeABIName,
               /*directHelperRoute=*/true)))
     return error;
 
@@ -1664,7 +1651,7 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               kRuntimeCallableCHeaderArtifactKind,
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchHeader, kDispatchTargetOwner,
-              kDispatchRuntimeABIKind, kDispatchRuntimeABIName,
+              abi.runtimeABIKind, abi.runtimeABIName,
               /*directHelperRoute=*/true)))
     return error;
 
@@ -1673,7 +1660,7 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
       kRiscvELFRelocatableObjectArtifactKind,
       matchRVVScalarI32VAddDispatchCandidates,
       exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
-      kDispatchRuntimeABIKind, kDispatchRuntimeABIName,
+      abi.runtimeABIKind, abi.runtimeABIName,
       /*directHelperRoute=*/true));
 }
 

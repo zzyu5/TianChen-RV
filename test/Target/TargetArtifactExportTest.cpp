@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/RuntimeABI.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -16,6 +17,11 @@
 using namespace tianchenrv::target;
 
 namespace {
+
+using tianchenrv::support::I32VAddRuntimeABIContract;
+using tianchenrv::support::RuntimeABIParameter;
+using tianchenrv::support::RuntimeABIParameterOwnership;
+using tianchenrv::support::RuntimeABIParameterRole;
 
 llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
   return llvm::Error::success();
@@ -106,6 +112,113 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
   return true;
 }
 
+bool expectRuntimeABIParametersEqual(
+    llvm::ArrayRef<RuntimeABIParameter> actual,
+    llvm::ArrayRef<RuntimeABIParameter> expected, llvm::StringRef context) {
+  if (tianchenrv::support::runtimeABIParametersEqual(actual, expected))
+    return true;
+  llvm::errs() << context << ": runtime ABI parameters did not match\n";
+  return false;
+}
+
+bool expectRouteRuntimeABIParameters(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::ArrayRef<RuntimeABIParameter> expected) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for ABI parameter check\n";
+    return false;
+  }
+  return expectRuntimeABIParametersEqual(
+      exporter->getRequiredRuntimeABIParameters(), expected,
+      "route '" + routeID.str() + "' contract parameters");
+}
+
+bool expectParameter(const RuntimeABIParameter &parameter,
+                     llvm::StringRef cName, llvm::StringRef cType,
+                     RuntimeABIParameterRole role,
+                     RuntimeABIParameterOwnership ownership,
+                     llvm::StringRef context) {
+  if (parameter.cName == cName && parameter.cType == cType &&
+      parameter.role == role && parameter.ownership == ownership)
+    return true;
+  llvm::errs() << context << ": malformed parameter\n";
+  return false;
+}
+
+bool expectI32VAddRuntimeABIContractShape() {
+  const I32VAddRuntimeABIContract &contract =
+      tianchenrv::support::getI32VAddRuntimeABIContract();
+  llvm::ArrayRef<RuntimeABIParameter> callable =
+      contract.getCallableParameters();
+  if (callable.size() != 4) {
+    llvm::errs() << "i32-vadd ABI contract expected 4 callable parameters\n";
+    return false;
+  }
+
+  constexpr RuntimeABIParameterOwnership owned =
+      RuntimeABIParameterOwnership::TargetExportABIOwned;
+  if (!expectParameter(callable[0], "lhs", "const int32_t *",
+                       RuntimeABIParameterRole::LHSInputBuffer, owned,
+                       "callable parameter[0]") ||
+      !expectParameter(callable[1], "rhs", "const int32_t *",
+                       RuntimeABIParameterRole::RHSInputBuffer, owned,
+                       "callable parameter[1]") ||
+      !expectParameter(callable[2], "out", "int32_t *",
+                       RuntimeABIParameterRole::OutputBuffer, owned,
+                       "callable parameter[2]") ||
+      !expectParameter(callable[3], "n", "size_t",
+                       RuntimeABIParameterRole::RuntimeElementCount, owned,
+                       "callable parameter[3]"))
+    return false;
+
+  llvm::ArrayRef<RuntimeABIParameter> requirements =
+      contract.getCallableRoleRequirements();
+  if (requirements.size() != callable.size())
+    return false;
+  for (auto [index, requirement] : llvm::enumerate(requirements)) {
+    if (!requirement.cName.empty() || requirement.cType != callable[index].cType ||
+        requirement.role != callable[index].role ||
+        requirement.ownership != callable[index].ownership) {
+      llvm::errs() << "callable role requirement[" << index
+                   << "] does not mirror the contract parameter role/type\n";
+      return false;
+    }
+  }
+
+  llvm::ArrayRef<tianchenrv::support::RuntimeABIMemWindowSpec> windows =
+      contract.getBufferMemWindowSpecs();
+  if (windows.size() != 3 ||
+      windows[0].role != RuntimeABIParameterRole::LHSInputBuffer ||
+      windows[1].role != RuntimeABIParameterRole::RHSInputBuffer ||
+      windows[2].role != RuntimeABIParameterRole::OutputBuffer) {
+    llvm::errs() << "i32-vadd ABI contract buffer mem-window order changed\n";
+    return false;
+  }
+
+  tianchenrv::support::RuntimeABIParamSpec count =
+      contract.getRuntimeElementCountParamSpec();
+  if (count.role != RuntimeABIParameterRole::RuntimeElementCount ||
+      count.cName != "n" || count.cType != "size_t") {
+    llvm::errs() << "i32-vadd ABI contract runtime count spec malformed\n";
+    return false;
+  }
+
+  llvm::SmallVector<RuntimeABIParameter, 5> dispatch =
+      contract.getDispatchRuntimeABIParameters();
+  llvm::ArrayRef<RuntimeABIParameter> dispatchRef(dispatch);
+  if (dispatch.size() != 5 ||
+      !expectRuntimeABIParametersEqual(dispatchRef.take_front(4), callable,
+                                       "dispatch callable prefix") ||
+      !expectParameter(dispatch[4], "rvv_available", "int",
+                       RuntimeABIParameterRole::DispatchAvailabilityGuard,
+                       owned, "dispatch availability guard"))
+    return false;
+
+  return true;
+}
+
 bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                           llvm::StringRef routeID, llvm::StringRef artifactKind,
                           llvm::StringRef expectedOwner = {},
@@ -172,6 +285,9 @@ tianchenrv::tcrv::exec::KernelOp findKernel(mlir::ModuleOp module,
 
 TargetArtifactCandidate makeRVVDispatchCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  const tianchenrv::support::RuntimeABICallableIdentity &abi =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getRVVCallableIdentity();
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
@@ -181,10 +297,10 @@ TargetArtifactCandidate makeRVVDispatchCandidate(
   candidate.emissionKind = "rvv-explicit-i32-vadd-microkernel-c-source";
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_rvv.lowering_boundary";
-  candidate.runtimeABI = "rvv-i32-vadd-runtime-callable-c-abi.v1";
-  candidate.runtimeABIKind = "rvv-runtime-callable-c-abi";
-  candidate.runtimeABIName = "rvv-i32-vadd-runtime-callable-c-function.v1";
-  candidate.runtimeGlueRole = "runtime-callable-i32-vadd-function";
+  candidate.runtimeABI = abi.runtimeABI.str();
+  candidate.runtimeABIKind = abi.runtimeABIKind.str();
+  candidate.runtimeABIName = abi.runtimeABIName.str();
+  candidate.runtimeGlueRole = abi.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32VAddRuntimeABIParameters();
   return candidate;
@@ -192,6 +308,9 @@ TargetArtifactCandidate makeRVVDispatchCandidate(
 
 TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  const tianchenrv::support::RuntimeABICallableIdentity &abi =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getScalarCallableIdentity();
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
@@ -201,10 +320,10 @@ TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
   candidate.emissionKind = "scalar-explicit-i32-vadd-microkernel-c-source";
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_scalar.lowering_boundary";
-  candidate.runtimeABI = "scalar-i32-vadd-runtime-callable-c-abi.v1";
-  candidate.runtimeABIKind = "scalar-runtime-callable-c-abi";
-  candidate.runtimeABIName = "scalar-i32-vadd-runtime-callable-c-function.v1";
-  candidate.runtimeGlueRole = "runtime-callable-i32-vadd-fallback-function";
+  candidate.runtimeABI = abi.runtimeABI.str();
+  candidate.runtimeABIKind = abi.runtimeABIKind.str();
+  candidate.runtimeABIName = abi.runtimeABIName.str();
+  candidate.runtimeGlueRole = abi.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32VAddRuntimeABIParameters();
   return candidate;
@@ -404,6 +523,32 @@ module {
   }
 
   return true;
+}
+
+bool expectExporterRejectsRuntimeABIContractMismatch(
+    const TargetArtifactExporterRegistry &registry) {
+  const TargetArtifactExporter *exporter =
+      registry.lookup("tcrv-export-rvv-microkernel-c");
+  if (!exporter) {
+    llvm::errs() << "missing RVV microkernel route for mismatch test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate =
+      makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                               "rvv_first_slice");
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *exporter),
+                     "contract-shaped RVV runtime ABI candidate accepted"))
+    return false;
+
+  candidate.runtimeABIParameters[3].cType = "long";
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "contract runtime ABI mismatch rejected by target exporter",
+      {"runtime ABI parameter role 'runtime-element-count'",
+       "must use c type 'size_t'",
+       "ownership 'target-export-abi-owned'"});
 }
 
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
@@ -740,6 +885,8 @@ int main() {
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "register built-in target artifact exporters"))
     return 1;
+  if (!expectI32VAddRuntimeABIContractShape())
+    return 1;
   if (builtinRegistry.size() != 3) {
     llvm::errs() << "expected exactly 3 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
@@ -756,9 +903,19 @@ int main() {
                    "rvv-explicit-i32-vadd-microkernel-c-source", 4,
                    /*expectedDirectHelperRoute=*/true))
     return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-rvv-microkernel-c",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
+    return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
                    "scalar-explicit-i32-vadd-microkernel-c-source", 4))
+    return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-scalar-microkernel-c",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-offload-runtime-descriptor",
@@ -766,45 +923,48 @@ int main() {
                    "runtime-offload-handoff-descriptor", 0,
                    /*expectedDirectHelperRoute=*/false, "runtime-offload"))
     return 1;
+  const tianchenrv::support::RuntimeABICallableIdentity &rvvABI =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getRVVCallableIdentity();
+  const tianchenrv::support::RuntimeABIDispatchIdentity &dispatchABI =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getDispatchIdentity();
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
-          "runtime-callable-c-header", "rvv-plugin",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vadd-runtime-callable-c-function.v1",
+          "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
+          rvvABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-object",
           "riscv-elf-relocatable-object", "rvv-plugin",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vadd-runtime-callable-c-function.v1",
+          rvvABI.runtimeABIKind, rvvABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
           "runtime-callable-c-source", "rvv-scalar-dispatch-target",
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
           "runtime-callable-c-header", "rvv-scalar-dispatch-target",
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
           "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))
+    return 1;
+  if (!expectExporterRejectsRuntimeABIContractMismatch(builtinRegistry))
     return 1;
   if (!expectDispatchCompositeRejectsFallbackMismatch(context,
                                                       builtinRegistry))

@@ -152,40 +152,6 @@ RuntimeParamOp createParam(mlir::OpBuilder &builder, KernelOp kernel,
 
 } // namespace
 
-RuntimeABIParamSpec
-getI32VAddRuntimeElementCountParamSpec(llvm::StringRef cName) {
-  return RuntimeABIParamSpec(
-      "abi_runtime_element_count",
-      RuntimeABIParameterRole::RuntimeElementCount, cName, "size_t",
-      stringifyRuntimeABIParameterOwnership(
-          RuntimeABIParameterOwnership::TargetExportABIOwned));
-}
-
-RuntimeABIParamSpec
-getI32VAddDispatchAvailabilityGuardParamSpec(llvm::StringRef cName) {
-  return RuntimeABIParamSpec(
-      "abi_dispatch_availability_guard",
-      RuntimeABIParameterRole::DispatchAvailabilityGuard, cName, "int",
-      stringifyRuntimeABIParameterOwnership(
-          RuntimeABIParameterOwnership::TargetExportABIOwned));
-}
-
-llvm::SmallVector<RuntimeABIParamSpec, 1>
-getI32VAddRuntimeElementCountParamSpecs(llvm::StringRef cName) {
-  llvm::SmallVector<RuntimeABIParamSpec, 1> specs;
-  specs.push_back(getI32VAddRuntimeElementCountParamSpec(cName));
-  return specs;
-}
-
-llvm::SmallVector<RuntimeABIParamSpec, 2>
-getI32VAddDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName,
-                                    llvm::StringRef guardCName) {
-  llvm::SmallVector<RuntimeABIParamSpec, 2> specs;
-  specs.push_back(getI32VAddRuntimeElementCountParamSpec(runtimeCountCName));
-  specs.push_back(getI32VAddDispatchAvailabilityGuardParamSpec(guardCName));
-  return specs;
-}
-
 llvm::Error ensureRuntimeABIParams(
     KernelOp kernel, mlir::OpBuilder &builder,
     llvm::ArrayRef<RuntimeABIParamSpec> specs) {
