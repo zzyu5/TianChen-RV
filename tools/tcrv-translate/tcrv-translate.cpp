@@ -210,6 +210,12 @@ mlir::LogicalResult exportTargetArtifact(mlir::ModuleOp module,
       module, os, tianchenrv::target::exportTargetArtifact);
 }
 
+mlir::LogicalResult exportTargetHeaderArtifact(mlir::ModuleOp module,
+                                               llvm::raw_ostream &os) {
+  return exportCoherenceGatedTargetArtifact(
+      module, os, tianchenrv::target::exportTargetHeaderArtifact);
+}
+
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
@@ -283,6 +289,12 @@ void registerTianChenRVTranslations() {
       "export one supported TianChen-RV target artifact route",
       exportTargetArtifact, registerTianChenRVTranslateDialects);
   (void)targetArtifact;
+
+  static mlir::TranslateFromMLIRRegistration targetHeaderArtifact(
+      "tcrv-export-target-header-artifact",
+      "export one supported TianChen-RV target C header artifact route",
+      exportTargetHeaderArtifact, registerTianChenRVTranslateDialects);
+  (void)targetHeaderArtifact;
 }
 
 } // namespace

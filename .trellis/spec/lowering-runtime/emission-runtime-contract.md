@@ -124,21 +124,28 @@ ABI before source output. This does not add generic RVV or scalar lowering,
 full runtime ABI integration, object generation, linking, arbitrary source
 export, correctness evidence, or performance evidence.
 
-The artifact-kind-aware generic route may also select a target-owned
-RVV+scalar i32-vadd dispatch library object composite exporter for the same
-validated selected dispatch. That route reuses the selected callable source
+The artifact-kind-aware generic route may also select target-owned RVV+scalar
+i32-vadd dispatch composite exporters for the same validated selected
+dispatch. The library-object route reuses the selected callable source
 validation, emits the default library-style dispatch source internally, and
 then uses structured RVV architecture capability metadata, selected RVV compile
 capability metadata, and local `clang` to produce a RISC-V ELF relocatable
-object with no hidden `main` or self-check harness. When both source and
-non-source composite exporters match the same selected plan,
-`--tcrv-export-target-artifact` must prefer the non-source runtime-callable
-object route while `--tcrv-export-target-source-artifact` remains source-only.
-The object route is still a bounded target artifact; it does not link, run
+object with no hidden `main` or self-check harness. A distinct
+runtime-callable C header route may be selected through the generic
+`--tcrv-export-target-header-artifact` front door and must use artifact kind
+`runtime-callable-c-header`. Header selection is source-like only for its
+external C caller surface: it must not make
+`--tcrv-export-target-source-artifact` ambiguous with
+`runtime-callable-c-source`, and it must not make
+`--tcrv-export-target-artifact` choose the header instead of the
+library-object route. When both source and non-source composite exporters match
+the same selected plan, `--tcrv-export-target-artifact` must prefer the
+non-source runtime-callable object route while
+`--tcrv-export-target-source-artifact` remains source-only. The object and
+header routes are still bounded target artifacts; they do not link, run
 hardware, perform automatic probing, prove correctness, or measure performance.
-The self-check object route remains an explicit
-target-owned helper command for evidence collection, not the generic artifact
-front door.
+The self-check object route remains an explicit target-owned helper command for
+evidence collection, not the generic artifact front door.
 
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
@@ -273,6 +280,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     ELF relocatable library object, matched from the same selected callable
     candidates and emitted by the target-owned RVV+scalar dispatch exporter
     code without a hidden self-check harness or `main`.
+  - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C header,
+    matched from the same selected callable candidates and emitted by the
+    target-owned RVV+scalar dispatch exporter code as an external caller ABI
+    surface with artifact kind `runtime-callable-c-header`.
 - The helper may include RVV/scalar/offload target headers and call their
   target-owned registration functions, but it must not duplicate route
   semantics or artifact validation.
@@ -304,6 +315,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   RVV+scalar dispatch runtime-callable library object composite route when the
   selected plan has both supported callable sides and local RVV object
   compilation support.
+- Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
+  RVV+scalar dispatch runtime-callable C header composite route from the same
+  selected callable sides without changing the source or object front-door
+  selection result.
 - Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
   built-in registry but filters to a legal RVV runtime-callable C source,
   scalar runtime-callable C source route, or target-owned RVV+scalar dispatch
@@ -1292,15 +1307,19 @@ header for an external runtime caller:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header
+tcrv-translate --tcrv-export-target-header-artifact
 ```
 
-The header exporter must reuse the same selected-path, lowering-boundary,
-callable route metadata, scalar `tcrv.exec.fallback` link,
-`tcrv.exec.case runtime_guard` link, and structured runtime ABI parameter
-validation as the dispatch source exporter. It must build the prototype from
-the same exec-IR-backed `DispatchABIPlan` consumed by the dispatch source and
-object exporters, not by parsing generated C comments or trusting detached
-candidate metadata. The `lhs`, `rhs`, and `out` parameters come from direct
+The direct header command may remain a convenience alias, but the generic
+header command must select the header through the target artifact exporter
+registry using artifact kind `runtime-callable-c-header`. The header exporter
+must reuse the same selected-path, lowering-boundary, callable route metadata,
+scalar `tcrv.exec.fallback` link, `tcrv.exec.case runtime_guard` link, selected
+RVV compile metadata, and structured runtime ABI parameter validation as the
+dispatch source/object exporters. It must build the prototype from the same
+exec-IR-backed `DispatchABIPlan` consumed by the dispatch source and object
+exporters, not by parsing generated C comments or trusting detached candidate
+metadata. The `lhs`, `rhs`, and `out` parameters come from direct
 `tcrv.exec.mem_window` ABI roles; runtime `n` and the dispatch availability
 guard come from direct `tcrv.exec.runtime_param` ABI/control roles, with the
 guard linked through the selected RVV case's `runtime_guard` symbol.

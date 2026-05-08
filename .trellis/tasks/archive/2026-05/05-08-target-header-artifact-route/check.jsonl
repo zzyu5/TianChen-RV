@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global TianChen-RV implementation and Python boundary invariants."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify generic target artifact and dispatch header route behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify required test coverage and evidence scope."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify target/plugin locality is preserved."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains execution-boundary-only."}

@@ -133,6 +133,10 @@ llvm::Error exportTargetArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os);
 
+llvm::Error exportTargetHeaderArtifact(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::raw_ostream &os);
+
 } // namespace tianchenrv::target
 
 #endif // TIANCHENRV_TARGET_TARGETARTIFACTEXPORT_H

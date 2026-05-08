@@ -171,15 +171,20 @@ Use lit/FileCheck for:
   dispatch object with dispatcher/callable symbols and no `main`; the explicit
   self-check object helper may define `main`.
   When the bounded ABI header export is present, lit/FileCheck coverage must
-  prove the header-only runtime-caller surface: deterministic include guard,
-  standard integer/size includes, `extern "C"` guard, and the dispatcher
-  prototype with the same parameter order and C type spellings as the generated
-  dispatcher definition. Negative coverage must prove the header exporter fails
-  closed on shared exec-IR boundary errors such as missing selected-case
-  `runtime_guard` linkage or scalar fallback mismatch. Header tests must also
-  prove that no callable bodies, RVV intrinsics, self-check helper, hidden
-  `main`, runtime success marker, performance text, raw logs, credentials, or
-  artifact paths are emitted. If local object-link evidence is added, it must
+  prove both the direct header command and the generic
+  `--tcrv-export-target-header-artifact` registry front door for the
+  header-only runtime-caller surface: deterministic include guard, standard
+  integer/size includes, `extern "C"` guard, and the dispatcher prototype with
+  the same parameter order and C type spellings as the generated dispatcher
+  definition. Negative coverage must prove the header exporter fails closed on
+  shared exec-IR boundary errors such as missing selected-case `runtime_guard`
+  linkage or scalar fallback mismatch. Header tests must also prove that no
+  callable bodies, RVV intrinsics, self-check helper, hidden `main`, runtime
+  success marker, performance text, raw logs, credentials, or artifact paths
+  are emitted. C++ registry tests must prove that adding
+  `runtime-callable-c-header` does not make source export choose a header and
+  does not make the generic target artifact route choose the header instead of
+  the relocatable object. If local object-link evidence is added, it must
   remain bounded to compiling an external C caller against the generated header
   and linking that caller with the generated RISC-V relocatable library object;
   it is not an RVV runtime/correctness/performance claim.

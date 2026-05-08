@@ -1,5 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=GENERIC --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=GENERIC-HDR --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not="__riscv" --implicit-check-not="out[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module {
   tcrv.exec.kernel @conflict_planned_dispatch {
@@ -108,3 +109,8 @@ module {
 // GENERIC: tcrv_rvv_i32_vadd_microkernel_conflict_planned_dispatch_rvv_first_slice(lhs, rhs, out, n);
 // GENERIC: return;
 // GENERIC: tcrv_scalar_i32_vadd_microkernel_conflict_planned_dispatch_scalar_fallback_first_slice(lhs, rhs, out, n);
+
+// GENERIC-HDR: #ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_CONFLICT_PLANNED_DISPATCH_H
+// GENERIC-HDR: extern "C" {
+// GENERIC-HDR: void tcrv_dispatch_i32_vadd_conflict_planned_dispatch(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
+// GENERIC-HDR: #endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_CONFLICT_PLANNED_DISPATCH_H */

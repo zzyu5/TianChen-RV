@@ -11,12 +11,28 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <string>
 
 using namespace tianchenrv::target;
 
 namespace {
 
 llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
+  return llvm::Error::success();
+}
+
+llvm::Error sourceMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
+  os << "source-artifact\n";
+  return llvm::Error::success();
+}
+
+llvm::Error objectMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
+  os << "object-artifact\n";
+  return llvm::Error::success();
+}
+
+llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
+  os << "header-artifact\n";
   return llvm::Error::success();
 }
 
@@ -184,9 +200,9 @@ TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
   return candidate;
 }
 
-bool expectDispatchCompositeRejectsFallbackMismatch(
-    mlir::MLIRContext &context,
-    const TargetArtifactExporterRegistry &registry) {
+bool expectDispatchCompositeRejectsFallbackMismatchForRoute(
+    mlir::MLIRContext &context, const TargetArtifactExporterRegistry &registry,
+    llvm::StringRef routeID) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @dispatch_link_mismatch {
@@ -228,14 +244,14 @@ module {
   const TargetArtifactCompositeExporter *dispatchComposite = nullptr;
   for (const TargetArtifactCompositeExporter &exporter :
        registry.getCompositeExporters()) {
-    if (exporter.getRouteID() ==
-        "tcrv-export-rvv-scalar-i32-vadd-dispatch-c") {
+    if (exporter.getRouteID() == routeID) {
       dispatchComposite = &exporter;
       break;
     }
   }
   if (!dispatchComposite) {
-    llvm::errs() << "missing RVV+scalar dispatch composite route\n";
+    llvm::errs() << "missing RVV+scalar dispatch composite route '" << routeID
+                 << "'\n";
     return false;
   }
 
@@ -252,10 +268,132 @@ module {
   }
 
   return expectErrorContains(
-      matched.takeError(), "dispatch fallback IR-link mismatch rejected",
+      matched.takeError(),
+      "dispatch fallback IR-link mismatch rejected for " + routeID.str(),
       {"selected scalar dispatch fallback callable route",
        "@scalar_fallback_first_slice", "tcrv.exec.fallback target",
        "@scalar_ir_fallback"});
+}
+
+bool expectDispatchCompositeRejectsFallbackMismatch(
+    mlir::MLIRContext &context,
+    const TargetArtifactExporterRegistry &registry) {
+  return expectDispatchCompositeRejectsFallbackMismatchForRoute(
+             context, registry,
+             "tcrv-export-rvv-scalar-i32-vadd-dispatch-c") &&
+         expectDispatchCompositeRejectsFallbackMismatchForRoute(
+             context, registry,
+             "tcrv-export-rvv-scalar-i32-vadd-dispatch-header");
+}
+
+bool expectGenericHeaderArtifactRouteSelection(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @generic_header_route {
+    tcrv.exec.capability @test_cap {id = "test.capability", kind = "test", status = "available"}
+    tcrv.exec.variant @selected attributes {origin = "test-plugin", requires = [@test_cap]} {
+    }
+    tcrv.exec.diagnostic {
+      reason = "variant-selected",
+      message = "selected static test route",
+      severity = "note",
+      status = "accepted",
+      target = @selected,
+      selection_kind = "static-variant"
+    }
+    tcrv.exec.diagnostic {
+      reason = "emission_plan",
+      message = "supported test route",
+      severity = "info",
+      status = "supported",
+      target = @selected,
+      origin = "test-plugin",
+      role = "direct variant",
+      plan_kind = "plugin-emission-plan",
+      emission_kind = "test-emission",
+      lowering_pipeline = "test-route",
+      runtime_abi = "test-runtime-abi.v1",
+      runtime_abi_kind = "test-runtime-abi-kind",
+      runtime_abi_name = "test-runtime-abi-name",
+      runtime_glue_role = "test-runtime-glue",
+      required_capabilities = [@test_cap],
+      artifact_kind = "standalone-c-source",
+      lowering_boundary = "test.lowering_boundary"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module) {
+    llvm::errs() << "generic header artifact selection fixture failed to "
+                    "parse\n";
+    return false;
+  }
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "test-source-composite",
+                             "runtime-callable-c-source",
+                             alwaysMatchComposite, sourceMarkerExporter)),
+                     "register test source composite"))
+    return false;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "test-object-composite",
+                             "riscv-elf-relocatable-object",
+                             alwaysMatchComposite, objectMarkerExporter)),
+                     "register test object composite"))
+    return false;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "test-header-composite",
+                             "runtime-callable-c-header",
+                             alwaysMatchComposite, headerMarkerExporter)),
+                     "register test header composite"))
+    return false;
+
+  std::string sourceOutput;
+  llvm::raw_string_ostream sourceStream(sourceOutput);
+  if (!expectSuccess(exportTargetSourceArtifact(*module, registry,
+                                                sourceStream),
+                     "generic source artifact route selected"))
+    return false;
+  sourceStream.flush();
+  if (sourceOutput != "source-artifact\n") {
+    llvm::errs() << "generic source artifact selected unexpected output: "
+                 << sourceOutput << "\n";
+    return false;
+  }
+
+  std::string objectOutput;
+  llvm::raw_string_ostream objectStream(objectOutput);
+  if (!expectSuccess(exportTargetArtifact(*module, registry, objectStream),
+                     "generic target artifact route selected"))
+    return false;
+  objectStream.flush();
+  if (objectOutput != "object-artifact\n") {
+    llvm::errs() << "generic target artifact selected unexpected output: "
+                 << objectOutput << "\n";
+    return false;
+  }
+
+  std::string headerOutput;
+  llvm::raw_string_ostream headerStream(headerOutput);
+  if (!expectSuccess(exportTargetHeaderArtifact(*module, registry,
+                                                headerStream),
+                     "generic header artifact route selected"))
+    return false;
+  headerStream.flush();
+  if (headerOutput != "header-artifact\n") {
+    llvm::errs() << "generic header artifact selected unexpected output: "
+                 << headerOutput << "\n";
+    return false;
+  }
+
+  return true;
 }
 
 } // namespace
@@ -390,6 +528,12 @@ int main() {
                              alwaysMatchComposite, noopExporter)),
                      "register object composite for selection"))
     return 1;
+  if (!expectSuccess(compositeSelectionRegistry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "header-composite", "runtime-callable-c-header",
+                             alwaysMatchComposite, noopExporter)),
+                     "register header composite for selection"))
+    return 1;
   if (!expectSelectedCompositeRoute(
           selectTargetArtifactCompositeExporter(
               {}, compositeSelectionRegistry, /*sourceOnly=*/true),
@@ -399,6 +543,8 @@ int main() {
           selectTargetArtifactCompositeExporter(
               {}, compositeSelectionRegistry, /*sourceOnly=*/false),
           "object-composite", "artifact-kind composite selection"))
+    return 1;
+  if (!expectGenericHeaderArtifactRouteSelection(context))
     return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;
@@ -410,9 +556,9 @@ int main() {
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 2) {
-    llvm::errs() << "expected exactly 2 built-in composite target artifact "
-                    "route, got "
+  if (builtinRegistry.compositeSize() != 3) {
+    llvm::errs() << "expected exactly 3 built-in composite target artifact "
+                    "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
@@ -432,6 +578,11 @@ int main() {
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
           "runtime-callable-c-source"))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
+          "runtime-callable-c-header"))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,

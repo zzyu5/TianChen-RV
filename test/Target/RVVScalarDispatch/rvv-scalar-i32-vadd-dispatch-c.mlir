@@ -3,6 +3,8 @@
 // RUN: FileCheck %s --check-prefix=BODY --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.c
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header > %t.dispatch.h
 // RUN: FileCheck %s --check-prefix=ABI-HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not="__riscv" --implicit-check-not="out[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch.h
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact > %t.generic-dispatch.h
+// RUN: FileCheck %s --check-prefix=GENERIC-ABI-HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not="__riscv" --implicit-check-not="out[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.generic-dispatch.h
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c > %t.dispatch-self-check.c
 // RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch-self-check.c
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c | FileCheck %s --check-prefix=AUTO --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
@@ -19,6 +21,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/^    tcrv.exec.runtime_param @abi_dispatch_availability_guard {/d' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-GUARD --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/, runtime_guard = @abi_dispatch_availability_guard//' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING-CASE-RUNTIME-GUARD --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/, runtime_guard = @abi_dispatch_availability_guard//' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header 2>&1 | FileCheck %s --check-prefix=HEADER-MISSING-CASE-RUNTIME-GUARD --implicit-check-not="#ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/, runtime_guard = @abi_dispatch_availability_guard//' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD --implicit-check-not="#ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH"
 // RUN: sed '/^    tcrv.exec.runtime_param @abi_dispatch_availability_guard/i\    tcrv.exec.runtime_param @abi_runtime_element_count_dup {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}' %s | not tcrv-opt - 2>&1 | FileCheck %s --check-prefix=DUPLICATE-RUNTIME-N --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: sed '/^    tcrv.exec.variant @rvv_first_slice/i\    tcrv.exec.runtime_param @abi_dispatch_availability_guard_dup {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}' %s | not tcrv-opt - 2>&1 | FileCheck %s --check-prefix=DUPLICATE-RUNTIME-GUARD --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int"/abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "bool"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=BAD-RUNTIME-GUARD-TYPE --implicit-check-not="void tcrv_dispatch_i32_vadd"
@@ -213,6 +216,19 @@ module @rvv_scalar_dispatch_input {
 // ABI-HEADER-NEXT: #endif
 // ABI-HEADER: #endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H */
 
+// GENERIC-ABI-HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
+// GENERIC-ABI-HEADER-NEXT: #define TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
+// GENERIC-ABI-HEADER: #include <stddef.h>
+// GENERIC-ABI-HEADER-NEXT: #include <stdint.h>
+// GENERIC-ABI-HEADER: #ifdef __cplusplus
+// GENERIC-ABI-HEADER-NEXT: extern "C" {
+// GENERIC-ABI-HEADER-NEXT: #endif
+// GENERIC-ABI-HEADER: void tcrv_dispatch_i32_vadd_dispatch_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
+// GENERIC-ABI-HEADER: #ifdef __cplusplus
+// GENERIC-ABI-HEADER-NEXT: }
+// GENERIC-ABI-HEADER-NEXT: #endif
+// GENERIC-ABI-HEADER: #endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H */
+
 // BODY: riscv_vector.h
 // BODY: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // BODY: __riscv_vsetvl_e32m1
@@ -277,6 +293,7 @@ module @rvv_scalar_dispatch_input {
 // HELP: tcrv-export-rvv-scalar-i32-vadd-dispatch-header
 // HELP: tcrv-export-rvv-scalar-i32-vadd-dispatch-object
 // HELP: tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
+// HELP: tcrv-export-target-header-artifact
 
 // OBJECT-NO-PLAN: RVV+scalar i32-vadd dispatch object export failed
 // OBJECT-NO-PLAN: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before target artifact export
@@ -307,6 +324,9 @@ module @rvv_scalar_dispatch_input {
 
 // HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar i32-vadd dispatch header export failed
 // HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
+
+// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar i32-vadd dispatch C export failed
+// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
 
 // DUPLICATE-RUNTIME-N: duplicates runtime_param ABI role 'runtime-element-count' in enclosing tcrv.exec.kernel
 

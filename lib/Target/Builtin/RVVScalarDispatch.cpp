@@ -49,6 +49,8 @@ constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
 constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
     "runtime-callable-c-source");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
@@ -1646,6 +1648,14 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               kRuntimeCallableCSourceArtifactKind,
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchC)))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
+              kRuntimeCallableCHeaderArtifactKind,
+              matchRVVScalarI32VAddDispatchCandidates,
+              exportRVVScalarI32VAddDispatchHeader)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
