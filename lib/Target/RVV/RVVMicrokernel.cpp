@@ -18,6 +18,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
@@ -25,6 +28,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <system_error>
 
 namespace tianchenrv::target::rvv {
 namespace {
@@ -54,6 +58,7 @@ constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
@@ -85,8 +90,20 @@ constexpr llvm::StringLiteral kMicrokernelEmissionKind(
     "rvv-explicit-i32-vadd-microkernel-c-source");
 constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-rvv-microkernel-c");
+constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
+    "tcrv-export-rvv-microkernel-object");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
+constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
+    "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kMicrokernelRuntimeABI(
+    "rvv-i32-vadd-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kMicrokernelRuntimeABIKind(
+    "rvv-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kMicrokernelRuntimeABIName(
+    "rvv-i32-vadd-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kMicrokernelRuntimeGlueRole(
+    "runtime-callable-i32-vadd-function");
 
 enum class RVVMicrokernelCExportMode {
   RuntimeCallableLibrary,
@@ -103,6 +120,7 @@ struct RVVMicrokernelRecord {
   std::string kernelSymbol;
   std::string variantSymbol;
   std::string role;
+  std::string targetTriple;
   std::string selectedMarch;
   std::optional<std::string> selectedMABI;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
@@ -112,6 +130,17 @@ struct RVVMicrokernelRecord {
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
+};
+
+struct TemporaryFile {
+  llvm::SmallString<128> path;
+
+  ~TemporaryFile() {
+    if (!path.empty())
+      llvm::sys::fs::remove(path);
+  }
+
+  llvm::StringRef get() const { return llvm::StringRef(path); }
 };
 
 VariantOp getPathVariant(const SelectedPath &path) {
@@ -143,6 +172,28 @@ llvm::Error makeMicrokernelError(KernelOp kernel, llvm::Twine message) {
 llvm::Error makeModuleMicrokernelError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV RVV microkernel C export failed: ") + message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::Error makeMicrokernelObjectError(llvm::StringRef kernelSymbol,
+                                       llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "TianChen-RV RVV microkernel object export failed";
+  if (!kernelSymbol.empty())
+    stream << " for kernel @" << kernelSymbol;
+  else
+    stream << " for kernel <missing>";
+  stream << ": " << message;
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
+llvm::Error makeModuleMicrokernelObjectError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV microkernel object export failed: ") +
+          message,
       llvm::errc::invalid_argument);
 }
 
@@ -243,6 +294,32 @@ llvm::Error validateBoundedText(KernelOp kernel, llvm::StringRef fieldName,
     return makeMicrokernelError(kernel, llvm::Twine(fieldName) +
                                             " must not contain secret-like or "
                                             "raw credential text");
+  return llvm::Error::success();
+}
+
+llvm::Error validateBoundedCompileText(llvm::StringRef kernelSymbol,
+                                       llvm::StringRef fieldName,
+                                       llvm::StringRef value) {
+  constexpr std::size_t kMaxTextLength = 128;
+  if (value.empty() || value.size() > kMaxTextLength)
+    return makeMicrokernelObjectError(
+        kernelSymbol, llvm::Twine(fieldName) +
+                          " must be bounded non-empty compile metadata");
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (!std::isalnum(byte) && character != '_' && character != '.')
+      return makeMicrokernelObjectError(
+          kernelSymbol, llvm::Twine(fieldName) +
+                            " must contain only bounded compile-flag "
+                            "characters");
+  }
+
+  if (containsForbiddenText(value))
+    return makeMicrokernelObjectError(
+        kernelSymbol, llvm::Twine(fieldName) +
+                          " must not contain secret-like or raw credential "
+                          "text");
   return llvm::Error::success();
 }
 
@@ -634,7 +711,7 @@ llvm::Error validateRequiredCapabilities(
           kernel, llvm::Twine("selected RVV variant @") + variant.getSymName() +
                       " requires unavailable capability @" +
                       symbol.getValue());
-    if (capability->getID() == kRVVCapabilityID)
+    if (capability->satisfiesID(kRVVCapabilityID))
       requiresRVV = true;
     out.push_back(symbol.getValue().str());
   }
@@ -645,6 +722,32 @@ llvm::Error validateRequiredCapabilities(
                     " must require capability id 'rvv'");
 
   return llvm::Error::success();
+}
+
+llvm::Expected<std::string>
+getRequiredTargetTriple(KernelOp kernel,
+                        const TargetCapabilitySet &capabilities) {
+  const CapabilityDescriptor *rvvCapability =
+      capabilities.lookupProviderByID(kRVVCapabilityID);
+  if (!rvvCapability || !rvvCapability->isAvailable())
+    return makeMicrokernelError(
+        kernel,
+        "selected RVV path requires an available RVV capability provider "
+        "before object export");
+
+  llvm::StringRef architecture =
+      rvvCapability->getProperty(kArchitecturePropertyName).trim();
+  if (llvm::Error error =
+          validateBoundedText(kernel, kArchitecturePropertyName, architecture))
+    return std::move(error);
+  if (architecture != "riscv64")
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("selected RVV path requires architecture capability "
+                    "metadata 'riscv64', got '") +
+            architecture + "'");
+
+  return architecture.str();
 }
 
 llvm::Expected<std::string>
@@ -1300,6 +1403,11 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           kernel, getPathVariant(path), capabilities, requiredCapabilities))
     return std::move(error);
 
+  llvm::Expected<std::string> targetTriple =
+      getRequiredTargetTriple(kernel, capabilities);
+  if (!targetTriple)
+    return targetTriple.takeError();
+
   mlir::Attribute rawPolicy =
       getPathVariant(path)->getAttr(kRVVPolicyAttrName);
   auto policy =
@@ -1353,6 +1461,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.kernelSymbol = kernel.getSymName().str();
   record.variantSymbol = getPathVariantSymbol(path).str();
   record.role = path.role;
+  record.targetTriple = std::move(*targetTriple);
   record.selectedMarch = std::move(*selectedMarch);
   record.selectedMABI = std::move(selectedMABI);
   record.requiredCapabilities = std::move(requiredCapabilities);
@@ -1677,6 +1786,183 @@ void printMicrokernelSource(const RVVMicrokernelRecord &record,
     printMicrokernelSelfCheckHarness(os, functionName, record.elementCount);
 }
 
+bool isRVVMicrokernelSourceCandidate(
+    const tianchenrv::target::TargetArtifactCandidate &candidate) {
+  return candidate.origin == kRVVPluginName &&
+         candidate.routeID == kMicrokernelRouteID &&
+         candidate.emissionKind == kMicrokernelEmissionKind &&
+         candidate.artifactKind == kMicrokernelArtifactKind &&
+         candidate.runtimeABI == kMicrokernelRuntimeABI &&
+         candidate.runtimeABIKind == kMicrokernelRuntimeABIKind &&
+         candidate.runtimeABIName == kMicrokernelRuntimeABIName &&
+         candidate.runtimeGlueRole == kMicrokernelRuntimeGlueRole;
+}
+
+llvm::Expected<bool> matchRVVMicrokernelObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return isRVVMicrokernelSourceCandidate(candidates.front());
+}
+
+llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
+                           TemporaryFile &file) {
+  std::error_code ec =
+      llvm::sys::fs::createTemporaryFile(prefix, suffix, file.path);
+  if (ec)
+    return makeModuleMicrokernelObjectError(
+        llvm::Twine("failed to create temporary ") + suffix +
+        " file for object export: " + ec.message());
+  return llvm::Error::success();
+}
+
+llvm::Error writeTempSource(llvm::StringRef source, TemporaryFile &sourceFile) {
+  int fd = -1;
+  std::error_code ec = llvm::sys::fs::createTemporaryFile(
+      "tcrv-rvv-microkernel", "c", fd, sourceFile.path);
+  if (ec)
+    return makeModuleMicrokernelObjectError(
+        llvm::Twine("failed to create temporary C source for object export: ") +
+        ec.message());
+
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/true);
+  stream << source;
+  stream.close();
+  if (stream.has_error())
+    return makeModuleMicrokernelObjectError(
+        "failed to write generated RVV microkernel C source before object "
+        "export");
+  return llvm::Error::success();
+}
+
+std::string readBoundedStderr(llvm::StringRef stderrPath) {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> buffer =
+      llvm::MemoryBuffer::getFile(stderrPath);
+  if (!buffer)
+    return "<stderr unavailable>";
+
+  std::string text = (*buffer)->getBuffer().str();
+  for (char &character : text) {
+    if (character == '\n' || character == '\r' || character == '\t')
+      character = ' ';
+  }
+  constexpr std::size_t kMaxDiagnosticBytes = 1024;
+  if (text.size() > kMaxDiagnosticBytes) {
+    text.resize(kMaxDiagnosticBytes);
+    text += "...";
+  }
+  return text;
+}
+
+std::string formatCompileCommand(const RVVMicrokernelRecord &record) {
+  std::string command;
+  llvm::raw_string_ostream stream(command);
+  stream << "clang -target " << record.targetTriple << " -O2 -march="
+         << record.selectedMarch;
+  if (record.selectedMABI)
+    stream << " -mabi=" << *record.selectedMABI;
+  stream << " -c <generated-rvv-microkernel-source> -o <object-file>";
+  stream.flush();
+  return command;
+}
+
+llvm::Error compileGeneratedMicrokernelSourceToObject(
+    const RVVMicrokernelRecord &record, llvm::StringRef source,
+    llvm::raw_ostream &os) {
+  if (llvm::Error error =
+          validateBoundedCompileText(record.kernelSymbol, "target triple",
+                                     record.targetTriple))
+    return error;
+  if (llvm::Error error =
+          validateBoundedCompileText(record.kernelSymbol, "selected_march",
+                                     record.selectedMarch))
+    return error;
+  if (record.selectedMABI)
+    if (llvm::Error error =
+            validateBoundedCompileText(record.kernelSymbol, "selected_mabi",
+                                       *record.selectedMABI))
+      return error;
+
+  llvm::ErrorOr<std::string> clangPath =
+      llvm::sys::findProgramByName("clang");
+  if (!clangPath)
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        "requires clang on PATH to compile the bounded RVV microkernel C "
+        "source into an object file");
+
+  TemporaryFile sourceFile;
+  if (llvm::Error error = writeTempSource(source, sourceFile))
+    return error;
+
+  TemporaryFile objectFile;
+  if (llvm::Error error =
+          createTempFile("tcrv-rvv-microkernel", "o", objectFile))
+    return error;
+
+  TemporaryFile stderrFile;
+  if (llvm::Error error =
+          createTempFile("tcrv-rvv-microkernel", "stderr", stderrFile))
+    return error;
+
+  std::string marchArg = "-march=" + record.selectedMarch;
+  std::string mabiArg;
+  llvm::SmallVector<llvm::StringRef, 8> args;
+  args.push_back(*clangPath);
+  args.push_back("-target");
+  args.push_back(record.targetTriple);
+  args.push_back("-O2");
+  args.push_back(marchArg);
+  if (record.selectedMABI) {
+    mabiArg = "-mabi=" + *record.selectedMABI;
+    args.push_back(mabiArg);
+  }
+  args.push_back("-c");
+  args.push_back(sourceFile.get());
+  args.push_back("-o");
+  args.push_back(objectFile.get());
+
+  llvm::SmallVector<std::optional<llvm::StringRef>, 3> redirects;
+  redirects.emplace_back(llvm::StringRef());
+  redirects.emplace_back(llvm::StringRef());
+  redirects.emplace_back(stderrFile.get());
+
+  std::string executionError;
+  bool executionFailed = false;
+  int exitCode = llvm::sys::ExecuteAndWait(
+      *clangPath, args, std::nullopt, redirects, /*SecondsToWait=*/60,
+      /*MemoryLimit=*/0, &executionError, &executionFailed);
+  if (executionFailed || !executionError.empty() || exitCode != 0) {
+    std::string stderrText = readBoundedStderr(stderrFile.get());
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        llvm::Twine("clang failed while creating object file; command: ") +
+            formatCompileCommand(record) + "; exit_code=" +
+            llvm::Twine(exitCode) + "; stderr: " + stderrText);
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> objectBuffer =
+      llvm::MemoryBuffer::getFile(objectFile.get(), /*IsText=*/false,
+                                  /*RequiresNullTerminator=*/false);
+  if (!objectBuffer)
+    return makeMicrokernelObjectError(
+        record.kernelSymbol, llvm::Twine("failed to read generated object "
+                                         "file: ") +
+                                 objectBuffer.getError().message());
+
+  llvm::StringRef bytes = (*objectBuffer)->getBuffer();
+  if (bytes.empty())
+    return makeMicrokernelObjectError(record.kernelSymbol,
+                                      "generated object file must be non-empty");
+  if (bytes.size() < 4 || !bytes.starts_with("\177ELF"))
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        "generated object file must have an ELF object-file signature");
+
+  os.write(bytes.data(), bytes.size());
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
@@ -1709,12 +1995,39 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
+                                       llvm::raw_ostream &os) {
+  llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record) {
+    std::string message = llvm::toString(record.takeError());
+    return makeModuleMicrokernelObjectError(message);
+  }
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  printMicrokernelSource(*record, stream,
+                         RVVMicrokernelCExportMode::RuntimeCallableLibrary);
+  stream.flush();
+  if (source.empty())
+    return makeMicrokernelObjectError(
+        record->kernelSymbol,
+        "validated RVV microkernel C source must be non-empty before object "
+        "export");
+
+  return compileGeneratedMicrokernelSourceToObject(*record, source, os);
+}
+
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  return registry.registerExporter(TargetArtifactExporter(
-      kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
-      kMicrokernelEmissionKind, exportRVVMicrokernelC,
-      support::getI32VAddRuntimeABIRoleRequirements()));
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
+          kMicrokernelEmissionKind, exportRVVMicrokernelC,
+          support::getI32VAddRuntimeABIRoleRequirements())))
+    return error;
+
+  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+      kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
+      matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject));
 }
 
 } // namespace tianchenrv::target::rvv

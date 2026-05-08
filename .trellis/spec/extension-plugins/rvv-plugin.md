@@ -148,6 +148,17 @@ does not provide generic RVV lowering or runtime ABI integration, and it does
 not create correctness or performance evidence without separate `ssh rvv`
 compile/run artifacts.
 
+The target layer may also compile that same validated library-style
+microkernel source into a bounded RISC-V ELF relocatable object through the
+direct `tcrv-translate --tcrv-export-rvv-microkernel-object` command or
+through the generic artifact-kind-aware front door when it selects the RVV
+microkernel object route. This remains target-owned emission: it consumes the
+already selected callable source candidate, structured RVV architecture
+capability metadata, selected march/mabi capability metadata, and local
+toolchain diagnostics. It does not introduce a new lowering dialect, a hidden
+self-check `main`, linking, runtime probing, correctness evidence, or
+performance evidence.
+
 ## Remote Evidence Probe Contract
 
 The repo-owned RVV evidence probe is `scripts/rvv_remote_probe.py`. It is

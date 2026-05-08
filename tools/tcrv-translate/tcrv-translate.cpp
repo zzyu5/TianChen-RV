@@ -84,6 +84,24 @@ mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportRVVMicrokernelObject(mlir::ModuleOp module,
+                                               llvm::raw_ostream &os) {
+  if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
+    module.emitError()
+        << "failed to switch stdout to binary mode for object export: "
+        << error.message();
+    return mlir::failure();
+  }
+
+  if (llvm::Error error =
+          tianchenrv::target::rvv::exportRVVMicrokernelObject(module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 mlir::LogicalResult exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
                                                     llvm::raw_ostream &os) {
   if (llvm::Error error =
@@ -241,6 +259,12 @@ void registerTianChenRVTranslations() {
       "harness",
       exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelSelfCheckC;
+
+  static mlir::TranslateFromMLIRRegistration rvvMicrokernelObject(
+      "tcrv-export-rvv-microkernel-object",
+      "export one RVV i32 vector-add microkernel library object file",
+      exportRVVMicrokernelObject, registerTianChenRVTranslateDialects);
+  (void)rvvMicrokernelObject;
 
   static mlir::TranslateFromMLIRRegistration rvvScalarDispatchC(
       "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",

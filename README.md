@@ -133,6 +133,14 @@ ABI boundary directly. The explicit
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
 same callable function plus a bounded self-check `main` for evidence
 collection.
+The `tcrv-translate --tcrv-export-rvv-microkernel-object` helper compiles the
+same validated library-style source into one RISC-V ELF relocatable object
+using the structured RVV architecture capability, selected compile capability
+metadata, and local `clang`. For direct selected RVV paths, the generic
+`--tcrv-export-target-artifact` front door can select that bounded object route
+while `--tcrv-export-target-source-artifact` remains source-only. The object
+route has no hidden `main`, does not link or run, and does not perform
+automatic RVV probing.
 Real `ssh rvv` compile/run evidence for that harness source proves only that
 this bounded generated microkernel source compiled and that the harness passed
 on the selected host flags. It is not generic high-level lowering, arbitrary
@@ -176,16 +184,16 @@ runtime calls, implement DMA or buffer management, generate accelerator
 objects, link runtime libraries, run offload hardware, prove correctness, or
 measure performance.
 
-The same generic artifact front door can also select the target-owned
-RVV+scalar i32-vadd dispatch library-object composite route when the selected
-plan contains both validated callable sides. In that case
-`--tcrv-export-target-artifact` prefers the bounded non-source runtime-callable
-object route, while `--tcrv-export-target-source-artifact` remains source-only.
-The object route emits one RISC-V ELF relocatable object from the default
-library-style dispatch source, the structured RVV architecture capability
-metadata, and selected compile capability metadata. It does not add a hidden
-`main` or self-check harness, link, run hardware, auto-probe RVV availability,
-prove correctness, or measure performance.
+The same generic artifact front door can also select target-owned bounded
+RISC-V ELF relocatable object routes for direct RVV i32-vadd microkernel paths
+or for RVV+scalar i32-vadd dispatch library-object composite paths. In those
+cases `--tcrv-export-target-artifact` prefers the bounded non-source
+runtime-callable object route, while
+`--tcrv-export-target-source-artifact` remains source-only. The object routes
+emit from validated library-style source, the structured RVV architecture
+capability metadata, and selected compile capability metadata. They do not add
+a hidden `main` or self-check harness, link, run hardware, auto-probe RVV
+availability, prove correctness, or measure performance.
 
 When the selected RVV path has that exact microkernel attachment, either
 explicitly authored or materialized by the RVV plugin from the finite descriptor,

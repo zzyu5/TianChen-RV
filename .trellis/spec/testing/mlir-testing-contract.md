@@ -103,6 +103,9 @@ Use lit/FileCheck for:
   direct RVV microkernel C exporter for the checked-in explicit microkernel
   fixture, generic route coverage for the target-owned RVV+scalar dispatch
   composite exporter when a planned selected dispatch has both callable sides,
+  and generic target artifact coverage for the target-owned direct RVV
+  microkernel object exporter when a direct selected RVV path has one supported
+  callable side,
   fail-closed diagnostics for unsupported metadata-only paths, missing
   plan/route metadata, unknown route ids, unsupported artifact kinds, stale
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
@@ -161,6 +164,11 @@ Use lit/FileCheck for:
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.
+  Direct RVV microkernel object coverage must prove that the public
+  `--tcrv-export-rvv-microkernel-object` route and the generic
+  `--tcrv-export-target-artifact` front door, when local/native RVV clang
+  object support is detected, emit non-empty tool-readable RISC-V relocatable
+  objects exposing the runtime-callable RVV microkernel symbol and no `main`.
   When the bounded object export routes are present, lit coverage must also
   prove the public library-object and self-check-object routes are visible,
   preserve the source/self-check split, fail closed before object creation for

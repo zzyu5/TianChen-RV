@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariant check"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review object route selection boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV plugin-local ownership"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review validation scope"}

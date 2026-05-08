@@ -124,11 +124,12 @@ ABI before source output. This does not add generic RVV or scalar lowering,
 full runtime ABI integration, object generation, linking, arbitrary source
 export, correctness evidence, or performance evidence.
 
-The artifact-kind-aware generic route may also select target-owned RVV+scalar
-i32-vadd dispatch composite exporters for the same validated selected
-dispatch. The library-object route reuses the selected callable source
-validation, emits the default library-style dispatch source internally, and
-then uses structured RVV architecture capability metadata, selected RVV compile
+The artifact-kind-aware generic route may also select target-owned bounded
+RISC-V ELF relocatable object exporters for the same validated direct RVV
+i32-vadd microkernel path or RVV+scalar i32-vadd dispatch path. These
+library-object routes reuse the selected callable or dispatch source
+validation, emit the default library-style source internally, and then use
+structured RVV architecture capability metadata, selected RVV compile
 capability metadata, and local `clang` to produce a RISC-V ELF relocatable
 object with no hidden `main` or self-check harness. A distinct
 runtime-callable C header route may be selected through the generic
@@ -137,8 +138,8 @@ runtime-callable C header route may be selected through the generic
 external C caller surface: it must not make
 `--tcrv-export-target-source-artifact` ambiguous with
 `runtime-callable-c-source`, and it must not make
-`--tcrv-export-target-artifact` choose the header instead of the
-library-object route. When both source and non-source composite exporters match
+`--tcrv-export-target-artifact` choose the header instead of a matching
+library-object route. When both source and non-source target exporters match
 the same selected plan, `--tcrv-export-target-artifact` must prefer the
 non-source runtime-callable object route while
 `--tcrv-export-target-source-artifact` remains source-only. The object and
