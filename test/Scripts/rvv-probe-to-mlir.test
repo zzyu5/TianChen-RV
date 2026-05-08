@@ -67,13 +67,14 @@
 # PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 # PIPE-SAME: origin = "scalar-plugin"
 # PIPE-SAME: requires = [@scalar_fallback]
-# PIPE: tcrv.exec.dispatch
-# PIPE: tcrv.exec.case @rvv_first_slice
-# PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
+# PIPE-NOT: tcrv.exec.dispatch
+# PIPE: tcrv.exec.diagnostic
+# PIPE-SAME: selection_kind = "static-variant"
+# PIPE-SAME: target = @rvv_first_slice
 # PIPE: tcrv_rvv.lowering_boundary
 # PIPE-SAME: origin = "rvv-plugin"
 # PIPE-SAME: required_capabilities = [@rvv]
-# PIPE-SAME: role = "dispatch case"
+# PIPE-SAME: role = "direct variant"
 # PIPE-SAME: selected_variant = @rvv_first_slice
 # PIPE-SAME: source_kernel = "rvv_probe_replay"
 # PIPE-SAME: status = "unsupported"
@@ -82,16 +83,12 @@
 # PIPE-SAME: origin = "rvv-plugin"
 # PIPE-SAME: required_capabilities = [@rvv]
 # PIPE-SAME: required_march = "rv64gcv"
-# PIPE-SAME: role = "dispatch case"
+# PIPE-SAME: role = "direct variant"
 # PIPE-SAME: selected_mabi = "lp64d"
 # PIPE-SAME: selected_variant = @rvv_first_slice
 # PIPE-SAME: source_kernel = "rvv_probe_replay"
 # PIPE: tcrv_rvv.i32_vadd_dataflow
 # PIPE-SAME: runtime_n_role = "runtime-element-count"
-# PIPE: tcrv_scalar.lowering_boundary
-# PIPE-SAME: origin = "scalar-plugin"
-# PIPE-SAME: role = "dispatch fallback"
-# PIPE-SAME: selected_variant = @scalar_fallback_first_slice
 # PIPE: tcrv.exec.diagnostic
 # PIPE-SAME: artifact_kind = "runtime-callable-c-source"
 # PIPE-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
@@ -99,21 +96,13 @@
 # PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
 # PIPE-SAME: reason = "emission_plan"
 # PIPE-SAME: required_capabilities = [@rvv]
+# PIPE-SAME: role = "direct variant"
 # PIPE-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
 # PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 # PIPE-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
 # PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
 # PIPE-SAME: status = "supported"
 # PIPE-SAME: target = @rvv_first_slice
-# PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-# PIPE-SAME: reason = "emission_plan"
-# PIPE-SAME: required_capabilities = [@scalar_fallback]
-# PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
-# PIPE-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
-# PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
-# PIPE-SAME: status = "supported"
-# PIPE-SAME: target = @scalar_fallback_first_slice
 
 # SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
 # SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice

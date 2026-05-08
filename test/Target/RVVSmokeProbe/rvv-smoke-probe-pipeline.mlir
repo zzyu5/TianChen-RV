@@ -91,7 +91,7 @@ module @rvv_smoke_probe_inputs {
 // CHECK-LABEL: /* probe[0] function: tcrv_rvv_smoke_probe_0_smoke_a_rvv_first_slice */
 // CHECK: /* probe[0] selected_kernel: @smoke_a */
 // CHECK: /* probe[0] selected_variant: @rvv_first_slice */
-// CHECK: /* probe[0] selected_role: dispatch case */
+// CHECK: /* probe[0] selected_role: direct variant */
 // CHECK: /* probe[0] selected_march: rv64gcv */
 // CHECK: /* probe[0] selected_mabi: lp64d */
 // CHECK: /* probe[0] lowering_boundary: tcrv_rvv.lowering_boundary */
@@ -105,7 +105,7 @@ module @rvv_smoke_probe_inputs {
 // CHECK-LABEL: /* probe[1] function: tcrv_rvv_smoke_probe_1_smoke_b_rvv_first_slice */
 // CHECK: /* probe[1] selected_kernel: @smoke_b */
 // CHECK: /* probe[1] selected_variant: @rvv_first_slice */
-// CHECK: /* probe[1] selected_role: dispatch case */
+// CHECK: /* probe[1] selected_role: direct variant */
 // CHECK: /* probe[1] selected_march: rv64gcv */
 // CHECK: /* probe[1] selected_mabi: lp64d */
 // CHECK-LABEL: static int tcrv_rvv_smoke_probe_1_smoke_b_rvv_first_slice(void)

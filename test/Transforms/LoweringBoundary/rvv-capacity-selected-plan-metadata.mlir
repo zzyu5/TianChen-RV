@@ -51,13 +51,13 @@ module {
     // POS-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
     // POS: tcrv_rvv.lowering_boundary
     // POS-SAME: i32_m1_lanes = 4 : i64
-    // POS-SAME: role = "dispatch case"
+    // POS-SAME: role = "direct variant"
     // POS-SAME: selected_variant = @rvv_first_slice
     // POS-SAME: status = "unsupported"
     // POS-SAME: vlenb_bytes = 16 : i64
     // POS: tcrv.exec.diagnostic
     // POS-SAME: reason = "emission_plan"
-    // POS-SAME: role = "dispatch case"
+    // POS-SAME: role = "direct variant"
     // POS-SAME: selected_plan_metadata =
     // POS-SAME: name = "tcrv_rvv.vlenb_bytes"
     // POS-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"

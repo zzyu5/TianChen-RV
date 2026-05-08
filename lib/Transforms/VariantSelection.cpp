@@ -373,8 +373,7 @@ DispatchCaseOp createDispatchCase(mlir::OpBuilder &builder,
       !selectionCase.hasGenericDecisionMetadata)
     state.addAttribute(kPolicyAttrName,
                        builder.getStringAttr(kRuntimeGuardPolicy));
-  if (selectionCase.requiresRuntimeCapabilityGuard ||
-      selectionCase.hasGenericDecisionMetadata)
+  if (selectionCase.requiresRuntimeCapabilityGuard)
     state.addAttribute(kRuntimeGuardRequiredAttrName,
                        builder.getBoolAttr(true));
   addPreferenceMetadata(builder, state, plan, selectionCase);
@@ -643,11 +642,6 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
       return legality.takeError();
 
     bool hasDecisionMetadata = hasGenericDecisionMetadata(entry.variant);
-    if (!legality->available && !hasDecisionMetadata)
-      return makeSelectionError(
-          kernel, entry.variant,
-          "unavailable variant lacks generic condition/guard/policy metadata "
-          "and cannot be selected or retained by runtime dispatch");
 
     bool conflictFreeAvailable = legality->available && legality->conflictFree;
     bool conservativeFallback =
@@ -669,8 +663,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
 
   bool hasDispatchGuardedCandidate = llvm::any_of(
       plan.rankedVariants, [](const VariantSelectionCase &candidate) {
-        return candidate.requiresRuntimeCapabilityGuard ||
-               candidate.hasGenericDecisionMetadata;
+        return candidate.requiresRuntimeCapabilityGuard;
       });
 
   if (!selectedIndex && hasDispatchGuardedCandidate && !fallbackIndex)
@@ -702,9 +695,7 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
     const VariantSelectionCase &candidate = plan.rankedVariants[index];
     if (index == *selectedIndex)
       continue;
-    if (candidate.requiresRuntimeCapabilityGuard ||
-        (candidate.hasGenericDecisionMetadata &&
-         (index < *selectedIndex || !candidate.genericallyAvailable))) {
+    if (candidate.requiresRuntimeCapabilityGuard) {
       dispatchWouldNeedFallback = true;
       break;
     }
@@ -717,28 +708,14 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
         "available; cannot materialize tcrv.exec.dispatch without inventing an "
         "implicit fallback");
 
-  if (fallbackIndex && *selectedIndex != *fallbackIndex) {
-    if (!selectedCase.hasGenericDecisionMetadata &&
-        !selectedCase.requiresRuntimeCapabilityGuard)
-      return makeSelectionError(
-          kernel, selectedCase.variant,
-          "selected dispatch case requires non-empty generic condition, guard, "
-          "or policy metadata when a distinct fallback is present");
-    plan.dispatchCases.push_back(selectedCase);
-  }
-
   for (std::size_t index = 0; index < plan.rankedVariants.size(); ++index) {
     if ((fallbackIndex && index == *fallbackIndex) || index == *selectedIndex)
       continue;
     const VariantSelectionCase &candidate = plan.rankedVariants[index];
-    if (!candidate.requiresRuntimeCapabilityGuard &&
-        !candidate.hasGenericDecisionMetadata)
+    if (!candidate.requiresRuntimeCapabilityGuard)
       continue;
 
-    if (candidate.requiresRuntimeCapabilityGuard ||
-        (fallbackIndex && index < *fallbackIndex) || index < *selectedIndex ||
-        !candidate.genericallyAvailable)
-      plan.dispatchCases.push_back(candidate);
+    plan.dispatchCases.push_back(candidate);
   }
 
   if (fallbackIndex && !plan.dispatchCases.empty()) {

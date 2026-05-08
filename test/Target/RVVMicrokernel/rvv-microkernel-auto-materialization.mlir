@@ -61,10 +61,13 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: tcrv_rvv.element_count = 16 : i64
 // IR-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
 // IR-SAME: tcrv_rvv.required_march = "rv64gcv"
-// IR: tcrv.exec.case @rvv_first_slice
+// IR-NOT: tcrv.exec.dispatch
+// IR: tcrv.exec.diagnostic
+// IR-SAME: selection_kind = "static-variant"
+// IR-SAME: target = @rvv_first_slice
 // IR: tcrv_rvv.lowering_boundary
 // IR-SAME: required_capabilities = [@rvv]
-// IR-SAME: role = "dispatch case"
+// IR-SAME: role = "direct variant"
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "auto_i32_vadd"
 // IR-SAME: status = "unsupported"
@@ -73,7 +76,7 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: origin = "rvv-plugin"
 // IR-SAME: required_capabilities = [@rvv]
 // IR-SAME: required_march = "rv64gcv"
-// IR-SAME: role = "dispatch case"
+// IR-SAME: role = "direct variant"
 // IR-SAME: selected_mabi = "lp64d"
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "auto_i32_vadd"
@@ -98,7 +101,7 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
 // IR-SAME: reason = "emission_plan"
 // IR-SAME: required_capabilities = [@rvv]
-// IR-SAME: role = "dispatch case"
+// IR-SAME: role = "direct variant"
 // IR-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
 // IR-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // IR-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
@@ -113,7 +116,7 @@ module @rvv_auto_microkernel_input {
 // EXPORT-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice */
 // EXPORT: /* selected_kernel: @auto_i32_vadd */
 // EXPORT: /* selected_variant: @rvv_first_slice */
-// EXPORT: /* selected_role: dispatch case */
+// EXPORT: /* selected_role: direct variant */
 // EXPORT: /* selected_march: rv64gcv */
 // EXPORT: /* selected_mabi: lp64d */
 // EXPORT: /* lowering_boundary: tcrv_rvv.lowering_boundary */

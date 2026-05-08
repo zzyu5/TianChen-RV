@@ -20,12 +20,11 @@ module @offload_manifest_inputs {
 // CHECK: tianchenrv.emission_manifest.version: 1
 // CHECK: module: "offload_manifest_inputs"
 // CHECK-LABEL: kernel @pipeline_offload_manifest
-// CHECK: selected_surface: dispatch
-// CHECK: dispatch_case[0]: @offload_runtime_first_slice
-// CHECK: dispatch_fallback: @scalar_fallback_first_slice
+// CHECK: selected_surface: selected-marker
+// CHECK: selection_kind: "static-variant"
 // CHECK: path[0]:
 // CHECK: selected_variant: @offload_runtime_first_slice
-// CHECK: role: "dispatch case"
+// CHECK: role: "direct variant"
 // CHECK: origin: "offload-plugin"
 // CHECK: emission_status: "supported"
 // CHECK: emission_kind: "runtime-offload-handoff-descriptor"
@@ -41,23 +40,4 @@ module @offload_manifest_inputs {
 // CHECK: preference:
 // CHECK: available: true
 // CHECK: policy: "prefer runtime-offload metadata handoff only when explicit offload.runtime capability metadata is available"
-// CHECK: path[1]:
-// CHECK: selected_variant: @scalar_fallback_first_slice
-// CHECK: role: "dispatch fallback"
-// CHECK: origin: "scalar-plugin"
-// CHECK: emission_status: "supported"
-// CHECK: emission_kind: "scalar-explicit-i32-vadd-microkernel-c-source"
-// CHECK: lowering_pipeline: "tcrv-export-scalar-microkernel-c"
-// CHECK: lowering_boundary: "tcrv_scalar.lowering_boundary"
-// CHECK: runtime_abi: "scalar-i32-vadd-runtime-callable-c-abi.v1"
-// CHECK: runtime_abi_kind: "scalar-runtime-callable-c-abi"
-// CHECK: runtime_abi_name: "scalar-i32-vadd-runtime-callable-c-function.v1"
-// CHECK: runtime_abi_parameters:
-// CHECK: c_name: "lhs"
-// CHECK: role: "lhs-input-buffer"
-// CHECK: c_name: "n"
-// CHECK: role: "runtime-element-count"
-// CHECK: runtime_glue_role: "runtime-callable-i32-vadd-fallback-function"
-// CHECK: artifact_kind: "runtime-callable-c-source"
-// CHECK: required_capabilities: [@scalar_fallback]
-// CHECK: fallback_role: "conservative"
+// CHECK-NOT: path[1]:

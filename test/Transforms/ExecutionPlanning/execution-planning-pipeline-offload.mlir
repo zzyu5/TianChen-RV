@@ -30,31 +30,22 @@ module {
     // PIPE-SAME: fallback_role = "conservative"
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: requires = [@scalar_fallback]
-    // PIPE: tcrv.exec.dispatch
-    // PIPE: tcrv.exec.case @offload_runtime_first_slice
-    // PIPE-SAME: condition = "offload_runtime_capability_available"
-    // PIPE-SAME: guard = "plugin_local_runtime_offload_handoff_metadata"
-    // PIPE-SAME: origin = "offload-plugin"
-    // PIPE-SAME: policy = "metadata_only_runtime_offload_first_slice"
+    // PIPE-NOT: tcrv.exec.dispatch
+    // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: preference_available = true
     // PIPE-SAME: preference_rank = 0
     // PIPE-SAME: preference_score
-    // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
-    // PIPE-SAME: fallback_role = "conservative"
-    // PIPE-SAME: origin = "scalar-plugin"
-    // PIPE-SAME: preference_rank = 1
+    // PIPE-SAME: selection_kind = "static-variant"
+    // PIPE-SAME: target = @offload_runtime_first_slice
     // PIPE: tcrv_offload.lowering_boundary
     // PIPE-SAME: handoff_kind = "runtime-offload"
     // PIPE-SAME: origin = "offload-plugin"
     // PIPE-SAME: required_capabilities = [@offload_runtime]
-    // PIPE-SAME: role = "dispatch case"
+    // PIPE-SAME: role = "direct variant"
     // PIPE-SAME: runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
     // PIPE-SAME: selected_variant = @offload_runtime_first_slice
     // PIPE-SAME: source_kernel = "pipeline_offload_plus_scalar"
     // PIPE-SAME: status = "metadata-only"
-    // PIPE: tcrv_scalar.lowering_boundary
-    // PIPE-SAME: role = "dispatch fallback"
-    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: artifact_kind = "runtime-offload-handoff-descriptor"
     // PIPE-SAME: emission_kind = "runtime-offload-handoff-descriptor"
@@ -64,21 +55,15 @@ module {
     // PIPE-SAME: plan_kind = "plugin-emission-plan"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@offload_runtime]
-    // PIPE-SAME: role = "dispatch case"
+    // PIPE-SAME: role = "direct variant"
     // PIPE-SAME: runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
     // PIPE-SAME: runtime_abi_kind = "runtime-offload-c-abi-handoff"
     // PIPE-SAME: runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1"
     // PIPE-SAME: runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary"
     // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @offload_runtime_first_slice
-    // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-    // PIPE-SAME: target = @scalar_fallback_first_slice
-
     // ROUNDTRIP: tcrv_offload.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @offload_runtime_first_slice
-    // ROUNDTRIP: tcrv_scalar.lowering_boundary
-    // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
   }
 }
 

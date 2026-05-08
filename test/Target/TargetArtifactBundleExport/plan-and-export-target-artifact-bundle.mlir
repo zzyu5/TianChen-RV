@@ -18,6 +18,13 @@ module @plan_and_export_target_artifact_bundle_input {
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      conflicts = ["build.policy.no_rvv"],
+      status = "available"
+    }
+    tcrv.exec.capability @no_rvv_policy {
+      id = "generic.build.profile",
+      kind = "build-policy",
+      provides = ["build.policy.no_rvv"],
       status = "available"
     }
     tcrv.exec.capability @rvv_hart_count {

@@ -7,7 +7,7 @@
 # OFFLOAD-DESC: adapter_contract: "external-runtime-adapter-runtime-offload-descriptor.v1"
 # OFFLOAD-DESC: source_kernel: @pipeline_offload_manifest
 # OFFLOAD-DESC: selected_variant: @offload_runtime_first_slice
-# OFFLOAD-DESC: selected_role: "dispatch case"
+# OFFLOAD-DESC: selected_role: "direct variant"
 # OFFLOAD-DESC: origin_plugin: "offload-plugin"
 # OFFLOAD-DESC: route_id: "tcrv-export-offload-runtime-descriptor"
 # OFFLOAD-DESC: emission_kind: "runtime-offload-handoff-descriptor"

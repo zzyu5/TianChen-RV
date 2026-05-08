@@ -421,7 +421,9 @@ struct VariantSelectionCase {
   plugin::VariantCostEstimate cost;
   std::size_t originalIndex;
   bool genericallyAvailable;
+  bool conflictFree;
   bool hasGenericDecisionMetadata;
+  bool requiresRuntimeCapabilityGuard;
 };
 
 struct VariantSelectionPlan {
@@ -473,6 +475,9 @@ The generic selection-planning contract is:
 - reject unavailable variants unless selection can materialize an explicit
   dispatch case with typed `runtime_guard_required = true` and a distinct
   conflict-free conservative fallback, rather than silently selecting them;
+- do not turn printable `condition`, `guard`, or `policy` metadata by itself
+  into a runtime dispatch plan when the selected path is already
+  conflict-free and generically available;
 - choose the best selected variant by generic availability and cost ranking;
 - materialize generic preference metadata on selected markers, dispatch cases,
   and fallbacks so diagnostics expose origin plugin, explicit-preference
@@ -490,8 +495,9 @@ The generic selection-planning contract is:
   candidate;
 - produce a static plan when the lowest ranked executable path is available and
   no lower-cost guarded candidate must be retained;
-- produce a runtime dispatch plan when guarded or conflicting candidates must
-  be retained and a conflict-free generically available fallback exists.
+- produce a runtime dispatch plan when capability-guarded unavailable or
+  conflicting candidates must be retained and a conflict-free generically
+  available fallback exists.
 
 ### 4. Validation & Error Matrix
 
@@ -502,8 +508,12 @@ The generic selection-planning contract is:
   variant, and kernel context;
 - selected/dispatched variant without structured `requires` metadata -> return
   an `llvm::Error`;
-- unavailable variant without generic decision metadata -> return an
-  `llvm::Error`;
+- unavailable or conflicting variants may be retained only when the planner can
+  materialize an explicit dispatch case with typed
+  `runtime_guard_required = true` and a plugin-provided conflict-free
+  conservative fallback; when no printable decision metadata exists, selection
+  may synthesize a target-neutral annotation such as
+  `policy = "capability_dispatch_guard"`;
 - runtime-dispatch plan without a plugin-provided conflict-free conservative
   fallback candidate -> return an `llvm::Error`;
 - dispatch materialization for a non-runtime-dispatch plan -> return an
@@ -527,8 +537,9 @@ The generic selection-planning contract is:
   `tcrv.exec.case` ops plus one `tcrv.exec.fallback`.
 - Base: all candidates are generically available and unguarded; the planner
   chooses the lowest-cost static variant and preserves stable equal-score order.
-- Bad: an unavailable unguarded variant appears in the ranked set; the planner
-  rejects it instead of silently selecting or dispatching it.
+- Bad: an unavailable or conflicting variant has no structured runtime
+  capability guard route and no conflict-free conservative fallback; the planner
+  rejects it instead of silently selecting it or inventing a fallback.
 
 ### 6. Tests Required
 

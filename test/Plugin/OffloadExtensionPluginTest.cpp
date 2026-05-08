@@ -36,7 +36,6 @@ using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
-using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::offload::LoweringBoundaryOp;
@@ -462,22 +461,21 @@ module {
                 llvm::toString(planOrError.takeError()));
   VariantSelectionPlan selectionPlan = std::move(*planOrError);
   if (int result =
-          expect(selectionPlan.kind == VariantSelectionKind::RuntimeDispatch &&
+          expect(selectionPlan.kind == VariantSelectionKind::StaticVariant &&
                      selectionPlan.selectedVariant == offloadVariant &&
                      selectionPlan.fallback == scalarVariant &&
-                     selectionPlan.dispatchCases.size() == 1 &&
-                     selectionPlan.dispatchCases.front().variant ==
-                         offloadVariant,
-                 "offload selected path retains scalar fallback dispatch"))
+                     selectionPlan.dispatchCases.empty(),
+                 "offload selected path keeps printable metadata static while "
+                 "recording scalar fallback coverage"))
     return result;
 
-  DispatchOp dispatch;
+  DiagnosticOp marker;
   if (int result = expectSuccess(
-          tianchenrv::transforms::materializeRuntimeDispatchPlan(
-              builder, selectionPlan, &dispatch),
-          "materialize offload runtime dispatch"))
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, selectionPlan, &marker),
+          "materialize offload selected marker"))
     return result;
-  if (int result = expect(dispatch, "runtime dispatch was created"))
+  if (int result = expect(marker, "selected marker was created"))
     return result;
 
   if (int result = expectSuccess(
@@ -498,7 +496,7 @@ module {
                      tianchenrv::plugin::offload::
                          getOffloadExtensionPluginName() &&
                      offloadBoundary->getAttrOfType<mlir::StringAttr>("role")
-                         .getValue() == "dispatch case" &&
+                         .getValue() == "direct variant" &&
                      offloadBoundary->getAttrOfType<mlir::StringAttr>("status")
                          .getValue() == "metadata-only" &&
                      offloadBoundary
@@ -516,7 +514,7 @@ module {
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(offloadVariant, kernel, capabilities,
-                                     VariantEmissionRole::DispatchCase),
+                                     VariantEmissionRole::DirectVariant),
               status),
           "offload emission readiness is plugin-owned"))
     return result;
@@ -530,7 +528,7 @@ module {
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
               VariantEmissionRequest(offloadVariant, kernel, capabilities,
-                                     VariantEmissionRole::DispatchCase),
+                                     VariantEmissionRole::DirectVariant),
               emissionPlan),
           "offload emission plan is plugin-owned"))
     return result;

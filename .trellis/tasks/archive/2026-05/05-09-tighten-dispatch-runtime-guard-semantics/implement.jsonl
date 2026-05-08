@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global compiler stack and tcrv.exec capability-driven invariants"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "typed runtime_guard_required and printable decision metadata contract"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability availability/conflict guard semantics"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selection and runtime dispatch planning contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI guard/export boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit and C++ coverage for guard semantics"}

@@ -611,11 +611,11 @@ module {
                           "equal preference tie ranks conservative fallback after non-fallback"))
     return result;
   if (int result =
-          expect(plan.fallback.getSymName() == "fallback_ir_first" &&
-                     plan.dispatchCases.size() == 1 &&
-                     plan.dispatchCases.front().variant ==
-                         plan.selectedVariant,
-                 "fallback role tie-break still preserves explicit fallback"))
+          expect(plan.kind == VariantSelectionKind::StaticVariant &&
+                     plan.fallback.getSymName() == "fallback_ir_first" &&
+                     plan.dispatchCases.empty(),
+                 "printable policy metadata preserves fallback ranking without "
+                 "creating runtime dispatch"))
     return result;
 
   return 0;
@@ -1056,6 +1056,11 @@ module {
                  "conflicting case receives synthesized generic policy guard"))
     return result;
   if (int result =
+          expect(getBoolAttr(cases.front().getOperation(),
+                             "runtime_guard_required"),
+                 "conflicting case carries typed runtime guard requirement"))
+    return result;
+  if (int result =
           expect(fallback &&
                      getTarget(fallback.getOperation()) == "portable_fallback",
                  "materialized fallback remains conflict-free"))
@@ -1200,10 +1205,13 @@ module {
                 llvm::toString(rvvScalarPlanOrError.takeError()));
   VariantSelectionPlan rvvScalarPlan = std::move(*rvvScalarPlanOrError);
   if (int result =
-          expect(rvvScalarPlan.kind == VariantSelectionKind::RuntimeDispatch &&
+          expect(rvvScalarPlan.kind == VariantSelectionKind::StaticVariant &&
                      rvvScalarPlan.selectedVariant == rvvVariant &&
-                     rvvScalarPlan.fallback == scalarVariant,
-                 "RVV is selected while scalar remains explicit fallback"))
+                     rvvScalarPlan.fallback == scalarVariant &&
+                     rvvScalarPlan.dispatchCases.empty() &&
+                     !rvvScalarPlan.missingFallbackCoverage,
+                 "available RVV is selected statically while scalar remains "
+                 "explicit fallback"))
     return result;
   if (int result =
           expect(rvvScalarPlan.rankedVariants.size() == 2 &&
@@ -1217,39 +1225,23 @@ module {
                      rvvScalarPlan.rankedVariants[1].cost.getScore() == 1000.0,
                  "RVV plugin preference outranks scalar fallback preference"))
     return result;
-  if (int result = expect(rvvScalarPlan.dispatchCases.size() == 1 &&
-                              rvvScalarPlan.dispatchCases.front().variant ==
-                                  rvvVariant,
-                          "runtime dispatch keeps selected RVV case"))
-    return result;
-
-  DispatchOp dispatch;
+  DiagnosticOp rvvScalarMarker;
   if (int result =
-          expectSuccess(tianchenrv::transforms::materializeRuntimeDispatchPlan(
-                            builder, rvvScalarPlan, &dispatch),
-                        "materialize RVV/scalar dispatch plan"))
-    return result;
-  llvm::SmallVector<DispatchCaseOp, 2> cases;
-  FallbackOp fallback;
-  for (mlir::Operation &operation : dispatch.getBody().front()) {
-    if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(operation)) {
-      cases.push_back(dispatchCase);
-      continue;
-    }
-    if (auto fallbackCandidate = llvm::dyn_cast<FallbackOp>(operation))
-      fallback = fallbackCandidate;
-  }
-  if (int result =
-          expect(cases.size() == 1 &&
-                     getTarget(cases.front().getOperation()) ==
-                         rvvVariant.getSymName(),
-                 "materialized dispatch case targets selected RVV variant"))
+          expectSuccess(tianchenrv::transforms::materializeSelectedVariantMarker(
+                            builder, rvvScalarPlan, &rvvScalarMarker),
+                        "materialize RVV/scalar selected marker"))
     return result;
   if (int result =
-          expect(fallback &&
-                     getTarget(fallback.getOperation()) ==
-                         scalarVariant.getSymName(),
-                 "materialized dispatch fallback targets scalar fallback"))
+          expect(countDirectDispatches(rvvScalarKernel) == 0 &&
+                     rvvScalarMarker &&
+                     getTarget(rvvScalarMarker.getOperation()) ==
+                         rvvVariant.getSymName() &&
+                     getStringAttr(rvvScalarMarker.getOperation(),
+                                   "selection_kind") == "static-variant" &&
+                     !rvvScalarMarker->hasAttr("runtime_guard_required") &&
+                     !rvvScalarMarker->hasAttr("runtime_guard"),
+                 "available RVV printable annotations do not create runtime "
+                 "dispatch or typed guard metadata"))
     return result;
 
   KernelOp scalarOnlyKernel = findKernel(*module, "scalar_only");
@@ -1444,8 +1436,8 @@ module {
           tianchenrv::transforms::planKernelVariantSelection(
               unguardedKernel,
               TargetCapabilitySet::buildFromKernel(unguardedKernel), registry),
-          {"unavailable variant lacks generic condition/guard/policy metadata",
-           "unguarded_unavailable", "unguarded_unavailable_anchor"}))
+          {"no plugin-provided conflict-free conservative fallback candidate",
+           "unguarded_unavailable_anchor"}))
     return result;
 
   KernelOp conflictWithoutFallbackKernel =

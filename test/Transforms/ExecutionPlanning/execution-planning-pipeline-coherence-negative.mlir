@@ -7,6 +7,13 @@ module {
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      conflicts = ["build.policy.no_rvv"],
+      status = "available"
+    }
+    tcrv.exec.capability @no_rvv_policy {
+      id = "generic.build.profile.rvv",
+      kind = "build-policy",
+      provides = ["build.policy.no_rvv"],
       status = "available"
     }
     tcrv.exec.capability @rvv_hart_count {
@@ -32,7 +39,14 @@ module {
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      conflicts = ["build.policy.no_offload"],
       handoff_kind = "runtime-offload"
+    }
+    tcrv.exec.capability @no_offload_policy {
+      id = "generic.build.profile.offload",
+      kind = "build-policy",
+      provides = ["build.policy.no_offload"],
+      status = "available"
     }
     tcrv.exec.capability @scalar_fallback {
       id = "scalar.fallback",

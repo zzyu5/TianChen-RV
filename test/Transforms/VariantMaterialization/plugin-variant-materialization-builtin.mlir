@@ -82,13 +82,12 @@ module {
     // PIPE-LABEL: tcrv.exec.kernel @deterministic_builtin_order
     // PIPE: tcrv.exec.variant @rvv_first_slice
     // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
-    // PIPE: tcrv.exec.dispatch
-    // PIPE: tcrv.exec.case @rvv_first_slice
-    // PIPE-SAME: condition = "rvv_capability_properties_available"
-    // PIPE-SAME: guard = "plugin_local_rvv_property_evidence"
-    // PIPE-SAME: policy = "metadata_only_first_slice"
-    // PIPE-SAME: runtime_guard_required = true
-    // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
+    // PIPE-NOT: tcrv.exec.dispatch
+    // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: reason = "variant-selected"
+    // PIPE-SAME: selection_kind = "static-variant"
+    // PIPE-SAME: target = @rvv_first_slice
+    // PIPE-NOT: runtime_guard
 
     // RERUN-LABEL: tcrv.exec.kernel @deterministic_builtin_order
     // RERUN-COUNT-1: tcrv.exec.variant @rvv_first_slice
@@ -145,10 +144,12 @@ module {
     // PIPE-LABEL: tcrv.exec.kernel @rvv_profile_provides_rvv
     // PIPE: tcrv.exec.variant @rvv_first_slice
     // PIPE-SAME: requires = [@rvv_profile]
-    // PIPE: tcrv.exec.dispatch
-    // PIPE: tcrv.exec.case @rvv_first_slice
-    // PIPE-SAME: runtime_guard_required = true
-    // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
+    // PIPE-NOT: tcrv.exec.dispatch
+    // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: reason = "variant-selected"
+    // PIPE-SAME: selection_kind = "static-variant"
+    // PIPE-SAME: target = @rvv_first_slice
+    // PIPE-NOT: runtime_guard
 
     // RERUN-LABEL: tcrv.exec.kernel @rvv_profile_provides_rvv
     // RERUN-COUNT-1: tcrv.exec.variant @rvv_first_slice

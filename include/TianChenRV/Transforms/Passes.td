@@ -121,12 +121,17 @@ def SelectVariants
     Runtime-dispatch plans materialize typed tcrv.exec.dispatch,
     tcrv.exec.case, and tcrv.exec.fallback operations only when a plugin-provided
     generic conservative fallback candidate is available and conflict-free.
-    Conflicting available non-fallback variants are retained only as guarded
-    dispatch cases. Static and fallback-only plans materialize a generic
-    selected-path tcrv.exec.diagnostic marker with target and selection_kind
-    metadata; static plans without fallback coverage also materialize a
-    missing-fallback diagnostic instead of inventing an implicit fallback.
-    No-variant plans do not erase variants or inject target-specific IR.
+    Unavailable or conflicting non-fallback variants are retained only as
+    guarded dispatch cases with typed runtime_guard_required metadata. Generic
+    condition, guard, and policy strings may still be copied as printable
+    decision annotations when a capability-guarded dispatch case is
+    materialized, but they do not independently create dispatch plans or typed
+    runtime guard requirements. Static and fallback-only plans materialize a
+    generic selected-path tcrv.exec.diagnostic marker with target and
+    selection_kind metadata; static plans without fallback coverage also
+    materialize a missing-fallback diagnostic instead of inventing an implicit
+    fallback. No-variant plans do not erase variants or inject target-specific
+    IR.
   }];
   let constructor =
       "::tianchenrv::transforms::createSelectVariantsPass()";

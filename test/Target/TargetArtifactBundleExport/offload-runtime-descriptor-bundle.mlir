@@ -21,10 +21,10 @@ module @unused_offload_bundle_test_anchor {
 // INDEX: artifact[0]:
 // INDEX: file_name: "artifact-0-runtime-offload-handoff-descriptor-tcrv-export-offload-runtime-descriptor.txt"
 // INDEX: selected_variant: @offload_runtime_first_slice
-// INDEX: role: "dispatch case"
+// INDEX: role: "direct variant"
 // INDEX: component[0]:
 // INDEX: selected_variant: @offload_runtime_first_slice
-// INDEX: role: "dispatch case"
+// INDEX: role: "direct variant"
 // INDEX: artifact_kind: "runtime-offload-handoff-descriptor"
 // INDEX: route: "tcrv-export-offload-runtime-descriptor"
 // INDEX: owner: "offload-plugin"
@@ -42,7 +42,7 @@ module @unused_offload_bundle_test_anchor {
 // DESC: adapter_contract: "external-runtime-adapter-runtime-offload-descriptor.v1"
 // DESC: source_kernel: @pipeline_offload_manifest
 // DESC: selected_variant: @offload_runtime_first_slice
-// DESC: selected_role: "dispatch case"
+// DESC: selected_role: "direct variant"
 // DESC: origin_plugin: "offload-plugin"
 // DESC: route_id: "tcrv-export-offload-runtime-descriptor"
 // DESC: artifact_kind: "runtime-offload-handoff-descriptor"
