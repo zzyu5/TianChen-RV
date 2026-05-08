@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack and boundary invariants for this implementation"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and bundle index contract requirements"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit/script test coverage for artifact bundle behavior"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and evidence boundary for dispatch artifacts"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback locality and runtime-callable ABI boundary"}

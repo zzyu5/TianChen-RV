@@ -68,6 +68,8 @@ constexpr llvm::StringLiteral kScalarEmissionKind(
     "scalar-explicit-i32-vadd-microkernel-c-source");
 constexpr llvm::StringLiteral kDispatchTargetOwner(
     "rvv-scalar-dispatch-target");
+constexpr llvm::StringLiteral kDispatchExternalABIComponentGroup(
+    "rvv-scalar-i32-vadd-dispatch-external-abi.v1");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -1644,7 +1646,8 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
               abi.runtimeABIKind, abi.runtimeABIName,
-              /*directHelperRoute=*/true)))
+              /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
+              abi.runtimeABIName)))
     return error;
 
   if (llvm::Error error =
@@ -1654,7 +1657,8 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               matchRVVScalarI32VAddDispatchCandidates,
               exportRVVScalarI32VAddDispatchHeader, kDispatchTargetOwner,
               abi.runtimeABIKind, abi.runtimeABIName,
-              /*directHelperRoute=*/true)))
+              /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
+              abi.runtimeABIName)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
@@ -1663,7 +1667,8 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
       matchRVVScalarI32VAddDispatchCandidates,
       exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
       abi.runtimeABIKind, abi.runtimeABIName,
-      /*directHelperRoute=*/true));
+      /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
+      abi.runtimeABIName));
 }
 
 } // namespace tianchenrv::target::rvv_scalar

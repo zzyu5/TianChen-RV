@@ -86,6 +86,9 @@ struct TargetArtifactBundleRecord {
   std::string role;
   llvm::SmallVector<std::string, 4> componentVariants;
   llvm::SmallVector<std::string, 4> componentRoles;
+  std::string componentGroup;
+  std::string componentRole;
+  std::string externalABIName;
   std::string artifactKind;
   std::string routeID;
   std::string owner;
@@ -109,7 +112,9 @@ public:
                                   llvm::StringRef owner = {},
                                   llvm::StringRef runtimeABIKind = {},
                                   llvm::StringRef runtimeABIName = {},
-                                  bool directHelperRoute = false);
+                                  bool directHelperRoute = false,
+                                  llvm::StringRef componentGroup = {},
+                                  llvm::StringRef externalABIName = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -119,6 +124,8 @@ public:
   llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
   llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
   bool hasDirectHelperRoute() const { return directHelperRoute; }
+  llvm::StringRef getComponentGroup() const { return componentGroup; }
+  llvm::StringRef getExternalABIName() const { return externalABIName; }
 
 private:
   std::string routeID;
@@ -129,6 +136,8 @@ private:
   std::string runtimeABIKind;
   std::string runtimeABIName;
   bool directHelperRoute = false;
+  std::string componentGroup;
+  std::string externalABIName;
 };
 
 class TargetArtifactExporterRegistry {
@@ -158,6 +167,9 @@ llvm::Error collectTargetArtifactCandidates(
 llvm::Error collectTargetArtifactBundleRecords(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::SmallVectorImpl<TargetArtifactBundleRecord> &out);
+
+llvm::Error validateTargetArtifactBundleComponentContract(
+    llvm::ArrayRef<TargetArtifactBundleRecord> records);
 
 std::string
 deriveTargetArtifactBundleFileName(const TargetArtifactBundleRecord &record,

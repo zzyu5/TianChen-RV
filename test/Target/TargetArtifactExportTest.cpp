@@ -224,7 +224,9 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                           llvm::StringRef expectedOwner = {},
                           llvm::StringRef expectedRuntimeABIKind = {},
                           llvm::StringRef expectedRuntimeABIName = {},
-                          bool expectedDirectHelperRoute = false) {
+                          bool expectedDirectHelperRoute = false,
+                          llvm::StringRef expectedComponentGroup = {},
+                          llvm::StringRef expectedExternalABIName = {}) {
   const TargetArtifactCompositeExporter *matched = nullptr;
   for (const TargetArtifactCompositeExporter &exporter :
        registry.getCompositeExporters()) {
@@ -245,7 +247,9 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
       !matched->getExportFn() || matched->getOwner() != expectedOwner ||
       matched->getRuntimeABIKind() != expectedRuntimeABIKind ||
       matched->getRuntimeABIName() != expectedRuntimeABIName ||
-      matched->hasDirectHelperRoute() != expectedDirectHelperRoute) {
+      matched->hasDirectHelperRoute() != expectedDirectHelperRoute ||
+      matched->getComponentGroup() != expectedComponentGroup ||
+      matched->getExternalABIName() != expectedExternalABIName) {
     llvm::errs() << "malformed built-in composite route metadata for '"
                  << routeID << "'\n";
     return false;
@@ -638,6 +642,9 @@ module {
   const TargetArtifactBundleRecord &sourceRecord = records[0];
   if (sourceRecord.artifactKind != "runtime-callable-c-source" ||
       sourceRecord.routeID != "bundle-source-route" ||
+      sourceRecord.componentRole != "source" ||
+      !sourceRecord.componentGroup.empty() ||
+      !sourceRecord.externalABIName.empty() ||
       sourceRecord.owner != "test-plugin" ||
       sourceRecord.selectableVia != "tcrv-export-target-source-artifact" ||
       !sourceRecord.genericFrontDoorSelectable ||
@@ -652,6 +659,9 @@ module {
   const TargetArtifactBundleRecord &headerRecord = records[1];
   if (headerRecord.artifactKind != "runtime-callable-c-header" ||
       headerRecord.routeID != "bundle-header-route" ||
+      headerRecord.componentRole != "header" ||
+      !headerRecord.componentGroup.empty() ||
+      !headerRecord.externalABIName.empty() ||
       headerRecord.owner != "test-target-owner" ||
       headerRecord.selectableVia != "tcrv-export-target-header-artifact" ||
       headerRecord.evidenceRole != "header-declaration") {
@@ -662,6 +672,9 @@ module {
   const TargetArtifactBundleRecord &objectRecord = records[2];
   if (objectRecord.artifactKind != "riscv-elf-relocatable-object" ||
       objectRecord.routeID != "bundle-object-route" ||
+      objectRecord.componentRole != "object" ||
+      !objectRecord.componentGroup.empty() ||
+      !objectRecord.externalABIName.empty() ||
       objectRecord.owner != "test-target-owner" ||
       objectRecord.selectableVia != "tcrv-export-target-artifact" ||
       objectRecord.evidenceRole != "relocatable-object") {
@@ -722,6 +735,88 @@ bool expectTargetArtifactBundleFileNames() {
     llvm::errs() << "unexpected descriptor bundle file name\n";
     return false;
   }
+
+  return true;
+}
+
+TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
+    llvm::StringRef artifactKind, llvm::StringRef routeID,
+    llvm::StringRef componentRole) {
+  TargetArtifactBundleRecord record;
+  record.componentVariants.push_back("rvv_first_slice");
+  record.componentVariants.push_back("scalar_fallback_first_slice");
+  record.componentRoles.push_back("dispatch case");
+  record.componentRoles.push_back("dispatch fallback");
+  record.componentGroup =
+      "rvv-scalar-i32-vadd-dispatch-external-abi.v1";
+  record.componentRole = componentRole.str();
+  record.externalABIName =
+      "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1";
+  record.artifactKind = artifactKind.str();
+  record.routeID = routeID.str();
+  record.owner = "rvv-scalar-dispatch-target";
+  record.runtimeABIKind = "rvv-scalar-dispatch-runtime-callable-c-abi";
+  record.runtimeABIName =
+      "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1";
+  return record;
+}
+
+bool expectTargetArtifactBundleComponentContractValidation() {
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> records;
+  records.push_back(makeDispatchBundleComponentRecord(
+      "runtime-callable-c-source",
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-c", "source"));
+  records.push_back(makeDispatchBundleComponentRecord(
+      "runtime-callable-c-header",
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-header", "header"));
+  records.push_back(makeDispatchBundleComponentRecord(
+      "riscv-elf-relocatable-object",
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-object", "object"));
+
+  if (!expectSuccess(validateTargetArtifactBundleComponentContract(records),
+                     "dispatch bundle component contract accepted"))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> duplicateRole(records);
+  duplicateRole[2] = records[1];
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(duplicateRole),
+          "duplicate dispatch bundle component role rejected",
+          {"duplicate component_role", "header"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> missingHeader;
+  missingHeader.push_back(records[0]);
+  missingHeader.push_back(records[2]);
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(missingHeader),
+          "missing dispatch bundle header component rejected",
+          {"requires exactly one source, header, and object component_role"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> missingABI(records);
+  missingABI[2].runtimeABIName.clear();
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(missingABI),
+          "missing dispatch bundle object ABI identity rejected",
+          {"requires non-empty runtime_abi_name"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedABI(records);
+  mismatchedABI[2].runtimeABIKind = "other-runtime-abi-kind";
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(mismatchedABI),
+          "mismatched dispatch bundle runtime ABI kind rejected",
+          {"mismatched runtime_abi_kind"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedComponents(records);
+  mismatchedComponents[2].componentRoles[1] = "direct variant";
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(mismatchedComponents),
+          "mismatched dispatch bundle selected component roles rejected",
+          {"mismatched selected component roles"}))
+    return false;
 
   return true;
 }
@@ -880,6 +975,8 @@ int main() {
     return 1;
   if (!expectTargetArtifactBundleFileNames())
     return 1;
+  if (!expectTargetArtifactBundleComponentContractValidation())
+    return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
@@ -929,6 +1026,8 @@ int main() {
   const tianchenrv::support::RuntimeABIDispatchIdentity &dispatchABI =
       tianchenrv::support::getI32VAddRuntimeABIContract()
           .getDispatchIdentity();
+  constexpr llvm::StringLiteral dispatchExternalABIComponentGroup(
+      "rvv-scalar-i32-vadd-dispatch-external-abi.v1");
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
@@ -945,21 +1044,24 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
           "runtime-callable-c-source", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true))
+          /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
+          dispatchABI.runtimeABIName))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
           "runtime-callable-c-header", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true))
+          /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
+          dispatchABI.runtimeABIName))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
           "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true))
+          /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
+          dispatchABI.runtimeABIName))
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))

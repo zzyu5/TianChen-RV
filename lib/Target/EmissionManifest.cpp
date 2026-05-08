@@ -1115,6 +1115,21 @@ void printTargetArtifactRecords(
   os << indent << "target_artifacts:\n";
   for (auto [index, artifact] : llvm::enumerate(artifacts)) {
     os << indent << "  artifact[" << index << "]:\n";
+    if (!artifact.componentGroup.empty()) {
+      os << indent << "    component_group: ";
+      printQuoted(os, artifact.componentGroup);
+      os << "\n";
+    }
+    if (!artifact.componentRole.empty()) {
+      os << indent << "    component_role: ";
+      printQuoted(os, artifact.componentRole);
+      os << "\n";
+    }
+    if (!artifact.externalABIName.empty()) {
+      os << indent << "    external_abi_name: ";
+      printQuoted(os, artifact.externalABIName);
+      os << "\n";
+    }
     if (!artifact.selectedVariant.empty()) {
       os << indent << "    selected_variant: @" << artifact.selectedVariant
          << "\n";

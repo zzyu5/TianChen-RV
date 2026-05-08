@@ -42,30 +42,45 @@ BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
 BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER = (
     "tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok"
 )
+DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP = (
+    "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+)
+DISPATCH_EXTERNAL_ABI_NAME = (
+    "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+)
 
 DISPATCH_BUNDLE_ROUTES = {
     "source": {
         "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
         "artifact_kind": "runtime-callable-c-source",
+        "component_group": DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
+        "component_role": "source",
+        "external_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
         "owner": "rvv-scalar-dispatch-target",
         "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
-        "runtime_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
         "evidence_role": "compiler-artifact",
     },
     "header": {
         "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
         "artifact_kind": "runtime-callable-c-header",
+        "component_group": DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
+        "component_role": "header",
+        "external_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
         "owner": "rvv-scalar-dispatch-target",
         "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
-        "runtime_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
         "evidence_role": "header-declaration",
     },
     "object": {
         "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
         "artifact_kind": "riscv-elf-relocatable-object",
+        "component_group": DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
+        "component_role": "object",
+        "external_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
         "owner": "rvv-scalar-dispatch-target",
         "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
-        "runtime_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
         "evidence_role": "relocatable-object",
     },
 }
@@ -567,6 +582,7 @@ def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
 
     required_fields = [
         "file_name",
+        "component_role",
         "artifact_kind",
         "route",
         "owner",
@@ -619,6 +635,9 @@ def select_dispatch_bundle_records(
         record = matches[0]
         for field in (
             "artifact_kind",
+            "component_group",
+            "component_role",
+            "external_abi_name",
             "owner",
             "runtime_abi_kind",
             "runtime_abi_name",
@@ -635,6 +654,26 @@ def select_dispatch_bundle_records(
                 f"bundle {label} artifact is missing or empty: {record['file_name']}"
             )
         selected[label] = record
+    groups = {record.get("component_group") for record in selected.values()}
+    roles = {record.get("component_role") for record in selected.values()}
+    external_abi_names = {
+        record.get("external_abi_name") for record in selected.values()
+    }
+    if groups != {DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP}:
+        raise BridgeError(
+            "selected dispatch bundle records must share the compiler-emitted "
+            f"component_group {DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP}"
+        )
+    if roles != {"source", "header", "object"}:
+        raise BridgeError(
+            "selected dispatch bundle records must expose source/header/object "
+            f"component_role values; got {sorted(str(role) for role in roles)}"
+        )
+    if external_abi_names != {DISPATCH_EXTERNAL_ABI_NAME}:
+        raise BridgeError(
+            "selected dispatch bundle records must share the compiler-emitted "
+            f"external_abi_name {DISPATCH_EXTERNAL_ABI_NAME}"
+        )
     return selected
 
 
@@ -645,6 +684,9 @@ def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]
             {
                 "index": record.get("index"),
                 "file_name": record.get("file_name"),
+                "component_group": record.get("component_group", ""),
+                "component_role": record.get("component_role", ""),
+                "external_abi_name": record.get("external_abi_name", ""),
                 "artifact_kind": record.get("artifact_kind"),
                 "route": record.get("route"),
                 "owner": record.get("owner"),
@@ -1722,6 +1764,9 @@ bundle_status: "complete"
 artifact_count: 3
 artifact[0]:
   file_name: "artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c"
+  component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+  component_role: "source"
+  external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
   selected_surface: "dispatch"
   component[0]:
     selected_variant: @rvv_first_slice
@@ -1737,6 +1782,9 @@ artifact[0]:
   evidence_role: "compiler-artifact"
 artifact[1]:
   file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
+  component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+  component_role: "header"
+  external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
   selected_surface: "dispatch"
   component[0]:
     selected_variant: @rvv_first_slice
@@ -1752,6 +1800,9 @@ artifact[1]:
   evidence_role: "header-declaration"
 artifact[2]:
   file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
+  component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+  component_role: "object"
+  external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
   selected_surface: "dispatch"
   component[0]:
     selected_variant: @rvv_first_slice
@@ -1772,6 +1823,19 @@ artifact[2]:
         bundle_records[0]["components"][0]["role"] == "dispatch case",
         "bundle index parser lost component role",
     )
+    assert_self_test(
+        bundle_records[0]["component_group"]
+        == DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
+        "bundle index parser lost artifact component_group",
+    )
+    assert_self_test(
+        bundle_records[1]["component_role"] == "header",
+        "bundle index parser lost artifact component_role",
+    )
+    assert_self_test(
+        bundle_records[2]["external_abi_name"] == DISPATCH_EXTERNAL_ABI_NAME,
+        "bundle index parser lost external_abi_name",
+    )
     root = repo_root()
     with tempfile.TemporaryDirectory(dir=root / "artifacts" / "tmp") as temp_dir:
         bundle_dir = Path(temp_dir)
@@ -1782,6 +1846,24 @@ artifact[2]:
             selected["object"]["artifact_kind"] == "riscv-elf-relocatable-object",
             "bundle dispatch object record was not selected",
         )
+        assert_self_test(
+            selected["source"]["component_role"] == "source",
+            "bundle dispatch source record did not use explicit component_role",
+        )
+        try:
+            select_dispatch_bundle_records(
+                [
+                    dict(record, component_group="wrong-group")
+                    if record["component_role"] == "object"
+                    else record
+                    for record in bundle_records
+                ],
+                bundle_dir=bundle_dir,
+            )
+        except BridgeError as error:
+            assert_self_test("component_group" in str(error), "group mismatch error changed")
+        else:
+            raise AssertionError("bundle index with mismatched component_group was accepted")
     try:
         parse_target_artifact_bundle_index(
             sample_bundle_index.replace(

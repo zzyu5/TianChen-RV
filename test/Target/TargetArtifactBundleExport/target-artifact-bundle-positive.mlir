@@ -121,6 +121,9 @@ module @target_artifact_bundle_positive_input {
 // DISPATCH-INDEX: artifact_count: 3
 // DISPATCH-INDEX: artifact[0]:
 // DISPATCH-INDEX: file_name: "artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c"
+// DISPATCH-INDEX: component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+// DISPATCH-INDEX: component_role: "source"
+// DISPATCH-INDEX: external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 // DISPATCH-INDEX: selected_surface: "dispatch"
 // DISPATCH-INDEX: component[0]:
 // DISPATCH-INDEX: selected_variant: @rvv_first_slice
@@ -136,11 +139,17 @@ module @target_artifact_bundle_positive_input {
 // DISPATCH-INDEX: evidence_role: "compiler-artifact"
 // DISPATCH-INDEX: artifact[1]:
 // DISPATCH-INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
+// DISPATCH-INDEX: component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+// DISPATCH-INDEX: component_role: "header"
+// DISPATCH-INDEX: external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 // DISPATCH-INDEX: artifact_kind: "runtime-callable-c-header"
 // DISPATCH-INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
 // DISPATCH-INDEX: evidence_role: "header-declaration"
 // DISPATCH-INDEX: artifact[2]:
 // DISPATCH-INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
+// DISPATCH-INDEX: component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+// DISPATCH-INDEX: component_role: "object"
+// DISPATCH-INDEX: external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 // DISPATCH-INDEX: artifact_kind: "riscv-elf-relocatable-object"
 // DISPATCH-INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
 // DISPATCH-INDEX: evidence_role: "relocatable-object"

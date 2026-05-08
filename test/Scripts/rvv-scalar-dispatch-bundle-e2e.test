@@ -28,13 +28,18 @@
 
 # INDEX: bundle_status: "complete"
 # INDEX: artifact_count: 3
+# INDEX: component_group: "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+# INDEX: component_role: "source"
+# INDEX: external_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 # INDEX: selected_surface: "dispatch"
 # INDEX: role: "dispatch case"
 # INDEX: role: "dispatch fallback"
 # INDEX: artifact_kind: "runtime-callable-c-source"
 # INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"
+# INDEX: component_role: "header"
 # INDEX: artifact_kind: "runtime-callable-c-header"
 # INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
+# INDEX: component_role: "object"
 # INDEX: artifact_kind: "riscv-elf-relocatable-object"
 # INDEX: route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
 # INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
@@ -55,8 +60,13 @@
 
 # EVIDENCE: "bundle_export_mode": "target-artifact-bundle"
 # EVIDENCE: "bundle_index": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index"
+# EVIDENCE: "component_group": "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
+# EVIDENCE: "component_role": "source"
+# EVIDENCE: "external_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
 # EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"
+# EVIDENCE: "component_role": "header"
 # EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
+# EVIDENCE: "component_role": "object"
 # EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
 # EVIDENCE: "branches_exercised": [
 # EVIDENCE: "rvv_available=0"

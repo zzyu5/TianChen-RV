@@ -59,6 +59,11 @@ constexpr llvm::StringLiteral kHeaderDeclarationEvidenceRole(
     "header-declaration");
 constexpr llvm::StringLiteral kRelocatableObjectEvidenceRole(
     "relocatable-object");
+constexpr llvm::StringLiteral kBundleSourceComponentRole("source");
+constexpr llvm::StringLiteral kBundleHeaderComponentRole("header");
+constexpr llvm::StringLiteral kBundleObjectComponentRole("object");
+constexpr llvm::StringLiteral kBundleDescriptorComponentRole("descriptor");
+constexpr llvm::StringLiteral kBundleArtifactComponentRole("artifact");
 constexpr llvm::StringLiteral kTargetArtifactBundleIndexFileName(
     "tianchenrv-target-artifact-bundle.index");
 
@@ -177,6 +182,19 @@ llvm::StringRef getEvidenceRoleForArtifactKind(llvm::StringRef artifactKind) {
   return kCompilerArtifactEvidenceRole;
 }
 
+llvm::StringRef getBundleComponentRoleForArtifactKind(
+    llvm::StringRef artifactKind) {
+  if (isSourceArtifactKind(artifactKind))
+    return kBundleSourceComponentRole;
+  if (isHeaderArtifactKind(artifactKind))
+    return kBundleHeaderComponentRole;
+  if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
+    return kBundleObjectComponentRole;
+  if (artifactKind == kRuntimeOffloadHandoffDescriptorArtifactKind)
+    return kBundleDescriptorComponentRole;
+  return kBundleArtifactComponentRole;
+}
+
 llvm::StringRef getFileExtensionForArtifactKind(llvm::StringRef artifactKind) {
   if (artifactKind == kRuntimeCallableCSourceArtifactKind ||
       artifactKind == kStandaloneCSourceArtifactKind)
@@ -251,6 +269,33 @@ llvm::Error validateBoundedText(KernelOp kernel, llvm::StringRef fieldName,
     return makeArtifactExportError(
         kernel, llvm::Twine(fieldName) +
                     " must not contain secret-like or raw credential text");
+  return llvm::Error::success();
+}
+
+llvm::Error validateBundleRecordText(llvm::StringRef fieldName,
+                                     llvm::StringRef value) {
+  constexpr std::size_t kMaxTextLength = 512;
+  if (value.empty() || value.size() > kMaxTextLength)
+    return makeTargetArtifactBundleExportError(
+        llvm::Twine(fieldName) +
+        " must be bounded non-empty single-line metadata");
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine(fieldName) +
+          " must be bounded non-empty single-line metadata");
+    if (byte < 0x20 && character != '\t')
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine(fieldName) +
+          " must be bounded non-empty single-line metadata");
+  }
+
+  if (containsForbiddenText(value))
+    return makeTargetArtifactBundleExportError(
+        llvm::Twine(fieldName) +
+        " must not contain secret-like or raw credential text");
   return llvm::Error::success();
 }
 
@@ -1101,6 +1146,8 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.role = candidate.role;
   record.componentVariants.push_back(candidate.selectedVariant);
   record.componentRoles.push_back(candidate.role);
+  record.componentRole =
+      getBundleComponentRoleForArtifactKind(candidate.artifactKind).str();
   record.artifactKind = candidate.artifactKind;
   record.routeID = candidate.routeID;
   record.owner = exporter->getOriginPlugin().empty()
@@ -1145,6 +1192,9 @@ llvm::Error appendCompositeBundleRecords(
       record.role = group.candidates.front().role;
     }
     appendComponentMetadata(group.candidates, record);
+    record.componentGroup = exporter.getComponentGroup().str();
+    record.componentRole =
+        getBundleComponentRoleForArtifactKind(exporter.getArtifactKind()).str();
     record.artifactKind = exporter.getArtifactKind().str();
     record.routeID = exporter.getRouteID().str();
     record.owner = exporter.getOwner().str();
@@ -1157,6 +1207,10 @@ llvm::Error appendCompositeBundleRecords(
         deriveCompositeRuntimeABIKind(group.candidates, exporter);
     record.runtimeABIName =
         deriveCompositeRuntimeABIName(group.candidates, exporter);
+    if (!record.componentGroup.empty())
+      record.externalABIName = exporter.getExternalABIName().empty()
+                                   ? record.runtimeABIName
+                                   : exporter.getExternalABIName().str();
     record.evidenceRole =
         getEvidenceRoleForArtifactKind(exporter.getArtifactKind()).str();
     out.push_back(std::move(record));
@@ -1165,6 +1219,142 @@ llvm::Error appendCompositeBundleRecords(
 }
 
 } // namespace
+
+llvm::Error validateTargetArtifactBundleComponentContract(
+    llvm::ArrayRef<TargetArtifactBundleRecord> records) {
+  struct ComponentGroupState {
+    bool initialized = false;
+    std::string owner;
+    std::string externalABIName;
+    std::string runtimeABIKind;
+    std::string runtimeABIName;
+    llvm::SmallVector<std::string, 4> componentVariants;
+    llvm::SmallVector<std::string, 4> selectedPathRoles;
+    llvm::StringSet<> artifactComponentRoles;
+  };
+
+  llvm::StringMap<ComponentGroupState> groups;
+  for (const TargetArtifactBundleRecord &record : records) {
+    if (record.artifactKind.empty())
+      return makeTargetArtifactBundleExportError(
+          "bundle artifact record requires non-empty artifact_kind");
+    if (record.routeID.empty())
+      return makeTargetArtifactBundleExportError(
+          "bundle artifact record requires non-empty route");
+
+    llvm::StringRef expectedComponentRole =
+        getBundleComponentRoleForArtifactKind(record.artifactKind);
+    if (record.componentRole.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' requires non-empty component_role");
+    if (record.componentRole != expectedComponentRole)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' component_role '" + record.componentRole +
+          "' does not match artifact_kind '" + record.artifactKind +
+          "' expected role '" + expectedComponentRole + "'");
+    if (llvm::Error error =
+            validateBundleRecordText("component_role", record.componentRole))
+      return error;
+
+    if (record.componentGroup.empty()) {
+      if (!record.externalABIName.empty())
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle artifact route '") + record.routeID +
+            "' has external_abi_name without component_group");
+      continue;
+    }
+
+    if (llvm::Error error =
+            validateBundleRecordText("component_group", record.componentGroup))
+      return error;
+    if (record.externalABIName.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' in component_group '" + record.componentGroup +
+          "' requires non-empty external_abi_name");
+    if (llvm::Error error = validateBundleRecordText(
+            "external_abi_name", record.externalABIName))
+      return error;
+    if (record.owner.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' in component_group '" + record.componentGroup +
+          "' requires non-empty owner");
+    if (record.runtimeABIKind.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' in component_group '" + record.componentGroup +
+          "' requires non-empty runtime_abi_kind");
+    if (record.runtimeABIName.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' in component_group '" + record.componentGroup +
+          "' requires non-empty runtime_abi_name");
+
+    ComponentGroupState &state = groups[record.componentGroup];
+    if (!state.initialized) {
+      state.initialized = true;
+      state.owner = record.owner;
+      state.externalABIName = record.externalABIName;
+      state.runtimeABIKind = record.runtimeABIKind;
+      state.runtimeABIName = record.runtimeABIName;
+      state.componentVariants.append(record.componentVariants.begin(),
+                                     record.componentVariants.end());
+      state.selectedPathRoles.append(record.componentRoles.begin(),
+                                     record.componentRoles.end());
+    } else {
+      if (state.owner != record.owner)
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched owner metadata");
+      if (state.externalABIName != record.externalABIName)
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched external_abi_name metadata");
+      if (state.runtimeABIKind != record.runtimeABIKind)
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched runtime_abi_kind metadata");
+      if (state.runtimeABIName != record.runtimeABIName)
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched runtime_abi_name metadata");
+      if (state.componentVariants.size() != record.componentVariants.size() ||
+          !std::equal(state.componentVariants.begin(),
+                      state.componentVariants.end(),
+                      record.componentVariants.begin()))
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched selected component variants");
+      if (state.selectedPathRoles.size() != record.componentRoles.size() ||
+          !std::equal(state.selectedPathRoles.begin(),
+                      state.selectedPathRoles.end(),
+                      record.componentRoles.begin()))
+        return makeTargetArtifactBundleExportError(
+            llvm::Twine("bundle component_group '") + record.componentGroup +
+            "' has mismatched selected component roles");
+    }
+
+    if (!state.artifactComponentRoles.insert(record.componentRole).second)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle component_group '") + record.componentGroup +
+          "' has duplicate component_role '" + record.componentRole + "'");
+  }
+
+  for (const auto &entry : groups) {
+    const ComponentGroupState &state = entry.getValue();
+    if (!state.artifactComponentRoles.count(kBundleSourceComponentRole) ||
+        !state.artifactComponentRoles.count(kBundleHeaderComponentRole) ||
+        !state.artifactComponentRoles.count(kBundleObjectComponentRole))
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle component_group '") + entry.getKey() +
+          "' requires exactly one source, header, and object component_role");
+  }
+
+  return llvm::Error::success();
+}
 
 llvm::Error collectTargetArtifactBundleRecords(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
@@ -1218,7 +1408,7 @@ llvm::Error collectTargetArtifactBundleRecords(
     }
   }
 
-  return llvm::Error::success();
+  return validateTargetArtifactBundleComponentContract(out);
 }
 
 std::string
@@ -1352,6 +1542,19 @@ void printTargetArtifactBundleIndex(
     os << "  file_name: ";
     printBundleQuoted(os, fileNames[index]);
     os << "\n";
+    if (!record.componentGroup.empty()) {
+      os << "  component_group: ";
+      printBundleQuoted(os, record.componentGroup);
+      os << "\n";
+    }
+    os << "  component_role: ";
+    printBundleQuoted(os, record.componentRole);
+    os << "\n";
+    if (!record.externalABIName.empty()) {
+      os << "  external_abi_name: ";
+      printBundleQuoted(os, record.externalABIName);
+      os << "\n";
+    }
     if (!record.selectedVariant.empty()) {
       os << "  selected_variant: @" << record.selectedVariant << "\n";
       os << "  role: ";
@@ -1604,11 +1807,14 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
     TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
     llvm::StringRef owner, llvm::StringRef runtimeABIKind,
-    llvm::StringRef runtimeABIName, bool directHelperRoute)
+    llvm::StringRef runtimeABIName, bool directHelperRoute,
+    llvm::StringRef componentGroup, llvm::StringRef externalABIName)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
-      directHelperRoute(directHelperRoute) {}
+      directHelperRoute(directHelperRoute),
+      componentGroup(componentGroup.str()),
+      externalABIName(externalABIName.str()) {}
 
 llvm::Error TargetArtifactExporterRegistry::registerExporter(
     const TargetArtifactExporter &exporter) {

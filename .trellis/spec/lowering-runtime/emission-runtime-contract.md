@@ -439,6 +439,19 @@ only the selected non-fallback artifact record. A selected runtime-offload
 descriptor path therefore produces a one-artifact descriptor bundle, while the
 scalar fallback remains selected-path metadata rather than a second descriptor
 bundle artifact.
+Dispatch-capable external ABI bundles must additionally expose a typed
+component contract in the compiler-emitted bundle index. For the bounded
+RVV+scalar i32-vadd dispatch bundle, the generated source, generated header,
+and generated relocatable object records must share one stable
+`component_group`, carry distinct `component_role` values (`source`, `header`,
+and `object`), record the same `external_abi_name`, and preserve matching
+runtime ABI kind/name plus selected dispatch component variants/roles. The
+generic bundle layer must validate grouped records before writing a complete
+index: duplicate component roles, missing source/header/object records, missing
+external ABI identity, mismatched runtime ABI metadata, or mismatched selected
+component paths are coherence failures. Python evidence runners may consume
+these compiler-emitted fields, but must not define or infer the bundle contract
+from file names.
 
 ## Selected Lowering Boundary First Slice
 
