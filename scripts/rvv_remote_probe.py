@@ -23,7 +23,7 @@ from typing import Any
 
 
 PROBE_NAME = "tianchenrv-rvv-remote-probe"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_probe")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -63,6 +63,12 @@ RVV_PROBE_SOURCE = r"""
 #include <stdio.h>
 #include <riscv_vector.h>
 
+static size_t tcrv_read_vlenb(void) {
+  size_t value = 0;
+  __asm__ volatile("csrr %0, vlenb" : "=r"(value));
+  return value;
+}
+
 int main(void) {
   enum { kElements = 16 };
   int32_t lhs[kElements];
@@ -79,6 +85,14 @@ int main(void) {
   if (first_vl == 0 || first_vl > kElements) {
     fprintf(stderr, "invalid first vl=%zu\n", first_vl);
     return 2;
+  }
+  size_t vlenb = tcrv_read_vlenb();
+  size_t i32_m1_lanes = vlenb / sizeof(int32_t);
+  if (vlenb < sizeof(int32_t) || i32_m1_lanes == 0 ||
+      i32_m1_lanes * sizeof(int32_t) != vlenb) {
+    fprintf(stderr, "invalid vlenb=%zu i32_m1_lanes=%zu\n", vlenb,
+            i32_m1_lanes);
+    return 4;
   }
 
   size_t offset = 0;
@@ -100,7 +114,8 @@ int main(void) {
     }
   }
 
-  printf("rvv_probe_ok first_vl=%zu elements=%d\n", first_vl, kElements);
+  printf("rvv_probe_ok first_vl=%zu vlenb=%zu i32_m1_lanes=%zu elements=%d\n",
+         first_vl, vlenb, i32_m1_lanes, kElements);
   return 0;
 }
 """.lstrip()
@@ -172,6 +187,13 @@ def parse_key_values(text: str) -> dict[str, str]:
     return values
 
 
+def parse_named_int(text: str, name: str) -> int | None:
+    match = re.search(rf"(?:^|[ \t]){re.escape(name)}=([0-9]+)(?:[ \t]|$)", text)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
 def bounded_lines(text: str, limit: int = 160) -> list[str]:
     lines = [line.rstrip() for line in sanitize_text(text).splitlines()]
     return [line for line in lines if line.strip()][:limit]
@@ -219,9 +241,14 @@ def build_capability_facts(
     hart_count_value = facts.get("hart_count", {}).get("value") or 0
     if not isinstance(hart_count_value, int):
         hart_count_value = parse_first_int(str(hart_count_value)) or 0
+    diagnostic = str(compile_run.get("diagnostic", ""))
+    vlenb_bytes = parse_named_int(diagnostic, "vlenb") or 0
+    i32_m1_lane_count = parse_named_int(diagnostic, "i32_m1_lanes") or 0
     return {
         "architecture": bounded_fact_value(facts.get("architecture", {}).get("value", "")),
         "hart_count": hart_count_value,
+        "vlenb_bytes": vlenb_bytes,
+        "i32_m1_lane_count": i32_m1_lane_count,
         "isa_vector_hints": extract_isa_vector_hints(facts),
         "clang_available": bool(facts.get("clang", {}).get("available")),
         "clang_version": bounded_fact_value(facts.get("clang", {}).get("version", "")),
@@ -587,6 +614,8 @@ def validate_evidence_artifact(artifact: dict[str, Any]) -> list[str]:
     required_capability_facts = {
         "architecture": str,
         "hart_count": int,
+        "vlenb_bytes": int,
+        "i32_m1_lane_count": int,
         "isa_vector_hints": str,
         "clang_available": bool,
         "clang_version": str,
@@ -706,6 +735,16 @@ def run_self_test() -> None:
     assert_self_test("visible=ok" in sanitized, "non-secret text should remain visible")
 
     assert_self_test(parse_first_int("64\n") == 64, "hart parser failed")
+    assert_self_test(
+        parse_named_int("rvv_probe_ok first_vl=4 vlenb=16 i32_m1_lanes=4", "vlenb")
+        == 16,
+        "named vlenb parser failed",
+    )
+    assert_self_test(
+        parse_named_int("rvv_probe_ok first_vl=4 vlenb=16 i32_m1_lanes=4", "i32_m1_lanes")
+        == 4,
+        "named lane parser failed",
+    )
     sudo_values = parse_key_values(
         "sudo_present=true\nsudo_non_interactive=false\nsudo_exit_code=1\n"
     )
@@ -757,7 +796,7 @@ def run_self_test() -> None:
     synthetic_compile_run = {
         "attempted": True,
         "status": "success",
-        "diagnostic": "rvv_probe_ok",
+        "diagnostic": "rvv_probe_ok first_vl=4 vlenb=16 i32_m1_lanes=4",
         "compiler_path": "/usr/bin/clang",
         "compiler_version": "fixture clang",
         "source_sha256": sha256_text(RVV_PROBE_SOURCE),
@@ -775,6 +814,14 @@ def run_self_test() -> None:
     assert_self_test(
         capability_facts["hart_count"] == 64,
         "capability facts hart count missing",
+    )
+    assert_self_test(
+        capability_facts["vlenb_bytes"] == 16,
+        "capability facts vlenb missing",
+    )
+    assert_self_test(
+        capability_facts["i32_m1_lane_count"] == 4,
+        "capability facts i32 m1 lane count missing",
     )
     assert_self_test(
         "rv64imafdcv" in capability_facts["isa_vector_hints"],

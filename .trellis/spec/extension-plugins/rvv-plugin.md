@@ -56,6 +56,8 @@ property requirement attr name: tcrv_rvv.required_march
 finite lowering descriptor attr name: tcrv_rvv.lowering_descriptor
 finite lowering descriptor value: i32-vadd-microkernel.v1
 finite element-count attr name: tcrv_rvv.element_count
+optional vlenb attr name: tcrv_rvv.vlenb_bytes
+optional i32 m1 lane attr name: tcrv_rvv.i32_m1_lanes
 ```
 
 The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
@@ -72,6 +74,10 @@ The current minimal proposal gate is:
   properties, and `isa_vector_hints` contains RVV vector evidence;
 - capability id `rvv.hart_count` is available and has a positive integer
   `count` property;
+- when capability ids `rvv.vlenb_bytes` and `rvv.i32_m1_lane_count` are
+  available, they must appear as a pair, preserve positive integer
+  `bytes`/`lanes` properties, and satisfy `lanes = bytes / 4` for the current
+  i32 m1 first slice;
 - capability id `rvv.probe.compile_run` is available and has a bounded
   `selected_march` property containing RVV vector evidence;
 - if capability id `rvv.toolchain.march` is present and available, its `value`
@@ -95,17 +101,20 @@ The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`), one typed non-compute RVV policy attribute
 (`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), a
 plugin-owned `tcrv_rvv.required_march` string attribute derived from the
-validated `rvv.probe.compile_run.selected_march` property, and the finite
-plugin-owned lowering descriptor for exactly the i32 vector-add microkernel
-slice: `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded
-integer `tcrv_rvv.element_count`. The generic string policy remains the input
-for core selection/dispatch; the typed policy, required march, lowering
-descriptor, and element count are plugin-local metadata preserved by the
-generic proposal/materialization path and validated by `RVVExtensionPlugin`
-when present on a materialized variant. These fields are compiler-visible
-metadata for the existing generic materialization, legality, capability, and
-selection helpers. They are not generic tensor semantics, arbitrary RVV
-lowering, runtime correctness evidence, or performance evidence.
+validated `rvv.probe.compile_run.selected_march` property, optional
+capability-derived `tcrv_rvv.vlenb_bytes` /
+`tcrv_rvv.i32_m1_lanes` integer attributes when structured vlenb/lane
+capabilities are available, and the finite plugin-owned lowering descriptor
+for exactly the i32 vector-add microkernel slice:
+`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded integer
+`tcrv_rvv.element_count`. The generic string policy remains the input for core
+selection/dispatch; the typed policy, required march, optional capacity
+metadata, lowering descriptor, and element count are plugin-local metadata
+preserved by the generic proposal/materialization path and validated by
+`RVVExtensionPlugin` when present on a materialized variant. These fields are
+compiler-visible metadata for the existing generic materialization, legality,
+capability, and selection helpers. They are not generic tensor semantics,
+arbitrary RVV lowering, runtime correctness evidence, or performance evidence.
 
 When a relation-provider capability satisfies id `rvv`, generic variant
 materialization records the provider symbol in `requires`, for example
@@ -182,9 +191,10 @@ The JSON artifact records a bounded schema:
   cmake, bounded RISC-V/vector hints from `/proc/cpuinfo`, and non-interactive
   sudo availability as a boolean capability fact;
 - a sanitized `capability_facts` section containing only bounded
-  compiler-facing facts: architecture, hart count, ISA/vector hint string,
-  clang and CMake availability/version facts, minimal RVV compile/run success,
-  selected march/mabi, and optional source/binary digests;
+  compiler-facing facts: architecture, hart count, optional vlenb bytes and
+  derived i32 m1 lane count, ISA/vector hint string, clang and CMake
+  availability/version facts, minimal RVV compile/run success, selected
+  march/mabi, and optional source/binary digests;
 - a minimal RVV intrinsic compile/run probe result with command references,
   exit status, diagnostics, compiler path/version, source digest, selected
   compiler flags, and binary digest when a binary was produced;
@@ -205,10 +215,11 @@ Interpretation rules:
   compile/run success. Negative cases must return structured diagnostics rather
   than partial target capabilities.
 - Profile-derived capability identities are stable and plugin-local. Current
-  first profile IDs include `rvv`, `rvv.hart_count`, `rvv.toolchain.clang`,
-  `rvv.toolchain.cmake`, `rvv.probe.compile_run`, `rvv.toolchain.march`, and
-  `rvv.toolchain.mabi`. These identities must not include ssh/provider names,
-  raw command logs, secrets, benchmark names, or performance measurements.
+  first profile IDs include `rvv`, `rvv.hart_count`, `rvv.vlenb_bytes`,
+  `rvv.i32_m1_lane_count`, `rvv.toolchain.clang`, `rvv.toolchain.cmake`,
+  `rvv.probe.compile_run`, `rvv.toolchain.march`, and `rvv.toolchain.mabi`.
+  These identities must not include ssh/provider names, raw command logs,
+  secrets, benchmark names, or performance measurements.
 - The probe does not prove that TianChen-RV generated RVV IR, lowered a
   `tcrv.exec` variant, emitted an object, linked runtime glue, proved compiler
   correctness, or measured performance.
@@ -231,6 +242,8 @@ used by the C++ RVV plugin:
 ```text
 rvv
 rvv.hart_count
+rvv.vlenb_bytes
+rvv.i32_m1_lane_count
 rvv.toolchain.clang
 rvv.toolchain.cmake
 rvv.probe.compile_run
@@ -403,7 +416,9 @@ RVV work must keep these parameter layers distinct:
 
 - VLEN and vlenb are hardware facts / target capability evidence. They may
   constrain legality, vector capacity, and selection after provenance is
-  validated, but they are not per-variant runtime values.
+  validated, including plugin-owned `tcrv_rvv.vlenb_bytes` /
+  `tcrv_rvv.i32_m1_lanes` variant metadata. They are not per-variant runtime
+  values.
 - SEW and LMUL are compile-time variant config selected or proposed by the RVV
   plugin and checked against target capabilities. They are not sufficient as
   standalone hardware facts without the surrounding capability/profile evidence.
@@ -541,8 +556,11 @@ Reference metadata:
 The first RVV slice returns explicit plugin-owned selection preference metadata
 for legal materialized RVV variants. Its score is a heuristic ordering input
 used by the target-neutral selector; it is not a runtime, correctness, or
-performance claim. RVV-specific interpretation of preserved capability facts
-stays inside the RVV plugin before the generic preference record is returned.
+performance claim. When structured vlenb-derived i32 lane capacity is
+available, the RVV plugin may use it as a bounded heuristic input and record
+that fact in the explanation. RVV-specific interpretation of preserved
+capability facts stays inside the RVV plugin before the generic preference
+record is returned.
 
 ## Emission Paths
 

@@ -8,11 +8,13 @@
     "cmake_available": true,
     "cmake_version": "cmake version 3.28.3",
     "hart_count": 64,
+    "i32_m1_lane_count": 4,
     "isa_vector_hints": "isa: rv64imafdcv_zve64d_zvfh_zvl128b",
     "minimal_rvv_compile_run_succeeded": true,
     "selected_mabi": "lp64d",
     "selected_march": "rv64gcv",
-    "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "vlenb_bytes": 16
   },
   "commands": [],
   "facts": {},
@@ -21,7 +23,7 @@
   "rvv_compile_run": {
     "status": "success"
   },
-  "schema_version": 2,
+  "schema_version": 3,
   "ssh_target": "rvv",
   "status": "success",
   "success": true,

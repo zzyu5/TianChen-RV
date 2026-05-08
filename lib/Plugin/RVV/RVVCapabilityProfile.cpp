@@ -20,6 +20,13 @@ namespace {
 
 constexpr llvm::StringLiteral kRVVHartCountCapabilityID("rvv.hart_count");
 constexpr llvm::StringLiteral kRVVHartCountCapabilitySymbol("rvv_hart_count");
+constexpr llvm::StringLiteral kRVVVLenBBytesCapabilityID("rvv.vlenb_bytes");
+constexpr llvm::StringLiteral kRVVVLenBBytesCapabilitySymbol(
+    "rvv_vlenb_bytes");
+constexpr llvm::StringLiteral kRVVI32M1LaneCountCapabilityID(
+    "rvv.i32_m1_lane_count");
+constexpr llvm::StringLiteral kRVVI32M1LaneCountCapabilitySymbol(
+    "rvv_i32_m1_lanes");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilityID(
     "rvv.toolchain.clang");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilitySymbol(
@@ -151,6 +158,22 @@ llvm::StringRef getRVVHartCountCapabilitySymbol() {
   return kRVVHartCountCapabilitySymbol;
 }
 
+llvm::StringRef getRVVVLenBBytesCapabilityID() {
+  return kRVVVLenBBytesCapabilityID;
+}
+
+llvm::StringRef getRVVVLenBBytesCapabilitySymbol() {
+  return kRVVVLenBBytesCapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M1LaneCountCapabilityID() {
+  return kRVVI32M1LaneCountCapabilityID;
+}
+
+llvm::StringRef getRVVI32M1LaneCountCapabilitySymbol() {
+  return kRVVI32M1LaneCountCapabilitySymbol;
+}
+
 llvm::StringRef getRVVClangToolchainCapabilityID() {
   return kRVVClangToolchainCapabilityID;
 }
@@ -201,6 +224,17 @@ validateRVVProbeCapabilityFacts(const RVVProbeCapabilityFacts &facts) {
 
   if (facts.hartCount == 0)
     errors.push_back("hart count must be greater than zero");
+  if (facts.vlenbBytes || facts.i32M1LaneCount) {
+    if (facts.vlenbBytes < sizeof(std::int32_t))
+      errors.push_back("vlenb bytes must be at least one i32 element");
+    if (facts.vlenbBytes % sizeof(std::int32_t) != 0)
+      errors.push_back("vlenb bytes must be an i32 lane multiple");
+    if (facts.i32M1LaneCount == 0)
+      errors.push_back("i32 m1 lane count must be greater than zero");
+    if (facts.vlenbBytes / sizeof(std::int32_t) != facts.i32M1LaneCount)
+      errors.push_back(
+          "i32 m1 lane count must match vlenb bytes divided by four");
+  }
 
   validateFactString("ISA/vector hint", facts.isaVectorHints, errors,
                      true);
@@ -262,6 +296,18 @@ buildRVVTargetCapabilitiesFromProbeFacts(
           getRVVHartCountCapabilityID(), "uarch",
           {{"count", std::to_string(facts.hartCount)}}))
     return std::move(error);
+  if (facts.vlenbBytes) {
+    if (llvm::Error error = addAvailableCapability(
+            capabilities, getRVVVLenBBytesCapabilitySymbol(),
+            getRVVVLenBBytesCapabilityID(), "uarch",
+            {{"bytes", std::to_string(facts.vlenbBytes)}}))
+      return std::move(error);
+    if (llvm::Error error = addAvailableCapability(
+            capabilities, getRVVI32M1LaneCountCapabilitySymbol(),
+            getRVVI32M1LaneCountCapabilityID(), "uarch",
+            {{"lanes", std::to_string(facts.i32M1LaneCount)}}))
+      return std::move(error);
+  }
   if (llvm::Error error = addAvailableCapability(
           capabilities, getRVVClangToolchainCapabilitySymbol(),
           getRVVClangToolchainCapabilityID(), "toolchain",

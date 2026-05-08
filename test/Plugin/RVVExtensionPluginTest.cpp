@@ -225,6 +225,8 @@ RVVProbeCapabilityFacts makeSuccessfulProbeFacts() {
   RVVProbeCapabilityFacts facts;
   facts.architecture = "riscv64";
   facts.hartCount = 64;
+  facts.vlenbBytes = 16;
+  facts.i32M1LaneCount = 4;
   facts.isaVectorHints =
       "isa: rv64imafdcv_zicsr_zifencei_zihpm_zve32f_zve64d_zvfh_zvl128b";
   facts.clangAvailable = true;
@@ -397,7 +399,7 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                 llvm::toString(capabilitiesOrError.takeError()));
 
   TargetCapabilitySet capabilities = std::move(*capabilitiesOrError);
-  if (int result = expect(capabilities.size() == 7,
+  if (int result = expect(capabilities.size() == 9,
                           "RVV probe facts produce deterministic capabilities"))
     return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
@@ -414,6 +416,21 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
   if (int result = expect(hartCount && hartCount->getKind() == "uarch" &&
                               hartCount->getProperty("count") == "64",
                           "RVV profile preserves hart count as uarch fact"))
+    return result;
+
+  const CapabilityDescriptor *vlenb = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVVLenBBytesCapabilityID());
+  if (int result = expect(vlenb && vlenb->getKind() == "uarch" &&
+                              vlenb->getProperty("bytes") == "16",
+                          "RVV profile preserves vlenb bytes as uarch fact"))
+    return result;
+
+  const CapabilityDescriptor *i32Lanes = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M1LaneCountCapabilityID());
+  if (int result =
+          expect(i32Lanes && i32Lanes->getKind() == "uarch" &&
+                     i32Lanes->getProperty("lanes") == "4",
+                 "RVV profile preserves i32 m1 lane count as uarch fact"))
     return result;
 
   const CapabilityDescriptor *clang = capabilities.lookupByID(
@@ -451,8 +468,14 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                              getRVVHartCountCapabilitySymbol() &&
                      orderedCapabilities[2].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVClangToolchainCapabilitySymbol() &&
+                             getRVVVLenBBytesCapabilitySymbol() &&
                      orderedCapabilities[3].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI32M1LaneCountCapabilitySymbol() &&
+                     orderedCapabilities[4].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVClangToolchainCapabilitySymbol() &&
+                     orderedCapabilities[5].getSymbolName() ==
                          tianchenrv::plugin::rvv::
                              getRVVCMakeToolchainCapabilitySymbol(),
                  "RVV profile capability ordering is deterministic"))
@@ -507,6 +530,12 @@ module {
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 16))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 4))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -566,6 +595,23 @@ module {
                           "refs"))
     return result;
 
+  tianchenrv::plugin::VariantCostEstimate estimate;
+  if (int result = expectSuccess(
+          plugin.estimateVariantCost(
+              tianchenrv::plugin::VariantCostRequest(variant, kernel,
+                                                     capabilities),
+              estimate),
+          "RVV profile capacity feeds cost metadata"))
+    return result;
+  if (int result =
+          expect(estimate.getScore() == 0.25 &&
+                     estimate.getExplanation().contains("i32_m1_lanes=4") &&
+                     estimate.getExplanation().contains(
+                         "not a runtime performance claim"),
+                 "RVV capacity is exposed only as plugin-local heuristic "
+                 "metadata"))
+    return result;
+
   return 0;
 }
 
@@ -608,6 +654,21 @@ int runRVVCapabilityProfileRejectionTest() {
     return result;
 
   facts = makeSuccessfulProbeFacts();
+  facts.vlenbBytes = 18;
+  facts.i32M1LaneCount = 4;
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"vlenb bytes", "i32 lane multiple"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.i32M1LaneCount = 8;
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"i32 m1 lane count", "divided by four"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
   facts.clangVersion = "PASSWORD=hunter2";
   if (int result = expectExpectedErrorContains(
           plugin.buildTargetCapabilitiesFromProbeFacts(facts),
@@ -637,6 +698,18 @@ module {
       id = "rvv.hart_count",
       kind = "uarch",
       count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_vlenb_bytes {
+      id = "rvv.vlenb_bytes",
+      kind = "uarch",
+      bytes = 16 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_lanes {
+      id = "rvv.i32_m1_lane_count",
+      kind = "uarch",
+      lanes = 4 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -719,6 +792,12 @@ module {
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
     return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 16))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 4))
+    return result;
 
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
@@ -750,6 +829,17 @@ module {
                             tianchenrv::plugin::VariantLegalityRequest(
                                 variant, kernel, capabilities)),
                         "RVV legality accepts property-enabled variant"))
+    return result;
+
+  auto variantVLenB =
+      variant->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.vlenb_bytes");
+  auto variantI32Lanes =
+      variant->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.i32_m1_lanes");
+  if (int result =
+          expect(variantVLenB && variantVLenB.getInt() == 16 &&
+                     variantI32Lanes && variantI32Lanes.getInt() == 4,
+                 "materialized RVV variant preserves capability-derived "
+                 "capacity metadata"))
     return result;
 
   auto expectProposalDecline =
@@ -927,6 +1017,76 @@ module {
 )mlir",
           {"conflicting RVV property values", "rvv.toolchain.march",
            "selected_march"}))
+    return result;
+
+  constexpr llvm::StringLiteral mismatchedCapacitySource = R"mlir(
+module {
+  tcrv.exec.kernel @mismatched_capacity attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_vlenb_bytes {
+      id = "rvv.vlenb_bytes",
+      kind = "uarch",
+      bytes = 16 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_lanes {
+      id = "rvv.i32_m1_lane_count",
+      kind = "uarch",
+      lanes = 4 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.variant @wrong_lanes attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.vlenb_bytes = 16 : i64,
+      tcrv_rvv.i32_m1_lanes = 8 : i64
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> mismatchedCapacityModule =
+      parseModule(context, mismatchedCapacitySource);
+  if (!mismatchedCapacityModule)
+    return fail("failed to parse mismatched RVV capacity module");
+  KernelOp mismatchedCapacityKernel =
+      findKernel(*mismatchedCapacityModule, "mismatched_capacity");
+  TargetCapabilitySet mismatchedCapacityCapabilities =
+      TargetCapabilitySet::buildFromKernel(mismatchedCapacityKernel);
+  VariantOp wrongLanes;
+  mismatchedCapacityKernel->walk([&](VariantOp candidate) {
+    if (candidate.getSymName() == "wrong_lanes")
+      wrongLanes = candidate;
+  });
+
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(
+              tianchenrv::plugin::VariantLegalityRequest(
+                  wrongLanes, mismatchedCapacityKernel,
+                  mismatchedCapacityCapabilities)),
+          {"capacity metadata", "i32 lanes", "vlenb bytes"}))
     return result;
 
   constexpr llvm::StringLiteral unsupportedMetadataSource = R"mlir(

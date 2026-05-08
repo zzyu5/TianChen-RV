@@ -22,6 +22,10 @@
 # MLIR: status = "available"
 # MLIR: tcrv.exec.capability @rvv_hart_count
 # MLIR: count = 64 : i64
+# MLIR: tcrv.exec.capability @rvv_vlenb_bytes
+# MLIR: bytes = 16 : i64
+# MLIR: tcrv.exec.capability @rvv_i32_m1_lanes
+# MLIR: lanes = 4 : i64
 # MLIR: tcrv.exec.capability @rvv_probe_compile_run
 # MLIR: selected_march = "rv64gcv"
 # MLIR: selected_mabi = "lp64d"
@@ -46,14 +50,20 @@
 # PIPE-SAME: isa_vector_hints = "isa: rv64imafdcv_zve64d_zvfh_zvl128b"
 # PIPE: tcrv.exec.capability @rvv_hart_count
 # PIPE-SAME: count = 64 : i64
+# PIPE: tcrv.exec.capability @rvv_vlenb_bytes
+# PIPE-SAME: bytes = 16 : i64
+# PIPE: tcrv.exec.capability @rvv_i32_m1_lanes
+# PIPE-SAME: lanes = 4 : i64
 # PIPE: tcrv.exec.capability @rvv_probe_compile_run
 # PIPE-SAME: selected_march = "rv64gcv"
 # PIPE: tcrv.exec.variant @rvv_first_slice
 # PIPE-SAME: origin = "rvv-plugin"
 # PIPE-SAME: requires = [@rvv]
 # PIPE-SAME: tcrv_rvv.element_count = 16 : i64
+# PIPE-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
 # PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
 # PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
+# PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
 # PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 # PIPE-SAME: origin = "scalar-plugin"
 # PIPE-SAME: requires = [@scalar_fallback]

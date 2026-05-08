@@ -257,8 +257,10 @@ The probe writes sanitized JSON evidence and command logs under
 only proves remote RVV header/toolchain/program availability; it is not a
 TianChen-RV-generated executable, correctness result, or performance result.
 The JSON also exposes sanitized `capability_facts` for the plugin-local C++
-RVV capability profile; Python remains evidence/artifact tooling and is not the
-compiler capability model.
+RVV capability profile, including bounded `vlenb_bytes` and derived
+`i32_m1_lane_count` when the probe program can read the RVV `vlenb` CSR.
+Python remains evidence/artifact tooling and is not the compiler capability
+model.
 
 After `tcrv-opt --tcrv-execution-planning-pipeline` has selected an RVV path,
 the generated smoke probe can be exported and compiled on `ssh rvv` for a

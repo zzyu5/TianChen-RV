@@ -21,7 +21,9 @@ try:
     from rvv_remote_probe import PROBE_NAME, SCHEMA_VERSION
 except ImportError:  # pragma: no cover - only used for unusual import setups.
     PROBE_NAME = "tianchenrv-rvv-remote-probe"
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
+
+SUPPORTED_SCHEMA_VERSIONS = {2, SCHEMA_VERSION}
 
 
 MAX_FACT_LENGTH = 512
@@ -163,7 +165,7 @@ def append_capability(
 
 def validated_capability_facts(artifact: dict[str, Any]) -> dict[str, Any]:
     schema_version = require_type(artifact, "schema_version", int)
-    if schema_version != SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise ReplayError("unsupported RVV probe evidence schema version")
 
     probe_name = require_type(artifact, "probe_name", str)
@@ -177,6 +179,8 @@ def validated_capability_facts(artifact: dict[str, Any]) -> dict[str, Any]:
     facts = {
         "architecture": optional_str(capability_facts, "architecture"),
         "hart_count": optional_int(capability_facts, "hart_count"),
+        "vlenb_bytes": optional_int(capability_facts, "vlenb_bytes"),
+        "i32_m1_lane_count": optional_int(capability_facts, "i32_m1_lane_count"),
         "isa_vector_hints": optional_str(capability_facts, "isa_vector_hints"),
         "clang_available": optional_bool(capability_facts, "clang_available"),
         "clang_version": optional_str(capability_facts, "clang_version"),
@@ -242,6 +246,28 @@ def emit_replay_mlir(
             ("status", status_from_bool(facts["hart_count"] > 0)),
         ],
     )
+    if facts["vlenb_bytes"]:
+        append_capability(
+            lines,
+            "rvv_vlenb_bytes",
+            [
+                ("id", "rvv.vlenb_bytes"),
+                ("kind", "uarch"),
+                ("bytes", facts["vlenb_bytes"]),
+                ("status", status_from_bool(facts["vlenb_bytes"] > 0)),
+            ],
+        )
+    if facts["i32_m1_lane_count"]:
+        append_capability(
+            lines,
+            "rvv_i32_m1_lanes",
+            [
+                ("id", "rvv.i32_m1_lane_count"),
+                ("kind", "uarch"),
+                ("lanes", facts["i32_m1_lane_count"]),
+                ("status", status_from_bool(facts["i32_m1_lane_count"] > 0)),
+            ],
+        )
     append_capability(
         lines,
         "rvv_toolchain_clang",
@@ -327,6 +353,8 @@ def make_artifact(**capability_overrides: Any) -> dict[str, Any]:
     capability_facts: dict[str, Any] = {
         "architecture": "riscv64",
         "hart_count": 64,
+        "vlenb_bytes": 16,
+        "i32_m1_lane_count": 4,
         "isa_vector_hints": "isa: rv64imafdcv_zve64d_zvfh_zvl128b",
         "clang_available": True,
         "clang_version": "clang version 18.1.3",
@@ -379,6 +407,13 @@ def run_self_test() -> None:
             'tcrv.exec.capability @rvv_probe_compile_run' in mlir
             and 'selected_march = "rv64gcv"' in mlir,
             "compile/run capability was not emitted",
+        )
+        assert_self_test(
+            'tcrv.exec.capability @rvv_vlenb_bytes' in mlir
+            and "bytes = 16 : i64" in mlir
+            and 'tcrv.exec.capability @rvv_i32_m1_lanes' in mlir
+            and "lanes = 4 : i64" in mlir,
+            "RVV vector capacity capabilities were not emitted",
         )
         assert_self_test(
             'tcrv.exec.capability @scalar_fallback' in mlir,

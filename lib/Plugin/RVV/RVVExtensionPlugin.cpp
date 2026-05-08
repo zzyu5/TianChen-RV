@@ -43,9 +43,15 @@ constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorValue(
     "i32-vadd-microkernel.v1");
 constexpr llvm::StringLiteral kRVVI32VAddElementCountAttrName(
     "tcrv_rvv.element_count");
+constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
+    "tcrv_rvv.vlenb_bytes");
+constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
+    "tcrv_rvv.i32_m1_lanes");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
+constexpr llvm::StringLiteral kVLenBBytesPropertyName("bytes");
+constexpr llvm::StringLiteral kI32M1LanesPropertyName("lanes");
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
@@ -91,6 +97,8 @@ struct RVVCapabilityPropertyView {
   std::string isaVectorHints;
   std::string selectedMarch;
   std::uint64_t hartCount = 0;
+  std::optional<std::uint64_t> vlenbBytes;
+  std::optional<std::uint64_t> i32M1LaneCount;
 };
 
 struct RVVI32VAddMaterializationPlan {
@@ -267,6 +275,40 @@ buildRVVCapabilityPropertyView(
   if (!hartCount)
     return hartCount.takeError();
 
+  const support::CapabilityDescriptor *vlenbCapability =
+      capabilities.lookupByID(rvv::getRVVVLenBBytesCapabilityID());
+  const support::CapabilityDescriptor *i32LaneCapability =
+      capabilities.lookupByID(rvv::getRVVI32M1LaneCountCapabilityID());
+  bool hasAvailableVLenB = vlenbCapability && vlenbCapability->isAvailable();
+  bool hasAvailableI32Lanes =
+      i32LaneCapability && i32LaneCapability->isAvailable();
+  std::optional<std::uint64_t> vlenbBytes;
+  std::optional<std::uint64_t> i32M1LaneCount;
+  if (hasAvailableVLenB != hasAvailableI32Lanes)
+    return makeRVVPluginError(
+        "RVV vector capacity decision requires both available capability ids "
+        "'rvv.vlenb_bytes' and 'rvv.i32_m1_lane_count'");
+  if (hasAvailableVLenB) {
+    llvm::Expected<std::uint64_t> parsedVLenB =
+        getRequiredPositiveIntegerRVVProperty(*vlenbCapability,
+                                              kVLenBBytesPropertyName);
+    if (!parsedVLenB)
+      return parsedVLenB.takeError();
+    llvm::Expected<std::uint64_t> parsedI32Lanes =
+        getRequiredPositiveIntegerRVVProperty(*i32LaneCapability,
+                                              kI32M1LanesPropertyName);
+    if (!parsedI32Lanes)
+      return parsedI32Lanes.takeError();
+    if (*parsedVLenB < sizeof(std::int32_t) ||
+        *parsedVLenB % sizeof(std::int32_t) != 0 ||
+        *parsedVLenB / sizeof(std::int32_t) != *parsedI32Lanes)
+      return makeRVVPluginError(
+          "RVV vector capacity decision requires i32 m1 lane count to match "
+          "vlenb bytes divided by four");
+    vlenbBytes = *parsedVLenB;
+    i32M1LaneCount = *parsedI32Lanes;
+  }
+
   const support::CapabilityDescriptor *compileRunCapability = nullptr;
   if (llvm::Error error = requireAvailableCapability(
           capabilities, rvv::getRVVProbeCompileRunCapabilityID(),
@@ -302,6 +344,8 @@ buildRVVCapabilityPropertyView(
   view.isaVectorHints = std::move(*isaVectorHints);
   view.selectedMarch = std::move(*selectedMarch);
   view.hartCount = *hartCount;
+  view.vlenbBytes = vlenbBytes;
+  view.i32M1LaneCount = i32M1LaneCount;
   return view;
 }
 
@@ -430,6 +474,51 @@ llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
         llvm::Twine("materialized RVV variant @") + variant.getSymName() +
         " 'tcrv_rvv.required_march' metadata is not satisfied by preserved "
         "capability property 'selected_march'");
+
+  return llvm::Error::success();
+}
+
+llvm::Error
+verifyOptionalCapacityAttrs(tcrv::exec::VariantOp variant,
+                            const RVVCapabilityPropertyView &view) {
+  mlir::Attribute rawVLenB = variant->getAttr(kRVVVLenBBytesAttrName);
+  mlir::Attribute rawI32Lanes = variant->getAttr(kRVVI32M1LanesAttrName);
+  if (!rawVLenB && !rawI32Lanes)
+    return llvm::Error::success();
+  if (!rawVLenB || !rawI32Lanes)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " capacity metadata requires both 'tcrv_rvv.vlenb_bytes' and "
+        "'tcrv_rvv.i32_m1_lanes'");
+
+  auto vlenbAttr = llvm::dyn_cast<mlir::IntegerAttr>(rawVLenB);
+  auto lanesAttr = llvm::dyn_cast<mlir::IntegerAttr>(rawI32Lanes);
+  if (!vlenbAttr || !lanesAttr)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " capacity metadata must use integer attributes");
+
+  std::int64_t vlenb = vlenbAttr.getInt();
+  std::int64_t lanes = lanesAttr.getInt();
+  if (vlenb <= 0 || lanes <= 0 || vlenb < 4 || vlenb % 4 != 0 ||
+      vlenb / 4 != lanes)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " capacity metadata requires i32 lanes to equal vlenb bytes divided "
+        "by four");
+
+  if (!view.vlenbBytes || !view.i32M1LaneCount)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " claims RVV vector capacity metadata without matching structured "
+        "target capabilities");
+
+  if (static_cast<std::uint64_t>(vlenb) != *view.vlenbBytes ||
+      static_cast<std::uint64_t>(lanes) != *view.i32M1LaneCount)
+    return makeRVVPluginError(
+        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
+        " capacity metadata is not satisfied by preserved RVV vlenb/i32 lane "
+        "capability facts");
 
   return llvm::Error::success();
 }
@@ -1019,6 +1108,20 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
       mlir::IntegerAttr::get(mlir::IntegerType::get(
                                  request.getKernel()->getContext(), 64),
                              kDefaultI32VAddElementCount));
+  if (propertyView->vlenbBytes && propertyView->i32M1LaneCount) {
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              kRVVVLenBBytesAttrName),
+        mlir::IntegerAttr::get(mlir::IntegerType::get(
+                                   request.getKernel()->getContext(), 64),
+                               *propertyView->vlenbBytes));
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              kRVVI32M1LanesAttrName),
+        mlir::IntegerAttr::get(mlir::IntegerType::get(
+                                   request.getKernel()->getContext(), 64),
+                               *propertyView->i32M1LaneCount));
+  }
   return proposal;
 }
 
@@ -1265,7 +1368,9 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
     return error;
 
   if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
-      variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName)) {
+      variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName) ||
+      variant->hasAttr(kRVVVLenBBytesAttrName) ||
+      variant->hasAttr(kRVVI32M1LanesAttrName)) {
     llvm::Expected<RVVCapabilityPropertyView> propertyView =
         buildRVVCapabilityPropertyView(request.getCapabilities());
     if (!propertyView)
@@ -1274,6 +1379,9 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
     if (variant->hasAttr(kRVVRequiredMarchAttrName))
       if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
         return error;
+    if (llvm::Error error =
+            verifyOptionalCapacityAttrs(variant, *propertyView))
+      return error;
 
     llvm::Expected<std::optional<RVVI32VAddMaterializationPlan>>
         microkernelPlan = buildI32VAddMaterializationPlan(
@@ -1296,8 +1404,23 @@ llvm::Error RVVExtensionPlugin::estimateVariantCost(
   out.setExplicitPreference(true);
   out.setOriginPlugin(kRVVPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
-  out.setExplanation("RVV metadata-only first slice; no runtime performance "
-                     "claim");
+  llvm::Expected<RVVCapabilityPropertyView> propertyView =
+      buildRVVCapabilityPropertyView(request.getCapabilities());
+  if (!propertyView) {
+    llvm::consumeError(propertyView.takeError());
+  } else if (propertyView->i32M1LaneCount) {
+    out.setScore(1.0 / static_cast<double>(*propertyView->i32M1LaneCount));
+    out.setExplanation(
+        (llvm::Twine("RVV metadata-only first slice; capability-derived "
+                     "i32_m1_lanes=") +
+         std::to_string(*propertyView->i32M1LaneCount) +
+         " is a plugin-local selection heuristic input, not a runtime "
+         "performance claim")
+            .str());
+  } else {
+    out.setExplanation("RVV metadata-only first slice; no runtime performance "
+                       "claim");
+  }
   out.setPolicy("plugin-local RVV capability participation");
   return llvm::Error::success();
 }

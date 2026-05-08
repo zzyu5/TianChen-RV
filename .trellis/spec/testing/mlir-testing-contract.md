@@ -264,8 +264,9 @@ Use C++ tests for:
 - plugin registry APIs;
 - capability query helper semantics;
 - plugin-local RVV capability-profile validation, including positive sanitized
-  probe facts, missing vector hints, non-`riscv64` architecture, compile/run
-  failure, missing clang/CMake availability, deterministic sanitized capability
+  probe facts, vlenb-derived i32 lane capacity preservation and rejection,
+  missing vector hints, non-`riscv64` architecture, compile/run failure,
+  missing clang/CMake availability, deterministic sanitized capability
   identities, and preservation of unsupported RVV emission readiness/plans;
 - cost model helper logic;
 - concrete first-slice plugin registration, proposal metadata, legality, and
@@ -352,7 +353,8 @@ If the repository provides an RVV probe replay helper, it must also be tested as
 Python tooling and as MLIR pipeline input. Required coverage:
 
 - a sanitized probe fixture converts to parseable `tcrv.exec` MLIR capability
-  ops with the field names consumed by `RVVExtensionPlugin`;
+  ops with the field names consumed by `RVVExtensionPlugin`, including optional
+  vlenb bytes and derived i32 m1 lane-count capabilities when present;
 - the replayed MLIR can drive `tcrv-opt --tcrv-execution-planning-pipeline` to
   materialize RVV proposal metadata, selected lowering-boundary metadata, and
   boundary-linked emission-plan diagnostics when the required RVV facts are
