@@ -1341,8 +1341,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 3) {
-    llvm::errs() << "expected exactly 3 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 4) {
+    llvm::errs() << "expected exactly 4 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -1352,6 +1352,11 @@ int main() {
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
+  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-smoke-probe-c",
+                   "standalone-c-source", "rvv-plugin",
+                   "rvv-smoke-probe-standalone-c-source", 0,
+                   /*expectedDirectHelperRoute=*/true))
+    return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
                    "rvv-explicit-i32-vadd-microkernel-c-source", 4,

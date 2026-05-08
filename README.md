@@ -103,6 +103,12 @@ tiny RVV intrinsic load/add/store check so it can be compiled and run on the
 kernel executable emission, runtime ABI glue, kernel correctness evidence, or
 performance evidence, and it does not change the RVV first-slice unsupported
 emission boundary.
+When a selected RVV path is explicitly planned as a smoke-probe descriptor, the
+same emitter is also reachable through the registry-driven generic
+`tcrv-translate --tcrv-export-target-source-artifact` front door as a
+`standalone-c-source` artifact. That generic route still emits only the bounded
+toolchain smoke program and does not turn the path into kernel lowering,
+runtime integration, correctness evidence, or performance evidence.
 
 The `tcrv-translate --tcrv-export-rvv-microkernel-c` tool exports a distinct
 deterministic library-style C source artifact for exactly one selected
@@ -176,10 +182,11 @@ coherence preflight validates that selected-path, lowering-boundary,
 runtime-ABI, emission-plan, and artifact-route metadata still describe the same
 path, including the structured ABI parameter roles required by the target-owned
 source exporter. Registered source routes are bounded to target-owned explicit
-artifacts: the RVV i32 vector-add microkernel C exporter above, the scalar
-fallback explicit i32 vector-add portable runtime-callable C exporter below,
-and the RVV+scalar i32-vadd host dispatch C composite exporter when the
-selected plan contains both supported callable sides.
+artifacts: the RVV standalone smoke-probe C source exporter above, the RVV i32
+vector-add microkernel C exporter above, the scalar fallback explicit i32
+vector-add portable runtime-callable C exporter below, and the RVV+scalar
+i32-vadd host dispatch C composite exporter when the selected plan contains
+both supported callable sides.
 Unsupported
 metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
 paths, missing boundaries, missing microkernels, route spoofing, and ambiguous

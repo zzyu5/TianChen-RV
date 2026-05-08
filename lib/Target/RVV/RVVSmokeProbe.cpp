@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -58,6 +59,11 @@ constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
+constexpr llvm::StringLiteral kSmokeProbeRouteID(
+    "tcrv-export-rvv-smoke-probe-c");
+constexpr llvm::StringLiteral kSmokeProbeEmissionKind(
+    "rvv-smoke-probe-standalone-c-source");
+constexpr llvm::StringLiteral kSmokeProbeArtifactKind("standalone-c-source");
 
 struct SelectedPath {
   VariantOp variant;
@@ -928,6 +934,10 @@ void printSmokeProbeSource(llvm::ArrayRef<RVVSmokeProbeRecord> records,
   os << "/* This is not TianChen-RV kernel lowering, runtime support, kernel "
         "correctness evidence, or performance evidence. */\n";
   os << "/* Deterministic probe count: " << records.size() << " */\n\n";
+  os << "/* origin_plugin: " << kRVVPluginName << " */\n";
+  os << "/* emission_kind: " << kSmokeProbeEmissionKind << " */\n";
+  os << "/* route: " << kSmokeProbeRouteID << " */\n";
+  os << "/* artifact_kind: " << kSmokeProbeArtifactKind << " */\n\n";
   os << "#include <stddef.h>\n";
   os << "#include <stdint.h>\n";
   os << "#include <stdio.h>\n";
@@ -969,6 +979,14 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
   stream.flush();
   os << source;
   return llvm::Error::success();
+}
+
+llvm::Error registerRVVSmokeProbeTargetExporters(
+    TargetArtifactExporterRegistry &registry) {
+  return registry.registerExporter(TargetArtifactExporter(
+      kSmokeProbeRouteID, kSmokeProbeArtifactKind, kRVVPluginName,
+      kSmokeProbeEmissionKind, exportRVVSmokeProbeC,
+      /*requiredRuntimeABIParameters=*/{}, /*directHelperRoute=*/true));
 }
 
 } // namespace tianchenrv::target::rvv

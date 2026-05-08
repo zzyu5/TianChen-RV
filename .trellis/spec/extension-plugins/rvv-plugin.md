@@ -56,6 +56,8 @@ property requirement attr name: tcrv_rvv.required_march
 finite lowering descriptor attr name: tcrv_rvv.lowering_descriptor
 finite lowering descriptor value: i32-vadd-microkernel.v1
 finite element-count attr name: tcrv_rvv.element_count
+smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
+smoke-probe descriptor value: standalone-c-toolchain-smoke-probe.v1
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 optional i32 m1 lane attr name: tcrv_rvv.i32_m1_lanes
 ```
@@ -127,6 +129,16 @@ present on a materialized variant. These fields are
 compiler-visible metadata for the existing generic materialization, legality,
 capability, and selection helpers. They are not generic tensor semantics,
 arbitrary RVV lowering, runtime correctness evidence, or performance evidence.
+
+When the explicit capability scope also makes plugin-local capability id
+`rvv.smoke_probe` available, the first-slice proposal may choose the
+plugin-local `tcrv_rvv.smoke_probe_descriptor` instead of the finite
+i32-vadd microkernel descriptor. That descriptor selects the standalone
+smoke-probe source artifact route only. It must preserve the same selected
+RVV march/profile validation and lowering-boundary metadata as the direct
+smoke exporter, and it must not materialize `tcrv_rvv.i32_vadd_microkernel`,
+runtime callable ABI parameters, kernel lowering, correctness evidence, or
+performance evidence.
 
 When a relation-provider capability satisfies id `rvv`, generic variant
 materialization records the provider symbol in `requires`, for example
@@ -635,10 +647,22 @@ metadata, `tcrv_rvv.required_march`, and the matching
 `tcrv_rvv.lowering_boundary` to emit a standalone C program that includes
 `riscv_vector.h` and performs a tiny RVV intrinsic smoke check.
 
-This target export does not change `RVVExtensionPlugin` emission readiness:
-`@rvv_first_slice` still reports unsupported executable emission and a deferred
-runtime ABI boundary. Successful `ssh rvv` compile/run of the generated smoke C
-only proves the generated smoke program can use the RVV toolchain on that host.
+The same emitter may be registered as the target-owned standalone C source
+artifact route `tcrv-export-rvv-smoke-probe-c` with emission kind
+`rvv-smoke-probe-standalone-c-source` and artifact kind
+`standalone-c-source`. The generic
+`tcrv-translate --tcrv-export-target-source-artifact` front door may select
+that route only from normal emission-plan and target artifact exporter registry
+metadata; shared generic front-door code must not branch on RVV or target
+profile names to discover the smoke exporter.
+
+This target export does not make ordinary RVV kernel emission supported:
+metadata-only `@rvv_first_slice` paths without the explicit smoke descriptor
+still report unsupported executable emission and a deferred runtime ABI
+boundary. A smoke-descriptor path may report support only for the standalone
+smoke-probe C source artifact route. Successful `ssh rvv` compile/run of the
+generated smoke C only proves the generated smoke program can use the RVV
+toolchain on that host.
 It does not prove TianChen-RV lowered a selected kernel, emitted LLVM/RISC-V/RVV
 IR, generated an object, linked runtime glue, proved kernel correctness, or
 measured performance.

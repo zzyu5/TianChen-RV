@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "verify global stack and architecture invariants"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify relation-provider and parameter layering behavior"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains compute-free"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV route remains plugin-local and evidence-bounded"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify registry-driven target artifact front-door semantics"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify target-specific work stays out of generic core"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify lit/FileCheck and registry test coverage"}

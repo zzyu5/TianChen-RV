@@ -129,16 +129,18 @@ descriptor body policy remains target/export-local.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
 dtype, shape, runtime, toolchain, or microarchitecture semantics. The
 currently supported source routes are bounded explicit target/export-owned
-artifacts: the RVV i32 vector-add runtime-callable library C exporter
-registered by RVV target/export code, the scalar fallback i32 vector-add
-portable runtime-callable C exporter registered by scalar target/export code,
-and the RVV+scalar i32 vector-add host dispatch C composite exporter registered
-by RVV+scalar target/export code. The composite exporter consumes the selected
-RVV dispatch-case callable candidate plus selected scalar dispatch-fallback
-callable candidate and validates the target-owned dispatch availability guard
-ABI before source output. This does not add generic RVV or scalar lowering,
-full runtime ABI integration, object generation, linking, arbitrary source
-export, correctness evidence, or performance evidence.
+artifacts: the RVV standalone smoke-probe C source exporter registered by RVV
+target/export code for an explicitly planned smoke-probe path, the RVV i32
+vector-add runtime-callable library C exporter registered by RVV target/export
+code, the scalar fallback i32 vector-add portable runtime-callable C exporter
+registered by scalar target/export code, and the RVV+scalar i32 vector-add host
+dispatch C composite exporter registered by RVV+scalar target/export code. The
+composite exporter consumes the selected RVV dispatch-case callable candidate
+plus selected scalar dispatch-fallback callable candidate and validates the
+target-owned dispatch availability guard ABI before source output. This does
+not add generic RVV or scalar lowering, full runtime ABI integration, object
+generation, linking, arbitrary source export, correctness evidence, or
+performance evidence.
 
 The artifact-kind-aware generic route may also select target-owned bounded
 RISC-V ELF relocatable object exporters for the same validated direct RVV
@@ -320,6 +322,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - The helper registers every currently supported built-in target artifact route
   by delegating to target-owned registration functions.
 - The current single-candidate route set is:
+  - RVV standalone smoke-probe C source, artifact kind
+    `standalone-c-source`, selected only when a plugin-owned smoke-probe
+    emission plan names `tcrv-export-rvv-smoke-probe-c`.
   - RVV explicit i32 vector-add microkernel runtime-callable C source.
   - Scalar explicit i32 vector-add microkernel runtime-callable C source.
   - Offload runtime handoff descriptor.
