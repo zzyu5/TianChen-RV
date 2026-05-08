@@ -2012,6 +2012,17 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
     }
   }
 
+  if (TargetArtifactCandidateValidationFn validationFn =
+          exporter.getCandidateValidationFn()) {
+    if (llvm::Error error = validationFn(candidate)) {
+      std::string message = llvm::toString(std::move(error));
+      return makeArtifactExportError(
+          candidate.kernel,
+          llvm::Twine("route id '") + candidate.routeID +
+              "' runtime ABI role contract validation failed: " + message);
+    }
+  }
+
   return llvm::Error::success();
 }
 
@@ -2112,11 +2123,13 @@ TargetArtifactExporter::TargetArtifactExporter(
     TargetArtifactExportFn exportFn,
     llvm::ArrayRef<support::RuntimeABIParameter>
         requiredRuntimeABIParameters,
-    bool directHelperRoute, llvm::StringRef handoffKind)
+    bool directHelperRoute, llvm::StringRef handoffKind,
+    TargetArtifactCandidateValidationFn candidateValidationFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
       exportFn(exportFn), directHelperRoute(directHelperRoute),
-      handoffKind(handoffKind.str()) {
+      handoffKind(handoffKind.str()),
+      candidateValidationFn(candidateValidationFn) {
   this->requiredRuntimeABIParameters.append(
       requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());
 }

@@ -110,6 +110,16 @@ verify that any selected emission-plan diagnostic parameter metadata is an exact
 mirror of the executable IR-backed ABI boundary consumed by the target-owned
 exporter, including role, C name, C type, and ownership. Missing, spoofed,
 stale, or extra required roles fail before target-owned C source emission.
+Standalone target exporters may also register a route-local candidate
+validation callback when a static role list is not expressive enough to check
+the full compiler-owned runtime ABI contract. The generic target artifact
+front door and the execution-plan coherence gate must invoke that callback
+after checking route id, artifact kind, origin, emission kind, export callback,
+and required typed ABI roles, and before calling the route-specific exporter.
+Such callbacks may validate generic compiler-owned ABI surfaces such as
+`tcrv.exec.mem_window` and `tcrv.exec.runtime_param` role/name/type/purpose/
+ownership/kind consistency for the selected candidate, but extension-specific
+descriptor body policy remains target/export-local.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
 dtype, shape, runtime, toolchain, or microarchitecture semantics. The
 currently supported source routes are bounded explicit target/export-owned
@@ -246,6 +256,13 @@ to validate origin ownership and the generic target artifact exporter registry
 to validate route metadata. Target-specific proof of a concrete microkernel,
 descriptor body, toolchain, or runtime remains target-owned and must not move
 into the shared transform.
+When a registered target artifact route declares required runtime ABI roles or
+a route-local ABI validation callback, this same preflight verifier must reject
+missing or inconsistent compiler-owned ABI contracts before descriptor, source,
+header, object, or bundle materialization. For the offload descriptor route,
+that means malformed or stale `runtime_abi_parameters` fail at the selected
+target-artifact/front-door boundary before descriptor text is emitted, while
+the descriptor exporter keeps its own final validation safety net.
 
 The canonical `tcrv-opt --tcrv-execution-planning-pipeline` must run this same
 preflight verifier as its final gate after emission-plan materialization when a

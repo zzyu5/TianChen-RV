@@ -54,7 +54,11 @@
 # MISSING-HANDOFF: requires attribute 'handoff_kind'
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-abi-role-contract.txt 2>&1 | FileCheck %s --check-prefix=MISSING-ABI-CONTRACT --implicit-check-not=offload_runtime_handoff_descriptor
-# MISSING-ABI-CONTRACT: offload descriptor ABI contract requires runtime_abi_parameters metadata
+# MISSING-ABI-CONTRACT: route id 'tcrv-export-offload-runtime-descriptor' requires structured runtime ABI parameter role 'lhs-input-buffer'
+
+# RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-inconsistent-abi-role-contract.txt 2>&1 | FileCheck %s --check-prefix=BAD-ABI-CONTRACT --implicit-check-not=offload_runtime_handoff_descriptor
+# BAD-ABI-CONTRACT: route id 'tcrv-export-offload-runtime-descriptor' runtime ABI role contract validation failed
+# BAD-ABI-CONTRACT: offload descriptor target artifact preflight runtime ABI parameter role 'runtime-element-count' must mirror IR-backed callable ABI parameter c_name='n'
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
 # STALE-PLAN: stale emission-plan diagnostic is not selected by the current execution plan surface

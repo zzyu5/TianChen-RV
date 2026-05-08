@@ -24,6 +24,8 @@ struct TargetArtifactCandidate;
 
 using TargetArtifactExportFn = llvm::Error (*)(mlir::ModuleOp module,
                                                llvm::raw_ostream &os);
+using TargetArtifactCandidateValidationFn = llvm::Error (*)(
+    const TargetArtifactCandidate &candidate);
 using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
     llvm::ArrayRef<TargetArtifactCandidate> candidates);
 using TargetArtifactCompositeRuntimeABIParametersFn =
@@ -41,7 +43,9 @@ public:
                          llvm::ArrayRef<support::RuntimeABIParameter>
                              requiredRuntimeABIParameters = {},
                          bool directHelperRoute = false,
-                         llvm::StringRef handoffKind = {});
+                         llvm::StringRef handoffKind = {},
+                         TargetArtifactCandidateValidationFn
+                             candidateValidationFn = nullptr);
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -54,6 +58,9 @@ public:
   getRequiredRuntimeABIParameters() const {
     return requiredRuntimeABIParameters;
   }
+  TargetArtifactCandidateValidationFn getCandidateValidationFn() const {
+    return candidateValidationFn;
+  }
 
 private:
   std::string routeID;
@@ -65,6 +72,7 @@ private:
   std::string handoffKind;
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       requiredRuntimeABIParameters;
+  TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
 };
 
 struct SelectedPlanMetadataEntry {

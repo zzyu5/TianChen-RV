@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV implementation and boundary invariants"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "offload/RVV evidence and non-goal boundaries"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "mem_window/runtime_param and compute-free exec contract"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "runtime-offload descriptor and ABI handoff contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact preflight, runtime ABI, and parameter layering rules"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned emission plan and registry routing constraints"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "extension-specific behavior locality constraints"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "execution planning pipeline and final coherence gate behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and evidence testing policy"}

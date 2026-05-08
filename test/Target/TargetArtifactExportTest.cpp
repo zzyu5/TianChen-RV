@@ -1283,9 +1283,22 @@ int main() {
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-offload-runtime-descriptor",
                    "runtime-offload-handoff-descriptor", "offload-plugin",
-                   "runtime-offload-handoff-descriptor", 0,
+                   "runtime-offload-handoff-descriptor", 4,
                    /*expectedDirectHelperRoute=*/false, "runtime-offload"))
     return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-offload-runtime-descriptor",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
+    return 1;
+  const TargetArtifactExporter *offloadDescriptorExporter =
+      builtinRegistry.lookup("tcrv-export-offload-runtime-descriptor");
+  if (!offloadDescriptorExporter ||
+      !offloadDescriptorExporter->getCandidateValidationFn()) {
+    llvm::errs()
+        << "offload descriptor route lacks runtime ABI preflight validator\n";
+    return 1;
+  }
   const tianchenrv::support::RuntimeABICallableIdentity &rvvABI =
       tianchenrv::support::getI32VAddRuntimeABIContract()
           .getRVVCallableIdentity();

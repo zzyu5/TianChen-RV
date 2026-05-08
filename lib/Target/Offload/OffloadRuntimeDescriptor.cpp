@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -1270,6 +1271,31 @@ llvm::Error validateAndAttachRuntimeABIContract(KernelOp kernel,
   return llvm::Error::success();
 }
 
+llvm::Error validateOffloadDescriptorTargetArtifactRuntimeABIContract(
+    const tianchenrv::target::TargetArtifactCandidate &candidate) {
+  llvm::Expected<support::I32VAddCallableABIPlan> abiPlan =
+      support::buildI32VAddCallableABIPlan(candidate.kernel);
+  if (!abiPlan) {
+    std::string message = llvm::toString(abiPlan.takeError());
+    return makeDescriptorError(
+        candidate.kernel,
+        llvm::Twine("offload descriptor ABI preflight requires IR-backed "
+                    "mem_window/runtime_param roles: ") +
+            message);
+  }
+
+  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+          candidate.kernel, candidate.runtimeABIParameters, abiPlan->parameters,
+          "offload descriptor target artifact preflight")) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDescriptorError(
+        candidate.kernel,
+        llvm::Twine("offload descriptor ABI preflight failed: ") + message);
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<std::optional<DescriptorRecord>>
 buildKernelDescriptor(KernelOp kernel) {
   llvm::StringMap<VariantOp> directVariants;
@@ -1574,8 +1600,10 @@ llvm::Error registerOffloadRuntimeDescriptorTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
       kDescriptorRouteID, kDescriptorArtifactKind, kOffloadPluginName,
-      kDescriptorEmissionKind, exportOffloadRuntimeDescriptor, {},
-      /*directHelperRoute=*/false, kRuntimeOffloadHandoffKind));
+      kDescriptorEmissionKind, exportOffloadRuntimeDescriptor,
+      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+      /*directHelperRoute=*/false, kRuntimeOffloadHandoffKind,
+      validateOffloadDescriptorTargetArtifactRuntimeABIContract));
 }
 
 } // namespace tianchenrv::target::offload

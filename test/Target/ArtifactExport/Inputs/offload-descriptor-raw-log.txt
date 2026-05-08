@@ -7,6 +7,40 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
     }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "n",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
     tcrv.exec.variant @offload_runtime_first_slice attributes {
       origin = "offload-plugin",
       requires = [@offload_runtime],
@@ -46,6 +80,12 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       runtime_abi_kind = "runtime-offload-c-abi-handoff",
       runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1",
+      runtime_abi_parameters = [
+        {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"},
+        {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"},
+        {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
+        {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
+      ],
       runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary",
       status = "supported",
       target = @offload_runtime_first_slice
