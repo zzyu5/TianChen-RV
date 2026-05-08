@@ -219,6 +219,85 @@ bool expectI32VAddRuntimeABIContractShape() {
   return true;
 }
 
+bool expectRuntimeABIParameterRoleLookup() {
+  constexpr RuntimeABIParameterOwnership owned =
+      RuntimeABIParameterOwnership::TargetExportABIOwned;
+  llvm::SmallVector<RuntimeABIParameter, 5> parameters;
+  parameters.push_back(RuntimeABIParameter(
+      "rvv_ready", "int", RuntimeABIParameterRole::DispatchAvailabilityGuard,
+      owned));
+  parameters.push_back(RuntimeABIParameter(
+      "runtime_n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
+      owned));
+  parameters.push_back(RuntimeABIParameter(
+      "lhs_ptr", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
+      owned));
+  parameters.push_back(RuntimeABIParameter(
+      "out_ptr", "int32_t *", RuntimeABIParameterRole::OutputBuffer, owned));
+  parameters.push_back(RuntimeABIParameter(
+      "rhs_ptr", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer,
+      owned));
+
+  llvm::Expected<const RuntimeABIParameter *> runtimeN =
+      tianchenrv::support::findUniqueRuntimeABIParameterByRole(
+          parameters, RuntimeABIParameterRole::RuntimeElementCount,
+          "out-of-order dispatch ABI parameter test");
+  if (!runtimeN) {
+    llvm::errs() << llvm::toString(runtimeN.takeError()) << "\n";
+    return false;
+  }
+  if ((*runtimeN)->cName != "runtime_n") {
+    llvm::errs() << "role lookup returned the wrong runtime element-count "
+                    "parameter\n";
+    return false;
+  }
+
+  llvm::Expected<const RuntimeABIParameter *> guard =
+      tianchenrv::support::findUniqueRuntimeABIParameterByRole(
+          parameters, RuntimeABIParameterRole::DispatchAvailabilityGuard,
+          "out-of-order dispatch ABI parameter test");
+  if (!guard) {
+    llvm::errs() << llvm::toString(guard.takeError()) << "\n";
+    return false;
+  }
+  if ((*guard)->cName != "rvv_ready") {
+    llvm::errs() << "role lookup returned the wrong dispatch guard parameter\n";
+    return false;
+  }
+
+  llvm::SmallVector<RuntimeABIParameter, 5> missingRuntimeN;
+  missingRuntimeN.append(parameters.begin(), parameters.end());
+  missingRuntimeN.erase(missingRuntimeN.begin() + 1);
+  llvm::Expected<const RuntimeABIParameter *> missing =
+      tianchenrv::support::findUniqueRuntimeABIParameterByRole(
+          missingRuntimeN, RuntimeABIParameterRole::RuntimeElementCount,
+          "missing runtime count role test");
+  if (!expectErrorContains(
+          missing.takeError(), "missing runtime element-count role rejected",
+          {"runtime ABI parameter role lookup failed",
+           "missing runtime count role test", "runtime-element-count",
+           "found none"}))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 6> duplicateGuard;
+  duplicateGuard.append(parameters.begin(), parameters.end());
+  duplicateGuard.push_back(RuntimeABIParameter(
+      "rvv_available", "int",
+      RuntimeABIParameterRole::DispatchAvailabilityGuard, owned));
+  llvm::Expected<const RuntimeABIParameter *> duplicate =
+      tianchenrv::support::findUniqueRuntimeABIParameterByRole(
+          duplicateGuard, RuntimeABIParameterRole::DispatchAvailabilityGuard,
+          "duplicate guard role test");
+  if (!expectErrorContains(
+          duplicate.takeError(), "duplicate dispatch guard role rejected",
+          {"runtime ABI parameter role lookup failed",
+           "duplicate guard role test", "dispatch-availability-guard",
+           "found duplicate parameters"}))
+    return false;
+
+  return true;
+}
+
 bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                           llvm::StringRef routeID, llvm::StringRef artifactKind,
                           llvm::StringRef expectedOwner = {},
@@ -1046,6 +1125,8 @@ int main() {
                      "register built-in target artifact exporters"))
     return 1;
   if (!expectI32VAddRuntimeABIContractShape())
+    return 1;
+  if (!expectRuntimeABIParameterRoleLookup())
     return 1;
   if (builtinRegistry.size() != 3) {
     llvm::errs() << "expected exactly 3 built-in target artifact routes, got "

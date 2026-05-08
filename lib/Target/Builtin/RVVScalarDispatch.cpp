@@ -97,6 +97,14 @@ struct DispatchABIPlan {
   RuntimeParamOp runtimeGuardParam;
 };
 
+struct DispatchRuntimeABIParameterBindings {
+  const support::RuntimeABIParameter *lhs = nullptr;
+  const support::RuntimeABIParameter *rhs = nullptr;
+  const support::RuntimeABIParameter *out = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCount = nullptr;
+  const support::RuntimeABIParameter *dispatchAvailabilityGuard = nullptr;
+};
+
 struct DispatchIRLink {
   DispatchOp dispatch;
   DispatchCaseOp selectedRVVCase;
@@ -414,18 +422,6 @@ makeRuntimeABIParameterFromRuntimeParam(KernelOp kernel,
                                       *parsedOwnership);
 }
 
-RuntimeParamOp findRuntimeParamByRole(
-    llvm::ArrayRef<RuntimeParamOp> params,
-    support::RuntimeABIParameterRole role) {
-  llvm::StringRef expectedRole = support::stringifyRuntimeABIParameterRole(role);
-  for (RuntimeParamOp param : params)
-    if (getRuntimeParamStringAttr(param,
-                                  support::kRuntimeParamABIRoleAttrName) ==
-        expectedRole)
-      return param;
-  return RuntimeParamOp();
-}
-
 mlir::Operation *findDirectKernelSymbol(KernelOp kernel,
                                         llvm::StringRef symbolName) {
   if (!kernel || kernel.getBody().empty())
@@ -438,6 +434,64 @@ mlir::Operation *findDirectKernelSymbol(KernelOp kernel,
       return &op;
   }
   return nullptr;
+}
+
+llvm::Expected<const support::RuntimeABIParameter *>
+findDispatchABIParameterByRole(
+    KernelOp kernel, llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    support::RuntimeABIParameterRole role, llvm::StringRef context) {
+  llvm::Expected<const support::RuntimeABIParameter *> parameter =
+      support::findUniqueRuntimeABIParameterByRole(parameters, role, context);
+  if (!parameter) {
+    std::string message = llvm::toString(parameter.takeError());
+    return makeDispatchError(kernel, message);
+  }
+  return *parameter;
+}
+
+llvm::Expected<DispatchRuntimeABIParameterBindings>
+bindDispatchRuntimeABIParametersByRole(
+    KernelOp kernel, llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    llvm::StringRef context) {
+  using Role = support::RuntimeABIParameterRole;
+  DispatchRuntimeABIParameterBindings bindings;
+
+  llvm::Expected<const support::RuntimeABIParameter *> lhs =
+      findDispatchABIParameterByRole(kernel, parameters, Role::LHSInputBuffer,
+                                     context);
+  if (!lhs)
+    return lhs.takeError();
+  bindings.lhs = *lhs;
+
+  llvm::Expected<const support::RuntimeABIParameter *> rhs =
+      findDispatchABIParameterByRole(kernel, parameters, Role::RHSInputBuffer,
+                                     context);
+  if (!rhs)
+    return rhs.takeError();
+  bindings.rhs = *rhs;
+
+  llvm::Expected<const support::RuntimeABIParameter *> out =
+      findDispatchABIParameterByRole(kernel, parameters, Role::OutputBuffer,
+                                     context);
+  if (!out)
+    return out.takeError();
+  bindings.out = *out;
+
+  llvm::Expected<const support::RuntimeABIParameter *> runtimeElementCount =
+      findDispatchABIParameterByRole(kernel, parameters,
+                                     Role::RuntimeElementCount, context);
+  if (!runtimeElementCount)
+    return runtimeElementCount.takeError();
+  bindings.runtimeElementCount = *runtimeElementCount;
+
+  llvm::Expected<const support::RuntimeABIParameter *>
+      dispatchAvailabilityGuard = findDispatchABIParameterByRole(
+          kernel, parameters, Role::DispatchAvailabilityGuard, context);
+  if (!dispatchAvailabilityGuard)
+    return dispatchAvailabilityGuard.takeError();
+  bindings.dispatchAvailabilityGuard = *dispatchAvailabilityGuard;
+
+  return bindings;
 }
 
 llvm::Expected<DispatchIRLink>
@@ -674,35 +728,25 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
             "tcrv.exec.runtime_param IR for dispatch runtime ABI scalar "
             "values");
 
-  auto runtimeCountIt =
-      llvm::find_if(callablePlan->parameters,
-                    [](const support::RuntimeABIParameter &parameter) {
-                      using Role = support::RuntimeABIParameterRole;
-                      return parameter.role == Role::RuntimeElementCount;
-                    });
-  if (runtimeCountIt == callablePlan->parameters.end())
-    return makeDispatchError(
-        pair.rvv.kernel,
-        "selected RVV callable route must expose runtime-element-count before "
-        "dispatch runtime_param validation");
+  llvm::Expected<const support::RuntimeABIParameter *> runtimeCount =
+      findDispatchABIParameterByRole(
+          pair.rvv.kernel, callablePlan->parameters,
+          support::RuntimeABIParameterRole::RuntimeElementCount,
+          "selected RVV callable ABI plan");
+  if (!runtimeCount)
+    return runtimeCount.takeError();
 
   DispatchABIPlan plan;
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
   runtimeParamSpecs.push_back(
-      support::getI32VAddRuntimeElementCountParamSpec(runtimeCountIt->cName));
+      support::getI32VAddRuntimeElementCountParamSpec((*runtimeCount)->cName));
   if (llvm::Error error = support::collectRuntimeABIParams(
           pair.rvv.kernel, runtimeParamSpecs, plan.runtimeParams)) {
     std::string message = llvm::toString(std::move(error));
     return makeDispatchError(pair.rvv.kernel, message);
   }
 
-  RuntimeParamOp countParam = findRuntimeParamByRole(
-      plan.runtimeParams, support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!countParam)
-    return makeDispatchError(
-        pair.rvv.kernel,
-        "requires runtime-element-count "
-        "tcrv.exec.runtime_param IR before dispatch export");
+  RuntimeParamOp countParam = plan.runtimeParams.front();
 
   llvm::Expected<RuntimeParamOp> guardParam =
       resolveRuntimeGuardParamFromSelectedCase(pair);
@@ -715,9 +759,9 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
       makeRuntimeABIParameterFromRuntimeParam(pair.rvv.kernel, countParam);
   if (!count)
     return count.takeError();
-  if (count->cName != runtimeCountIt->cName ||
-      count->cType != runtimeCountIt->cType ||
-      count->ownership != runtimeCountIt->ownership)
+  if (count->cName != (*runtimeCount)->cName ||
+      count->cType != (*runtimeCount)->cType ||
+      count->ownership != (*runtimeCount)->ownership)
     return makeDispatchError(
         pair.rvv.kernel,
         "tcrv.exec.runtime_param runtime-element-count must agree with the "
@@ -1208,11 +1252,9 @@ void printDispatcherFunction(llvm::raw_ostream &os,
                              llvm::StringRef rvvFunctionName,
                              llvm::StringRef scalarFunctionName,
                              llvm::ArrayRef<support::RuntimeABIParameter>
-                                 parameters) {
-  llvm::ArrayRef<support::RuntimeABIParameter> callableParameters =
-      parameters.take_front(4);
-  const support::RuntimeABIParameter &guardParameter = parameters[4];
-
+                                 parameters,
+                             const DispatchRuntimeABIParameterBindings
+                                 &bindings) {
   os << "void " << dispatcherFunctionName << "(";
   for (auto [index, parameter] : llvm::enumerate(parameters)) {
     if (index != 0)
@@ -1220,12 +1262,14 @@ void printDispatcherFunction(llvm::raw_ostream &os,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") {\n";
-  os << "  if (" << guardParameter.cName << ") {\n";
+  os << "  if (" << bindings.dispatchAvailabilityGuard->cName << ") {\n";
   os << "    " << rvvFunctionName << "(";
+  const support::RuntimeABIParameter *callableParameters[] = {
+      bindings.lhs, bindings.rhs, bindings.out, bindings.runtimeElementCount};
   for (auto [index, parameter] : llvm::enumerate(callableParameters)) {
     if (index != 0)
       os << ", ";
-    os << parameter.cName;
+    os << parameter->cName;
   }
   os << ");\n";
   os << "    return;\n";
@@ -1234,13 +1278,21 @@ void printDispatcherFunction(llvm::raw_ostream &os,
   for (auto [index, parameter] : llvm::enumerate(callableParameters)) {
     if (index != 0)
       os << ", ";
-    os << parameter.cName;
+    os << parameter->cName;
   }
   os << ");\n";
   os << "}\n";
 }
 
-void printDispatchHeader(const DispatchPair &pair, llvm::raw_ostream &os) {
+llvm::Error printDispatchHeader(const DispatchPair &pair,
+                                llvm::raw_ostream &os) {
+  llvm::Expected<DispatchRuntimeABIParameterBindings> bindings =
+      bindDispatchRuntimeABIParametersByRole(
+          pair.rvv.kernel, pair.abiPlan.parameters,
+          "RVV+scalar dispatch header ABI plan");
+  if (!bindings)
+    return bindings.takeError();
+
   std::string includeGuard = makeDispatchHeaderIncludeGuard(pair);
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
 
@@ -1264,6 +1316,7 @@ void printDispatchHeader(const DispatchPair &pair, llvm::raw_ostream &os) {
   os << "}\n";
   os << "#endif\n\n";
   os << "#endif /* " << includeGuard << " */\n";
+  return llvm::Error::success();
 }
 
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
@@ -1320,24 +1373,27 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "}\n";
 }
 
-void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
-                         llvm::StringRef scalarSource, bool includeSelfCheck,
-                         llvm::raw_ostream &os) {
+llvm::Error printDispatchSource(const DispatchPair &pair,
+                                llvm::StringRef rvvSource,
+                                llvm::StringRef scalarSource,
+                                bool includeSelfCheck, llvm::raw_ostream &os) {
   KernelOp kernel = pair.rvv.kernel;
   std::string rvvFunctionName = makeRVVFunctionName(pair.rvv);
   std::string scalarFunctionName = makeScalarFunctionName(pair.scalar);
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
   llvm::ArrayRef<support::RuntimeABIParameter> dispatchParameters =
       pair.abiPlan.parameters;
-  const support::RuntimeABIParameter &runtimeElementCountParameter =
-      dispatchParameters[3];
-  const support::RuntimeABIParameter &guardParameter =
-      dispatchParameters.back();
+  llvm::Expected<DispatchRuntimeABIParameterBindings> bindings =
+      bindDispatchRuntimeABIParametersByRole(
+          kernel, dispatchParameters, "RVV+scalar dispatch C ABI plan");
+  if (!bindings)
+    return bindings.takeError();
 
   os << "/* TianChen-RV RVV+scalar host runtime dispatch C export. */\n";
   os << "/* Scope: one selected RVV i32-vadd dispatch case plus one scalar "
         "i32-vadd dispatch fallback. */\n";
-  os << "/* Runtime guard: explicit host-provided " << guardParameter.cName
+  os << "/* Runtime guard: explicit host-provided "
+     << bindings->dispatchAvailabilityGuard->cName
      << " parameter; no automatic hardware probe is generated. */\n";
   os << "/* selected_kernel: @" << kernel.getSymName() << " */\n";
   printCandidateMetadata(os, "rvv", pair.rvv);
@@ -1382,11 +1438,12 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
     os << "\n";
   os << "\n/* Host dispatcher over the two validated callable artifacts. */\n";
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
-                          scalarFunctionName, dispatchParameters);
+                          scalarFunctionName, dispatchParameters, *bindings);
   if (includeSelfCheck)
     printDispatchSelfCheckHarness(os, dispatcherFunctionName,
-                                  runtimeElementCountParameter.cName,
-                                  guardParameter.cName);
+                                  bindings->runtimeElementCount->cName,
+                                  bindings->dispatchAvailabilityGuard->cName);
+  return llvm::Error::success();
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
@@ -1550,8 +1607,10 @@ llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
 
   std::string source;
   llvm::raw_string_ostream stream(source);
-  printDispatchSource(*pair, rvvSource, scalarSource,
-                      /*includeSelfCheck=*/false, stream);
+  if (llvm::Error error = printDispatchSource(*pair, rvvSource, scalarSource,
+                                              /*includeSelfCheck=*/false,
+                                              stream))
+    return error;
   stream.flush();
   os << source;
   return llvm::Error::success();
@@ -1580,7 +1639,10 @@ llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
     return makeModuleDispatchHeaderError(message);
   }
 
-  printDispatchHeader(*pair, os);
+  if (llvm::Error error = printDispatchHeader(*pair, os)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchHeaderError(message);
+  }
   return llvm::Error::success();
 }
 
@@ -1598,8 +1660,10 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
 
   std::string source;
   llvm::raw_string_ostream stream(source);
-  printDispatchSource(*pair, rvvSource, scalarSource,
-                      /*includeSelfCheck=*/true, stream);
+  if (llvm::Error error = printDispatchSource(*pair, rvvSource, scalarSource,
+                                              /*includeSelfCheck=*/true,
+                                              stream))
+    return error;
   stream.flush();
   os << source;
   return llvm::Error::success();

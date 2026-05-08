@@ -5,6 +5,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <optional>
@@ -151,6 +152,10 @@ inline bool runtimeABIParametersEqual(
   }
   return true;
 }
+
+llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters,
+    RuntimeABIParameterRole role, llvm::StringRef context);
 
 inline void printRuntimeABIParameterCDeclaration(
     llvm::raw_ostream &os, const RuntimeABIParameter &parameter) {

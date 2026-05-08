@@ -1,5 +1,8 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 
+#include "llvm/Support/Errc.h"
+#include "llvm/Support/raw_ostream.h"
+
 namespace tianchenrv::support {
 
 I32VAddRuntimeABIContract::I32VAddRuntimeABIContract()
@@ -147,6 +150,37 @@ makeI32VAddDispatchAvailabilityGuard(llvm::StringRef cName) {
 llvm::SmallVector<RuntimeABIParameter, 5>
 getI32VAddDispatchRuntimeABIParameters() {
   return getI32VAddRuntimeABIContract().getDispatchRuntimeABIParameters();
+}
+
+llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters,
+    RuntimeABIParameterRole role, llvm::StringRef context) {
+  const RuntimeABIParameter *matched = nullptr;
+  unsigned count = 0;
+  for (const RuntimeABIParameter &parameter : parameters) {
+    if (parameter.role != role)
+      continue;
+    matched = &parameter;
+    ++count;
+  }
+
+  if (count == 1)
+    return matched;
+
+  std::string message;
+  llvm::raw_string_ostream stream(message);
+  stream << "runtime ABI parameter role lookup failed";
+  if (!context.empty())
+    stream << " for " << context;
+  stream << ": requires exactly one runtime ABI parameter with role '"
+         << stringifyRuntimeABIParameterRole(role) << "'";
+  if (count == 0)
+    stream << "; found none";
+  else
+    stream << "; found duplicate parameters";
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(message,
+                                             llvm::errc::invalid_argument);
 }
 
 llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
