@@ -106,12 +106,18 @@ capability-derived `tcrv_rvv.vlenb_bytes` /
 `tcrv_rvv.i32_m1_lanes` integer attributes when structured vlenb/lane
 capabilities are available, and the finite plugin-owned lowering descriptor
 for exactly the i32 vector-add microkernel slice:
-`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded integer
-`tcrv_rvv.element_count`. The generic string policy remains the input for core
-selection/dispatch; the typed policy, required march, optional capacity
-metadata, lowering descriptor, and element count are plugin-local metadata
-preserved by the generic proposal/materialization path and validated by
-`RVVExtensionPlugin` when present on a materialized variant. These fields are
+`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded
+descriptor-local integer `tcrv_rvv.element_count`. When structured
+`rvv.i32_m1_lane_count` capacity evidence is present, the RVV plugin chooses
+that descriptor-local sample size as four M1 i32 vectors, capped at 64
+elements; without structured capacity evidence it uses the fixed first-slice
+fallback sample size `16`. This is a compiler descriptor decision, not a
+runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.
+The generic string policy remains the input for core selection/dispatch; the
+typed policy, required march, optional capacity metadata, lowering descriptor,
+and element count are plugin-local metadata preserved by the generic
+proposal/materialization path and validated by `RVVExtensionPlugin` when
+present on a materialized variant. These fields are
 compiler-visible metadata for the existing generic materialization, legality,
 capability, and selection helpers. They are not generic tensor semantics,
 arbitrary RVV lowering, runtime correctness evidence, or performance evidence.

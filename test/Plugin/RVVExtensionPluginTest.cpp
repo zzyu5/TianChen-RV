@@ -537,6 +537,9 @@ module {
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 4))
     return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
+    return result;
 
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
@@ -610,6 +613,37 @@ module {
                          "not a runtime performance claim"),
                  "RVV capacity is exposed only as plugin-local heuristic "
                  "metadata"))
+    return result;
+
+  RVVProbeCapabilityFacts wideFacts = makeSuccessfulProbeFacts();
+  wideFacts.vlenbBytes = 128;
+  wideFacts.i32M1LaneCount = 32;
+  llvm::Expected<TargetCapabilitySet> wideCapabilitiesOrError =
+      plugin.buildTargetCapabilitiesFromProbeFacts(wideFacts);
+  if (!wideCapabilitiesOrError) {
+    std::string message = llvm::toString(wideCapabilitiesOrError.takeError());
+    return fail(llvm::Twine("wide RVV probe facts build target capabilities: ") +
+                message);
+  }
+
+  TargetCapabilitySet wideCapabilities = std::move(*wideCapabilitiesOrError);
+  VariantProposalRequest wideRequest =
+      makeRequest(highLevelOp.getOperation(), kernel, wideCapabilities);
+  llvm::SmallVector<VariantProposal, 1> wideProposals;
+  if (int result =
+          expectSuccess(registry.collectVariantProposals(wideRequest,
+                                                        wideProposals),
+                        "wide RVV capacity facts feed RVV proposals"))
+    return result;
+  if (int result =
+          expect(wideProposals.size() == 1,
+                 "wide RVV capability facts still propose one variant"))
+    return result;
+  if (int result = expectProposalIntegerAttr(
+          wideProposals[0], "tcrv_rvv.i32_m1_lanes", 32))
+    return result;
+  if (int result = expectProposalIntegerAttr(
+          wideProposals[0], "tcrv_rvv.element_count", 64))
     return result;
 
   return 0;
@@ -690,7 +724,7 @@ module {
       id = "rvv",
       kind = "isa-vector",
       architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
+      isa_vector_hints = "rv64gcv_zvl256b",
       status = "available",
       vendor_note = "kept-generic"
     }
@@ -703,13 +737,13 @@ module {
     tcrv.exec.capability @rvv_vlenb_bytes {
       id = "rvv.vlenb_bytes",
       kind = "uarch",
-      bytes = 16 : i64,
+      bytes = 32 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_i32_m1_lanes {
       id = "rvv.i32_m1_lane_count",
       kind = "uarch",
-      lanes = 4 : i64,
+      lanes = 8 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -753,7 +787,7 @@ module {
   if (int result =
           expect(rvvCapability &&
                      rvvCapability->getProperty("isa_vector_hints") ==
-                         "rv64gcv_zvl128b" &&
+                         "rv64gcv_zvl256b" &&
                      rvvCapability->getProperty("vendor_note") ==
                          "kept-generic",
                  "RVV plugin sees preserved non-core MLIR properties"))
@@ -793,10 +827,13 @@ module {
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
     return result;
   if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 16))
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 32))
     return result;
   if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 4))
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 8))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 32))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -836,10 +873,13 @@ module {
   auto variantI32Lanes =
       variant->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.i32_m1_lanes");
   if (int result =
-          expect(variantVLenB && variantVLenB.getInt() == 16 &&
-                     variantI32Lanes && variantI32Lanes.getInt() == 4,
+          expect(variantVLenB && variantVLenB.getInt() == 32 &&
+                     variantI32Lanes && variantI32Lanes.getInt() == 8,
                  "materialized RVV variant preserves capability-derived "
                  "capacity metadata"))
+    return result;
+  if (int result = expectIntegerAttr(variant.getOperation(),
+                                     "tcrv_rvv.element_count", 32))
     return result;
 
   auto expectProposalDecline =

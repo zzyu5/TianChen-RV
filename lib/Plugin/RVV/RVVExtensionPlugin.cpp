@@ -90,6 +90,8 @@ constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
     "diagnostic self-description only; not runtime input, shape, VL/AVL, or "
     "performance evidence");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
+constexpr std::uint64_t kI32VAddCapacitySampleVectors = 4;
+constexpr std::int64_t kMaxI32VAddElementCount = 64;
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -117,6 +119,20 @@ struct RVVCapacityMetadata {
   std::int64_t vlenbBytes = 0;
   std::int64_t i32M1Lanes = 0;
 };
+
+std::int64_t
+deriveI32VAddDescriptorElementCount(const RVVCapabilityPropertyView &view) {
+  if (!view.i32M1LaneCount)
+    return kDefaultI32VAddElementCount;
+
+  if (*view.i32M1LaneCount >=
+      static_cast<std::uint64_t>(kMaxI32VAddElementCount) /
+          kI32VAddCapacitySampleVectors)
+    return kMaxI32VAddElementCount;
+
+  return static_cast<std::int64_t>(*view.i32M1LaneCount *
+                                   kI32VAddCapacitySampleVectors);
+}
 
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
   return request.getKernel() &&
@@ -1163,7 +1179,8 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
                             kRVVI32VAddElementCountAttrName),
       mlir::IntegerAttr::get(mlir::IntegerType::get(
                                  request.getKernel()->getContext(), 64),
-                             kDefaultI32VAddElementCount));
+                             deriveI32VAddDescriptorElementCount(
+                                 *propertyView)));
   if (propertyView->vlenbBytes && propertyView->i32M1LaneCount) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),

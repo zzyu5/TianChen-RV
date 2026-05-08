@@ -7,7 +7,7 @@ module {
       id = "rvv",
       kind = "isa-vector",
       architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
+      isa_vector_hints = "rv64gcv_zvl256b",
       status = "available"
     }
     tcrv.exec.capability @rvv_hart_count {
@@ -19,13 +19,13 @@ module {
     tcrv.exec.capability @rvv_vlenb_bytes {
       id = "rvv.vlenb_bytes",
       kind = "uarch",
-      bytes = 16 : i64,
+      bytes = 32 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_i32_m1_lanes {
       id = "rvv.i32_m1_lane_count",
       kind = "uarch",
-      lanes = 4 : i64,
+      lanes = 8 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -47,14 +47,17 @@ module {
     }
 
     // POS: tcrv.exec.variant @rvv_first_slice
-    // POS-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
-    // POS-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
+    // POS-SAME: tcrv_rvv.element_count = 32 : i64
+    // POS-SAME: tcrv_rvv.i32_m1_lanes = 8 : i64
+    // POS-SAME: tcrv_rvv.vlenb_bytes = 32 : i64
     // POS: tcrv_rvv.lowering_boundary
-    // POS-SAME: i32_m1_lanes = 4 : i64
+    // POS-SAME: i32_m1_lanes = 8 : i64
     // POS-SAME: role = "direct variant"
     // POS-SAME: selected_variant = @rvv_first_slice
     // POS-SAME: status = "unsupported"
-    // POS-SAME: vlenb_bytes = 16 : i64
+    // POS-SAME: vlenb_bytes = 32 : i64
+    // POS: tcrv_rvv.i32_vadd_microkernel
+    // POS-SAME: element_count = 32 : i64
     // POS: tcrv.exec.diagnostic
     // POS-SAME: reason = "emission_plan"
     // POS-SAME: role = "direct variant"
@@ -62,10 +65,10 @@ module {
     // POS-SAME: name = "tcrv_rvv.vlenb_bytes"
     // POS-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
     // POS-SAME: role = "selected-rvv-capacity-fact"
-    // POS-SAME: value = "16"
+    // POS-SAME: value = "32"
     // POS-SAME: name = "tcrv_rvv.i32_m1_lanes"
     // POS-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
     // POS-SAME: role = "selected-rvv-capacity-fact"
-    // POS-SAME: value = "4"
+    // POS-SAME: value = "8"
   }
 }

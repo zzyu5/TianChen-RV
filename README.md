@@ -115,7 +115,10 @@ target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, one matching
 `tcrv_rvv.with_vl`, and one nested finite `tcrv_rvv.i32_vadd_dataflow` marker
 for the target/export-owned lhs input, rhs input, output, and runtime element
 count ABI roles consumed by the exporter. Descriptor-local `element_count`
-remains metadata and is not promoted to AVL or VL. The generated source uses
+is selected from structured RVV i32 M1 lane capacity when available, capped as
+a bounded sample, and otherwise falls back to the first-slice sample size 16;
+it remains metadata and is not promoted to shape, runtime `n`, AVL, VL,
+correctness coverage, or performance evidence. The generated source uses
 `riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
 runtime-callable C ABI function. The callable parameter roles, C type spellings,
 and deterministic lhs/rhs/out/runtime-count order are derived from direct

@@ -205,9 +205,11 @@ preserve parameter layering:
   another valid C name without changing callable role order, adding the guard to
   callable microkernel signatures, or introducing automatic hardware probing;
 - descriptor-local bounded values such as `tcrv_rvv.element_count` or
-  `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
-  and must not be reported as tensor shape, global problem size, AVL, vl,
-  runtime loop trip count, correctness coverage, or performance evidence.
+  `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only.
+  An extension plugin may choose such a sample size from validated structured
+  capability facts, such as RVV i32 M1 lane capacity, but the value still must
+  not be reported as tensor shape, global problem size, AVL, vl, runtime loop
+  trip count, correctness coverage, or performance evidence.
 
 Generated C may contain target-owned local variables such as a local `vl`
 computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
@@ -914,7 +916,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 - If the selected variant asks the RVV plugin to materialize the microkernel,
   it must carry exactly the finite descriptor
   `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` and a bounded
-  integer `tcrv_rvv.element_count`; no generic tensor, dtype family, shape, or
+  descriptor-local integer `tcrv_rvv.element_count`. When structured RVV i32 M1
+  lane capacity is present, that element count may be a bounded plugin-selected
+  sample size derived from capacity; no generic tensor, dtype family, shape,
+  AVL/VL, runtime trip count, correctness coverage, performance, or broad
   microarchitecture semantics are implied.
 - A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
   source kernel, selected variant, origin, role, status, and required
