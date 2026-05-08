@@ -303,9 +303,9 @@ buildRVVCapabilityPropertyView(
     return hartCount.takeError();
 
   const support::CapabilityDescriptor *vlenbCapability =
-      capabilities.lookupByID(rvv::getRVVVLenBBytesCapabilityID());
+      capabilities.lookupProviderByID(rvv::getRVVVLenBBytesCapabilityID());
   const support::CapabilityDescriptor *i32LaneCapability =
-      capabilities.lookupByID(rvv::getRVVI32M1LaneCountCapabilityID());
+      capabilities.lookupProviderByID(rvv::getRVVI32M1LaneCountCapabilityID());
   bool hasAvailableVLenB = vlenbCapability && vlenbCapability->isAvailable();
   bool hasAvailableI32Lanes =
       i32LaneCapability && i32LaneCapability->isAvailable();

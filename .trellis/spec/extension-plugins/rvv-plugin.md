@@ -75,7 +75,9 @@ The current minimal proposal gate is:
 - capability id `rvv.hart_count` is available and has a positive integer
   `count` property;
 - when capability ids `rvv.vlenb_bytes` and `rvv.i32_m1_lane_count` are
-  available, they must appear as a pair, preserve positive integer
+  available, either as exact capability providers or through the explicit
+  kernel capability-provider relation scope such as a module-level
+  `target = @profile`, they must appear as a pair, preserve positive integer
   `bytes`/`lanes` properties, and satisfy `lanes = bytes / 4` for the current
   i32 m1 first slice;
 - capability id `rvv.probe.compile_run` is available and has a bounded
@@ -108,8 +110,9 @@ capabilities are available, and the finite plugin-owned lowering descriptor
 for exactly the i32 vector-add microkernel slice:
 `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded
 descriptor-local integer `tcrv_rvv.element_count`. When structured
-`rvv.i32_m1_lane_count` capacity evidence is present, the RVV plugin chooses
-that descriptor-local sample size as four M1 i32 vectors, capped at 64
+`rvv.i32_m1_lane_count` capacity evidence is present through an exact
+capability provider or a relation-provider target profile, the RVV plugin
+chooses that descriptor-local sample size as four M1 i32 vectors, capped at 64
 elements; without structured capacity evidence it uses the fixed first-slice
 fallback sample size `16`. This is a compiler descriptor decision, not a
 runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.

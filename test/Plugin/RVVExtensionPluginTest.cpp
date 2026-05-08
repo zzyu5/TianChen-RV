@@ -1200,6 +1200,146 @@ module {
   return 0;
 }
 
+int runRVVModuleTargetProfileCapacityDecisionTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.target @module_rvv_capacity_profile {
+    id = "rvv.profile.capacity",
+    kind = "profile",
+    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run"],
+    architecture = "riscv64",
+    isa_vector_hints = "rv64gcv_zvl256b",
+    count = 64 : i64,
+    bytes = 32 : i64,
+    lanes = 8 : i64,
+    selected_march = "rv64gcv",
+    status = "available"
+  }
+
+  tcrv.exec.kernel @profile_capacity_rvv attributes {target = @module_rvv_capacity_profile} {
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse module target-profile RVV capacity module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "profile_capacity_rvv");
+  if (int result = expect(highLevelOp && kernel,
+                          "module target-profile capacity test has op and "
+                          "kernel"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  const CapabilityDescriptor *profile =
+      capabilities.lookupBySymbolName("module_rvv_capacity_profile");
+  if (int result =
+          expect(profile && profile->satisfiesID("rvv") &&
+                     profile->satisfiesID("rvv.vlenb_bytes") &&
+                     profile->satisfiesID("rvv.i32_m1_lane_count") &&
+                     profile->getProperty("bytes") == "32" &&
+                     profile->getProperty("lanes") == "8",
+                 "module target profile carries relation-provided RVV "
+                 "capacity facts"))
+    return result;
+  const CapabilityDescriptor *vlenbProvider =
+      capabilities.lookupProviderByID("rvv.vlenb_bytes");
+  const CapabilityDescriptor *i32LaneProvider =
+      capabilities.lookupProviderByID("rvv.i32_m1_lane_count");
+  if (int result = expect(vlenbProvider == profile &&
+                              i32LaneProvider == profile,
+                          "RVV capacity provider lookup resolves the module "
+                          "target profile relation"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for module target-profile "
+                        "capacity test"))
+    return result;
+
+  VariantProposalRequest request =
+      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(request, proposals),
+          "module target-profile capacity facts feed RVV proposal"))
+    return result;
+  if (int result =
+          expect(proposals.size() == 1,
+                 "module target-profile capacity facts propose one RVV "
+                 "variant"))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 32))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 8))
+    return result;
+  if (int result =
+          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 32))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize RVV proposal from module target-profile capacity"))
+    return result;
+  if (int result =
+          expect(materializedVariants.size() == 1,
+                 "materialized one RVV variant from module target profile"))
+    return result;
+
+  VariantOp variant = materializedVariants.front();
+  auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  auto requiredSymbol =
+      requiresAttr && !requiresAttr.empty()
+          ? llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiresAttr[0])
+          : mlir::FlatSymbolRefAttr();
+  if (int result =
+          expect(requiredSymbol &&
+                     requiredSymbol.getValue() ==
+                         "module_rvv_capacity_profile",
+                 "materialized relation-provider RVV variant requires the "
+                 "module target profile symbol"))
+    return result;
+  if (int result =
+          expectSuccess(registry.verifyVariantLegality(
+                            tianchenrv::plugin::VariantLegalityRequest(
+                                variant, kernel, capabilities)),
+                        "RVV legality accepts module profile capacity facts"))
+    return result;
+
+  tianchenrv::plugin::VariantCostEstimate estimate;
+  if (int result = expectSuccess(
+          registry.estimateVariantCost(
+              tianchenrv::plugin::VariantCostRequest(variant, kernel,
+                                                     capabilities),
+              estimate),
+          "RVV cost estimate consumes module target-profile capacity facts"))
+    return result;
+  if (int result =
+          expect(estimate.getScore() == 0.125 &&
+                     estimate.getExplanation().contains("i32_m1_lanes=8") &&
+                     estimate.getExplanation().contains(
+                         "not a runtime performance claim"),
+                 "module target-profile RVV capacity is only plugin-local "
+                 "selection heuristic metadata"))
+    return result;
+
+  return 0;
+}
+
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1594,6 +1734,8 @@ int main() {
   if (int result = runRVVCapabilityProfileRejectionTest())
     return result;
   if (int result = runRVVCapabilityPropertyDecisionTest(context))
+    return result;
+  if (int result = runRVVModuleTargetProfileCapacityDecisionTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

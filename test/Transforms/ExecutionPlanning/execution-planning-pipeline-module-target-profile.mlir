@@ -4,12 +4,14 @@ module {
   // CHECK-LABEL: tcrv.exec.target @module_rvv_profile
   // CHECK-SAME: id = "rvv.profile.module"
   // CHECK-SAME: kind = "profile"
-  // CHECK-SAME: provides = ["rvv", "rvv.hart_count", "rvv.probe.compile_run"]
+  // CHECK-SAME: provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run"]
   tcrv.exec.target @module_rvv_profile {
     id = "rvv.profile.module",
     kind = "profile",
-    provides = ["rvv", "rvv.hart_count", "rvv.probe.compile_run"],
+    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run"],
     architecture = "riscv64",
+    bytes = 32 : i64,
+    lanes = 8 : i64,
     isa_vector_hints = "rv64gcv_zvl128b",
     count = 64 : i64,
     selected_march = "rv64gcv",
@@ -22,11 +24,15 @@ module {
     // CHECK: tcrv.exec.variant @rvv_first_slice
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: requires = [@module_rvv_profile]
-    // CHECK-SAME: tcrv_rvv.element_count = 16 : i64
+    // CHECK-SAME: tcrv_rvv.element_count = 32 : i64
+    // CHECK-SAME: tcrv_rvv.i32_m1_lanes = 8 : i64
     // CHECK-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
     // CHECK-SAME: tcrv_rvv.required_march = "rv64gcv"
+    // CHECK-SAME: tcrv_rvv.vlenb_bytes = 32 : i64
 
     // CHECK: tcrv.exec.diagnostic
+    // CHECK-SAME: preference_explanation = "RVV metadata-only first slice; capability-derived i32_m1_lanes=8 is a plugin-local selection heuristic input, not a runtime performance claim"
+    // CHECK-SAME: preference_score = 1.250000e-01 : f64
     // CHECK-SAME: reason = "variant-selected"
     // CHECK-SAME: selection_kind = "static-variant"
     // CHECK-SAME: target = @rvv_first_slice
@@ -47,14 +53,16 @@ module {
 
     // CHECK: tcrv_rvv.lowering_boundary
     // CHECK-SAME: capability_summary = "rvv.profile.module"
+    // CHECK-SAME: i32_m1_lanes = 8 : i64
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: required_capabilities = [@module_rvv_profile]
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: selected_variant = @rvv_first_slice
     // CHECK-SAME: source_kernel = "module_profile_pipeline"
     // CHECK-SAME: status = "unsupported"
+    // CHECK-SAME: vlenb_bytes = 32 : i64
     // CHECK: tcrv_rvv.i32_vadd_microkernel
-    // CHECK-SAME: element_count = 16 : i64
+    // CHECK-SAME: element_count = 32 : i64
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: required_capabilities = [@module_rvv_profile]
     // CHECK-SAME: required_march = "rv64gcv"
@@ -74,6 +82,15 @@ module {
     // CHECK-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
     // CHECK-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
     // CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
+    // CHECK-SAME: selected_plan_metadata =
+    // CHECK-SAME: name = "tcrv_rvv.vlenb_bytes"
+    // CHECK-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
+    // CHECK-SAME: role = "selected-rvv-capacity-fact"
+    // CHECK-SAME: value = "32"
+    // CHECK-SAME: name = "tcrv_rvv.i32_m1_lanes"
+    // CHECK-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
+    // CHECK-SAME: role = "selected-rvv-capacity-fact"
+    // CHECK-SAME: value = "8"
     // CHECK-SAME: status = "supported"
     // CHECK-SAME: target = @rvv_first_slice
   }
