@@ -226,6 +226,12 @@ bool kernelContainsCapability(KernelOp kernel, llvm::StringRef symbolName) {
     auto capability = llvm::dyn_cast<CapabilityOp>(op);
     if (capability && capability.getSymName() == symbolName)
       return true;
+
+    auto target = llvm::dyn_cast<TargetOp>(op);
+    if (target && target.getSymName() == symbolName &&
+        !isMissingOrEmptyStringAttr(target.getOperation(), kIdAttrName) &&
+        !isMissingOrEmptyStringAttr(target.getOperation(), kKindAttrName))
+      return true;
   }
   return false;
 }
@@ -432,6 +438,36 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
 
 } // namespace
 
+mlir::LogicalResult TargetOp::verify() {
+  auto idAttr = getOperation()->getAttrOfType<mlir::StringAttr>(kIdAttrName);
+  auto kindAttr =
+      getOperation()->getAttrOfType<mlir::StringAttr>(kKindAttrName);
+  if (static_cast<bool>(idAttr) != static_cast<bool>(kindAttr))
+    return emitOpError()
+           << "requires capability-provider target profiles to specify both "
+              "non-empty string attributes '"
+           << kIdAttrName << "' and '" << kKindAttrName << "'";
+
+  if (mlir::failed(requireStableSingleLineWhenPresent(getOperation(),
+                                                      kIdAttrName)))
+    return mlir::failure();
+  if (mlir::failed(requireStableSingleLineWhenPresent(getOperation(),
+                                                      kKindAttrName)))
+    return mlir::failure();
+
+  if (mlir::failed(
+          verifyCapabilityIDRelationAttr(getOperation(), kProvidesAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityIDRelationAttr(getOperation(), kImpliesAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityIDRelationAttr(getOperation(), kConflictsAttrName)))
+    return mlir::failure();
+
+  return mlir::success();
+}
+
 mlir::LogicalResult CapabilityOp::verify() {
   if (isMissingOrEmptyStringAttr(getOperation(), kIdAttrName))
     return emitOpError()
@@ -486,6 +522,18 @@ mlir::LogicalResult KernelOp::verify() {
           !directCapabilityIDs.insert(idAttr.getValue()).second)
         return capability.emitOpError()
                << "duplicates capability id '" << idAttr.getValue()
+               << "' in enclosing tcrv.exec.kernel";
+      continue;
+    }
+
+    if (auto target = llvm::dyn_cast<TargetOp>(op)) {
+      auto idAttr = target->getAttrOfType<mlir::StringAttr>(kIdAttrName);
+      auto kindAttr = target->getAttrOfType<mlir::StringAttr>(kKindAttrName);
+      if (idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
+          !kindAttr.getValue().trim().empty() &&
+          !directCapabilityIDs.insert(idAttr.getValue()).second)
+        return target.emitOpError()
+               << "duplicates capability-provider id '" << idAttr.getValue()
                << "' in enclosing tcrv.exec.kernel";
       continue;
     }

@@ -160,8 +160,10 @@ does not receive `runtime_guard_required` or `runtime_guard` case metadata.
 
 The `tcrv-verify-plugin-variant-legality` stage is the materialized-variant
 legality boundary before selection. It builds the same generic
-`TargetCapabilitySet` from direct kernel capability anchors and routes each
-direct `tcrv.exec.variant` only to the plugin named by its `origin` attribute.
+`TargetCapabilitySet` from direct kernel capability-provider anchors
+(`tcrv.exec.capability`, plus kernel-local `tcrv.exec.target` profiles that
+carry both `id` and `kind`) and routes each direct `tcrv.exec.variant` only to
+the plugin named by its `origin` attribute.
 Plugin-local legality failures stop the pipeline before selection, dispatch,
 selected lowering-boundary materialization, or emission-plan diagnostics are
 created. This stage complements, and does not replace,

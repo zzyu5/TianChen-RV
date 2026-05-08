@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants: MLIR/C++ primary stack, capability-driven execution layer, RVV evidence discipline."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines structured target capability objects and how capabilities drive compiler decisions."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec target/capability/variant ownership boundary."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Ensures capability decisions remain routed through generic plugin registry interfaces."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Documents variant proposal, legality, requires mapping, and selection pipeline consumers."}

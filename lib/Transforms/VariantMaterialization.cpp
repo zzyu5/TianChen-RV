@@ -36,6 +36,7 @@ using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::CapabilityOp;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::TargetOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
 struct PlannedVariant {
@@ -127,12 +128,26 @@ bool kernelHasBody(KernelOp kernel) {
   return kernel && !kernel.getBody().empty();
 }
 
-bool kernelHasDirectCapability(KernelOp kernel) {
+bool isCapabilityProviderOp(mlir::Operation &op) {
+  if (llvm::isa<CapabilityOp>(op))
+    return true;
+
+  auto target = llvm::dyn_cast<TargetOp>(op);
+  if (!target)
+    return false;
+
+  auto idAttr = target->getAttrOfType<mlir::StringAttr>("id");
+  auto kindAttr = target->getAttrOfType<mlir::StringAttr>("kind");
+  return idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
+         !kindAttr.getValue().trim().empty();
+}
+
+bool kernelHasDirectCapabilityProvider(KernelOp kernel) {
   if (!kernelHasBody(kernel))
     return false;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    if (llvm::isa<CapabilityOp>(op))
+    if (isCapabilityProviderOp(op))
       return true;
   }
   return false;
@@ -173,15 +188,6 @@ llvm::Error makeNoViableProposalError(
   return makeMaterializationError(stream.str());
 }
 
-CapabilityOp lookupCapabilityInKernel(KernelOp kernel,
-                                      llvm::StringRef symbolName) {
-  return llvm::dyn_cast_or_null<CapabilityOp>(
-      mlir::SymbolTable::lookupSymbolIn(
-          kernel.getOperation(),
-          mlir::StringAttr::get(kernel.getOperation()->getContext(),
-                                symbolName)));
-}
-
 llvm::Error appendRequiredSymbol(mlir::OpBuilder &builder, KernelOp kernel,
                                  const VariantProposal &proposal,
                                  llvm::StringRef requiredSymbol,
@@ -197,12 +203,6 @@ llvm::Error appendRequiredSymbol(mlir::OpBuilder &builder, KernelOp kernel,
         llvm::Twine("required capability symbol reference @") +
             requiredSymbol +
             " cannot be represented by the current MLIR symbol subset");
-
-  CapabilityOp capabilityOp = lookupCapabilityInKernel(kernel, requiredSymbol);
-  if (!capabilityOp)
-    return makeProposalError(
-        proposal, llvm::Twine("unresolved required capability symbol @") +
-                      requiredSymbol + " in kernel @" + kernel.getSymName());
 
   if (seenRequiredSymbols.insert(requiredSymbol).second)
     out.push_back(mlir::FlatSymbolRefAttr::get(builder.getContext(),
@@ -240,18 +240,8 @@ llvm::Error appendRequiredID(mlir::OpBuilder &builder, KernelOp kernel,
         proposal, llvm::Twine("required capability id \"") + requiredID +
                       "\" resolved to an empty capability symbol");
 
-  CapabilityOp capabilityOp = lookupCapabilityInKernel(kernel, requiredSymbol);
-  if (!capabilityOp)
-    return makeProposalError(
-        proposal, llvm::Twine("required capability id \"") + requiredID +
-                      "\" resolved to missing capability symbol @" +
-                      requiredSymbol + " in kernel @" + kernel.getSymName());
-
-  if (seenRequiredSymbols.insert(requiredSymbol).second)
-    out.push_back(mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                               requiredSymbol));
-
-  return llvm::Error::success();
+  return appendRequiredSymbol(builder, kernel, proposal, requiredSymbol,
+                              seenRequiredSymbols, out);
 }
 
 llvm::Error
@@ -615,11 +605,11 @@ llvm::Error materializeKernelPluginVariants(
         kernel.getSymName() +
         " requires at least one enabled extension plugin in the registry");
 
-  if (!kernelHasDirectCapability(kernel))
+  if (!kernelHasDirectCapabilityProvider(kernel))
     return makeMaterializationError(
         llvm::Twine("TianChen-RV plugin variant materialization for kernel @") +
         kernel.getSymName() +
-        " requires existing direct tcrv.exec.capability anchors");
+        " requires existing direct capability-provider anchors");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);

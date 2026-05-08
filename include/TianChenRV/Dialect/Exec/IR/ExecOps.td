@@ -32,6 +32,7 @@ def TargetOp : TCRVExec_Op<"exec.target", [Symbol]> {
 
   let arguments = (ins SymbolNameAttr:$sym_name);
   let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
 }
 
 def CapabilityOp : TCRVExec_Op<"exec.capability", [Symbol]> {

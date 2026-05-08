@@ -102,7 +102,7 @@ module {
 module {
   // MAT-LABEL: tcrv.exec.kernel @rvv_profile_provides_rvv
   tcrv.exec.kernel @rvv_profile_provides_rvv {
-    tcrv.exec.capability @rvv_profile {
+    tcrv.exec.target @rvv_profile {
       id = "rvv.profile.rv64gcv",
       kind = "profile",
       provides = ["rvv"],
@@ -134,6 +134,8 @@ module {
       status = "available"
     }
 
+    // MAT: tcrv.exec.target @rvv_profile
+    // MAT-SAME: provides = ["rvv"]
     // MAT: tcrv.exec.variant @rvv_first_slice
     // MAT-SAME: origin = "rvv-plugin"
     // MAT-SAME: requires = [@rvv_profile]

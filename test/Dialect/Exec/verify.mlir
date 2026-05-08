@@ -140,6 +140,36 @@ tcrv.exec.kernel @malformed_capability_relation attributes {} {
 
 // -----
 
+tcrv.exec.kernel @target_profile_missing_kind attributes {} {
+  // expected-error @+1 {{requires capability-provider target profiles to specify both non-empty string attributes 'id' and 'kind'}}
+  tcrv.exec.target @rvv_profile {id = "rvv.profile", provides = ["rvv"]}
+}
+
+// -----
+
+tcrv.exec.kernel @target_profile_malformed_relation attributes {} {
+  // expected-error @+1 {{capability relation attribute 'provides' must be an array of non-empty capability id strings}}
+  tcrv.exec.target @rvv_profile {id = "rvv.profile", kind = "profile", provides = "rvv"}
+}
+
+// -----
+
+tcrv.exec.kernel @target_profile_requires_ok attributes {} {
+  tcrv.exec.target @rvv_profile {id = "rvv.profile", kind = "profile", provides = ["rvv"]}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv_profile]} {
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @target_profile_duplicate_id attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+  // expected-error @+1 {{duplicates capability-provider id 'rvv' in enclosing tcrv.exec.kernel}}
+  tcrv.exec.target @rvv_profile {id = "rvv", kind = "profile", provides = ["rvv"]}
+}
+
+// -----
+
 tcrv.exec.kernel @empty_capability_relation_id attributes {} {
   // expected-error @+1 {{capability relation attribute 'implies' entry 0 must be a non-empty capability id string}}
   tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", implies = [""]}

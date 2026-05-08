@@ -30,12 +30,10 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   return attr.getValue();
 }
 
-llvm::StringRef getCapabilityStatus(tcrv::exec::CapabilityOp capability) {
-  if (llvm::StringRef status =
-          getStringAttr(capability.getOperation(), "status");
-      !status.empty())
+llvm::StringRef getCapabilityStatus(mlir::Operation *op) {
+  if (llvm::StringRef status = getStringAttr(op, "status"); !status.empty())
     return status;
-  return getStringAttr(capability.getOperation(), "availability");
+  return getStringAttr(op, "availability");
 }
 
 bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
@@ -77,9 +75,9 @@ std::string stringifyCapabilityProperty(mlir::Attribute attribute) {
 }
 
 std::map<std::string, std::string>
-collectCapabilityProperties(tcrv::exec::CapabilityOp capability) {
+collectCapabilityProperties(mlir::Operation *op) {
   std::map<std::string, std::string> properties;
-  for (mlir::NamedAttribute namedAttribute : capability->getAttrs()) {
+  for (mlir::NamedAttribute namedAttribute : op->getAttrs()) {
     llvm::StringRef attrName = namedAttribute.getName().getValue();
     if (isCoreCapabilityAttribute(attrName) ||
         isCapabilityRelationAttribute(attrName))
@@ -92,10 +90,10 @@ collectCapabilityProperties(tcrv::exec::CapabilityOp capability) {
 }
 
 llvm::SmallVector<std::string, 4>
-collectCapabilityIDRelation(tcrv::exec::CapabilityOp capability,
+collectCapabilityIDRelation(mlir::Operation *op,
                             llvm::StringRef attrName) {
   llvm::SmallVector<std::string, 4> ids;
-  auto arrayAttr = capability->getAttrOfType<mlir::ArrayAttr>(attrName);
+  auto arrayAttr = op->getAttrOfType<mlir::ArrayAttr>(attrName);
   if (!arrayAttr)
     return ids;
 
@@ -110,6 +108,25 @@ collectCapabilityIDRelation(tcrv::exec::CapabilityOp capability,
   }
 
   return ids;
+}
+
+bool hasCapabilityProviderIdentity(tcrv::exec::TargetOp target) {
+  return !getStringAttr(target.getOperation(), "id").trim().empty() &&
+         !getStringAttr(target.getOperation(), "kind").trim().empty();
+}
+
+CapabilityDescriptor makeDescriptor(mlir::Operation *op,
+                                    llvm::StringRef symbolName,
+                                    llvm::StringRef id,
+                                    llvm::StringRef kind) {
+  llvm::StringRef status = getCapabilityStatus(op);
+  return CapabilityDescriptor(
+      symbolName, id, kind, status,
+      TargetCapabilitySet::availabilityFromStatus(status),
+      collectCapabilityProperties(op),
+      collectCapabilityIDRelation(op, kProvidesAttrName),
+      collectCapabilityIDRelation(op, kImpliesAttrName),
+      collectCapabilityIDRelation(op, kConflictsAttrName));
 }
 
 bool containsID(llvm::ArrayRef<std::string> ids, llvm::StringRef id) {
@@ -190,21 +207,27 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
 
   std::string constructionContext = makeKernelExtractionContext(kernel);
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto capability = llvm::dyn_cast<tcrv::exec::CapabilityOp>(op);
-    if (!capability)
+    if (auto capability = llvm::dyn_cast<tcrv::exec::CapabilityOp>(op)) {
+      if (llvm::Error error = capabilitySet.tryAddCapability(
+              makeDescriptor(capability.getOperation(), capability.getSymName(),
+                             capability.getId().value_or(""),
+                             capability.getKind().value_or("")),
+              constructionContext))
+        return std::move(error);
       continue;
+    }
 
-    llvm::StringRef status = getCapabilityStatus(capability);
-    if (llvm::Error error = capabilitySet.tryAddCapability(CapabilityDescriptor(
-        capability.getSymName(), capability.getId().value_or(""),
-        capability.getKind().value_or(""), status,
-        availabilityFromStatus(status),
-        collectCapabilityProperties(capability),
-        collectCapabilityIDRelation(capability, kProvidesAttrName),
-        collectCapabilityIDRelation(capability, kImpliesAttrName),
-        collectCapabilityIDRelation(capability, kConflictsAttrName)),
-        constructionContext))
-      return std::move(error);
+    if (auto target = llvm::dyn_cast<tcrv::exec::TargetOp>(op)) {
+      if (!hasCapabilityProviderIdentity(target))
+        continue;
+
+      if (llvm::Error error = capabilitySet.tryAddCapability(
+              makeDescriptor(target.getOperation(), target.getSymName(),
+                             getStringAttr(target.getOperation(), "id"),
+                             getStringAttr(target.getOperation(), "kind")),
+              constructionContext))
+        return std::move(error);
+    }
   }
 
   return capabilitySet;

@@ -66,11 +66,12 @@ int main() {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @generic_target attributes {} {
+    tcrv.exec.target @parse_only_anchor {arch = "riscv64"}
     tcrv.exec.capability @toolchain_available {id = "generic.toolchain", kind = "toolchain"}
     tcrv.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
     tcrv.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", availability = "disabled"}
     tcrv.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
-    tcrv.exec.capability @rvv_profile {
+    tcrv.exec.target @rvv_profile {
       id = "rvv.profile.rv64gcv",
       kind = "profile",
       status = "available",
@@ -177,7 +178,11 @@ module {
       capabilities.lookupBySymbolName("rvv_profile");
   if (int result = expect(rvvProfile && rvvProfile->getID() ==
                                             "rvv.profile.rv64gcv",
-                          "profile capability is available by symbol"))
+                          "target profile provider is available by symbol"))
+    return result;
+  if (int result = expect(!capabilities.lookupBySymbolName("parse_only_anchor"),
+                          "parse-only target anchors do not enter capability "
+                          "decisions"))
     return result;
   if (int result = expect(rvvProfile->providesID("rvv"),
                           "provides relation is preserved"))

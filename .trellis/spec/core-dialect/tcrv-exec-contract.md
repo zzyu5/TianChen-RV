@@ -87,6 +87,17 @@ Rules:
 - target data must be a structured MLIR-level compiler object or attribute;
 - passes and plugins must query it through compiler APIs;
 - it must not be plain text metadata that is ignored by the compiler.
+- a kernel-local `tcrv.exec.target` may remain a parse-only profile anchor when
+  it carries no capability identity, but when it carries both non-empty `id`
+  and `kind` attributes it is a structured capability provider;
+- capability-provider target profiles participate in `TargetCapabilitySet`
+  construction with the same generic `status` / `availability`, `provides`,
+  `implies`, `conflicts`, and property preservation rules as
+  `tcrv.exec.capability`;
+- capability-provider target profile `id` values share the enclosing
+  `tcrv.exec.kernel` uniqueness domain with direct `tcrv.exec.capability`
+  ids, because plugin proposal, legality, and requires mapping use the same
+  capability lookup object.
 
 ### `tcrv.exec.capability`
 

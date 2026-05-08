@@ -220,31 +220,37 @@ tcrv.exec.variant @rvv_fp16
 ```
 
 In that slice, `requires` is an `ArrayAttr` whose entries must be
-`FlatSymbolRefAttr` references to `tcrv.exec.capability` ops in the enclosing
-`tcrv.exec.kernel`. Capability `id` and `kind` are non-empty `StringAttr`
-fields. Direct capability `id` values are unique within one
-`tcrv.exec.kernel`; duplicate ids are invalid because C++ capability queries use
-id lookup for plugin proposal, legality, selection, and conflict decisions.
-Core verification checks structure, identity uniqueness, and symbol
-resolution; concrete extension legality stays plugin-owned.
+`FlatSymbolRefAttr` references to capability-provider symbols in the enclosing
+`tcrv.exec.kernel`. Capability providers are direct `tcrv.exec.capability`
+ops, or kernel-local `tcrv.exec.target` profile anchors that carry both
+non-empty `id` and `kind` attributes. A `tcrv.exec.target` with no capability
+identity remains a parse-only profile anchor and must not satisfy `requires`.
+Provider `id` and `kind` are non-empty `StringAttr` fields. Direct provider
+`id` values are unique within one `tcrv.exec.kernel`; duplicate ids are invalid
+because C++ capability queries use id lookup for plugin proposal, legality,
+selection, and conflict decisions. Core verification checks structure, identity
+uniqueness, and symbol resolution; concrete extension legality stays
+plugin-owned.
 
 Capability query passes may also consume a generic string `status` attribute
 or, equivalently, a generic string `availability` attribute on
-`tcrv.exec.capability`. Missing status means present/available. The generic
-strings `unavailable`, `disabled`, and `missing` mean unavailable for core
-requires checks. Core code must not interpret concrete target-family status
-values; extension-specific availability semantics remain plugin-owned.
+`tcrv.exec.capability` or a capability-provider `tcrv.exec.target`. Missing
+status means present/available. The generic strings `unavailable`, `disabled`,
+and `missing` mean unavailable for core requires checks. Core code must not
+interpret concrete target-family status values; extension-specific
+availability semantics remain plugin-owned.
 
-Non-core attributes on `tcrv.exec.capability` are structured capability
-properties. `TargetCapabilitySet::buildFromKernel` must preserve them in the
-C++ `CapabilityDescriptor` property map so microarchitecture, dtype,
-toolchain, runtime/offload mode, ABI, and cost/probe facts remain available to
-compiler decisions. Core identity/status fields (`sym_name`, `id`, `kind`,
-`status`, `availability`) stay first-class descriptor fields and must not be
-duplicated as generic properties. Property values are deterministic textual
-renderings of MLIR attributes for diagnostics and plugin decisions; they are
-derived from structured IR attributes, not from comments, JSON blobs, or
-Python-only records.
+Non-core attributes on `tcrv.exec.capability` and capability-provider
+`tcrv.exec.target` ops are structured capability properties.
+`TargetCapabilitySet::buildFromKernel` must preserve them in the C++
+`CapabilityDescriptor` property map so microarchitecture, dtype, toolchain,
+runtime/offload mode, ABI, and cost/probe facts remain available to compiler
+decisions. Core identity/status fields (`sym_name`, `id`, `kind`, `status`,
+`availability`) stay first-class descriptor fields and must not be duplicated
+as generic properties. Property values are deterministic textual renderings of
+MLIR attributes for diagnostics and plugin decisions; they are derived from
+structured IR attributes, not from comments, JSON blobs, or Python-only
+records.
 
 ## Generic Capability Query Contract
 
@@ -265,7 +271,8 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 
 - Each query descriptor records capability symbol name, `id`, `kind`, generic
   status, and available/unavailable state.
-- Direct `tcrv.exec.capability` ids are unique within one kernel before a
+- Direct `tcrv.exec.capability` ids and capability-provider
+  `tcrv.exec.target` ids are unique within one kernel before a
   `TargetCapabilitySet` is treated as a compiler decision object.
 - `TargetCapabilitySet` construction itself is fail-closed for duplicate
   owning capability ids and duplicate capability symbol names. Parsed IR should

@@ -5,4 +5,4 @@ module {
   }
 }
 
-// CHECK: error: TianChen-RV plugin variant materialization for kernel @missing_capability_anchor requires existing direct tcrv.exec.capability anchors
+// CHECK: error: TianChen-RV plugin variant materialization for kernel @missing_capability_anchor requires existing direct capability-provider anchors

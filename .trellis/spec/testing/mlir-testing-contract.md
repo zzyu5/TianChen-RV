@@ -26,7 +26,8 @@ Use lit/FileCheck for:
   rejection, guarded dispatch-case allowance, unguarded dispatch-case
   rejection, and fallback rejection without target-family-specific branches;
 - core capability identity verifier diagnostics, including rejection of
-  duplicate direct capability ids within one `tcrv.exec.kernel` while preserving
+  duplicate direct capability-provider ids within one `tcrv.exec.kernel`,
+  target-profile provider `id`/`kind` pairing diagnostics, and preservation of
   relation-provider lookup behavior for unique profile ids;
 - public plugin-variant materialization pass behavior, including built-in
   registry proposal routing, deterministic proposal order, parseable downstream
