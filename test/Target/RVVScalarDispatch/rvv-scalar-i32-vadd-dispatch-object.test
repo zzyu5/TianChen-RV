@@ -1,12 +1,15 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 
-# RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object > %t.o
-# RUN: test -s %t.o
-# RUN: llvm-readobj --file-headers %t.o | FileCheck %s --check-prefix=OBJ
+# RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object > %t.lib.o
+# RUN: test -s %t.lib.o
+# RUN: llvm-readobj --file-headers --symbols %t.lib.o | FileCheck %s --check-prefixes=OBJ,LIBOBJ --implicit-check-not="Name: main"
 # RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.generic.o
 # RUN: test -s %t.generic.o
-# RUN: llvm-readobj --file-headers %t.generic.o | FileCheck %s --check-prefix=OBJ
-
+# RUN: llvm-readobj --file-headers --symbols %t.generic.o | FileCheck %s --check-prefixes=OBJ,LIBOBJ --implicit-check-not="Name: main"
 # OBJ: Format: elf
 # OBJ: Arch: riscv
 # OBJ: Type: Relocatable
+
+# LIBOBJ: Name: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
+# LIBOBJ: Name: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+# LIBOBJ: Name: tcrv_dispatch_i32_vadd_dispatch_vadd

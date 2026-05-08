@@ -125,16 +125,20 @@ full runtime ABI integration, object generation, linking, arbitrary source
 export, correctness evidence, or performance evidence.
 
 The artifact-kind-aware generic route may also select a target-owned
-RVV+scalar i32-vadd dispatch self-check object composite exporter for the same
+RVV+scalar i32-vadd dispatch library object composite exporter for the same
 validated selected dispatch. That route reuses the selected callable source
-validation, emits the explicit bounded self-check source internally, and then
-uses selected RVV compile capability metadata plus local `clang` to produce a
-RISC-V ELF relocatable object. When both source and non-source composite
-exporters match the same selected plan, `--tcrv-export-target-artifact` must
-prefer the non-source composite route while
-`--tcrv-export-target-source-artifact` remains source-only. The object route is
-still a bounded target artifact; it does not link, run hardware, perform
-automatic probing, prove correctness, or measure performance.
+validation, emits the default library-style dispatch source internally, and
+then uses structured RVV architecture capability metadata, selected RVV compile
+capability metadata, and local `clang` to produce a RISC-V ELF relocatable
+object with no hidden `main` or self-check harness. When both source and
+non-source composite exporters match the same selected plan,
+`--tcrv-export-target-artifact` must prefer the non-source runtime-callable
+object route while `--tcrv-export-target-source-artifact` remains source-only.
+The object route is still a bounded target artifact; it does not link, run
+hardware, perform automatic probing, prove correctness, or measure performance.
+The self-check object route remains an explicit
+target-owned helper command for evidence collection, not the generic artifact
+front door.
 
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
@@ -265,9 +269,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     matched by target-owned RVV+scalar dispatch exporter code from the selected
     RVV dispatch-case callable route and scalar dispatch-fallback callable
     route.
-  - RVV+scalar explicit i32 vector-add host dispatch self-check RISC-V ELF
-    relocatable object, matched from the same selected callable candidates and
-    emitted by the target-owned RVV+scalar dispatch exporter code.
+  - RVV+scalar explicit i32 vector-add host dispatch runtime-callable RISC-V
+    ELF relocatable library object, matched from the same selected callable
+    candidates and emitted by the target-owned RVV+scalar dispatch exporter
+    code without a hidden self-check harness or `main`.
 - The helper may include RVV/scalar/offload target headers and call their
   target-owned registration functions, but it must not duplicate route
   semantics or artifact validation.
@@ -296,8 +301,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   calls `registerBuiltinTargetArtifactExporters`, and exports a legal offload
   descriptor through the offload target-owned exporter.
 - Good: `tcrv-translate --tcrv-export-target-artifact` selects the non-source
-  RVV+scalar dispatch self-check object composite route when the selected plan
-  has both supported callable sides and local RVV object compilation support.
+  RVV+scalar dispatch runtime-callable library object composite route when the
+  selected plan has both supported callable sides and local RVV object
+  compilation support.
 - Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
   built-in registry but filters to a legal RVV runtime-callable C source,
   scalar runtime-callable C source route, or target-owned RVV+scalar dispatch
@@ -1115,21 +1121,36 @@ and ran on ssh rvv with selected flags; this proves only that the finite
 dispatcher harness invoked both callable branches correctly.
 ```
 
-### Dispatch Self-Check Object Export
+### Dispatch Library Object Export
 
 #### 1. Scope / Trigger
 
-Trigger: the same post-planning module satisfies the dispatch self-check
-harness export boundary, and the caller requests a bounded object-file artifact
-for that exact generated harness source.
+Trigger: the same post-planning module satisfies the default host RVV+scalar
+i32-vadd dispatch C export boundary, and the caller requests a bounded
+object-file artifact for that exact generated library-style dispatch source.
 
-This is the first target-owned object-generation boundary for the finite
-RVV+scalar i32-vadd dispatcher. It must not become a generic object/link/runtime
-pipeline.
+This is the generic target-owned object-generation boundary for the finite
+RVV+scalar i32-vadd dispatcher. It compiles the runtime-callable dispatch
+library source without adding a hidden `main`, self-check helper, or success
+marker. It must not become a generic object/link/runtime pipeline.
 
 #### 2. Signatures
 
 Public command:
+
+```text
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object
+tcrv-translate --tcrv-export-target-artifact
+```
+
+C++ entry point:
+
+```cpp
+llvm::Error exportRVVScalarI32VAddDispatchObject(
+    mlir::ModuleOp module, llvm::raw_ostream &os);
+```
+
+Explicit evidence-helper command:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
@@ -1146,16 +1167,22 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
 
 - The object route must first reuse the same selected-path,
   lowering-boundary, emission-plan, route-id, artifact-kind, and structured
-  runtime ABI parameter validation as the dispatch source and self-check source
-  exporters.
-- The object route must compile the exact generated self-check C source for
-  the selected dispatcher. It must not silently compile a different standalone
-  probe, omit the scalar fallback branch, omit the RVV branch, or bypass the
-  self-check harness.
+  runtime ABI parameter validation as the dispatch source exporter.
+- The generic object route must compile the exact generated default
+  library-style dispatch C source for the selected dispatcher. It must not
+  silently compile a different standalone probe, omit the scalar fallback
+  branch, omit the RVV branch, or add evidence-only harness code.
+- The object route must derive the compile target from structured RVV
+  architecture capability metadata. The first supported value is `riscv64`;
+  host-default target compilation must not be used as a substitute.
+- The explicit self-check object helper may compile the exact generated
+  self-check C source, but that helper must remain outside the generic
+  `--tcrv-export-target-artifact` route.
 - The selected compile facts are target-owned RVV dispatch facts. The route may
-  pass the selected `-march` and optional `-mabi` values already preserved by
-  RVV capabilities or microkernel metadata. Shared generic routing must not
-  learn RVV, scalar, dtype, vendor, runtime, or toolchain semantics for this.
+  pass the architecture-derived target, selected `-march`, and optional
+  `-mabi` values already preserved by RVV capabilities or microkernel metadata.
+  Shared generic routing must not learn RVV, scalar, dtype, vendor, runtime, or
+  toolchain semantics for this.
 - Direct binary stdout is the public output contract: success writes only the
   generated object bytes to stdout. Diagnostics go through the normal
   `tcrv-translate` error path. Textual metadata comments remain in the
@@ -1174,14 +1201,17 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
   `lhs`/`rhs`/`out`/runtime `n` ABI parameters -> fail before object creation.
 - Missing selected RVV `tcrv_rvv.required_march` or missing preserved selected
   march capability metadata -> fail before object creation.
+- Missing, malformed, unavailable, or unsupported RVV architecture capability
+  metadata -> fail before object creation.
 - Conflicting selected MABI metadata -> fail before object creation.
 - Missing `clang`, unsupported local target, missing `riscv_vector.h`, missing
   target libc headers, unsupported `-march`/`-mabi`, or other compile failure ->
   fail with a bounded object-route diagnostic and no object claim.
-- Successful object emission only proves that the bounded generated self-check
-  source was compiled into a non-empty object-file artifact with the selected
-  flags. Runtime/correctness still requires separate `ssh rvv` compile/run
-  evidence when claimed.
+- Successful generic object emission only proves that the bounded generated
+  library-style dispatch source was compiled into a non-empty object-file
+  artifact with the selected flags and no hidden self-check entry point.
+  Runtime/correctness still requires separate `ssh rvv` compile/run evidence
+  when claimed.
 
 Contracts:
 
@@ -1196,6 +1226,10 @@ Contracts:
   roles, artifact kinds, route ids, and required capability refs.
 - Output must preserve RVV intrinsic code in the embedded RVV callable function
   and scalar i32 addition in the embedded scalar callable fallback function.
+- Generic library-object output must define the dispatcher and embedded
+  callable symbols but must not define `main` or self-check symbols.
+- Explicit self-check-object output may define `main` and the self-check helper
+  because that route is an evidence helper.
 - Missing RVV callable metadata, missing scalar callable fallback metadata,
   stale lowering boundaries, unsupported artifact kinds, unsupported origins,
   wrong roles, and ambiguous duplicate paths must fail before source output.

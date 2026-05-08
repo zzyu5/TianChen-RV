@@ -110,6 +110,26 @@ exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
 }
 
 mlir::LogicalResult
+exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
+                                     llvm::raw_ostream &os) {
+  if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
+    module.emitError()
+        << "failed to switch stdout to binary mode for object export: "
+        << error.message();
+    return mlir::failure();
+  }
+
+  if (llvm::Error error =
+          tianchenrv::target::rvv_scalar::exportRVVScalarI32VAddDispatchObject(
+              module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult
 exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
   if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
@@ -216,6 +236,13 @@ void registerTianChenRVTranslations() {
       exportRVVScalarI32VAddDispatchSelfCheckC,
       registerTianChenRVTranslateDialects);
   (void)rvvScalarDispatchSelfCheckC;
+
+  static mlir::TranslateFromMLIRRegistration rvvScalarDispatchObject(
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
+      "export one host RVV+scalar i32 vector-add dispatch library object file",
+      exportRVVScalarI32VAddDispatchObject,
+      registerTianChenRVTranslateDialects);
+  (void)rvvScalarDispatchObject;
 
   static mlir::TranslateFromMLIRRegistration rvvScalarDispatchSelfCheckObject(
       "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",

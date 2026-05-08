@@ -20,6 +20,9 @@ llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 
+llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
 llvm::Error
 exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os);

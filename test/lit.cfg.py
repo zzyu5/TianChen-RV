@@ -26,7 +26,6 @@ def has_local_rvv_object_clang():
     source = """\
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <riscv_vector.h>
 void tcrv_lit_rvv_probe(const int32_t *lhs, int32_t *out, size_t n) {
   size_t vl = __riscv_vsetvl_e32m1(n);
@@ -42,6 +41,8 @@ void tcrv_lit_rvv_probe(const int32_t *lhs, int32_t *out, size_t n) {
             result = subprocess.run(
                 [
                     str(clang),
+                    "-target",
+                    "riscv64",
                     "-O2",
                     "-march=rv64gcv",
                     "-mabi=lp64d",

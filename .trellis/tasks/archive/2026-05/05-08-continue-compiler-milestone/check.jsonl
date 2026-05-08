@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for final review."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Verify stack and Python boundary compliance."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify the milestone stays in execution-layer scope."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify capability facts remain structured compiler decision inputs."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free and verifier semantics are correct."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry/interface dependency direction."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify extension details remain plugin-local."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin and RVV evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback dispatch/export boundaries if touched."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI, emission plan, and artifact/export contracts."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify variant generation, selection, dispatch, and rerun behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests are focused and evidence claims are bounded."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Final capability-first design checklist."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final plugin locality checklist."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Final compute-boundary checklist."}

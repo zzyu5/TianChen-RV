@@ -80,17 +80,20 @@ constexpr llvm::StringLiteral kScalarRuntimeGlueRole(
     "runtime-callable-i32-vadd-fallback-function");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVProbeCompileRunCapabilityID(
     "rvv.probe.compile_run");
 constexpr llvm::StringLiteral kRVVToolchainMarchCapabilityID(
     "rvv.toolchain.march");
 constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
     "rvv.toolchain.mabi");
+constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
 
 struct DispatchObjectCompileConfig {
+  std::string targetTriple;
   std::string selectedMarch;
   std::optional<std::string> selectedMABI;
 };
@@ -143,8 +146,7 @@ llvm::Error makeModuleDispatchError(llvm::Twine message) {
 llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32-vadd dispatch self-check object "
-            "export failed";
+  stream << "TianChen-RV RVV+scalar i32-vadd dispatch object export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -157,8 +159,8 @@ llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch self-check "
-                  "object export failed: ") +
+      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch object export "
+                  "failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -856,6 +858,25 @@ buildDispatchObjectCompileConfig(const DispatchPair &pair) {
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
 
+  const CapabilityDescriptor *rvvCapability =
+      capabilities.lookupProviderByID(kRVVCapabilityID);
+  if (!rvvCapability || !rvvCapability->isAvailable())
+    return makeDispatchObjectError(
+        kernel,
+        "selected RVV dispatch case requires an available RVV capability "
+        "provider before object compilation");
+  llvm::StringRef architecture =
+      rvvCapability->getProperty(kArchitecturePropertyName).trim();
+  if (llvm::Error error = validateBoundedCompileText(
+          kernel, kArchitecturePropertyName, architecture))
+    return std::move(error);
+  if (architecture != "riscv64")
+    return makeDispatchObjectError(
+        kernel, llvm::Twine("selected RVV dispatch case requires "
+                            "architecture capability metadata 'riscv64', "
+                            "got '") +
+                    architecture + "'");
+
   std::string requiredMarch;
   if (llvm::Error error = requireSafeCompileStringAttr(
           kernel, rvvVariant.getOperation(), kRVVRequiredMarchAttrName,
@@ -931,6 +952,7 @@ buildDispatchObjectCompileConfig(const DispatchPair &pair) {
   }
 
   DispatchObjectCompileConfig config;
+  config.targetTriple = architecture.str();
   config.selectedMarch = std::move(requiredMarch);
   config.selectedMABI = std::move(selectedMABI);
   return config;
@@ -1207,7 +1229,7 @@ llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
 llvm::Error writeTempSource(llvm::StringRef source, TemporaryFile &sourceFile) {
   int fd = -1;
   std::error_code ec = llvm::sys::fs::createTemporaryFile(
-      "tcrv-rvv-scalar-dispatch-self-check", "c", fd, sourceFile.path);
+      "tcrv-rvv-scalar-dispatch", "c", fd, sourceFile.path);
   if (ec)
     return makeModuleDispatchObjectError(
         llvm::Twine("failed to create temporary C source for object export: ") +
@@ -1218,7 +1240,7 @@ llvm::Error writeTempSource(llvm::StringRef source, TemporaryFile &sourceFile) {
   stream.close();
   if (stream.has_error())
     return makeModuleDispatchObjectError(
-        "failed to write generated self-check C source before object export");
+        "failed to write generated dispatch C source before object export");
   return llvm::Error::success();
 }
 
@@ -1240,26 +1262,28 @@ std::string readBoundedStderr(llvm::StringRef stderrPath) {
   return text;
 }
 
-std::string formatCompileCommand(llvm::StringRef selectedMarch,
+std::string formatCompileCommand(llvm::StringRef targetTriple,
+                                 llvm::StringRef selectedMarch,
                                  const std::optional<std::string> &selectedMABI) {
   std::string command;
   llvm::raw_string_ostream stream(command);
-  stream << "clang -O2 -march=" << selectedMarch;
+  stream << "clang -target " << targetTriple << " -O2 -march="
+         << selectedMarch;
   if (selectedMABI)
     stream << " -mabi=" << *selectedMABI;
-  stream << " -c <generated-self-check-source> -o <object-file>";
+  stream << " -c <generated-dispatch-source> -o <object-file>";
   stream.flush();
   return command;
 }
 
-llvm::Error compileSelfCheckSourceToObject(
+llvm::Error compileGeneratedDispatchSourceToObject(
     KernelOp kernel, llvm::StringRef source,
     const DispatchObjectCompileConfig &compileConfig, llvm::raw_ostream &os) {
   llvm::ErrorOr<std::string> clangPath =
       llvm::sys::findProgramByName("clang");
   if (!clangPath)
     return makeDispatchObjectError(
-        kernel, "requires clang on PATH to compile the bounded self-check C "
+        kernel, "requires clang on PATH to compile the bounded dispatch C "
                 "source into an object file");
 
   TemporaryFile sourceFile;
@@ -1268,13 +1292,12 @@ llvm::Error compileSelfCheckSourceToObject(
 
   TemporaryFile objectFile;
   if (llvm::Error error =
-          createTempFile("tcrv-rvv-scalar-dispatch-self-check", "o",
-                         objectFile))
+          createTempFile("tcrv-rvv-scalar-dispatch", "o", objectFile))
     return error;
 
   TemporaryFile stderrFile;
   if (llvm::Error error =
-          createTempFile("tcrv-rvv-scalar-dispatch-self-check", "stderr",
+          createTempFile("tcrv-rvv-scalar-dispatch", "stderr",
                          stderrFile))
     return error;
 
@@ -1282,6 +1305,8 @@ llvm::Error compileSelfCheckSourceToObject(
   std::string mabiArg;
   llvm::SmallVector<llvm::StringRef, 8> args;
   args.push_back(*clangPath);
+  args.push_back("-target");
+  args.push_back(compileConfig.targetTriple);
   args.push_back("-O2");
   args.push_back(marchArg);
   if (compileConfig.selectedMABI) {
@@ -1308,7 +1333,8 @@ llvm::Error compileSelfCheckSourceToObject(
     return makeDispatchObjectError(
         kernel, llvm::Twine("clang failed while creating object file; ") +
                     "command: " +
-                    formatCompileCommand(compileConfig.selectedMarch,
+                    formatCompileCommand(compileConfig.targetTriple,
+                                         compileConfig.selectedMarch,
                                          compileConfig.selectedMABI) +
                     "; exit_code=" + llvm::Twine(exitCode) +
                     "; stderr: " + stderrText);
@@ -1378,6 +1404,36 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchObjectError(message);
+  }
+
+  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
+      buildDispatchObjectCompileConfig(*pair);
+  if (!compileConfig)
+    return compileConfig.takeError();
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  if (llvm::Error error = exportRVVScalarI32VAddDispatchC(module, stream)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchObjectError(message);
+  }
+  stream.flush();
+  if (source.empty())
+    return makeDispatchObjectError(
+        pair->rvv.kernel,
+        "validated library-style dispatch C source must be non-empty before "
+        "object export");
+
+  return compileGeneratedDispatchSourceToObject(pair->rvv.kernel, source,
+                                                *compileConfig, os);
+}
+
 llvm::Error
 exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
@@ -1405,8 +1461,8 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
         pair->rvv.kernel,
         "validated self-check C source must be non-empty before object export");
 
-  return compileSelfCheckSourceToObject(pair->rvv.kernel, source,
-                                        *compileConfig, os);
+  return compileGeneratedDispatchSourceToObject(pair->rvv.kernel, source,
+                                                *compileConfig, os);
 }
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
@@ -1420,10 +1476,10 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
+      "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
       kRiscvELFRelocatableObjectArtifactKind,
       matchRVVScalarI32VAddDispatchCandidates,
-      exportRVVScalarI32VAddDispatchSelfCheckObject));
+      exportRVVScalarI32VAddDispatchObject));
 }
 
 } // namespace tianchenrv::target::rvv_scalar

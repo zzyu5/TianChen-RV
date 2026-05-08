@@ -158,14 +158,15 @@ Use lit/FileCheck for:
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.
-  When the bounded self-check object export route is present, lit coverage must
-  also prove the public route is visible, preserves the source/self-check split,
-  fails closed before object creation for missing or malformed selected-path/
-  runtime ABI metadata, and, when local/native RVV clang support is detected,
-  emits a non-empty tool-readable object file both through the dedicated
-  RVV+scalar object translator and through the generic
-  `--tcrv-export-target-artifact` front door without committing binary
-  artifacts.
+  When the bounded object export routes are present, lit coverage must also
+  prove the public library-object and self-check-object routes are visible,
+  preserve the source/self-check split, fail closed before object creation for
+  missing or malformed selected-path/runtime ABI metadata, and, when
+  local/native RVV clang support is detected, emit non-empty tool-readable
+  object files without committing binary artifacts. The generic
+  `--tcrv-export-target-artifact` front door must select the library-style
+  dispatch object with dispatcher/callable symbols and no `main`; the explicit
+  self-check object helper may define `main`.
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability

@@ -280,7 +280,7 @@ int main() {
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
-          "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
           "riscv-elf-relocatable-object"))
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),

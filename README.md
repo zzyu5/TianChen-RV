@@ -177,14 +177,15 @@ objects, link runtime libraries, run offload hardware, prove correctness, or
 measure performance.
 
 The same generic artifact front door can also select the target-owned
-RVV+scalar i32-vadd dispatch self-check object composite route when the
-selected plan contains both validated callable sides. In that case
-`--tcrv-export-target-artifact` prefers the bounded non-source object route,
-while `--tcrv-export-target-source-artifact` remains source-only. The object
-route emits one RISC-V ELF relocatable object from the explicit self-check
-source and selected compile capability metadata; it does not link, run
-hardware, auto-probe RVV availability, prove correctness, or measure
-performance.
+RVV+scalar i32-vadd dispatch library-object composite route when the selected
+plan contains both validated callable sides. In that case
+`--tcrv-export-target-artifact` prefers the bounded non-source runtime-callable
+object route, while `--tcrv-export-target-source-artifact` remains source-only.
+The object route emits one RISC-V ELF relocatable object from the default
+library-style dispatch source, the structured RVV architecture capability
+metadata, and selected compile capability metadata. It does not add a hidden
+`main` or self-check harness, link, run hardware, auto-probe RVV availability,
+prove correctness, or measure performance.
 
 When the selected RVV path has that exact microkernel attachment, either
 explicitly authored or materialized by the RVV plugin from the finite descriptor,
@@ -410,19 +411,26 @@ of that generated source proves only that this dispatcher harness passed on the
 selected host flags; it is not generic RVV lowering, object generation, dynamic
 runtime integration, performance evidence, or broad correctness coverage.
 
-The
+The `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object` tool is
+the bounded library object route for that same dispatcher. It reuses the
+validated RVV+scalar default dispatch C generation path, then invokes `clang`
+with the structured RVV architecture capability as the compile target plus the
+selected RVV `-march` and optional `-mabi` metadata carried by the selected
+target capabilities to produce one ELF relocatable object on stdout. The object
+defines the embedded RVV callable, embedded scalar callable, and dispatcher ABI
+symbols, but it has no `main` or self-check helper. This route fails closed if
+the selected-path, lowering-boundary, emission-plan, runtime ABI parameter
+metadata, selected architecture/compile facts, `clang` tool, target headers, or
+local/native RISC-V toolchain setup are unavailable. The object is still only
+the bounded dispatcher library artifact; it is not generic RVV lowering,
+dynamic runtime integration, linking, automatic hardware probing, performance
+evidence, or broad correctness coverage.
+
+The explicit
 `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object`
-tool is the first bounded object-file artifact route for that same dispatcher
-self-check source. It reuses the validated RVV+scalar self-check C generation
-path, then invokes `clang` with the selected RVV `-march` and optional
-`-mabi` metadata carried by the selected target capabilities to produce one
-ELF relocatable object on stdout. This route fails closed if the selected-path,
-lowering-boundary, emission-plan, runtime ABI parameter metadata, selected
-compile facts, `clang` tool, target headers, or local/native RISC-V toolchain
-setup are unavailable. The object is still only the bounded dispatcher
-self-check artifact; it is not generic RVV lowering, dynamic runtime
-integration, linking, automatic hardware probing, performance evidence, or
-broad correctness coverage.
+helper remains available for evidence-oriented object generation from the
+self-check source. It may contain `main` and the fixed local-array harness, and
+it is intentionally not the generic `--tcrv-export-target-artifact` route.
 
 The same object route is also available through the generic artifact-kind-aware
 front door:
@@ -430,7 +438,7 @@ front door:
 ```bash
 tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
   | tcrv-translate --tcrv-export-target-artifact \
-  > tcrv_dispatch_self_check.o
+  > tcrv_dispatch.o
 ```
 
 The source-only front door continues to emit the library-style dispatcher C
