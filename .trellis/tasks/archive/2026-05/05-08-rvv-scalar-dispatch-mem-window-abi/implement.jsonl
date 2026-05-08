@@ -1,0 +1,9 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for compiler stack and exec dialect scope"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec mem_window contract and compute-free verifier boundary"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "parameter layering and IR-modeled runtime ABI claim boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "execution planning pipeline and selected lowering-boundary ordering"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV i32-vadd dataflow roles and executable microkernel boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback i32-vadd callable ABI boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export and runtime ABI parameter boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and C++ evidence forms"}

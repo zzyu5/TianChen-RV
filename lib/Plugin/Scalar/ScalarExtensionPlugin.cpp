@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
+#include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -771,6 +772,12 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   if (*microkernelPlan)
     if (llvm::Error error = rejectExistingScalarMicrokernelForSelectedPath(
             request.getKernel(), request.getVariant(), request.getRole()))
+      return error;
+
+  if (*microkernelPlan)
+    if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
+            request.getKernel(), request.getBuilder(),
+            support::getI32VAddBufferMemWindowSpecs()))
       return error;
 
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(

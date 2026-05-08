@@ -69,6 +69,22 @@ module {
     // PIPE-SAME: preference_available = true
     // PIPE-SAME: preference_rank = 1
     // PIPE-SAME: preference_score
+    // PIPE: tcrv.exec.mem_window @abi_lhs_input_buffer
+    // PIPE-SAME: abi_role = "lhs-input-buffer"
+    // PIPE-SAME: access = "read"
+    // PIPE-SAME: binding = "kernel-argument"
+    // PIPE-SAME: c_type = "const int32_t *"
+    // PIPE-SAME: memory_space = "host"
+    // PIPE-SAME: ownership = "target-export-abi-owned"
+    // PIPE-SAME: purpose = "runtime-abi-buffer"
+    // PIPE: tcrv.exec.mem_window @abi_rhs_input_buffer
+    // PIPE-SAME: abi_role = "rhs-input-buffer"
+    // PIPE-SAME: access = "read"
+    // PIPE-SAME: c_type = "const int32_t *"
+    // PIPE: tcrv.exec.mem_window @abi_output_buffer
+    // PIPE-SAME: abi_role = "output-buffer"
+    // PIPE-SAME: access = "write"
+    // PIPE-SAME: c_type = "int32_t *"
     // PIPE: tcrv_rvv.lowering_boundary
     // PIPE-SAME: capability_summary = "rvv"
     // PIPE-SAME: origin = "rvv-plugin"
@@ -132,6 +148,9 @@ module {
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
     // ROUNDTRIP: tcrv.exec.dispatch
+    // ROUNDTRIP: tcrv.exec.mem_window @abi_lhs_input_buffer
+    // ROUNDTRIP: tcrv.exec.mem_window @abi_rhs_input_buffer
+    // ROUNDTRIP: tcrv.exec.mem_window @abi_output_buffer
     // ROUNDTRIP: tcrv_rvv.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel

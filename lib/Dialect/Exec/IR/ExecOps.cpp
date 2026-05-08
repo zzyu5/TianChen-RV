@@ -27,6 +27,10 @@ constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kBindingAttrName("binding");
 constexpr llvm::StringLiteral kMemorySpaceAttrName("memory_space");
+constexpr llvm::StringLiteral kABIRoleAttrName("abi_role");
+constexpr llvm::StringLiteral kAccessAttrName("access");
+constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
+constexpr llvm::StringLiteral kCTypeAttrName("c_type");
 constexpr llvm::StringLiteral kHartsAttrName("harts");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kConditionAttrName("condition");
@@ -99,6 +103,31 @@ mlir::LogicalResult verifyPreferenceMetadataAttrs(mlir::Operation *op) {
     return op->emitOpError()
            << "requires non-negative integer attribute '"
            << kPreferenceRankAttrName << "' when present";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult requireStableSingleLineWhenPresent(mlir::Operation *op,
+                                                       llvm::StringRef attrName) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return mlir::success();
+
+  llvm::StringRef value = attr.getValue();
+  if (value.trim().empty())
+    return op->emitOpError()
+           << "requires non-empty string attribute '" << attrName
+           << "' when present";
+
+  if (value != value.trim())
+    return op->emitOpError()
+           << "requires string attribute '" << attrName
+           << "' to not require whitespace trimming when present";
+
+  if (value.contains('\n') || value.contains('\r') || value.contains('\0'))
+    return op->emitOpError()
+           << "requires string attribute '" << attrName
+           << "' to be single-line when present";
 
   return mlir::success();
 }
@@ -392,6 +421,7 @@ mlir::LogicalResult KernelOp::verify() {
     return mlir::success();
 
   llvm::StringSet<> emissionPlanTargets;
+  llvm::StringSet<> directMemWindowABIRoles;
   auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> mlir::LogicalResult {
     if (!isEmissionPlanDiagnostic(diagnostic))
       return mlir::success();
@@ -410,6 +440,17 @@ mlir::LogicalResult KernelOp::verify() {
   };
 
   for (mlir::Operation &op : getBody().front()) {
+    if (auto memWindow = llvm::dyn_cast<MemWindowOp>(op)) {
+      auto roleAttr =
+          memWindow->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);
+      if (roleAttr &&
+          !directMemWindowABIRoles.insert(roleAttr.getValue()).second)
+        return memWindow.emitOpError()
+               << "duplicates mem_window ABI role '" << roleAttr.getValue()
+               << "' in enclosing tcrv.exec.kernel";
+      continue;
+    }
+
     if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op)) {
       if (mlir::failed(checkDiagnostic(diagnostic)))
         return mlir::failure();
@@ -503,6 +544,19 @@ mlir::LogicalResult MemWindowOp::verify() {
     return emitOpError()
            << "requires non-empty string attribute '" << kMemorySpaceAttrName
            << "' when present";
+
+  if (mlir::failed(
+          requireStableSingleLineWhenPresent(getOperation(), kABIRoleAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireStableSingleLineWhenPresent(getOperation(), kAccessAttrName)))
+    return mlir::failure();
+  if (mlir::failed(requireStableSingleLineWhenPresent(getOperation(),
+                                                      kOwnershipAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireStableSingleLineWhenPresent(getOperation(), kCTypeAttrName)))
+    return mlir::failure();
 
   if (!hasEnclosingKernelOrVariant(getOperation()))
     return emitOpError()

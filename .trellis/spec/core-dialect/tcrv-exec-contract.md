@@ -221,7 +221,9 @@ It supports:
 - shape guards for dispatch.
 
 The initial compiler verifier slice may model memory windows as named symbol
-ops:
+ops. For runtime ABI buffer boundaries, the same op may also carry a bounded
+ABI role, access direction, target/runtime ownership, and already-known C ABI
+type spelling:
 
 ```mlir
 tcrv.exec.mem_window @input_window {
@@ -229,12 +231,27 @@ tcrv.exec.mem_window @input_window {
   binding = "args",
   memory_space = "host"
 }
+
+tcrv.exec.mem_window @abi_lhs_input_buffer {
+  purpose = "runtime-abi-buffer",
+  binding = "kernel-argument",
+  memory_space = "host",
+  abi_role = "lhs-input-buffer",
+  access = "read",
+  ownership = "target-export-abi-owned",
+  c_type = "const int32_t *"
+}
 ```
 
 For this compatibility form, `purpose` is required and non-empty. `binding` and
-`memory_space` are optional but must be non-empty when present. The op must be
-nested in a `tcrv.exec.kernel` or `tcrv.exec.variant`. It describes memory
-organization context only, not tensor computation or extension-owned buffer ops.
+`memory_space` are optional but must be non-empty when present. `abi_role`,
+`access`, `ownership`, and `c_type` are optional but, when present, must be
+non-empty stable single-line strings. Direct kernel-child mem_window ops must
+not duplicate the same `abi_role`, because duplicate runtime ABI roles would
+make a target export boundary ambiguous. The op must be nested in a
+`tcrv.exec.kernel` or `tcrv.exec.variant`. It describes memory organization
+context only, not tensor computation, tensor shape, vector math, or
+extension-owned buffer ops.
 
 ### `tcrv.exec.dispatch`
 

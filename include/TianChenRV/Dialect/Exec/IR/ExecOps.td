@@ -91,14 +91,21 @@ def MemWindowOp : TCRVExec_Op<"exec.mem_window", [Symbol]> {
   let summary = "named memory organization window";
   let description = [{
     Describes memory-window, view, or binding context used by variants and
-    dispatch guards. This op is intentionally about execution memory
-    organization, not tensor computation or extension-specific buffers.
+    dispatch guards. For bounded runtime ABI slices it may also bind one
+    named buffer-window ABI role, access direction, ownership, and known C ABI
+    type spelling. This op is intentionally about execution memory
+    organization, not tensor computation, shapes, vector math, or
+    extension-specific buffers.
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                    OptionalAttr<StrAttr>:$purpose,
                    OptionalAttr<StrAttr>:$binding,
-                   OptionalAttr<StrAttr>:$memory_space);
+                   OptionalAttr<StrAttr>:$memory_space,
+                   OptionalAttr<StrAttr>:$abi_role,
+                   OptionalAttr<StrAttr>:$access,
+                   OptionalAttr<StrAttr>:$ownership,
+                   OptionalAttr<StrAttr>:$c_type);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }

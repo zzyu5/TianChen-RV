@@ -16,10 +16,14 @@ tcrv.exec.kernel @saxpy attributes {} {
   tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
 
   // CHECK: tcrv.exec.mem_window @input_window
+  // CHECK-SAME: abi_role = "lhs-input-buffer"
+  // CHECK-SAME: access = "read"
   // CHECK-SAME: binding = "args"
+  // CHECK-SAME: c_type = "const int32_t *"
   // CHECK-SAME: memory_space = "host"
+  // CHECK-SAME: ownership = "target-export-abi-owned"
   // CHECK-SAME: purpose = "variant-dispatch-guard"
-  tcrv.exec.mem_window @input_window {binding = "args", memory_space = "host", purpose = "variant-dispatch-guard"}
+  tcrv.exec.mem_window @input_window {abi_role = "lhs-input-buffer", access = "read", binding = "args", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "variant-dispatch-guard"}
 
   // CHECK: tcrv.exec.variant @rvv_variant
   // CHECK-SAME: condition = "preferred_capability_available"

@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
+#include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -1359,6 +1360,12 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     if (llvm::Error error =
             rejectExistingRVVMicrokernelForSelectedPath(kernel, variant,
                                                         request.getRole()))
+      return error;
+
+  if (microkernelPlan)
+    if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
+            kernel, request.getBuilder(),
+            support::getI32VAddBufferMemWindowSpecs()))
       return error;
 
   tcrv::rvv::LoweringBoundaryOp boundary = materializeRVVBoundaryOp(

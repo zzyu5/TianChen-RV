@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -90,6 +91,7 @@ struct DispatchObjectCompileConfig {
 
 struct DispatchABIPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  llvm::SmallVector<tcrv::exec::MemWindowOp, 3> bufferWindows;
 };
 
 struct DispatchPair {
@@ -581,6 +583,12 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
   DispatchABIPlan plan;
   support::appendI32VAddDispatchRuntimeABIParameters(plan.parameters,
                                                     rvvParameters, *guard);
+  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
+          pair.rvv.kernel, support::getI32VAddBufferMemWindowSpecs(),
+          plan.bufferWindows)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDispatchError(pair.rvv.kernel, message);
+  }
   return plan;
 }
 
@@ -924,6 +932,37 @@ void printCandidateMetadata(llvm::raw_ostream &os, llvm::StringRef label,
                                    candidate.selectedVariant);
 }
 
+llvm::StringRef getMemWindowStringAttr(tcrv::exec::MemWindowOp window,
+                                       llvm::StringRef attrName) {
+  auto attr = window->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return {};
+  return attr.getValue();
+}
+
+void printDispatchMemWindowMetadata(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<tcrv::exec::MemWindowOp> bufferWindows) {
+  for (auto [index, window] : llvm::enumerate(bufferWindows)) {
+    os << "/* dispatch_mem_window[" << index << "]: symbol=@"
+       << getMemWindowStringAttr(window, "sym_name") << ", abi_role="
+       << getMemWindowStringAttr(window, support::kMemWindowABIRoleAttrName)
+       << ", access="
+       << getMemWindowStringAttr(window, support::kMemWindowAccessAttrName)
+       << ", ownership="
+       << getMemWindowStringAttr(window, support::kMemWindowOwnershipAttrName)
+       << ", c_type="
+       << getMemWindowStringAttr(window, support::kMemWindowCTypeAttrName)
+       << ", purpose="
+       << getMemWindowStringAttr(window, support::kMemWindowPurposeAttrName)
+       << ", binding="
+       << getMemWindowStringAttr(window, support::kMemWindowBindingAttrName)
+       << ", memory_space="
+       << getMemWindowStringAttr(window, support::kMemWindowMemorySpaceAttrName)
+       << " */\n";
+  }
+}
+
 llvm::Error buildEmbeddedCallableSources(mlir::ModuleOp module,
                                          std::string &rvvSource,
                                          std::string &scalarSource) {
@@ -1032,6 +1071,7 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   os << "/* selected_kernel: @" << kernel.getSymName() << " */\n";
   printCandidateMetadata(os, "rvv", pair.rvv);
   printCandidateMetadata(os, "scalar", pair.scalar);
+  printDispatchMemWindowMetadata(os, pair.abiPlan.bufferWindows);
   os << "/* rvv_callable_symbol: " << rvvFunctionName << " */\n";
   os << "/* scalar_callable_symbol: " << scalarFunctionName << " */\n";
   for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {

@@ -181,6 +181,28 @@ tcrv.exec.kernel @missing_mem_window_purpose attributes {} {
 
 // -----
 
+tcrv.exec.kernel @empty_mem_window_abi_role attributes {} {
+  // expected-error @+1 {{requires non-empty string attribute 'abi_role' when present}}
+  tcrv.exec.mem_window @lhs {abi_role = "", purpose = "runtime-abi-buffer"}
+}
+
+// -----
+
+tcrv.exec.kernel @trimmed_mem_window_abi_role attributes {} {
+  // expected-error @+1 {{requires string attribute 'abi_role' to not require whitespace trimming when present}}
+  tcrv.exec.mem_window @lhs {abi_role = " lhs-input-buffer", purpose = "runtime-abi-buffer"}
+}
+
+// -----
+
+tcrv.exec.kernel @duplicate_mem_window_abi_role attributes {} {
+  tcrv.exec.mem_window @lhs_a {abi_role = "lhs-input-buffer", purpose = "runtime-abi-buffer"}
+  // expected-error @+1 {{duplicates mem_window ABI role 'lhs-input-buffer' in enclosing tcrv.exec.kernel}}
+  tcrv.exec.mem_window @lhs_b {abi_role = "lhs-input-buffer", purpose = "runtime-abi-buffer"}
+}
+
+// -----
+
 tcrv.exec.mem_window @top_level_window {purpose = "dispatch-guard"}
 
 // expected-error @-2 {{must be nested in a tcrv.exec.kernel or tcrv.exec.variant}}

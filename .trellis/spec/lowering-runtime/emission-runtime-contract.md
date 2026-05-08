@@ -161,9 +161,11 @@ preserve parameter layering:
   only as real IR/control fields or generated ABI parameters;
 - generated ABI parameters must state whether they are actually IR-modeled or
   target/export ABI-owned. The current bounded i32-vadd RVV and scalar source
-  exports mark `lhs`, `rhs`, `out`, and runtime `n` as
-  `target-export-abi-owned`; the RVV+scalar host dispatcher additionally marks
-  `rvv_available` as a target/export-owned dispatch guard;
+  exports still pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters,
+  but the RVV+scalar host dispatcher must additionally require real
+  `tcrv.exec.mem_window` IR for the lhs/rhs/out buffer meanings before target
+  export claims those roles. Runtime `n` remains a runtime ABI/control value,
+  and `rvv_available` remains a target/export-owned dispatch guard;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters structurally by runtime ABI role, C type, and ownership. The
   bounded dispatch exporter may use the selected RVV candidate's role-bound

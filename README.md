@@ -386,15 +386,19 @@ availability guard remains a dispatch runtime ABI parameter with role
 `dispatch-availability-guard`; by default it is named `rvv_available`, and a
 bounded target-owned dispatch metadata list
 `tcrv_rvv_scalar.dispatch_runtime_abi_parameters` may provide a different C
-name for that single guard role. For the current bounded RVV, scalar, and
-RVV+scalar dispatch source exports, callable `lhs`, `rhs`, `out`, runtime `n`,
-and the dispatcher availability guard are structured target/export-owned ABI
-parameters unless a future IR surface models them directly. Descriptor-local
-`element_count` remains finite microkernel metadata; it is not high-level
-shape, runtime `n`, AVL, or VL. This export does not implement automatic
-hardware probing, object generation, dynamic loading, linking, benchmarking,
-correctness measurement, or performance measurement. RVV runtime/correctness/
-performance claims still require separate real `ssh rvv` evidence.
+name for that single guard role. The RVV+scalar dispatch path now also
+requires real direct `tcrv.exec.mem_window` IR for the callable `lhs`, `rhs`,
+and `out` buffer meanings before the target-owned exporter emits the composite
+source. Those windows carry bounded execution-organization metadata such as
+ABI role, access direction, host/kernel-argument binding, target/export ABI
+ownership, and known C pointer type. Runtime `n` and the dispatcher
+availability guard remain ABI/control parameters, not tensor shapes or
+hardware facts. Descriptor-local `element_count` remains finite microkernel
+metadata; it is not high-level shape, runtime `n`, AVL, or VL. This export does
+not implement automatic hardware probing, object generation, dynamic loading,
+linking, benchmarking, correctness measurement, or performance measurement.
+RVV runtime/correctness/performance claims still require separate real
+`ssh rvv` evidence.
 
 The explicit
 `tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`
