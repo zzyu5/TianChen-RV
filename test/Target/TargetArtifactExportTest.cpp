@@ -425,7 +425,8 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                           llvm::StringRef expectedRuntimeABIName = {},
                           bool expectedDirectHelperRoute = false,
                           llvm::StringRef expectedComponentGroup = {},
-                          llvm::StringRef expectedExternalABIName = {}) {
+                          llvm::StringRef expectedExternalABIName = {},
+                          bool expectedCandidateValidation = false) {
   const TargetArtifactCompositeExporter *matched = nullptr;
   for (const TargetArtifactCompositeExporter &exporter :
        registry.getCompositeExporters()) {
@@ -448,7 +449,9 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
       matched->getRuntimeABIName() != expectedRuntimeABIName ||
       matched->hasDirectHelperRoute() != expectedDirectHelperRoute ||
       matched->getComponentGroup() != expectedComponentGroup ||
-      matched->getExternalABIName() != expectedExternalABIName) {
+      matched->getExternalABIName() != expectedExternalABIName ||
+      static_cast<bool>(matched->getCandidateValidationFn()) !=
+          expectedCandidateValidation) {
     llvm::errs() << "malformed built-in composite route metadata for '"
                  << routeID << "'\n";
     return false;
@@ -593,14 +596,25 @@ module {
       kernel, "scalar_fallback_first_slice"));
 
   llvm::Expected<bool> matched = dispatchComposite->getMatchFn()(candidates);
-  if (matched) {
-    llvm::errs() << "dispatch composite unexpectedly accepted detached scalar "
-                    "fallback candidate mismatch\n";
+  if (!matched) {
+    llvm::errs() << "dispatch composite match unexpectedly failed before "
+                    "route-local validation: "
+                 << llvm::toString(matched.takeError()) << "\n";
+    return false;
+  }
+  if (!*matched) {
+    llvm::errs() << "dispatch composite unexpectedly declined shaped RVV+scalar "
+                    "candidates before route-local validation\n";
+    return false;
+  }
+  if (!dispatchComposite->getCandidateValidationFn()) {
+    llvm::errs() << "dispatch composite route '" << routeID
+                 << "' lacks route-local candidate preflight validation\n";
     return false;
   }
 
   return expectErrorContains(
-      matched.takeError(),
+      dispatchComposite->getCandidateValidationFn()(candidates),
       "dispatch fallback IR-link mismatch rejected for " + routeID.str(),
       {"selected scalar dispatch fallback callable route",
        "@scalar_fallback_first_slice", "tcrv.exec.fallback target",
@@ -615,7 +629,10 @@ bool expectDispatchCompositeRejectsFallbackMismatch(
              "tcrv-export-rvv-scalar-i32-vadd-dispatch-c") &&
          expectDispatchCompositeRejectsFallbackMismatchForRoute(
              context, registry,
-             "tcrv-export-rvv-scalar-i32-vadd-dispatch-header");
+             "tcrv-export-rvv-scalar-i32-vadd-dispatch-header") &&
+         expectDispatchCompositeRejectsFallbackMismatchForRoute(
+             context, registry,
+             "tcrv-export-rvv-scalar-i32-vadd-dispatch-object");
 }
 
 bool expectGenericHeaderArtifactRouteSelection(mlir::MLIRContext &context) {
@@ -752,6 +769,80 @@ bool expectExporterRejectsRuntimeABIContractMismatch(
       {"runtime ABI parameter role 'runtime-element-count'",
        "must use c type 'size_t'",
        "ownership 'target-export-abi-owned'"});
+}
+
+bool expectCompositeCandidateValidationRejects(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    llvm::StringRef context,
+    std::initializer_list<llvm::StringRef> fragments) {
+  const TargetArtifactCompositeExporter *composite =
+      registry.lookupComposite(routeID);
+  if (!composite) {
+    llvm::errs() << "missing composite route '" << routeID
+                 << "' for preflight test\n";
+    return false;
+  }
+  if (!composite->getCandidateValidationFn()) {
+    llvm::errs() << "composite route '" << routeID
+                 << "' lacks candidate preflight callback\n";
+    return false;
+  }
+
+  llvm::Expected<bool> matched = composite->getMatchFn()(candidates);
+  if (!matched) {
+    llvm::errs() << context << ": match failed before preflight: "
+                 << llvm::toString(matched.takeError()) << "\n";
+    return false;
+  }
+  if (!*matched) {
+    llvm::errs() << context << ": candidate shape did not match route\n";
+    return false;
+  }
+
+  return expectErrorContains(composite->getCandidateValidationFn()(candidates),
+                             context, fragments);
+}
+
+bool expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  TargetArtifactCandidate candidate =
+      makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                               "rvv_first_slice");
+  candidate.role = "direct variant";
+  candidate.runtimeABIParameters[3].cType = "long";
+  llvm::SmallVector<TargetArtifactCandidate, 1> candidates;
+  candidates.push_back(candidate);
+
+  return expectCompositeCandidateValidationRejects(
+      registry, routeID, candidates,
+      "RVV composite helper rejects stale callable ABI for " + routeID.str(),
+      {"route id 'tcrv-export-rvv-microkernel-c'",
+       "runtime ABI parameter role 'runtime-element-count'",
+       "must use c type 'size_t'"});
+}
+
+bool expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  TargetArtifactCandidate rvvCandidate =
+      makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                               "rvv_first_slice");
+  TargetArtifactCandidate scalarCandidate =
+      makeScalarDispatchFallbackCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                          "scalar_fallback_first_slice");
+  scalarCandidate.runtimeABIParameters[3].cType = "long";
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(rvvCandidate);
+  candidates.push_back(scalarCandidate);
+
+  return expectCompositeCandidateValidationRejects(
+      registry, routeID, candidates,
+      "dispatch composite rejects stale scalar callable ABI for " +
+          routeID.str(),
+      {"route id 'tcrv-export-scalar-microkernel-c'",
+       "runtime ABI parameter role 'runtime-element-count'",
+       "must use c type 'size_t'"});
 }
 
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
@@ -1311,28 +1402,35 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
           rvvABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true))
+          /*expectedDirectHelperRoute=*/true, /*expectedComponentGroup=*/{},
+          /*expectedExternalABIName=*/{},
+          /*expectedCandidateValidation=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-object",
           "riscv-elf-relocatable-object", "rvv-plugin",
           rvvABI.runtimeABIKind, rvvABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true))
+          /*expectedDirectHelperRoute=*/true, /*expectedComponentGroup=*/{},
+          /*expectedExternalABIName=*/{},
+          /*expectedCandidateValidation=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
           "runtime-callable-c-source", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
-          dispatchABI.runtimeABIName))
+          dispatchABI.runtimeABIName,
+          /*expectedCandidateValidation=*/true))
     return 1;
   const TargetArtifactCompositeExporter *dispatchSourceComposite =
       builtinRegistry.lookupComposite(
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-c");
   if (!dispatchSourceComposite ||
-      !dispatchSourceComposite->getRuntimeABIParametersFn()) {
+      !dispatchSourceComposite->getRuntimeABIParametersFn() ||
+      !dispatchSourceComposite->getCandidateValidationFn()) {
     llvm::errs() << "dispatch source composite route must publish runtime ABI "
-                    "parameters through a C++ callback\n";
+                    "parameters and route-local candidate preflight through "
+                    "C++ callbacks\n";
     return 1;
   }
   if (!expectCompositeRoute(
@@ -1341,7 +1439,8 @@ int main() {
           "runtime-callable-c-header", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
-          dispatchABI.runtimeABIName))
+          dispatchABI.runtimeABIName,
+          /*expectedCandidateValidation=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
@@ -1349,12 +1448,28 @@ int main() {
           "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchABI.runtimeABIName,
           /*expectedDirectHelperRoute=*/true, dispatchExternalABIComponentGroup,
-          dispatchABI.runtimeABIName))
+          dispatchABI.runtimeABIName,
+          /*expectedCandidateValidation=*/true))
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))
     return 1;
   if (!expectExporterRejectsRuntimeABIContractMismatch(builtinRegistry))
+    return 1;
+  if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-microkernel-header"))
+    return 1;
+  if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-microkernel-object"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"))
     return 1;
   if (!expectDispatchCompositeRejectsFallbackMismatch(context,
                                                       builtinRegistry))

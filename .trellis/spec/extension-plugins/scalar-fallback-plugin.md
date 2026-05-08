@@ -200,6 +200,11 @@ parameters. The callable ABI plan must be built from direct
 `tcrv.exec.mem_window` IR for lhs/rhs/out buffer roles plus direct
 `tcrv.exec.runtime_param` IR for runtime `n`; supported emission-plan
 `runtime_abi_parameters` entries are validated mirrors of that IR-backed plan.
+The generic target-artifact source front door must also validate those
+compiler-owned runtime ABI parameter roles through the typed scalar callable
+route contract before invoking the scalar source exporter, so stale or
+conflicting C type, C name, ownership, or role metadata fails before source
+output rather than slipping to late exporter behavior.
 For this first slice those parameters are target/export ABI-owned, not
 IR-modeled scalar operands or high-level tensor shape. The default artifact has
 no hidden `main`, stdio-only self-check machinery, or success marker. The source

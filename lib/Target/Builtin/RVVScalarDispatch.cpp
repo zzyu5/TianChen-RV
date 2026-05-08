@@ -287,34 +287,7 @@ llvm::Error validateRegisteredCallableRouteMetadata(
         llvm::Twine("unknown selected callable artifact route id '") +
             candidate.routeID + "'");
 
-  if (candidate.artifactKind != exporter->getArtifactKind())
-    return makeDispatchError(
-        candidate.kernel,
-        llvm::Twine("selected callable artifact route '") + candidate.routeID +
-            "' does not support artifact_kind '" + candidate.artifactKind +
-            "'");
-  if (!exporter->getOriginPlugin().empty() &&
-      candidate.origin != exporter->getOriginPlugin())
-    return makeDispatchError(
-        candidate.kernel,
-        llvm::Twine("selected callable artifact route '") + candidate.routeID +
-            "' is registered for origin '" + exporter->getOriginPlugin() +
-            "' but selected emission-plan origin is '" + candidate.origin + "'");
-  if (!exporter->getEmissionKind().empty() &&
-      candidate.emissionKind != exporter->getEmissionKind())
-    return makeDispatchError(
-        candidate.kernel,
-        llvm::Twine("selected callable artifact route '") + candidate.routeID +
-            "' is registered for emission_kind '" +
-            exporter->getEmissionKind() +
-            "' but selected emission-plan emission_kind is '" +
-            candidate.emissionKind + "'");
-  if (!exporter->getExportFn())
-    return makeDispatchError(
-        candidate.kernel,
-        llvm::Twine("selected callable artifact route '") + candidate.routeID +
-            "' has no registered export callback");
-  return llvm::Error::success();
+  return validateTargetArtifactCandidateAgainstExporter(candidate, *exporter);
 }
 
 bool isValidCParameterName(llvm::StringRef value) {
@@ -892,11 +865,16 @@ llvm::Expected<bool> matchRVVScalarI32VAddDispatchCandidates(
   if (!hasRVV || !hasScalar)
     return false;
 
+  return true;
+}
+
+llvm::Error validateRVVScalarI32VAddDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
   llvm::Expected<DispatchPair> pair =
       collectDispatchPairFromCandidates(candidates);
   if (!pair)
     return pair.takeError();
-  return true;
+  return llvm::Error::success();
 }
 
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
@@ -1745,7 +1723,8 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               abi.runtimeABIKind, abi.runtimeABIName,
               resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
               /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
-              abi.runtimeABIName)))
+              abi.runtimeABIName,
+              validateRVVScalarI32VAddDispatchCandidates)))
     return error;
 
   if (llvm::Error error =
@@ -1757,7 +1736,8 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               abi.runtimeABIKind, abi.runtimeABIName,
               resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
               /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
-              abi.runtimeABIName)))
+              abi.runtimeABIName,
+              validateRVVScalarI32VAddDispatchCandidates)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
@@ -1768,7 +1748,7 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
       abi.runtimeABIKind, abi.runtimeABIName,
       resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
       /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
-      abi.runtimeABIName));
+      abi.runtimeABIName, validateRVVScalarI32VAddDispatchCandidates));
 }
 
 } // namespace tianchenrv::target::rvv_scalar

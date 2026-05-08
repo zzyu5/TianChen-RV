@@ -155,6 +155,12 @@ Use lit/FileCheck for:
   route/origin mismatch, missing runtime ABI ownership metadata, source versus
   descriptor artifact route spoofing, stale or mismatched selected RVV capacity
   metadata, unregistered origins, and ambiguous supported artifact candidates.
+  Runtime ABI role-contract coverage must include the generic target-artifact
+  front-door preflight for direct scalar/RVV callable source routes and the
+  route-local composite preflight callbacks for RVV header/object helpers and
+  RVV+scalar dispatch source/header/object helpers; malformed component
+  callable ABI role/type/name/ownership metadata must fail before artifact or
+  bundle output.
 - scalar explicit microkernel C target export through the generic artifact
   route, including dialect parse/verify for
   `tcrv_scalar.i32_vadd_microkernel`, selected scalar fallback plus matching

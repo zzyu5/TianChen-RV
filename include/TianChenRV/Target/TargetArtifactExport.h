@@ -28,6 +28,8 @@ using TargetArtifactCandidateValidationFn = llvm::Error (*)(
     const TargetArtifactCandidate &candidate);
 using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
     llvm::ArrayRef<TargetArtifactCandidate> candidates);
+using TargetArtifactCompositeCandidateValidationFn = llvm::Error (*)(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates);
 using TargetArtifactCompositeRuntimeABIParametersFn =
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>> (*)(
         llvm::ArrayRef<TargetArtifactCandidate> candidates);
@@ -135,7 +137,9 @@ public:
                                   llvm::StringRef runtimeABIName = {},
                                   bool directHelperRoute = false,
                                   llvm::StringRef componentGroup = {},
-                                  llvm::StringRef externalABIName = {});
+                                  llvm::StringRef externalABIName = {},
+                                  TargetArtifactCompositeCandidateValidationFn
+                                      candidateValidationFn = nullptr);
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
       TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
@@ -143,7 +147,9 @@ public:
       llvm::StringRef runtimeABIName,
       llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
       bool directHelperRoute = false, llvm::StringRef componentGroup = {},
-      llvm::StringRef externalABIName = {});
+      llvm::StringRef externalABIName = {},
+      TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
+          nullptr);
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
       TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
@@ -151,7 +157,9 @@ public:
       llvm::StringRef runtimeABIName,
       TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn,
       bool directHelperRoute = false, llvm::StringRef componentGroup = {},
-      llvm::StringRef externalABIName = {});
+      llvm::StringRef externalABIName = {},
+      TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
+          nullptr);
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -171,6 +179,9 @@ public:
   getRuntimeABIParametersFn() const {
     return runtimeABIParametersFn;
   }
+  TargetArtifactCompositeCandidateValidationFn getCandidateValidationFn() const {
+    return candidateValidationFn;
+  }
 
 private:
   std::string routeID;
@@ -186,6 +197,7 @@ private:
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
   TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn =
       nullptr;
+  TargetArtifactCompositeCandidateValidationFn candidateValidationFn = nullptr;
 };
 
 class TargetArtifactExporterRegistry {

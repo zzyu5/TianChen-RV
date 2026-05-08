@@ -170,9 +170,11 @@ through the generic artifact-kind-aware front door when it selects the RVV
 microkernel object route. This remains target-owned emission: it consumes the
 already selected callable source candidate, structured RVV architecture
 capability metadata, selected march/mabi capability metadata, and local
-toolchain diagnostics. It does not introduce a new lowering dialect, a hidden
-self-check `main`, linking, runtime probing, correctness evidence, or
-performance evidence.
+toolchain diagnostics. The generic object helper route must preflight the
+matched RVV callable source candidate through the same typed runtime ABI role
+contract used by the direct source route before compiling generated source.
+It does not introduce a new lowering dialect, a hidden self-check `main`,
+linking, runtime probing, correctness evidence, or performance evidence.
 
 ## Remote Evidence Probe Contract
 
@@ -690,7 +692,10 @@ the direct `tcrv-translate --tcrv-export-rvv-microkernel-header` command or the
 generic `--tcrv-export-target-header-artifact` front door. This header route is
 matched from the same validated callable source candidate as the object route
 and derives its single prototype from the same selected RVV path, validated
-microkernel body, IR-backed callable ABI plan, and capability metadata. It is
+microkernel body, IR-backed callable ABI plan, and capability metadata. The
+generic header helper route must validate stale or conflicting
+`runtime_abi_parameters` through the same typed target-artifact candidate
+preflight surface used by the direct source route before header output. It is
 an external caller ABI surface only: no RVV body, hidden `main`, self-check
 harness, runtime probe, correctness evidence, or performance text belongs in
 the header artifact. Successful `ssh rvv` compile/link/run evidence for an

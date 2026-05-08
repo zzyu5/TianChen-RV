@@ -105,11 +105,17 @@ paths, duplicate or ambiguous supported artifacts, and malformed bounded text.
 
 Concrete artifact generation remains target-owned. Built-in tools may register
 target exporters, but the registration is where extension-specific route facts
-belong. Source exporters that declare required runtime ABI parameter roles also
-verify that any selected emission-plan diagnostic parameter metadata is an exact
-mirror of the executable IR-backed ABI boundary consumed by the target-owned
-exporter, including role, C name, C type, and ownership. Missing, spoofed,
-stale, or extra required roles fail before target-owned C source emission.
+belong. Exporters that declare required runtime ABI parameter roles also verify
+that any selected emission-plan diagnostic parameter metadata is an exact mirror
+of the executable IR-backed ABI boundary consumed by the target-owned exporter,
+including role, C name, C type, and ownership. Missing, spoofed, stale, or
+extra required roles fail before target-owned C source, header, object, or
+bundle emission. Composite helper routes that are matched from callable source
+candidates, such as RVV header/object helpers and RVV+scalar dispatch
+source/header/object helpers, must register route-local candidate preflight
+callbacks when their component callable routes carry compiler-owned ABI role
+contracts. Those callbacks must reuse the same typed `TargetArtifactExporter`
+candidate validation surface rather than duplicating a string-only ABI model.
 Standalone target exporters may also register a route-local candidate
 validation callback when a static role list is not expressive enough to check
 the full compiler-owned runtime ABI contract. The generic target artifact
@@ -262,7 +268,14 @@ missing or inconsistent compiler-owned ABI contracts before descriptor, source,
 header, object, or bundle materialization. For the offload descriptor route,
 that means malformed or stale `runtime_abi_parameters` fail at the selected
 target-artifact/front-door boundary before descriptor text is emitted, while
-the descriptor exporter keeps its own final validation safety net.
+the descriptor exporter keeps its own final validation safety net. RVV and
+scalar callable routes use the same boundary for their compiler-owned
+lhs/rhs/out/runtime-element-count role contracts: direct callable source routes
+declare the typed callable role requirements, RVV header/object composite
+helpers preflight the selected RVV callable source candidate through that same
+route contract, and RVV+scalar dispatch composite helpers preflight both the
+RVV dispatch-case callable candidate and scalar dispatch-fallback callable
+candidate before deriving the dispatcher ABI.
 
 The canonical `tcrv-opt --tcrv-execution-planning-pipeline` must run this same
 preflight verifier as its final gate after emission-plan materialization when a
@@ -314,24 +327,32 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV explicit i32 vector-add microkernel runtime-callable C header,
     matched from the same selected callable source candidate and emitted by
     RVV target/export code as an external caller ABI surface with artifact kind
-    `runtime-callable-c-header`.
+    `runtime-callable-c-header`. Its registration must include route-local
+    candidate preflight that validates the matched RVV callable source
+    candidate against the RVV direct callable runtime ABI role contract before
+    header output.
   - RVV explicit i32 vector-add microkernel runtime-callable RISC-V ELF
     relocatable library object, matched from the same selected callable source
     candidate and emitted by RVV target/export code without a hidden self-check
-    harness or `main`.
+    harness or `main`. Its registration must include the same route-local
+    candidate preflight before object compilation.
 - The current multi-candidate composite route set is:
   - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C source,
     matched by target-owned RVV+scalar dispatch exporter code from the selected
     RVV dispatch-case callable route and scalar dispatch-fallback callable
-    route.
+    route. Its registration must preflight both callable component candidates
+    against their direct route ABI role contracts before deriving the dispatcher
+    ABI.
   - RVV+scalar explicit i32 vector-add host dispatch runtime-callable RISC-V
     ELF relocatable library object, matched from the same selected callable
     candidates and emitted by the target-owned RVV+scalar dispatch exporter
-    code without a hidden self-check harness or `main`.
+    code without a hidden self-check harness or `main`. Its registration must
+    include the same callable component candidate preflight.
   - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C header,
     matched from the same selected callable candidates and emitted by the
     target-owned RVV+scalar dispatch exporter code as an external caller ABI
-    surface with artifact kind `runtime-callable-c-header`.
+    surface with artifact kind `runtime-callable-c-header`. Its registration
+    must include the same callable component candidate preflight.
 - The helper may include RVV/scalar/offload target headers and call their
   target-owned registration functions, but it must not duplicate route
   semantics or artifact validation.

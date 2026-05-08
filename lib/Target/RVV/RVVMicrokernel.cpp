@@ -1857,6 +1857,22 @@ bool isRVVMicrokernelSourceCandidate(
          candidate.runtimeGlueRole == abi.runtimeGlueRole;
 }
 
+llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return makeModuleMicrokernelError(
+        "RVV microkernel helper routes require exactly one callable artifact "
+        "candidate for preflight");
+
+  TargetArtifactExporter sourceExporter(
+      kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
+      kMicrokernelEmissionKind, exportRVVMicrokernelC,
+      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+      /*directHelperRoute=*/true);
+  return validateTargetArtifactCandidateAgainstExporter(candidates.front(),
+                                                        sourceExporter);
+}
+
 llvm::Expected<bool> matchRVVMicrokernelObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
@@ -2115,14 +2131,18 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               matchRVVMicrokernelHeaderCandidate,
               exportRVVMicrokernelHeader, kRVVPluginName, abi.runtimeABIKind,
               abi.runtimeABIName,
-              /*directHelperRoute=*/true)))
+              /*directHelperRoute=*/true, /*componentGroup=*/{},
+              /*externalABIName=*/{},
+              validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
       matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject,
       kRVVPluginName, abi.runtimeABIKind, abi.runtimeABIName,
-      /*directHelperRoute=*/true));
+      /*directHelperRoute=*/true, /*componentGroup=*/{},
+      /*externalABIName=*/{},
+      validateRVVMicrokernelCallableCandidatePreflight));
 }
 
 } // namespace tianchenrv::target::rvv
