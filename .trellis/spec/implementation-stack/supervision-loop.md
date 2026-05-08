@@ -198,6 +198,22 @@ observed regression in an already implemented path, or is the single blocker to
 the next real compiler implementation step. If that standard is not met, Hermes
 must choose the next real compiler implementation owner instead.
 
+Hermes should prefer owners that are large enough to remove a real compiler
+spine bottleneck in one round. A good owner may span several tightly related
+surfaces, such as ODS/verifier/materialization/exporter/tests, when those
+surfaces are all required for one semantic step. A round is too small when its
+primary deliverable is only a helper function, one extra negative test, a
+single guardrail, a registry wrapper, or evidence packaging that does not make a
+new compiler behavior available. Hermes must not decompose an obvious coherent
+compiler step into a sequence of helper-only or test-only rounds merely because
+each micro-step can be validated independently.
+
+The next prompt should name the compiler path or artifact that becomes more
+real after the round. For example, it should say which IR boundary,
+plugin-owned lowering path, capability decision, variant selection behavior, or
+runtime/emission path will be advanced. If Hermes cannot state that outcome, it
+should choose a different owner.
+
 The next prompt must state the files or directories to inspect first, the implementation area to modify, required tests or evidence, invalid work patterns for the round, final reporting requirements, and whether a clean commit is expected.
 
 ## Codex Worker Invariants
@@ -221,6 +237,9 @@ Worker prompts must preserve these rules:
 - avoid helper-only, guardrail-only, fixture-only, probe-only, wrapper-only, or
   registry-only rounds unless the prompt states the concrete necessity under
   the work-selection rule;
+- prefer a bounded but meaningful compiler owner over a micro-owner: combine
+  related ODS, C++ verifier/materialization, plugin/exporter integration, and
+  minimal tests when that is the natural size of one semantic compiler step;
 - treat generated loop artifacts as artifacts, not durable compiler source;
 - avoid committing temporary prompt packs or raw run scratch data.
 

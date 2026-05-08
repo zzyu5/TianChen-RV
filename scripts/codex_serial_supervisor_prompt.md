@@ -316,6 +316,10 @@ the work is the single blocker to the next real compiler implementation step.
 
 If none of those conditions holds, skip the smoke/probe/guardrail/test-harness work and choose the next real compiler implementation owner instead. When the RVV path has enough capability/variant/boundary/export scaffolding, prefer a minimal real RVV lowering or plugin-owned computation/emission slice over another standalone smoke artifact.
 
+Prefer a bounded but meaningful compiler owner over a micro-owner. A good round may span several tightly related surfaces when they are all part of one semantic compiler step: ODS or attributes, C++ verifier/materialization, plugin proposal or lowering, exporter consumption, and one or two minimal tests. Do not split an obvious compiler step into repeated helper-only, one-negative-test, registry-wrapper, or evidence-packaging rounds merely because each small piece can be validated independently.
+
+Before committing to an owner, state what compiler path or artifact becomes more real after the round. Good answers name a concrete IR boundary, plugin-owned lowering path, capability decision, variant selection behavior, runtime ABI boundary, emission path, or hardware-evidence claim. If the proposed work cannot name that outcome, choose a larger active compiler owner instead.
+
 ## Validation Discipline
 
 For each code change, add only the relevant minimal tests needed to validate the changed compiler behavior. Tests are verification, not the round owner.

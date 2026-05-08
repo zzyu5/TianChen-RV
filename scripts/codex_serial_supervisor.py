@@ -1254,6 +1254,10 @@ Documentation is useful when it constrains or explains active design. Documentat
 
 Smoke tests, tiny guardrails, small harnesses, broad negative fixture matrices, extra evidence packaging, export wrappers, registries, and dashboard-like reports are not default engineering owners. They are allowed only when you can name a concrete necessity: they directly verify a real lowering/runtime semantic change in the same round, prevent a specific observed regression in an already implemented path, or are the single blocker to the next real compiler implementation step. If that standard is not met, skip them and choose the next real compiler implementation owner instead.
 
+Prefer a bounded but meaningful compiler owner over a micro-owner. A good next prompt may span several tightly related surfaces when they form one semantic compiler step: ODS or attributes, C++ verifier/materialization, plugin proposal or lowering, exporter consumption, and one or two minimal tests. Do not split an obvious compiler step into repeated helper-only, one-negative-test, registry-wrapper, or evidence-packaging rounds merely because each small piece can be validated independently.
+
+Before choosing the next owner, state what compiler path or artifact becomes more real after the round. Good outcomes name a concrete IR boundary, plugin-owned lowering path, capability decision, variant selection behavior, runtime ABI boundary, emission path, or hardware-evidence claim. If you cannot state that outcome, choose a larger active compiler owner.
+
 ### Architecture invariants
 
 Check these invariants:
