@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for implementation stack and architecture boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact bundle, runtime ABI, dispatch external ABI, and non-claim boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and real ssh rvv evidence boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback callable boundary in the RVV+scalar dispatch pair"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required local and ssh evidence validation policy"}

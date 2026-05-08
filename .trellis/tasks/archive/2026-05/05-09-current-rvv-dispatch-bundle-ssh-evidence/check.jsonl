@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariant check for C++/MLIR primary stack and Python tooling boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify target artifact bundle component contract and runtime ABI non-claims"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV evidence scope remains bounded to the current ssh rvv run"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar fallback remains fallback-local and not RVV evidence"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify check-tianchenrv, dry-run, and real ssh evidence requirements"}
