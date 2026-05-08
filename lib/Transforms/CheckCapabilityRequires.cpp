@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/Passes.h"
 
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -19,11 +20,9 @@ namespace tianchenrv::transforms {
 
 namespace {
 
-constexpr llvm::StringLiteral kConditionAttrName("condition");
-constexpr llvm::StringLiteral kGuardAttrName("guard");
-constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
 struct RequirementIssue {
   enum class Kind {
@@ -193,7 +192,7 @@ private:
     if (issueIt == issuesByVariant.end())
       return;
 
-    if (hasGenericDispatchGuard(dispatchCase.getOperation()))
+    if (hasTypedDispatchGuardRequirement(dispatchCase.getOperation()))
       return;
 
     for (const RequirementIssue &issue : issueIt->getValue()) {
@@ -203,8 +202,10 @@ private:
           << " targets variant @" << target << " with ";
       appendIssueDetails(diagnostic, issue,
                          /*includeRequiredAdjective=*/true);
-      diagnostic << "; add a non-empty condition, guard, or policy to make "
-                    "the runtime dispatch guard explicit";
+      diagnostic << "; add typed " << kRuntimeGuardRequiredAttrName
+                 << " = true to make the runtime dispatch guard requirement "
+                    "explicit; condition/guard/policy annotations alone are "
+                    "not semantic guard requirements";
       foundRequirementIssue = true;
     }
   }
@@ -236,16 +237,10 @@ private:
     }
   }
 
-  bool hasGenericDispatchGuard(mlir::Operation *op) const {
-    return hasNonEmptyStringAttr(op, kConditionAttrName) ||
-           hasNonEmptyStringAttr(op, kGuardAttrName) ||
-           hasNonEmptyStringAttr(op, kPolicyAttrName);
-  }
-
-  bool hasNonEmptyStringAttr(mlir::Operation *op,
-                             llvm::StringRef attrName) const {
-    auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-    return attr && !attr.getValue().trim().empty();
+  bool hasTypedDispatchGuardRequirement(mlir::Operation *op) const {
+    auto attr = op->getAttrOfType<mlir::BoolAttr>(
+        kRuntimeGuardRequiredAttrName);
+    return attr && attr.getValue();
   }
 
   void appendCapabilityDetails(mlir::InFlightDiagnostic &diagnostic,

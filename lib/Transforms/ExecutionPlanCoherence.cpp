@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Transforms/Passes.h"
 
@@ -43,6 +44,7 @@ using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
 constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
@@ -266,6 +268,58 @@ llvm::Error checkReferenceOrigin(KernelOp kernel, mlir::Operation *referenceOp,
   return llvm::Error::success();
 }
 
+bool hasRuntimeGuardRequirement(DispatchCaseOp dispatchCase) {
+  auto attr = dispatchCase->getAttrOfType<mlir::BoolAttr>(
+      execDiagnostic::kRuntimeGuardRequiredAttrName);
+  return attr && attr.getValue();
+}
+
+llvm::Error validateRequiredRuntimeGuardLink(
+    KernelOp kernel, DispatchCaseOp dispatchCase, llvm::StringRef target,
+    const llvm::StringMap<mlir::Operation *> &directSymbols) {
+  if (!hasRuntimeGuardRequirement(dispatchCase))
+    return llvm::Error::success();
+
+  auto runtimeGuard =
+      dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          execDiagnostic::kRuntimeGuardAttrName);
+  if (!runtimeGuard || runtimeGuard.getValue().trim().empty())
+    return makeCoherenceError(
+        kernel, llvm::Twine("dispatch case @") + target +
+                    " carries typed runtime_guard_required = true but is "
+                    "missing runtime_guard linkage to a dispatch-availability "
+                    "runtime_param");
+
+  auto symbolIt = directSymbols.find(runtimeGuard.getValue());
+  if (symbolIt == directSymbols.end())
+    return makeCoherenceError(
+        kernel, llvm::Twine("dispatch case @") + target +
+                    " runtime_guard @" + runtimeGuard.getValue() +
+                    " does not resolve to a direct same-kernel symbol");
+
+  auto runtimeParam = llvm::dyn_cast<RuntimeParamOp>(symbolIt->getValue());
+  if (!runtimeParam)
+    return makeCoherenceError(
+        kernel, llvm::Twine("dispatch case @") + target +
+                    " runtime_guard @" + runtimeGuard.getValue() +
+                    " resolves to a direct same-kernel symbol that is not a "
+                    "tcrv.exec.runtime_param");
+
+  auto role = runtimeParam->getAttrOfType<mlir::StringAttr>(
+      support::kRuntimeParamABIRoleAttrName);
+  if (!role ||
+      role.getValue() != support::stringifyRuntimeABIParameterRole(
+                             support::RuntimeABIParameterRole::
+                                 DispatchAvailabilityGuard))
+    return makeCoherenceError(
+        kernel, llvm::Twine("dispatch case @") + target +
+                    " runtime_guard @" + runtimeGuard.getValue() +
+                    " must reference a tcrv.exec.runtime_param with ABI role "
+                    "'dispatch-availability-guard'");
+
+  return llvm::Error::success();
+}
+
 llvm::Error collectDispatchSelectedPaths(
     KernelOp kernel, DispatchOp dispatch,
     const llvm::StringMap<VariantOp> &directVariants,
@@ -310,6 +364,9 @@ llvm::Error collectDispatchSelectedPaths(
       if (llvm::Error error = checkReferenceOrigin(
               kernel, dispatchCase.getOperation(), "dispatch case", origin,
               variant.getSymName()))
+        return error;
+      if (llvm::Error error = validateRequiredRuntimeGuardLink(
+              kernel, dispatchCase, target, directSymbols))
         return error;
       paths.push_back(SelectedPath{
           variant, variant.getSymName().str(),

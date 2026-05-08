@@ -44,8 +44,13 @@ tcrv.exec.kernel @unguarded_dispatch_case attributes {} {
     // CHECK-SAME: id = "portable.runtime.probe"
     // CHECK-SAME: kind = "runtime-offload"
     // CHECK-SAME: status = "missing"
-    // CHECK-SAME: condition, guard, or policy
-    tcrv.exec.case @runtime_offload_path
+    // CHECK-SAME: runtime_guard_required
+    // CHECK-SAME: condition/guard/policy annotations alone are not semantic guard requirements
+    tcrv.exec.case @runtime_offload_path {
+      condition = "legacy_condition_annotation",
+      guard = "legacy_guard_annotation",
+      policy = "legacy_policy_annotation"
+    }
     tcrv.exec.fallback @portable_fallback
   }
 }
@@ -141,7 +146,7 @@ tcrv.exec.kernel @unguarded_conflict_dispatch attributes {} {
     // CHECK-SAME: conflicting with available capability @shape_profile
     // CHECK-SAME: id = "shape.profile"
     // CHECK-SAME: via conflict id "shape.dynamic"
-    // CHECK-SAME: condition, guard, or policy
+    // CHECK-SAME: runtime_guard_required
     tcrv.exec.case @fixed_shape_path
     tcrv.exec.fallback @portable_fallback
   }

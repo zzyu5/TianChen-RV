@@ -11,8 +11,9 @@ def CheckCapabilityRequires
     tcrv.exec.kernel and rejects unguarded variants whose declared capability
     requirements are present but generically marked unavailable, disabled, or
     missing. Structured tcrv.exec.dispatch cases may guard unavailable
-    non-fallback variants when they carry a non-empty generic condition, guard,
-    or policy, while dispatch fallback targets must be generically available.
+    non-fallback variants only when they carry the typed generic
+    runtime_guard_required marker, while dispatch fallback targets must be
+    generically available.
     Malformed requires attributes and unknown symbols remain the responsibility
     of the tcrv.exec verifier.
   }];
@@ -34,7 +35,8 @@ def SynthesizeVariantDispatch
     TargetCapabilitySet becomes the fallback target. Remaining variants are
     emitted as deterministic dispatch cases in original kernel order, with a
     non-empty generic policy attached to cases whose requirements are
-    unavailable or conflicting and therefore require runtime dispatch guarding.
+    unavailable or conflicting and therefore require runtime dispatch guarding;
+    those cases also receive the typed runtime_guard_required marker.
     Kernels without a conflict-free generically available fallback are
     diagnosed and left unmodified.
   }];
@@ -145,7 +147,8 @@ def MaterializeDispatchRuntimeGuards
     dispatch-availability-guard.
 
     The pass is target-neutral. It may inspect generic capability availability,
-    conflicts, and generic decision metadata, but it does not branch on RVV,
+    conflicts, and the typed tcrv.exec.case runtime_guard_required marker, but
+    it does not branch on RVV,
     scalar fallback, IME, offload, Sophgo, AME, vendor, dtype, shape,
     microarchitecture, runtime probe implementation, or plugin microkernel
     semantics. It does not lower, emit code, probe hardware, or claim runtime,

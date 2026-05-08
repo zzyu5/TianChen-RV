@@ -292,8 +292,9 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - An unavailable requirement on a static variant not referenced by a structured
   `tcrv.exec.case` -> pass fails.
 - An unavailable requirement on a `tcrv.exec.case` target may pass only when
-  that case carries at least one non-empty generic `condition`, `guard`, or
-  `policy`; the core pass records the guard but does not parse the string.
+  that case carries typed generic `runtime_guard_required = true`; the core
+  pass records that guard requirement without parsing printable
+  `condition`/`guard`/`policy` strings.
 - An unavailable requirement on a `tcrv.exec.fallback` target -> pass fails,
   because fallback must remain generically executable under the same
   `TargetCapabilitySet`.
@@ -302,9 +303,9 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
   are capability ids and may be satisfied by exact id, `provides`, or
   `implies` relations.
 - A `tcrv.exec.case` target with a conflicting required capability may pass
-  only when that case carries at least one non-empty generic `condition`,
-  `guard`, or `policy`; the core pass records the guard surface but does not
-  solve or parse the conflict.
+  only when that case carries typed generic `runtime_guard_required = true`;
+  the core pass records that guard requirement but does not solve or parse the
+  conflict.
 - A `tcrv.exec.fallback` target with a conflicting required capability -> pass
   fails, because fallback must remain generically executable without relying on
   a preferred-path guard.
@@ -316,11 +317,11 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - Good: a runtime-offload or toolchain capability is declared generically and
   the pass rejects a requiring variant when it is disabled.
 - Good: a runtime-dispatch case can reference a generically unavailable
-  variant when the case has a generic guard and the fallback variant remains
-  available.
+  variant when the case has typed `runtime_guard_required = true` and the
+  fallback variant remains available.
 - Good: a dispatch case can reference a capability that conflicts with an
-  available build/runtime policy only when a non-empty generic guard records
-  the dispatch protection surface.
+  available build/runtime policy only when typed `runtime_guard_required`
+  records the dispatch protection surface.
 - Base: a capability has no status field and is treated as present.
 - Bad: core code branches on target-family names such as RVV, IME, or Sophgo to
   decide generic requires availability.
@@ -425,9 +426,9 @@ capability declares a conflict id satisfied by the required capability.
 `--tcrv-check-capability-requires` uses that bounded query as a legality gate.
 Static variants and dispatch fallbacks fail closed when a required capability
 conflicts with another available capability. Dispatch cases may reference a
-conflicting requirement only when the case has an explicit non-empty generic
-`condition`, `guard`, or `policy`, which records the runtime-dispatch
-protection surface without parsing extension-specific semantics.
+conflicting requirement only when the case has typed generic
+`runtime_guard_required = true`, which records the runtime-dispatch protection
+surface without parsing extension-specific printable annotations.
 
 This is not a full conflict solver, profile lattice, provider ranking model,
 or automatic conflict-resolution strategy. It only prevents unprotected

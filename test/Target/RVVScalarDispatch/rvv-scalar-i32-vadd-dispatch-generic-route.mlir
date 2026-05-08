@@ -51,6 +51,7 @@ module {
 // IR: tcrv.exec.case @rvv_first_slice
 // IR-SAME: policy = "metadata_only_first_slice"
 // IR-SAME: runtime_guard = @abi_dispatch_availability_guard
+// IR-SAME: runtime_guard_required = true
 // IR: tcrv.exec.fallback @scalar_fallback_first_slice
 // IR: tcrv.exec.mem_window @abi_lhs_input_buffer
 // IR-SAME: abi_role = "lhs-input-buffer"

@@ -86,7 +86,8 @@ tcrv.exec.kernel @saxpy attributes {} {
     // CHECK-SAME: guard = "shape_guard_passed"
     // CHECK-SAME: policy = "prefer_accelerated"
     // CHECK-SAME: runtime_guard = @runtime_guard
-    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated", runtime_guard = @runtime_guard}
+    // CHECK-SAME: runtime_guard_required = true
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated", runtime_guard = @runtime_guard, runtime_guard_required = true}
     // CHECK: tcrv.exec.fallback @portable_variant
     tcrv.exec.fallback @portable_variant
   }

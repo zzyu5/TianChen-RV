@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/VariantSelection.h"
 
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/IR/Builders.h"
@@ -50,6 +51,7 @@ constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
     "preference_tie_break");
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 constexpr llvm::StringLiteral kRuntimeGuardPolicy("capability_dispatch_guard");
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantCostEstimate;
@@ -371,6 +373,10 @@ DispatchCaseOp createDispatchCase(mlir::OpBuilder &builder,
       !selectionCase.hasGenericDecisionMetadata)
     state.addAttribute(kPolicyAttrName,
                        builder.getStringAttr(kRuntimeGuardPolicy));
+  if (selectionCase.requiresRuntimeCapabilityGuard ||
+      selectionCase.hasGenericDecisionMetadata)
+    state.addAttribute(kRuntimeGuardRequiredAttrName,
+                       builder.getBoolAttr(true));
   addPreferenceMetadata(builder, state, plan, selectionCase);
   return llvm::cast<DispatchCaseOp>(builder.create(state));
 }

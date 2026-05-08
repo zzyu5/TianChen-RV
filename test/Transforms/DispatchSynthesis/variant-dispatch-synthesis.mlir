@@ -47,6 +47,7 @@ tcrv.exec.kernel @first_available_is_fallback attributes {} {
   // SYNTH-SAME: condition = "runtime_probe_available"
   // SYNTH-SAME: guard = "runtime_guard_passed"
   // SYNTH-SAME: policy = "prefer_runtime_when_guarded"
+  // SYNTH-SAME: runtime_guard_required = true
   // SYNTH: tcrv.exec.case @extra_path
   // SYNTH: tcrv.exec.fallback @baseline_path
   // SYNTH-NOT: tcrv.exec.dispatch
@@ -55,6 +56,7 @@ tcrv.exec.kernel @first_available_is_fallback attributes {} {
   // PIPE-SAME: condition = "runtime_probe_available"
   // PIPE-SAME: guard = "runtime_guard_passed"
   // PIPE-SAME: policy = "prefer_runtime_when_guarded"
+  // PIPE-SAME: runtime_guard_required = true
   // PIPE: tcrv.exec.case @extra_path
   // PIPE: tcrv.exec.fallback @baseline_path
 }
@@ -93,10 +95,12 @@ tcrv.exec.kernel @conflicting_available_case_with_clean_fallback attributes {} {
   // SYNTH: tcrv.exec.dispatch
   // SYNTH: tcrv.exec.case @fast_runtime_path
   // SYNTH-SAME: policy = "capability_dispatch_guard"
+  // SYNTH-SAME: runtime_guard_required = true
   // SYNTH: tcrv.exec.fallback @baseline_path
   // PIPE: tcrv.exec.dispatch
   // PIPE: tcrv.exec.case @fast_runtime_path
   // PIPE-SAME: policy = "capability_dispatch_guard"
+  // PIPE-SAME: runtime_guard_required = true
   // PIPE: tcrv.exec.fallback @baseline_path
 }
 

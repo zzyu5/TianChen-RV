@@ -183,8 +183,9 @@ Use lit/FileCheck for:
   materialized lhs/rhs/out buffer-window roles consumed by RVV, scalar, and
   dispatch source exporters, `tcrv.exec.runtime_param` parse/verify and pipeline
   materialized runtime-element-count / dispatch-availability-guard scalar roles
-  consumed by the exporters, `tcrv.exec.case runtime_guard` symbol linkage from
-  the selected RVV dispatch case to the dispatch-availability runtime_param, a
+  consumed by the exporters, typed `tcrv.exec.case runtime_guard_required`
+  metadata plus `runtime_guard` symbol linkage from the selected RVV dispatch
+  case to the dispatch-availability runtime_param, a
   scalar callable branch link through the selected `tcrv.exec.fallback` target
   rather than detached route metadata alone, diagnostics naming both symbols
   when the scalar callable route and `tcrv.exec.fallback` target mismatch, a
@@ -194,20 +195,24 @@ Use lit/FileCheck for:
   that calls the generated dispatcher with both guard false and guard true, and
   fail-closed diagnostics when scalar callable fallback metadata is missing,
   unsupported, not an exact mirror of IR-backed callable ABI
-  role/name/type/ownership, runtime_guard is missing/malformed/stale for the
-  selected dispatch case, or required mem_window buffer roles or runtime_param
-  scalar roles are missing/duplicated/inconsistently described,
+  role/name/type/ownership, typed runtime guard requirement/linkage is
+  missing/malformed/stale for the selected dispatch case, or required
+  mem_window buffer roles or runtime_param scalar roles are
+  missing/duplicated/inconsistently described,
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.
   Compiler-owned dispatch runtime-guard materialization tests must include a
   positive transform case where a selected or synthesized guarded
-  `tcrv.exec.case` receives a same-kernel `dispatch-availability-guard`
+  `tcrv.exec.case` first carries typed `runtime_guard_required = true`, then
+  receives a same-kernel `dispatch-availability-guard`
   `tcrv.exec.runtime_param` plus `runtime_guard` symbol reference, and negative
-  coverage where missing, stale, duplicate, wrong-kind, or conflicting
-  runtime-guard linkage fails before a target bundle can report success.
-  Fallback cases must be checked not to receive `runtime_guard` metadata unless
-  the core exec dialect contract is explicitly extended.
+  coverage where arbitrary printable condition/guard/policy annotations alone
+  do not create a runtime guard and where missing, stale, duplicate,
+  wrong-kind, or conflicting runtime-guard linkage fails before a target bundle
+  can report success. Fallback cases must be checked not to receive
+  `runtime_guard_required` or `runtime_guard` metadata unless the core exec
+  dialect contract is explicitly extended.
   Direct RVV microkernel object coverage must prove that the public
   `--tcrv-export-rvv-microkernel-object` route and the generic
   `--tcrv-export-target-artifact` front door, when local/native RVV clang

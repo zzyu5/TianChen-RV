@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/DispatchRuntimeGuard.h"
 
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -30,12 +31,10 @@ using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
-constexpr llvm::StringLiteral kConditionAttrName("condition");
-constexpr llvm::StringLiteral kGuardAttrName("guard");
-constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 constexpr llvm::StringLiteral kTargetAttrName("target");
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
 llvm::Error makeRuntimeGuardError(KernelOp kernel, llvm::Twine message) {
   std::string text;
@@ -105,16 +104,10 @@ llvm::Error resolveDispatchCaseVariant(
                   " does not resolve to a direct sibling tcrv.exec.variant");
 }
 
-bool hasNonEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
-  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-  return attr && !attr.getValue().trim().empty();
-}
-
-bool hasGenericDecisionMetadata(DispatchCaseOp dispatchCase) {
-  return hasNonEmptyStringAttr(dispatchCase.getOperation(),
-                               kConditionAttrName) ||
-         hasNonEmptyStringAttr(dispatchCase.getOperation(), kGuardAttrName) ||
-         hasNonEmptyStringAttr(dispatchCase.getOperation(), kPolicyAttrName);
+bool hasRuntimeGuardRequirement(DispatchCaseOp dispatchCase) {
+  auto attr = dispatchCase->getAttrOfType<mlir::BoolAttr>(
+      kRuntimeGuardRequiredAttrName);
+  return attr && attr.getValue();
 }
 
 llvm::Expected<bool>
@@ -178,8 +171,21 @@ llvm::Error collectDispatchCasesNeedingRuntimeGuard(
     if (!needsCapabilityGuard)
       return needsCapabilityGuard.takeError();
 
-    if (*needsCapabilityGuard || hasGenericDecisionMetadata(dispatchCase) ||
-        dispatchCase->hasAttr(kRuntimeGuardAttrName))
+    if (*needsCapabilityGuard && !hasRuntimeGuardRequirement(dispatchCase)) {
+      auto target =
+          dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+              kTargetAttrName);
+      return makeRuntimeGuardError(
+          kernel,
+          llvm::Twine("dispatch case @") +
+              (target ? target.getValue() : llvm::StringRef("<missing>")) +
+              " requires typed '" + kRuntimeGuardRequiredAttrName +
+              "' = true because its target variant requires unavailable or "
+              "conflicting capabilities; condition/guard/policy annotations "
+              "are printable metadata, not runtime ABI guard requirements");
+    }
+
+    if (hasRuntimeGuardRequirement(dispatchCase))
       out.push_back(dispatchCase);
   }
 

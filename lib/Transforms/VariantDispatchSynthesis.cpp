@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/VariantDispatchSynthesis.h"
 
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -26,6 +27,7 @@ constexpr llvm::StringLiteral kGuardAttrName("guard");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kRuntimeGuardPolicy("capability_dispatch_guard");
+using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
@@ -239,6 +241,9 @@ DispatchCaseOp createDispatchCase(mlir::OpBuilder &builder, mlir::Location loc,
   if (needsRuntimeCapabilityGuard && !hasGenericDecisionMetadata(variant))
     state.addAttribute(kPolicyAttrName,
                        builder.getStringAttr(kRuntimeGuardPolicy));
+  if (needsRuntimeCapabilityGuard)
+    state.addAttribute(kRuntimeGuardRequiredAttrName,
+                       builder.getBoolAttr(true));
 
   return llvm::cast<DispatchCaseOp>(builder.create(state));
 }

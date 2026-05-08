@@ -196,9 +196,11 @@ preserve parameter layering:
   exporter must reject callable candidate metadata that disagrees with the
   `mem_window` / runtime-element-count `runtime_param` boundaries, then append
   exactly one target/export-owned `dispatch-availability-guard` parameter
-  resolved through the selected dispatch case's `runtime_guard` symbol reference
-  to direct `tcrv.exec.runtime_param` IR. Detached role lookup or stale
-  dispatch metadata must not become the executable branch-control source. The
+  resolved through a selected dispatch case that carries typed
+  `runtime_guard_required = true` and has a `runtime_guard` symbol reference to
+  direct `tcrv.exec.runtime_param` IR. Detached role lookup, printable
+  condition/guard/policy strings, or stale dispatch metadata must not become
+  the executable branch-control source. The
   default guard C name is `rvv_available`; an explicit runtime_param may use
   another valid C name without changing callable role order, adding the guard to
   callable microkernel signatures, or introducing automatic hardware probing;
@@ -1124,14 +1126,16 @@ evidence paths, ssh facts, target capabilities, selected march/mabi, or
 performance/correctness claims. It also must not turn runtime SSA/control values
 into compile-time facts: the dispatch availability guard remains a
 `tcrv.exec.runtime_param` role and the selected dispatch case must still link to
-that guard through `runtime_guard`.
+that guard through typed `runtime_guard_required = true` plus `runtime_guard`.
 
 Compiler-owned dispatch runtime-guard materialization happens in the transform
 layer before selected lowering-boundary and emission-plan materialization. The
 generic materializer may inspect `TargetCapabilitySet` availability/conflict
-facts and generic dispatch decision metadata, but it must create only
-compute-free exec IR: one same-kernel dispatch-availability `runtime_param` and
-selected `tcrv.exec.case runtime_guard` symbol references. RVV, scalar, and
+facts and the typed `tcrv.exec.case runtime_guard_required` marker, but it must
+create only compute-free exec IR: one same-kernel dispatch-availability
+`runtime_param` and selected `tcrv.exec.case runtime_guard` symbol references.
+Generic `condition`, `guard`, or `policy` strings may be retained as printable
+annotations, but they are not semantic runtime ABI guard triggers. RVV, scalar, and
 future plugin lowering code may consume or validate those links, but must not
 privately invent the dispatch guard parameter or attach dispatch-case links as a
 plugin-local side effect.

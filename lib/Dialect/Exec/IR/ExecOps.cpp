@@ -38,7 +38,8 @@ constexpr llvm::StringLiteral kHartsAttrName("harts");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
-constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
+using diagnostic::kRuntimeGuardAttrName;
+using diagnostic::kRuntimeGuardRequiredAttrName;
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 constexpr llvm::StringLiteral kConservativeFallbackRoleValue("conservative");
 constexpr llvm::StringLiteral kDispatchAvailabilityGuardRoleValue(
@@ -850,10 +851,23 @@ mlir::LogicalResult DispatchCaseOp::verify() {
            << "requires non-empty string attribute '" << kGuardAttrName
            << "' when present";
 
+  auto runtimeGuardRequiredAttr =
+      getOperation()->getAttrOfType<mlir::BoolAttr>(
+          kRuntimeGuardRequiredAttrName);
+  if (runtimeGuardRequiredAttr && !runtimeGuardRequiredAttr.getValue())
+    return emitOpError()
+           << "requires boolean attribute '" << kRuntimeGuardRequiredAttrName
+           << "' to be true when present";
+
   auto runtimeGuardAttr =
       getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(
           kRuntimeGuardAttrName);
   if (runtimeGuardAttr) {
+    if (!runtimeGuardRequiredAttr || !runtimeGuardRequiredAttr.getValue())
+      return emitOpError()
+             << "requires typed '" << kRuntimeGuardRequiredAttrName
+             << "' = true when '" << kRuntimeGuardAttrName << "' is present";
+
     mlir::Operation *resolved =
         findDirectKernelSymbol(kernel, runtimeGuardAttr.getValue());
     if (!resolved)
@@ -920,6 +934,11 @@ mlir::LogicalResult FallbackOp::verify() {
     return emitOpError()
            << "requires non-empty string attribute '" << kOriginAttrName
            << "' when present";
+
+  if (getOperation()->hasAttr(kRuntimeGuardRequiredAttrName) ||
+      getOperation()->hasAttr(kRuntimeGuardAttrName))
+    return emitOpError()
+           << "does not support dispatch-case runtime guard metadata";
 
   if (mlir::failed(verifyPreferenceMetadataAttrs(getOperation())))
     return mlir::failure();

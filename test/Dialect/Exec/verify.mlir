@@ -21,7 +21,7 @@ tcrv.exec.kernel @ok attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   tcrv.exec.dispatch attributes {} {
-    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated", runtime_guard = @runtime_guard}
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated", runtime_guard = @runtime_guard, runtime_guard_required = true}
     tcrv.exec.fallback @portable_variant
   }
 }
@@ -543,7 +543,7 @@ tcrv.exec.kernel @unknown_dispatch_case_runtime_guard attributes {} {
   }
   tcrv.exec.dispatch attributes {} {
     // expected-error @+1 {{runtime_guard references unknown runtime_param @missing_runtime_guard in enclosing tcrv.exec.kernel}}
-    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", runtime_guard = @missing_runtime_guard}
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", runtime_guard = @missing_runtime_guard, runtime_guard_required = true}
     tcrv.exec.fallback @portable_variant
   }
 }
@@ -559,7 +559,7 @@ tcrv.exec.kernel @non_runtime_param_dispatch_case_runtime_guard attributes {} {
   }
   tcrv.exec.dispatch attributes {} {
     // expected-error @+1 {{runtime_guard @rvv_variant resolves to a direct sibling symbol that is not a tcrv.exec.runtime_param}}
-    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", runtime_guard = @rvv_variant}
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", runtime_guard = @rvv_variant, runtime_guard_required = true}
     tcrv.exec.fallback @portable_variant
   }
 }
@@ -576,8 +576,57 @@ tcrv.exec.kernel @wrong_role_dispatch_case_runtime_guard attributes {} {
   }
   tcrv.exec.dispatch attributes {} {
     // expected-error @+1 {{runtime_guard @runtime_n must reference a tcrv.exec.runtime_param with ABI role 'dispatch-availability-guard'}}
-    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", runtime_guard = @runtime_n}
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", runtime_guard = @runtime_n, runtime_guard_required = true}
     tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @false_runtime_guard_required attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // expected-error @+1 {{requires boolean attribute 'runtime_guard_required' to be true when present}}
+    tcrv.exec.case @rvv_variant {runtime_guard_required = false}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @runtime_guard_without_required_marker attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.runtime_param @runtime_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // expected-error @+1 {{requires typed 'runtime_guard_required' = true when 'runtime_guard' is present}}
+    tcrv.exec.case @rvv_variant {runtime_guard = @runtime_guard}
+    tcrv.exec.fallback @portable_variant
+  }
+}
+
+// -----
+
+tcrv.exec.kernel @fallback_with_runtime_guard_metadata attributes {} {
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+  tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
+  tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  }
+  tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  tcrv.exec.dispatch attributes {} {
+    tcrv.exec.case @rvv_variant
+    // expected-error @+1 {{does not support dispatch-case runtime guard metadata}}
+    tcrv.exec.fallback @portable_variant {runtime_guard_required = true}
   }
 }
 

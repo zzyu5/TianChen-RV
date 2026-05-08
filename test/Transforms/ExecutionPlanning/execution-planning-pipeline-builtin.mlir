@@ -70,6 +70,7 @@ module {
     // PIPE-SAME: preference_rank = 0
     // PIPE-SAME: preference_score
     // PIPE-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // PIPE-SAME: runtime_guard_required = true
     // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
     // PIPE-SAME: fallback_role = "conservative"
     // PIPE-SAME: origin = "scalar-plugin"
@@ -164,6 +165,7 @@ module {
     // ROUNDTRIP: tcrv.exec.dispatch
     // ROUNDTRIP: tcrv.exec.case @rvv_first_slice
     // ROUNDTRIP-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // ROUNDTRIP-SAME: runtime_guard_required = true
     // ROUNDTRIP: tcrv.exec.mem_window @abi_lhs_input_buffer
     // ROUNDTRIP: tcrv.exec.mem_window @abi_rhs_input_buffer
     // ROUNDTRIP: tcrv.exec.mem_window @abi_output_buffer
@@ -234,6 +236,7 @@ module {
     // PIPE-SAME: origin = "rvv-plugin"
     // PIPE-SAME: policy = "metadata_only_first_slice"
     // PIPE-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // PIPE-SAME: runtime_guard_required = true
     // PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
     // PIPE-SAME: fallback_role = "conservative"
     // PIPE-SAME: origin = "scalar-plugin"
@@ -241,6 +244,7 @@ module {
     // ROUNDTRIP: tcrv.exec.case @rvv_first_slice
     // ROUNDTRIP-SAME: guard = "plugin_local_rvv_property_evidence"
     // ROUNDTRIP-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // ROUNDTRIP-SAME: runtime_guard_required = true
     // ROUNDTRIP: tcrv.exec.fallback @scalar_fallback_first_slice
   }
 }

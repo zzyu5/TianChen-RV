@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global implementation stack and evidence invariants for review"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify typed dispatch guard requirement remains tcrv.exec execution metadata only"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify capability objects remain compiler decision inputs"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify selection/materialization order and target-neutral behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify runtime ABI and export boundary coherence"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify required local lit/FileCheck and no-RVV-claim evidence"}

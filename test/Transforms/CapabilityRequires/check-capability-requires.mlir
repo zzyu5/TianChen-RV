@@ -67,7 +67,11 @@ tcrv.exec.kernel @guarded_runtime_dispatch attributes {} {
   tcrv.exec.dispatch attributes {} {
     // CHECK: tcrv.exec.case @runtime_offload_path
     // CHECK-SAME: policy = "runtime_probe_selects_path"
-    tcrv.exec.case @runtime_offload_path {policy = "runtime_probe_selects_path"}
+    // CHECK-SAME: runtime_guard_required = true
+    tcrv.exec.case @runtime_offload_path {
+      policy = "runtime_probe_selects_path",
+      runtime_guard_required = true
+    }
     // CHECK: tcrv.exec.fallback @portable_fallback
     tcrv.exec.fallback @portable_fallback
   }
@@ -108,10 +112,12 @@ tcrv.exec.kernel @guarded_by_inherited_case_metadata attributes {} {
     // CHECK-SAME: condition = "runtime_probe_available"
     // CHECK-SAME: guard = "runtime_guard_passed"
     // CHECK-SAME: policy = "prefer_runtime_when_guarded"
+    // CHECK-SAME: runtime_guard_required = true
     tcrv.exec.case @runtime_offload_path {
       condition = "runtime_probe_available",
       guard = "runtime_guard_passed",
-      policy = "prefer_runtime_when_guarded"
+      policy = "prefer_runtime_when_guarded",
+      runtime_guard_required = true
     }
     tcrv.exec.fallback @portable_fallback
   }
@@ -154,8 +160,10 @@ tcrv.exec.kernel @guarded_conflict_dispatch attributes {} {
   tcrv.exec.dispatch attributes {} {
     // CHECK: tcrv.exec.case @inline_asm_path
     // CHECK-SAME: guard = "runtime_policy_allows_inline_asm"
+    // CHECK-SAME: runtime_guard_required = true
     tcrv.exec.case @inline_asm_path {
-      guard = "runtime_policy_allows_inline_asm"
+      guard = "runtime_policy_allows_inline_asm",
+      runtime_guard_required = true
     }
     tcrv.exec.fallback @portable_fallback
   }

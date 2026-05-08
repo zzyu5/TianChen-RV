@@ -68,7 +68,8 @@ module @plan_and_export_target_artifact_bundle_input {
 // STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
 
-// MISSING-GUARD: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
+// MISSING-GUARD: dispatch case @rvv_first_slice carries typed runtime_guard_required = true
+// MISSING-GUARD-SAME: missing runtime_guard linkage
 
 // INDEX: tianchenrv.target_artifact_bundle.version: 1
 // INDEX: bundle_status: "complete"

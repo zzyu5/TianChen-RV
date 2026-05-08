@@ -228,6 +228,24 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
                  "conflicting available case receives synthesized generic policy guard"))
     return result;
   if (int result =
+          expect(cases[0]->getAttrOfType<mlir::BoolAttr>(
+                     "runtime_guard_required") &&
+                     cases[0]
+                         ->getAttrOfType<mlir::BoolAttr>(
+                             "runtime_guard_required")
+                         .getValue(),
+                 "unavailable case receives typed runtime guard requirement"))
+    return result;
+  if (int result =
+          expect(cases[1]->getAttrOfType<mlir::BoolAttr>(
+                     "runtime_guard_required") &&
+                     cases[1]
+                         ->getAttrOfType<mlir::BoolAttr>(
+                             "runtime_guard_required")
+                         .getValue(),
+                 "conflicting case receives typed runtime guard requirement"))
+    return result;
+  if (int result =
           expect(cases[2]->getAttrOfType<mlir::StringAttr>("condition")
                      .getValue() == "extra_condition",
                  "available case inherits variant condition metadata"))
@@ -249,8 +267,14 @@ int runSynthesisApiTest(mlir::MLIRContext &context) {
     return result;
   if (int result = expect(!fallback->getAttr("condition") &&
                               !fallback->getAttr("guard") &&
-                              !fallback->getAttr("policy"),
+                              !fallback->getAttr("policy") &&
+                              !fallback->getAttr("runtime_guard_required") &&
+                              !fallback->getAttr("runtime_guard"),
                           "fallback does not receive dispatch-case metadata"))
+    return result;
+  if (int result =
+          expect(!cases[2]->getAttr("runtime_guard_required"),
+                 "available annotated case does not receive typed guard requirement"))
     return result;
 
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),

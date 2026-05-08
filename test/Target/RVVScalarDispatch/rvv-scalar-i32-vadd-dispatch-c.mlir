@@ -130,6 +130,7 @@ module @rvv_scalar_dispatch_input {
         guard = "plugin_local_rvv_property_evidence",
         origin = "rvv-plugin",
         runtime_guard = @abi_dispatch_availability_guard,
+        runtime_guard_required = true,
         policy = "metadata_only_first_slice"
       }
       tcrv.exec.fallback @scalar_fallback_first_slice {
@@ -325,8 +326,9 @@ module @rvv_scalar_dispatch_input {
 // HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar i32-vadd dispatch header export failed
 // HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
 
-// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar i32-vadd dispatch C export failed
-// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
+// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD: execution plan coherence check failed
+// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: dispatch case @rvv_first_slice carries typed runtime_guard_required = true
+// GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: missing runtime_guard linkage
 
 // DUPLICATE-RUNTIME-N: duplicates runtime_param ABI role 'runtime-element-count' in enclosing tcrv.exec.kernel
 

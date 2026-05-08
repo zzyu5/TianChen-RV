@@ -330,19 +330,28 @@ inside `tcrv.exec.dispatch`. Each case references a sibling
 `tcrv.exec.variant` symbol in the enclosing `tcrv.exec.kernel`. Optional
 `condition`, `guard`, and `policy` attributes are non-empty generic strings; the
 core dialect records them but does not interpret RVV, IME, offload, Sophgo, AME,
-or future-plugin logic. A case may also carry optional
-`runtime_guard = @symbol` executable-control linkage. When present, the symbol
-must resolve to a direct same-kernel `tcrv.exec.runtime_param` with generic ABI
-role `dispatch-availability-guard`. The core verifier checks only this generic
-symbol, op-kind, and ABI-role contract; plugin-specific meaning for why that
-guard is true remains plugin-local or target-owned. A dispatch must be directly
+or future-plugin logic. A case may also carry optional typed
+`runtime_guard_required = true` metadata. This BoolAttr is the compiler-owned
+generic contract that the dispatch case requires an explicit runtime
+dispatch-availability guard; printable `condition`, `guard`, and `policy`
+strings are annotations and are not the semantic trigger for runtime ABI guard
+creation. A guarded case may also carry optional `runtime_guard = @symbol`
+executable-control linkage only when it also carries
+`runtime_guard_required = true`. When present, the symbol must resolve to a
+direct same-kernel `tcrv.exec.runtime_param` with generic ABI role
+`dispatch-availability-guard`. After runtime-guard materialization, selected
+cases with `runtime_guard_required = true` must have that same-kernel
+`runtime_guard` link before target artifact export can claim a coherent plan.
+The core verifier/checks only this generic typed marker, symbol, op-kind, and
+ABI-role contract; plugin-specific meaning for why that guard is true remains
+plugin-local or target-owned. A dispatch must be directly
 nested in a kernel, contain at least one case, and contain exactly one
 `tcrv.exec.fallback`. The compiler-owned runtime-guard materialization pass may
 attach `runtime_guard` links to guarded cases, but fallback operations do not
-carry case runtime_guard metadata. When no plugin-provided conservative
-fallback candidate is present, selection must record a structured diagnostic
-instead of creating a fallback-less dispatch or relabeling the selected variant
-as an implicit fallback.
+carry case `runtime_guard_required` or `runtime_guard` metadata. When no
+plugin-provided conservative fallback candidate is present, selection must
+record a structured diagnostic instead of creating a fallback-less dispatch or
+relabeling the selected variant as an implicit fallback.
 
 ### `tcrv.exec.fallback`
 
@@ -475,6 +484,12 @@ The `tcrv.exec` verifier must check:
 - diagnostics are emitted for missing capabilities, invalid extension ops, missing emission path, or incomplete fallback/dispatch.
 
 ## Relation To High-Level MLIR
+
+High-level MLIR lowering is a future frontend integration phase, not a
+precondition for current `tcrv.exec` and extension plugin development. Current
+tests and bounded slices may start from hand-written TianChen-RV MLIR,
+materialized `tcrv.exec.variant`, selected-boundary IR, `mem_window`,
+`runtime_param`, or plugin-specific descriptors.
 
 Correct:
 

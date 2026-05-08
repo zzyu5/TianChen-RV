@@ -4,6 +4,13 @@
 
 Do not generate generic `tcrv` compute ops first. Extension plugins propose execution variants directly, and core passes organize, verify, select, dispatch, and lower them.
 
+Current TianChen-RV work may start from hand-written or test TianChen-RV MLIR,
+already materialized `tcrv.exec.variant`, selected-boundary IR,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or a bounded
+plugin-specific descriptor. High-level MLIR op analysis is a future extension
+point for `linalg`, `stablehlo`, `tosa`, and similar inputs; it is not a
+precondition for integrating a new extension plugin today.
+
 Correct:
 
 ```text
@@ -21,6 +28,14 @@ high-level op -> generic tcrv op -> backend-specific lowering
 Inputs may include:
 
 ```text
+hand-written TianChen-RV MLIR
+test TianChen-RV MLIR
+tcrv.exec.kernel with capabilities
+already materialized tcrv.exec.variant
+selected lowering-boundary IR
+tcrv.exec.mem_window
+tcrv.exec.runtime_param
+plugin-specific bounded descriptor
 linalg.matmul
 linalg.generic reduction
 stablehlo dot_general
@@ -29,7 +44,11 @@ tosa ops
 custom high-level kernel dialect
 ```
 
-TianChen-RV assumes the high-level op already expresses computation semantics. It does not recover or reinvent algorithm semantics.
+When the input is high-level MLIR, TianChen-RV assumes the high-level op already
+expresses computation semantics. It does not recover or reinvent algorithm
+semantics. When the input is already TianChen-RV MLIR, plugin work should focus
+on capability, variant, selected-boundary, lowering, emission, runtime ABI, and
+artifact routes rather than inventing a high-level lowering layer.
 
 ## Pipeline
 
@@ -120,14 +139,17 @@ legality gate rejects unprotected static variants or fallbacks.
 The `tcrv-materialize-dispatch-runtime-guards` stage is the compiler-owned
 runtime-control linkage stage for selected dispatch surfaces. It scans direct
 `tcrv.exec.dispatch` operations under each kernel, identifies guarded
-`tcrv.exec.case` paths from generic capability availability/conflict state or
-existing generic decision metadata, materializes one direct same-kernel
+`tcrv.exec.case` paths from the typed generic
+`runtime_guard_required = true` marker and validates generic capability
+availability/conflict state fail-closed, materializes one direct same-kernel
 `tcrv.exec.runtime_param` with ABI role `dispatch-availability-guard`, and
 attaches `runtime_guard = @...` links to the selected cases that need that
-runtime-control parameter. This stage is target-neutral: it must not branch on
+runtime-control parameter. Non-empty `condition`, `guard`, or `policy` strings
+may remain printable annotations, but they are not sufficient semantic evidence
+for creating a runtime ABI guard. This stage is target-neutral: it must not branch on
 RVV, scalar fallback, IME, offload, Sophgo, AME, vendor, dtype, shape,
 microkernel semantics, runtime probes, or generated C. `tcrv.exec.fallback`
-does not receive runtime_guard case metadata.
+does not receive `runtime_guard_required` or `runtime_guard` case metadata.
 
 The `tcrv-verify-plugin-variant-legality` stage is the materialized-variant
 legality boundary before selection. It builds the same generic
@@ -270,8 +292,11 @@ The deterministic first-slice policy is:
   the target variant onto the generated `tcrv.exec.case`;
 - attach a synthesized non-empty generic guard policy only when a case target has
   unavailable or conflicting required capabilities and no inherited generic
-  decision metadata, so `--tcrv-check-capability-requires` can treat it as
-  runtime-guarded without overwriting plugin-proposed metadata;
+  decision metadata, without overwriting plugin-proposed metadata;
+- attach typed `runtime_guard_required = true` when a case target has
+  unavailable or conflicting required capabilities, so the downstream
+  runtime-guard materializer and capability check consume a structured
+  compiler-owned contract rather than printable strings;
 - diagnose and leave IR unmodified when no direct variant is conflict-free and
   generically available as an executable fallback.
 
@@ -442,11 +467,12 @@ The generic selection-planning contract is:
   or fallback selection;
 - retain a conflicting available non-fallback variant as a runtime dispatch
   case only when a conflict-free conservative fallback exists and the
-  materialized case carries non-empty generic `condition`, `guard`, or `policy`
-  metadata, inherited from the variant or synthesized as a target-neutral
-  guard policy;
-- reject unavailable variants that have no non-empty generic `condition`,
-  `guard`, or `policy` metadata, rather than silently selecting them;
+  materialized case carries typed `runtime_guard_required = true`; printable
+  `condition`, `guard`, or `policy` metadata may be inherited from the variant
+  or synthesized as a target-neutral annotation;
+- reject unavailable variants unless selection can materialize an explicit
+  dispatch case with typed `runtime_guard_required = true` and a distinct
+  conflict-free conservative fallback, rather than silently selecting them;
 - choose the best selected variant by generic availability and cost ranking;
 - materialize generic preference metadata on selected markers, dispatch cases,
   and fallbacks so diagnostics expose origin plugin, explicit-preference
@@ -494,8 +520,9 @@ The generic selection-planning contract is:
 
 ### 5. Good / Base / Bad Cases
 
-- Good: lower-cost guarded variants carry non-empty generic metadata or
-  conflicting variants receive synthesized generic guard policy, a conflict-free
+- Good: lower-cost guarded variants carry typed `runtime_guard_required = true`
+  and may also carry printable generic metadata; conflicting variants may
+  receive synthesized generic guard policy as annotation, a conflict-free
   generically available fallback exists, and materialization creates ordered
   `tcrv.exec.case` ops plus one `tcrv.exec.fallback`.
 - Base: all candidates are generically available and unguarded; the planner
@@ -704,9 +731,9 @@ symbol resolution only; it does not implement selection, cost modeling, tuning,
 or extension-specific condition semantics.
 
 Capability legality may treat a `tcrv.exec.case` as a runtime guard for an
-unavailable required capability only when the case carries at least one
-non-empty generic `condition`, `guard`, or `policy` attribute. The core pass
-does not parse those strings and must not switch on target families. A
+unavailable required capability only when the case carries typed generic
+`runtime_guard_required = true`. The core pass does not parse printable
+`condition`, `guard`, or `policy` strings and must not switch on target families. A
 `tcrv.exec.fallback` target is different: it must be generically available under
 the same target capability set, so runtime dispatch always has an executable
 fallback path when guarded cases are unavailable.

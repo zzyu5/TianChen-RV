@@ -41,6 +41,7 @@ module {
     // CHECK-SAME: preference_available = true
     // CHECK-SAME: preference_rank = 0
     // CHECK-SAME: preference_score
+    // CHECK-SAME: runtime_guard_required = true
     // CHECK: tcrv.exec.fallback @scalar_fallback_first_slice
     // CHECK-SAME: fallback_role = "conservative"
     // CHECK-SAME: origin = "scalar-plugin"
@@ -131,6 +132,7 @@ module {
     // CHECK-SAME: guard = "plugin_local_rvv_first_slice"
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: policy = "metadata_only_first_slice"
+    // CHECK-SAME: runtime_guard_required = true
     // CHECK: tcrv.exec.fallback @scalar_fallback_first_slice
     // CHECK-SAME: fallback_role = "conservative"
     // CHECK-SAME: origin = "scalar-plugin"

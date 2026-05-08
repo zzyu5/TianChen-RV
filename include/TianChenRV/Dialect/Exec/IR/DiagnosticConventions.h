@@ -23,6 +23,9 @@ inline constexpr llvm::StringLiteral kRuntimeABINameAttrName(
     "runtime_abi_name");
 inline constexpr llvm::StringLiteral kRuntimeABIParametersAttrName(
     "runtime_abi_parameters");
+inline constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
+inline constexpr llvm::StringLiteral kRuntimeGuardRequiredAttrName(
+    "runtime_guard_required");
 inline constexpr llvm::StringLiteral kRuntimeGlueRoleAttrName(
     "runtime_glue_role");
 inline constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(

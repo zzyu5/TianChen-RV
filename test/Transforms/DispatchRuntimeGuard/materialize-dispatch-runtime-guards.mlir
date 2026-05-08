@@ -33,7 +33,8 @@ module {
       tcrv.exec.case @runtime_path {
         condition = "runtime_probe_available",
         guard = "runtime_guard_passed",
-        policy = "prefer_runtime_when_guarded"
+        policy = "prefer_runtime_when_guarded",
+        runtime_guard_required = true
       }
       tcrv.exec.fallback @baseline_path
     }
@@ -49,12 +50,61 @@ module {
     // GUARD-SAME: guard = "runtime_guard_passed"
     // GUARD-SAME: policy = "prefer_runtime_when_guarded"
     // GUARD-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // GUARD-SAME: runtime_guard_required = true
     // GUARD: tcrv.exec.fallback @baseline_path
     // GUARD-NOT: runtime_guard
     // GUARD: }
     // SYNTH: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // SYNTH: tcrv.exec.case @runtime_path
     // SYNTH-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // SYNTH-SAME: runtime_guard_required = true
+  }
+}
+
+// -----
+
+module {
+  // GUARD-LABEL: tcrv.exec.kernel @annotated_available_dispatch_no_typed_requirement
+  tcrv.exec.kernel @annotated_available_dispatch_no_typed_requirement {
+    tcrv.exec.capability @optional_runtime {
+      id = "generic.optional.runtime",
+      kind = "runtime",
+      status = "available"
+    }
+    tcrv.exec.capability @baseline_capability {
+      id = "generic.baseline",
+      kind = "toolchain",
+      status = "available"
+    }
+    tcrv.exec.variant @annotated_path attributes {
+      condition = "human_readable_condition_only",
+      guard = "human_readable_guard_only",
+      origin = "runtime-plugin",
+      policy = "human_readable_policy_only",
+      requires = [@optional_runtime]
+    } {
+    }
+    tcrv.exec.variant @baseline_path attributes {
+      fallback_role = "conservative",
+      origin = "baseline-plugin",
+      requires = [@baseline_capability]
+    } {
+    }
+    tcrv.exec.dispatch {
+      // GUARD-NOT: tcrv.exec.runtime_param @abi_dispatch_availability_guard
+      // GUARD: tcrv.exec.case @annotated_path
+      // GUARD-SAME: condition = "human_readable_condition_only"
+      // GUARD-SAME: guard = "human_readable_guard_only"
+      // GUARD-SAME: policy = "human_readable_policy_only"
+      // GUARD-NOT: runtime_guard
+      tcrv.exec.case @annotated_path {
+        condition = "human_readable_condition_only",
+        guard = "human_readable_guard_only",
+        policy = "human_readable_policy_only"
+      }
+      // GUARD: tcrv.exec.fallback @baseline_path
+      tcrv.exec.fallback @baseline_path
+    }
   }
 }
 
@@ -98,6 +148,7 @@ module {
     // SYNTH: tcrv.exec.case @fast_runtime_path
     // SYNTH-SAME: policy = "capability_dispatch_guard"
     // SYNTH-SAME: runtime_guard = @abi_dispatch_availability_guard
+    // SYNTH-SAME: runtime_guard_required = true
     // SYNTH: tcrv.exec.fallback @baseline_path
     // SYNTH-NOT: runtime_guard
     // SYNTH: }

@@ -39,7 +39,8 @@ module {
       tcrv.exec.case @runtime_path {
         condition = "runtime_probe_available",
         guard = "runtime_guard_passed",
-        policy = "prefer_runtime_when_guarded"
+        policy = "prefer_runtime_when_guarded",
+        runtime_guard_required = true
       }
       tcrv.exec.fallback @baseline_path
     }

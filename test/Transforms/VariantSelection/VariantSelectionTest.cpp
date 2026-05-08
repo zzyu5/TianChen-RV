@@ -793,6 +793,15 @@ module {
                           "case with policy-only metadata remains guarded"))
     return result;
   if (int result =
+          expect(getBoolAttr(cases[0].getOperation(),
+                             "runtime_guard_required") &&
+                     getBoolAttr(cases[1].getOperation(),
+                                 "runtime_guard_required") &&
+                     getBoolAttr(cases[2].getOperation(),
+                                 "runtime_guard_required"),
+                 "runtime dispatch cases carry typed guard requirement metadata"))
+    return result;
+  if (int result =
           expect(getStringAttr(cases[0].getOperation(), "origin") ==
                          "guarded-fast" &&
                      getBoolAttr(cases[0].getOperation(),
