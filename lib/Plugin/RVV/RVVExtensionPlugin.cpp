@@ -72,6 +72,8 @@ constexpr llvm::StringLiteral kLHSRoleAttrName("lhs_role");
 constexpr llvm::StringLiteral kRHSRoleAttrName("rhs_role");
 constexpr llvm::StringLiteral kOutRoleAttrName("out_role");
 constexpr llvm::StringLiteral kRuntimeNRoleAttrName("runtime_n_role");
+constexpr llvm::StringLiteral kTargetAttrName("target");
+constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
@@ -636,6 +638,86 @@ llvm::Error validateMicrokernelDataflowRoleAttr(
     support::RuntimeABIParameterRole expectedRole) {
   return validateMicrokernelEmissionAttr(
       op, attrName, support::stringifyRuntimeABIParameterRole(expectedRole));
+}
+
+llvm::Expected<tcrv::exec::RuntimeParamOp>
+collectDispatchAvailabilityGuardParam(tcrv::exec::KernelOp kernel) {
+  support::RuntimeABIParamSpec guardSpec =
+      support::getI32VAddDispatchAvailabilityGuardParamSpec(/*cName=*/"");
+  llvm::SmallVector<support::RuntimeABIParamSpec, 1> guardSpecs;
+  guardSpecs.push_back(guardSpec);
+
+  llvm::SmallVector<tcrv::exec::RuntimeParamOp, 1> runtimeParams;
+  if (llvm::Error error =
+          support::collectRuntimeABIParams(kernel, guardSpecs, runtimeParams))
+    return std::move(error);
+  return runtimeParams.front();
+}
+
+llvm::Error attachRuntimeGuardToSelectedDispatchCase(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    tcrv::exec::RuntimeParamOp guardParam) {
+  if (!kernel || kernel.getBody().empty())
+    return makeRVVPluginError(
+        "requires a materialized tcrv.exec.kernel body before linking RVV "
+        "dispatch runtime_guard");
+  if (!variant)
+    return makeRVVPluginError(
+        "requires a selected RVV variant before linking dispatch runtime_guard");
+  if (!guardParam)
+    return makeRVVPluginError(
+        "requires a dispatch availability runtime_param before linking "
+        "dispatch runtime_guard");
+
+  tcrv::exec::DispatchCaseOp selectedCase;
+  unsigned matchCount = 0;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto dispatch = llvm::dyn_cast<tcrv::exec::DispatchOp>(op);
+    if (!dispatch || dispatch.getBody().empty())
+      continue;
+
+    for (mlir::Operation &dispatchBodyOp : dispatch.getBody().front()) {
+      auto dispatchCase =
+          llvm::dyn_cast<tcrv::exec::DispatchCaseOp>(dispatchBodyOp);
+      if (!dispatchCase)
+        continue;
+
+      auto targetAttr =
+          dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+              kTargetAttrName);
+      if (!targetAttr || targetAttr.getValue() != variant.getSymName())
+        continue;
+
+      selectedCase = dispatchCase;
+      ++matchCount;
+    }
+  }
+
+  if (matchCount == 0)
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV dispatch case variant @") +
+        variant.getSymName() +
+        " must have a matching tcrv.exec.case before runtime_guard linking");
+  if (matchCount > 1)
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV dispatch case variant @") +
+        variant.getSymName() +
+        " has ambiguous tcrv.exec.case runtime_guard linkage");
+
+  auto expectedGuardRef = mlir::FlatSymbolRefAttr::get(
+      guardParam.getContext(), guardParam.getSymName());
+  auto existingGuard =
+      selectedCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          kRuntimeGuardAttrName);
+  if (existingGuard && existingGuard.getValue() != guardParam.getSymName())
+    return makeRVVPluginError(
+        llvm::Twine("selected RVV dispatch case @") + variant.getSymName() +
+        " already references runtime_guard @" + existingGuard.getValue() +
+        " but the dispatch availability runtime_param is @" +
+        guardParam.getSymName());
+
+  selectedCase->setAttr(kRuntimeGuardAttrName, expectedGuardRef);
+  return llvm::Error::success();
 }
 
 llvm::Error validateMicrokernelStructuredControlPlane(
@@ -1397,8 +1479,18 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     }
     if (llvm::Error error =
             support::ensureRuntimeABIParamsAllowingExistingCNames(
-            kernel, request.getBuilder(), runtimeParamSpecs))
+                kernel, request.getBuilder(), runtimeParamSpecs))
       return error;
+
+    if (request.getRole() == VariantEmissionRole::DispatchCase) {
+      llvm::Expected<tcrv::exec::RuntimeParamOp> guardParam =
+          collectDispatchAvailabilityGuardParam(kernel);
+      if (!guardParam)
+        return guardParam.takeError();
+      if (llvm::Error error = attachRuntimeGuardToSelectedDispatchCase(
+              kernel, variant, *guardParam))
+        return error;
+    }
   }
 
   tcrv::rvv::LoweringBoundaryOp boundary = materializeRVVBoundaryOp(

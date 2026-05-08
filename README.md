@@ -387,15 +387,16 @@ only as an exact mirror of those boundaries, not as an independent source of
 callable names or types. Calls to both embedded callables are emitted in the
 fixed lhs/rhs/output/runtime-count role order. The dispatch wrapper then appends
 the explicit `dispatch-availability-guard` `tcrv.exec.runtime_param` as
-dispatch-only control; it is not part of the RVV or scalar callable microkernel
-signatures. The default guard C name remains `rvv_available`, while a
-runtime_param with the guard role may provide a different valid C name. Runtime
-`n` and the dispatcher availability guard remain ABI/control parameters, not
-tensor shapes or hardware facts. Descriptor-local `element_count` remains finite
-microkernel metadata; it is not high-level shape, runtime `n`, AVL, or VL. This
-export does not implement automatic hardware probing, object generation,
-dynamic loading, linking, benchmarking, correctness measurement, or performance
-measurement.
+dispatch-only control through the selected RVV `tcrv.exec.case runtime_guard`
+symbol reference; detached guard metadata is not the branch-control source. The
+guard is not part of the RVV or scalar callable microkernel signatures. The
+default guard C name remains `rvv_available`, while the symbol-linked
+runtime_param may provide a different valid C name. Runtime `n` and the
+dispatcher availability guard remain ABI/control parameters, not tensor shapes
+or hardware facts. Descriptor-local `element_count` remains finite microkernel
+metadata; it is not high-level shape, runtime `n`, AVL, or VL. This export does
+not implement automatic hardware probing, object generation, dynamic loading,
+linking, benchmarking, correctness measurement, or performance measurement.
 RVV runtime/correctness/performance claims still require separate real
 `ssh rvv` evidence.
 

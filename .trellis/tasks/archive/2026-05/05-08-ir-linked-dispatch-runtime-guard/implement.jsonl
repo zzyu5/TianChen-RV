@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide spec index and pre-development routing for this compiler task."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines target-neutral exec dialect boundaries and verification expectations for runtime_param and dispatch/case."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Confirms hardware facts and runtime dispatch availability remain distinct layers."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Guides plugin-proposed variant generation and selected dispatch attachment without generic target-family branching."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV target-owned behavior for the bounded dispatch path."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback behavior for the bounded dispatch path."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime ABI contract for dispatch C export and callable parameters."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Lit/FileCheck and evidence expectations for changed compiler behavior."}

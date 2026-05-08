@@ -176,11 +176,13 @@ preserve parameter layering:
   candidate and the selected scalar fallback candidate. The bounded dispatch
   exporter must reject callable candidate metadata that disagrees with the
   `mem_window` / runtime-element-count `runtime_param` boundaries, then append
-  exactly one target/export-owned `dispatch-availability-guard` parameter derived
-  from direct `tcrv.exec.runtime_param` IR. The default guard C name is
-  `rvv_available`; an explicit runtime_param may use another valid C name
-  without changing callable role order, adding the guard to callable microkernel
-  signatures, or introducing automatic hardware probing;
+  exactly one target/export-owned `dispatch-availability-guard` parameter
+  resolved through the selected dispatch case's `runtime_guard` symbol reference
+  to direct `tcrv.exec.runtime_param` IR. Detached role lookup or stale
+  dispatch metadata must not become the executable branch-control source. The
+  default guard C name is `rvv_available`; an explicit runtime_param may use
+  another valid C name without changing callable role order, adding the guard to
+  callable microkernel signatures, or introducing automatic hardware probing;
 - descriptor-local bounded values such as `tcrv_rvv.element_count` or
   `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
   and must not be reported as tensor shape, global problem size, AVL, vl,

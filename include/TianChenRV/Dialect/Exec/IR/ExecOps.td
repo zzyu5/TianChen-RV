@@ -221,13 +221,16 @@ def DispatchCaseOp : TCRVExec_Op<"exec.case", []> {
     References a candidate execution variant considered by a surrounding
     tcrv.exec.dispatch. Optional condition, guard, and policy metadata are
     generic non-empty strings; extension-specific interpretation remains
-    plugin-local.
+    plugin-local. Optional runtime_guard links executable dispatch control to
+    a same-kernel tcrv.exec.runtime_param with the generic
+    dispatch-availability-guard ABI role.
   }];
 
   let arguments = (ins FlatSymbolRefAttr:$target,
                    OptionalAttr<StrAttr>:$condition,
                    OptionalAttr<StrAttr>:$guard,
                    OptionalAttr<StrAttr>:$policy,
+                   OptionalAttr<FlatSymbolRefAttr>:$runtime_guard,
                    OptionalAttr<StrAttr>:$origin,
                    OptionalAttr<BoolAttr>:$preference_available,
                    OptionalAttr<F64Attr>:$preference_score,

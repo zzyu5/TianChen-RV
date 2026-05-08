@@ -144,14 +144,17 @@ Use lit/FileCheck for:
   materialized lhs/rhs/out buffer-window roles consumed by RVV, scalar, and
   dispatch source exporters, `tcrv.exec.runtime_param` parse/verify and pipeline
   materialized runtime-element-count / dispatch-availability-guard scalar roles
-  consumed by the exporters, a role-binding fixture where a non-default runtime
-  `len` name and non-default dispatch guard name are emitted in the generated
-  callable and dispatcher body, an explicit self-check harness export that calls
-  the generated dispatcher with both guard false and guard true, and fail-closed
-  diagnostics when scalar callable fallback metadata is missing, unsupported,
-  not an exact mirror of IR-backed callable ABI role/name/type/ownership, or
-  missing/duplicating/inconsistently describing required mem_window buffer roles
-  or runtime_param scalar roles,
+  consumed by the exporters, `tcrv.exec.case runtime_guard` symbol linkage from
+  the selected RVV dispatch case to the dispatch-availability runtime_param, a
+  role-binding fixture where a non-default runtime `len` name and non-default
+  dispatch guard name are emitted in the generated callable and dispatcher body
+  through that symbol-linked parameter, an explicit self-check harness export
+  that calls the generated dispatcher with both guard false and guard true, and
+  fail-closed diagnostics when scalar callable fallback metadata is missing,
+  unsupported, not an exact mirror of IR-backed callable ABI
+  role/name/type/ownership, runtime_guard is missing/malformed/stale for the
+  selected dispatch case, or required mem_window buffer roles or runtime_param
+  scalar roles are missing/duplicated/inconsistently described,
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.

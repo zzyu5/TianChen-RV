@@ -38,8 +38,11 @@ constexpr llvm::StringLiteral kHartsAttrName("harts");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kConditionAttrName("condition");
 constexpr llvm::StringLiteral kGuardAttrName("guard");
+constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 constexpr llvm::StringLiteral kConservativeFallbackRoleValue("conservative");
+constexpr llvm::StringLiteral kDispatchAvailabilityGuardRoleValue(
+    "dispatch-availability-guard");
 constexpr llvm::StringLiteral kPreferencePolicyAttrName("preference_policy");
 constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
     "preference_explanation");
@@ -835,6 +838,35 @@ mlir::LogicalResult DispatchCaseOp::verify() {
     return emitOpError()
            << "requires non-empty string attribute '" << kGuardAttrName
            << "' when present";
+
+  auto runtimeGuardAttr =
+      getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          kRuntimeGuardAttrName);
+  if (runtimeGuardAttr) {
+    mlir::Operation *resolved =
+        findDirectKernelSymbol(kernel, runtimeGuardAttr.getValue());
+    if (!resolved)
+      return emitOpError()
+             << "runtime_guard references unknown runtime_param @"
+             << runtimeGuardAttr.getValue()
+             << " in enclosing tcrv.exec.kernel";
+
+    auto runtimeParam = llvm::dyn_cast<RuntimeParamOp>(resolved);
+    if (!runtimeParam)
+      return emitOpError()
+             << "runtime_guard @" << runtimeGuardAttr.getValue()
+             << " resolves to a direct sibling symbol that is not a "
+                "tcrv.exec.runtime_param";
+
+    auto roleAttr =
+        runtimeParam->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);
+    if (!roleAttr ||
+        roleAttr.getValue() != kDispatchAvailabilityGuardRoleValue)
+      return emitOpError()
+             << "runtime_guard @" << runtimeGuardAttr.getValue()
+             << " must reference a tcrv.exec.runtime_param with ABI role '"
+             << kDispatchAvailabilityGuardRoleValue << "'";
+  }
 
   if (isPresentButEmptyStringAttr(getOperation(), kPolicyAttrName))
     return emitOpError()

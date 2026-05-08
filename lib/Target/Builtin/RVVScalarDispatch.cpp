@@ -10,6 +10,7 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -36,6 +37,7 @@ using tianchenrv::target::TargetArtifactExporterRegistry;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DispatchOp;
+using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -50,6 +52,7 @@ constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
     "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
+constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 
 constexpr llvm::StringLiteral kRVVRouteID("tcrv-export-rvv-microkernel-c");
 constexpr llvm::StringLiteral kRVVEmissionKind(
@@ -96,6 +99,7 @@ struct DispatchABIPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
   llvm::SmallVector<tcrv::exec::MemWindowOp, 3> bufferWindows;
   llvm::SmallVector<RuntimeParamOp, 2> runtimeParams;
+  RuntimeParamOp runtimeGuardParam;
 };
 
 struct DispatchPair {
@@ -420,6 +424,120 @@ RuntimeParamOp findRuntimeParamByRole(
   return RuntimeParamOp();
 }
 
+mlir::Operation *findDirectKernelSymbol(KernelOp kernel,
+                                        llvm::StringRef symbolName) {
+  if (!kernel || kernel.getBody().empty())
+    return nullptr;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto symbolAttr = op.getAttrOfType<mlir::StringAttr>(
+        mlir::SymbolTable::getSymbolAttrName());
+    if (symbolAttr && symbolAttr.getValue() == symbolName)
+      return &op;
+  }
+  return nullptr;
+}
+
+llvm::Expected<RuntimeParamOp>
+resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  DispatchOp dispatch = findDispatchOpForPair(pair);
+  if (!dispatch)
+    return makeDispatchError(
+        kernel,
+        "requires one tcrv.exec.dispatch to resolve the selected RVV "
+        "dispatch case runtime_guard");
+
+  DispatchCaseOp selectedCase;
+  unsigned matchCount = 0;
+  for (mlir::Operation &op : dispatch.getBody().front()) {
+    auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(op);
+    if (!dispatchCase)
+      continue;
+
+    auto targetAttr =
+        dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
+    if (!targetAttr || targetAttr.getValue() != pair.rvv.selectedVariant)
+      continue;
+
+    selectedCase = dispatchCase;
+    ++matchCount;
+  }
+
+  if (matchCount == 0)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant +
+                    " must be present in tcrv.exec.dispatch before dispatch "
+                    "C export");
+  if (matchCount > 1)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant +
+                    " has duplicate or ambiguous runtime_guard linkage");
+
+  auto runtimeGuard =
+      selectedCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          kRuntimeGuardAttrName);
+  if (!runtimeGuard)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant +
+                    " requires runtime_guard symbol reference to a "
+                    "dispatch-availability-guard tcrv.exec.runtime_param");
+
+  mlir::Operation *resolved =
+      findDirectKernelSymbol(kernel, runtimeGuard.getValue());
+  if (!resolved)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant +
+                    " runtime_guard references unknown symbol @" +
+                    runtimeGuard.getValue());
+
+  auto guardParam = llvm::dyn_cast<RuntimeParamOp>(resolved);
+  if (!guardParam)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant + " runtime_guard @" +
+                    runtimeGuard.getValue() +
+                    " resolves to a direct sibling symbol that is not a "
+                    "tcrv.exec.runtime_param");
+
+  llvm::StringRef role = getRuntimeParamStringAttr(
+      guardParam, support::kRuntimeParamABIRoleAttrName);
+  if (role != support::stringifyRuntimeABIParameterRole(
+                  support::RuntimeABIParameterRole::
+                      DispatchAvailabilityGuard))
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant + " runtime_guard @" +
+                    runtimeGuard.getValue() +
+                    " must reference a tcrv.exec.runtime_param with ABI role "
+                    "'dispatch-availability-guard'");
+
+  support::RuntimeABIParamSpec guardSpec =
+      support::getI32VAddDispatchAvailabilityGuardParamSpec(/*cName=*/"");
+  llvm::SmallVector<support::RuntimeABIParamSpec, 1> guardSpecs;
+  guardSpecs.push_back(guardSpec);
+  llvm::SmallVector<RuntimeParamOp, 1> guardParamsByRole;
+  if (llvm::Error error =
+          support::collectRuntimeABIParams(kernel, guardSpecs,
+                                           guardParamsByRole)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDispatchError(kernel, message);
+  }
+  if (guardParamsByRole.front().getOperation() != guardParam.getOperation())
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case @") +
+                    pair.rvv.selectedVariant + " runtime_guard @" +
+                    runtimeGuard.getValue() +
+                    " does not match the unique kernel runtime_param with ABI "
+                    "role 'dispatch-availability-guard'");
+
+  return guardParam;
+}
+
 llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
   llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
       support::buildI32VAddCallableABIPlan(pair.rvv.kernel);
@@ -470,9 +588,9 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
         "dispatch runtime_param validation");
 
   DispatchABIPlan plan;
-  auto runtimeParamSpecs =
-      support::getI32VAddDispatchRuntimeParamSpecs(runtimeCountIt->cName,
-                                                   /*guardCName=*/"");
+  llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
+  runtimeParamSpecs.push_back(
+      support::getI32VAddRuntimeElementCountParamSpec(runtimeCountIt->cName));
   if (llvm::Error error = support::collectRuntimeABIParams(
           pair.rvv.kernel, runtimeParamSpecs, plan.runtimeParams)) {
     std::string message = llvm::toString(std::move(error));
@@ -481,14 +599,18 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
 
   RuntimeParamOp countParam = findRuntimeParamByRole(
       plan.runtimeParams, support::RuntimeABIParameterRole::RuntimeElementCount);
-  RuntimeParamOp guardParam = findRuntimeParamByRole(
-      plan.runtimeParams,
-      support::RuntimeABIParameterRole::DispatchAvailabilityGuard);
-  if (!countParam || !guardParam)
+  if (!countParam)
     return makeDispatchError(
         pair.rvv.kernel,
-        "requires runtime-element-count and dispatch-availability-guard "
+        "requires runtime-element-count "
         "tcrv.exec.runtime_param IR before dispatch export");
+
+  llvm::Expected<RuntimeParamOp> guardParam =
+      resolveRuntimeGuardParamFromSelectedCase(pair);
+  if (!guardParam)
+    return guardParam.takeError();
+  plan.runtimeParams.push_back(*guardParam);
+  plan.runtimeGuardParam = *guardParam;
 
   llvm::Expected<support::RuntimeABIParameter> count =
       makeRuntimeABIParameterFromRuntimeParam(pair.rvv.kernel, countParam);
@@ -503,7 +625,7 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
         "selected RVV callable runtime ABI parameter c_name/c_type/ownership");
 
   llvm::Expected<support::RuntimeABIParameter> guard =
-      makeRuntimeABIParameterFromRuntimeParam(pair.rvv.kernel, guardParam);
+      makeRuntimeABIParameterFromRuntimeParam(pair.rvv.kernel, *guardParam);
   if (!guard)
     return guard.takeError();
   support::RuntimeABIParameter expectedGuard =
@@ -1030,6 +1152,10 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   printCandidateMetadata(os, "scalar", pair.scalar);
   printDispatchMemWindowMetadata(os, pair.abiPlan.bufferWindows);
   printDispatchRuntimeParamMetadata(os, pair.abiPlan.runtimeParams);
+  os << "/* dispatch_runtime_guard_link: case=@"
+     << pair.rvv.selectedVariant << ", runtime_guard=@"
+     << getRuntimeParamStringAttr(pair.abiPlan.runtimeGuardParam, "sym_name")
+     << " */\n";
   os << "/* rvv_callable_symbol: " << rvvFunctionName << " */\n";
   os << "/* scalar_callable_symbol: " << scalarFunctionName << " */\n";
   for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {

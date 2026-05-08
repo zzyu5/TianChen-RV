@@ -33,6 +33,14 @@ tcrv.exec.kernel @saxpy attributes {} {
   // CHECK-SAME: purpose = "runtime-abi-scalar"
   tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
 
+  // CHECK: tcrv.exec.runtime_param @runtime_guard
+  // CHECK-SAME: abi_role = "dispatch-availability-guard"
+  // CHECK-SAME: c_name = "rvv_available"
+  // CHECK-SAME: c_type = "int"
+  // CHECK-SAME: ownership = "target-export-abi-owned"
+  // CHECK-SAME: purpose = "runtime-abi-scalar"
+  tcrv.exec.runtime_param @runtime_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+
   // CHECK: tcrv.exec.variant @rvv_variant
   // CHECK-SAME: condition = "preferred_capability_available"
   // CHECK-SAME: guard = "shape_guard_passed"
@@ -77,7 +85,8 @@ tcrv.exec.kernel @saxpy attributes {} {
     // CHECK-SAME: condition = "preferred_capability_available"
     // CHECK-SAME: guard = "shape_guard_passed"
     // CHECK-SAME: policy = "prefer_accelerated"
-    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated"}
+    // CHECK-SAME: runtime_guard = @runtime_guard
+    tcrv.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated", runtime_guard = @runtime_guard}
     // CHECK: tcrv.exec.fallback @portable_variant
     tcrv.exec.fallback @portable_variant
   }
