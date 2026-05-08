@@ -20,6 +20,21 @@
 # OFFLOAD-DESC: runtime_glue_role: "plugin-owned-runtime-offload-glue-boundary"
 # OFFLOAD-DESC: handoff_kind: "runtime-offload"
 # OFFLOAD-DESC: required_capabilities: [@offload_runtime]
+# OFFLOAD-DESC: abi_contract_owner: "compiler-target-export"
+# OFFLOAD-DESC: abi_contract_source: "tcrv.exec.mem_window + tcrv.exec.runtime_param"
+# OFFLOAD-DESC: abi_contract_entry_count: 4
+# OFFLOAD-DESC: abi_contract_entry[0]:
+# OFFLOAD-DESC: kind: "buffer"
+# OFFLOAD-DESC: role: "lhs-input-buffer"
+# OFFLOAD-DESC: c_name: "lhs"
+# OFFLOAD-DESC: c_type: "const int32_t *"
+# OFFLOAD-DESC: source_symbol: @abi_lhs_input_buffer
+# OFFLOAD-DESC: abi_contract_entry[3]:
+# OFFLOAD-DESC: kind: "scalar"
+# OFFLOAD-DESC: role: "runtime-element-count"
+# OFFLOAD-DESC: c_name: "n"
+# OFFLOAD-DESC: c_type: "size_t"
+# OFFLOAD-DESC: source_symbol: @abi_runtime_element_count
 # OFFLOAD-DESC: evidence_scope: "descriptor export only; no offload runtime execution, vendor call, DMA, object generation, hardware correctness, or performance evidence"
 # OFFLOAD-DESC: non_claims: ["no-vendor-runtime-call", "no-dma-or-buffer-management", "no-accelerator-kernel", "no-object-generation", "no-hardware-execution", "no-correctness-proof", "no-performance-claim"]
 
@@ -37,6 +52,9 @@
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-handoff-kind.txt 2>&1 | FileCheck %s --check-prefix=MISSING-HANDOFF --implicit-check-not=offload_runtime_handoff_descriptor
 # MISSING-HANDOFF: requires attribute 'handoff_kind'
+
+# RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-abi-role-contract.txt 2>&1 | FileCheck %s --check-prefix=MISSING-ABI-CONTRACT --implicit-check-not=offload_runtime_handoff_descriptor
+# MISSING-ABI-CONTRACT: offload descriptor ABI contract requires runtime_abi_parameters metadata
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
 # STALE-PLAN: stale emission-plan diagnostic is not selected by the current execution plan surface

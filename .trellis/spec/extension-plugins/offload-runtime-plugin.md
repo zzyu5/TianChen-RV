@@ -77,6 +77,18 @@ export and the offload runtime descriptor exporter may serialize these fields
 as deterministic handoff metadata, but they remain compiler metadata and do not
 claim vendor runtime execution.
 
+The same supported descriptor plan must expose deterministic runtime ABI role
+metadata derived from typed `tcrv.exec.mem_window` host-buffer declarations and
+typed `tcrv.exec.runtime_param` scalar/control declarations. For the current
+bounded i32-vadd callable ABI, the descriptor route requires the
+`lhs-input-buffer`, `rhs-input-buffer`, `output-buffer`, and
+`runtime-element-count` roles
+to be mirrored as `runtime_abi_parameters` with stable C names, C types, roles,
+and ownership. Descriptor-local metadata may describe the compiler handoff
+contract, binding, access, memory space, and selected plan owner, but it must
+not embed sample runtime values, tensor sizes, RVV guard values, hardware facts,
+or vendor execution data.
+
 ## Why It Belongs In TianChen-RV
 
 TianChen-RV is a capability-driven execution layer. RISC-V AI systems may include CPU extensions and accelerator runtimes:

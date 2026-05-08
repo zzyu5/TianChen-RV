@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final implementation respects primary stack and repository boundary."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify offload descriptor does not imply vendor runtime, DMA, execution, correctness, or performance evidence."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify parameter layering remains explicit and non-overlapping."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify mem_window/runtime_param roles remain typed tcrv.exec ABI surfaces."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify offload selected-plan metadata and descriptor ABI role contract are preserved."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify exporter validation and descriptor/bundle metadata requirements."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry and plugin ownership boundaries remain intact."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify no new vendor or target-family branching leaked into generic compiler paths."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify planning/export front door still reflects pipeline order."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests cover positive descriptor ABI metadata and one focused fail-closed path."}

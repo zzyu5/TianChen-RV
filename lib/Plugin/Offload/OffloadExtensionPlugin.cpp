@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -591,6 +592,17 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeABIKind("runtime-offload-c-abi-handoff");
   out.setRuntimeABIName(kExpectedRuntimeABI);
   out.setRuntimeGlueRole(kOffloadDescriptorRuntimeGlueRole);
+  llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
+      support::buildI32VAddCallableABIPlan(request.getKernel());
+  if (!callablePlan) {
+    std::string message = llvm::toString(callablePlan.takeError());
+    return makeOffloadPluginError(
+        llvm::Twine("selected runtime-offload descriptor ABI role contract "
+                    "requires direct tcrv.exec.mem_window/"
+                    "tcrv.exec.runtime_param ABI metadata: ") +
+        message);
+  }
+  out.addRuntimeABIParameters(callablePlan->parameters);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

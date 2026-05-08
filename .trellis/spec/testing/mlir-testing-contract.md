@@ -255,13 +255,14 @@ Use lit/FileCheck for:
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability
   refs, descriptor route id, non-source artifact kind, descriptor schema
   version/kind/status, external adapter contract id, explicit non-claim
-  metadata, deterministic descriptor output, source-only route filtering, a
-  one-artifact offload descriptor bundle index with route/owner/runtime
-  ABI/handoff kind metadata, and fail-closed diagnostics for missing
-  boundaries, missing runtime ABI or handoff kind metadata, stale selected
-  variants, stale lowering boundaries, unknown route ids, unsupported artifact
-  kinds, RVV/scalar/offload route spoofing, URLs, raw credentials, raw logs,
-  and secret-like metadata.
+  metadata, deterministic ABI role entries for host buffers and runtime
+  scalar/control parameters, deterministic descriptor output, source-only route
+  filtering, a one-artifact offload descriptor bundle index with route/owner/
+  runtime ABI signature/handoff kind metadata, and fail-closed diagnostics for
+  missing boundaries, missing runtime ABI or handoff kind metadata, missing or
+  conflicting ABI roles, stale selected variants, stale lowering boundaries,
+  unknown route ids, unsupported artifact kinds, RVV/scalar/offload route
+  spoofing, URLs, raw credentials, raw logs, and secret-like metadata.
 
 Example test intent:
 

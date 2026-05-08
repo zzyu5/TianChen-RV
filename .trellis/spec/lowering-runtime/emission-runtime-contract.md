@@ -1590,10 +1590,19 @@ execution, correctness proof, or performance claim was produced. The offload
 emission plan may also carry bounded `selected_plan_metadata` for the
 runtime-offload capability id, handoff kind, and descriptor-only scope; the
 descriptor exporter and bundle index must preserve that metadata when present.
+The descriptor exporter must also require deterministic `runtime_abi_parameters`
+for the selected offload plan and verify them against the IR-backed
+`tcrv.exec.mem_window` and `tcrv.exec.runtime_param` ABI role declarations before
+writing output. The descriptor must serialize role, C name, C type, purpose,
+ownership, source symbol, and buffer-only binding/access/memory-space fields as
+compiler handoff contract metadata. Missing ABI roles, duplicate roles,
+malformed C names or C type spellings, metadata that does not mirror the
+IR-backed ABI plan, missing selected-plan handoff metadata, or descriptor-local
+metadata that embeds sample runtime values or hardware facts must fail closed.
 When the descriptor is emitted through the target artifact bundle route, the
 bundle index must carry the descriptor route, owner/origin, runtime ABI,
-component role, selected-plan metadata, and handoff kind metadata and must
-remain a build handoff index only.
+component role, runtime ABI role signature, selected-plan metadata, and handoff
+kind metadata and must remain a build handoff index only.
 
 ## Emission Manifest Export Boundary
 

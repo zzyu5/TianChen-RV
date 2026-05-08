@@ -14,6 +14,40 @@ module @offload_manifest_inputs {
       kind = "fallback",
       status = "available"
     }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "n",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
   }
 }
 
@@ -33,6 +67,19 @@ module @offload_manifest_inputs {
 // CHECK: runtime_abi: "generic-runtime-offload-c-abi-handoff.v1"
 // CHECK: runtime_abi_kind: "runtime-offload-c-abi-handoff"
 // CHECK: runtime_abi_name: "generic-runtime-offload-c-abi-handoff.v1"
+// CHECK: runtime_abi_parameters:
+// CHECK: parameter[0]:
+// CHECK: c_name: "lhs"
+// CHECK: role: "lhs-input-buffer"
+// CHECK: parameter[1]:
+// CHECK: c_name: "rhs"
+// CHECK: role: "rhs-input-buffer"
+// CHECK: parameter[2]:
+// CHECK: c_name: "out"
+// CHECK: role: "output-buffer"
+// CHECK: parameter[3]:
+// CHECK: c_name: "n"
+// CHECK: role: "runtime-element-count"
 // CHECK: runtime_glue_role: "plugin-owned-runtime-offload-glue-boundary"
 // CHECK: artifact_kind: "runtime-offload-handoff-descriptor"
 // CHECK: required_capabilities: [@offload_runtime]

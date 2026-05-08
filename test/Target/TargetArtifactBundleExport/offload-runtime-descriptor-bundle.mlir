@@ -37,6 +37,21 @@ module @unused_offload_bundle_test_anchor {
 // INDEX: runtime_abi: "generic-runtime-offload-c-abi-handoff.v1"
 // INDEX: runtime_abi_kind: "runtime-offload-c-abi-handoff"
 // INDEX: runtime_abi_name: "generic-runtime-offload-c-abi-handoff.v1"
+// INDEX: runtime_abi_parameter[0]:
+// INDEX: c_name: "lhs"
+// INDEX: c_type: "const int32_t *"
+// INDEX: role: "lhs-input-buffer"
+// INDEX: ownership: "target-export-abi-owned"
+// INDEX: runtime_abi_parameter[1]:
+// INDEX: c_name: "rhs"
+// INDEX: role: "rhs-input-buffer"
+// INDEX: runtime_abi_parameter[2]:
+// INDEX: c_name: "out"
+// INDEX: role: "output-buffer"
+// INDEX: runtime_abi_parameter[3]:
+// INDEX: c_name: "n"
+// INDEX: c_type: "size_t"
+// INDEX: role: "runtime-element-count"
 // INDEX: selected_plan_metadata[0]:
 // INDEX: name: "runtime_offload_capability_id"
 // INDEX: value: "offload.runtime"
@@ -69,6 +84,31 @@ module @unused_offload_bundle_test_anchor {
 // DESC: handoff_kind: "runtime-offload"
 // DESC: artifact_component_role: "descriptor"
 // DESC: evidence_role: "compiler-artifact"
+// DESC: abi_contract_owner: "compiler-target-export"
+// DESC: abi_contract_source: "tcrv.exec.mem_window + tcrv.exec.runtime_param"
+// DESC: abi_contract_entry_count: 4
+// DESC: abi_contract_entry[0]:
+// DESC: kind: "buffer"
+// DESC: role: "lhs-input-buffer"
+// DESC: c_name: "lhs"
+// DESC: c_type: "const int32_t *"
+// DESC: purpose: "runtime-abi-buffer"
+// DESC: ownership: "target-export-abi-owned"
+// DESC: source_symbol: @abi_lhs_input_buffer
+// DESC: binding: "kernel-argument"
+// DESC: memory_space: "host"
+// DESC: access: "read"
+// DESC: abi_contract_entry[2]:
+// DESC: role: "output-buffer"
+// DESC: c_name: "out"
+// DESC: access: "write"
+// DESC: abi_contract_entry[3]:
+// DESC: kind: "scalar"
+// DESC: role: "runtime-element-count"
+// DESC: c_name: "n"
+// DESC: c_type: "size_t"
+// DESC: purpose: "runtime-abi-scalar"
+// DESC: source_symbol: @abi_runtime_element_count
 // DESC: selected_plan_metadata[0]:
 // DESC: name: "runtime_offload_capability_id"
 // DESC: value: "offload.runtime"

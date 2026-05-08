@@ -17,6 +17,40 @@ module {
       kind = "fallback",
       status = "available"
     }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "n",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
 
     // PIPE: tcrv.exec.variant @offload_runtime_first_slice
     // PIPE-SAME: condition = "offload_runtime_capability_available"
@@ -59,6 +93,15 @@ module {
     // PIPE-SAME: runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
     // PIPE-SAME: runtime_abi_kind = "runtime-offload-c-abi-handoff"
     // PIPE-SAME: runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1"
+    // PIPE-SAME: runtime_abi_parameters =
+    // PIPE-SAME: c_name = "lhs"
+    // PIPE-SAME: role = "lhs-input-buffer"
+    // PIPE-SAME: c_name = "rhs"
+    // PIPE-SAME: role = "rhs-input-buffer"
+    // PIPE-SAME: c_name = "out"
+    // PIPE-SAME: role = "output-buffer"
+    // PIPE-SAME: c_name = "n"
+    // PIPE-SAME: role = "runtime-element-count"
     // PIPE-SAME: runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary"
     // PIPE-SAME: selected_plan_metadata =
     // PIPE-SAME: name = "runtime_offload_capability_id"

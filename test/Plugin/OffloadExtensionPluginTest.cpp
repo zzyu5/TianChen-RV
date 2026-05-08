@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Transforms/EmissionReadiness.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"
@@ -363,6 +364,40 @@ module {
       kind = "fallback",
       status = "available"
     }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "n",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
   }
 }
 )mlir";
@@ -561,6 +596,29 @@ module {
                          tianchenrv::plugin::offload::
                              getOffloadRuntimePreferredCapabilitySymbol(),
                  "offload emission plan records stable handoff metadata"))
+    return result;
+  llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> abiParameters =
+      emissionPlan.getRuntimeABIParameters();
+  if (int result =
+          expect(abiParameters.size() == 4 &&
+                     abiParameters[0].cName == "lhs" &&
+                     abiParameters[0].role ==
+                         tianchenrv::support::RuntimeABIParameterRole::
+                             LHSInputBuffer &&
+                     abiParameters[1].cName == "rhs" &&
+                     abiParameters[1].role ==
+                         tianchenrv::support::RuntimeABIParameterRole::
+                             RHSInputBuffer &&
+                     abiParameters[2].cName == "out" &&
+                     abiParameters[2].role ==
+                         tianchenrv::support::RuntimeABIParameterRole::
+                             OutputBuffer &&
+                     abiParameters[3].cName == "n" &&
+                     abiParameters[3].role ==
+                         tianchenrv::support::RuntimeABIParameterRole::
+                             RuntimeElementCount,
+                 "offload emission plan records deterministic runtime ABI "
+                 "role parameters"))
     return result;
   llvm::ArrayRef<tianchenrv::plugin::VariantSelectedPlanMetadata> metadata =
       emissionPlan.getSelectedPlanMetadata();

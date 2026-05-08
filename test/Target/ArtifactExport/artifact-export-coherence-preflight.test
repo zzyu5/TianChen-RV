@@ -18,6 +18,9 @@
 # OFFLOAD-OK: source_kernel: @pipeline_offload_manifest
 # OFFLOAD-OK: selected_variant: @offload_runtime_first_slice
 # OFFLOAD-OK: route_id: "tcrv-export-offload-runtime-descriptor"
+# OFFLOAD-OK: abi_contract_entry_count: 4
+# OFFLOAD-OK: role: "lhs-input-buffer"
+# OFFLOAD-OK: role: "runtime-element-count"
 # OFFLOAD-OK: evidence_scope: "descriptor export only; no offload runtime execution, vendor call, DMA, object generation, hardware correctness, or performance evidence"
 
 # RUN: sed -n '/BEGIN: stale-selected/,/END: stale-selected/p' %S/Inputs/artifact-export-coherence-preflight.txt > %t.stale-selected.mlir

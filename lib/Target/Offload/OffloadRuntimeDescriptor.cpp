@@ -3,6 +3,9 @@
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
@@ -17,6 +20,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -31,6 +35,8 @@ using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::MemWindowOp;
+using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::offload::LoweringBoundaryOp;
 
@@ -66,10 +72,29 @@ constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
 constexpr llvm::StringLiteral kDescriptorComponentRole("descriptor");
 constexpr llvm::StringLiteral kCompilerArtifactEvidenceRole(
     "compiler-artifact");
+constexpr llvm::StringLiteral kSelectedPlanRuntimeCapabilityIDName(
+    "runtime_offload_capability_id");
+constexpr llvm::StringLiteral kSelectedPlanHandoffKindName(
+    "runtime_offload_handoff_kind");
+constexpr llvm::StringLiteral kSelectedPlanDescriptorScopeName(
+    "runtime_offload_descriptor_scope");
+constexpr llvm::StringLiteral kABIContractOwner("compiler-target-export");
+constexpr llvm::StringLiteral kABIContractSource(
+    "tcrv.exec.mem_window + tcrv.exec.runtime_param");
 
 struct SelectedPath {
   VariantOp variant;
   std::string role;
+};
+
+struct DescriptorABIEntry {
+  support::RuntimeABIParameter parameter;
+  std::string kind;
+  std::string purpose;
+  std::string sourceSymbol;
+  std::string binding;
+  std::string memorySpace;
+  std::string access;
 };
 
 struct DescriptorRecord {
@@ -94,6 +119,8 @@ struct DescriptorRecord {
   std::string artifactComponentRole;
   std::string evidenceRole;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<DescriptorABIEntry, 5> abiContractEntries;
   llvm::SmallVector<tianchenrv::target::SelectedPlanMetadataEntry, 4>
       selectedPlanMetadata;
 };
@@ -164,8 +191,80 @@ llvm::Error validateSafeText(KernelOp kernel, llvm::StringRef fieldName,
   return llvm::Error::success();
 }
 
+llvm::Error validateCIdentifier(KernelOp kernel, llvm::StringRef fieldName,
+                                llvm::StringRef value) {
+  if (value.empty())
+    return makeDescriptorError(
+        kernel, llvm::Twine(fieldName) + " must be a non-empty C identifier");
+
+  unsigned char first = static_cast<unsigned char>(value.front());
+  if (!(std::isalpha(first) || value.front() == '_'))
+    return makeDescriptorError(
+        kernel, llvm::Twine(fieldName) + " must be a simple C identifier");
+
+  for (char character : value.drop_front()) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (std::isalnum(byte) || character == '_')
+      continue;
+    return makeDescriptorError(
+        kernel, llvm::Twine(fieldName) + " must be a simple C identifier");
+  }
+  return llvm::Error::success();
+}
+
+bool containsDescriptorSampleOrHardwareFact(llvm::StringRef value) {
+  std::string lower = value.lower();
+  llvm::StringRef normalized(lower);
+  return normalized.contains("target.hart_count") ||
+         normalized.contains("hart_count") ||
+         normalized.contains("rvv_available") ||
+         normalized.contains("runtime_element_count") ||
+         normalized.contains("element_count") ||
+         normalized.contains("sample_value") ||
+         normalized.contains("sample-runtime") ||
+         normalized.contains("tensor_shape") || normalized.contains("n =") ||
+         normalized.contains("n=");
+}
+
+llvm::Error validateCTypeSpelling(KernelOp kernel, llvm::StringRef fieldName,
+                                  llvm::StringRef value) {
+  if (llvm::Error error = validateSafeText(kernel, fieldName, value))
+    return error;
+
+  if (containsDescriptorSampleOrHardwareFact(value))
+    return makeDescriptorError(
+        kernel, llvm::Twine(fieldName) +
+                    " must describe a C ABI type, not sample runtime values "
+                    "or hardware facts");
+
+  for (char character : value) {
+    switch (character) {
+    case '=':
+    case ';':
+    case '{':
+    case '}':
+    case '(':
+    case ')':
+    case '[':
+    case ']':
+      return makeDescriptorError(
+          kernel, llvm::Twine(fieldName) +
+                      " must describe a bounded C type spelling, not a value "
+                      "expression");
+    default:
+      break;
+    }
+  }
+  return llvm::Error::success();
+}
+
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
+}
+
+llvm::StringRef getStringAttrValue(mlir::Operation *op, llvm::StringRef name) {
+  mlir::StringAttr attr = getStringAttr(op, name);
+  return attr ? attr.getValue() : llvm::StringRef();
 }
 
 llvm::Error requireSafeStringAttr(KernelOp kernel, mlir::Operation *op,
@@ -528,6 +627,101 @@ llvm::Error collectSelectedPlanMetadata(
   return llvm::Error::success();
 }
 
+llvm::Error collectRuntimeABIParameters(
+    KernelOp kernel, DiagnosticOp plan,
+    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
+  auto parameters = plan->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kRuntimeABIParametersAttrName);
+  if (!parameters)
+    return llvm::Error::success();
+  if (parameters.empty())
+    return makeDescriptorError(
+        kernel, "offload descriptor ABI contract requires non-empty "
+                "runtime_abi_parameters metadata");
+
+  llvm::StringSet<> seenNames;
+  llvm::StringSet<> seenRoles;
+  for (auto [index, attr] : llvm::enumerate(parameters)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeDescriptorError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) + "] must be a dictionary attribute");
+
+    auto cName =
+        dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterCNameAttrName);
+    auto cType =
+        dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterCTypeAttrName);
+    auto role =
+        dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterRoleAttrName);
+    auto ownership = dict.getAs<mlir::StringAttr>(
+        support::kRuntimeABIParameterOwnershipAttrName);
+    if (!cName || cName.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) + "] requires non-empty c_name");
+    if (!cType || cType.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) + "] requires non-empty c_type");
+    if (!role || role.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) + "] requires non-empty role");
+    if (!ownership || ownership.getValue().trim().empty())
+      return makeDescriptorError(
+          kernel, llvm::Twine("runtime_abi_parameters[") +
+                      llvm::Twine(index) + "] requires non-empty ownership");
+
+    llvm::StringRef cNameValue = cName.getValue().trim();
+    llvm::StringRef cTypeValue = cType.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef ownershipValue = ownership.getValue().trim();
+    if (llvm::Error error =
+            validateSafeText(kernel, "runtime ABI parameter c_name", cNameValue))
+      return error;
+    if (llvm::Error error =
+            validateCIdentifier(kernel, "runtime ABI parameter c_name",
+                                cNameValue))
+      return error;
+    if (llvm::Error error = validateCTypeSpelling(
+            kernel, "runtime ABI parameter c_type", cTypeValue))
+      return error;
+    if (llvm::Error error =
+            validateSafeText(kernel, "runtime ABI parameter role", roleValue))
+      return error;
+    if (llvm::Error error = validateSafeText(
+            kernel, "runtime ABI parameter ownership", ownershipValue))
+      return error;
+    if (!seenNames.insert(cNameValue).second)
+      return makeDescriptorError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter c_name '") +
+                      cNameValue + "' in offload descriptor ABI contract");
+    if (!seenRoles.insert(roleValue).second)
+      return makeDescriptorError(
+          kernel, llvm::Twine("duplicate runtime ABI parameter role '") +
+                      roleValue + "' in offload descriptor ABI contract");
+
+    std::optional<support::RuntimeABIParameterRole> parsedRole =
+        support::symbolizeRuntimeABIParameterRole(roleValue);
+    if (!parsedRole)
+      return makeDescriptorError(
+          kernel, llvm::Twine("unsupported runtime ABI parameter role '") +
+                      roleValue + "' in offload descriptor ABI contract");
+    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+        support::symbolizeRuntimeABIParameterOwnership(ownershipValue);
+    if (!parsedOwnership)
+      return makeDescriptorError(
+          kernel,
+          llvm::Twine("unsupported runtime ABI parameter ownership '") +
+              ownershipValue + "' in offload descriptor ABI contract");
+
+    out.push_back(support::RuntimeABIParameter(cNameValue, cTypeValue,
+                                               *parsedRole, *parsedOwnership));
+  }
+  return llvm::Error::success();
+}
+
 bool arrayContainsSymbol(mlir::ArrayAttr array, llvm::StringRef symbol) {
   if (!array)
     return false;
@@ -727,6 +921,9 @@ llvm::Error buildDescriptorFromPath(KernelOp kernel, const SelectedPath &path,
           validateCapabilitySubset(kernel, variant, record.requiredCapabilities))
     return error;
   if (llvm::Error error =
+          collectRuntimeABIParameters(kernel, plan, record.runtimeABIParameters))
+    return error;
+  if (llvm::Error error =
           collectSelectedPlanMetadata(kernel, plan, record.selectedPlanMetadata))
     return error;
   record.artifactComponentRole = kDescriptorComponentRole.str();
@@ -863,6 +1060,216 @@ llvm::Error validateBoundaryForRecord(KernelOp kernel,
   return llvm::Error::success();
 }
 
+const tianchenrv::target::SelectedPlanMetadataEntry *
+findSelectedPlanMetadata(
+    llvm::ArrayRef<tianchenrv::target::SelectedPlanMetadataEntry> metadata,
+    llvm::StringRef name) {
+  for (const tianchenrv::target::SelectedPlanMetadataEntry &entry : metadata)
+    if (entry.name == name)
+      return &entry;
+  return nullptr;
+}
+
+llvm::Error requireSelectedPlanMetadata(
+    KernelOp kernel, const DescriptorRecord &record, llvm::StringRef name,
+    llvm::StringRef expectedValue, llvm::StringRef expectedRole) {
+  const tianchenrv::target::SelectedPlanMetadataEntry *entry =
+      findSelectedPlanMetadata(record.selectedPlanMetadata, name);
+  if (!entry)
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor requires selected_plan_metadata "
+                            "name '") +
+                    name + "'");
+  if (entry->value != expectedValue)
+    return makeDescriptorError(
+        kernel, llvm::Twine("selected_plan_metadata name '") + name +
+                    "' must have value '" + expectedValue + "'");
+  if (entry->role != expectedRole)
+    return makeDescriptorError(
+        kernel, llvm::Twine("selected_plan_metadata name '") + name +
+                    "' must have role '" + expectedRole + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateSelectedPlanMetadataContract(KernelOp kernel,
+                                                const DescriptorRecord &record) {
+  if (record.selectedPlanMetadata.empty())
+    return makeDescriptorError(
+        kernel, "offload descriptor requires selected-plan handoff metadata");
+
+  for (const tianchenrv::target::SelectedPlanMetadataEntry &entry :
+       record.selectedPlanMetadata) {
+    if (containsDescriptorSampleOrHardwareFact(entry.name) ||
+        containsDescriptorSampleOrHardwareFact(entry.value))
+      return makeDescriptorError(
+          kernel, "selected_plan_metadata must not embed sample runtime values "
+                  "or hardware facts in descriptor-local handoff metadata");
+  }
+
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          kernel, record, kSelectedPlanRuntimeCapabilityIDName,
+          "offload.runtime", "capability-requirement"))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          kernel, record, kSelectedPlanHandoffKindName,
+          kRuntimeOffloadHandoffKind, "runtime-offload-handoff"))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          kernel, record, kSelectedPlanDescriptorScopeName, "descriptor-only",
+          "evidence-scope"))
+    return error;
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRuntimeABIParameterSpelling(
+    KernelOp kernel, const support::RuntimeABIParameter &parameter) {
+  if (llvm::Error error =
+          validateSafeText(kernel, "runtime ABI parameter c_name",
+                           parameter.cName))
+    return error;
+  if (llvm::Error error =
+          validateCIdentifier(kernel, "runtime ABI parameter c_name",
+                              parameter.cName))
+    return error;
+  if (llvm::Error error = validateCTypeSpelling(
+          kernel, "runtime ABI parameter c_type", parameter.cType))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Expected<DescriptorABIEntry> buildBufferABIEntry(
+    KernelOp kernel, MemWindowOp window,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  llvm::StringRef roleName = getStringAttrValue(
+      window.getOperation(), support::kMemWindowABIRoleAttrName);
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(roleName);
+  if (!role)
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor ABI contract found unsupported "
+                            "mem_window role '") +
+                    roleName + "'");
+
+  llvm::Expected<const support::RuntimeABIParameter *> parameter =
+      support::findUniqueRuntimeABIParameterByRole(
+          parameters, *role, "offload descriptor ABI contract");
+  if (!parameter) {
+    std::string message = llvm::toString(parameter.takeError());
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor ABI contract cannot bind "
+                            "buffer role '") +
+                    roleName + "': " + message);
+  }
+
+  DescriptorABIEntry entry;
+  entry.parameter = **parameter;
+  entry.kind = "buffer";
+  entry.purpose = getStringAttrValue(window.getOperation(),
+                                     support::kMemWindowPurposeAttrName)
+                      .str();
+  entry.sourceSymbol = window.getSymName().str();
+  entry.binding = getStringAttrValue(window.getOperation(),
+                                     support::kMemWindowBindingAttrName)
+                      .str();
+  entry.memorySpace =
+      getStringAttrValue(window.getOperation(),
+                         support::kMemWindowMemorySpaceAttrName)
+          .str();
+  entry.access = getStringAttrValue(window.getOperation(),
+                                    support::kMemWindowAccessAttrName)
+                     .str();
+  return entry;
+}
+
+llvm::Expected<DescriptorABIEntry> buildRuntimeParamABIEntry(
+    KernelOp kernel, RuntimeParamOp param,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  llvm::StringRef roleName = getStringAttrValue(
+      param.getOperation(), support::kRuntimeParamABIRoleAttrName);
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(roleName);
+  if (!role)
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor ABI contract found unsupported "
+                            "runtime_param role '") +
+                    roleName + "'");
+
+  llvm::Expected<const support::RuntimeABIParameter *> parameter =
+      support::findUniqueRuntimeABIParameterByRole(
+          parameters, *role, "offload descriptor ABI contract");
+  if (!parameter) {
+    std::string message = llvm::toString(parameter.takeError());
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor ABI contract cannot bind "
+                            "runtime parameter role '") +
+                    roleName + "': " + message);
+  }
+
+  DescriptorABIEntry entry;
+  entry.parameter = **parameter;
+  entry.kind =
+      *role == support::RuntimeABIParameterRole::DispatchAvailabilityGuard
+          ? "control"
+          : "scalar";
+  entry.purpose = getStringAttrValue(param.getOperation(),
+                                     support::kRuntimeParamPurposeAttrName)
+                      .str();
+  entry.sourceSymbol = param.getSymName().str();
+  return entry;
+}
+
+llvm::Error validateAndAttachRuntimeABIContract(KernelOp kernel,
+                                                DescriptorRecord &record) {
+  if (record.runtimeABIParameters.empty())
+    return makeDescriptorError(
+        kernel, "offload descriptor ABI contract requires "
+                "runtime_abi_parameters metadata");
+
+  for (const support::RuntimeABIParameter &parameter :
+       record.runtimeABIParameters)
+    if (llvm::Error error =
+            validateRuntimeABIParameterSpelling(kernel, parameter))
+      return error;
+
+  llvm::Expected<support::I32VAddCallableABIPlan> abiPlan =
+      support::buildI32VAddCallableABIPlan(kernel);
+  if (!abiPlan) {
+    std::string message = llvm::toString(abiPlan.takeError());
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor ABI contract requires "
+                            "IR-backed mem_window/runtime_param roles: ") +
+                    message);
+  }
+
+  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+          kernel, record.runtimeABIParameters, abiPlan->parameters,
+          "offload descriptor ABI contract")) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDescriptorError(
+        kernel, llvm::Twine("offload descriptor ABI contract failed: ") +
+                    message);
+  }
+
+  record.abiContractEntries.clear();
+  for (MemWindowOp window : abiPlan->bufferWindows) {
+    llvm::Expected<DescriptorABIEntry> entry =
+        buildBufferABIEntry(kernel, window, abiPlan->parameters);
+    if (!entry)
+      return entry.takeError();
+    record.abiContractEntries.push_back(std::move(*entry));
+  }
+
+  llvm::Expected<DescriptorABIEntry> runtimeCountEntry =
+      buildRuntimeParamABIEntry(kernel, abiPlan->runtimeElementCountParam,
+                                abiPlan->parameters);
+  if (!runtimeCountEntry)
+    return runtimeCountEntry.takeError();
+  record.abiContractEntries.push_back(std::move(*runtimeCountEntry));
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<std::optional<DescriptorRecord>>
 buildKernelDescriptor(KernelOp kernel) {
   llvm::StringMap<VariantOp> directVariants;
@@ -904,6 +1311,10 @@ buildKernelDescriptor(KernelOp kernel) {
             buildDescriptorFromPath(kernel, path, planIt->getValue(), record))
       return std::move(error);
     if (llvm::Error error = validateBoundaryForRecord(kernel, record))
+      return std::move(error);
+    if (llvm::Error error = validateSelectedPlanMetadataContract(kernel, record))
+      return std::move(error);
+    if (llvm::Error error = validateAndAttachRuntimeABIContract(kernel, record))
       return std::move(error);
 
     if (descriptor)
@@ -1014,6 +1425,56 @@ void printSelectedPlanMetadata(
   }
 }
 
+void printABIContractEntries(
+    llvm::raw_ostream &os, llvm::ArrayRef<DescriptorABIEntry> entries) {
+  os << "abi_contract_owner: ";
+  printQuoted(os, kABIContractOwner);
+  os << "\n";
+  os << "abi_contract_source: ";
+  printQuoted(os, kABIContractSource);
+  os << "\n";
+  os << "abi_contract_entry_count: " << entries.size() << "\n";
+  for (auto [index, entry] : llvm::enumerate(entries)) {
+    os << "abi_contract_entry[" << index << "]:\n";
+    os << "  kind: ";
+    printQuoted(os, entry.kind);
+    os << "\n";
+    os << "  role: ";
+    printQuoted(os,
+                support::stringifyRuntimeABIParameterRole(entry.parameter.role));
+    os << "\n";
+    os << "  c_name: ";
+    printQuoted(os, entry.parameter.cName);
+    os << "\n";
+    os << "  c_type: ";
+    printQuoted(os, entry.parameter.cType);
+    os << "\n";
+    os << "  purpose: ";
+    printQuoted(os, entry.purpose);
+    os << "\n";
+    os << "  ownership: ";
+    printQuoted(os, support::stringifyRuntimeABIParameterOwnership(
+                        entry.parameter.ownership));
+    os << "\n";
+    os << "  source_symbol: @" << entry.sourceSymbol << "\n";
+    if (!entry.binding.empty()) {
+      os << "  binding: ";
+      printQuoted(os, entry.binding);
+      os << "\n";
+    }
+    if (!entry.memorySpace.empty()) {
+      os << "  memory_space: ";
+      printQuoted(os, entry.memorySpace);
+      os << "\n";
+    }
+    if (!entry.access.empty()) {
+      os << "  access: ";
+      printQuoted(os, entry.access);
+      os << "\n";
+    }
+  }
+}
+
 void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
   os << "tianchenrv.offload_runtime_handoff_descriptor.version: 1\n";
   os << "descriptor_schema_version: " << record.descriptorSchemaVersion << "\n";
@@ -1076,6 +1537,7 @@ void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
   os << "evidence_role: ";
   printQuoted(os, record.evidenceRole);
   os << "\n";
+  printABIContractEntries(os, record.abiContractEntries);
   printSelectedPlanMetadata(os, record.selectedPlanMetadata);
   os << "evidence_scope: ";
   printQuoted(os,
