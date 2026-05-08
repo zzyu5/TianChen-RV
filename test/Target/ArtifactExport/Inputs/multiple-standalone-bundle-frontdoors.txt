@@ -1,0 +1,133 @@
+module {
+  tcrv.exec.kernel @bundle_multiple_standalone_frontdoors {
+    tcrv.exec.capability @offload_runtime {
+      id = "offload.runtime",
+      kind = "runtime-offload",
+      status = "available",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      handoff_kind = "runtime-offload"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @offload_runtime_first_slice attributes {
+      origin = "offload-plugin",
+      requires = [@offload_runtime],
+      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      tcrv_offload.handoff_kind = "runtime-offload"
+    } {
+    }
+    tcrv.exec.variant @scalar_case_first_slice attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @offload_runtime_first_slice {
+        condition = "offload_runtime_capability_available",
+        guard = "plugin_local_runtime_offload_handoff_metadata",
+        origin = "offload-plugin",
+        policy = "metadata_only_runtime_offload_first_slice"
+      }
+      tcrv.exec.case @scalar_case_first_slice {
+        condition = "scalar_case_available",
+        origin = "scalar-plugin",
+        policy = "test_multiple_standalone_artifact_front_door"
+      }
+      tcrv.exec.fallback @scalar_fallback_first_slice {
+        fallback_role = "conservative",
+        origin = "scalar-plugin"
+      }
+    }
+    tcrv_offload.lowering_boundary {
+      handoff_kind = "runtime-offload",
+      handoff_reason = "runtime-offload boundary is plugin-owned handoff metadata only",
+      origin = "offload-plugin",
+      required_capabilities = [@offload_runtime],
+      role = "dispatch case",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      selected_variant = @offload_runtime_first_slice,
+      source_kernel = "bundle_multiple_standalone_frontdoors",
+      status = "metadata-only"
+    }
+    tcrv_scalar.lowering_boundary {
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "dispatch case",
+      selected_variant = @scalar_case_first_slice,
+      source_kernel = "bundle_multiple_standalone_frontdoors",
+      status = "metadata-only"
+    }
+    tcrv_scalar.lowering_boundary {
+      origin = "scalar-plugin",
+      required_capabilities = [@scalar_fallback],
+      role = "dispatch fallback",
+      selected_variant = @scalar_fallback_first_slice,
+      source_kernel = "bundle_multiple_standalone_frontdoors",
+      status = "metadata-only"
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "runtime-offload-handoff-descriptor",
+      emission_kind = "runtime-offload-handoff-descriptor",
+      lowering_boundary = "tcrv_offload.lowering_boundary",
+      lowering_pipeline = "tcrv-export-offload-runtime-descriptor",
+      message = "supported offload descriptor route",
+      origin = "offload-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@offload_runtime],
+      role = "dispatch case",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      runtime_abi_kind = "runtime-offload-c-abi-handoff",
+      runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1",
+      runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary",
+      status = "supported",
+      target = @offload_runtime_first_slice
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "runtime-callable-c-source",
+      emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
+      lowering_boundary = "tcrv_scalar.lowering_boundary",
+      lowering_pipeline = "tcrv-export-scalar-microkernel-c",
+      message = "supported scalar source route",
+      origin = "scalar-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@scalar_fallback],
+      role = "dispatch case",
+      runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "scalar-runtime-callable-c-abi",
+      runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
+      runtime_abi_parameters = [
+        {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"},
+        {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"},
+        {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
+        {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
+      ],
+      runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
+      status = "supported",
+      target = @scalar_case_first_slice
+    }
+    tcrv.exec.diagnostic {
+      message = "selected fallback has no standalone artifact route in this negative fixture",
+      origin = "scalar-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@scalar_fallback],
+      role = "dispatch fallback",
+      runtime_abi_kind = "scalar-runtime-callable-c-abi",
+      runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
+      runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
+      status = "unsupported",
+      target = @scalar_fallback_first_slice
+    }
+  }
+}

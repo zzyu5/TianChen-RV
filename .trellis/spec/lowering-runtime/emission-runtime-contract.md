@@ -404,17 +404,24 @@ directory. The generic bundle layer must not branch on RVV, scalar, IME,
 Sophgo, offload, vendor, target family, dtype, shape, runtime, toolchain, or
 microarchitecture semantics to decide which files exist; route availability
 comes from selected-path/emission-plan metadata and the target artifact
-exporter registry. Bundle file names and the index must be deterministic,
-safe, and metadata-derived, and must not contain local absolute paths,
-credentials, timestamps, random values, `artifacts/tmp` paths, raw logs, or
-secret-like text. Unsupported or metadata-only selected paths must not produce
-a fake complete bundle. If artifact materialization fails, the exporter must
-fail before writing a complete index and must either remove partial outputs or
-otherwise avoid claiming a complete bundle. The bundle index is build handoff
-metadata only: it may record file names, artifact kind, route, owner, runtime
-ABI kind/name, component selected paths, and conservative evidence roles, but
-it does not claim link success, runtime success, RVV execution, correctness, or
-performance.
+exporter registry. Before writing any artifact file or complete index, bundle
+export must validate the selected target-artifact front door for each kernel:
+registered composite routes may consume their complete component set, otherwise
+there must be exactly one selected standalone front door after excluding a
+selected dispatch fallback behind a supported non-fallback path. Multiple
+non-fallback standalone candidates without a registered composite route,
+unknown routes, or route/exporter metadata mismatches are selected-plan
+coherence failures, not late file-emission choices. Bundle file names and the
+index must be deterministic, safe, and metadata-derived, and must not contain
+local absolute paths, credentials, timestamps, random values, `artifacts/tmp`
+paths, raw logs, or secret-like text. Unsupported or metadata-only selected
+paths must not produce a fake complete bundle. If artifact materialization
+fails, the exporter must fail before writing a complete index and must either
+remove partial outputs or otherwise avoid claiming a complete bundle. The
+bundle index is build handoff metadata only: it may record file names, artifact
+kind, route, owner, runtime ABI kind/name, component selected paths, and
+conservative evidence roles, but it does not claim link success, runtime
+success, RVV execution, correctness, or performance.
 When a selected dispatch has a supported primary non-fallback route plus a
 supported dispatch fallback route and no target-owned composite bundle route
 matches, the bundle layer follows the single-artifact front-door rule and emits

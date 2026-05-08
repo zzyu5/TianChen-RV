@@ -72,6 +72,29 @@ llvm::Error makeCoherenceError(KernelOp kernel, llvm::Twine message) {
                                              llvm::errc::invalid_argument);
 }
 
+std::string describeArtifactCandidate(const TargetArtifactCandidate &candidate) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "@" << candidate.selectedVariant << " as " << candidate.role
+         << " route '" << candidate.routeID << "' artifact_kind '"
+         << candidate.artifactKind << "'";
+  stream.flush();
+  return text;
+}
+
+std::string describeArtifactCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  for (auto [index, candidate] : llvm::enumerate(candidates)) {
+    if (index != 0)
+      stream << "; ";
+    stream << describeArtifactCandidate(candidate);
+  }
+  stream.flush();
+  return text;
+}
+
 bool hasKernelBody(KernelOp kernel) {
   return kernel && !kernel.getBody().empty();
 }
@@ -1012,9 +1035,11 @@ llvm::Error validateSupportedArtifactCandidates(
 
   if (candidates.size() > 1)
     return makeCoherenceError(
-        KernelOp(),
+        candidates.front().kernel,
         "requires at most one supported target artifact emission-plan route; "
-        "found multiple ambiguous supported artifacts");
+        "found multiple ambiguous supported artifacts without a registered "
+        "composite route: " +
+            describeArtifactCandidates(candidates));
 
   for (const TargetArtifactCandidate &candidate : candidates) {
     const TargetArtifactExporter *exporter =
@@ -1022,7 +1047,9 @@ llvm::Error validateSupportedArtifactCandidates(
     if (!exporter)
       return makeCoherenceError(
           candidate.kernel,
-          llvm::Twine("unknown target artifact export route id '") +
+          llvm::Twine("selected target artifact front door ") +
+              describeArtifactCandidate(candidate) +
+              " names unknown target artifact export route id '" +
               candidate.routeID + "'");
 
     if (llvm::Error error =

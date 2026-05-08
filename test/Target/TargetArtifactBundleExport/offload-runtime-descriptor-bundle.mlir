@@ -1,5 +1,5 @@
 // RUN: rm -rf %t.offload.bundle && mkdir %t.offload.bundle
-// RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-offload-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.offload.bundle > %t.offload.stdout
+// RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-offload-pipeline.mlir --tcrv-execution-planning-pipeline --tcrv-check-execution-plan-coherence | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.offload.bundle > %t.offload.stdout
 // RUN: FileCheck %s --check-prefix=STDOUT < %t.offload.stdout
 // RUN: test -s %t.offload.bundle/artifact-0-runtime-offload-handoff-descriptor-tcrv-export-offload-runtime-descriptor.txt
 // RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token --implicit-check-not=http < %t.offload.bundle/tianchenrv-target-artifact-bundle.index

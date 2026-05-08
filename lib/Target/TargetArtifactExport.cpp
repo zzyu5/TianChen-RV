@@ -120,6 +120,21 @@ llvm::Error makeTargetArtifactBundleExportError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+llvm::Error makeTargetArtifactFrontDoorError(KernelOp kernel,
+                                             llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "TianChen-RV selected target artifact front-door coherence failed";
+  if (kernel)
+    stream << " for kernel @" << kernel.getSymName();
+  else
+    stream << " for kernel <missing>";
+  stream << ": " << message;
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
 bool isSourceArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRuntimeCallableCSourceArtifactKind ||
          artifactKind == kStandaloneCSourceArtifactKind;
@@ -917,6 +932,30 @@ struct TargetArtifactCandidateGroup {
   llvm::SmallVector<TargetArtifactCandidate, 4> candidates;
 };
 
+std::string describeTargetArtifactCandidate(
+    const TargetArtifactCandidate &candidate) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "@" << candidate.selectedVariant << " as " << candidate.role
+         << " route '" << candidate.routeID << "' artifact_kind '"
+         << candidate.artifactKind << "'";
+  stream.flush();
+  return text;
+}
+
+std::string describeTargetArtifactCandidates(
+    llvm::ArrayRef<const TargetArtifactCandidate *> candidates) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  for (auto [index, candidate] : llvm::enumerate(candidates)) {
+    if (index != 0)
+      stream << "; ";
+    stream << describeTargetArtifactCandidate(*candidate);
+  }
+  stream.flush();
+  return text;
+}
+
 void appendComponentMetadata(
     llvm::ArrayRef<TargetArtifactCandidate> candidates,
     TargetArtifactBundleRecord &record) {
@@ -966,6 +1005,83 @@ std::string deriveCompositeRuntimeABI(
       }))
     return first.str();
   return std::string();
+}
+
+llvm::Expected<bool> hasMatchingCompositeBundleFrontDoor(
+    const TargetArtifactCandidateGroup &group,
+    const TargetArtifactExporterRegistry &registry) {
+  bool matchedAny = false;
+  for (const TargetArtifactCompositeExporter &exporter :
+       registry.getCompositeExporters()) {
+    TargetArtifactCompositeMatchFn matchFn = exporter.getMatchFn();
+    if (!matchFn)
+      return makeTargetArtifactFrontDoorError(
+          group.kernel,
+          llvm::Twine("composite target artifact route '") +
+              exporter.getRouteID() + "' has no registered match callback");
+
+    llvm::Expected<bool> matched = matchFn(group.candidates);
+    if (!matched)
+      return matched.takeError();
+    matchedAny |= *matched;
+  }
+  return matchedAny;
+}
+
+llvm::Error validateSingleTargetArtifactFrontDoor(
+    const TargetArtifactCandidate &candidate,
+    const TargetArtifactExporterRegistry &registry) {
+  const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
+  if (!exporter)
+    return makeTargetArtifactFrontDoorError(
+        candidate.kernel,
+        llvm::Twine("selected target artifact front door ") +
+            describeTargetArtifactCandidate(candidate) +
+            " names unknown target artifact export route id '" +
+            candidate.routeID + "'");
+
+  return validateTargetArtifactCandidateAgainstExporter(candidate, *exporter);
+}
+
+llvm::Error validateTargetArtifactBundleFrontDoorGroup(
+    const TargetArtifactCandidateGroup &group,
+    const TargetArtifactExporterRegistry &registry) {
+  if (group.candidates.empty())
+    return llvm::Error::success();
+
+  llvm::Expected<bool> hasComposite =
+      hasMatchingCompositeBundleFrontDoor(group, registry);
+  if (!hasComposite)
+    return hasComposite.takeError();
+  if (*hasComposite)
+    return llvm::Error::success();
+
+  bool hasNonFallbackCandidate = llvm::any_of(
+      group.candidates, [](const TargetArtifactCandidate &candidate) {
+        return candidate.role != kDispatchFallbackRole;
+      });
+
+  llvm::SmallVector<const TargetArtifactCandidate *, 4> frontDoorCandidates;
+  for (const TargetArtifactCandidate &candidate : group.candidates) {
+    if (hasNonFallbackCandidate && candidate.role == kDispatchFallbackRole)
+      continue;
+    frontDoorCandidates.push_back(&candidate);
+  }
+
+  if (frontDoorCandidates.size() > 1)
+    return makeTargetArtifactFrontDoorError(
+        group.kernel,
+        "requires exactly one selected standalone target artifact front door "
+        "when no registered composite route matches; found multiple: " +
+            describeTargetArtifactCandidates(frontDoorCandidates));
+
+  if (frontDoorCandidates.empty())
+    return makeTargetArtifactFrontDoorError(
+        group.kernel,
+        "requires one selected target artifact front door; found none");
+
+  return validateSingleTargetArtifactFrontDoor(*frontDoorCandidates.front(),
+                                               registry);
 }
 
 llvm::Error appendSingleCandidateBundleRecord(
@@ -1070,6 +1186,10 @@ llvm::Error collectTargetArtifactBundleRecords(
   for (const TargetArtifactCandidateGroup &group : groups) {
     if (group.candidates.empty())
       continue;
+
+    if (llvm::Error error =
+            validateTargetArtifactBundleFrontDoorGroup(group, registry))
+      return error;
 
     std::size_t beforeComposite = out.size();
     if (group.candidates.size() == 1) {

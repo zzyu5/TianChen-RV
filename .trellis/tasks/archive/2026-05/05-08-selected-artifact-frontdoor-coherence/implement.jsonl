@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants for implementation stack and project boundary"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "selected path, dispatch, fallback, diagnostic, and compute-free tcrv.exec contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "execution-plan/export preflight and target artifact route contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and evidence boundaries for artifact export behavior"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "runtime-offload descriptor handoff and non-ISA boundary"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability-first selected route and fallback checks"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "keep extension details plugin-local behind registries/exporters"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "avoid adding compute semantics to tcrv.exec"}

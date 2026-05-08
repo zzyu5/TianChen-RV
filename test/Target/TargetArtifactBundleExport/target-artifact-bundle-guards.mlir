@@ -4,6 +4,9 @@
 // RUN: rm -rf %t.unsupported.bundle && mkdir %t.unsupported.bundle
 // RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.unsupported.bundle %s 2>&1 | FileCheck %s --check-prefix=NO-BUNDLE --implicit-check-not="bundle_status: \"complete\"" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: test ! -e %t.unsupported.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.ambiguous.bundle && mkdir %t.ambiguous.bundle
+// RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.ambiguous.bundle %S/../ArtifactExport/Inputs/multiple-standalone-bundle-frontdoors.txt 2>&1 | FileCheck %s --check-prefix=AMBIGUOUS --implicit-check-not="bundle_status: \"complete\"" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: test ! -e %t.ambiguous.bundle/tianchenrv-target-artifact-bundle.index
 
 module @target_artifact_bundle_guard_input {
   tcrv.exec.kernel @metadata_only_bundle {
@@ -64,3 +67,8 @@ module @target_artifact_bundle_guard_input {
 
 // NO-BUNDLE: target artifact bundle export failed
 // NO-BUNDLE-SAME: requires at least one supported target artifact route; found none
+
+// AMBIGUOUS: execution plan coherence check failed for kernel @bundle_multiple_standalone_frontdoors
+// AMBIGUOUS-SAME: multiple ambiguous supported artifacts without a registered composite route
+// AMBIGUOUS-SAME: @offload_runtime_first_slice as dispatch case route 'tcrv-export-offload-runtime-descriptor' artifact_kind 'runtime-offload-handoff-descriptor'
+// AMBIGUOUS-SAME: @scalar_case_first_slice as dispatch case route 'tcrv-export-scalar-microkernel-c' artifact_kind 'runtime-callable-c-source'
