@@ -218,8 +218,11 @@ tcrv.exec.variant @rvv_fp16
 In that slice, `requires` is an `ArrayAttr` whose entries must be
 `FlatSymbolRefAttr` references to `tcrv.exec.capability` ops in the enclosing
 `tcrv.exec.kernel`. Capability `id` and `kind` are non-empty `StringAttr`
-fields. Core verification checks structure and symbol resolution only; concrete
-extension legality stays plugin-owned.
+fields. Direct capability `id` values are unique within one
+`tcrv.exec.kernel`; duplicate ids are invalid because C++ capability queries use
+id lookup for plugin proposal, legality, selection, and conflict decisions.
+Core verification checks structure, identity uniqueness, and symbol
+resolution; concrete extension legality stays plugin-owned.
 
 Capability query passes may also consume a generic string `status` attribute
 or, equivalently, a generic string `availability` attribute on
@@ -255,6 +258,8 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 
 - Each query descriptor records capability symbol name, `id`, `kind`, generic
   status, and available/unavailable state.
+- Direct `tcrv.exec.capability` ids are unique within one kernel before a
+  `TargetCapabilitySet` is treated as a compiler decision object.
 - Each query descriptor preserves additional non-core MLIR attributes as
   structured property entries queryable by property name.
 - Each query descriptor preserves `provides`, `implies`, and `conflicts` as

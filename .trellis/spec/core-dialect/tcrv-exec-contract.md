@@ -88,6 +88,22 @@ Rules:
 - passes and plugins must query it through compiler APIs;
 - it must not be plain text metadata that is ignored by the compiler.
 
+### `tcrv.exec.capability`
+
+Represents one compiler-visible target, toolchain, runtime/offload, policy, or
+microarchitecture capability available to a kernel.
+
+Rules:
+
+- `id` and `kind` are required non-empty structured MLIR attributes;
+- direct capability `id` values must be unique within the enclosing
+  `tcrv.exec.kernel`, because generic capability queries use exact id lookup
+  before relation-provider lookup;
+- `provides`, `implies`, and `conflicts` are relation lists over capability ids
+  and do not relax the owning capability id uniqueness rule;
+- extension-specific interpretation of capability properties remains
+  plugin-local.
+
 ### `tcrv.exec.variant`
 
 Responsibilities:

@@ -25,6 +25,9 @@ Use lit/FileCheck for:
 - capability conflict legality diagnostics, including static variant
   rejection, guarded dispatch-case allowance, unguarded dispatch-case
   rejection, and fallback rejection without target-family-specific branches;
+- core capability identity verifier diagnostics, including rejection of
+  duplicate direct capability ids within one `tcrv.exec.kernel` while preserving
+  relation-provider lookup behavior for unique profile ids;
 - public plugin-variant materialization pass behavior, including built-in
   registry proposal routing, deterministic proposal order, parseable downstream
   pass pipelines, no-built-in-registry diagnostics, plugin-local proposal

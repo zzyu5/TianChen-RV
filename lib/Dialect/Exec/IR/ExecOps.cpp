@@ -458,6 +458,7 @@ mlir::LogicalResult KernelOp::verify() {
     return mlir::success();
 
   llvm::StringSet<> emissionPlanTargets;
+  llvm::StringSet<> directCapabilityIDs;
   llvm::StringSet<> directMemWindowABIRoles;
   llvm::StringSet<> directRuntimeParamABIRoles;
   auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> mlir::LogicalResult {
@@ -478,6 +479,16 @@ mlir::LogicalResult KernelOp::verify() {
   };
 
   for (mlir::Operation &op : getBody().front()) {
+    if (auto capability = llvm::dyn_cast<CapabilityOp>(op)) {
+      auto idAttr = capability->getAttrOfType<mlir::StringAttr>(kIdAttrName);
+      if (idAttr && !idAttr.getValue().trim().empty() &&
+          !directCapabilityIDs.insert(idAttr.getValue()).second)
+        return capability.emitOpError()
+               << "duplicates capability id '" << idAttr.getValue()
+               << "' in enclosing tcrv.exec.kernel";
+      continue;
+    }
+
     if (auto memWindow = llvm::dyn_cast<MemWindowOp>(op)) {
       auto roleAttr =
           memWindow->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);

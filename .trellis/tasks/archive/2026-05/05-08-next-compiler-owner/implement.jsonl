@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide TianChen-RV boundary and stack requirements"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability identity and compiler-decision contract"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec verifier and capability/variant boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR verifier and C++ smoke coverage policy"}

@@ -154,6 +154,14 @@ tcrv.exec.kernel @duplicate_capability_relation_id attributes {} {
 
 // -----
 
+tcrv.exec.kernel @duplicate_capability_id attributes {} {
+  tcrv.exec.capability @rvv_available {id = "rvv", kind = "isa-vector", status = "available"}
+  // expected-error @+1 {{duplicates capability id 'rvv' in enclosing tcrv.exec.kernel}}
+  tcrv.exec.capability @rvv_disabled {id = "rvv", kind = "isa-vector", status = "disabled"}
+}
+
+// -----
+
 tcrv.exec.kernel @malformed_requires attributes {} {
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
   // expected-error @+1 {{attribute 'requires' must contain only capability symbol references}}

@@ -175,6 +175,14 @@ module {
                           "relation attributes are first-class fields rather "
                           "than generic properties"))
     return result;
+  if (int result = expect(
+          capabilities.lookupByID("rvv.profile.rv64gcv") == rvvProfile,
+          "unique profile capability id is available by exact id lookup"))
+    return result;
+  if (int result = expect(capabilities.lookupProviderByID(
+                              "rvv.profile.rv64gcv") == rvvProfile,
+                          "provider lookup preserves exact unique id lookup"))
+    return result;
   if (int result =
           expect(capabilities.lookupProviderByID("rvv") == rvvProfile,
                  "provider lookup resolves provided capability id"))
