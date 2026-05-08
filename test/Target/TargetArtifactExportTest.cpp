@@ -1,8 +1,16 @@
+#include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
+#include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <initializer_list>
 
 using namespace tianchenrv::target;
 
@@ -36,6 +44,24 @@ bool expectFailure(llvm::Error error, llvm::StringRef context) {
   }
   llvm::errs() << context << ": expected failure\n";
   return false;
+}
+
+bool expectErrorContains(llvm::Error error, llvm::StringRef context,
+                         std::initializer_list<llvm::StringRef> fragments) {
+  if (!error) {
+    llvm::errs() << context << ": expected failure\n";
+    return false;
+  }
+
+  std::string message = llvm::toString(std::move(error));
+  for (llvm::StringRef fragment : fragments) {
+    if (!llvm::StringRef(message).contains(fragment)) {
+      llvm::errs() << context << ": error text missing '" << fragment
+                   << "': " << message << "\n";
+      return false;
+    }
+  }
+  return true;
 }
 
 bool expectRoute(const TargetArtifactExporterRegistry &registry,
@@ -108,9 +134,138 @@ bool expectSelectedCompositeRoute(
   return true;
 }
 
+tianchenrv::tcrv::exec::KernelOp findKernel(mlir::ModuleOp module,
+                                            llvm::StringRef name) {
+  tianchenrv::tcrv::exec::KernelOp kernel;
+  module->walk([&](tianchenrv::tcrv::exec::KernelOp candidate) {
+    if (candidate.getSymName() == name)
+      kernel = candidate;
+  });
+  return kernel;
+}
+
+TargetArtifactCandidate makeRVVDispatchCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  TargetArtifactCandidate candidate;
+  candidate.kernel = kernel;
+  candidate.selectedVariant = selectedVariant.str();
+  candidate.role = "dispatch case";
+  candidate.origin = "rvv-plugin";
+  candidate.routeID = "tcrv-export-rvv-microkernel-c";
+  candidate.emissionKind = "rvv-explicit-i32-vadd-microkernel-c-source";
+  candidate.artifactKind = "runtime-callable-c-source";
+  candidate.loweringBoundary = "tcrv_rvv.lowering_boundary";
+  candidate.runtimeABI = "rvv-i32-vadd-runtime-callable-c-abi.v1";
+  candidate.runtimeABIKind = "rvv-runtime-callable-c-abi";
+  candidate.runtimeABIName = "rvv-i32-vadd-runtime-callable-c-function.v1";
+  candidate.runtimeGlueRole = "runtime-callable-i32-vadd-function";
+  candidate.runtimeABIParameters =
+      tianchenrv::support::getI32VAddRuntimeABIParameters();
+  return candidate;
+}
+
+TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  TargetArtifactCandidate candidate;
+  candidate.kernel = kernel;
+  candidate.selectedVariant = selectedVariant.str();
+  candidate.role = "dispatch fallback";
+  candidate.origin = "scalar-plugin";
+  candidate.routeID = "tcrv-export-scalar-microkernel-c";
+  candidate.emissionKind = "scalar-explicit-i32-vadd-microkernel-c-source";
+  candidate.artifactKind = "runtime-callable-c-source";
+  candidate.loweringBoundary = "tcrv_scalar.lowering_boundary";
+  candidate.runtimeABI = "scalar-i32-vadd-runtime-callable-c-abi.v1";
+  candidate.runtimeABIKind = "scalar-runtime-callable-c-abi";
+  candidate.runtimeABIName = "scalar-i32-vadd-runtime-callable-c-function.v1";
+  candidate.runtimeGlueRole = "runtime-callable-i32-vadd-fallback-function";
+  candidate.runtimeABIParameters =
+      tianchenrv::support::getI32VAddRuntimeABIParameters();
+  return candidate;
+}
+
+bool expectDispatchCompositeRejectsFallbackMismatch(
+    mlir::MLIRContext &context,
+    const TargetArtifactExporterRegistry &registry) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @dispatch_link_mismatch {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback"}
+    tcrv.exec.mem_window @abi_lhs_input_buffer {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.mem_window @abi_rhs_input_buffer {abi_role = "rhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.mem_window @abi_output_buffer {abi_role = "output-buffer", access = "write", binding = "kernel-argument", c_type = "int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+    tcrv.exec.runtime_param @abi_dispatch_availability_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+    tcrv.exec.variant @rvv_first_slice attributes {origin = "rvv-plugin", requires = [@rvv]} {
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.variant @scalar_ir_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_first_slice {condition = "rvv_available", runtime_guard = @abi_dispatch_availability_guard}
+      tcrv.exec.fallback @scalar_ir_fallback
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module) {
+    llvm::errs() << "dispatch fallback mismatch fixture failed to parse\n";
+    return false;
+  }
+
+  tianchenrv::tcrv::exec::KernelOp kernel =
+      findKernel(*module, "dispatch_link_mismatch");
+  if (!kernel) {
+    llvm::errs() << "dispatch fallback mismatch fixture missing kernel\n";
+    return false;
+  }
+
+  const TargetArtifactCompositeExporter *dispatchComposite = nullptr;
+  for (const TargetArtifactCompositeExporter &exporter :
+       registry.getCompositeExporters()) {
+    if (exporter.getRouteID() ==
+        "tcrv-export-rvv-scalar-i32-vadd-dispatch-c") {
+      dispatchComposite = &exporter;
+      break;
+    }
+  }
+  if (!dispatchComposite) {
+    llvm::errs() << "missing RVV+scalar dispatch composite route\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(makeRVVDispatchCandidate(kernel, "rvv_first_slice"));
+  candidates.push_back(makeScalarDispatchFallbackCandidate(
+      kernel, "scalar_fallback_first_slice"));
+
+  llvm::Expected<bool> matched = dispatchComposite->getMatchFn()(candidates);
+  if (matched) {
+    llvm::errs() << "dispatch composite unexpectedly accepted detached scalar "
+                    "fallback candidate mismatch\n";
+    return false;
+  }
+
+  return expectErrorContains(
+      matched.takeError(), "dispatch fallback IR-link mismatch rejected",
+      {"selected scalar dispatch fallback callable route",
+       "@scalar_fallback_first_slice", "tcrv.exec.fallback target",
+       "@scalar_ir_fallback"});
+}
+
 } // namespace
 
 int main() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
   TargetArtifactExporterRegistry registry;
 
   if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
@@ -285,6 +440,9 @@ int main() {
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))
+    return 1;
+  if (!expectDispatchCompositeRejectsFallbackMismatch(context,
+                                                      builtinRegistry))
     return 1;
 
   return 0;

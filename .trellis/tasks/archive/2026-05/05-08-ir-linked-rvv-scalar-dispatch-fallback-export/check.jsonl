@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that exporter behavior stays inside tcrv.exec dispatch/fallback semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check generated artifact export boundary and fail-closed diagnostics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck and C++ test coverage style."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV branch remains plugin-local and target-owned."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback linkage is anchored through selected fallback IR."}

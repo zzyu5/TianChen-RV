@@ -338,6 +338,11 @@ The target variant must be selected through generic fallback eligibility such as
 `fallback_role = "conservative"` or an equivalent plugin-owned cost/proposal
 field carried into generic selection. The core dialect must not infer fallback
 semantics from plugin names, target families, or capability IDs.
+Target-owned dispatch exporters that consume a selected `tcrv.exec.dispatch`
+must treat this fallback op as the scalar/fallback branch source of truth: a
+detached callable route or emission-plan candidate cannot substitute for the
+actual `tcrv.exec.fallback` target, and the target must resolve to a direct
+same-kernel `tcrv.exec.variant` before export.
 
 ### `tcrv.exec.diagnostic` / diagnostic metadata
 

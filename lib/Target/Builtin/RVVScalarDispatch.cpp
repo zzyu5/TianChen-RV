@@ -38,6 +38,7 @@ using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
+using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -105,9 +106,18 @@ struct DispatchABIPlan {
   RuntimeParamOp runtimeGuardParam;
 };
 
+struct DispatchIRLink {
+  DispatchOp dispatch;
+  DispatchCaseOp selectedRVVCase;
+  FallbackOp fallback;
+  VariantOp fallbackVariant;
+  std::string fallbackTarget;
+};
+
 struct DispatchPair {
   TargetArtifactCandidate rvv;
   TargetArtifactCandidate scalar;
+  DispatchIRLink irLink;
   DispatchABIPlan abiPlan;
 };
 
@@ -346,19 +356,6 @@ llvm::Error validateDispatchRuntimeABIText(KernelOp kernel,
   return llvm::Error::success();
 }
 
-DispatchOp findDispatchOpForPair(const DispatchPair &pair) {
-  KernelOp kernel = pair.rvv.kernel;
-  if (!kernel || kernel.getBody().empty())
-    return DispatchOp();
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto dispatch = llvm::dyn_cast<DispatchOp>(op);
-    if (dispatch)
-      return dispatch;
-  }
-  return DispatchOp();
-}
-
 llvm::StringRef getRuntimeParamStringAttr(RuntimeParamOp param,
                                           llvm::StringRef attrName) {
   auto attr = param->getAttrOfType<mlir::StringAttr>(attrName);
@@ -440,43 +437,140 @@ mlir::Operation *findDirectKernelSymbol(KernelOp kernel,
   return nullptr;
 }
 
-llvm::Expected<RuntimeParamOp>
-resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
+llvm::Expected<DispatchIRLink>
+resolveDispatchIRLinkForPair(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
-  DispatchOp dispatch = findDispatchOpForPair(pair);
-  if (!dispatch)
+  if (!kernel || kernel.getBody().empty())
     return makeDispatchError(
         kernel,
-        "requires one tcrv.exec.dispatch to resolve the selected RVV "
-        "dispatch case runtime_guard");
+        "requires one direct tcrv.exec.dispatch to link the selected RVV "
+        "dispatch case and selected scalar dispatch fallback callable route");
 
-  DispatchCaseOp selectedCase;
-  unsigned matchCount = 0;
-  for (mlir::Operation &op : dispatch.getBody().front()) {
-    auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(op);
-    if (!dispatchCase)
+  DispatchOp dispatch;
+  unsigned dispatchCount = 0;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto candidate = llvm::dyn_cast<DispatchOp>(op);
+    if (!candidate)
       continue;
-
-    auto targetAttr =
-        dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
-    if (!targetAttr || targetAttr.getValue() != pair.rvv.selectedVariant)
-      continue;
-
-    selectedCase = dispatchCase;
-    ++matchCount;
+    dispatch = candidate;
+    ++dispatchCount;
   }
 
-  if (matchCount == 0)
+  if (dispatchCount == 0)
+    return makeDispatchError(
+        kernel,
+        "requires one direct tcrv.exec.dispatch to link the selected RVV "
+        "dispatch case and selected scalar dispatch fallback callable route");
+  if (dispatchCount > 1)
+    return makeDispatchError(
+        kernel,
+        "requires exactly one direct tcrv.exec.dispatch to link the selected "
+        "RVV dispatch case and selected scalar dispatch fallback callable "
+        "route; found multiple");
+  if (dispatch.getBody().empty())
+    return makeDispatchError(
+        kernel,
+        "selected tcrv.exec.dispatch requires a materialized body block before "
+        "RVV+scalar dispatch export");
+
+  DispatchIRLink link;
+  link.dispatch = dispatch;
+  unsigned selectedCaseCount = 0;
+  unsigned fallbackCount = 0;
+  for (mlir::Operation &op : dispatch.getBody().front()) {
+    if (auto dispatchCase = llvm::dyn_cast<DispatchCaseOp>(op)) {
+      auto targetAttr =
+          dispatchCase->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
+      if (targetAttr && targetAttr.getValue() == pair.rvv.selectedVariant) {
+        link.selectedRVVCase = dispatchCase;
+        ++selectedCaseCount;
+      }
+      continue;
+    }
+
+    if (auto fallback = llvm::dyn_cast<FallbackOp>(op)) {
+      link.fallback = fallback;
+      ++fallbackCount;
+    }
+  }
+
+  if (selectedCaseCount == 0)
     return makeDispatchError(
         kernel, llvm::Twine("selected RVV dispatch case @") +
                     pair.rvv.selectedVariant +
                     " must be present in tcrv.exec.dispatch before dispatch "
                     "C export");
-  if (matchCount > 1)
+  if (selectedCaseCount > 1)
     return makeDispatchError(
         kernel, llvm::Twine("selected RVV dispatch case @") +
                     pair.rvv.selectedVariant +
                     " has duplicate or ambiguous runtime_guard linkage");
+
+  if (fallbackCount == 0)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("selected scalar dispatch fallback callable route @") +
+            pair.scalar.selectedVariant +
+            " requires exactly one tcrv.exec.fallback target in the selected "
+            "tcrv.exec.dispatch; found none");
+  if (fallbackCount > 1)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("selected scalar dispatch fallback callable route @") +
+            pair.scalar.selectedVariant +
+            " requires exactly one tcrv.exec.fallback target in the selected "
+            "tcrv.exec.dispatch; found multiple");
+
+  auto fallbackTarget =
+      link.fallback->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
+  if (!fallbackTarget)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("selected scalar dispatch fallback callable route @") +
+            pair.scalar.selectedVariant +
+            " requires tcrv.exec.fallback target symbol linkage");
+  link.fallbackTarget = fallbackTarget.getValue().str();
+
+  mlir::Operation *resolved =
+      findDirectKernelSymbol(kernel, fallbackTarget.getValue());
+  if (!resolved)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("selected scalar dispatch fallback callable route @") +
+            pair.scalar.selectedVariant + " references tcrv.exec.fallback "
+            "target @" + fallbackTarget.getValue() +
+            ", but that target is unknown in the enclosing tcrv.exec.kernel");
+
+  link.fallbackVariant = llvm::dyn_cast<VariantOp>(resolved);
+  if (!link.fallbackVariant)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("selected scalar dispatch fallback callable route @") +
+            pair.scalar.selectedVariant + " references tcrv.exec.fallback "
+            "target @" + fallbackTarget.getValue() +
+            ", but that target resolves to a direct sibling symbol that is "
+            "not a tcrv.exec.variant");
+
+  if (fallbackTarget.getValue() != pair.scalar.selectedVariant)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine("selected scalar dispatch fallback callable route @") +
+            pair.scalar.selectedVariant +
+            " does not match tcrv.exec.fallback target @" +
+            fallbackTarget.getValue());
+
+  return link;
+}
+
+llvm::Expected<RuntimeParamOp>
+resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  DispatchCaseOp selectedCase = pair.irLink.selectedRVVCase;
+  if (!selectedCase)
+    return makeDispatchError(
+        kernel,
+        "requires selected RVV tcrv.exec.case IR link before runtime_guard "
+        "validation");
 
   auto runtimeGuard =
       selectedCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
@@ -562,11 +656,11 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
     return makeDispatchError(pair.scalar.kernel, message);
   }
 
-  DispatchOp dispatch = findDispatchOpForPair(pair);
+  DispatchOp dispatch = pair.irLink.dispatch;
   if (!dispatch)
     return makeDispatchError(
         pair.rvv.kernel,
-        "requires one tcrv.exec.dispatch to build dispatch ABI runtime "
+        "requires tcrv.exec.dispatch IR link to build dispatch ABI runtime "
         "parameter boundary");
 
   if (dispatch->hasAttr(kDispatchRuntimeABIParametersAttrName))
@@ -712,6 +806,10 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
   DispatchPair pair;
   pair.rvv = *rvvCandidate;
   pair.scalar = *scalarCandidate;
+  llvm::Expected<DispatchIRLink> irLink = resolveDispatchIRLinkForPair(pair);
+  if (!irLink)
+    return irLink.takeError();
+  pair.irLink = std::move(*irLink);
   llvm::Expected<DispatchABIPlan> abiPlan = buildDispatchABIPlan(pair);
   if (!abiPlan)
     return abiPlan.takeError();
@@ -1178,6 +1276,9 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
      << pair.rvv.selectedVariant << ", runtime_guard=@"
      << getRuntimeParamStringAttr(pair.abiPlan.runtimeGuardParam, "sym_name")
      << " */\n";
+  os << "/* dispatch_fallback_link: target=@"
+     << pair.irLink.fallbackTarget << ", selected_scalar_callable=@"
+     << pair.scalar.selectedVariant << " */\n";
   os << "/* rvv_callable_symbol: " << rvvFunctionName << " */\n";
   os << "/* scalar_callable_symbol: " << scalarFunctionName << " */\n";
   for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {

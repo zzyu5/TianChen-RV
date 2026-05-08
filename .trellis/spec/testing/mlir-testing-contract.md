@@ -146,6 +146,9 @@ Use lit/FileCheck for:
   materialized runtime-element-count / dispatch-availability-guard scalar roles
   consumed by the exporters, `tcrv.exec.case runtime_guard` symbol linkage from
   the selected RVV dispatch case to the dispatch-availability runtime_param, a
+  scalar callable branch link through the selected `tcrv.exec.fallback` target
+  rather than detached route metadata alone, diagnostics naming both symbols
+  when the scalar callable route and `tcrv.exec.fallback` target mismatch, a
   role-binding fixture where a non-default runtime `len` name and non-default
   dispatch guard name are emitted in the generated callable and dispatcher body
   through that symbol-linked parameter, an explicit self-check harness export

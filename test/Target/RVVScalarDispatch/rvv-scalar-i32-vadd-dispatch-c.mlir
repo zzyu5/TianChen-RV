@@ -189,6 +189,7 @@ module @rvv_scalar_dispatch_input {
 // HEADER: /* dispatch_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
 // HEADER: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
 // HEADER: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+// HEADER: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
 // HEADER: /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice */
 // HEADER: /* scalar_callable_symbol: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice */
 // HEADER: /* dispatch_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -216,6 +217,8 @@ module @rvv_scalar_dispatch_input {
 // AUTO: /* rvv_selected_variant: @rvv_first_slice */
 // AUTO: /* scalar_selected_variant: @scalar_fallback_first_slice */
 // AUTO: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
+// AUTO: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+// AUTO: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
 // AUTO: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 // AUTO: __riscv_vadd_vv_i32m1
 // AUTO: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice

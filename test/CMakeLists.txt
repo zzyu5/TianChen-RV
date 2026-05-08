@@ -242,9 +242,11 @@ add_executable(tianchenrv-target-artifact-export-test
 
 target_link_libraries(tianchenrv-target-artifact-export-test
   PRIVATE
+  TianChenRVInitAll
   TianChenRVBuiltinTargetArtifactExporters
   TianChenRVTarget
   MLIRIR
+  MLIRParser
   MLIRSupport
 )
 

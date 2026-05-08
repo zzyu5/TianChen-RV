@@ -1000,9 +1000,14 @@ explicit host-provided parameter. Before source output, the exporter must
 validate real direct `tcrv.exec.runtime_param` IR for both the
 runtime-element-count parameter and the dispatch-availability-guard parameter,
 and it must reject stale or detached ABI metadata that does not agree with that
-IR. This slice does not implement automatic hardware probing, dynamic loading,
-object generation, linking, arbitrary dispatch lowering, benchmarking,
-correctness evidence, or performance evidence.
+IR. The same selected `tcrv.exec.dispatch` is also the fallback branch source
+of truth: the exporter must resolve exactly one direct `tcrv.exec.fallback`,
+validate that its target resolves to a direct same-kernel `tcrv.exec.variant`,
+and reject any selected scalar callable route whose selected variant does not
+match that `tcrv.exec.fallback` target before source or object output. This
+slice does not implement automatic hardware probing, dynamic loading, object
+generation, linking, arbitrary dispatch lowering, benchmarking, correctness
+evidence, or performance evidence.
 
 An explicit self-check harness export may wrap the same generated dispatcher in
 a bounded `main` that invokes both branches over fixed local arrays:
@@ -1199,6 +1204,10 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
   or stale lowering boundaries, missing supported callable emission plans,
   route spoofing, wrong origin/role/artifact kind, or missing structured
   `lhs`/`rhs`/`out`/runtime `n` ABI parameters -> fail before object creation.
+- Missing, duplicate, unknown, non-variant, or scalar-callable-mismatched
+  `tcrv.exec.fallback` target in the selected dispatch -> fail before source
+  or object creation with a diagnostic that names the selected scalar callable
+  route and fallback target symbols.
 - Missing selected RVV `tcrv_rvv.required_march` or missing preserved selected
   march capability metadata -> fail before object creation.
 - Missing, malformed, unavailable, or unsupported RVV architecture capability
