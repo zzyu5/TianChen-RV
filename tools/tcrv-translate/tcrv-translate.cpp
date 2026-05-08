@@ -42,8 +42,17 @@ void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
 
 mlir::LogicalResult exportEmissionManifest(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
-          tianchenrv::target::exportEmissionManifest(module, os)) {
+          tianchenrv::target::registerBuiltinTargetArtifactExporters(
+              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error =
+          tianchenrv::target::exportEmissionManifest(module, exporters, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

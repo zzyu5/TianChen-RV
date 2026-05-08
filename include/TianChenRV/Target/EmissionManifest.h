@@ -10,8 +10,14 @@ class raw_ostream;
 
 namespace tianchenrv::target {
 
+class TargetArtifactExporterRegistry;
+
 llvm::Error exportEmissionManifest(mlir::ModuleOp module,
                                    llvm::raw_ostream &os);
+
+llvm::Error exportEmissionManifest(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::raw_ostream &os);
 
 } // namespace tianchenrv::target
 

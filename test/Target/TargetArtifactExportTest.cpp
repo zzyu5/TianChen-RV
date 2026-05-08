@@ -84,7 +84,8 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
                  llvm::StringRef routeID, llvm::StringRef artifactKind,
                  llvm::StringRef originPlugin,
                  llvm::StringRef emissionKind,
-                 std::size_t expectedABIParameterCount = 0) {
+                 std::size_t expectedABIParameterCount = 0,
+                 bool expectedDirectHelperRoute = false) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
   if (!exporter) {
     llvm::errs() << "missing built-in exporter route '" << routeID << "'\n";
@@ -94,7 +95,8 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
       exporter->getOriginPlugin() != originPlugin ||
       exporter->getEmissionKind() != emissionKind || !exporter->getExportFn() ||
       exporter->getRequiredRuntimeABIParameters().size() !=
-          expectedABIParameterCount) {
+          expectedABIParameterCount ||
+      exporter->hasDirectHelperRoute() != expectedDirectHelperRoute) {
     llvm::errs() << "malformed built-in exporter metadata for route '"
                  << routeID << "'\n";
     return false;
@@ -103,8 +105,11 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
 }
 
 bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
-                          llvm::StringRef routeID,
-                          llvm::StringRef artifactKind) {
+                          llvm::StringRef routeID, llvm::StringRef artifactKind,
+                          llvm::StringRef expectedOwner = {},
+                          llvm::StringRef expectedRuntimeABIKind = {},
+                          llvm::StringRef expectedRuntimeABIName = {},
+                          bool expectedDirectHelperRoute = false) {
   const TargetArtifactCompositeExporter *matched = nullptr;
   for (const TargetArtifactCompositeExporter &exporter :
        registry.getCompositeExporters()) {
@@ -122,7 +127,10 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
     return false;
   }
   if (matched->getArtifactKind() != artifactKind || !matched->getMatchFn() ||
-      !matched->getExportFn()) {
+      !matched->getExportFn() || matched->getOwner() != expectedOwner ||
+      matched->getRuntimeABIKind() != expectedRuntimeABIKind ||
+      matched->getRuntimeABIName() != expectedRuntimeABIName ||
+      matched->hasDirectHelperRoute() != expectedDirectHelperRoute) {
     llvm::errs() << "malformed built-in composite route metadata for '"
                  << routeID << "'\n";
     return false;
@@ -396,6 +404,138 @@ module {
   return true;
 }
 
+bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @bundle_manifest_route {
+    tcrv.exec.capability @test_cap {id = "test.capability", kind = "test", status = "available"}
+    tcrv.exec.variant @selected attributes {origin = "test-plugin", requires = [@test_cap]} {
+    }
+    tcrv.exec.diagnostic {
+      reason = "variant-selected",
+      message = "selected static test route",
+      severity = "note",
+      status = "accepted",
+      target = @selected,
+      selection_kind = "static-variant"
+    }
+    tcrv.exec.diagnostic {
+      reason = "emission_plan",
+      message = "supported test source route",
+      severity = "info",
+      status = "supported",
+      target = @selected,
+      origin = "test-plugin",
+      role = "direct variant",
+      plan_kind = "plugin-emission-plan",
+      emission_kind = "test-source-emission",
+      lowering_pipeline = "bundle-source-route",
+      lowering_boundary = "test.lowering_boundary",
+      runtime_abi = "bundle-runtime-abi.v1",
+      runtime_abi_kind = "bundle-runtime-kind",
+      runtime_abi_name = "bundle-runtime-name",
+      runtime_glue_role = "bundle-runtime-glue",
+      required_capabilities = [@test_cap],
+      artifact_kind = "runtime-callable-c-source"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module) {
+    llvm::errs() << "target artifact bundle fixture failed to parse\n";
+    return false;
+  }
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
+                         "bundle-source-route", "runtime-callable-c-source",
+                         "test-plugin", "test-source-emission", noopExporter,
+                         {}, /*directHelperRoute=*/true)),
+                     "register source bundle route"))
+    return false;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "bundle-header-route",
+                             "runtime-callable-c-header",
+                             alwaysMatchComposite, noopExporter,
+                             "test-target-owner", "bundle-runtime-kind",
+                             "bundle-runtime-name",
+                             /*directHelperRoute=*/true)),
+                     "register header bundle route"))
+    return false;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "bundle-object-route",
+                             "riscv-elf-relocatable-object",
+                             alwaysMatchComposite, noopExporter,
+                             "test-target-owner", "bundle-runtime-kind",
+                             "bundle-runtime-name",
+                             /*directHelperRoute=*/true)),
+                     "register object bundle route"))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 4> records;
+  if (!expectSuccess(collectTargetArtifactBundleRecords(*module, registry,
+                                                        records),
+                     "collect target artifact bundle records"))
+    return false;
+  if (records.size() != 3) {
+    llvm::errs() << "expected 3 target artifact bundle records, got "
+                 << records.size() << "\n";
+    return false;
+  }
+
+  const TargetArtifactBundleRecord &sourceRecord = records[0];
+  if (sourceRecord.artifactKind != "runtime-callable-c-source" ||
+      sourceRecord.routeID != "bundle-source-route" ||
+      sourceRecord.owner != "test-plugin" ||
+      sourceRecord.selectableVia != "tcrv-export-target-source-artifact" ||
+      !sourceRecord.genericFrontDoorSelectable ||
+      !sourceRecord.directHelperRoute ||
+      sourceRecord.runtimeABIKind != "bundle-runtime-kind" ||
+      sourceRecord.runtimeABIName != "bundle-runtime-name" ||
+      sourceRecord.evidenceRole != "compiler-artifact") {
+    llvm::errs() << "malformed source artifact bundle record\n";
+    return false;
+  }
+
+  const TargetArtifactBundleRecord &headerRecord = records[1];
+  if (headerRecord.artifactKind != "runtime-callable-c-header" ||
+      headerRecord.routeID != "bundle-header-route" ||
+      headerRecord.owner != "test-target-owner" ||
+      headerRecord.selectableVia != "tcrv-export-target-header-artifact" ||
+      headerRecord.evidenceRole != "header-declaration") {
+    llvm::errs() << "malformed header artifact bundle record\n";
+    return false;
+  }
+
+  const TargetArtifactBundleRecord &objectRecord = records[2];
+  if (objectRecord.artifactKind != "riscv-elf-relocatable-object" ||
+      objectRecord.routeID != "bundle-object-route" ||
+      objectRecord.owner != "test-target-owner" ||
+      objectRecord.selectableVia != "tcrv-export-target-artifact" ||
+      objectRecord.evidenceRole != "relocatable-object") {
+    llvm::errs() << "malformed object artifact bundle record\n";
+    return false;
+  }
+
+  for (const TargetArtifactBundleRecord &record : records) {
+    if (record.selectedVariant != "selected" ||
+        record.role != "direct variant" ||
+        record.componentVariants.size() != 1 ||
+        record.componentVariants.front() != "selected" ||
+        record.componentRoles.front() != "direct variant") {
+      llvm::errs() << "artifact bundle record lost selected path metadata\n";
+      return false;
+    }
+  }
+
+  return true;
+}
+
 } // namespace
 
 int main() {
@@ -546,6 +686,8 @@ int main() {
     return 1;
   if (!expectGenericHeaderArtifactRouteSelection(context))
     return 1;
+  if (!expectTargetArtifactBundleDiscovery(context))
+    return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
@@ -564,7 +706,8 @@ int main() {
   }
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
-                   "rvv-explicit-i32-vadd-microkernel-c-source", 4))
+                   "rvv-explicit-i32-vadd-microkernel-c-source", 4,
+                   /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
@@ -577,25 +720,40 @@ int main() {
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
-          "runtime-callable-c-header"))
+          "runtime-callable-c-header", "rvv-plugin",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vadd-runtime-callable-c-function.v1",
+          /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-object",
-          "riscv-elf-relocatable-object"))
+          "riscv-elf-relocatable-object", "rvv-plugin",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vadd-runtime-callable-c-function.v1",
+          /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
-          "runtime-callable-c-source"))
+          "runtime-callable-c-source", "rvv-scalar-dispatch-target",
+          "rvv-scalar-dispatch-runtime-callable-c-abi",
+          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
-          "runtime-callable-c-header"))
+          "runtime-callable-c-header", "rvv-scalar-dispatch-target",
+          "rvv-scalar-dispatch-runtime-callable-c-abi",
+          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
-          "riscv-elf-relocatable-object"))
+          "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
+          "rvv-scalar-dispatch-runtime-callable-c-abi",
+          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          /*expectedDirectHelperRoute=*/true))
     return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))

@@ -2091,19 +2091,24 @@ llvm::Error registerRVVMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
           kMicrokernelEmissionKind, exportRVVMicrokernelC,
-          support::getI32VAddRuntimeABIRoleRequirements())))
+          support::getI32VAddRuntimeABIRoleRequirements(),
+          /*directHelperRoute=*/true)))
     return error;
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
               matchRVVMicrokernelHeaderCandidate,
-              exportRVVMicrokernelHeader)))
+              exportRVVMicrokernelHeader, kRVVPluginName,
+              kMicrokernelRuntimeABIKind, kMicrokernelRuntimeABIName,
+              /*directHelperRoute=*/true)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
-      matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject));
+      matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject,
+      kRVVPluginName, kMicrokernelRuntimeABIKind, kMicrokernelRuntimeABIName,
+      /*directHelperRoute=*/true));
 }
 
 } // namespace tianchenrv::target::rvv

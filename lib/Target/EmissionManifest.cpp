@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/RuntimeABI.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -86,6 +87,7 @@ struct PathRecord {
   std::optional<std::string> artifactKind;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
   PreferenceRecord preference;
+  llvm::SmallVector<TargetArtifactBundleRecord, 4> targetArtifacts;
 };
 
 struct KernelRecord {
@@ -94,6 +96,7 @@ struct KernelRecord {
   std::optional<std::string> selectionKind;
   llvm::SmallVector<std::string, 4> dispatchCases;
   std::optional<std::string> dispatchFallback;
+  llvm::SmallVector<TargetArtifactBundleRecord, 4> targetArtifacts;
   llvm::SmallVector<PathRecord, 4> paths;
 };
 
@@ -958,6 +961,61 @@ llvm::Expected<ModuleRecord> buildModuleRecord(mlir::ModuleOp module) {
   return record;
 }
 
+KernelRecord *findKernelRecord(ModuleRecord &record, KernelOp kernel) {
+  if (!kernel)
+    return nullptr;
+  llvm::StringRef kernelSymbol = kernel.getSymName();
+  for (KernelRecord &kernelRecord : record.kernels)
+    if (kernelRecord.symbol == kernelSymbol)
+      return &kernelRecord;
+  return nullptr;
+}
+
+PathRecord *findPathRecord(KernelRecord &kernelRecord,
+                           const TargetArtifactBundleRecord &artifact) {
+  for (PathRecord &pathRecord : kernelRecord.paths)
+    if (pathRecord.selectedVariant == artifact.selectedVariant &&
+        pathRecord.role == artifact.role)
+      return &pathRecord;
+  return nullptr;
+}
+
+llvm::Error attachTargetArtifactBundleRecords(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    ModuleRecord &record) {
+  if (record.kernels.empty())
+    return llvm::Error::success();
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 8> artifacts;
+  if (llvm::Error error =
+          collectTargetArtifactBundleRecords(module, registry, artifacts))
+    return error;
+
+  for (TargetArtifactBundleRecord &artifact : artifacts) {
+    KernelRecord *kernelRecord = findKernelRecord(record, artifact.kernel);
+    if (!kernelRecord)
+      return makeManifestError(artifact.kernel,
+                               "target artifact bundle record references an "
+                               "unknown manifest kernel");
+
+    if (artifact.selectedVariant.empty()) {
+      kernelRecord->targetArtifacts.push_back(std::move(artifact));
+      continue;
+    }
+
+    PathRecord *pathRecord = findPathRecord(*kernelRecord, artifact);
+    if (!pathRecord)
+      return makeManifestError(
+          artifact.kernel,
+          llvm::Twine("target artifact bundle record references unselected "
+                      "path @") +
+              artifact.selectedVariant + " as " + artifact.role);
+    pathRecord->targetArtifacts.push_back(std::move(artifact));
+  }
+
+  return llvm::Error::success();
+}
+
 void printQuoted(llvm::raw_ostream &os, llvm::StringRef value) {
   os << "\"";
   for (char character : value) {
@@ -1048,6 +1106,69 @@ void printRuntimeABIParameters(
   }
 }
 
+void printTargetArtifactRecords(
+    llvm::raw_ostream &os, llvm::StringRef indent,
+    llvm::ArrayRef<TargetArtifactBundleRecord> artifacts) {
+  if (artifacts.empty())
+    return;
+
+  os << indent << "target_artifacts:\n";
+  for (auto [index, artifact] : llvm::enumerate(artifacts)) {
+    os << indent << "  artifact[" << index << "]:\n";
+    if (!artifact.selectedVariant.empty()) {
+      os << indent << "    selected_variant: @" << artifact.selectedVariant
+         << "\n";
+      os << indent << "    role: ";
+      printQuoted(os, artifact.role);
+      os << "\n";
+    } else if (artifact.componentVariants.size() > 1) {
+      os << indent << "    selected_surface: \"dispatch\"\n";
+    }
+
+    for (auto [componentIndex, variant] :
+         llvm::enumerate(artifact.componentVariants)) {
+      os << indent << "    component[" << componentIndex << "]:\n";
+      os << indent << "      selected_variant: @" << variant << "\n";
+      os << indent << "      role: ";
+      if (componentIndex < artifact.componentRoles.size())
+        printQuoted(os, artifact.componentRoles[componentIndex]);
+      else
+        printQuoted(os, "");
+      os << "\n";
+    }
+
+    os << indent << "    artifact_kind: ";
+    printQuoted(os, artifact.artifactKind);
+    os << "\n";
+    os << indent << "    route: ";
+    printQuoted(os, artifact.routeID);
+    os << "\n";
+    os << indent << "    owner: ";
+    printQuoted(os, artifact.owner);
+    os << "\n";
+    os << indent << "    generic_front_door_selectable: "
+       << (artifact.genericFrontDoorSelectable ? "true" : "false") << "\n";
+    os << indent << "    selectable_via: ";
+    printQuoted(os, artifact.selectableVia);
+    os << "\n";
+    os << indent << "    direct_helper_route: "
+       << (artifact.directHelperRoute ? "true" : "false") << "\n";
+    if (!artifact.runtimeABIKind.empty()) {
+      os << indent << "    runtime_abi_kind: ";
+      printQuoted(os, artifact.runtimeABIKind);
+      os << "\n";
+    }
+    if (!artifact.runtimeABIName.empty()) {
+      os << indent << "    runtime_abi_name: ";
+      printQuoted(os, artifact.runtimeABIName);
+      os << "\n";
+    }
+    os << indent << "    evidence_role: ";
+    printQuoted(os, artifact.evidenceRole);
+    os << "\n";
+  }
+}
+
 void printModuleRecord(const ModuleRecord &record, llvm::raw_ostream &os) {
   os << "tianchenrv.emission_manifest.version: 1\n";
   os << "module: ";
@@ -1070,6 +1191,8 @@ void printModuleRecord(const ModuleRecord &record, llvm::raw_ostream &os) {
       if (kernel.dispatchFallback)
         os << "  dispatch_fallback: @" << *kernel.dispatchFallback << "\n";
     }
+
+    printTargetArtifactRecords(os, "  ", kernel.targetArtifacts);
 
     for (auto [index, path] : llvm::enumerate(kernel.paths)) {
       os << "  path[" << index << "]:\n";
@@ -1109,6 +1232,7 @@ void printModuleRecord(const ModuleRecord &record, llvm::raw_ostream &os) {
       printQuoted(os, path.message);
       os << "\n";
       printPreference(os, path.preference);
+      printTargetArtifactRecords(os, "    ", path.targetArtifacts);
     }
   }
 }
@@ -1120,6 +1244,20 @@ llvm::Error exportEmissionManifest(mlir::ModuleOp module,
   llvm::Expected<ModuleRecord> record = buildModuleRecord(module);
   if (!record)
     return record.takeError();
+
+  printModuleRecord(*record, os);
+  return llvm::Error::success();
+}
+
+llvm::Error exportEmissionManifest(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::raw_ostream &os) {
+  llvm::Expected<ModuleRecord> record = buildModuleRecord(module);
+  if (!record)
+    return record.takeError();
+  if (llvm::Error error =
+          attachTargetArtifactBundleRecords(module, registry, *record))
+    return error;
 
   printModuleRecord(*record, os);
   return llvm::Error::success();

@@ -1420,3 +1420,19 @@ measurement. It must remain target-neutral: it serializes generic selected-path
 and diagnostic metadata without interpreting RVV, scalar fallback, IME, offload,
 Sophgo, AME, vendor, dtype, shape, microarchitecture, probe evidence, runtime,
 correctness, or performance semantics.
+
+When a target artifact exporter registry knows additional supported artifacts
+for the selected surface, the manifest may also serialize a deterministic
+`target_artifacts` handoff bundle. These records are registry-derived compiler
+handoff metadata, not proof that the artifact was emitted, linked, run, correct,
+or performant. Each record should name the artifact kind, route/exporter id,
+target or plugin owner, whether the generic front door can select it, the
+command-facing generic selector, whether a direct helper route exists, the
+matching runtime ABI kind/name when applicable, and a bounded evidence role such
+as `compiler-artifact`, `header-declaration`, or `relocatable-object`. Source,
+header, and object routes must remain separate records. Composite dispatch
+records may be attached to the selected dispatch surface and must preserve the
+component selected variants/roles rather than moving RVV/scalar branch
+semantics into `tcrv.exec` or generic manifest code. Unsupported or
+metadata-only selected paths must omit target artifact records instead of
+fabricating route data.

@@ -97,3 +97,28 @@ module @rvv_microkernel_manifest_input {
 // CHECK: artifact_kind: "runtime-callable-c-source"
 // CHECK: required_capabilities: [@rvv]
 // CHECK: explanation: "explicit RVV i32 vector-add microkernel C source export provides a library-style runtime-callable C ABI function for this selected path; any self-check main is an explicit harness export and is not the default artifact contract; this is not generic RVV lowering, runtime integration, arbitrary kernel emission, correctness, or performance evidence"
+// CHECK: target_artifacts:
+// CHECK: artifact[0]:
+// CHECK: artifact_kind: "runtime-callable-c-source"
+// CHECK: route: "tcrv-export-rvv-microkernel-c"
+// CHECK: owner: "rvv-plugin"
+// CHECK: generic_front_door_selectable: true
+// CHECK: selectable_via: "tcrv-export-target-source-artifact"
+// CHECK: direct_helper_route: true
+// CHECK: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// CHECK: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// CHECK: evidence_role: "compiler-artifact"
+// CHECK: artifact[1]:
+// CHECK: artifact_kind: "runtime-callable-c-header"
+// CHECK: route: "tcrv-export-rvv-microkernel-header"
+// CHECK: selectable_via: "tcrv-export-target-header-artifact"
+// CHECK: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// CHECK: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// CHECK: evidence_role: "header-declaration"
+// CHECK: artifact[2]:
+// CHECK: artifact_kind: "riscv-elf-relocatable-object"
+// CHECK: route: "tcrv-export-rvv-microkernel-object"
+// CHECK: selectable_via: "tcrv-export-target-artifact"
+// CHECK: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// CHECK: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// CHECK: evidence_role: "relocatable-object"

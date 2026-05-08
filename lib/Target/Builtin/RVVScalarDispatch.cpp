@@ -81,6 +81,12 @@ constexpr llvm::StringLiteral kScalarRuntimeABIName(
     "scalar-i32-vadd-runtime-callable-c-function.v1");
 constexpr llvm::StringLiteral kScalarRuntimeGlueRole(
     "runtime-callable-i32-vadd-fallback-function");
+constexpr llvm::StringLiteral kDispatchTargetOwner(
+    "rvv-scalar-dispatch-target");
+constexpr llvm::StringLiteral kDispatchRuntimeABIKind(
+    "rvv-scalar-dispatch-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kDispatchRuntimeABIName(
+    "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -1647,7 +1653,9 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
               kRuntimeCallableCSourceArtifactKind,
               matchRVVScalarI32VAddDispatchCandidates,
-              exportRVVScalarI32VAddDispatchC)))
+              exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
+              kDispatchRuntimeABIKind, kDispatchRuntimeABIName,
+              /*directHelperRoute=*/true)))
     return error;
 
   if (llvm::Error error =
@@ -1655,14 +1663,18 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
               "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
               kRuntimeCallableCHeaderArtifactKind,
               matchRVVScalarI32VAddDispatchCandidates,
-              exportRVVScalarI32VAddDispatchHeader)))
+              exportRVVScalarI32VAddDispatchHeader, kDispatchTargetOwner,
+              kDispatchRuntimeABIKind, kDispatchRuntimeABIName,
+              /*directHelperRoute=*/true)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
       kRiscvELFRelocatableObjectArtifactKind,
       matchRVVScalarI32VAddDispatchCandidates,
-      exportRVVScalarI32VAddDispatchObject));
+      exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
+      kDispatchRuntimeABIKind, kDispatchRuntimeABIName,
+      /*directHelperRoute=*/true));
 }
 
 } // namespace tianchenrv::target::rvv_scalar

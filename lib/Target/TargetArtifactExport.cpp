@@ -40,6 +40,22 @@ constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
     "standalone-c-source");
+constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
+    "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kRuntimeOffloadHandoffDescriptorArtifactKind(
+    "runtime-offload-handoff-descriptor");
+constexpr llvm::StringLiteral kTargetSourceFrontDoor(
+    "tcrv-export-target-source-artifact");
+constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
+    "tcrv-export-target-artifact");
+constexpr llvm::StringLiteral kTargetHeaderFrontDoor(
+    "tcrv-export-target-header-artifact");
+constexpr llvm::StringLiteral kCompilerArtifactEvidenceRole(
+    "compiler-artifact");
+constexpr llvm::StringLiteral kHeaderDeclarationEvidenceRole(
+    "header-declaration");
+constexpr llvm::StringLiteral kRelocatableObjectEvidenceRole(
+    "relocatable-object");
 
 enum class ArtifactSelectionMode {
   SourceOnly,
@@ -112,6 +128,26 @@ bool isAllowedArtifactKind(ArtifactSelectionMode mode,
     return !isHeaderArtifactKind(artifactKind);
   }
   llvm_unreachable("unknown target artifact selection mode");
+}
+
+llvm::StringRef getGenericFrontDoorSelector(llvm::StringRef artifactKind) {
+  if (isHeaderArtifactKind(artifactKind))
+    return kTargetHeaderFrontDoor;
+  if (isSourceArtifactKind(artifactKind))
+    return kTargetSourceFrontDoor;
+  return kTargetArtifactFrontDoor;
+}
+
+llvm::StringRef getEvidenceRoleForArtifactKind(llvm::StringRef artifactKind) {
+  if (isHeaderArtifactKind(artifactKind))
+    return kHeaderDeclarationEvidenceRole;
+  if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
+    return kRelocatableObjectEvidenceRole;
+  if (artifactKind == kRuntimeOffloadHandoffDescriptorArtifactKind)
+    return kCompilerArtifactEvidenceRole;
+  if (isSourceArtifactKind(artifactKind))
+    return kCompilerArtifactEvidenceRole;
+  return kCompilerArtifactEvidenceRole;
 }
 
 bool hasKernelBody(KernelOp kernel) {
@@ -828,6 +864,176 @@ llvm::Error collectTargetArtifactCandidates(
   return llvm::Error::success();
 }
 
+namespace {
+
+struct TargetArtifactCandidateGroup {
+  KernelOp kernel;
+  llvm::SmallVector<TargetArtifactCandidate, 4> candidates;
+};
+
+void appendComponentMetadata(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    TargetArtifactBundleRecord &record) {
+  for (const TargetArtifactCandidate &candidate : candidates) {
+    record.componentVariants.push_back(candidate.selectedVariant);
+    record.componentRoles.push_back(candidate.role);
+  }
+}
+
+std::string deriveCompositeRuntimeABIKind(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactCompositeExporter &exporter) {
+  if (!exporter.getRuntimeABIKind().empty())
+    return exporter.getRuntimeABIKind().str();
+  if (candidates.empty())
+    return std::string();
+  llvm::StringRef first = candidates.front().runtimeABIKind;
+  if (llvm::all_of(candidates, [&](const TargetArtifactCandidate &candidate) {
+        return candidate.runtimeABIKind == first;
+      }))
+    return first.str();
+  return std::string();
+}
+
+std::string deriveCompositeRuntimeABIName(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactCompositeExporter &exporter) {
+  if (!exporter.getRuntimeABIName().empty())
+    return exporter.getRuntimeABIName().str();
+  if (candidates.empty())
+    return std::string();
+  llvm::StringRef first = candidates.front().runtimeABIName;
+  if (llvm::all_of(candidates, [&](const TargetArtifactCandidate &candidate) {
+        return candidate.runtimeABIName == first;
+      }))
+    return first.str();
+  return std::string();
+}
+
+llvm::Error appendSingleCandidateBundleRecord(
+    const TargetArtifactCandidate &candidate,
+    const TargetArtifactExporterRegistry &registry,
+    llvm::SmallVectorImpl<TargetArtifactBundleRecord> &out) {
+  const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
+  if (!exporter)
+    return llvm::Error::success();
+  if (llvm::Error error =
+          validateTargetArtifactCandidateAgainstExporter(candidate, *exporter))
+    return error;
+
+  TargetArtifactBundleRecord record;
+  record.kernel = candidate.kernel;
+  record.selectedVariant = candidate.selectedVariant;
+  record.role = candidate.role;
+  record.componentVariants.push_back(candidate.selectedVariant);
+  record.componentRoles.push_back(candidate.role);
+  record.artifactKind = candidate.artifactKind;
+  record.routeID = candidate.routeID;
+  record.owner = exporter->getOriginPlugin().empty()
+                     ? candidate.origin
+                     : exporter->getOriginPlugin().str();
+  record.genericFrontDoorSelectable = true;
+  record.selectableVia =
+      getGenericFrontDoorSelector(candidate.artifactKind).str();
+  record.directHelperRoute = exporter->hasDirectHelperRoute();
+  record.runtimeABIKind = candidate.runtimeABIKind;
+  record.runtimeABIName = candidate.runtimeABIName;
+  record.evidenceRole =
+      getEvidenceRoleForArtifactKind(candidate.artifactKind).str();
+  out.push_back(std::move(record));
+  return llvm::Error::success();
+}
+
+llvm::Error appendCompositeBundleRecords(
+    const TargetArtifactCandidateGroup &group,
+    const TargetArtifactExporterRegistry &registry,
+    llvm::SmallVectorImpl<TargetArtifactBundleRecord> &out) {
+  for (const TargetArtifactCompositeExporter &exporter :
+       registry.getCompositeExporters()) {
+    TargetArtifactCompositeMatchFn matchFn = exporter.getMatchFn();
+    if (!matchFn)
+      return makeModuleArtifactExportError(
+          llvm::Twine("composite target artifact route '") +
+          exporter.getRouteID() + "' has no registered match callback");
+
+    llvm::Expected<bool> matched = matchFn(group.candidates);
+    if (!matched)
+      return matched.takeError();
+    if (!*matched)
+      continue;
+
+    TargetArtifactBundleRecord record;
+    record.kernel = group.kernel;
+    if (group.candidates.size() == 1) {
+      record.selectedVariant = group.candidates.front().selectedVariant;
+      record.role = group.candidates.front().role;
+    }
+    appendComponentMetadata(group.candidates, record);
+    record.artifactKind = exporter.getArtifactKind().str();
+    record.routeID = exporter.getRouteID().str();
+    record.owner = exporter.getOwner().str();
+    record.genericFrontDoorSelectable = true;
+    record.selectableVia =
+        getGenericFrontDoorSelector(exporter.getArtifactKind()).str();
+    record.directHelperRoute = exporter.hasDirectHelperRoute();
+    record.runtimeABIKind =
+        deriveCompositeRuntimeABIKind(group.candidates, exporter);
+    record.runtimeABIName =
+        deriveCompositeRuntimeABIName(group.candidates, exporter);
+    record.evidenceRole =
+        getEvidenceRoleForArtifactKind(exporter.getArtifactKind()).str();
+    out.push_back(std::move(record));
+  }
+  return llvm::Error::success();
+}
+
+} // namespace
+
+llvm::Error collectTargetArtifactBundleRecords(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::SmallVectorImpl<TargetArtifactBundleRecord> &out) {
+  llvm::SmallVector<TargetArtifactCandidate, 8> candidates;
+  if (llvm::Error error = collectTargetArtifactCandidates(module, candidates))
+    return error;
+
+  llvm::SmallVector<TargetArtifactCandidateGroup, 4> groups;
+  for (const TargetArtifactCandidate &candidate : candidates) {
+    if (groups.empty() || groups.back().kernel != candidate.kernel) {
+      TargetArtifactCandidateGroup group;
+      group.kernel = candidate.kernel;
+      groups.push_back(std::move(group));
+    }
+    groups.back().candidates.push_back(candidate);
+  }
+
+  for (const TargetArtifactCandidateGroup &group : groups) {
+    if (group.candidates.empty())
+      continue;
+
+    std::size_t beforeComposite = out.size();
+    if (group.candidates.size() == 1) {
+      if (llvm::Error error = appendSingleCandidateBundleRecord(
+              group.candidates.front(), registry, out))
+        return error;
+    }
+
+    if (llvm::Error error =
+            appendCompositeBundleRecords(group, registry, out))
+      return error;
+
+    if (group.candidates.size() == 1 || out.size() != beforeComposite)
+      continue;
+
+    for (const TargetArtifactCandidate &candidate : group.candidates) {
+      if (llvm::Error error =
+              appendSingleCandidateBundleRecord(candidate, registry, out))
+        return error;
+    }
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateTargetArtifactCandidateAgainstExporter(
     const TargetArtifactCandidate &candidate,
     const TargetArtifactExporter &exporter) {
@@ -1014,19 +1220,24 @@ TargetArtifactExporter::TargetArtifactExporter(
     llvm::StringRef originPlugin, llvm::StringRef emissionKind,
     TargetArtifactExportFn exportFn,
     llvm::ArrayRef<support::RuntimeABIParameter>
-        requiredRuntimeABIParameters)
+        requiredRuntimeABIParameters,
+    bool directHelperRoute)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
-      exportFn(exportFn) {
+      exportFn(exportFn), directHelperRoute(directHelperRoute) {
   this->requiredRuntimeABIParameters.append(
       requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());
 }
 
 TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
-    TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn)
+    TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
+    llvm::StringRef owner, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, bool directHelperRoute)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
-      matchFn(matchFn), exportFn(exportFn) {}
+      matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
+      runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
+      directHelperRoute(directHelperRoute) {}
 
 llvm::Error TargetArtifactExporterRegistry::registerExporter(
     const TargetArtifactExporter &exporter) {

@@ -36,13 +36,15 @@ public:
                          llvm::StringRef emissionKind,
                          TargetArtifactExportFn exportFn,
                          llvm::ArrayRef<support::RuntimeABIParameter>
-                             requiredRuntimeABIParameters = {});
+                             requiredRuntimeABIParameters = {},
+                         bool directHelperRoute = false);
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
   llvm::StringRef getOriginPlugin() const { return originPlugin; }
   llvm::StringRef getEmissionKind() const { return emissionKind; }
   TargetArtifactExportFn getExportFn() const { return exportFn; }
+  bool hasDirectHelperRoute() const { return directHelperRoute; }
   llvm::ArrayRef<support::RuntimeABIParameter>
   getRequiredRuntimeABIParameters() const {
     return requiredRuntimeABIParameters;
@@ -54,6 +56,7 @@ private:
   std::string originPlugin;
   std::string emissionKind;
   TargetArtifactExportFn exportFn = nullptr;
+  bool directHelperRoute = false;
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       requiredRuntimeABIParameters;
 };
@@ -74,24 +77,53 @@ struct TargetArtifactCandidate {
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
+struct TargetArtifactBundleRecord {
+  tcrv::exec::KernelOp kernel;
+  std::string selectedVariant;
+  std::string role;
+  llvm::SmallVector<std::string, 4> componentVariants;
+  llvm::SmallVector<std::string, 4> componentRoles;
+  std::string artifactKind;
+  std::string routeID;
+  std::string owner;
+  bool genericFrontDoorSelectable = false;
+  std::string selectableVia;
+  bool directHelperRoute = false;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string evidenceRole;
+};
+
 class TargetArtifactCompositeExporter {
 public:
   TargetArtifactCompositeExporter() = default;
   TargetArtifactCompositeExporter(llvm::StringRef routeID,
                                   llvm::StringRef artifactKind,
                                   TargetArtifactCompositeMatchFn matchFn,
-                                  TargetArtifactExportFn exportFn);
+                                  TargetArtifactExportFn exportFn,
+                                  llvm::StringRef owner = {},
+                                  llvm::StringRef runtimeABIKind = {},
+                                  llvm::StringRef runtimeABIName = {},
+                                  bool directHelperRoute = false);
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
   TargetArtifactCompositeMatchFn getMatchFn() const { return matchFn; }
   TargetArtifactExportFn getExportFn() const { return exportFn; }
+  llvm::StringRef getOwner() const { return owner; }
+  llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
+  llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
+  bool hasDirectHelperRoute() const { return directHelperRoute; }
 
 private:
   std::string routeID;
   std::string artifactKind;
   TargetArtifactCompositeMatchFn matchFn = nullptr;
   TargetArtifactExportFn exportFn = nullptr;
+  std::string owner;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  bool directHelperRoute = false;
 };
 
 class TargetArtifactExporterRegistry {
@@ -115,6 +147,10 @@ private:
 llvm::Error collectTargetArtifactCandidates(
     mlir::ModuleOp module,
     llvm::SmallVectorImpl<TargetArtifactCandidate> &out);
+
+llvm::Error collectTargetArtifactBundleRecords(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::SmallVectorImpl<TargetArtifactBundleRecord> &out);
 
 llvm::Error validateTargetArtifactCandidateAgainstExporter(
     const TargetArtifactCandidate &candidate,
