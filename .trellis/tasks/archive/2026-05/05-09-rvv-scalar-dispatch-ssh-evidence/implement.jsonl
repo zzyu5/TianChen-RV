@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "evidence scope, runtime claim discipline, and artifact expectations"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and local test contract for compiler/export paths"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI, emission, target artifact, and descriptor-local boundaries"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "capability-aware variant selection and dispatch semantics"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and target-specific ownership boundaries"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "typed capability object participation in compiler decisions"}
