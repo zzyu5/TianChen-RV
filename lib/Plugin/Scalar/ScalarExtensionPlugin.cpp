@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -779,6 +780,21 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
             request.getKernel(), request.getBuilder(),
             support::getI32VAddBufferMemWindowSpecs()))
       return error;
+
+  if (*microkernelPlan) {
+    llvm::SmallVector<support::RuntimeABIParamSpec, 2> runtimeParamSpecs;
+    if (request.getRole() == VariantEmissionRole::DispatchCase ||
+        request.getRole() == VariantEmissionRole::DispatchFallback) {
+      auto dispatchSpecs = support::getI32VAddDispatchRuntimeParamSpecs();
+      runtimeParamSpecs.append(dispatchSpecs.begin(), dispatchSpecs.end());
+    } else {
+      auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
+      runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
+    }
+    if (llvm::Error error = support::ensureRuntimeABIParams(
+            request.getKernel(), request.getBuilder(), runtimeParamSpecs))
+      return error;
+  }
 
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
       request.getBuilder(), request.getKernel(), request.getVariant(),

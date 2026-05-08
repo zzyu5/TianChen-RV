@@ -85,6 +85,18 @@ module {
     // PIPE-SAME: abi_role = "output-buffer"
     // PIPE-SAME: access = "write"
     // PIPE-SAME: c_type = "int32_t *"
+    // PIPE: tcrv.exec.runtime_param @abi_runtime_element_count
+    // PIPE-SAME: abi_role = "runtime-element-count"
+    // PIPE-SAME: c_name = "n"
+    // PIPE-SAME: c_type = "size_t"
+    // PIPE-SAME: ownership = "target-export-abi-owned"
+    // PIPE-SAME: purpose = "runtime-abi-scalar"
+    // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
+    // PIPE-SAME: abi_role = "dispatch-availability-guard"
+    // PIPE-SAME: c_name = "rvv_available"
+    // PIPE-SAME: c_type = "int"
+    // PIPE-SAME: ownership = "target-export-abi-owned"
+    // PIPE-SAME: purpose = "runtime-abi-scalar"
     // PIPE: tcrv_rvv.lowering_boundary
     // PIPE-SAME: capability_summary = "rvv"
     // PIPE-SAME: origin = "rvv-plugin"
@@ -151,6 +163,8 @@ module {
     // ROUNDTRIP: tcrv.exec.mem_window @abi_lhs_input_buffer
     // ROUNDTRIP: tcrv.exec.mem_window @abi_rhs_input_buffer
     // ROUNDTRIP: tcrv.exec.mem_window @abi_output_buffer
+    // ROUNDTRIP: tcrv.exec.runtime_param @abi_runtime_element_count
+    // ROUNDTRIP: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // ROUNDTRIP: tcrv_rvv.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel

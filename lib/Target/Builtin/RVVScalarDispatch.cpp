@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -35,6 +36,7 @@ using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
@@ -92,6 +94,7 @@ struct DispatchObjectCompileConfig {
 struct DispatchABIPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
   llvm::SmallVector<tcrv::exec::MemWindowOp, 3> bufferWindows;
+  llvm::SmallVector<RuntimeParamOp, 2> runtimeParams;
 };
 
 struct DispatchPair {
@@ -425,131 +428,71 @@ DispatchOp findDispatchOpForPair(const DispatchPair &pair) {
   return DispatchOp();
 }
 
-llvm::Error parseDispatchGuardRuntimeABIParameter(
-    KernelOp kernel, mlir::DictionaryAttr dict, std::size_t index,
-    support::RuntimeABIParameter &out) {
-  if (!dict)
-    return makeDispatchError(
-        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
-                    llvm::Twine(index) + "] must be a dictionary attribute");
-
-  auto cName =
-      dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterCNameAttrName);
-  auto cType =
-      dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterCTypeAttrName);
-  auto role =
-      dict.getAs<mlir::StringAttr>(support::kRuntimeABIParameterRoleAttrName);
-  auto ownership = dict.getAs<mlir::StringAttr>(
-      support::kRuntimeABIParameterOwnershipAttrName);
-  if (!cName || cName.getValue().trim().empty())
-    return makeDispatchError(
-        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
-                    llvm::Twine(index) + "] requires non-empty c_name");
-  if (!cType || cType.getValue().trim().empty())
-    return makeDispatchError(
-        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
-                    llvm::Twine(index) + "] requires non-empty c_type");
-  if (!role || role.getValue().trim().empty())
-    return makeDispatchError(
-        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
-                    llvm::Twine(index) + "] requires non-empty role");
-  if (!ownership || ownership.getValue().trim().empty())
-    return makeDispatchError(
-        kernel, llvm::Twine(kDispatchRuntimeABIParametersAttrName) + "[" +
-                    llvm::Twine(index) + "] requires non-empty ownership");
-
-  llvm::StringRef cNameValue = cName.getValue().trim();
-  llvm::StringRef cTypeValue = cType.getValue().trim();
-  llvm::StringRef roleValue = role.getValue().trim();
-  llvm::StringRef ownershipValue = ownership.getValue().trim();
-
-  if (llvm::Error error = validateDispatchRuntimeABIText(
-          kernel, "dispatch runtime ABI parameter c_name", cNameValue))
-    return error;
-  if (llvm::Error error = validateDispatchRuntimeABIText(
-          kernel, "dispatch runtime ABI parameter c_type", cTypeValue))
-    return error;
-  if (llvm::Error error = validateDispatchRuntimeABIText(
-          kernel, "dispatch runtime ABI parameter role", roleValue))
-    return error;
-  if (llvm::Error error = validateDispatchRuntimeABIText(
-          kernel, "dispatch runtime ABI parameter ownership", ownershipValue))
-    return error;
-  if (llvm::Error error = validateDispatchCParameterName(kernel, cNameValue))
-    return error;
-
-  std::optional<support::RuntimeABIParameterRole> parsedRole =
-      support::symbolizeRuntimeABIParameterRole(roleValue);
-  if (!parsedRole)
-    return makeDispatchError(
-        kernel,
-        llvm::Twine("unsupported dispatch runtime ABI parameter role '") +
-            roleValue + "'");
-  if (*parsedRole != support::RuntimeABIParameterRole::DispatchAvailabilityGuard)
-    return makeDispatchError(
-        kernel,
-        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
-            " only accepts runtime ABI role 'dispatch-availability-guard'");
-
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(ownershipValue);
-  if (!parsedOwnership)
-    return makeDispatchError(
-        kernel,
-        llvm::Twine("unsupported dispatch runtime ABI parameter ownership '") +
-            ownershipValue + "'");
-
-  out = support::RuntimeABIParameter(cNameValue, cTypeValue, *parsedRole,
-                                     *parsedOwnership);
-  return llvm::Error::success();
+llvm::StringRef getRuntimeParamStringAttr(RuntimeParamOp param,
+                                          llvm::StringRef attrName) {
+  auto attr = param->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return {};
+  return attr.getValue();
 }
 
 llvm::Expected<support::RuntimeABIParameter>
-resolveDispatchAvailabilityGuardParameter(const DispatchPair &pair) {
-  KernelOp kernel = pair.rvv.kernel;
-  DispatchOp dispatch = findDispatchOpForPair(pair);
-  if (!dispatch)
-    return makeDispatchError(
-        kernel, "requires one tcrv.exec.dispatch to build dispatch ABI "
-                "availability guard metadata");
+makeRuntimeABIParameterFromRuntimeParam(KernelOp kernel,
+                                        RuntimeParamOp param) {
+  llvm::StringRef cName =
+      getRuntimeParamStringAttr(param, support::kRuntimeParamCNameAttrName);
+  llvm::StringRef cType =
+      getRuntimeParamStringAttr(param, support::kRuntimeParamCTypeAttrName);
+  llvm::StringRef role =
+      getRuntimeParamStringAttr(param, support::kRuntimeParamABIRoleAttrName);
+  llvm::StringRef ownership =
+      getRuntimeParamStringAttr(param,
+                                support::kRuntimeParamOwnershipAttrName);
 
-  auto guardParameters =
-      dispatch->getAttrOfType<mlir::ArrayAttr>(
-          kDispatchRuntimeABIParametersAttrName);
-  if (!guardParameters)
-    return support::makeI32VAddDispatchAvailabilityGuard();
-
-  if (guardParameters.empty())
-    return makeDispatchError(
-        kernel,
-        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
-            " must contain exactly one dispatch-availability-guard parameter");
-  if (guardParameters.size() != 1)
-    return makeDispatchError(
-        kernel,
-        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
-            " must contain exactly one dispatch-availability-guard parameter");
-
-  support::RuntimeABIParameter guard;
-  if (llvm::Error error = parseDispatchGuardRuntimeABIParameter(
-          kernel, llvm::dyn_cast<mlir::DictionaryAttr>(guardParameters[0]), 0,
-          guard))
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime_param c_name", cName))
+    return std::move(error);
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime_param c_type", cType))
+    return std::move(error);
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime_param abi_role", role))
+    return std::move(error);
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          kernel, "dispatch runtime_param ownership", ownership))
+    return std::move(error);
+  if (llvm::Error error = validateDispatchCParameterName(kernel, cName))
     return std::move(error);
 
-  support::RuntimeABIParameter expected =
-      support::makeI32VAddDispatchAvailabilityGuard(guard.cName);
-  if (guard.cType != expected.cType)
+  std::optional<support::RuntimeABIParameterRole> parsedRole =
+      support::symbolizeRuntimeABIParameterRole(role);
+  if (!parsedRole)
     return makeDispatchError(
-        kernel, "dispatch availability guard runtime ABI parameter must use c "
-                "type 'int'");
-  if (guard.ownership != expected.ownership)
+        kernel, llvm::Twine("unsupported tcrv.exec.runtime_param ABI role '") +
+                    role + "'");
+
+  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+      support::symbolizeRuntimeABIParameterOwnership(ownership);
+  if (!parsedOwnership)
     return makeDispatchError(
         kernel,
-        llvm::Twine("dispatch availability guard runtime ABI parameter must "
-                    "use ownership '") +
-            support::stringifyRuntimeABIParameterOwnership(expected.ownership) +
-            "'");
-  return guard;
+        llvm::Twine("unsupported tcrv.exec.runtime_param ownership '") +
+            ownership + "'");
+
+  return support::RuntimeABIParameter(cName, cType, *parsedRole,
+                                      *parsedOwnership);
+}
+
+RuntimeParamOp findRuntimeParamByRole(
+    llvm::ArrayRef<RuntimeParamOp> params,
+    support::RuntimeABIParameterRole role) {
+  llvm::StringRef expectedRole = support::stringifyRuntimeABIParameterRole(role);
+  for (RuntimeParamOp param : params)
+    if (getRuntimeParamStringAttr(param,
+                                  support::kRuntimeParamABIRoleAttrName) ==
+        expectedRole)
+      return param;
+  return RuntimeParamOp();
 }
 
 llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
@@ -575,12 +518,85 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
               "' must agree on c type and ownership before dispatch export");
   }
 
-  llvm::Expected<support::RuntimeABIParameter> guard =
-      resolveDispatchAvailabilityGuardParameter(pair);
-  if (!guard)
-    return guard.takeError();
+  DispatchOp dispatch = findDispatchOpForPair(pair);
+  if (!dispatch)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "requires one tcrv.exec.dispatch to build dispatch ABI runtime "
+        "parameter boundary");
+
+  if (dispatch->hasAttr(kDispatchRuntimeABIParametersAttrName))
+    return makeDispatchError(
+        pair.rvv.kernel,
+        llvm::Twine(kDispatchRuntimeABIParametersAttrName) +
+            " is detached dispatch ABI metadata; use direct "
+            "tcrv.exec.runtime_param IR for dispatch runtime ABI scalar "
+            "values");
+
+  auto runtimeCountIt = llvm::find_if(
+      rvvParameters, [](const support::RuntimeABIParameter &parameter) {
+        return parameter.role ==
+               support::RuntimeABIParameterRole::RuntimeElementCount;
+      });
+  if (runtimeCountIt == rvvParameters.end())
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "selected RVV callable route must expose runtime-element-count before "
+        "dispatch runtime_param validation");
 
   DispatchABIPlan plan;
+  auto runtimeParamSpecs =
+      support::getI32VAddDispatchRuntimeParamSpecs(runtimeCountIt->cName,
+                                                   /*guardCName=*/"");
+  if (llvm::Error error = support::collectRuntimeABIParams(
+          pair.rvv.kernel, runtimeParamSpecs, plan.runtimeParams)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDispatchError(pair.rvv.kernel, message);
+  }
+
+  RuntimeParamOp countParam = findRuntimeParamByRole(
+      plan.runtimeParams, support::RuntimeABIParameterRole::RuntimeElementCount);
+  RuntimeParamOp guardParam = findRuntimeParamByRole(
+      plan.runtimeParams,
+      support::RuntimeABIParameterRole::DispatchAvailabilityGuard);
+  if (!countParam || !guardParam)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "requires runtime-element-count and dispatch-availability-guard "
+        "tcrv.exec.runtime_param IR before dispatch export");
+
+  llvm::Expected<support::RuntimeABIParameter> count =
+      makeRuntimeABIParameterFromRuntimeParam(pair.rvv.kernel, countParam);
+  if (!count)
+    return count.takeError();
+  if (count->cName != runtimeCountIt->cName ||
+      count->cType != runtimeCountIt->cType ||
+      count->ownership != runtimeCountIt->ownership)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "tcrv.exec.runtime_param runtime-element-count must agree with the "
+        "selected RVV callable runtime ABI parameter c_name/c_type/ownership");
+
+  llvm::Expected<support::RuntimeABIParameter> guard =
+      makeRuntimeABIParameterFromRuntimeParam(pair.rvv.kernel, guardParam);
+  if (!guard)
+    return guard.takeError();
+  support::RuntimeABIParameter expectedGuard =
+      support::makeI32VAddDispatchAvailabilityGuard(guard->cName);
+  if (guard->cType != expectedGuard.cType)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "dispatch availability guard tcrv.exec.runtime_param must use c type "
+        "'int'");
+  if (guard->ownership != expectedGuard.ownership)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        llvm::Twine("dispatch availability guard tcrv.exec.runtime_param must "
+                    "use ownership '") +
+            support::stringifyRuntimeABIParameterOwnership(
+                expectedGuard.ownership) +
+            "'");
+
   support::appendI32VAddDispatchRuntimeABIParameters(plan.parameters,
                                                     rvvParameters, *guard);
   if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
@@ -963,6 +979,27 @@ void printDispatchMemWindowMetadata(
   }
 }
 
+void printDispatchRuntimeParamMetadata(
+    llvm::raw_ostream &os, llvm::ArrayRef<RuntimeParamOp> runtimeParams) {
+  for (auto [index, param] : llvm::enumerate(runtimeParams)) {
+    os << "/* dispatch_runtime_param[" << index << "]: symbol=@"
+       << getRuntimeParamStringAttr(param, "sym_name") << ", abi_role="
+       << getRuntimeParamStringAttr(
+              param, support::kRuntimeParamABIRoleAttrName)
+       << ", c_name="
+       << getRuntimeParamStringAttr(param, support::kRuntimeParamCNameAttrName)
+       << ", c_type="
+       << getRuntimeParamStringAttr(param, support::kRuntimeParamCTypeAttrName)
+       << ", ownership="
+       << getRuntimeParamStringAttr(
+              param, support::kRuntimeParamOwnershipAttrName)
+       << ", purpose="
+       << getRuntimeParamStringAttr(
+              param, support::kRuntimeParamPurposeAttrName)
+       << " */\n";
+  }
+}
+
 llvm::Error buildEmbeddedCallableSources(mlir::ModuleOp module,
                                          std::string &rvvSource,
                                          std::string &scalarSource) {
@@ -1072,6 +1109,7 @@ void printDispatchSource(const DispatchPair &pair, llvm::StringRef rvvSource,
   printCandidateMetadata(os, "rvv", pair.rvv);
   printCandidateMetadata(os, "scalar", pair.scalar);
   printDispatchMemWindowMetadata(os, pair.abiPlan.bufferWindows);
+  printDispatchRuntimeParamMetadata(os, pair.abiPlan.runtimeParams);
   os << "/* rvv_callable_symbol: " << rvvFunctionName << " */\n";
   os << "/* scalar_callable_symbol: " << scalarFunctionName << " */\n";
   for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {

@@ -17,6 +17,7 @@ requires
 region
 hart_parallel
 mem_window
+runtime_param
 dispatch
 case
 fallback
@@ -252,6 +253,42 @@ make a target export boundary ambiguous. The op must be nested in a
 `tcrv.exec.kernel` or `tcrv.exec.variant`. It describes memory organization
 context only, not tensor computation, tensor shape, vector math, or
 extension-owned buffer ops.
+
+### `tcrv.exec.runtime_param`
+
+Represents a named runtime scalar ABI/control parameter for execution
+organization. It is the scalar counterpart to `tcrv.exec.mem_window` for
+bounded runtime ABI values such as a runtime element count or explicit dispatch
+availability guard.
+
+The first compatibility form is a named symbol op:
+
+```mlir
+tcrv.exec.runtime_param @abi_runtime_element_count {
+  purpose = "runtime-abi-scalar",
+  abi_role = "runtime-element-count",
+  c_name = "n",
+  c_type = "size_t",
+  ownership = "target-export-abi-owned"
+}
+
+tcrv.exec.runtime_param @abi_dispatch_availability_guard {
+  purpose = "runtime-abi-scalar",
+  abi_role = "dispatch-availability-guard",
+  c_name = "rvv_available",
+  c_type = "int",
+  ownership = "target-export-abi-owned"
+}
+```
+
+`purpose`, `abi_role`, `c_name`, `c_type`, and `ownership` are required
+non-empty stable single-line strings. `c_name` must be a simple C identifier.
+Direct kernel-child runtime_param ops must not duplicate the same `abi_role`,
+because duplicate runtime scalar ABI roles would make a target export boundary
+ambiguous. The op must be nested in a `tcrv.exec.kernel` or
+`tcrv.exec.variant`. It describes runtime ABI/control organization only, not
+tensor computation, tensor shape, vector math, hardware probing, or
+target-family legality.
 
 ### `tcrv.exec.dispatch`
 

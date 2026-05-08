@@ -25,6 +25,14 @@ tcrv.exec.kernel @saxpy attributes {} {
   // CHECK-SAME: purpose = "variant-dispatch-guard"
   tcrv.exec.mem_window @input_window {abi_role = "lhs-input-buffer", access = "read", binding = "args", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "variant-dispatch-guard"}
 
+  // CHECK: tcrv.exec.runtime_param @runtime_n
+  // CHECK-SAME: abi_role = "runtime-element-count"
+  // CHECK-SAME: c_name = "n"
+  // CHECK-SAME: c_type = "size_t"
+  // CHECK-SAME: ownership = "target-export-abi-owned"
+  // CHECK-SAME: purpose = "runtime-abi-scalar"
+  tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+
   // CHECK: tcrv.exec.variant @rvv_variant
   // CHECK-SAME: condition = "preferred_capability_available"
   // CHECK-SAME: guard = "shape_guard_passed"

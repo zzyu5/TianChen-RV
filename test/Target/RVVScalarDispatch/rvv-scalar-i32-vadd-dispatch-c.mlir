@@ -11,6 +11,13 @@
 // RUN: sed '/^    tcrv.exec.mem_window @abi_lhs_input_buffer/,/^    }/d' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING-MEM-WINDOW --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: sed '0,/^      access = "read"/s//      access = "write"/' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=BAD-MEM-WINDOW --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: sed '/^    tcrv.exec.mem_window @abi_rhs_input_buffer/i\    tcrv.exec.mem_window @abi_lhs_input_buffer_dup {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}' %s | not tcrv-opt - 2>&1 | FileCheck %s --check-prefix=DUPLICATE-MEM-WINDOW --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/^    tcrv.exec.runtime_param @abi_runtime_element_count/,/^    }/d' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-N --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/^    tcrv.exec.runtime_param @abi_dispatch_availability_guard/,/^    }/d' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-GUARD --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/^    tcrv.exec.runtime_param @abi_dispatch_availability_guard/i\    tcrv.exec.runtime_param @abi_runtime_element_count_dup {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}' %s | not tcrv-opt - 2>&1 | FileCheck %s --check-prefix=DUPLICATE-RUNTIME-N --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/^    tcrv.exec.variant @rvv_first_slice/i\    tcrv.exec.runtime_param @abi_dispatch_availability_guard_dup {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}' %s | not tcrv-opt - 2>&1 | FileCheck %s --check-prefix=DUPLICATE-RUNTIME-GUARD --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/abi_role = "runtime-element-count"/,/purpose = "runtime-abi-scalar"/s/c_name = "n"/c_name = "len"/' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-RUNTIME-N --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/abi_role = "dispatch-availability-guard"/,/purpose = "runtime-abi-scalar"/s/c_type = "int"/c_type = "bool"/' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=BAD-RUNTIME-GUARD-TYPE --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: sed '/abi_role = "dispatch-availability-guard"/,/purpose = "runtime-abi-scalar"/s/ownership = "target-export-abi-owned"/ownership = "ir-modeled"/' %s | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=BAD-RUNTIME-GUARD-OWNERSHIP --implicit-check-not="void tcrv_dispatch_i32_vadd"
 
 module @rvv_scalar_dispatch_input {
   tcrv.exec.kernel @dispatch_vadd {
@@ -77,6 +84,20 @@ module @rvv_scalar_dispatch_input {
       memory_space = "host",
       ownership = "target-export-abi-owned",
       purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "n",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
+    tcrv.exec.runtime_param @abi_dispatch_availability_guard {
+      abi_role = "dispatch-availability-guard",
+      c_name = "rvv_available",
+      c_type = "int",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
     }
     tcrv.exec.variant @rvv_first_slice attributes {
       condition = "rvv_capability_properties_available",
@@ -162,6 +183,8 @@ module @rvv_scalar_dispatch_input {
 // HEADER: /* dispatch_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
 // HEADER: /* dispatch_mem_window[1]: symbol=@abi_rhs_input_buffer, abi_role=rhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
 // HEADER: /* dispatch_mem_window[2]: symbol=@abi_output_buffer, abi_role=output-buffer, access=write, ownership=target-export-abi-owned, c_type=int32_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
+// HEADER: /* dispatch_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
+// HEADER: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
 // HEADER: /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice */
 // HEADER: /* scalar_callable_symbol: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice */
 // HEADER: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
@@ -242,3 +265,27 @@ module @rvv_scalar_dispatch_input {
 // BAD-MEM-WINDOW-SAME: tcrv.exec.mem_window @abi_lhs_input_buffer requires attribute 'access' = "read"
 
 // DUPLICATE-MEM-WINDOW: duplicates mem_window ABI role 'lhs-input-buffer' in enclosing tcrv.exec.kernel
+
+// MISSING-RUNTIME-N: RVV+scalar i32-vadd dispatch C export failed
+// MISSING-RUNTIME-N-SAME: runtime ABI runtime_param validation failed
+// MISSING-RUNTIME-N-SAME: requires exactly one tcrv.exec.runtime_param with ABI role 'runtime-element-count'
+
+// MISSING-RUNTIME-GUARD: RVV+scalar i32-vadd dispatch C export failed
+// MISSING-RUNTIME-GUARD-SAME: runtime ABI runtime_param validation failed
+// MISSING-RUNTIME-GUARD-SAME: requires exactly one tcrv.exec.runtime_param with ABI role 'dispatch-availability-guard'
+
+// DUPLICATE-RUNTIME-N: duplicates runtime_param ABI role 'runtime-element-count' in enclosing tcrv.exec.kernel
+
+// DUPLICATE-RUNTIME-GUARD: duplicates runtime_param ABI role 'dispatch-availability-guard' in enclosing tcrv.exec.kernel
+
+// STALE-RUNTIME-N: RVV+scalar i32-vadd dispatch C export failed
+// STALE-RUNTIME-N-SAME: runtime ABI runtime_param validation failed
+// STALE-RUNTIME-N-SAME: tcrv.exec.runtime_param @abi_runtime_element_count requires attribute 'c_name' = "n"
+
+// BAD-RUNTIME-GUARD-TYPE: RVV+scalar i32-vadd dispatch C export failed
+// BAD-RUNTIME-GUARD-TYPE-SAME: runtime ABI runtime_param validation failed
+// BAD-RUNTIME-GUARD-TYPE-SAME: tcrv.exec.runtime_param @abi_dispatch_availability_guard requires attribute 'c_type' = "int"
+
+// BAD-RUNTIME-GUARD-OWNERSHIP: RVV+scalar i32-vadd dispatch C export failed
+// BAD-RUNTIME-GUARD-OWNERSHIP-SAME: runtime ABI runtime_param validation failed
+// BAD-RUNTIME-GUARD-OWNERSHIP-SAME: tcrv.exec.runtime_param @abi_dispatch_availability_guard requires attribute 'ownership' = "target-export-abi-owned"

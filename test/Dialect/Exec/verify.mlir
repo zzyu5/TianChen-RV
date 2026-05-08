@@ -6,6 +6,7 @@ tcrv.exec.kernel @ok attributes {} {
   tcrv.exec.capability @toolchain {id = "llvm-rvv", kind = "toolchain"}
   tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
   tcrv.exec.mem_window @inputs {purpose = "dispatch-guard", binding = "args"}
+  tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
   tcrv.exec.variant @rvv_variant attributes {
     origin = "rvv-plugin",
     requires = [@rvv, @toolchain]
@@ -200,6 +201,55 @@ tcrv.exec.kernel @duplicate_mem_window_abi_role attributes {} {
   // expected-error @+1 {{duplicates mem_window ABI role 'lhs-input-buffer' in enclosing tcrv.exec.kernel}}
   tcrv.exec.mem_window @lhs_b {abi_role = "lhs-input-buffer", purpose = "runtime-abi-buffer"}
 }
+
+// -----
+
+tcrv.exec.kernel @valid_runtime_params attributes {} {
+  tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+  tcrv.exec.runtime_param @runtime_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+}
+
+// -----
+
+tcrv.exec.kernel @missing_runtime_param_purpose attributes {} {
+  // expected-error @+1 {{requires non-empty string attribute 'purpose'}}
+  tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned"}
+}
+
+// -----
+
+tcrv.exec.kernel @empty_runtime_param_abi_role attributes {} {
+  // expected-error @+1 {{requires non-empty string attribute 'abi_role'}}
+  tcrv.exec.runtime_param @runtime_n {abi_role = "", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+}
+
+// -----
+
+tcrv.exec.kernel @trimmed_runtime_param_ownership attributes {} {
+  // expected-error @+1 {{requires string attribute 'ownership' to not require whitespace trimming when present}}
+  tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = " target-export-abi-owned", purpose = "runtime-abi-scalar"}
+}
+
+// -----
+
+tcrv.exec.kernel @bad_runtime_param_c_name attributes {} {
+  // expected-error @+1 {{requires string attribute 'c_name' to be a valid C identifier when present}}
+  tcrv.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "123n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+}
+
+// -----
+
+tcrv.exec.kernel @duplicate_runtime_param_abi_role attributes {} {
+  tcrv.exec.runtime_param @runtime_n_a {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+  // expected-error @+1 {{duplicates runtime_param ABI role 'runtime-element-count' in enclosing tcrv.exec.kernel}}
+  tcrv.exec.runtime_param @runtime_n_b {abi_role = "runtime-element-count", c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+}
+
+// -----
+
+tcrv.exec.runtime_param @top_level_runtime_param {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+
+// expected-error @-2 {{must be nested in a tcrv.exec.kernel or tcrv.exec.variant}}
 
 // -----
 

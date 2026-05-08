@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "project spec index and boundaries for verification"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains compute-free and target-neutral"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "verify capability metadata layering remains intact"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "verify generation/selection behavior remains capability-aware without broad string legality"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV-specific behavior remains plugin-local or target-owned"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar fallback behavior remains plugin-local"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify export consumes IR-backed runtime ABI boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused tests and evidence scope"}

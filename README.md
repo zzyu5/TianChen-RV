@@ -381,19 +381,19 @@ rather than by exact C parameter-name equality. The dispatcher public callable
 parameters are derived deterministically from the selected RVV candidate's
 role-bound names/types, the scalar callable candidate must be role/type/
 ownership compatible, and calls to both embedded callables are emitted in the
-fixed lhs/rhs/output/runtime-count role order. The explicit host-provided
-availability guard remains a dispatch runtime ABI parameter with role
-`dispatch-availability-guard`; by default it is named `rvv_available`, and a
-bounded target-owned dispatch metadata list
-`tcrv_rvv_scalar.dispatch_runtime_abi_parameters` may provide a different C
-name for that single guard role. The RVV+scalar dispatch path now also
+fixed lhs/rhs/output/runtime-count role order. The RVV+scalar dispatch path now
 requires real direct `tcrv.exec.mem_window` IR for the callable `lhs`, `rhs`,
 and `out` buffer meanings before the target-owned exporter emits the composite
 source. Those windows carry bounded execution-organization metadata such as
 ABI role, access direction, host/kernel-argument binding, target/export ABI
-ownership, and known C pointer type. Runtime `n` and the dispatcher
-availability guard remain ABI/control parameters, not tensor shapes or
-hardware facts. Descriptor-local `element_count` remains finite microkernel
+ownership, and known C pointer type. The same export path also requires real
+direct `tcrv.exec.runtime_param` IR for scalar runtime ABI/control meanings:
+`runtime-element-count` for the C parameter `n`, and
+`dispatch-availability-guard` for the explicit host-provided guard parameter.
+The default guard C name remains `rvv_available`, while a runtime_param with
+the guard role may provide a different valid C name. Runtime `n` and the
+dispatcher availability guard remain ABI/control parameters, not tensor shapes
+or hardware facts. Descriptor-local `element_count` remains finite microkernel
 metadata; it is not high-level shape, runtime `n`, AVL, or VL. This export does
 not implement automatic hardware probing, object generation, dynamic loading,
 linking, benchmarking, correctness measurement, or performance measurement.

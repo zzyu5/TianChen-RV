@@ -110,6 +110,26 @@ def MemWindowOp : TCRVExec_Op<"exec.mem_window", [Symbol]> {
   let hasVerifier = 1;
 }
 
+def RuntimeParamOp : TCRVExec_Op<"exec.runtime_param", [Symbol]> {
+  let summary = "named runtime ABI/control scalar parameter";
+  let description = [{
+    Describes one runtime scalar ABI/control parameter used to organize an
+    execution boundary. It may bind a named ABI role to a C parameter name,
+    C type spelling, ownership class, and purpose. This op is intentionally
+    execution organization only; it does not model computation, high-level
+    tensor shape, hardware probing, vector math, or target-specific legality.
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                   OptionalAttr<StrAttr>:$purpose,
+                   OptionalAttr<StrAttr>:$abi_role,
+                   OptionalAttr<StrAttr>:$c_name,
+                   OptionalAttr<StrAttr>:$c_type,
+                   OptionalAttr<StrAttr>:$ownership);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
 def HartParallelOp : TCRVExec_Op<"exec.hart_parallel",
     [NoRegionArguments, NoTerminator, SingleBlock]> {
   let summary = "RISC-V hart/core parallel execution organization";

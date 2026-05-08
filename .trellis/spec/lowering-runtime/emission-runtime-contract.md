@@ -164,17 +164,21 @@ preserve parameter layering:
   exports still pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters,
   but the RVV+scalar host dispatcher must additionally require real
   `tcrv.exec.mem_window` IR for the lhs/rhs/out buffer meanings before target
-  export claims those roles. Runtime `n` remains a runtime ABI/control value,
-  and `rvv_available` remains a target/export-owned dispatch guard;
+  export claims those roles. The RVV+scalar host dispatcher must also require
+  real direct `tcrv.exec.runtime_param` IR for the runtime-element-count `n`
+  and dispatch-availability-guard meanings before target export claims those
+  scalar runtime ABI/control roles. Runtime `n` remains a runtime ABI/control
+  value, and `rvv_available` remains a target/export-owned dispatch guard;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters structurally by runtime ABI role, C type, and ownership. The
   bounded dispatch exporter may use the selected RVV candidate's role-bound
   C names/types for public callable parameters, require scalar role/type/
-  ownership compatibility, and append exactly one target/export-owned
-  `dispatch-availability-guard` parameter. The default guard C name is
-  `rvv_available`; target-owned dispatch metadata may override that guard name
-  without changing callable role order or introducing automatic hardware
-  probing;
+  ownership compatibility, require matching runtime-element-count
+  `tcrv.exec.runtime_param` metadata, and append exactly one
+  target/export-owned `dispatch-availability-guard` parameter derived from
+  `tcrv.exec.runtime_param` IR. The default guard C name is `rvv_available`;
+  an explicit runtime_param may use another valid C name without changing
+  callable role order or introducing automatic hardware probing;
 - descriptor-local bounded values such as `tcrv_rvv.element_count` or
   `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
   and must not be reported as tensor shape, global problem size, AVL, vl,
@@ -982,10 +986,13 @@ void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
 
 The dispatcher must call the RVV callable function when `rvv_available` is
 non-zero and the scalar fallback callable function otherwise. The guard is an
-explicit host-provided parameter. This slice does not implement automatic
-hardware probing, dynamic loading, object generation, linking, arbitrary
-dispatch lowering, benchmarking, correctness evidence, or performance
-evidence.
+explicit host-provided parameter. Before source output, the exporter must
+validate real direct `tcrv.exec.runtime_param` IR for both the
+runtime-element-count parameter and the dispatch-availability-guard parameter,
+and it must reject stale or detached ABI metadata that does not agree with that
+IR. This slice does not implement automatic hardware probing, dynamic loading,
+object generation, linking, arbitrary dispatch lowering, benchmarking,
+correctness evidence, or performance evidence.
 
 An explicit self-check harness export may wrap the same generated dispatcher in
 a bounded `main` that invokes both branches over fixed local arrays:

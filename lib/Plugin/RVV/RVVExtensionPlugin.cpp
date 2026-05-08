@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -1367,6 +1368,21 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
             kernel, request.getBuilder(),
             support::getI32VAddBufferMemWindowSpecs()))
       return error;
+
+  if (microkernelPlan) {
+    llvm::SmallVector<support::RuntimeABIParamSpec, 2> runtimeParamSpecs;
+    if (request.getRole() == VariantEmissionRole::DispatchCase ||
+        request.getRole() == VariantEmissionRole::DispatchFallback) {
+      auto dispatchSpecs = support::getI32VAddDispatchRuntimeParamSpecs();
+      runtimeParamSpecs.append(dispatchSpecs.begin(), dispatchSpecs.end());
+    } else {
+      auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
+      runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
+    }
+    if (llvm::Error error = support::ensureRuntimeABIParams(
+            kernel, request.getBuilder(), runtimeParamSpecs))
+      return error;
+  }
 
   tcrv::rvv::LoweringBoundaryOp boundary = materializeRVVBoundaryOp(
       request.getBuilder(), kernel, variant, request.getRole(),

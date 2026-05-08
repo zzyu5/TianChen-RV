@@ -11,6 +11,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 
+#include <cctype>
+
 using namespace tianchenrv::tcrv::exec;
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
@@ -30,6 +32,7 @@ constexpr llvm::StringLiteral kMemorySpaceAttrName("memory_space");
 constexpr llvm::StringLiteral kABIRoleAttrName("abi_role");
 constexpr llvm::StringLiteral kAccessAttrName("access");
 constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
+constexpr llvm::StringLiteral kCNameAttrName("c_name");
 constexpr llvm::StringLiteral kCTypeAttrName("c_type");
 constexpr llvm::StringLiteral kHartsAttrName("harts");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
@@ -128,6 +131,37 @@ mlir::LogicalResult requireStableSingleLineWhenPresent(mlir::Operation *op,
     return op->emitOpError()
            << "requires string attribute '" << attrName
            << "' to be single-line when present";
+
+  return mlir::success();
+}
+
+bool isValidSimpleCIdentifier(llvm::StringRef value) {
+  if (value.empty())
+    return false;
+
+  unsigned char first = static_cast<unsigned char>(value.front());
+  if (!std::isalpha(first) && value.front() != '_')
+    return false;
+
+  return llvm::all_of(value.drop_front(), [](char character) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    return std::isalnum(byte) || character == '_';
+  });
+}
+
+mlir::LogicalResult requireValidCNameWhenPresent(mlir::Operation *op,
+                                                 llvm::StringRef attrName) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return mlir::success();
+
+  if (mlir::failed(requireStableSingleLineWhenPresent(op, attrName)))
+    return mlir::failure();
+
+  if (!isValidSimpleCIdentifier(attr.getValue()))
+    return op->emitOpError()
+           << "requires string attribute '" << attrName
+           << "' to be a valid C identifier when present";
 
   return mlir::success();
 }
@@ -422,6 +456,7 @@ mlir::LogicalResult KernelOp::verify() {
 
   llvm::StringSet<> emissionPlanTargets;
   llvm::StringSet<> directMemWindowABIRoles;
+  llvm::StringSet<> directRuntimeParamABIRoles;
   auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> mlir::LogicalResult {
     if (!isEmissionPlanDiagnostic(diagnostic))
       return mlir::success();
@@ -447,6 +482,17 @@ mlir::LogicalResult KernelOp::verify() {
           !directMemWindowABIRoles.insert(roleAttr.getValue()).second)
         return memWindow.emitOpError()
                << "duplicates mem_window ABI role '" << roleAttr.getValue()
+               << "' in enclosing tcrv.exec.kernel";
+      continue;
+    }
+
+    if (auto runtimeParam = llvm::dyn_cast<RuntimeParamOp>(op)) {
+      auto roleAttr =
+          runtimeParam->getAttrOfType<mlir::StringAttr>(kABIRoleAttrName);
+      if (roleAttr &&
+          !directRuntimeParamABIRoles.insert(roleAttr.getValue()).second)
+        return runtimeParam.emitOpError()
+               << "duplicates runtime_param ABI role '" << roleAttr.getValue()
                << "' in enclosing tcrv.exec.kernel";
       continue;
     }
@@ -556,6 +602,53 @@ mlir::LogicalResult MemWindowOp::verify() {
     return mlir::failure();
   if (mlir::failed(
           requireStableSingleLineWhenPresent(getOperation(), kCTypeAttrName)))
+    return mlir::failure();
+
+  if (!hasEnclosingKernelOrVariant(getOperation()))
+    return emitOpError()
+           << "must be nested in a tcrv.exec.kernel or tcrv.exec.variant";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult RuntimeParamOp::verify() {
+  if (isMissingOrEmptyStringAttr(getOperation(), kPurposeAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kPurposeAttrName
+           << "'";
+
+  if (isMissingOrEmptyStringAttr(getOperation(), kABIRoleAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kABIRoleAttrName
+           << "'";
+
+  if (isMissingOrEmptyStringAttr(getOperation(), kCNameAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kCNameAttrName << "'";
+
+  if (isMissingOrEmptyStringAttr(getOperation(), kCTypeAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kCTypeAttrName << "'";
+
+  if (isMissingOrEmptyStringAttr(getOperation(), kOwnershipAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kOwnershipAttrName
+           << "'";
+
+  if (mlir::failed(
+          requireStableSingleLineWhenPresent(getOperation(), kPurposeAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireStableSingleLineWhenPresent(getOperation(), kABIRoleAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireValidCNameWhenPresent(getOperation(), kCNameAttrName)))
+    return mlir::failure();
+  if (mlir::failed(
+          requireStableSingleLineWhenPresent(getOperation(), kCTypeAttrName)))
+    return mlir::failure();
+  if (mlir::failed(requireStableSingleLineWhenPresent(getOperation(),
+                                                      kOwnershipAttrName)))
     return mlir::failure();
 
   if (!hasEnclosingKernelOrVariant(getOperation()))

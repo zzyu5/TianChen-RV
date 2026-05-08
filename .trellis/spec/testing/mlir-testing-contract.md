@@ -141,7 +141,10 @@ Use lit/FileCheck for:
   preservation, bounded metadata comments, pipeline-to-dispatch-export coverage
   where the scalar fallback callable is descriptor-materialized rather than
   hand-authored, `tcrv.exec.mem_window` parse/verify and pipeline materialized
-  lhs/rhs/out buffer-window roles consumed by the dispatch exporter, a
+  lhs/rhs/out buffer-window roles consumed by the dispatch exporter,
+  `tcrv.exec.runtime_param` parse/verify and pipeline materialized
+  runtime-element-count / dispatch-availability-guard scalar roles consumed by
+  the dispatch exporter, a
   role-binding fixture where callable or dispatcher names such as `a`, `b`,
   `dst`, `len`, and a non-default guard name are emitted in the generated
   dispatcher body, an explicit self-check harness export that calls the
@@ -149,7 +152,7 @@ Use lit/FileCheck for:
   fail-closed diagnostics when scalar callable fallback metadata is missing,
   unsupported, structurally incompatible by runtime ABI role/type/ownership, or
   missing/duplicating/inconsistently describing required mem_window buffer
-  roles,
+  roles or runtime_param scalar roles,
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.
