@@ -337,10 +337,12 @@ role `dispatch-availability-guard`. The core verifier checks only this generic
 symbol, op-kind, and ABI-role contract; plugin-specific meaning for why that
 guard is true remains plugin-local or target-owned. A dispatch must be directly
 nested in a kernel, contain at least one case, and contain exactly one
-`tcrv.exec.fallback`. When no plugin-provided conservative fallback candidate is
-present, selection must record a structured diagnostic instead of creating a
-fallback-less dispatch or relabeling the selected variant as an implicit
-fallback.
+`tcrv.exec.fallback`. The compiler-owned runtime-guard materialization pass may
+attach `runtime_guard` links to guarded cases, but fallback operations do not
+carry case runtime_guard metadata. When no plugin-provided conservative
+fallback candidate is present, selection must record a structured diagnostic
+instead of creating a fallback-less dispatch or relabeling the selected variant
+as an implicit fallback.
 
 ### `tcrv.exec.fallback`
 

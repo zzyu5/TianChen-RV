@@ -43,6 +43,10 @@ module {
   }
 }
 
+// IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
+// IR-SAME: abi_role = "dispatch-availability-guard"
+// IR-SAME: c_name = "rvv_available"
+// IR-SAME: c_type = "int"
 // IR: tcrv.exec.dispatch
 // IR: tcrv.exec.case @rvv_first_slice
 // IR-SAME: policy = "metadata_only_first_slice"
@@ -64,10 +68,6 @@ module {
 // IR-SAME: abi_role = "runtime-element-count"
 // IR-SAME: c_name = "n"
 // IR-SAME: c_type = "size_t"
-// IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
-// IR-SAME: abi_role = "dispatch-availability-guard"
-// IR-SAME: c_name = "rvv_available"
-// IR-SAME: c_type = "int"
 // IR: tcrv_rvv.lowering_boundary
 // IR-SAME: role = "dispatch case"
 // IR-SAME: selected_variant = @rvv_first_slice

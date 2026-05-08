@@ -42,6 +42,9 @@ struct RuntimeABIParamSpec {
 RuntimeABIParamSpec getI32VAddRuntimeElementCountParamSpec(
     llvm::StringRef cName = "n");
 
+RuntimeABIParamSpec getDispatchAvailabilityGuardParamSpec(
+    llvm::StringRef cName = "rvv_available");
+
 RuntimeABIParamSpec getI32VAddDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName = "rvv_available");
 

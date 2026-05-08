@@ -7,6 +7,8 @@
 // RUN: test -s %t.plan.bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h
 // RUN: test -s %t.plan.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o
 // RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.plan.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.missing.guard.bundle && mkdir %t.missing.guard.bundle
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed 's/, runtime_guard = @abi_dispatch_availability_guard//' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.missing.guard.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-GUARD --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
 
 module @plan_and_export_target_artifact_bundle_input {
@@ -65,6 +67,8 @@ module @plan_and_export_target_artifact_bundle_input {
 
 // STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
+
+// MISSING-GUARD: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
 
 // INDEX: tianchenrv.target_artifact_bundle.version: 1
 // INDEX: bundle_status: "complete"

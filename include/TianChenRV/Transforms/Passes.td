@@ -133,6 +133,31 @@ def SelectVariants
   ];
 }
 
+def MaterializeDispatchRuntimeGuards
+    : Pass<"tcrv-materialize-dispatch-runtime-guards", "::mlir::ModuleOp"> {
+  let summary = "Materialize compiler-owned runtime guard links for selected dispatch cases";
+  let description = [{
+    Traverses selected tcrv.exec.dispatch surfaces after variant selection or
+    dispatch synthesis and materializes the generic dispatch-availability
+    runtime ABI/control parameter required by guarded dispatch cases. The pass
+    attaches tcrv.exec.case runtime_guard symbol references to a direct
+    same-kernel tcrv.exec.runtime_param with ABI role
+    dispatch-availability-guard.
+
+    The pass is target-neutral. It may inspect generic capability availability,
+    conflicts, and generic decision metadata, but it does not branch on RVV,
+    scalar fallback, IME, offload, Sophgo, AME, vendor, dtype, shape,
+    microarchitecture, runtime probe implementation, or plugin microkernel
+    semantics. It does not lower, emit code, probe hardware, or claim runtime,
+    correctness, or performance evidence.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeDispatchRuntimeGuardsPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def CheckEmissionPaths
     : Pass<"tcrv-check-emission-paths", "::mlir::ModuleOp"> {
   let summary = "Check plugin-owned emission readiness for selected execution paths";

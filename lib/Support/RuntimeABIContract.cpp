@@ -61,11 +61,7 @@ RuntimeABIParamSpec I32VAddRuntimeABIContract::getRuntimeElementCountParamSpec(
 RuntimeABIParamSpec
 I32VAddRuntimeABIContract::getDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName) const {
-  return RuntimeABIParamSpec(
-      "abi_dispatch_availability_guard",
-      RuntimeABIParameterRole::DispatchAvailabilityGuard, cName, "int",
-      stringifyRuntimeABIParameterOwnership(
-          RuntimeABIParameterOwnership::TargetExportABIOwned));
+  return ::tianchenrv::support::getDispatchAvailabilityGuardParamSpec(cName);
 }
 
 RuntimeABIParameter

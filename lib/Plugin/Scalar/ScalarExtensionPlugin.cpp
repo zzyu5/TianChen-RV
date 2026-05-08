@@ -805,15 +805,9 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
       return error;
 
   if (selectedPathHasCallableMicrokernel) {
-    llvm::SmallVector<support::RuntimeABIParamSpec, 2> runtimeParamSpecs;
-    if (request.getRole() == VariantEmissionRole::DispatchCase ||
-        request.getRole() == VariantEmissionRole::DispatchFallback) {
-      auto dispatchSpecs = support::getI32VAddDispatchRuntimeParamSpecs();
-      runtimeParamSpecs.append(dispatchSpecs.begin(), dispatchSpecs.end());
-    } else {
-      auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
-      runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
-    }
+    llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
+    auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
+    runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     if (llvm::Error error =
             support::ensureRuntimeABIParamsAllowingExistingCNames(
                 request.getKernel(), request.getBuilder(), runtimeParamSpecs))

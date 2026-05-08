@@ -1,5 +1,6 @@
 add_mlir_library(TianChenRVTransforms
   CheckCapabilityRequires.cpp
+  DispatchRuntimeGuard.cpp
   EmissionReadiness.cpp
   ExecutionPlanCoherence.cpp
   ExecutionPlanningPipeline.cpp

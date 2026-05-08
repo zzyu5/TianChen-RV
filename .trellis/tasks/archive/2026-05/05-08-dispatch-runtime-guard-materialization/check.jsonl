@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit and C++ evidence requirements for dispatch runtime guards"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "core verifier and runtime_guard symbol contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "coherence and target artifact export runtime ABI boundary"}

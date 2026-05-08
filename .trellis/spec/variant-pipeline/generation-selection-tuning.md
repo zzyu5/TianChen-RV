@@ -55,6 +55,9 @@ Variant-local tuning and cost estimation
 Select variant or generate dispatch
     |
     v
+Materialize dispatch runtime guard parameters and case links
+    |
+    v
 Lower selected variants through plugin emission paths
 ```
 
@@ -82,6 +85,7 @@ existing pass factories in this order:
 tcrv-materialize-plugin-variants
   -> tcrv-verify-plugin-variant-legality
   -> tcrv-select-variants
+  -> tcrv-materialize-dispatch-runtime-guards
   -> tcrv-check-capability-requires
   -> tcrv-materialize-selected-lowering-boundaries
   -> tcrv-materialize-emission-plans
@@ -112,6 +116,18 @@ The generic `tcrv-check-capability-requires` gate runs after this selection
 surface is materialized so conflict-aware planning can turn intended
 runtime-dispatched conflicts into explicit guarded cases before the unchanged
 legality gate rejects unprotected static variants or fallbacks.
+
+The `tcrv-materialize-dispatch-runtime-guards` stage is the compiler-owned
+runtime-control linkage stage for selected dispatch surfaces. It scans direct
+`tcrv.exec.dispatch` operations under each kernel, identifies guarded
+`tcrv.exec.case` paths from generic capability availability/conflict state or
+existing generic decision metadata, materializes one direct same-kernel
+`tcrv.exec.runtime_param` with ABI role `dispatch-availability-guard`, and
+attaches `runtime_guard = @...` links to the selected cases that need that
+runtime-control parameter. This stage is target-neutral: it must not branch on
+RVV, scalar fallback, IME, offload, Sophgo, AME, vendor, dtype, shape,
+microkernel semantics, runtime probes, or generated C. `tcrv.exec.fallback`
+does not receive runtime_guard case metadata.
 
 The `tcrv-verify-plugin-variant-legality` stage is the materialized-variant
 legality boundary before selection. It builds the same generic

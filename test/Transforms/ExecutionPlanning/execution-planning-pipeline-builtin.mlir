@@ -54,6 +54,12 @@ module {
     // PIPE-SAME: requires = [@scalar_fallback]
     // PIPE-SAME: tcrv_scalar.element_count = 16 : i64
     // PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+    // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
+    // PIPE-SAME: abi_role = "dispatch-availability-guard"
+    // PIPE-SAME: c_name = "rvv_available"
+    // PIPE-SAME: c_type = "int"
+    // PIPE-SAME: ownership = "target-export-abi-owned"
+    // PIPE-SAME: purpose = "runtime-abi-scalar"
     // PIPE: tcrv.exec.dispatch
     // PIPE: tcrv.exec.case @rvv_first_slice
     // PIPE-SAME: condition = "rvv_capability_properties_available"
@@ -90,12 +96,6 @@ module {
     // PIPE-SAME: abi_role = "runtime-element-count"
     // PIPE-SAME: c_name = "n"
     // PIPE-SAME: c_type = "size_t"
-    // PIPE-SAME: ownership = "target-export-abi-owned"
-    // PIPE-SAME: purpose = "runtime-abi-scalar"
-    // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
-    // PIPE-SAME: abi_role = "dispatch-availability-guard"
-    // PIPE-SAME: c_name = "rvv_available"
-    // PIPE-SAME: c_type = "int"
     // PIPE-SAME: ownership = "target-export-abi-owned"
     // PIPE-SAME: purpose = "runtime-abi-scalar"
     // PIPE: tcrv_rvv.lowering_boundary
@@ -160,6 +160,7 @@ module {
     // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
+    // ROUNDTRIP: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // ROUNDTRIP: tcrv.exec.dispatch
     // ROUNDTRIP: tcrv.exec.case @rvv_first_slice
     // ROUNDTRIP-SAME: runtime_guard = @abi_dispatch_availability_guard
@@ -167,7 +168,6 @@ module {
     // ROUNDTRIP: tcrv.exec.mem_window @abi_rhs_input_buffer
     // ROUNDTRIP: tcrv.exec.mem_window @abi_output_buffer
     // ROUNDTRIP: tcrv.exec.runtime_param @abi_runtime_element_count
-    // ROUNDTRIP: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // ROUNDTRIP: tcrv_rvv.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel

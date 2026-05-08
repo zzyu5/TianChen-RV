@@ -1126,6 +1126,16 @@ into compile-time facts: the dispatch availability guard remains a
 `tcrv.exec.runtime_param` role and the selected dispatch case must still link to
 that guard through `runtime_guard`.
 
+Compiler-owned dispatch runtime-guard materialization happens in the transform
+layer before selected lowering-boundary and emission-plan materialization. The
+generic materializer may inspect `TargetCapabilitySet` availability/conflict
+facts and generic dispatch decision metadata, but it must create only
+compute-free exec IR: one same-kernel dispatch-availability `runtime_param` and
+selected `tcrv.exec.case runtime_guard` symbol references. RVV, scalar, and
+future plugin lowering code may consume or validate those links, but must not
+privately invent the dispatch guard parameter or attach dispatch-case links as a
+plugin-local side effect.
+
 Required tests for changes to this contract:
 
 - C++ tests must prove the callable parameter order, roles, C spellings, and

@@ -47,6 +47,7 @@ std::unique_ptr<::mlir::Pass> createVerifyPluginVariantLegalityPass(
 std::unique_ptr<::mlir::Pass> createSelectVariantsPass();
 std::unique_ptr<::mlir::Pass>
 createSelectVariantsPass(const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createMaterializeDispatchRuntimeGuardsPass();
 std::unique_ptr<::mlir::Pass> createCheckEmissionPathsPass();
 std::unique_ptr<::mlir::Pass>
 createCheckEmissionPathsPass(const plugin::ExtensionPluginRegistry &registry);

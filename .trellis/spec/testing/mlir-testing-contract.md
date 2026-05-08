@@ -200,6 +200,14 @@ Use lit/FileCheck for:
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.
+  Compiler-owned dispatch runtime-guard materialization tests must include a
+  positive transform case where a selected or synthesized guarded
+  `tcrv.exec.case` receives a same-kernel `dispatch-availability-guard`
+  `tcrv.exec.runtime_param` plus `runtime_guard` symbol reference, and negative
+  coverage where missing, stale, duplicate, wrong-kind, or conflicting
+  runtime-guard linkage fails before a target bundle can report success.
+  Fallback cases must be checked not to receive `runtime_guard` metadata unless
+  the core exec dialect contract is explicitly extended.
   Direct RVV microkernel object coverage must prove that the public
   `--tcrv-export-rvv-microkernel-object` route and the generic
   `--tcrv-export-target-artifact` front door, when local/native RVV clang

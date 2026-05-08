@@ -152,6 +152,15 @@ RuntimeParamOp createParam(mlir::OpBuilder &builder, KernelOp kernel,
 
 } // namespace
 
+RuntimeABIParamSpec getDispatchAvailabilityGuardParamSpec(
+    llvm::StringRef cName) {
+  return RuntimeABIParamSpec(
+      "abi_dispatch_availability_guard",
+      RuntimeABIParameterRole::DispatchAvailabilityGuard, cName, "int",
+      stringifyRuntimeABIParameterOwnership(
+          RuntimeABIParameterOwnership::TargetExportABIOwned));
+}
+
 llvm::Error ensureRuntimeABIParams(
     KernelOp kernel, mlir::OpBuilder &builder,
     llvm::ArrayRef<RuntimeABIParamSpec> specs) {
