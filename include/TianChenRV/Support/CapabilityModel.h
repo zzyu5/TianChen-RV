@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 
 #include <cstddef>
 #include <map>
@@ -76,6 +77,8 @@ class TargetCapabilitySet {
 public:
   static TargetCapabilitySet
   buildFromKernel(tcrv::exec::KernelOp kernel);
+  static llvm::Expected<TargetCapabilitySet>
+  buildFromKernelChecked(tcrv::exec::KernelOp kernel);
 
   bool empty() const { return capabilities.empty(); }
   std::size_t size() const { return capabilities.size(); }
@@ -107,6 +110,10 @@ public:
   availabilityFromStatus(llvm::StringRef status);
   static bool isUnavailableStatus(llvm::StringRef status);
 
+  llvm::Error
+  tryAddCapability(CapabilityDescriptor descriptor,
+                   llvm::StringRef constructionContext =
+                       "synthetic construction");
   void addCapability(CapabilityDescriptor descriptor);
 
 private:

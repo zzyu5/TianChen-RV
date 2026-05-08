@@ -810,11 +810,13 @@ buildModuleRecords(mlir::ModuleOp module) {
       selectedRVVPathKeys.insert(
           makePathKey(getPathVariantSymbol(path), path.role));
 
-    TargetCapabilitySet capabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
+    llvm::Expected<TargetCapabilitySet> capabilities =
+        TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return capabilities.takeError();
     for (const SelectedPath &path : selectedRVVPaths) {
       llvm::Expected<RVVSmokeProbeRecord> record = buildSmokeProbeRecord(
-          kernel, path, capabilities, selectedRVVPathKeys);
+          kernel, path, *capabilities, selectedRVVPathKeys);
       if (!record)
         return record.takeError();
       records.push_back(std::move(*record));

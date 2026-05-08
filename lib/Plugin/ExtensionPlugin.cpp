@@ -812,9 +812,11 @@ llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
     return makeVariantLegalityError(tcrv::exec::VariantOp(), kernel,
                                     "requires a tcrv.exec.kernel");
 
-  support::TargetCapabilitySet capabilities =
-      support::TargetCapabilitySet::buildFromKernel(kernel);
-  return verifyKernelVariantLegality(kernel, capabilities);
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return verifyKernelVariantLegality(kernel, *capabilities);
 }
 
 llvm::Error ExtensionPluginRegistry::verifyKernelVariantLegality(
@@ -1092,9 +1094,11 @@ llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
                                     VariantEmissionRole::DirectVariant,
                                     "requires a tcrv.exec.kernel");
 
-  support::TargetCapabilitySet capabilities =
-      support::TargetCapabilitySet::buildFromKernel(kernel);
-  return checkKernelEmissionReadiness(kernel, capabilities);
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return checkKernelEmissionReadiness(kernel, *capabilities);
 }
 
 llvm::Error ExtensionPluginRegistry::checkKernelEmissionReadiness(
@@ -1132,9 +1136,11 @@ llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
     return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
                                 "requires a tcrv.exec.kernel");
 
-  support::TargetCapabilitySet capabilities =
-      support::TargetCapabilitySet::buildFromKernel(kernel);
-  return collectKernelVariantCosts(kernel, capabilities, out);
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return collectKernelVariantCosts(kernel, *capabilities, out);
 }
 
 llvm::Error ExtensionPluginRegistry::collectKernelVariantCosts(
@@ -1175,9 +1181,11 @@ llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(
     return makeVariantCostError(tcrv::exec::VariantOp(), kernel,
                                 "requires a tcrv.exec.kernel");
 
-  support::TargetCapabilitySet capabilities =
-      support::TargetCapabilitySet::buildFromKernel(kernel);
-  return rankKernelVariantsByCost(kernel, capabilities, out);
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return rankKernelVariantsByCost(kernel, *capabilities, out);
 }
 
 llvm::Error ExtensionPluginRegistry::rankKernelVariantsByCost(

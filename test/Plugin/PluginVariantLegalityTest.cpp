@@ -3,6 +3,7 @@
 #include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
@@ -24,6 +25,7 @@ using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantLegalityRequest;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::CapabilityOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -162,6 +164,18 @@ VariantOp findDirectVariant(KernelOp kernel, llvm::StringRef name) {
       return variant;
   }
   return VariantOp();
+}
+
+CapabilityOp findDirectCapability(KernelOp kernel, llvm::StringRef name) {
+  if (!kernel || kernel.getBody().empty())
+    return CapabilityOp();
+
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto capability = llvm::dyn_cast<CapabilityOp>(operation);
+    if (capability && capability.getSymName() == name)
+      return capability;
+  }
+  return CapabilityOp();
 }
 
 unsigned countDirectDispatches(KernelOp kernel) {
@@ -469,6 +483,61 @@ module {
   return 0;
 }
 
+int runDuplicateCapabilitySetStopsLegalityConsumerTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @duplicate_identity_anchor attributes {} {
+    tcrv.exec.capability @generic_alpha {
+      id = "generic.alpha",
+      kind = "toolchain"
+    }
+    tcrv.exec.capability @generic_beta {
+      id = "generic.beta",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @alpha_path attributes {
+      origin = "alpha",
+      requires = [@generic_alpha]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse duplicate identity legality module");
+
+  KernelOp kernel = findKernel(*module, "duplicate_identity_anchor");
+  CapabilityOp beta = findDirectCapability(kernel, "generic_beta");
+  if (int result = expect(static_cast<bool>(beta),
+                          "second capability is present before mutation"))
+    return result;
+
+  beta->setAttr("id", mlir::StringAttr::get(&context, "generic.alpha"));
+
+  LegalityPlugin alpha("alpha");
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(registry.registerPlugin(alpha), "register alpha"))
+    return result;
+
+  if (int result = expectErrorContains(
+          registry.verifyKernelVariantLegality(kernel),
+          {"TargetCapabilitySet", "kernel extraction from "
+                                  "@duplicate_identity_anchor",
+           "duplicate capability id \"generic.alpha\"", "@generic_beta",
+           "existing symbol @generic_alpha"}))
+    return result;
+  if (int result = expect(
+          alpha.getLegalityCalls() == 0,
+          "duplicate capability set construction fails before legality hook"))
+    return result;
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -483,6 +552,8 @@ int main() {
   if (int result = runKernelOrderAndNoMutationTest(context))
     return result;
   if (int result = runNegativeLegalityTests(context))
+    return result;
+  if (int result = runDuplicateCapabilitySetStopsLegalityConsumerTest(context))
     return result;
 
   llvm::outs() << "plugin variant legality smoke test passed\n";

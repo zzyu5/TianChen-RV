@@ -1139,8 +1139,11 @@ llvm::Error checkKernelEmissionPaths(
   if (!kernel)
     return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
 
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  return checkKernelEmissionPaths(kernel, capabilities, registry);
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return checkKernelEmissionPaths(kernel, *capabilities, registry);
 }
 
 llvm::Error checkKernelEmissionPaths(
@@ -1168,8 +1171,11 @@ llvm::Error collectKernelEmissionPlans(
   if (!kernel)
     return makeEmissionPathError(kernel, "requires a tcrv.exec.kernel");
 
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  return collectKernelEmissionPlans(kernel, capabilities, out, registry);
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return collectKernelEmissionPlans(kernel, *capabilities, out, registry);
 }
 
 llvm::Error collectKernelEmissionPlans(
@@ -1199,8 +1205,11 @@ llvm::Error materializeKernelEmissionPlanDiagnostics(
     return makeEmissionPlanDiagnosticMaterializationError(
         kernel, "requires a tcrv.exec.kernel");
 
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  return materializeKernelEmissionPlanDiagnostics(kernel, capabilities,
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return materializeKernelEmissionPlanDiagnostics(kernel, *capabilities,
                                                  registry);
 }
 

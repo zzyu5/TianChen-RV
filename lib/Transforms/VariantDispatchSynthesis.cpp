@@ -280,10 +280,16 @@ mlir::LogicalResult synthesizeVariantDispatch(
   if (createdDispatch)
     *createdDispatch = DispatchOp();
 
-  TargetCapabilitySet capabilities =
-      TargetCapabilitySet::buildFromKernel(kernel);
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities) {
+    std::string message = llvm::toString(capabilities.takeError());
+    if (kernel)
+      kernel.emitError() << message;
+    return mlir::failure();
+  }
   DispatchSynthesisPlan plan;
-  if (mlir::failed(buildDispatchSynthesisPlan(kernel, capabilities, plan)))
+  if (mlir::failed(buildDispatchSynthesisPlan(kernel, *capabilities, plan)))
     return mlir::failure();
 
   if (!plan.fallback || plan.cases.empty())

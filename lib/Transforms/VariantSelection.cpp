@@ -555,14 +555,16 @@ public:
 
 private:
   mlir::LogicalResult runSelection(mlir::OpBuilder &builder, KernelOp kernel) {
-    TargetCapabilitySet capabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
+    llvm::Expected<TargetCapabilitySet> capabilities =
+        TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return emitSelectionError(kernel, capabilities.takeError());
     if (llvm::Error error =
-            registry->verifyKernelVariantLegality(kernel, capabilities))
+            registry->verifyKernelVariantLegality(kernel, *capabilities))
       return emitSelectionError(kernel, std::move(error));
 
     llvm::Expected<VariantSelectionPlan> planOrError =
-        planKernelVariantSelection(kernel, capabilities, *registry);
+        planKernelVariantSelection(kernel, *capabilities, *registry);
     if (!planOrError)
       return emitSelectionError(kernel, planOrError.takeError());
 
@@ -752,8 +754,11 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
   if (!kernel)
     return makeSelectionError(kernel, "requires a tcrv.exec.kernel");
 
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  return planKernelVariantSelection(kernel, capabilities, registry);
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return planKernelVariantSelection(kernel, *capabilities, registry);
 }
 
 llvm::Error materializeRuntimeDispatchPlan(mlir::OpBuilder &builder,

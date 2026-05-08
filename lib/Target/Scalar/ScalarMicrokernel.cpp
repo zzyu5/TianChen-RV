@@ -1038,10 +1038,12 @@ llvm::Expected<ScalarMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module)
       selectedScalarPathKeys.insert(
           makePathKey(getPathVariantSymbol(path), path.role));
 
-    TargetCapabilitySet capabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
+    llvm::Expected<TargetCapabilitySet> capabilities =
+        TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return capabilities.takeError();
     llvm::Expected<ScalarMicrokernelRecord> record = buildMicrokernelRecord(
-        kernel, selectedScalarPaths.front(), capabilities,
+        kernel, selectedScalarPaths.front(), *capabilities,
         selectedScalarPathKeys);
     if (!record)
       return record.takeError();

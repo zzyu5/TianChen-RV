@@ -621,8 +621,11 @@ llvm::Error materializeKernelPluginVariants(
         kernel.getSymName() +
         " requires existing direct tcrv.exec.capability anchors");
 
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  VariantProposalRequest request(kernel.getOperation(), kernel, *capabilities);
 
   llvm::SmallVector<VariantProposal, 4> proposals;
   llvm::SmallVector<VariantProposalDecline, 2> recoverableDeclines;

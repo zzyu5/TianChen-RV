@@ -1541,10 +1541,13 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
       selectedRVVPathKeys.insert(
           makePathKey(getPathVariantSymbol(path), path.role));
 
-    TargetCapabilitySet capabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
+    llvm::Expected<TargetCapabilitySet> capabilities =
+        TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return capabilities.takeError();
     llvm::Expected<RVVMicrokernelRecord> record = buildMicrokernelRecord(
-        kernel, selectedRVVPaths.front(), capabilities, selectedRVVPathKeys);
+        kernel, selectedRVVPaths.front(), *capabilities,
+        selectedRVVPathKeys);
     if (!record)
       return record.takeError();
     records.push_back(std::move(*record));

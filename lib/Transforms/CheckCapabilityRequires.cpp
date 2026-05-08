@@ -48,9 +48,15 @@ public:
   void runOnOperation() override {
     bool foundRequirementIssue = false;
     getOperation()->walk([&](tcrv::exec::KernelOp kernel) {
-      support::TargetCapabilitySet capabilities =
-          support::TargetCapabilitySet::buildFromKernel(kernel);
-      checkKernel(kernel, capabilities, foundRequirementIssue);
+      llvm::Expected<support::TargetCapabilitySet> capabilities =
+          support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+      if (!capabilities) {
+        std::string message = llvm::toString(capabilities.takeError());
+        kernel.emitError() << message;
+        foundRequirementIssue = true;
+        return;
+      }
+      checkKernel(kernel, *capabilities, foundRequirementIssue);
     });
 
     if (foundRequirementIssue)

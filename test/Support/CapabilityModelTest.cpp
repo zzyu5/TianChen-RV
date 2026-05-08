@@ -7,7 +7,11 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <initializer_list>
+#include <string>
 
 using tianchenrv::support::CapabilityAvailability;
 using tianchenrv::support::CapabilityConflict;
@@ -26,6 +30,28 @@ int expect(bool condition, llvm::Twine message) {
   if (condition)
     return 0;
   return fail(message);
+}
+
+int expectSuccess(llvm::Error error, llvm::Twine context) {
+  if (!error)
+    return 0;
+
+  std::string message = llvm::toString(std::move(error));
+  return fail(context + ": " + message);
+}
+
+int expectErrorContains(llvm::Error error,
+                        std::initializer_list<llvm::StringRef> fragments) {
+  if (!error)
+    return fail("expected capability model error");
+
+  std::string message = llvm::toString(std::move(error));
+  for (llvm::StringRef fragment : fragments) {
+    if (!llvm::StringRef(message).contains(fragment))
+      return fail(llvm::Twine("capability model error text missing '") +
+                  fragment + "': " + message);
+  }
+  return 0;
 }
 
 } // namespace
@@ -316,15 +342,88 @@ module {
     return result;
 
   TargetCapabilitySet syntheticCapabilities;
-  syntheticCapabilities.addCapability(CapabilityDescriptor(
-      "rvv_hart_count", "rvv.hart_count", "uarch", "available",
-      CapabilityAvailability::Available, {{"count", "64"}}));
+  if (int result = expectSuccess(
+          syntheticCapabilities.tryAddCapability(CapabilityDescriptor(
+              "rvv_hart_count", "rvv.hart_count", "uarch", "available",
+              CapabilityAvailability::Available, {{"count", "64"}})),
+          "add synthetic hart-count capability"))
+    return result;
   const CapabilityDescriptor *syntheticHartCount =
       syntheticCapabilities.lookupByID("rvv.hart_count");
   if (int result = expect(syntheticHartCount &&
                               syntheticHartCount->getProperty("count") == "64",
                           "C++ capability descriptors preserve structured "
                           "properties"))
+    return result;
+
+  TargetCapabilitySet atomicCapabilities;
+  if (int result = expectSuccess(
+          atomicCapabilities.tryAddCapability(CapabilityDescriptor(
+              "first_capability", "duplicate.id", "toolchain", "available",
+              CapabilityAvailability::Available, {{"winner", "first"}})),
+          "add first atomic capability"))
+    return result;
+  if (int result = expectErrorContains(
+          atomicCapabilities.tryAddCapability(CapabilityDescriptor(
+              "second_capability", "duplicate.id", "toolchain", "available",
+              CapabilityAvailability::Available, {{"winner", "second"}})),
+          {"synthetic construction", "duplicate capability id \"duplicate.id\"",
+           "@second_capability", "existing symbol @first_capability"}))
+    return result;
+  if (int result = expect(
+          atomicCapabilities.size() == 1,
+          "duplicate id insertion failure leaves capability set size unchanged"))
+    return result;
+  const CapabilityDescriptor *atomicWinner =
+      atomicCapabilities.lookupByID("duplicate.id");
+  if (int result = expect(atomicWinner &&
+                              atomicWinner->getSymbolName() ==
+                                  "first_capability" &&
+                              atomicWinner->getProperty("winner") == "first",
+                          "duplicate id insertion failure preserves existing "
+                          "by-id lookup"))
+    return result;
+  if (int result = expect(
+          !atomicCapabilities.lookupBySymbolName("second_capability"),
+          "duplicate id insertion failure does not add the rejected symbol"))
+    return result;
+  if (int result = expectErrorContains(
+          atomicCapabilities.tryAddCapability(CapabilityDescriptor(
+              "first_capability", "unique.second", "toolchain", "available",
+              CapabilityAvailability::Available, {{"winner", "symbol"}})),
+          {"synthetic construction", "duplicate capability symbol "
+                                     "@first_capability",
+           "unique.second", "existing id \"duplicate.id\""}))
+    return result;
+  if (int result = expect(
+          atomicCapabilities.size() == 1,
+          "duplicate symbol insertion failure leaves capability set size "
+          "unchanged"))
+    return result;
+  if (int result = expect(!atomicCapabilities.lookupByID("unique.second"),
+                          "duplicate symbol insertion failure does not add the "
+                          "rejected id"))
+    return result;
+
+  TargetCapabilitySet relationCapabilities;
+  llvm::SmallVector<std::string, 1> providedIDs{"abstract.vector"};
+  llvm::SmallVector<std::string, 1> impliedIDs{"abstract.vlen"};
+  if (int result = expectSuccess(
+          relationCapabilities.tryAddCapability(CapabilityDescriptor(
+              "synthetic_profile", "synthetic.profile", "profile",
+              "available", CapabilityAvailability::Available,
+              /*properties=*/{}, providedIDs, impliedIDs,
+              /*conflictingIDs=*/{})),
+          "add unique relation-provider capability"))
+    return result;
+  const CapabilityDescriptor *syntheticProfile =
+      relationCapabilities.lookupBySymbolName("synthetic_profile");
+  if (int result = expect(
+          relationCapabilities.lookupProviderByID("abstract.vector") ==
+                  syntheticProfile &&
+              relationCapabilities.lookupProviderByID("abstract.vlen") ==
+                  syntheticProfile,
+          "checked insertion preserves provides/implies provider semantics"))
     return result;
 
   llvm::outs() << "capability model smoke test passed\n";

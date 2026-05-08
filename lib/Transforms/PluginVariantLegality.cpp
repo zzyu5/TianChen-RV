@@ -53,18 +53,23 @@ public:
 
 private:
   mlir::LogicalResult runLegality(KernelOp kernel) {
-    TargetCapabilitySet capabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
+    llvm::Expected<TargetCapabilitySet> capabilities =
+        TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return emitLegalityError(kernel, capabilities.takeError());
     if (llvm::Error error =
-            registry->verifyKernelVariantLegality(kernel, capabilities)) {
-      std::string message = llvm::toString(std::move(error));
-      if (kernel)
-        kernel.emitError() << message;
-      else
-        getOperation()->emitError() << message;
-      return mlir::failure();
-    }
+            registry->verifyKernelVariantLegality(kernel, *capabilities))
+      return emitLegalityError(kernel, std::move(error));
     return mlir::success();
+  }
+
+  mlir::LogicalResult emitLegalityError(KernelOp kernel, llvm::Error error) {
+    std::string message = llvm::toString(std::move(error));
+    if (kernel)
+      kernel.emitError() << message;
+    else
+      getOperation()->emitError() << message;
+    return mlir::failure();
   }
 
   ExtensionPluginRegistry ownedRegistry;

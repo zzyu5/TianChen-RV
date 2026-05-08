@@ -131,13 +131,14 @@ bool isHexDigest(llvm::StringRef digest) {
   });
 }
 
-void addAvailableCapability(support::TargetCapabilitySet &capabilities,
-                            llvm::StringRef symbolName, llvm::StringRef id,
-                            llvm::StringRef kind,
-                            CapabilityProperties properties = {}) {
-  capabilities.addCapability(support::CapabilityDescriptor(
+llvm::Error addAvailableCapability(support::TargetCapabilitySet &capabilities,
+                                   llvm::StringRef symbolName,
+                                   llvm::StringRef id, llvm::StringRef kind,
+                                   CapabilityProperties properties = {}) {
+  return capabilities.tryAddCapability(support::CapabilityDescriptor(
       symbolName, id, kind, kAvailableStatus,
-      support::CapabilityAvailability::Available, std::move(properties)));
+      support::CapabilityAvailability::Available, std::move(properties)),
+      "RVV probe capability construction");
 }
 
 } // namespace
@@ -250,20 +251,27 @@ buildRVVTargetCapabilitiesFromProbeFacts(
     return std::move(error);
 
   support::TargetCapabilitySet capabilities;
-  addAvailableCapability(
+  if (llvm::Error error = addAvailableCapability(
       capabilities, getRVVPreferredCapabilitySymbol(), getRVVCapabilityID(),
       getRVVCapabilityKind(),
       {{"architecture", normalizeFactString(facts.architecture)},
-       {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}});
-  addAvailableCapability(capabilities, getRVVHartCountCapabilitySymbol(),
-                         getRVVHartCountCapabilityID(), "uarch",
-                         {{"count", std::to_string(facts.hartCount)}});
-  addAvailableCapability(capabilities, getRVVClangToolchainCapabilitySymbol(),
-                         getRVVClangToolchainCapabilityID(), "toolchain",
-                         {{"version", normalizeFactString(facts.clangVersion)}});
-  addAvailableCapability(capabilities, getRVVCMakeToolchainCapabilitySymbol(),
-                         getRVVCMakeToolchainCapabilityID(), "toolchain",
-                         {{"version", normalizeFactString(facts.cmakeVersion)}});
+       {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVHartCountCapabilitySymbol(),
+          getRVVHartCountCapabilityID(), "uarch",
+          {{"count", std::to_string(facts.hartCount)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVClangToolchainCapabilitySymbol(),
+          getRVVClangToolchainCapabilityID(), "toolchain",
+          {{"version", normalizeFactString(facts.clangVersion)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVCMakeToolchainCapabilitySymbol(),
+          getRVVCMakeToolchainCapabilityID(), "toolchain",
+          {{"version", normalizeFactString(facts.cmakeVersion)}}))
+    return std::move(error);
 
   CapabilityProperties compileRunProperties = {
       {"selected_march", normalizeFactString(facts.selectedMarch)}};
@@ -273,17 +281,23 @@ buildRVVTargetCapabilitiesFromProbeFacts(
     compileRunProperties["source_sha256"] = normalizeFactString(facts.sourceSHA256);
   if (!facts.binarySHA256.empty())
     compileRunProperties["binary_sha256"] = normalizeFactString(facts.binarySHA256);
-  addAvailableCapability(capabilities, getRVVProbeCompileRunCapabilitySymbol(),
-                         getRVVProbeCompileRunCapabilityID(), "toolchain",
-                         std::move(compileRunProperties));
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVProbeCompileRunCapabilitySymbol(),
+          getRVVProbeCompileRunCapabilityID(), "toolchain",
+          std::move(compileRunProperties)))
+    return std::move(error);
 
-  addAvailableCapability(capabilities, getRVVSelectedMarchCapabilitySymbol(),
-                         getRVVSelectedMarchCapabilityID(), "toolchain",
-                         {{"value", normalizeFactString(facts.selectedMarch)}});
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVSelectedMarchCapabilitySymbol(),
+          getRVVSelectedMarchCapabilityID(), "toolchain",
+          {{"value", normalizeFactString(facts.selectedMarch)}}))
+    return std::move(error);
   if (!facts.selectedMABI.empty()) {
-    addAvailableCapability(capabilities, getRVVSelectedMABICapabilitySymbol(),
-                           getRVVSelectedMABICapabilityID(), "toolchain",
-                           {{"value", normalizeFactString(facts.selectedMABI)}});
+    if (llvm::Error error = addAvailableCapability(
+            capabilities, getRVVSelectedMABICapabilitySymbol(),
+            getRVVSelectedMABICapabilityID(), "toolchain",
+            {{"value", normalizeFactString(facts.selectedMABI)}}))
+      return std::move(error);
   }
 
   return capabilities;

@@ -378,8 +378,11 @@ llvm::Error materializeSelectedLoweringBoundaries(
     return makeSelectedLoweringBoundaryError(kernel,
                                             "requires a tcrv.exec.kernel");
 
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  return materializeSelectedLoweringBoundaries(kernel, capabilities, registry);
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+  return materializeSelectedLoweringBoundaries(kernel, *capabilities, registry);
 }
 
 llvm::Error materializeSelectedLoweringBoundaries(

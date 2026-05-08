@@ -251,7 +251,10 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 
 ### 2. Signatures
 
-- Query API: `TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp)`.
+- Query API: `TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp)`
+  for compiler consumers that need diagnostic-bearing construction failure;
+  `buildFromKernel` remains a convenience wrapper only for already-verified
+  contexts.
 - Pass command: `--tcrv-check-capability-requires`.
 
 ### 3. Contracts
@@ -260,6 +263,13 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
   status, and available/unavailable state.
 - Direct `tcrv.exec.capability` ids are unique within one kernel before a
   `TargetCapabilitySet` is treated as a compiler decision object.
+- `TargetCapabilitySet` construction itself is fail-closed for duplicate
+  owning capability ids and duplicate capability symbol names. Parsed IR should
+  be rejected first by the `tcrv.exec.kernel` verifier; synthetic C++
+  construction and kernel extraction paths must return a diagnostic-bearing
+  compiler error instead of silently keeping the first descriptor, overwriting
+  an existing descriptor, or letting ambiguous by-id/by-symbol lookup reach
+  plugins or variant planning.
 - Each query descriptor preserves additional non-core MLIR attributes as
   structured property entries queryable by property name.
 - Each query descriptor preserves `provides`, `implies`, and `conflicts` as
@@ -322,6 +332,10 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - C++ smoke coverage for symbol-name lookup, id lookup, kind collection, and
   generic availability status handling when textual IR cannot directly assert
   helper API behavior.
+- C++ smoke coverage for `TargetCapabilitySet` checked construction, including
+  duplicate owning id rejection, duplicate symbol-name rejection when symbol
+  lookup is represented, and atomic failure that preserves existing lookup
+  results.
 - C++ smoke coverage for textual MLIR capability properties, including scalar
   facts such as hart/VLEN counts and runtime-offload mode/ABI metadata.
 - C++ smoke coverage for relation lists and relation-aware provider lookup.

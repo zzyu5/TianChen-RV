@@ -6,6 +6,9 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <utility>
@@ -112,6 +115,21 @@ bool containsID(llvm::ArrayRef<std::string> ids, llvm::StringRef id) {
   });
 }
 
+llvm::Error makeCapabilitySetError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      message, llvm::errc::invalid_argument);
+}
+
+std::string makeKernelExtractionContext(tcrv::exec::KernelOp kernel) {
+  if (!kernel)
+    return "kernel extraction from <missing kernel>";
+
+  std::string context;
+  llvm::raw_string_ostream stream(context);
+  stream << "kernel extraction from @" << kernel.getSymName();
+  return stream.str();
+}
+
 } // namespace
 
 CapabilityDescriptor::CapabilityDescriptor(
@@ -153,29 +171,39 @@ bool CapabilityDescriptor::satisfiesID(llvm::StringRef capabilityID) const {
          impliesID(capabilityID);
 }
 
-TargetCapabilitySet
-TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp kernel) {
+llvm::Expected<TargetCapabilitySet>
+TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
   TargetCapabilitySet capabilitySet;
   if (!kernel || kernel.getBody().empty())
     return capabilitySet;
 
+  std::string constructionContext = makeKernelExtractionContext(kernel);
   for (mlir::Operation &op : kernel.getBody().front()) {
     auto capability = llvm::dyn_cast<tcrv::exec::CapabilityOp>(op);
     if (!capability)
       continue;
 
     llvm::StringRef status = getCapabilityStatus(capability);
-    capabilitySet.addCapability(CapabilityDescriptor(
+    if (llvm::Error error = capabilitySet.tryAddCapability(CapabilityDescriptor(
         capability.getSymName(), capability.getId().value_or(""),
         capability.getKind().value_or(""), status,
         availabilityFromStatus(status),
         collectCapabilityProperties(capability),
         collectCapabilityIDRelation(capability, kProvidesAttrName),
         collectCapabilityIDRelation(capability, kImpliesAttrName),
-        collectCapabilityIDRelation(capability, kConflictsAttrName)));
+        collectCapabilityIDRelation(capability, kConflictsAttrName)),
+        constructionContext))
+      return std::move(error);
   }
 
   return capabilitySet;
+}
+
+TargetCapabilitySet
+TargetCapabilitySet::buildFromKernel(tcrv::exec::KernelOp kernel) {
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      buildFromKernelChecked(kernel);
+  return llvm::cantFail(std::move(capabilities));
 }
 
 const CapabilityDescriptor *
@@ -325,11 +353,41 @@ bool TargetCapabilitySet::isUnavailableStatus(llvm::StringRef status) {
       .Default(false);
 }
 
-void TargetCapabilitySet::addCapability(CapabilityDescriptor descriptor) {
+llvm::Error TargetCapabilitySet::tryAddCapability(
+    CapabilityDescriptor descriptor, llvm::StringRef constructionContext) {
+  llvm::StringRef symbolName = descriptor.getSymbolName();
+  if (auto it = bySymbolName.find(symbolName); it != bySymbolName.end()) {
+    const CapabilityDescriptor &existing = capabilities[it->second];
+    return makeCapabilitySetError(
+        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        constructionContext + " rejected duplicate capability symbol @" +
+        symbolName + " for id \"" + descriptor.getID() +
+        "\"; existing id \"" + existing.getID() + "\"");
+  }
+
+  llvm::StringRef id = descriptor.getID();
+  if (auto it = byID.find(id); it != byID.end()) {
+    const CapabilityDescriptor &existing = capabilities[it->second];
+    return makeCapabilitySetError(
+        llvm::Twine("TianChen-RV TargetCapabilitySet ") +
+        constructionContext + " rejected duplicate capability id \"" + id +
+        "\" for symbol @" + symbolName + "; existing symbol @" +
+        existing.getSymbolName());
+  }
+
   std::size_t index = capabilities.size();
   capabilities.push_back(std::move(descriptor));
   bySymbolName.try_emplace(capabilities.back().getSymbolName(), index);
   byID.try_emplace(capabilities.back().getID(), index);
+  return llvm::Error::success();
+}
+
+void TargetCapabilitySet::addCapability(CapabilityDescriptor descriptor) {
+  if (llvm::Error error =
+          tryAddCapability(std::move(descriptor), "synthetic construction")) {
+    std::string message = llvm::toString(std::move(error));
+    llvm::report_fatal_error(llvm::StringRef(message));
+  }
 }
 
 } // namespace tianchenrv::support
