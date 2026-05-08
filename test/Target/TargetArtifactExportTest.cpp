@@ -85,7 +85,8 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
                  llvm::StringRef originPlugin,
                  llvm::StringRef emissionKind,
                  std::size_t expectedABIParameterCount = 0,
-                 bool expectedDirectHelperRoute = false) {
+                 bool expectedDirectHelperRoute = false,
+                 llvm::StringRef expectedHandoffKind = {}) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
   if (!exporter) {
     llvm::errs() << "missing built-in exporter route '" << routeID << "'\n";
@@ -96,7 +97,8 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
       exporter->getEmissionKind() != emissionKind || !exporter->getExportFn() ||
       exporter->getRequiredRuntimeABIParameters().size() !=
           expectedABIParameterCount ||
-      exporter->hasDirectHelperRoute() != expectedDirectHelperRoute) {
+      exporter->hasDirectHelperRoute() != expectedDirectHelperRoute ||
+      exporter->getHandoffKind() != expectedHandoffKind) {
     llvm::errs() << "malformed built-in exporter metadata for route '"
                  << routeID << "'\n";
     return false;
@@ -761,7 +763,8 @@ int main() {
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-offload-runtime-descriptor",
                    "runtime-offload-handoff-descriptor", "offload-plugin",
-                   "runtime-offload-handoff-descriptor"))
+                   "runtime-offload-handoff-descriptor", 0,
+                   /*expectedDirectHelperRoute=*/false, "runtime-offload"))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-header",

@@ -44,7 +44,13 @@ constexpr llvm::StringLiteral kDescriptorArtifactKind(
 constexpr llvm::StringLiteral kOffloadLoweringBoundaryName(
     "tcrv_offload.lowering_boundary");
 constexpr llvm::StringLiteral kRuntimeOffloadHandoffKind("runtime-offload");
+constexpr llvm::StringLiteral kDescriptorSchemaVersion("1");
+constexpr llvm::StringLiteral kAdapterContract(
+    "external-runtime-adapter-runtime-offload-descriptor.v1");
+constexpr llvm::StringLiteral kRuntimeOffloadABIKind(
+    "runtime-offload-c-abi-handoff");
 constexpr llvm::StringLiteral kSupportedStatus("supported");
+constexpr llvm::StringLiteral kMetadataOnlyStatus("metadata-only");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
@@ -67,6 +73,9 @@ struct DescriptorRecord {
   std::string sourceKernel;
   std::string selectedVariant;
   std::string role;
+  std::string descriptorSchemaVersion;
+  std::string descriptorKind;
+  std::string descriptorStatus;
   std::string originPlugin;
   std::string routeID;
   std::string emissionKind;
@@ -76,6 +85,7 @@ struct DescriptorRecord {
   std::string runtimeABIKind;
   std::string runtimeABIName;
   std::string runtimeGlueRole;
+  std::string loweringBoundaryStatus;
   std::string handoffKind;
   std::string handoffReason;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
@@ -114,6 +124,7 @@ bool containsForbiddenText(llvm::StringRef value) {
          normalized.contains("private key") ||
          normalized.contains("authorization:") ||
          normalized.contains("api_key") || normalized.contains("access_key") ||
+         normalized.contains("raw log") || normalized.contains("raw-log") ||
          normalized.contains("http://") || normalized.contains("https://") ||
          normalized.contains("://");
 }
@@ -541,6 +552,8 @@ llvm::Error buildDescriptorFromPath(KernelOp kernel, const SelectedPath &path,
         kernel, llvm::Twine("offload descriptor route requires supported "
                             "emission-plan status, got '") +
                     status + "'");
+  record.descriptorStatus = std::move(status);
+  record.descriptorSchemaVersion = kDescriptorSchemaVersion.str();
 
   std::string planKind;
   if (llvm::Error error =
@@ -585,6 +598,7 @@ llvm::Error buildDescriptorFromPath(KernelOp kernel, const SelectedPath &path,
           validateExpectedField(kernel, "artifact_kind", record.artifactKind,
                                 kDescriptorArtifactKind))
     return error;
+  record.descriptorKind = record.artifactKind;
 
   if (llvm::Error error =
           requireSafeStringAttr(kernel, plan.getOperation(),
@@ -611,10 +625,18 @@ llvm::Error buildDescriptorFromPath(KernelOp kernel, const SelectedPath &path,
                                 record.runtimeABIKind))
     return error;
   if (llvm::Error error =
+          validateExpectedField(kernel, "runtime_abi_kind",
+                                record.runtimeABIKind, kRuntimeOffloadABIKind))
+    return error;
+  if (llvm::Error error =
           requireSafeStringAttr(kernel, plan.getOperation(),
                                 execDiagnostic::kRuntimeABINameAttrName,
                                 "emission-plan diagnostic",
                                 record.runtimeABIName))
+    return error;
+  if (llvm::Error error =
+          validateExpectedField(kernel, "runtime_abi_name",
+                                record.runtimeABIName, record.runtimeABI))
     return error;
   if (llvm::Error error =
           requireSafeStringAttr(kernel, plan.getOperation(),
@@ -701,6 +723,17 @@ llvm::Error validateBoundaryForRecord(KernelOp kernel,
         kernel, llvm::Twine("tcrv_offload.lowering_boundary origin '") +
                     origin + "' does not match emission-plan origin '" +
                     record.originPlugin + "'");
+
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, op, execDiagnostic::kStatusAttrName,
+                                "tcrv_offload.lowering_boundary",
+                                record.loweringBoundaryStatus))
+    return error;
+  if (record.loweringBoundaryStatus != kMetadataOnlyStatus)
+    return makeDescriptorError(
+        kernel, llvm::Twine("tcrv_offload.lowering_boundary status '") +
+                    record.loweringBoundaryStatus +
+                    "' does not preserve the metadata-only handoff boundary");
 
   std::string boundaryRuntimeABI;
   if (llvm::Error error =
@@ -869,8 +902,29 @@ void printCapabilityList(llvm::raw_ostream &os,
   os << "]";
 }
 
+void printStringList(llvm::raw_ostream &os,
+                     llvm::ArrayRef<llvm::StringRef> values) {
+  os << "[";
+  for (auto [index, value] : llvm::enumerate(values)) {
+    if (index != 0)
+      os << ", ";
+    printQuoted(os, value);
+  }
+  os << "]";
+}
+
 void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
   os << "tianchenrv.offload_runtime_handoff_descriptor.version: 1\n";
+  os << "descriptor_schema_version: " << record.descriptorSchemaVersion << "\n";
+  os << "descriptor_kind: ";
+  printQuoted(os, record.descriptorKind);
+  os << "\n";
+  os << "descriptor_status: ";
+  printQuoted(os, record.descriptorStatus);
+  os << "\n";
+  os << "adapter_contract: ";
+  printQuoted(os, kAdapterContract);
+  os << "\n";
   os << "source_kernel: @" << record.sourceKernel << "\n";
   os << "selected_variant: @" << record.selectedVariant << "\n";
   os << "selected_role: ";
@@ -890,6 +944,9 @@ void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
   os << "\n";
   os << "lowering_boundary: ";
   printQuoted(os, record.loweringBoundary);
+  os << "\n";
+  os << "lowering_boundary_status: ";
+  printQuoted(os, record.loweringBoundaryStatus);
   os << "\n";
   os << "runtime_abi: ";
   printQuoted(os, record.runtimeABI);
@@ -918,6 +975,13 @@ void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
               "call, DMA, object generation, hardware correctness, or "
               "performance evidence");
   os << "\n";
+  os << "non_claims: ";
+  printStringList(os,
+                  {"no-vendor-runtime-call", "no-dma-or-buffer-management",
+                   "no-accelerator-kernel", "no-object-generation",
+                   "no-hardware-execution", "no-correctness-proof",
+                   "no-performance-claim"});
+  os << "\n";
 }
 
 } // namespace
@@ -940,7 +1004,8 @@ llvm::Error registerOffloadRuntimeDescriptorTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
       kDescriptorRouteID, kDescriptorArtifactKind, kOffloadPluginName,
-      kDescriptorEmissionKind, exportOffloadRuntimeDescriptor));
+      kDescriptorEmissionKind, exportOffloadRuntimeDescriptor, {},
+      /*directHelperRoute=*/false, kRuntimeOffloadHandoffKind));
 }
 
 } // namespace tianchenrv::target::offload

@@ -37,7 +37,8 @@ public:
                          TargetArtifactExportFn exportFn,
                          llvm::ArrayRef<support::RuntimeABIParameter>
                              requiredRuntimeABIParameters = {},
-                         bool directHelperRoute = false);
+                         bool directHelperRoute = false,
+                         llvm::StringRef handoffKind = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -45,6 +46,7 @@ public:
   llvm::StringRef getEmissionKind() const { return emissionKind; }
   TargetArtifactExportFn getExportFn() const { return exportFn; }
   bool hasDirectHelperRoute() const { return directHelperRoute; }
+  llvm::StringRef getHandoffKind() const { return handoffKind; }
   llvm::ArrayRef<support::RuntimeABIParameter>
   getRequiredRuntimeABIParameters() const {
     return requiredRuntimeABIParameters;
@@ -57,6 +59,7 @@ private:
   std::string emissionKind;
   TargetArtifactExportFn exportFn = nullptr;
   bool directHelperRoute = false;
+  std::string handoffKind;
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       requiredRuntimeABIParameters;
 };
@@ -89,8 +92,10 @@ struct TargetArtifactBundleRecord {
   bool genericFrontDoorSelectable = false;
   std::string selectableVia;
   bool directHelperRoute = false;
+  std::string runtimeABI;
   std::string runtimeABIKind;
   std::string runtimeABIName;
+  std::string handoffKind;
   std::string evidenceRole;
 };
 

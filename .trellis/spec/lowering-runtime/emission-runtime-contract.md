@@ -415,6 +415,13 @@ metadata only: it may record file names, artifact kind, route, owner, runtime
 ABI kind/name, component selected paths, and conservative evidence roles, but
 it does not claim link success, runtime success, RVV execution, correctness, or
 performance.
+When a selected dispatch has a supported primary non-fallback route plus a
+supported dispatch fallback route and no target-owned composite bundle route
+matches, the bundle layer follows the single-artifact front-door rule and emits
+only the selected non-fallback artifact record. A selected runtime-offload
+descriptor path therefore produces a one-artifact descriptor bundle, while the
+scalar fallback remains selected-path metadata rather than a second descriptor
+bundle artifact.
 
 ## Selected Lowering Boundary First Slice
 
@@ -1442,6 +1449,15 @@ capability refs, emission kind, artifact kind, route id, and bounded handoff
 reason. Unsafe strings, URLs, raw credentials, stale selected variants, stale
 lowering boundaries, route spoofing, unknown route ids, and unsupported artifact
 kinds must fail before descriptor output.
+The emitted descriptor should expose a stable schema version, descriptor kind,
+descriptor status, external adapter contract id, lowering-boundary metadata
+status, runtime ABI, runtime-offload handoff kind, and explicit non-claim
+metadata stating that no vendor runtime call, DMA/buffer management,
+accelerator kernel, object generation, hardware execution, correctness proof,
+or performance claim was produced. When the descriptor is emitted through the
+target artifact bundle route, the bundle index must carry the descriptor route,
+owner/origin, runtime ABI, and handoff kind metadata and must remain a build
+handoff index only.
 
 ## Emission Manifest Export Boundary
 

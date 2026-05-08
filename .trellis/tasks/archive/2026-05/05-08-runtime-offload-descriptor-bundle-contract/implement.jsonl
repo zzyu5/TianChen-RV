@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "core dialect boundary and emission-plan diagnostic contract"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "runtime-offload plugin descriptor handoff scope and non-claims"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned emission plan and registry routing locality"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "extension-specific descriptor semantics stay plugin/target-local"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export, bundle export, and runtime-offload metadata boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck and fail-closed coverage"}

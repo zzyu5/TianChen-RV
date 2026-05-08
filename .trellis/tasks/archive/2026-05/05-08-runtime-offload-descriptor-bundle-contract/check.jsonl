@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains execution metadata only"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "verify runtime-offload descriptor handoff and non-claims"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify dependency direction and plugin-local semantics"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify target artifact and bundle export behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify proportional lit/FileCheck fail-closed coverage"}

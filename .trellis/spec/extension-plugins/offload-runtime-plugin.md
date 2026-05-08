@@ -154,10 +154,14 @@ plugin-owned emission plan records the supported descriptor route, the target
 artifact exporter may emit a deterministic text descriptor for runtime-offload
 handoff metadata. The descriptor may contain only sanitized compiler-visible
 fields such as source kernel, selected variant, origin plugin, required
-capability refs, runtime ABI kind/name, emission kind, artifact kind,
-lowering-boundary op name, and handoff reason. It is not runtime execution,
-vendor integration, DMA, object generation, correctness evidence, or
-performance evidence.
+capability refs, descriptor schema version, descriptor kind/status, adapter
+contract, runtime ABI kind/name, emission kind, artifact kind,
+lowering-boundary op name/status, runtime-offload handoff kind, handoff reason,
+and explicit non-claim metadata. The generic target artifact bundle exporter
+may materialize the selected non-fallback offload path as one descriptor
+artifact with an index entry carrying route, owner/origin, runtime ABI, and
+handoff kind metadata. It is not runtime execution, vendor integration, DMA,
+object generation, correctness evidence, or performance evidence.
 
 Future types may include:
 

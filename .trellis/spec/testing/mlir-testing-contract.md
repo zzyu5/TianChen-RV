@@ -216,12 +216,15 @@ Use lit/FileCheck for:
 - offload runtime descriptor target artifact export through the artifact-kind
   aware generic route, including selected offload path plus matching
   `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability
-  refs, descriptor route id, non-source artifact kind, deterministic descriptor
-  output, source-only route filtering, and fail-closed diagnostics for missing
-  boundaries, missing runtime ABI metadata, stale selected variants, stale
-  lowering boundaries, unknown route ids, unsupported artifact kinds,
-  RVV/scalar/offload route spoofing, URLs, raw credentials, and secret-like
-  metadata.
+  refs, descriptor route id, non-source artifact kind, descriptor schema
+  version/kind/status, external adapter contract id, explicit non-claim
+  metadata, deterministic descriptor output, source-only route filtering, a
+  one-artifact offload descriptor bundle index with route/owner/runtime
+  ABI/handoff kind metadata, and fail-closed diagnostics for missing
+  boundaries, missing runtime ABI or handoff kind metadata, stale selected
+  variants, stale lowering boundaries, unknown route ids, unsupported artifact
+  kinds, RVV/scalar/offload route spoofing, URLs, raw credentials, raw logs,
+  and secret-like metadata.
 
 Example test intent:
 

@@ -207,6 +207,7 @@ bool containsForbiddenText(llvm::StringRef value) {
          normalized.contains("private key") ||
          normalized.contains("authorization:") ||
          normalized.contains("api_key") || normalized.contains("access_key") ||
+         normalized.contains("raw log") || normalized.contains("raw-log") ||
          normalized.contains("http://") || normalized.contains("https://") ||
          normalized.contains("://");
 }
@@ -955,6 +956,18 @@ std::string deriveCompositeRuntimeABIName(
   return std::string();
 }
 
+std::string deriveCompositeRuntimeABI(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (candidates.empty())
+    return std::string();
+  llvm::StringRef first = candidates.front().runtimeABI;
+  if (llvm::all_of(candidates, [&](const TargetArtifactCandidate &candidate) {
+        return candidate.runtimeABI == first;
+      }))
+    return first.str();
+  return std::string();
+}
+
 llvm::Error appendSingleCandidateBundleRecord(
     const TargetArtifactCandidate &candidate,
     const TargetArtifactExporterRegistry &registry,
@@ -981,8 +994,10 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.selectableVia =
       getGenericFrontDoorSelector(candidate.artifactKind).str();
   record.directHelperRoute = exporter->hasDirectHelperRoute();
+  record.runtimeABI = candidate.runtimeABI;
   record.runtimeABIKind = candidate.runtimeABIKind;
   record.runtimeABIName = candidate.runtimeABIName;
+  record.handoffKind = exporter->getHandoffKind().str();
   record.evidenceRole =
       getEvidenceRoleForArtifactKind(candidate.artifactKind).str();
   out.push_back(std::move(record));
@@ -1021,6 +1036,7 @@ llvm::Error appendCompositeBundleRecords(
     record.selectableVia =
         getGenericFrontDoorSelector(exporter.getArtifactKind()).str();
     record.directHelperRoute = exporter.hasDirectHelperRoute();
+    record.runtimeABI = deriveCompositeRuntimeABI(group.candidates);
     record.runtimeABIKind =
         deriveCompositeRuntimeABIKind(group.candidates, exporter);
     record.runtimeABIName =
@@ -1069,7 +1085,13 @@ llvm::Error collectTargetArtifactBundleRecords(
     if (group.candidates.size() == 1 || out.size() != beforeComposite)
       continue;
 
+    bool hasNonFallbackCandidate = llvm::any_of(
+        group.candidates, [](const TargetArtifactCandidate &candidate) {
+          return candidate.role != kDispatchFallbackRole;
+        });
     for (const TargetArtifactCandidate &candidate : group.candidates) {
+      if (hasNonFallbackCandidate && candidate.role == kDispatchFallbackRole)
+        continue;
       if (llvm::Error error =
               appendSingleCandidateBundleRecord(candidate, registry, out))
         return error;
@@ -1240,12 +1262,20 @@ void printTargetArtifactBundleIndex(
     os << "  owner: ";
     printBundleQuoted(os, record.owner);
     os << "\n";
+    os << "  runtime_abi: ";
+    printBundleQuoted(os, record.runtimeABI);
+    os << "\n";
     os << "  runtime_abi_kind: ";
     printBundleQuoted(os, record.runtimeABIKind);
     os << "\n";
     os << "  runtime_abi_name: ";
     printBundleQuoted(os, record.runtimeABIName);
     os << "\n";
+    if (!record.handoffKind.empty()) {
+      os << "  handoff_kind: ";
+      printBundleQuoted(os, record.handoffKind);
+      os << "\n";
+    }
     os << "  evidence_role: ";
     printBundleQuoted(os, record.evidenceRole);
     os << "\n";
@@ -1441,10 +1471,11 @@ TargetArtifactExporter::TargetArtifactExporter(
     TargetArtifactExportFn exportFn,
     llvm::ArrayRef<support::RuntimeABIParameter>
         requiredRuntimeABIParameters,
-    bool directHelperRoute)
+    bool directHelperRoute, llvm::StringRef handoffKind)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
-      exportFn(exportFn), directHelperRoute(directHelperRoute) {
+      exportFn(exportFn), directHelperRoute(directHelperRoute),
+      handoffKind(handoffKind.str()) {
   this->requiredRuntimeABIParameters.append(
       requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());
 }
@@ -1593,7 +1624,8 @@ llvm::Error exportTargetArtifactBundle(
     llvm::raw_string_ostream artifactStream(artifactBytes);
     if (llvm::Error error = exportFn(module, artifactStream)) {
       removeBundleFiles(writtenPaths);
-      return error;
+      std::string message = llvm::toString(std::move(error));
+      return makeTargetArtifactBundleExportError(message);
     }
     artifactStream.flush();
     if (artifactBytes.empty()) {

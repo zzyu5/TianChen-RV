@@ -549,7 +549,14 @@ tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
 ```
 
 The descriptor contains only sanitized compiler-visible fields such as source
-kernel, selected variant, origin plugin, required capabilities, runtime ABI
-kind/name, emission kind, artifact kind, lowering-boundary op name, and handoff
-reason. It is not offload runtime execution, hardware correctness evidence, or
-performance evidence.
+kernel, selected variant, origin plugin, selected role, descriptor schema
+version, descriptor kind/status, adapter contract, required capabilities,
+runtime ABI kind/name, emission kind, artifact kind, lowering-boundary op name
+and status, runtime-offload handoff kind, handoff reason, and explicit
+non-claim metadata. Through the generic target artifact bundle exporter, the
+selected non-fallback offload descriptor path materializes as one descriptor
+artifact plus a bundle index entry carrying stable route, owner, runtime ABI,
+and handoff kind metadata; a scalar fallback candidate is not emitted as a
+second single artifact unless a target-owned composite route explicitly matches.
+This handoff is not offload runtime execution, hardware correctness evidence,
+or performance evidence.
