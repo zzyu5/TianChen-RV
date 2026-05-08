@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Top-level project spec index and package boundary for this task."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability provider and relation-aware lookup contract used by target exporters."}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Module target profile capability scope and profile-bound provider expectations."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Ensure tcrv.exec remains execution/capability/variant/dispatch/fallback focused and compute-free."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and selected compile fact behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and parameter layering constraints."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keep RVV-specific behavior plugin-local or target-local."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Lit/FileCheck testing contract for compiler/exporter behavior."}

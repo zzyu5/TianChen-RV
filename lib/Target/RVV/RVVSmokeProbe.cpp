@@ -446,7 +446,7 @@ llvm::Error validateRequiredCapabilities(
           kernel, llvm::Twine("selected RVV variant @") + variant.getSymName() +
                       " requires unavailable capability @" +
                       symbol.getValue());
-    if (capability->getID() == kRVVCapabilityID)
+    if (capability->satisfiesID(kRVVCapabilityID))
       requiresRVV = true;
     out.push_back(symbol.getValue().str());
   }
@@ -476,7 +476,7 @@ getRequiredSelectedMarch(KernelOp kernel, VariantOp variant,
 
   llvm::SmallVector<std::string, 2> preservedMarches;
   if (const CapabilityDescriptor *compileRun =
-          capabilities.lookupByID(kRVVProbeCompileRunCapabilityID)) {
+          capabilities.lookupProviderByID(kRVVProbeCompileRunCapabilityID)) {
     if (compileRun->isAvailable()) {
       llvm::StringRef value =
           compileRun->getProperty(kSelectedMarchPropertyName).trim();
@@ -490,7 +490,7 @@ getRequiredSelectedMarch(KernelOp kernel, VariantOp variant,
   }
 
   if (const CapabilityDescriptor *march =
-          capabilities.lookupByID(kRVVToolchainMarchCapabilityID)) {
+          capabilities.lookupProviderByID(kRVVToolchainMarchCapabilityID)) {
     if (march->isAvailable()) {
       llvm::StringRef value = march->getProperty(kValuePropertyName).trim();
       if (!value.empty()) {
@@ -535,7 +535,7 @@ llvm::Error getOptionalSelectedMABI(KernelOp kernel,
   };
 
   if (const CapabilityDescriptor *compileRun =
-          capabilities.lookupByID(kRVVProbeCompileRunCapabilityID)) {
+          capabilities.lookupProviderByID(kRVVProbeCompileRunCapabilityID)) {
     if (compileRun->isAvailable())
       if (llvm::Error error =
               mergeMABI(kSelectedMABIPropertyName,
@@ -544,7 +544,7 @@ llvm::Error getOptionalSelectedMABI(KernelOp kernel,
   }
 
   if (const CapabilityDescriptor *mabi =
-          capabilities.lookupByID(kRVVToolchainMABICapabilityID)) {
+          capabilities.lookupProviderByID(kRVVToolchainMABICapabilityID)) {
     if (mabi->isAvailable())
       if (llvm::Error error =
               mergeMABI(kValuePropertyName, mabi->getProperty(kValuePropertyName)))
