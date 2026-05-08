@@ -21,6 +21,7 @@
 # MLIR: isa_vector_hints = "isa: rv64imafdcv_zve64d_zvfh_zvl128b"
 # MLIR: status = "available"
 # MLIR: tcrv.exec.capability @rvv_hart_count
+# MLIR: provides = ["target.hart_count"]
 # MLIR: count = 64 : i64
 # MLIR: tcrv.exec.capability @rvv_vlenb_bytes
 # MLIR: bytes = 16 : i64
@@ -50,6 +51,7 @@
 # PIPE-SAME: isa_vector_hints = "isa: rv64imafdcv_zve64d_zvfh_zvl128b"
 # PIPE: tcrv.exec.capability @rvv_hart_count
 # PIPE-SAME: count = 64 : i64
+# PIPE-SAME: provides = ["target.hart_count"]
 # PIPE: tcrv.exec.capability @rvv_vlenb_bytes
 # PIPE-SAME: bytes = 16 : i64
 # PIPE: tcrv.exec.capability @rvv_i32_m1_lanes

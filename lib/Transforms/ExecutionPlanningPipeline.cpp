@@ -35,6 +35,7 @@ void buildExecutionPlanningPipeline(
     mlir::OpPassManager &pm, const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters) {
   pm.addPass(createMaterializePluginVariantsPass(registry));
+  pm.addPass(createCheckHartParallelCapabilitiesPass());
   pm.addPass(createVerifyPluginVariantLegalityPass(registry));
   pm.addPass(createSelectVariantsPass(registry));
   pm.addPass(createMaterializeDispatchRuntimeGuardsPass());

@@ -104,6 +104,10 @@ or ABI surface that states the new meaning.
    objects and constrain legality and selection. Examples include VLEN,
    vlenb-derived vector capacity, ISA/profile facts, hart or core count,
    toolchain availability, remote probe evidence, and capability provenance.
+   A plugin-local hart-count fact may expose the generic relation id
+   `target.hart_count` with positive integer property `count` so
+   target-neutral core checks can consume capacity without branching on a
+   concrete extension.
 2. Compile-time variant config belongs in plugin-proposed variant metadata,
    selected config, tuning, or lowering-boundary metadata and must be checked
    against target capability. Examples include SEW, LMUL, tail policy, mask
@@ -278,6 +282,11 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - Relation-aware provider lookup must be available by exact id, provided id,
   and implied id. Exact id lookup is authoritative when present; relation
   providers are used only when there is no direct capability with that id.
+- The generic id `target.hart_count` is reserved for target-neutral hart/core
+  count decisions. A provider may keep a plugin-local owning id such as
+  `rvv.hart_count` and list `provides = ["target.hart_count"]`; compiler
+  consumers must read the positive integer `count` property and must not infer
+  runtime thread behavior from the capability alone.
 - Collection/query by `kind` must treat kind values as an open string set.
 - Missing generic status means available/present.
 - `status` takes precedence over `availability` when both are present.
@@ -311,6 +320,12 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
   a preferred-path guard.
 - malformed `requires` or unknown `@cap` -> existing `tcrv.exec` verifier owns
   the diagnostic, not the capability query pass.
+- `tcrv.exec.hart_parallel {harts = N}` with no available provider for
+  `target.hart_count` -> `--tcrv-check-hart-parallel-capabilities` fails.
+- `tcrv.exec.hart_parallel {harts = N}` with a provider whose `count < N` ->
+  `--tcrv-check-hart-parallel-capabilities` fails.
+- `tcrv.exec.hart_parallel` without explicit `harts` -> the hart-count
+  capability check does not create a concrete capacity request.
 
 ### 5. Good/Base/Bad Cases
 

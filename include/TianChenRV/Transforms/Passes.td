@@ -24,6 +24,30 @@ def CheckCapabilityRequires
   ];
 }
 
+def CheckHartParallelCapabilities
+    : Pass<"tcrv-check-hart-parallel-capabilities", "::mlir::ModuleOp"> {
+  let summary = "Check tcrv.exec.hart_parallel against target hart count capabilities";
+  let description = [{
+    Builds a target-independent capability query object from each
+    tcrv.exec.kernel and rejects tcrv.exec.hart_parallel operations whose
+    explicit harts attribute exceeds the available structured target hart/core
+    count capability.
+
+    The check is target-neutral. It queries the generic capability relation id
+    target.hart_count and its positive integer count property. Extension
+    plugins may expose plugin-local facts such as rvv.hart_count through that
+    relation, but this pass does not branch on RVV, scalar fallback, IME,
+    offload, Sophgo, AME, vendor, runtime, dtype, shape, or microkernel
+    semantics. A hart_parallel op without an explicit harts attribute remains
+    structurally valid and is not treated as a concrete capacity request.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createCheckHartParallelCapabilitiesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def SynthesizeVariantDispatch
     : Pass<"tcrv-synthesize-variant-dispatch", "::mlir::ModuleOp"> {
   let summary = "Synthesize generic tcrv.exec.dispatch from materialized variants";

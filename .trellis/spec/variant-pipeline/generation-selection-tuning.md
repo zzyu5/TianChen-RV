@@ -102,6 +102,7 @@ existing pass factories in this order:
 
 ```text
 tcrv-materialize-plugin-variants
+  -> tcrv-check-hart-parallel-capabilities
   -> tcrv-verify-plugin-variant-legality
   -> tcrv-select-variants
   -> tcrv-materialize-dispatch-runtime-guards
@@ -124,6 +125,12 @@ supplied registries and must not create hidden target-specific global state.
 Compatibility builders that only receive plugins use an explicit empty target
 artifact exporter registry, so supported artifact front-door validation remains
 a clear fail-closed diagnostic until a populated exporter registry is supplied.
+
+The hart-parallel capability check is target-neutral. It checks only
+`tcrv.exec.hart_parallel` requests against generic capability id
+`target.hart_count` and property `count`; plugin profiles may provide that id
+from extension-local facts, but the pipeline must not gain concrete RVV/IME/
+offload/scalar branches to interpret hart count.
 
 The `tcrv-select-variants` stage is the capability-aware selection and dispatch
 planning stage for this pipeline. The older order-based

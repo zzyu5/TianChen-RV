@@ -150,7 +150,7 @@ def status_from_bool(value: bool) -> str:
 def append_capability(
     lines: list[str],
     symbol: str,
-    attrs: list[tuple[str, str | int]],
+    attrs: list[tuple[str, str | int | list[str]]],
 ) -> None:
     lines.append(f"    tcrv.exec.capability @{symbol} {{")
     for index, (name, value) in enumerate(attrs):
@@ -158,6 +158,9 @@ def append_capability(
         comma = "" if is_last else ","
         if isinstance(value, int):
             lines.append(f"      {name} = {value} : i64{comma}")
+        elif isinstance(value, list):
+            entries = ", ".join(mlir_string(entry) for entry in value)
+            lines.append(f"      {name} = [{entries}]{comma}")
         else:
             lines.append(f"      {name} = {mlir_string(value)}{comma}")
     lines.append("    }")
@@ -242,6 +245,7 @@ def emit_replay_mlir(
         [
             ("id", "rvv.hart_count"),
             ("kind", "uarch"),
+            ("provides", ["target.hart_count"]),
             ("count", facts["hart_count"]),
             ("status", status_from_bool(facts["hart_count"] > 0)),
         ],
@@ -289,7 +293,7 @@ def emit_replay_mlir(
         ],
     )
 
-    compile_run_attrs: list[tuple[str, str | int]] = [
+    compile_run_attrs: list[tuple[str, str | int | list[str]]] = [
         ("id", "rvv.probe.compile_run"),
         ("kind", "toolchain"),
         ("status", compile_run_status),
@@ -407,6 +411,12 @@ def run_self_test() -> None:
             'tcrv.exec.capability @rvv_probe_compile_run' in mlir
             and 'selected_march = "rv64gcv"' in mlir,
             "compile/run capability was not emitted",
+        )
+        assert_self_test(
+            'tcrv.exec.capability @rvv_hart_count' in mlir
+            and 'provides = ["target.hart_count"]' in mlir
+            and "count = 64 : i64" in mlir,
+            "RVV hart count capability relation was not emitted",
         )
         assert_self_test(
             'tcrv.exec.capability @rvv_vlenb_bytes' in mlir

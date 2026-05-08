@@ -19,6 +19,9 @@ namespace {
 constexpr llvm::StringLiteral kProvidesAttrName("provides");
 constexpr llvm::StringLiteral kImpliesAttrName("implies");
 constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
+constexpr llvm::StringLiteral kTargetHartCountCapabilityID(
+    "target.hart_count");
+constexpr llvm::StringLiteral kHartCountPropertyName("count");
 
 llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
@@ -131,6 +134,14 @@ std::string makeKernelExtractionContext(tcrv::exec::KernelOp kernel) {
 }
 
 } // namespace
+
+llvm::StringRef getTargetHartCountCapabilityID() {
+  return kTargetHartCountCapabilityID;
+}
+
+llvm::StringRef getHartCountPropertyName() {
+  return kHartCountPropertyName;
+}
 
 CapabilityDescriptor::CapabilityDescriptor(
     llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,

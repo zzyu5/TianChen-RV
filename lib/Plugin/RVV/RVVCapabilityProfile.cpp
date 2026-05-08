@@ -141,10 +141,13 @@ bool isHexDigest(llvm::StringRef digest) {
 llvm::Error addAvailableCapability(support::TargetCapabilitySet &capabilities,
                                    llvm::StringRef symbolName,
                                    llvm::StringRef id, llvm::StringRef kind,
-                                   CapabilityProperties properties = {}) {
+                                   CapabilityProperties properties = {},
+                                   llvm::ArrayRef<std::string> providedIDs =
+                                       {}) {
   return capabilities.tryAddCapability(support::CapabilityDescriptor(
       symbolName, id, kind, kAvailableStatus,
-      support::CapabilityAvailability::Available, std::move(properties)),
+      support::CapabilityAvailability::Available, std::move(properties),
+      providedIDs),
       "RVV probe capability construction");
 }
 
@@ -294,7 +297,8 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   if (llvm::Error error = addAvailableCapability(
           capabilities, getRVVHartCountCapabilitySymbol(),
           getRVVHartCountCapabilityID(), "uarch",
-          {{"count", std::to_string(facts.hartCount)}}))
+          {{"count", std::to_string(facts.hartCount)}},
+          {support::getTargetHartCountCapabilityID().str()}))
     return std::move(error);
   if (facts.vlenbBytes) {
     if (llvm::Error error = addAvailableCapability(

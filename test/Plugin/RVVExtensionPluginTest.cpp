@@ -417,6 +417,19 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                               hartCount->getProperty("count") == "64",
                           "RVV profile preserves hart count as uarch fact"))
     return result;
+  if (int result = expect(hartCount && hartCount->providesID(
+                                           tianchenrv::support::
+                                               getTargetHartCountCapabilityID()),
+                          "RVV hart count provides generic target hart-count "
+                          "capability relation"))
+    return result;
+  if (int result = expect(capabilities.lookupProviderByID(
+                              tianchenrv::support::
+                                  getTargetHartCountCapabilityID()) ==
+                              hartCount,
+                          "generic target hart-count capability resolves to "
+                          "the RVV hart-count provider"))
+    return result;
 
   const CapabilityDescriptor *vlenb = capabilities.lookupByID(
       tianchenrv::plugin::rvv::getRVVVLenBBytesCapabilityID());

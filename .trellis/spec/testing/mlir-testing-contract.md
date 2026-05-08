@@ -281,7 +281,8 @@ Use C++ tests for:
   probe facts, vlenb-derived i32 lane capacity preservation and rejection,
   missing vector hints, non-`riscv64` architecture, compile/run failure,
   missing clang/CMake availability, deterministic sanitized capability
-  identities, and preservation of unsupported RVV emission readiness/plans;
+  identities, `rvv.hart_count` providing `target.hart_count`, and preservation
+  of unsupported RVV emission readiness/plans;
 - cost model helper logic;
 - concrete first-slice plugin registration, proposal metadata, legality, and
   registry-backed selection consumption;

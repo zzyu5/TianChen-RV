@@ -15,6 +15,9 @@
 
 namespace tianchenrv::support {
 
+llvm::StringRef getTargetHartCountCapabilityID();
+llvm::StringRef getHartCountPropertyName();
+
 enum class CapabilityAvailability {
   Available,
   Unavailable,

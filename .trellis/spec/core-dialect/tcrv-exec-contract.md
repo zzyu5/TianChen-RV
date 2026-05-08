@@ -197,6 +197,16 @@ when present. `policy` is optional but must be non-empty when present.
 verification checks structure only; concrete runtime threading decisions remain
 plugin/local lowering responsibility.
 
+The compiler planning check `--tcrv-check-hart-parallel-capabilities` gives
+`harts` its target-capability meaning. When `harts = N` is present, the pass
+requires an available provider for generic capability id `target.hart_count`
+with positive integer property `count`, and rejects `N > count`. Extension
+profiles may expose plugin-local facts such as `rvv.hart_count` through
+`provides = ["target.hart_count"]`; the core check must not branch on RVV,
+IME, offload, scalar fallback, vendor names, or thread runtime implementations.
+A `hart_parallel` without explicit `harts` remains structural and does not
+request a concrete capacity.
+
 ### `tcrv.exec.region`
 
 Optional structured region for extension-resource use:

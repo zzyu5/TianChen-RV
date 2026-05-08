@@ -43,6 +43,9 @@ void registerTianChenRVOptPasses(
         &targetExporters) {
   mlir::registerPass(
       [] { return tianchenrv::transforms::createCheckCapabilityRequiresPass(); });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createCheckHartParallelCapabilitiesPass();
+  });
   mlir::registerPass(
       [] { return tianchenrv::transforms::createSynthesizeVariantDispatchPass(); });
   mlir::registerPass([&plugins] {

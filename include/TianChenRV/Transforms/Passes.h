@@ -37,6 +37,7 @@ void registerExecutionPlanningPipeline(
     const target::TargetArtifactExporterRegistry &targetExporters);
 
 std::unique_ptr<::mlir::Pass> createCheckCapabilityRequiresPass();
+std::unique_ptr<::mlir::Pass> createCheckHartParallelCapabilitiesPass();
 std::unique_ptr<::mlir::Pass> createSynthesizeVariantDispatchPass();
 std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass();
 std::unique_ptr<::mlir::Pass> createMaterializePluginVariantsPass(
