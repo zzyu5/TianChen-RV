@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime ABI contract, target artifact, bundle, and evidence boundaries"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "ssh rvv evidence interpretation and forbidden claims"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "local tool tests and real ssh rvv evidence requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and bounded i32-vadd evidence scope"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin-local route boundary for dispatch evidence"}
