@@ -53,7 +53,10 @@ Rules:
 - for supported `runtime-callable-c-source` paths, carry structured
   `runtime_abi_parameters` metadata for every exported C ABI parameter. Each
   entry records the C parameter name, C type spelling, semantic role, and
-  ownership (`ir-modeled` or `target-export-abi-owned`);
+  ownership (`ir-modeled` or `target-export-abi-owned`). For the bounded
+  i32-vadd RVV/scalar callable source routes, these entries must be derived from
+  and validated against direct `tcrv.exec.mem_window` / `tcrv.exec.runtime_param`
+  IR boundaries rather than acting as an independent parameter truth source;
 - carry required capability symbol refs that are a safe subset of the selected
   variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -103,9 +106,10 @@ paths, duplicate or ambiguous supported artifacts, and malformed bounded text.
 Concrete artifact generation remains target-owned. Built-in tools may register
 target exporters, but the registration is where extension-specific route facts
 belong. Source exporters that declare required runtime ABI parameter roles also
-verify that the selected emission-plan diagnostic carries the exact structured
-parameter boundary, including role, C name, C type, and ownership. Missing,
-spoofed, or extra required roles fail before target-owned C source emission.
+verify that any selected emission-plan diagnostic parameter metadata is an exact
+mirror of the executable IR-backed ABI boundary consumed by the target-owned
+exporter, including role, C name, C type, and ownership. Missing, spoofed,
+stale, or extra required roles fail before target-owned C source emission.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
 dtype, shape, runtime, toolchain, or microarchitecture semantics. The
 currently supported source routes are bounded explicit target/export-owned
@@ -161,24 +165,22 @@ preserve parameter layering:
   only as real IR/control fields or generated ABI parameters;
 - generated ABI parameters must state whether they are actually IR-modeled or
   target/export ABI-owned. The current bounded i32-vadd RVV and scalar source
-  exports still pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters,
-  but the RVV+scalar host dispatcher must additionally require real
-  `tcrv.exec.mem_window` IR for the lhs/rhs/out buffer meanings before target
-  export claims those roles. The RVV+scalar host dispatcher must also require
-  real direct `tcrv.exec.runtime_param` IR for the runtime-element-count `n`
-  and dispatch-availability-guard meanings before target export claims those
-  scalar runtime ABI/control roles. Runtime `n` remains a runtime ABI/control
-  value, and `rvv_available` remains a target/export-owned dispatch guard;
+  exports pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters, but the
+  callable parameter plan must be built from real `tcrv.exec.mem_window` IR for
+  lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR for
+  runtime-element-count. Candidate/emission-plan parameter metadata may only
+  mirror that IR-backed plan. Runtime `n` remains a runtime ABI/control value,
+  not descriptor-local element count;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
-  parameters structurally by runtime ABI role, C type, and ownership. The
-  bounded dispatch exporter may use the selected RVV candidate's role-bound
-  C names/types for public callable parameters, require scalar role/type/
-  ownership compatibility, require matching runtime-element-count
-  `tcrv.exec.runtime_param` metadata, and append exactly one
-  target/export-owned `dispatch-availability-guard` parameter derived from
-  `tcrv.exec.runtime_param` IR. The default guard C name is `rvv_available`;
-  an explicit runtime_param may use another valid C name without changing
-  callable role order or introducing automatic hardware probing;
+  parameters from the same IR-backed callable ABI plan for both the selected RVV
+  candidate and the selected scalar fallback candidate. The bounded dispatch
+  exporter must reject callable candidate metadata that disagrees with the
+  `mem_window` / runtime-element-count `runtime_param` boundaries, then append
+  exactly one target/export-owned `dispatch-availability-guard` parameter derived
+  from direct `tcrv.exec.runtime_param` IR. The default guard C name is
+  `rvv_available`; an explicit runtime_param may use another valid C name
+  without changing callable role order, adding the guard to callable microkernel
+  signatures, or introducing automatic hardware probing;
 - descriptor-local bounded values such as `tcrv_rvv.element_count` or
   `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only
   and must not be reported as tensor shape, global problem size, AVL, vl,

@@ -4,6 +4,9 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
+#include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
@@ -35,6 +38,8 @@ using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::MemWindowOp;
+using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32VAddDataflowOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
@@ -102,6 +107,8 @@ struct RVVMicrokernelRecord {
   std::optional<std::string> selectedMABI;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+  llvm::SmallVector<MemWindowOp, 3> bufferWindows;
+  RuntimeParamOp runtimeElementCountParam;
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
@@ -392,60 +399,6 @@ llvm::Error collectRuntimeABIParameters(
 
     out.push_back(support::RuntimeABIParameter(cNameValue, cTypeValue,
                                                *parsedRole, *parsedOwnership));
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Error resolveI32VAddRuntimeABIParameters(
-    KernelOp kernel,
-    llvm::ArrayRef<support::RuntimeABIParameter> planParameters,
-    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> expectedParameters =
-      support::getI32VAddRuntimeABIRoleRequirements();
-
-  for (const support::RuntimeABIParameter &expected : expectedParameters) {
-    auto actualIt = llvm::find_if(
-        planParameters, [&](const support::RuntimeABIParameter &actual) {
-          return actual.role == expected.role;
-        });
-    if (actualIt == planParameters.end())
-      return makeMicrokernelError(
-          kernel, llvm::Twine("supported RVV microkernel emission-plan "
-                              "requires runtime ABI parameter role '") +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "'");
-
-    if (actualIt->cType != expected.cType)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("runtime ABI parameter role '") +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "' must use c type '" + expected.cType + "'");
-
-    if (actualIt->ownership != expected.ownership)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("runtime ABI parameter role '") +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "' must use ownership '" +
-                      support::stringifyRuntimeABIParameterOwnership(
-                          expected.ownership) +
-                      "'");
-
-    out.push_back(*actualIt);
-  }
-
-  for (const support::RuntimeABIParameter &actual : planParameters) {
-    bool expectedRole = llvm::any_of(
-        expectedParameters, [&](const support::RuntimeABIParameter &expected) {
-          return expected.role == actual.role;
-        });
-    if (!expectedRole)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("supported RVV microkernel emission-plan "
-                              "received unsupported runtime ABI parameter "
-                              "role '") +
-                      support::stringifyRuntimeABIParameterRole(actual.role) +
-                      "'");
   }
 
   return llvm::Error::success();
@@ -1203,7 +1156,12 @@ llvm::Error findAndValidateMicrokernel(
 
 llvm::Error resolveRuntimeABIParametersForPath(
     KernelOp kernel, const SelectedPath &path,
-    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
+    support::I32VAddCallableABIPlan &callablePlan) {
+  llvm::Expected<support::I32VAddCallableABIPlan> irBackedPlan =
+      support::buildI32VAddCallableABIPlan(kernel);
+  if (!irBackedPlan)
+    return irBackedPlan.takeError();
+
   llvm::SmallVector<DiagnosticOp, 2> matches;
   for (mlir::Operation &op : kernel.getBody().front()) {
     auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op);
@@ -1224,9 +1182,7 @@ llvm::Error resolveRuntimeABIParametersForPath(
   }
 
   if (matches.empty()) {
-    llvm::SmallVector<support::RuntimeABIParameter, 4> defaults =
-        support::getI32VAddRuntimeABIParameters();
-    out.append(defaults.begin(), defaults.end());
+    callablePlan = std::move(*irBackedPlan);
     return llvm::Error::success();
   }
 
@@ -1302,7 +1258,13 @@ llvm::Error resolveRuntimeABIParametersForPath(
           collectRuntimeABIParameters(kernel, diagnostic, planParameters))
     return error;
 
-  return resolveI32VAddRuntimeABIParameters(kernel, planParameters, out);
+  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+          kernel, planParameters, irBackedPlan->parameters,
+          "supported RVV microkernel emission-plan"))
+    return error;
+
+  callablePlan = std::move(*irBackedPlan);
+  return llvm::Error::success();
 }
 
 llvm::Expected<RVVMicrokernelRecord>
@@ -1382,10 +1344,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           controlPlaneLMUL))
     return std::move(error);
 
-  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+  support::I32VAddCallableABIPlan callablePlan;
   if (llvm::Error error =
-          resolveRuntimeABIParametersForPath(kernel, path,
-                                             runtimeABIParameters))
+          resolveRuntimeABIParametersForPath(kernel, path, callablePlan))
     return std::move(error);
 
   RVVMicrokernelRecord record;
@@ -1395,7 +1356,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.selectedMarch = std::move(*selectedMarch);
   record.selectedMABI = std::move(selectedMABI);
   record.requiredCapabilities = std::move(requiredCapabilities);
-  record.runtimeABIParameters = std::move(runtimeABIParameters);
+  record.runtimeABIParameters = std::move(callablePlan.parameters);
+  record.bufferWindows = std::move(callablePlan.bufferWindows);
+  record.runtimeElementCountParam = callablePlan.runtimeElementCountParam;
   record.elementCount = elementCount;
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
@@ -1515,6 +1478,51 @@ std::string makeMicrokernelFunctionName(const RVVMicrokernelRecord &record) {
   return name;
 }
 
+llvm::StringRef getAttrValue(mlir::Operation *op, llvm::StringRef attrName) {
+  auto attr = getStringAttr(op, attrName);
+  if (!attr)
+    return {};
+  return attr.getValue();
+}
+
+void printCallableBoundaryMetadata(llvm::raw_ostream &os,
+                                   const RVVMicrokernelRecord &record) {
+  os << "/* callable_abi_source: tcrv.exec.mem_window + "
+        "tcrv.exec.runtime_param */\n";
+  for (auto [index, windowRef] : llvm::enumerate(record.bufferWindows)) {
+    MemWindowOp window = windowRef;
+    os << "/* callable_mem_window[" << index << "]: symbol=@"
+       << getAttrValue(window.getOperation(), "sym_name") << ", abi_role="
+       << getAttrValue(window.getOperation(),
+                       support::kMemWindowABIRoleAttrName)
+       << ", access="
+       << getAttrValue(window.getOperation(), support::kMemWindowAccessAttrName)
+       << ", ownership="
+       << getAttrValue(window.getOperation(),
+                       support::kMemWindowOwnershipAttrName)
+       << ", c_type="
+       << getAttrValue(window.getOperation(), support::kMemWindowCTypeAttrName)
+       << " */\n";
+  }
+
+  RuntimeParamOp runtimeParam = record.runtimeElementCountParam;
+  os << "/* callable_runtime_param[0]: symbol=@"
+     << getAttrValue(runtimeParam.getOperation(), "sym_name")
+     << ", abi_role="
+     << getAttrValue(runtimeParam.getOperation(),
+                     support::kRuntimeParamABIRoleAttrName)
+     << ", c_name="
+     << getAttrValue(runtimeParam.getOperation(),
+                     support::kRuntimeParamCNameAttrName)
+     << ", c_type="
+     << getAttrValue(runtimeParam.getOperation(),
+                     support::kRuntimeParamCTypeAttrName)
+     << ", ownership="
+     << getAttrValue(runtimeParam.getOperation(),
+                     support::kRuntimeParamOwnershipAttrName)
+     << " */\n";
+}
+
 void printRecordComment(llvm::raw_ostream &os,
                         const RVVMicrokernelRecord &record,
                         llvm::StringRef functionName) {
@@ -1546,6 +1554,7 @@ void printRecordComment(llvm::raw_ostream &os,
   for (llvm::StringRef capability : record.requiredCapabilities)
     os << " @" << capability;
   os << " */\n";
+  printCallableBoundaryMetadata(os, record);
   for (auto [index, parameter] :
        llvm::enumerate(record.runtimeABIParameters)) {
     os << "/* runtime_abi_parameter[" << index << "]: c_name="

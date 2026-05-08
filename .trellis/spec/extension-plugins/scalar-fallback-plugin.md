@@ -196,8 +196,10 @@ artifact kind: runtime-callable-c-source
 
 The exported source must contain a deterministic callable C function with
 `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, and `size_t n`
-parameters, and the supported emission plan must carry structured
-`runtime_abi_parameters` entries for `lhs`, `rhs`, `out`, and runtime `n`.
+parameters. The callable ABI plan must be built from direct
+`tcrv.exec.mem_window` IR for lhs/rhs/out buffer roles plus direct
+`tcrv.exec.runtime_param` IR for runtime `n`; supported emission-plan
+`runtime_abi_parameters` entries are validated mirrors of that IR-backed plan.
 For this first slice those parameters are target/export ABI-owned, not
 IR-modeled scalar operands or high-level tensor shape. The default artifact has
 no hidden `main`, stdio-only self-check machinery, or success marker. The source

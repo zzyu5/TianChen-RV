@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "mlir/IR/Attributes.h"
@@ -1274,8 +1275,11 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind("rvv-runtime-callable-c-abi");
     out.setRuntimeABIName("rvv-i32-vadd-runtime-callable-c-function.v1");
     out.setRuntimeGlueRole("runtime-callable-i32-vadd-function");
-    out.addRuntimeABIParameters(
-        support::getI32VAddRuntimeABIParameters());
+    llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
+        support::buildI32VAddCallableABIPlan(request.getKernel());
+    if (!callablePlan)
+      return callablePlan.takeError();
+    out.addRuntimeABIParameters(callablePlan->parameters);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
@@ -1357,19 +1361,31 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     microkernelPlan = std::move(*planned);
   }
 
+  bool selectedPathHasCallableMicrokernel = microkernelPlan.has_value();
+  if (!selectedPathHasCallableMicrokernel) {
+    VariantEmissionRequest emissionRequest(variant, kernel,
+                                           request.getCapabilities(),
+                                           request.getRole());
+    llvm::Expected<bool> explicitMicrokernel =
+        hasMatchingExplicitMicrokernel(emissionRequest);
+    if (!explicitMicrokernel)
+      return explicitMicrokernel.takeError();
+    selectedPathHasCallableMicrokernel = *explicitMicrokernel;
+  }
+
   if (microkernelPlan)
     if (llvm::Error error =
             rejectExistingRVVMicrokernelForSelectedPath(kernel, variant,
                                                         request.getRole()))
       return error;
 
-  if (microkernelPlan)
+  if (selectedPathHasCallableMicrokernel)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
             kernel, request.getBuilder(),
             support::getI32VAddBufferMemWindowSpecs()))
       return error;
 
-  if (microkernelPlan) {
+  if (selectedPathHasCallableMicrokernel) {
     llvm::SmallVector<support::RuntimeABIParamSpec, 2> runtimeParamSpecs;
     if (request.getRole() == VariantEmissionRole::DispatchCase ||
         request.getRole() == VariantEmissionRole::DispatchFallback) {
@@ -1379,7 +1395,8 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
       auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
       runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     }
-    if (llvm::Error error = support::ensureRuntimeABIParams(
+    if (llvm::Error error =
+            support::ensureRuntimeABIParamsAllowingExistingCNames(
             kernel, request.getBuilder(), runtimeParamSpecs))
       return error;
   }

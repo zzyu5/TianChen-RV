@@ -612,12 +612,14 @@ that has exactly one selected `rvv-plugin` path, a matching
 matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
 `riscv_vector.h` and exposes a deterministic runtime-callable i32 vadd C ABI
 function with `const int32_t *` input pointers, an `int32_t *` output pointer,
-and a `size_t` runtime element count. The supported emission plan must carry
-structured `runtime_abi_parameters` entries for the lhs input, rhs input,
-output, and runtime element-count roles. For this first slice those parameters
-are target/export ABI-owned, not IR-modeled RVV operands or descriptor-local
-`element_count`; the exporter resolves the concrete C names and validates the
-C types structurally by role. The exporter must validate and consume the
+and a `size_t` runtime element count. The callable ABI plan must be built from
+direct `tcrv.exec.mem_window` IR for the lhs input, rhs input, and output buffer
+roles plus direct `tcrv.exec.runtime_param` IR for the runtime element-count
+role. Supported emission-plan `runtime_abi_parameters` entries are a validated
+mirror of that IR-backed plan, not an independent source of callable C names or
+types. For this first slice those parameters are target/export ABI-owned, not
+IR-modeled RVV operands or descriptor-local `element_count`. The exporter must
+validate and consume the
 microkernel's structured `setvl` / `with_vl` / `i32_vadd_dataflow` role body
 before emitting the RVV i32 load/add/store-intrinsic loop, so stale or
 mismatched control/dataflow metadata cannot be silently ignored. The default

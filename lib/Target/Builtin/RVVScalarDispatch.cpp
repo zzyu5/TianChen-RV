@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
@@ -339,82 +340,6 @@ llvm::Error validateDispatchRuntimeABIText(KernelOp kernel,
   return llvm::Error::success();
 }
 
-llvm::Error resolveCallableI32VAddABIParameters(
-    const TargetArtifactCandidate &candidate,
-    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> expectedParameters =
-      support::getI32VAddRuntimeABIRoleRequirements();
-
-  for (const support::RuntimeABIParameter &expected : expectedParameters) {
-    const support::RuntimeABIParameter *actualParameter = nullptr;
-    unsigned count = 0;
-    for (const support::RuntimeABIParameter &actual :
-         candidate.runtimeABIParameters) {
-      if (actual.role != expected.role)
-        continue;
-      actualParameter = &actual;
-      ++count;
-    }
-
-    if (count == 0)
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected callable artifact route '") +
-              candidate.routeID + "' requires runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) + "'");
-    if (count > 1)
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected callable artifact route '") +
-              candidate.routeID +
-              "' received duplicate runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) + "'");
-
-    if (llvm::Error error =
-            validateDispatchCParameterName(candidate.kernel,
-                                           actualParameter->cName))
-      return error;
-
-    if (actualParameter->cType != expected.cType)
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected callable artifact route '") +
-              candidate.routeID + "' runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) +
-              "' must use c type '" + expected.cType + "'");
-
-    if (actualParameter->ownership != expected.ownership)
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected callable artifact route '") +
-              candidate.routeID + "' runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) +
-              "' must use ownership '" +
-              support::stringifyRuntimeABIParameterOwnership(
-                  expected.ownership) +
-              "'");
-
-    out.push_back(*actualParameter);
-  }
-
-  for (const support::RuntimeABIParameter &actual :
-       candidate.runtimeABIParameters) {
-    bool expectedRole = llvm::any_of(
-        expectedParameters, [&](const support::RuntimeABIParameter &expected) {
-          return expected.role == actual.role;
-        });
-    if (!expectedRole)
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected callable artifact route '") +
-              candidate.routeID +
-              "' received unsupported runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(actual.role) + "'");
-  }
-
-  return llvm::Error::success();
-}
-
 DispatchOp findDispatchOpForPair(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
   if (!kernel || kernel.getBody().empty())
@@ -496,26 +421,25 @@ RuntimeParamOp findRuntimeParamByRole(
 }
 
 llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> rvvParameters;
-  if (llvm::Error error =
-          resolveCallableI32VAddABIParameters(pair.rvv, rvvParameters))
-    return std::move(error);
+  llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
+      support::buildI32VAddCallableABIPlan(pair.rvv.kernel);
+  if (!callablePlan) {
+    std::string message = llvm::toString(callablePlan.takeError());
+    return makeDispatchError(pair.rvv.kernel, message);
+  }
 
-  llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters;
-  if (llvm::Error error =
-          resolveCallableI32VAddABIParameters(pair.scalar, scalarParameters))
-    return std::move(error);
-
-  for (auto [rvvParameter, scalarParameter] :
-       llvm::zip(rvvParameters, scalarParameters)) {
-    if (rvvParameter.role != scalarParameter.role ||
-        rvvParameter.cType != scalarParameter.cType ||
-        rvvParameter.ownership != scalarParameter.ownership)
-      return makeDispatchError(
-          pair.rvv.kernel,
-          llvm::Twine("RVV and scalar callable runtime ABI role '") +
-              support::stringifyRuntimeABIParameterRole(rvvParameter.role) +
-              "' must agree on c type and ownership before dispatch export");
+  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+          pair.rvv.kernel, pair.rvv.runtimeABIParameters,
+          callablePlan->parameters, "selected RVV callable artifact route")) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDispatchError(pair.rvv.kernel, message);
+  }
+  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+          pair.scalar.kernel, pair.scalar.runtimeABIParameters,
+          callablePlan->parameters,
+          "selected scalar callable artifact route")) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDispatchError(pair.scalar.kernel, message);
   }
 
   DispatchOp dispatch = findDispatchOpForPair(pair);
@@ -533,12 +457,13 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
             "tcrv.exec.runtime_param IR for dispatch runtime ABI scalar "
             "values");
 
-  auto runtimeCountIt = llvm::find_if(
-      rvvParameters, [](const support::RuntimeABIParameter &parameter) {
-        return parameter.role ==
-               support::RuntimeABIParameterRole::RuntimeElementCount;
-      });
-  if (runtimeCountIt == rvvParameters.end())
+  auto runtimeCountIt =
+      llvm::find_if(callablePlan->parameters,
+                    [](const support::RuntimeABIParameter &parameter) {
+                      using Role = support::RuntimeABIParameterRole;
+                      return parameter.role == Role::RuntimeElementCount;
+                    });
+  if (runtimeCountIt == callablePlan->parameters.end())
     return makeDispatchError(
         pair.rvv.kernel,
         "selected RVV callable route must expose runtime-element-count before "
@@ -597,14 +522,9 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
                 expectedGuard.ownership) +
             "'");
 
-  support::appendI32VAddDispatchRuntimeABIParameters(plan.parameters,
-                                                    rvvParameters, *guard);
-  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
-          pair.rvv.kernel, support::getI32VAddBufferMemWindowSpecs(),
-          plan.bufferWindows)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeDispatchError(pair.rvv.kernel, message);
-  }
+  support::appendI32VAddDispatchRuntimeABIParameters(
+      plan.parameters, callablePlan->parameters, *guard);
+  plan.bufferWindows = std::move(callablePlan->bufferWindows);
   return plan;
 }
 

@@ -57,6 +57,10 @@ llvm::Error ensureRuntimeABIParams(
     tcrv::exec::KernelOp kernel, mlir::OpBuilder &builder,
     llvm::ArrayRef<RuntimeABIParamSpec> specs);
 
+llvm::Error ensureRuntimeABIParamsAllowingExistingCNames(
+    tcrv::exec::KernelOp kernel, mlir::OpBuilder &builder,
+    llvm::ArrayRef<RuntimeABIParamSpec> specs);
+
 llvm::Error collectRuntimeABIParams(
     tcrv::exec::KernelOp kernel, llvm::ArrayRef<RuntimeABIParamSpec> specs,
     llvm::SmallVectorImpl<tcrv::exec::RuntimeParamOp> &out);

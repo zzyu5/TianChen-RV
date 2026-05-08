@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -308,7 +309,7 @@ llvm::Error requireMatchingScalarBoundary(
 }
 
 llvm::Expected<bool> hasMatchingExplicitMicrokernel(
-    const VariantEmissionRequest &request) {
+    const VariantEmissionRequest &request, bool requireBoundary = true) {
   tcrv::exec::KernelOp kernel = request.getKernel();
   tcrv::exec::VariantOp variant = request.getVariant();
   if (!kernel || !variant || kernel.getBody().empty())
@@ -384,6 +385,9 @@ llvm::Expected<bool> hasMatchingExplicitMicrokernel(
 
   if (matches == 0)
     return false;
+
+  if (!requireBoundary)
+    return true;
 
   if (llvm::Error error =
           requireMatchingScalarBoundary(request, variantRequires))
@@ -712,8 +716,11 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind("scalar-runtime-callable-c-abi");
     out.setRuntimeABIName("scalar-i32-vadd-runtime-callable-c-function.v1");
     out.setRuntimeGlueRole("runtime-callable-i32-vadd-fallback-function");
-    out.addRuntimeABIParameters(
-        support::getI32VAddRuntimeABIParameters());
+    llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
+        support::buildI32VAddCallableABIPlan(request.getKernel());
+    if (!callablePlan)
+      return callablePlan.takeError();
+    out.addRuntimeABIParameters(callablePlan->parameters);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
@@ -770,18 +777,32 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   if (!microkernelPlan)
     return microkernelPlan.takeError();
 
+  bool selectedPathHasCallableMicrokernel = microkernelPlan->has_value();
+  if (!selectedPathHasCallableMicrokernel) {
+    VariantEmissionRequest emissionRequest(request.getVariant(),
+                                           request.getKernel(),
+                                           request.getCapabilities(),
+                                           request.getRole());
+    llvm::Expected<bool> explicitMicrokernel =
+        hasMatchingExplicitMicrokernel(emissionRequest,
+                                       /*requireBoundary=*/false);
+    if (!explicitMicrokernel)
+      return explicitMicrokernel.takeError();
+    selectedPathHasCallableMicrokernel = *explicitMicrokernel;
+  }
+
   if (*microkernelPlan)
     if (llvm::Error error = rejectExistingScalarMicrokernelForSelectedPath(
             request.getKernel(), request.getVariant(), request.getRole()))
       return error;
 
-  if (*microkernelPlan)
+  if (selectedPathHasCallableMicrokernel)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
             request.getKernel(), request.getBuilder(),
             support::getI32VAddBufferMemWindowSpecs()))
       return error;
 
-  if (*microkernelPlan) {
+  if (selectedPathHasCallableMicrokernel) {
     llvm::SmallVector<support::RuntimeABIParamSpec, 2> runtimeParamSpecs;
     if (request.getRole() == VariantEmissionRole::DispatchCase ||
         request.getRole() == VariantEmissionRole::DispatchFallback) {
@@ -791,8 +812,9 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
       auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
       runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     }
-    if (llvm::Error error = support::ensureRuntimeABIParams(
-            request.getKernel(), request.getBuilder(), runtimeParamSpecs))
+    if (llvm::Error error =
+            support::ensureRuntimeABIParamsAllowingExistingCNames(
+                request.getKernel(), request.getBuilder(), runtimeParamSpecs))
       return error;
   }
 

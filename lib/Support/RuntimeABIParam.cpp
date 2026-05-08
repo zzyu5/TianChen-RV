@@ -222,6 +222,44 @@ llvm::Error ensureRuntimeABIParams(
   return llvm::Error::success();
 }
 
+llvm::Error ensureRuntimeABIParamsAllowingExistingCNames(
+    KernelOp kernel, mlir::OpBuilder &builder,
+    llvm::ArrayRef<RuntimeABIParamSpec> specs) {
+  if (!kernel || kernel.getBody().empty())
+    return makeRuntimeParamError(
+        kernel, "requires a materialized tcrv.exec.kernel body");
+
+  llvm::StringMap<mlir::Operation *> directSymbols;
+  collectDirectKernelSymbols(kernel, directSymbols);
+
+  for (const RuntimeABIParamSpec &spec : specs) {
+    RuntimeParamOp existing;
+    if (llvm::Error error = findParamForSpec(kernel, spec, existing))
+      return error;
+    if (existing) {
+      RuntimeABIParamSpec validationSpec = spec;
+      validationSpec.cName.clear();
+      if (llvm::Error error =
+              validateParamAgainstSpec(kernel, existing, validationSpec))
+        return error;
+      continue;
+    }
+
+    auto symbolIt = directSymbols.find(spec.symbolName);
+    if (symbolIt != directSymbols.end())
+      return makeRuntimeParamError(
+          kernel, llvm::Twine("direct symbol @") + spec.symbolName +
+                      " already exists and cannot be reused for "
+                      "tcrv.exec.runtime_param ABI role '" +
+                      getRoleName(spec) + "'");
+
+    RuntimeParamOp created = createParam(builder, kernel, spec);
+    directSymbols.try_emplace(created.getSymName(), created.getOperation());
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error collectRuntimeABIParams(
     KernelOp kernel, llvm::ArrayRef<RuntimeABIParamSpec> specs,
     llvm::SmallVectorImpl<RuntimeParamOp> &out) {

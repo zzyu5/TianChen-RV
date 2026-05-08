@@ -135,24 +135,23 @@ Use lit/FileCheck for:
   including one selected RVV dispatch case plus one scalar dispatch fallback,
   matching lowering boundaries, supported runtime-callable C source
   emission-plan routes for both paths, deterministic dispatcher signature from
-  runtime ABI roles rather than exact callable C parameter-name equality,
-  explicit host-provided availability guard metadata, RVV callable branch,
-  scalar fallback branch, RVV intrinsic code preservation, scalar i32 addition
-  preservation, bounded metadata comments, pipeline-to-dispatch-export coverage
-  where the scalar fallback callable is descriptor-materialized rather than
-  hand-authored, `tcrv.exec.mem_window` parse/verify and pipeline materialized
-  lhs/rhs/out buffer-window roles consumed by the dispatch exporter,
-  `tcrv.exec.runtime_param` parse/verify and pipeline materialized
-  runtime-element-count / dispatch-availability-guard scalar roles consumed by
-  the dispatch exporter, a
-  role-binding fixture where callable or dispatcher names such as `a`, `b`,
-  `dst`, `len`, and a non-default guard name are emitted in the generated
-  dispatcher body, an explicit self-check harness export that calls the
-  generated dispatcher with both guard false and guard true, and
-  fail-closed diagnostics when scalar callable fallback metadata is missing,
-  unsupported, structurally incompatible by runtime ABI role/type/ownership, or
-  missing/duplicating/inconsistently describing required mem_window buffer
-  roles or runtime_param scalar roles,
+  an IR-backed callable ABI plan rather than detached callable parameter
+  metadata, explicit host-provided availability guard metadata, RVV callable
+  branch, scalar fallback branch, RVV intrinsic code preservation, scalar i32
+  addition preservation, bounded metadata comments, pipeline-to-dispatch-export
+  coverage where the scalar fallback callable is descriptor-materialized rather
+  than hand-authored, `tcrv.exec.mem_window` parse/verify and pipeline
+  materialized lhs/rhs/out buffer-window roles consumed by RVV, scalar, and
+  dispatch source exporters, `tcrv.exec.runtime_param` parse/verify and pipeline
+  materialized runtime-element-count / dispatch-availability-guard scalar roles
+  consumed by the exporters, a role-binding fixture where a non-default runtime
+  `len` name and non-default dispatch guard name are emitted in the generated
+  callable and dispatcher body, an explicit self-check harness export that calls
+  the generated dispatcher with both guard false and guard true, and fail-closed
+  diagnostics when scalar callable fallback metadata is missing, unsupported,
+  not an exact mirror of IR-backed callable ABI role/name/type/ownership, or
+  missing/duplicating/inconsistently describing required mem_window buffer roles
+  or runtime_param scalar roles,
   and generic `--tcrv-export-target-source-artifact` coverage that proves a
   pipeline-synthesized selected dispatch is exported through the target-owned
   composite dispatch source route rather than a single callable shortcut.

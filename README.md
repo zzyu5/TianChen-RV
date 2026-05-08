@@ -76,11 +76,12 @@ plugin. The resulting `tcrv.exec.diagnostic {reason = "emission_plan"}`
 metadata records bounded plugin-owned runtime ABI ownership fields such as
 runtime ABI kind/name, runtime glue role, selected variant, lowering boundary,
 status, required capability refs, and structured `runtime_abi_parameters` for
-supported callable C source exports. Those parameter entries record C name, C
-type spelling, semantic role, and whether the value is IR-modeled or
-target/export ABI-owned. These diagnostics are compiler-decision metadata only:
-they are not executable code, runtime ABI glue, correctness evidence, or
-performance evidence.
+supported callable C source exports. For the bounded i32-vadd RVV/scalar
+callable routes, those entries are derived from direct `tcrv.exec.mem_window`
+buffer ABI boundaries plus direct `tcrv.exec.runtime_param` scalar ABI/control
+boundaries and are validated mirrors of that IR-backed callable plan. These
+diagnostics are compiler-decision metadata only: they are not executable code,
+runtime ABI glue, correctness evidence, or performance evidence.
 
 The `tcrv-translate --tcrv-export-emission-manifest` tool exports a
 deterministic compiler handoff manifest from post-planning MLIR that already
@@ -116,17 +117,19 @@ for the target/export-owned lhs input, rhs input, output, and runtime element
 count ABI roles consumed by the exporter. Descriptor-local `element_count`
 remains metadata and is not promoted to AVL or VL. The generated source uses
 `riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
-runtime-callable C ABI function. The default ABI metadata names those
-parameters `lhs`, `rhs`, `out`, and `n`, and supported emission-plan metadata
-may provide different concrete C names for the same roles:
+runtime-callable C ABI function. The callable parameter roles, C type spellings,
+and deterministic lhs/rhs/out/runtime-count order are derived from direct
+`tcrv.exec.mem_window` buffer boundaries and direct
+`tcrv.exec.runtime_param` runtime-count boundaries; supported emission-plan
+metadata must mirror that IR-backed plan exactly:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
 The exporter validates and consumes that `setvl` / `with_vl` /
 `i32_vadd_dataflow` role body before emitting the runtime-callable loop and
-resolves concrete C parameter names/types structurally from runtime ABI
-metadata when present, so mismatched or stale control/dataflow metadata fails
-before source output. The default artifact has no embedded `main` or
-self-check harness, so later runtime glue can embed it and call the ABI
-boundary directly. The explicit
+validates any supported emission-plan parameter metadata as an exact mirror of
+the IR-backed callable plan, so mismatched or stale control/dataflow/ABI
+metadata fails before source output. The default artifact has no embedded
+`main` or self-check harness, so later runtime glue can embed it and call the
+ABI boundary directly. The explicit
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
 same callable function plus a bounded self-check `main` for evidence
 collection.
@@ -366,7 +369,7 @@ tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
 
 The generated source embeds the existing deterministic RVV runtime-callable C
 function and scalar runtime-callable fallback C function, then emits a stable
-dispatcher ABI. With default emission-plan metadata this ABI is:
+dispatcher ABI. With default IR-backed ABI boundaries this ABI is:
 
 ```c
 void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
@@ -376,27 +379,23 @@ void tcrv_dispatch_i32_vadd_<kernel>(const int32_t *lhs,
 ```
 
 For emission-plan-backed dispatch export, the RVV and scalar callable
-candidates are validated by structured runtime ABI role, C type, and ownership
-rather than by exact C parameter-name equality. The dispatcher public callable
-parameters are derived deterministically from the selected RVV candidate's
-role-bound names/types, the scalar callable candidate must be role/type/
-ownership compatible, and calls to both embedded callables are emitted in the
-fixed lhs/rhs/output/runtime-count role order. The RVV+scalar dispatch path now
-requires real direct `tcrv.exec.mem_window` IR for the callable `lhs`, `rhs`,
-and `out` buffer meanings before the target-owned exporter emits the composite
-source. Those windows carry bounded execution-organization metadata such as
-ABI role, access direction, host/kernel-argument binding, target/export ABI
-ownership, and known C pointer type. The same export path also requires real
-direct `tcrv.exec.runtime_param` IR for scalar runtime ABI/control meanings:
-`runtime-element-count` for the C parameter `n`, and
-`dispatch-availability-guard` for the explicit host-provided guard parameter.
-The default guard C name remains `rvv_available`, while a runtime_param with
-the guard role may provide a different valid C name. Runtime `n` and the
-dispatcher availability guard remain ABI/control parameters, not tensor shapes
-or hardware facts. Descriptor-local `element_count` remains finite microkernel
-metadata; it is not high-level shape, runtime `n`, AVL, or VL. This export does
-not implement automatic hardware probing, object generation, dynamic loading,
-linking, benchmarking, correctness measurement, or performance measurement.
+candidates must both mirror the same IR-backed callable ABI plan: direct
+`tcrv.exec.mem_window` IR supplies the callable `lhs`, `rhs`, and `out` buffer
+meanings and C pointer types, while direct `tcrv.exec.runtime_param` IR supplies
+the callable runtime element count. Candidate parameter metadata is accepted
+only as an exact mirror of those boundaries, not as an independent source of
+callable names or types. Calls to both embedded callables are emitted in the
+fixed lhs/rhs/output/runtime-count role order. The dispatch wrapper then appends
+the explicit `dispatch-availability-guard` `tcrv.exec.runtime_param` as
+dispatch-only control; it is not part of the RVV or scalar callable microkernel
+signatures. The default guard C name remains `rvv_available`, while a
+runtime_param with the guard role may provide a different valid C name. Runtime
+`n` and the dispatcher availability guard remain ABI/control parameters, not
+tensor shapes or hardware facts. Descriptor-local `element_count` remains finite
+microkernel metadata; it is not high-level shape, runtime `n`, AVL, or VL. This
+export does not implement automatic hardware probing, object generation,
+dynamic loading, linking, benchmarking, correctness measurement, or performance
+measurement.
 RVV runtime/correctness/performance claims still require separate real
 `ssh rvv` evidence.
 

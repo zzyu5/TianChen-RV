@@ -109,6 +109,9 @@ module @rvv_microkernel_input {
 // LIB: /* artifact_kind: runtime-callable-c-source */
 // LIB: /* element_count: 16 */
 // LIB: /* required_capabilities: @rvv */
+// LIB: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
+// LIB: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */
+// LIB: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
 // LIB: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // LIB: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // LIB: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
