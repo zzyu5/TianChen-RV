@@ -11,6 +11,10 @@
 # RUN: FileCheck %s --check-prefix=CALLER < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/rvv_bundle_dispatch_external_caller.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --run-id lit-rvv-scalar-dispatch-bundle-plan-and-export --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/bundle_export_stdout.txt
+# RUN: not test -e %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/post_planning.mlir
+# RUN: FileCheck %s --check-prefix=PLAN-SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/command_summary.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --run-id lit-rvv-scalar-dispatch-bundle-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -25,6 +29,13 @@
 # DRY: "status": "success"
 # DRY-NOT: live-token
 # DRY-NOT: hunter2
+
+# PLAN-DRY: "artifact_dir": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export"
+# PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# PLAN-DRY: "source_export_mode": "runtime-callable-library"
+# PLAN-DRY: "ssh_evidence": false
+# PLAN-DRY: "status": "success"
 
 # INDEX: bundle_status: "complete"
 # INDEX: artifact_count: 3
@@ -70,6 +81,9 @@
 # SUMMARY: "stdout_tail": "tianchenrv.target_artifact_bundle_export: complete
 # SUMMARY-NOT: live-token
 # SUMMARY-NOT: hunter2
+
+# PLAN-SUMMARY: "name": "plan_and_export_target_artifact_bundle"
+# PLAN-SUMMARY-NOT: "name": "tcrv_opt_execution_planning_pipeline"
 
 # EVIDENCE: "bundle_export_mode": "target-artifact-bundle"
 # EVIDENCE: "bundle_index": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index"

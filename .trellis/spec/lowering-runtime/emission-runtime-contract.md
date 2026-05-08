@@ -453,6 +453,15 @@ component paths are coherence failures. Python evidence runners may consume
 these compiler-emitted fields, but must not define or infer the bundle contract
 from file names.
 
+`tcrv-translate --tcrv-export-target-artifact-bundle` remains the
+coherence-gated exporter for already planned MLIR. The separate
+`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` entry may run the
+existing execution planning pipeline with built-in plugin and target artifact
+exporter registries, then call the same bundle exporter. It must fail before
+printing bundle completion if planning, execution-plan coherence, route
+validation, or artifact materialization fails, and it must not weaken the
+bundle component contract or runtime ABI signature validation.
+
 ## Selected Lowering Boundary First Slice
 
 Before executable lowering exists, the compiler may materialize selected-path

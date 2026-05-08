@@ -480,6 +480,23 @@ tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
 The source-only front door continues to emit the library-style dispatcher C
 source without an embedded `main` or self-check harness.
 
+For a bounded input that has kernel/capability anchors but does not already
+contain selected-path diagnostics, selected lowering-boundary metadata, or
+emission-plan diagnostics, the bundle handoff is also reachable through a
+single C++ translate front door:
+
+```bash
+tcrv-translate --tcrv-plan-and-export-target-artifact-bundle \
+  --tcrv-target-artifact-bundle-output-dir=<existing-output-dir> \
+  input.mlir
+```
+
+That command runs the existing built-in execution planning pipeline in-process
+and then calls the same target artifact bundle exporter used by
+`--tcrv-export-target-artifact-bundle`. The existing bundle export command
+remains the coherence-gated exporter for already planned input. Neither command
+claims linking, runtime success, RVV correctness, or performance by itself.
+
 Together, the explicit dispatch header and the library-object route form the
 bounded runtime-caller handoff for this finite i32-vadd dispatcher: an external
 C caller can compile against the emitted prototype and link the generated

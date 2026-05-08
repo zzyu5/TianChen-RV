@@ -137,6 +137,15 @@ Use lit/FileCheck for:
   selected paths without a fake complete bundle.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
+- plan-and-export target artifact bundle front-door coverage through
+  `tcrv-translate`, including an input fixture that contains only kernel and
+  capability anchors rather than hand-authored selected-path diagnostics,
+  lowering-boundary metadata, or emission-plan diagnostics; successful
+  RVV+scalar dispatch bundle index checks for selected dispatch surface,
+  component_group/component_role/external_abi_name metadata, and ordered
+  runtime_abi_parameter signature fields; and a focused fail-closed negative
+  case proving planning failure does not print bundle completion or emit a
+  complete bundle index.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;
   existing execution-planning pipeline output followed by the preflight pass;

@@ -1518,40 +1518,60 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         raise BridgeError(f"input MLIR does not exist: {args.input}")
     reject_secret_like_text("input MLIR path", str(args.input))
 
-    tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
     local_clang = ensure_local_clang_on_path()
 
-    post_planning_mlir, _, _ = run_command(
-        "tcrv_opt_execution_planning_pipeline",
-        [
-            tcrv_opt,
-            relative_to_repo(input_path, root),
-            "--tcrv-execution-planning-pipeline",
-        ],
-        cwd=root,
-        artifact_dir=artifact_dir,
-        commands=commands,
-        timeout_seconds=args.timeout,
-    )
-    post_planning_path = artifact_dir / "post_planning.mlir"
-    write_generated_text(post_planning_path, "post-planning MLIR", post_planning_mlir)
-
     bundle_dir = artifact_dir / "target_artifact_bundle"
     bundle_dir.mkdir()
-    bundle_stdout, _, _ = run_command(
-        "export_target_artifact_bundle",
-        [
-            tcrv_translate,
-            "--tcrv-export-target-artifact-bundle",
-            f"--tcrv-target-artifact-bundle-output-dir={relative_to_repo(bundle_dir, root)}",
-            relative_to_repo(post_planning_path, root),
-        ],
-        cwd=root,
-        artifact_dir=artifact_dir,
-        commands=commands,
-        timeout_seconds=args.timeout,
-    )
+
+    post_planning_path: Path | None = None
+    post_planning_mlir = ""
+    if args.use_plan_and_export_bundle_front_door:
+        bundle_stdout, _, _ = run_command(
+            "plan_and_export_target_artifact_bundle",
+            [
+                tcrv_translate,
+                "--tcrv-plan-and-export-target-artifact-bundle",
+                f"--tcrv-target-artifact-bundle-output-dir={relative_to_repo(bundle_dir, root)}",
+                relative_to_repo(input_path, root),
+            ],
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    else:
+        tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
+        post_planning_mlir, _, _ = run_command(
+            "tcrv_opt_execution_planning_pipeline",
+            [
+                tcrv_opt,
+                relative_to_repo(input_path, root),
+                "--tcrv-execution-planning-pipeline",
+            ],
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+        post_planning_path = artifact_dir / "post_planning.mlir"
+        write_generated_text(
+            post_planning_path, "post-planning MLIR", post_planning_mlir
+        )
+
+        bundle_stdout, _, _ = run_command(
+            "export_target_artifact_bundle",
+            [
+                tcrv_translate,
+                "--tcrv-export-target-artifact-bundle",
+                f"--tcrv-target-artifact-bundle-output-dir={relative_to_repo(bundle_dir, root)}",
+                relative_to_repo(post_planning_path, root),
+            ],
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
     bundle_stdout_path = artifact_dir / "bundle_export_stdout.txt"
     write_generated_text(
         bundle_stdout_path, "target artifact bundle export stdout", bundle_stdout
@@ -1597,7 +1617,6 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
 
     hashes = {
         "input_sha256": sha256_file(input_path),
-        "post_planning_mlir_sha256": sha256_text(post_planning_mlir),
         "bundle_export_stdout_sha256": sha256_text(bundle_stdout),
         "bundle_index_sha256": sha256_text(index_text),
         "bundle_dispatch_source_sha256": sha256_text(source_text),
@@ -1605,6 +1624,33 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "bundle_dispatch_object_sha256": sha256_file(object_path),
         "bundle_external_caller_c_sha256": sha256_text(caller_text),
     }
+    if post_planning_path is not None:
+        hashes["post_planning_mlir_sha256"] = sha256_text(post_planning_mlir)
+
+    bundle_export_mode = (
+        "plan-and-export-target-artifact-bundle"
+        if args.use_plan_and_export_bundle_front_door
+        else "target-artifact-bundle"
+    )
+    planned_dispatch_pipeline = (
+        "tcrv-plan-and-export-target-artifact-bundle"
+        if args.use_plan_and_export_bundle_front_door
+        else "tcrv-execution-planning-pipeline"
+    )
+    artifacts = {
+        "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
+        "bundle_dir": relative_to_repo(bundle_dir, root),
+        "bundle_index": relative_to_repo(index_path, root),
+        "bundle_dispatch_source": relative_to_repo(source_path, root),
+        "bundle_dispatch_header": relative_to_repo(header_path, root),
+        "bundle_dispatch_object": relative_to_repo(object_path, root),
+        "bundle_external_caller_c": relative_to_repo(caller_path, root),
+    }
+    if post_planning_path is not None:
+        artifacts["post_planning_mlir"] = relative_to_repo(
+            post_planning_path, root
+        )
+
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "runner": SCRIPT_NAME,
@@ -1614,8 +1660,8 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "status": "success",
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
-        "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
-        "bundle_export_mode": "target-artifact-bundle",
+        "planned_dispatch_pipeline": planned_dispatch_pipeline,
+        "bundle_export_mode": bundle_export_mode,
         "bundle_index": relative_to_repo(index_path, root),
         "bundle_index_summary": bundle_records_summary(records),
         "local_object_export_clang": sanitize_text(local_clang),
@@ -1641,16 +1687,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "selected_compile_flags": remote_compile_flags(source_flags),
         "pass_fail_result": "pass",
         "hashes": hashes,
-        "artifacts": {
-            "post_planning_mlir": relative_to_repo(post_planning_path, root),
-            "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
-            "bundle_dir": relative_to_repo(bundle_dir, root),
-            "bundle_index": relative_to_repo(index_path, root),
-            "bundle_dispatch_source": relative_to_repo(source_path, root),
-            "bundle_dispatch_header": relative_to_repo(header_path, root),
-            "bundle_dispatch_object": relative_to_repo(object_path, root),
-            "bundle_external_caller_c": relative_to_repo(caller_path, root),
-        },
+        "artifacts": artifacts,
         "commands": commands,
         "ssh_evidence": None,
         "claim_scope": (
@@ -2250,6 +2287,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Export and consume the registry-derived target artifact bundle",
     )
+    parser.add_argument(
+        "--use-plan-and-export-bundle-front-door",
+        action="store_true",
+        help=(
+            "In target artifact bundle mode, call the C++ tcrv-translate "
+            "plan-and-export bundle front door instead of orchestrating "
+            "tcrv-opt followed by bundle export"
+        ),
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
 
@@ -2259,6 +2305,16 @@ def main(argv: list[str]) -> int:
     if args.self_test:
         run_self_test()
         return 0
+    if (
+        args.use_plan_and_export_bundle_front_door
+        and not args.use_target_artifact_bundle
+    ):
+        print(
+            "rvv_scalar_dispatch_e2e: --use-plan-and-export-bundle-front-door "
+            "requires --use-target-artifact-bundle",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         evidence = run_bridge(args)

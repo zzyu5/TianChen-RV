@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants to verify after implementation"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify pipeline reuse, ordering, registry ownership, and no duplicated target logic"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify bundle export, coherence, component contract, and parameter layering preservation"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify required lit/FileCheck and fail-closed coverage"}

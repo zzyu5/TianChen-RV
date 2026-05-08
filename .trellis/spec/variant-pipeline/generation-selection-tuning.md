@@ -67,8 +67,16 @@ as:
 --tcrv-execution-planning-pipeline
 ```
 
-This is a named MLIR pass pipeline, not a monolithic pass. It composes existing
-pass factories in this order:
+The `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` front door
+may also invoke this same pipeline in-process before target artifact bundle
+export. That translate entry is a tool-boundary convenience for a parsed module
+that has kernel/capability anchors but not hand-authored selected-path,
+lowering-boundary, or emission-plan metadata; it must reuse this pipeline
+builder and the existing bundle exporter rather than duplicating planning or
+target route logic.
+
+This pipeline is a named MLIR pass pipeline, not a monolithic pass. It composes
+existing pass factories in this order:
 
 ```text
 tcrv-materialize-plugin-variants
