@@ -1320,6 +1320,35 @@ tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c \
   post_planning.mlir
 ```
 
+When invoked with `--use-target-artifact-bundle`, the same bridge consumes the
+registry-derived target artifact bundle instead of the direct self-check source
+route:
+
+```bash
+tcrv-opt input.mlir --tcrv-execution-planning-pipeline
+tcrv-translate --tcrv-export-target-artifact-bundle \
+  --tcrv-target-artifact-bundle-output-dir=<fresh-dir> post_planning.mlir
+```
+
+Bundle mode must parse only `tianchenrv-target-artifact-bundle.index` as the
+stable file name, discover generated source/header/object file names from that
+index, validate artifact kind, route, owner, runtime ABI kind/name, component
+selected paths, and evidence role, then generate a small external C caller
+from the emitted header prototype. Dry-run bundle mode records bundle export,
+index parsing, file discovery, caller generation, hashes, command logs, and
+evidence JSON under `artifacts/tmp/rvv_bundle_e2e/<run-id>/`; it is not runtime
+or correctness evidence. Real ssh bundle mode may copy only the generated
+header, generated relocatable object, and generated external caller to
+`ssh rvv`, compile the caller object, link it with the generated dispatch
+object, run the executable, and require the bounded bundle external ABI success
+marker. It must also record sanitized host/toolchain facts such as `uname`,
+architecture, and clang path/version. Successful ssh bundle evidence proves
+only that the finite RVV+scalar i32-vadd compiler-generated bundle header/object
+external ABI caller executed both `rvv_available = 0` and `rvv_available = 1`
+branches on that host. It is not generic lowering, arbitrary RVV support,
+dynamic runtime integration, performance evidence, or broad correctness
+coverage.
+
 Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
 library dispatch source, generated self-check dispatch source, hashes, command
 logs, and evidence JSON under

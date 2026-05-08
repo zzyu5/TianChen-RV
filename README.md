@@ -494,7 +494,9 @@ and runs it:
 
 ```bash
 python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run
+python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle
 python3 scripts/rvv_scalar_dispatch_e2e.py --ssh-target rvv
+python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --ssh-target rvv
 ```
 
 Dry-run mode writes sanitized post-planning MLIR, emission manifest, generated
@@ -507,6 +509,17 @@ and runs the harness that calls both `rvv_available = 0` and
 RVV+scalar i32-vadd dispatcher self-check executable passed on the selected RVV
 host flags. It is not generic RVV lowering, arbitrary kernel support, dynamic
 runtime integration, performance evidence, or broad correctness coverage.
+
+The optional target-artifact-bundle mode writes sanitized bundle evidence under
+`artifacts/tmp/rvv_bundle_e2e/<run-id>/`. Dry-run bundle mode proves only that
+the compiler exported the selected registry-derived bundle, the bridge parsed
+the bundle index, discovered the generated source/header/object files, and
+generated an external caller. Real ssh bundle mode copies only the generated
+header, generated relocatable object, and generated external caller to
+`ssh rvv`, compiles the caller, links it with the generated dispatch object,
+and runs both explicit guard branches. A successful run proves only the bounded
+RVV+scalar i32-vadd bundle external ABI handoff for that generated
+header/object/caller path.
 
 ## Runtime Offload First Slice
 

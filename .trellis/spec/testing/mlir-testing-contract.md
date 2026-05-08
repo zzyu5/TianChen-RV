@@ -387,6 +387,20 @@ remain limited to the finite RVV+scalar i32-vadd dispatcher executable path and
 must not be reported as generic RVV lowering, arbitrary kernel support, dynamic
 runtime integration, broad correctness, or performance evidence.
 
+If that bridge also exposes a target-artifact-bundle mode, local lit coverage
+must exercise the mode without contacting `ssh rvv`, including bundle export
+through `tcrv-translate --tcrv-export-target-artifact-bundle`, parsing
+`tianchenrv-target-artifact-bundle.index`, discovery of generated source,
+header, and object file names from index metadata, malformed or incomplete
+index rejection, external caller generation from the emitted header prototype,
+command-summary redaction, and absence of any dry-run runtime/correctness
+claim. Passing bundle dry-run proves only compiler bundle export, index
+parsing, file discovery, and caller construction. Any bundle external ABI
+runtime/correctness claim must use real `ssh rvv` evidence where only the
+generated header, generated object, and generated caller are copied to the RVV
+host, the caller is compiled, linked with the generated object, and run with
+the bounded success marker observed.
+
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must
 exercise the helper without contacting `ssh rvv`, including manifest handoff

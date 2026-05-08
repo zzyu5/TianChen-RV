@@ -32,9 +32,41 @@ DEFAULT_INPUT = Path(
     "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir"
 )
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_scalar_dispatch_e2e")
+DEFAULT_BUNDLE_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_bundle_e2e")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 SUCCESS_MARKER = "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok"
+BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
+BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER = (
+    "tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok"
+)
+
+DISPATCH_BUNDLE_ROUTES = {
+    "source": {
+        "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+        "artifact_kind": "runtime-callable-c-source",
+        "owner": "rvv-scalar-dispatch-target",
+        "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "evidence_role": "compiler-artifact",
+    },
+    "header": {
+        "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
+        "artifact_kind": "runtime-callable-c-header",
+        "owner": "rvv-scalar-dispatch-target",
+        "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "evidence_role": "header-declaration",
+    },
+    "object": {
+        "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
+        "artifact_kind": "riscv-elf-relocatable-object",
+        "owner": "rvv-scalar-dispatch-target",
+        "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "evidence_role": "relocatable-object",
+    },
+}
 
 SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -191,8 +223,38 @@ def resolve_tool(explicit: str, tool_name: str, root: Path) -> str:
     )
 
 
+def ensure_local_clang_on_path() -> str:
+    existing = shutil.which("clang")
+    if existing:
+        return existing
+
+    for candidate in (
+        Path("/usr/lib/llvm-20/bin/clang"),
+        Path("/usr/lib/llvm-19/bin/clang"),
+        Path("/usr/lib/llvm-18/bin/clang"),
+        Path("/usr/lib/llvm-17/bin/clang"),
+    ):
+        if candidate.exists() and os.access(candidate, os.X_OK):
+            os.environ["PATH"] = (
+                str(candidate.parent) + os.pathsep + os.environ.get("PATH", "")
+            )
+            return str(candidate)
+
+    raise BridgeError(
+        "could not find clang for local target artifact bundle object export; "
+        "install clang or put an LLVM clang directory on PATH"
+    )
+
+
 def command_display(command: list[str]) -> str:
     return sanitize_text(shlex.join(command))
+
+
+def bounded_tail(text: Any, limit: int = 1200) -> str:
+    sanitized = sanitize_text(text)
+    if len(sanitized) <= limit:
+        return sanitized
+    return sanitized[-limit:]
 
 
 def write_command_log(
@@ -281,6 +343,8 @@ def run_command(
             "duration_seconds": round(duration, 3),
             "stdout_sha256": sha256_text(sanitize_text(stdout)),
             "stderr_sha256": sha256_text(sanitize_text(stderr)),
+            "stdout_tail": bounded_tail(stdout),
+            "stderr_tail": bounded_tail(stderr),
             "log_path": log_path,
         }
     )
@@ -388,6 +452,277 @@ def validate_self_check_dispatch_source(source: str) -> dict[str, str]:
     return {"selected_march": selected_march, "selected_mabi": selected_mabi}
 
 
+def parse_bundle_index_value(raw: str) -> str:
+    value = raw.strip()
+    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
+        inner = value[1:-1]
+        return (
+            inner.replace(r"\t", "\t")
+            .replace(r"\"", '"')
+            .replace(r"\\", "\\")
+        )
+    if value.startswith("@"):
+        return value[1:]
+    return value
+
+
+def validate_bundle_file_name(file_name: str) -> None:
+    if not file_name:
+        raise BridgeError("bundle index artifact file_name must be non-empty")
+    reject_secret_like_text("bundle index artifact file_name", file_name)
+    if Path(file_name).name != file_name or "/" in file_name or "\\" in file_name:
+        raise BridgeError(
+            f"bundle index artifact file_name must be a plain file name: {file_name}"
+        )
+
+
+def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
+    reject_secret_like_text("target artifact bundle index", index_text)
+    bundle_status = ""
+    artifact_count: int | None = None
+    records: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    current_component: dict[str, str] | None = None
+
+    for raw_line in index_text.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        if line.startswith("bundle_status:"):
+            bundle_status = parse_bundle_index_value(line.split(":", 1)[1])
+            continue
+        if line.startswith("artifact_count:"):
+            count_text = line.split(":", 1)[1].strip()
+            if not count_text.isdigit():
+                raise BridgeError("bundle index artifact_count must be an integer")
+            artifact_count = int(count_text)
+            continue
+        artifact_match = re.match(r"^artifact\[([0-9]+)\]:$", line)
+        if artifact_match:
+            current = {
+                "index": int(artifact_match.group(1)),
+                "components": [],
+            }
+            records.append(current)
+            current_component = None
+            continue
+        component_match = re.match(r"^  component\[([0-9]+)\]:$", line)
+        if component_match:
+            if current is None:
+                raise BridgeError("bundle index component appears before artifact")
+            current_component = {"index": component_match.group(1)}
+            current["components"].append(current_component)
+            continue
+
+        field_match = re.match(r"^  ([A-Za-z0-9_]+):\s*(.*)$", line)
+        if field_match and current is not None:
+            key, raw_value = field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(f"bundle index field {key}", value)
+            current[key] = value
+            current_component = None
+            continue
+
+        component_field_match = re.match(r"^    ([A-Za-z0-9_]+):\s*(.*)$", line)
+        if component_field_match and current_component is not None:
+            key, raw_value = component_field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(f"bundle index component field {key}", value)
+            current_component[key] = value
+            continue
+
+    if bundle_status != "complete":
+        raise BridgeError("bundle index must record bundle_status complete")
+    if artifact_count is None:
+        raise BridgeError("bundle index missing artifact_count")
+    if artifact_count != len(records):
+        raise BridgeError(
+            f"bundle index artifact_count={artifact_count} does not match parsed records={len(records)}"
+        )
+
+    required_fields = [
+        "file_name",
+        "artifact_kind",
+        "route",
+        "owner",
+        "runtime_abi_kind",
+        "runtime_abi_name",
+        "evidence_role",
+    ]
+    for record in records:
+        for field in required_fields:
+            if not str(record.get(field, "")).strip():
+                raise BridgeError(
+                    f"bundle index artifact[{record.get('index')}] missing required field {field}"
+                )
+        validate_bundle_file_name(str(record["file_name"]))
+    return records
+
+
+def require_dispatch_component_roles(record: dict[str, Any]) -> None:
+    if record.get("selected_surface") != "dispatch":
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must preserve selected_surface dispatch"
+        )
+    components = record.get("components")
+    if not isinstance(components, list) or len(components) != 2:
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must preserve two dispatch components"
+        )
+    roles = {component.get("role") for component in components}
+    if roles != {"dispatch case", "dispatch fallback"}:
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must preserve dispatch case and dispatch fallback roles"
+        )
+    for component in components:
+        if not component.get("selected_variant"):
+            raise BridgeError(
+                f"bundle record route {record.get('route')} has a component without selected_variant"
+            )
+
+
+def select_dispatch_bundle_records(
+    records: list[dict[str, Any]], bundle_dir: Path
+) -> dict[str, dict[str, Any]]:
+    selected: dict[str, dict[str, Any]] = {}
+    for label, expected in DISPATCH_BUNDLE_ROUTES.items():
+        matches = [record for record in records if record.get("route") == expected["route"]]
+        if len(matches) != 1:
+            raise BridgeError(
+                f"bundle index must contain exactly one {label} record for route {expected['route']}; found {len(matches)}"
+            )
+        record = matches[0]
+        for field in (
+            "artifact_kind",
+            "owner",
+            "runtime_abi_kind",
+            "runtime_abi_name",
+            "evidence_role",
+        ):
+            if record.get(field) != expected[field]:
+                raise BridgeError(
+                    f"bundle {label} record field {field}={record.get(field)!r} does not match expected {expected[field]!r}"
+                )
+        require_dispatch_component_roles(record)
+        artifact_path = bundle_dir / str(record["file_name"])
+        if not artifact_path.exists() or artifact_path.stat().st_size == 0:
+            raise BridgeError(
+                f"bundle {label} artifact is missing or empty: {record['file_name']}"
+            )
+        selected[label] = record
+    return selected
+
+
+def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summary: list[dict[str, Any]] = []
+    for record in records:
+        summary.append(
+            {
+                "index": record.get("index"),
+                "file_name": record.get("file_name"),
+                "artifact_kind": record.get("artifact_kind"),
+                "route": record.get("route"),
+                "owner": record.get("owner"),
+                "runtime_abi_kind": record.get("runtime_abi_kind"),
+                "runtime_abi_name": record.get("runtime_abi_name"),
+                "evidence_role": record.get("evidence_role"),
+                "selected_surface": record.get("selected_surface", ""),
+                "components": record.get("components", []),
+            }
+        )
+    return summary
+
+
+def validate_generated_dispatch_header(header: str) -> str:
+    if not header.strip():
+        raise BridgeError("generated dispatch C header is empty")
+    reject_secret_like_text("generated dispatch C header", header)
+    forbidden = [
+        "int main",
+        "_self_check",
+        "__riscv",
+        "riscv_vector",
+        "runtime_success",
+        "throughput",
+        "latency",
+        "artifacts/tmp",
+        SUCCESS_MARKER,
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+    ]
+    for snippet in forbidden:
+        if snippet in header:
+            raise BridgeError(
+                f"generated dispatch C header contains forbidden snippet: {snippet}"
+            )
+    for snippet in ("#ifndef ", "#define ", "#include <stddef.h>", "#include <stdint.h>"):
+        if snippet not in header:
+            raise BridgeError(
+                f"generated dispatch C header missing required snippet: {snippet}"
+            )
+    prototypes = re.findall(
+        r"(?m)^\s*void\s+([A-Za-z_][A-Za-z0-9_]*)\s*"
+        r"\(\s*const\s+int32_t\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
+        r"const\s+int32_t\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
+        r"int32_t\s*\*\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
+        r"size_t\s+[A-Za-z_][A-Za-z0-9_]*\s*,\s*"
+        r"int\s+[A-Za-z_][A-Za-z0-9_]*\s*\)\s*;\s*$",
+        header,
+    )
+    if len(prototypes) != 1:
+        raise BridgeError(
+            "generated dispatch C header must contain exactly one runtime-callable dispatch prototype"
+        )
+    if re.search(r"(?m)^\s*void\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^;]*\)\s*\{", header):
+        raise BridgeError("generated dispatch C header must not contain a function body")
+    return prototypes[0]
+
+
+def build_dispatch_external_caller_source(
+    function_name: str, header_file_name: str
+) -> str:
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", function_name):
+        raise BridgeError("generated dispatch header function name is not a valid C identifier")
+    validate_bundle_file_name(header_file_name)
+    escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
+    return f"""\
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#include "{escaped_header}"
+
+static int run_dispatch_case(int rvv_available) {{
+  enum {{ kElements = 16 }};
+  const int32_t lhs[kElements] = {{0, 1, 2, 3, 4, 5, 6, 7,
+                                  8, 9, 10, 11, 12, 13, 14, 15}};
+  const int32_t rhs[kElements] = {{31, 29, 23, 19, 17, 13, 11, 7,
+                                  5, 3, 2, 1, -1, -3, -5, -7}};
+  int32_t out[kElements] = {{0}};
+
+  {function_name}(lhs, rhs, out, (size_t)kElements, rvv_available);
+  for (size_t index = 0; index < (size_t)kElements; ++index) {{
+    if (out[index] != lhs[index] + rhs[index]) {{
+      fprintf(stderr,
+              "rvv scalar dispatch bundle external ABI mismatch guard=%d index=%zu\\n",
+              rvv_available, index);
+      return rvv_available ? 11 : 10;
+    }}
+  }}
+  return 0;
+}}
+
+int main(void) {{
+  if (run_dispatch_case(0))
+    return 10;
+  if (run_dispatch_case(1))
+    return 11;
+  printf("{BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER} elements=%zu branches=scalar_and_rvv\\n",
+         (size_t)16);
+  return 0;
+}}
+"""
+
+
 def quote_remote_path(path: str) -> str:
     return shlex.quote(path)
 
@@ -436,6 +771,14 @@ def remote_compile_flags(flags: dict[str, str]) -> list[str]:
     return result
 
 
+def first_non_empty_line(text: str) -> str:
+    for line in sanitize_text(text).splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
 def build_remote_compile_object_command(remote_dir: str, flags: dict[str, str]) -> str:
     quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
     return (
@@ -461,6 +804,211 @@ def remote_sha256_command(remote_dir: str, filename: str) -> str:
         f"set -- $(sha256sum {shlex.quote(filename)}); printf '%s\\n' \"$1\"; "
         "else printf '\\n'; fi"
     )
+
+
+def build_remote_bundle_compile_caller_object_command(
+    remote_dir: str, flags: dict[str, str]
+) -> str:
+    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        f"clang {quoted_flags} -c rvv_bundle_dispatch_external_caller.c "
+        "-o rvv_bundle_dispatch_external_caller.o"
+    )
+
+
+def build_remote_bundle_link_executable_command(
+    remote_dir: str, object_file_name: str, flags: dict[str, str]
+) -> str:
+    validate_bundle_file_name(object_file_name)
+    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        f"clang {quoted_flags} rvv_bundle_dispatch_external_caller.o "
+        f"{shlex.quote(object_file_name)} -o rvv_bundle_dispatch_external_caller"
+    )
+
+
+def run_remote_bundle_external_abi_evidence(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    artifact_dir: Path,
+    commands: list[dict[str, Any]],
+    header_path: Path,
+    object_path: Path,
+    caller_path: Path,
+    object_file_name: str,
+    flags: dict[str, str],
+    run_id: str,
+) -> dict[str, Any]:
+    reject_secret_like_text("ssh target", args.ssh_target)
+    remote_dir = f"/tmp/tianchenrv_rvv_bundle_e2e_{safe_run_id(run_id)}"
+
+    setup_command = (
+        f"rm -rf {quote_remote_path(remote_dir)} && "
+        f"mkdir -p {quote_remote_path(remote_dir)}"
+    )
+    run_command(
+        "ssh_setup_remote_dir",
+        remote_shell_command(args, setup_command),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    uname_stdout, _, _ = run_command(
+        "ssh_uname",
+        remote_shell_command(args, "uname -a"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    arch_stdout, _, _ = run_command(
+        "ssh_architecture",
+        remote_shell_command(args, "uname -m"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    clang_path_stdout, _, _ = run_command(
+        "ssh_clang_path",
+        remote_shell_command(args, "command -v clang || true"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    clang_version_stdout, _, _ = run_command(
+        "ssh_clang_version",
+        remote_shell_command(args, "clang --version | head -n 1"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "scp_bundle_header_object_and_external_caller",
+        [
+            *scp_base_command(args),
+            relative_to_repo(header_path, root),
+            relative_to_repo(object_path, root),
+            relative_to_repo(caller_path, root),
+            f"{args.ssh_target}:{remote_dir}/",
+        ],
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_compile_bundle_external_caller_object",
+        remote_shell_command(
+            args, build_remote_bundle_compile_caller_object_command(remote_dir, flags)
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    caller_object_hash_stdout, _, _ = run_command(
+        "ssh_bundle_caller_object_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(remote_dir, "rvv_bundle_dispatch_external_caller.o"),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_link_bundle_external_caller",
+        remote_shell_command(
+            args,
+            build_remote_bundle_link_executable_command(
+                remote_dir, object_file_name, flags
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    executable_hash_stdout, _, _ = run_command(
+        "ssh_bundle_executable_sha256",
+        remote_shell_command(
+            args, remote_sha256_command(remote_dir, "rvv_bundle_dispatch_external_caller")
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_stdout, _, _ = run_command(
+        "ssh_run_bundle_external_caller",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && ./rvv_bundle_dispatch_external_caller",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER not in run_stdout:
+        raise BridgeError(
+            "remote bundle external caller stdout missing expected marker: "
+            + BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER
+        )
+
+    cleanup_status = "success"
+    try:
+        run_command(
+            "ssh_cleanup_remote_dir",
+            remote_shell_command(args, f"rm -rf {quote_remote_path(remote_dir)}"),
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    except BridgeError:
+        cleanup_status = "failure"
+
+    return {
+        "ssh_target": args.ssh_target,
+        "remote_dir": remote_dir,
+        "host_facts": {
+            "uname": first_non_empty_line(uname_stdout),
+            "architecture": first_non_empty_line(arch_stdout),
+            "clang_path": first_non_empty_line(clang_path_stdout),
+            "clang_version": first_non_empty_line(clang_version_stdout),
+        },
+        "compile_flags": remote_compile_flags(flags),
+        "caller_object_compile_exit_code": 0,
+        "link_exit_code": 0,
+        "run_exit_code": 0,
+        "expected_stdout_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+        "stdout_marker_observed": True,
+        "caller_object_sha256": sanitize_text(caller_object_hash_stdout)
+        .strip()
+        .splitlines()[0]
+        if sanitize_text(caller_object_hash_stdout).strip()
+        else "",
+        "executable_sha256": sanitize_text(executable_hash_stdout)
+        .strip()
+        .splitlines()[0]
+        if sanitize_text(executable_hash_stdout).strip()
+        else "",
+        "cleanup_status": cleanup_status,
+    }
 
 
 def run_remote_evidence(
@@ -597,7 +1145,196 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def selected_artifact_root(args: argparse.Namespace) -> Path:
+    if (
+        args.use_target_artifact_bundle
+        and args.artifact_root == str(DEFAULT_ARTIFACT_ROOT)
+    ):
+        return DEFAULT_BUNDLE_ARTIFACT_ROOT
+    return Path(args.artifact_root)
+
+
+def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
+    root = repo_root()
+    if args.evidence_note:
+        reject_secret_like_text("evidence note", args.evidence_note)
+
+    run_id = safe_run_id(args.run_id or utc_run_id())
+    artifact_dir = prepare_artifact_dir(
+        selected_artifact_root(args), run_id, root, args.overwrite
+    )
+    commands: list[dict[str, Any]] = []
+
+    input_path = resolve_repo_path(Path(args.input), root)
+    if not input_path.exists():
+        raise BridgeError(f"input MLIR does not exist: {args.input}")
+    reject_secret_like_text("input MLIR path", str(args.input))
+
+    tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
+    tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
+    local_clang = ensure_local_clang_on_path()
+
+    post_planning_mlir, _, _ = run_command(
+        "tcrv_opt_execution_planning_pipeline",
+        [
+            tcrv_opt,
+            relative_to_repo(input_path, root),
+            "--tcrv-execution-planning-pipeline",
+        ],
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    post_planning_path = artifact_dir / "post_planning.mlir"
+    write_generated_text(post_planning_path, "post-planning MLIR", post_planning_mlir)
+
+    bundle_dir = artifact_dir / "target_artifact_bundle"
+    bundle_dir.mkdir()
+    bundle_stdout, _, _ = run_command(
+        "export_target_artifact_bundle",
+        [
+            tcrv_translate,
+            "--tcrv-export-target-artifact-bundle",
+            f"--tcrv-target-artifact-bundle-output-dir={relative_to_repo(bundle_dir, root)}",
+            relative_to_repo(post_planning_path, root),
+        ],
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    bundle_stdout_path = artifact_dir / "bundle_export_stdout.txt"
+    write_generated_text(
+        bundle_stdout_path, "target artifact bundle export stdout", bundle_stdout
+    )
+
+    index_path = bundle_dir / BUNDLE_INDEX_FILE_NAME
+    if not index_path.exists():
+        raise BridgeError(f"target artifact bundle index was not emitted: {BUNDLE_INDEX_FILE_NAME}")
+    index_text = index_path.read_text(encoding="utf-8")
+    records = parse_target_artifact_bundle_index(index_text)
+    selected_records = select_dispatch_bundle_records(records, bundle_dir)
+
+    source_path = bundle_dir / str(selected_records["source"]["file_name"])
+    header_path = bundle_dir / str(selected_records["header"]["file_name"])
+    object_path = bundle_dir / str(selected_records["object"]["file_name"])
+    source_text = source_path.read_text(encoding="utf-8")
+    header_text = header_path.read_text(encoding="utf-8")
+    validate_library_dispatch_source(source_text)
+    source_flags = {
+        "selected_march": parse_source_comment(source_text, "selected_march", required=True),
+        "selected_mabi": parse_source_comment(source_text, "selected_mabi", required=False),
+    }
+    if "v" not in source_flags["selected_march"].lower():
+        raise BridgeError("selected_march from bundled dispatch source must contain RVV vector evidence")
+
+    dispatcher_function = validate_generated_dispatch_header(header_text)
+    caller_text = build_dispatch_external_caller_source(
+        dispatcher_function, str(selected_records["header"]["file_name"])
+    )
+    caller_path = artifact_dir / "rvv_bundle_dispatch_external_caller.c"
+    write_generated_text(
+        caller_path,
+        "generated RVV+scalar dispatch bundle external caller",
+        caller_text,
+    )
+
+    hashes = {
+        "input_sha256": sha256_file(input_path),
+        "post_planning_mlir_sha256": sha256_text(post_planning_mlir),
+        "bundle_export_stdout_sha256": sha256_text(bundle_stdout),
+        "bundle_index_sha256": sha256_text(index_text),
+        "bundle_dispatch_source_sha256": sha256_text(source_text),
+        "bundle_dispatch_header_sha256": sha256_text(header_text),
+        "bundle_dispatch_object_sha256": sha256_file(object_path),
+        "bundle_external_caller_c_sha256": sha256_text(caller_text),
+    }
+    evidence: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "runner": SCRIPT_NAME,
+        "run_id": run_id,
+        "mode": "dry-run" if args.dry_run else "ssh",
+        "status": "success",
+        "input": relative_to_repo(input_path, root),
+        "artifact_dir": relative_to_repo(artifact_dir, root),
+        "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
+        "bundle_export_mode": "target-artifact-bundle",
+        "bundle_index": relative_to_repo(index_path, root),
+        "bundle_index_summary": bundle_records_summary(records),
+        "local_object_export_clang": sanitize_text(local_clang),
+        "selected_bundle_records": {
+            label: bundle_records_summary([record])[0]
+            for label, record in selected_records.items()
+        },
+        "source_export_mode": "runtime-callable-library",
+        "external_caller": {
+            "kind": "generated-c-caller",
+            "dispatcher_function": dispatcher_function,
+            "success_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+            "branches_exercised": ["rvv_available=0", "rvv_available=1"],
+        },
+        "selected_compile_flags": remote_compile_flags(source_flags),
+        "hashes": hashes,
+        "artifacts": {
+            "post_planning_mlir": relative_to_repo(post_planning_path, root),
+            "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
+            "bundle_dir": relative_to_repo(bundle_dir, root),
+            "bundle_index": relative_to_repo(index_path, root),
+            "bundle_dispatch_source": relative_to_repo(source_path, root),
+            "bundle_dispatch_header": relative_to_repo(header_path, root),
+            "bundle_dispatch_object": relative_to_repo(object_path, root),
+            "bundle_external_caller_c": relative_to_repo(caller_path, root),
+        },
+        "commands": commands,
+        "ssh_evidence": None,
+        "claim_scope": (
+            "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
+            if args.dry_run
+            else "bounded RVV+scalar i32-vadd target-artifact bundle external caller correctness only"
+        ),
+    }
+
+    if not args.dry_run:
+        try:
+            evidence["ssh_evidence"] = run_remote_bundle_external_abi_evidence(
+                args,
+                root=root,
+                artifact_dir=artifact_dir,
+                commands=commands,
+                header_path=header_path,
+                object_path=object_path,
+                caller_path=caller_path,
+                object_file_name=str(selected_records["object"]["file_name"]),
+                flags=source_flags,
+                run_id=run_id,
+            )
+            evidence["commands"] = commands
+        except BridgeError as error:
+            evidence["status"] = "failure"
+            evidence["error"] = sanitize_text(str(error))
+            evidence["commands"] = commands
+            write_json(
+                artifact_dir / "command_summary.json",
+                {"artifact_dir": relative_to_repo(artifact_dir, root), "commands": commands},
+            )
+            write_json(artifact_dir / "hashes.json", hashes)
+            write_json(artifact_dir / "evidence.json", evidence)
+            raise
+
+    write_json(
+        artifact_dir / "command_summary.json",
+        {"artifact_dir": relative_to_repo(artifact_dir, root), "commands": commands},
+    )
+    write_json(artifact_dir / "hashes.json", hashes)
+    write_json(artifact_dir / "evidence.json", evidence)
+    return evidence
+
+
 def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
+    if args.use_target_artifact_bundle:
+        return run_bundle_bridge(args)
+
     root = repo_root()
     if args.evidence_note:
         reject_secret_like_text("evidence note", args.evidence_note)
@@ -811,7 +1548,138 @@ int main(void) { puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok"); }
     assert_self_test("rvv_scalar_dispatch_self_check.o" in link_command, "link command missing object input")
     assert_self_test(" -o rvv_scalar_dispatch_self_check" in link_command, "link command missing executable output")
 
+    sample_bundle_index = """
+tianchenrv.target_artifact_bundle.version: 1
+bundle_status: "complete"
+artifact_count: 3
+artifact[0]:
+  file_name: "artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c"
+  selected_surface: "dispatch"
+  component[0]:
+    selected_variant: @rvv_first_slice
+    role: "dispatch case"
+  component[1]:
+    selected_variant: @scalar_fallback_first_slice
+    role: "dispatch fallback"
+  artifact_kind: "runtime-callable-c-source"
+  route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"
+  owner: "rvv-scalar-dispatch-target"
+  runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+  runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+  evidence_role: "compiler-artifact"
+artifact[1]:
+  file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
+  selected_surface: "dispatch"
+  component[0]:
+    selected_variant: @rvv_first_slice
+    role: "dispatch case"
+  component[1]:
+    selected_variant: @scalar_fallback_first_slice
+    role: "dispatch fallback"
+  artifact_kind: "runtime-callable-c-header"
+  route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"
+  owner: "rvv-scalar-dispatch-target"
+  runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+  runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+  evidence_role: "header-declaration"
+artifact[2]:
+  file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
+  selected_surface: "dispatch"
+  component[0]:
+    selected_variant: @rvv_first_slice
+    role: "dispatch case"
+  component[1]:
+    selected_variant: @scalar_fallback_first_slice
+    role: "dispatch fallback"
+  artifact_kind: "riscv-elf-relocatable-object"
+  route: "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
+  owner: "rvv-scalar-dispatch-target"
+  runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+  runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
+  evidence_role: "relocatable-object"
+""".strip()
+    bundle_records = parse_target_artifact_bundle_index(sample_bundle_index)
+    assert_self_test(len(bundle_records) == 3, "bundle index parser lost records")
+    assert_self_test(
+        bundle_records[0]["components"][0]["role"] == "dispatch case",
+        "bundle index parser lost component role",
+    )
     root = repo_root()
+    with tempfile.TemporaryDirectory(dir=root / "artifacts" / "tmp") as temp_dir:
+        bundle_dir = Path(temp_dir)
+        for record in bundle_records:
+            (bundle_dir / record["file_name"]).write_bytes(b"artifact")
+        selected = select_dispatch_bundle_records(bundle_records, bundle_dir)
+        assert_self_test(
+            selected["object"]["artifact_kind"] == "riscv-elf-relocatable-object",
+            "bundle dispatch object record was not selected",
+        )
+    try:
+        parse_target_artifact_bundle_index(
+            sample_bundle_index.replace(
+                '  runtime_abi_name: "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"\n',
+                "",
+                1,
+            )
+        )
+    except BridgeError as error:
+        assert_self_test("runtime_abi_name" in str(error), "missing bundle field error changed")
+    else:
+        raise AssertionError("bundle index with missing runtime_abi_name was accepted")
+    try:
+        parse_target_artifact_bundle_index(
+            sample_bundle_index.replace(
+                'file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"',
+                'file_name: "https://example.invalid/header.h"',
+            )
+        )
+    except BridgeError:
+        pass
+    else:
+        raise AssertionError("bundle index with secret-like URL text was accepted")
+
+    dispatch_header = """\
+#ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_SELF_TEST_H
+#define TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_SELF_TEST_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_SELF_TEST_H */
+"""
+    dispatch_function = validate_generated_dispatch_header(dispatch_header)
+    assert_self_test(
+        dispatch_function == "tcrv_dispatch_i32_vadd_self_test",
+        "dispatch header prototype parser failed",
+    )
+    caller = build_dispatch_external_caller_source(
+        dispatch_function,
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h",
+    )
+    assert_self_test(
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in caller,
+        "bundle external caller success marker missing",
+    )
+    bundle_link_command = build_remote_bundle_link_executable_command(
+        "/tmp/tianchenrv_rvv_bundle_e2e_self_test",
+        "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o",
+        flags,
+    )
+    assert_self_test(
+        "rvv_bundle_dispatch_external_caller.o" in bundle_link_command,
+        "bundle link command missing caller object",
+    )
+
     try:
         require_under_artifacts_tmp(root / "rvv_scalar_dispatch_self_check.c", root)
     except BridgeError:
@@ -854,6 +1722,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--connect-timeout", type=int, default=10)
     parser.add_argument("--ssh-option", action="append", default=[])
     parser.add_argument("--evidence-note", default="")
+    parser.add_argument(
+        "--use-target-artifact-bundle",
+        action="store_true",
+        help="Export and consume the registry-derived target artifact bundle",
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
 
@@ -874,14 +1747,18 @@ def main(argv: list[str]) -> int:
         json.dumps(
             {
                 "artifact_dir": evidence["artifact_dir"],
+                "bundle_export_mode": evidence.get("bundle_export_mode", ""),
                 "mode": evidence["mode"],
                 "status": evidence["status"],
                 "planned_dispatch_pipeline": evidence["planned_dispatch_pipeline"],
-                "source_sha256": evidence["hashes"]["dispatch_self_check_c_sha256"],
+                "source_sha256": evidence["hashes"].get(
+                    "dispatch_self_check_c_sha256",
+                    evidence["hashes"].get("bundle_external_caller_c_sha256", ""),
+                ),
                 "source_export_mode": evidence["source_export_mode"],
-                "self_check_source_export_route": evidence[
-                    "self_check_source_export_route"
-                ],
+                "self_check_source_export_route": evidence.get(
+                    "self_check_source_export_route", ""
+                ),
                 "ssh_evidence": bool(evidence["ssh_evidence"]),
                 "claim_scope": evidence["claim_scope"],
             },

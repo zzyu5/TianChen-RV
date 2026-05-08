@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack and boundary invariants for TianChen-RV evidence tooling"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec compute-free dispatch/runtime_param/mem_window contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact bundle, external ABI evidence, and parameter layering contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit and Python evidence bridge testing requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality and ssh rvv evidence interpretation contract"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first review guide for target artifact and dispatch evidence changes"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality review guide for RVV/scalar target-owned surfaces"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary review guide to keep tcrv.exec compute-free"}
