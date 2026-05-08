@@ -147,6 +147,13 @@ header routes are still bounded target artifacts; they do not link, run
 hardware, perform automatic probing, prove correctness, or measure performance.
 The self-check object route remains an explicit target-owned helper command for
 evidence collection, not the generic artifact front door.
+For the direct RVV i32-vadd microkernel path, the runtime-callable C header
+route is matched from the same validated callable source candidate as the
+object route. It derives its single prototype from the same selected path,
+microkernel body, callable ABI plan, mem_window/runtime_param boundaries, and
+capability metadata as the source/object routes. It must not embed callable
+bodies, RVV intrinsics, `main`, self-check helpers, runtime probing, evidence
+logs, credentials, artifact paths, or performance text.
 
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
@@ -272,7 +279,16 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV explicit i32 vector-add microkernel runtime-callable C source.
   - Scalar explicit i32 vector-add microkernel runtime-callable C source.
   - Offload runtime handoff descriptor.
-- The current composite route set is:
+- The current single-candidate composite route set is:
+  - RVV explicit i32 vector-add microkernel runtime-callable C header,
+    matched from the same selected callable source candidate and emitted by
+    RVV target/export code as an external caller ABI surface with artifact kind
+    `runtime-callable-c-header`.
+  - RVV explicit i32 vector-add microkernel runtime-callable RISC-V ELF
+    relocatable library object, matched from the same selected callable source
+    candidate and emitted by RVV target/export code without a hidden self-check
+    harness or `main`.
+- The current multi-candidate composite route set is:
   - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C source,
     matched by target-owned RVV+scalar dispatch exporter code from the selected
     RVV dispatch-case callable route and scalar dispatch-fallback callable
@@ -289,7 +305,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   target-owned registration functions, but it must not duplicate route
   semantics or artifact validation.
 - Generic public translate helpers should call this helper once and then call
-  `exportTargetSourceArtifact` or `exportTargetArtifact`.
+  `exportTargetSourceArtifact`, `exportTargetArtifact`, or
+  `exportTargetHeaderArtifact`.
 - Source-only filtering remains the responsibility of the generic exporter via
   artifact-kind validation, not by omitting non-source built-ins from the
   registration helper.
@@ -317,6 +334,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   selected plan has both supported callable sides and local RVV object
   compilation support.
 - Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
+  direct RVV i32-vadd microkernel runtime-callable C header route from the same
+  selected callable source candidate without changing source-only or default
+  object artifact selection.
+- Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
   RVV+scalar dispatch runtime-callable C header composite route from the same
   selected callable sides without changing the source or object front-door
   selection result.
@@ -336,7 +357,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   route ids with deterministic generic metadata and rejects duplicate
   registration.
 - lit/FileCheck route tests must continue to cover RVV source export, scalar
-  source export, RVV+scalar composite dispatch source export, RVV+scalar
+  source export, direct RVV microkernel header export through the generic
+  header front door, RVV+scalar composite dispatch source export, RVV+scalar
   composite dispatch object export when local RVV object compilation is
   available, offload descriptor export, source-only offload rejection, and
   RVV/scalar/offload route spoofing failures.

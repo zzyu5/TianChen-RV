@@ -644,6 +644,20 @@ Successful `ssh rvv` compile/run evidence for the harness source supports only
 the bounded microkernel correctness claim for the generated callable ABI plus
 harness. It is not generic high-level lowering, arbitrary RVV executable
 emission, full runtime integration, or performance evidence.
+The target layer may also emit a matching runtime-callable C ABI header through
+the direct `tcrv-translate --tcrv-export-rvv-microkernel-header` command or the
+generic `--tcrv-export-target-header-artifact` front door. This header route is
+matched from the same validated callable source candidate as the object route
+and derives its single prototype from the same selected RVV path, validated
+microkernel body, IR-backed callable ABI plan, and capability metadata. It is
+an external caller ABI surface only: no RVV body, hidden `main`, self-check
+harness, runtime probe, correctness evidence, or performance text belongs in
+the header artifact. Successful `ssh rvv` compile/link/run evidence for an
+explicit external caller that includes the generated header and links the
+generated relocatable object supports only the bounded external ABI handoff
+claim for this finite i32-vadd microkernel. It is not generic high-level
+lowering, arbitrary RVV executable emission, full runtime integration, broad
+correctness, or performance evidence.
 
 This target export does not change the default metadata-only RVV unsupported
 boundary. A selected RVV path without the finite descriptor or exactly one

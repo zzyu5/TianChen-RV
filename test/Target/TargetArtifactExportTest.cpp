@@ -556,8 +556,8 @@ int main() {
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 4) {
-    llvm::errs() << "expected exactly 4 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 5) {
+    llvm::errs() << "expected exactly 5 built-in composite target artifact "
                     "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -574,6 +574,10 @@ int main() {
                    "tcrv-export-offload-runtime-descriptor",
                    "runtime-offload-handoff-descriptor", "offload-plugin",
                    "runtime-offload-handoff-descriptor"))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-rvv-microkernel-header",
+          "runtime-callable-c-header"))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-object",

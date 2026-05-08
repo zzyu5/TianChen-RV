@@ -141,6 +141,19 @@ metadata, and local `clang`. For direct selected RVV paths, the generic
 while `--tcrv-export-target-source-artifact` remains source-only. The object
 route has no hidden `main`, does not link or run, and does not perform
 automatic RVV probing.
+The matching `tcrv-translate --tcrv-export-rvv-microkernel-header` helper and
+the generic `--tcrv-export-target-header-artifact` front door emit the bounded
+runtime-callable C ABI header for the same selected RVV i32-vadd microkernel
+path. The header is derived from the same selected path, validated
+microkernel, structured callable ABI plan, mem_window/runtime_param boundaries,
+and capability metadata as the source/object routes. It contains only an
+include guard, standard integer/size includes, the `extern "C"` guard, and the
+single callable prototype; it has no body, RVV intrinsics, hidden `main`,
+self-check harness, runtime probing, correctness evidence, or performance
+text. Header selection is routed separately from source/object artifact
+selection: the source-only front door remains source-only and the default
+artifact front door continues to choose the object route when that route is
+requested or supported.
 Real `ssh rvv` compile/run evidence for that harness source proves only that
 this bounded generated microkernel source compiled and that the harness passed
 on the selected host flags. It is not generic high-level lowering, arbitrary
@@ -291,9 +304,12 @@ python3 scripts/rvv_microkernel_e2e.py --ssh-target rvv
 The dry-run mode runs local compiler tools only and writes sanitized
 post-planning MLIR, emission manifest, generated C source, hashes, and command
 summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Real ssh mode
-uses the explicit self-check harness export and adds bounded remote compile/run
-evidence for the generated `tcrv_rvv.i32_vadd_microkernel` callable ABI plus
-self-check harness only. It is not generic RVV lowering, full runtime
+exports the generated runtime-callable C header and RISC-V relocatable object,
+creates an explicit external C caller under `artifacts/tmp`, copies those three
+inputs to `ssh rvv`, compiles/links the external caller against the generated
+object, runs it, and checks the finite i32-vadd result. That evidence is
+bounded to this generated header plus generated object external caller
+correctness check only. It is not generic RVV lowering, full runtime
 integration, arbitrary kernel emission, broad correctness coverage, or
 performance evidence.
 

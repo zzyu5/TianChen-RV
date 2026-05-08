@@ -84,6 +84,17 @@ mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult exportRVVMicrokernelHeader(mlir::ModuleOp module,
+                                               llvm::raw_ostream &os) {
+  if (llvm::Error error =
+          tianchenrv::target::rvv::exportRVVMicrokernelHeader(module, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
 mlir::LogicalResult exportRVVMicrokernelObject(mlir::ModuleOp module,
                                                llvm::raw_ostream &os) {
   if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
@@ -259,6 +270,13 @@ void registerTianChenRVTranslations() {
       "harness",
       exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelSelfCheckC;
+
+  static mlir::TranslateFromMLIRRegistration rvvMicrokernelHeader(
+      "tcrv-export-rvv-microkernel-header",
+      "export one RVV i32 vector-add microkernel runtime-callable C ABI "
+      "header",
+      exportRVVMicrokernelHeader, registerTianChenRVTranslateDialects);
+  (void)rvvMicrokernelHeader;
 
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelObject(
       "tcrv-export-rvv-microkernel-object",

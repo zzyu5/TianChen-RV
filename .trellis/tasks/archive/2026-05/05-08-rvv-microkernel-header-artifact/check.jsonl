@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec boundary for final review"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime artifact route behavior and evidence claims"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV details remain target-owned/plugin-local"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/FileCheck and bounded evidence coverage"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify capability and runtime ABI layering"}

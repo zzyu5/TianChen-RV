@@ -20,6 +20,9 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
 llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
                                            llvm::raw_ostream &os);
 
+llvm::Error exportRVVMicrokernelHeader(mlir::ModuleOp module,
+                                       llvm::raw_ostream &os);
+
 llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
                                        llvm::raw_ostream &os);
 

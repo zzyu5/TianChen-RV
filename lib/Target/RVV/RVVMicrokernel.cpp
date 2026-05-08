@@ -92,8 +92,12 @@ constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-rvv-microkernel-c");
 constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
     "tcrv-export-rvv-microkernel-object");
+constexpr llvm::StringLiteral kMicrokernelHeaderRouteID(
+    "tcrv-export-rvv-microkernel-header");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
+constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
+    "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kMicrokernelRuntimeABI(
@@ -1587,6 +1591,19 @@ std::string makeMicrokernelFunctionName(const RVVMicrokernelRecord &record) {
   return name;
 }
 
+std::string makeMicrokernelHeaderIncludeGuard(
+    const RVVMicrokernelRecord &record) {
+  std::string guard = "TIANCHENRV_RVV_I32_VADD_MICROKERNEL_";
+  guard += sanitizeCIdentifierComponent(record.kernelSymbol);
+  guard += "_";
+  guard += sanitizeCIdentifierComponent(record.variantSymbol);
+  guard += "_H";
+  for (char &character : guard)
+    character = static_cast<char>(
+        std::toupper(static_cast<unsigned char>(character)));
+  return guard;
+}
+
 llvm::StringRef getAttrValue(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = getStringAttr(op, attrName);
   if (!attr)
@@ -1717,6 +1734,19 @@ void printMicrokernelFunction(llvm::raw_ostream &os,
   os << "}\n\n";
 }
 
+void printMicrokernelPrototype(llvm::raw_ostream &os,
+                               llvm::StringRef functionName,
+                               llvm::ArrayRef<support::RuntimeABIParameter>
+                                   parameters) {
+  os << "void " << functionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ")";
+}
+
 void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
                                       std::int64_t elementCount) {
@@ -1755,6 +1785,28 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
      << elementCount << ");\n";
   os << "  return 0;\n";
   os << "}\n";
+}
+
+void printMicrokernelHeader(const RVVMicrokernelRecord &record,
+                            llvm::raw_ostream &os) {
+  std::string includeGuard = makeMicrokernelHeaderIncludeGuard(record);
+  std::string functionName = makeMicrokernelFunctionName(record);
+
+  os << "#ifndef " << includeGuard << "\n";
+  os << "#define " << includeGuard << "\n\n";
+  os << "#include <stddef.h>\n";
+  os << "#include <stdint.h>\n\n";
+  os << "#ifdef __cplusplus\n";
+  os << "extern \"C\" {\n";
+  os << "#endif\n\n";
+
+  printMicrokernelPrototype(os, functionName, record.runtimeABIParameters);
+  os << ";\n\n";
+
+  os << "#ifdef __cplusplus\n";
+  os << "}\n";
+  os << "#endif\n\n";
+  os << "#endif /* " << includeGuard << " */\n";
 }
 
 void printMicrokernelSource(const RVVMicrokernelRecord &record,
@@ -1799,6 +1851,13 @@ bool isRVVMicrokernelSourceCandidate(
 }
 
 llvm::Expected<bool> matchRVVMicrokernelObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return isRVVMicrokernelSourceCandidate(candidates.front());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
     return false;
@@ -1995,6 +2054,16 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportRVVMicrokernelHeader(mlir::ModuleOp module,
+                                       llvm::raw_ostream &os) {
+  llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record)
+    return record.takeError();
+
+  printMicrokernelHeader(*record, os);
+  return llvm::Error::success();
+}
+
 llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
                                        llvm::raw_ostream &os) {
   llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
@@ -2023,6 +2092,13 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
           kMicrokernelEmissionKind, exportRVVMicrokernelC,
           support::getI32VAddRuntimeABIRoleRequirements())))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
+              matchRVVMicrokernelHeaderCandidate,
+              exportRVVMicrokernelHeader)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
