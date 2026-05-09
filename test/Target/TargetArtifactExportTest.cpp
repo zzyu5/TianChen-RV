@@ -1856,7 +1856,7 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vsub-dispatch-c",
           "runtime-callable-c-source", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchSubRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           dispatchSubExternalABIComponentGroup, dispatchSubRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1876,7 +1876,7 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vsub-dispatch-header",
           "runtime-callable-c-header", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchSubRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           dispatchSubExternalABIComponentGroup, dispatchSubRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1885,7 +1885,7 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vsub-dispatch-object",
           "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchSubRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           dispatchSubExternalABIComponentGroup, dispatchSubRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1893,7 +1893,7 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vmul-dispatch-c",
           "runtime-callable-c-source", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchMulRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           dispatchMulExternalABIComponentGroup, dispatchMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1913,7 +1913,7 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vmul-dispatch-header",
           "runtime-callable-c-header", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchMulRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           dispatchMulExternalABIComponentGroup, dispatchMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1922,7 +1922,7 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vmul-dispatch-object",
           "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
           dispatchABI.runtimeABIKind, dispatchMulRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           dispatchMulExternalABIComponentGroup, dispatchMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;

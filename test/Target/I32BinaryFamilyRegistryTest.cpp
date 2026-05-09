@@ -202,6 +202,126 @@ int expectDispatchFamilyExporterRoutes(
       family.dispatch.dispatchRuntimeABIName);
 }
 
+const rvv_scalar::RVVScalarDispatchRouteManifestEntry *
+findDispatchManifestRoute(const I32BinaryFamilyDescriptor &family,
+                          rvv_scalar::RVVScalarDispatchRouteKind routeKind) {
+  for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &route :
+       rvv_scalar::getRVVScalarDispatchRouteManifest()) {
+    if (route.family == &family.dispatch && route.routeKind == routeKind)
+      return &route;
+  }
+  return nullptr;
+}
+
+int expectDispatchManifestRoute(
+    const I32BinaryFamilyDescriptor &family,
+    rvv_scalar::RVVScalarDispatchRouteKind routeKind,
+    llvm::StringRef expectedRouteID, llvm::StringRef expectedArtifactKind,
+    bool expectedBinaryStdout) {
+  const rvv_scalar::RVVScalarDispatchRouteManifestEntry *route =
+      findDispatchManifestRoute(family, routeKind);
+  if (!route)
+    return fail(llvm::Twine("missing dispatch manifest route for family '") +
+                family.familyID + "'");
+  if (route->routeID != expectedRouteID)
+    return fail(llvm::Twine("manifest route id mismatch for family '") +
+                family.familyID + "'");
+  if (route->artifactKind != expectedArtifactKind)
+    return fail(llvm::Twine("manifest artifact kind mismatch for route '") +
+                expectedRouteID + "'");
+  if (route->runtimeABIKind != family.dispatch.dispatchRuntimeABIKind ||
+      route->runtimeABIName != family.dispatch.dispatchRuntimeABIName ||
+      route->componentGroup !=
+          family.dispatch.dispatchExternalABIComponentGroup ||
+      route->externalABIName != family.dispatch.dispatchRuntimeABIName ||
+      route->selfCheckSuccessMarker !=
+          family.dispatch.selfCheckSuccessMarker)
+    return fail(llvm::Twine("manifest ABI/component metadata mismatch for "
+                            "route '") +
+                expectedRouteID + "'");
+  if (route->requiresBinaryStdout != expectedBinaryStdout)
+    return fail(llvm::Twine("manifest binary stdout flag mismatch for route '") +
+                expectedRouteID + "'");
+  if (route->description.empty())
+    return fail(llvm::Twine("manifest description missing for route '") +
+                expectedRouteID + "'");
+  return 0;
+}
+
+int expectDispatchRouteManifest() {
+  using RouteKind = rvv_scalar::RVVScalarDispatchRouteKind;
+  llvm::ArrayRef<const I32BinaryFamilyDescriptor *> families =
+      getI32BinaryFamilyDescriptors();
+  llvm::ArrayRef<rvv_scalar::RVVScalarDispatchRouteManifestEntry> routes =
+      rvv_scalar::getRVVScalarDispatchRouteManifest();
+  if (int result =
+          expect(routes.size() == families.size() * 5,
+                 "dispatch route manifest has five routes per i32 family"))
+    return result;
+
+  for (const I32BinaryFamilyDescriptor *family : families) {
+    if (int result = expectDispatchManifestRoute(
+            *family, RouteKind::Source,
+            family->dispatch.dispatchSourceRouteID,
+            kRuntimeCallableCSourceArtifactKind,
+            /*expectedBinaryStdout=*/false))
+      return result;
+    if (int result = expectDispatchManifestRoute(
+            *family, RouteKind::Header,
+            family->dispatch.dispatchHeaderRouteID,
+            kRuntimeCallableCHeaderArtifactKind,
+            /*expectedBinaryStdout=*/false))
+      return result;
+    if (int result = expectDispatchManifestRoute(
+            *family, RouteKind::Object,
+            family->dispatch.dispatchObjectRouteID,
+            kRiscvELFRelocatableObjectArtifactKind,
+            /*expectedBinaryStdout=*/true))
+      return result;
+    std::string selfCheckSourceRoute =
+        (llvm::Twine("tcrv-export-rvv-scalar-") + family->familyID +
+         "-dispatch-self-check-c")
+            .str();
+    std::string selfCheckObjectRoute =
+        (llvm::Twine("tcrv-export-rvv-scalar-") + family->familyID +
+         "-dispatch-self-check-object")
+            .str();
+    if (int result = expectDispatchManifestRoute(
+            *family, RouteKind::SelfCheckSource, selfCheckSourceRoute,
+            "self-check-c-source", /*expectedBinaryStdout=*/false))
+      return result;
+    if (int result = expectDispatchManifestRoute(
+            *family, RouteKind::SelfCheckObject, selfCheckObjectRoute,
+            "self-check-riscv-elf-relocatable-object",
+            /*expectedBinaryStdout=*/true))
+      return result;
+  }
+
+  for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &lhs : routes) {
+    for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &rhs : routes) {
+      if (&lhs == &rhs)
+        continue;
+      if (int result = expect(lhs.routeID != rhs.routeID,
+                              "dispatch manifest route ids are distinct"))
+        return result;
+      if (lhs.routeKind == rhs.routeKind && lhs.family != rhs.family) {
+        if (int result =
+                expect(lhs.componentGroup != rhs.componentGroup,
+                       "same-kind dispatch manifest component groups are "
+                       "distinct across families"))
+          return result;
+        if (int result =
+                expect(lhs.externalABIName != rhs.externalABIName,
+                       "same-kind dispatch manifest ABI names are distinct "
+                       "across families"))
+          return result;
+      }
+    }
+  }
+
+  return 0;
+}
+
 int expectStaleFamilyMismatchGuards() {
   const I32BinaryFamilyDescriptor &add = getI32VAddFamilyDescriptor();
   const I32BinaryFamilyDescriptor &sub = getI32VSubFamilyDescriptor();
@@ -275,6 +395,8 @@ int main() {
   for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectFamilyDescriptorShape(*family))
       return result;
+  if (int result = expectDispatchRouteManifest())
+    return result;
   if (int result = expectStaleFamilyMismatchGuards())
     return result;
 

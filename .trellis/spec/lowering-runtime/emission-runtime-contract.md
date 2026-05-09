@@ -536,6 +536,167 @@ execution-plan coherence, route validation, or artifact materialization fails,
 and it must not weaken the bundle component contract or runtime ABI signature
 validation.
 
+## RVV+Scalar I32 Dispatch Route Manifest
+
+### 1. Scope / Trigger
+
+Trigger: target/export code or public tools add, expose, or validate a
+RVV+scalar i32 binary dispatch route. The route source of truth is the bounded
+target-owned dispatch route manifest for the existing finite families
+`i32-vadd`, `i32-vsub`, and `i32-vmul`.
+
+This manifest is a target/export contract over already selected RVV dispatch
+case and scalar dispatch fallback callable artifacts. It must not become a
+generic arithmetic registry, a new high-level compute IR, or Python-owned
+compiler semantics.
+
+### 2. Signatures
+
+Public manifest API:
+
+```cpp
+enum class RVVScalarDispatchRouteKind {
+  Source,
+  Header,
+  Object,
+  SelfCheckSource,
+  SelfCheckObject,
+};
+
+struct RVVScalarDispatchRouteManifestEntry {
+  const i32_binary::DispatchI32FamilyDescriptor *family;
+  RVVScalarDispatchRouteKind routeKind;
+  llvm::StringRef routeID;
+  llvm::StringRef description;
+  llvm::StringRef artifactKind;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef componentGroup;
+  llvm::StringRef externalABIName;
+  llvm::StringRef selfCheckSuccessMarker;
+  bool requiresBinaryStdout;
+};
+
+llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
+getRVVScalarDispatchRouteManifest();
+
+llvm::Error exportRVVScalarDispatchRoute(
+    mlir::ModuleOp module, const RVVScalarDispatchRouteManifestEntry &route,
+    llvm::raw_ostream &os);
+```
+
+Public command surface:
+
+```text
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
+tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
+```
+
+The same five route kinds must exist for `i32-vsub` and `i32-vmul` with the
+same stable naming pattern.
+
+### 3. Contracts
+
+- The manifest covers exactly the current registry families `i32-vadd`,
+  `i32-vsub`, and `i32-vmul`; unsupported families are absent rather than
+  partially represented.
+- Each manifest entry derives family facts from
+  `I32BinaryFamilyRegistry` and adds only dispatch-route-specific stable fields
+  such as route kind, artifact kind, description, and binary stdout mode.
+- Source, header, and library-object entries are registered as target artifact
+  composite exporters by iterating the manifest. Self-check entries remain
+  explicit direct evidence-helper translate routes and are not generic bundle
+  front-door records.
+- Direct `tcrv-translate` dispatch routes are registered by iterating the same
+  manifest. Public tool code must not keep an independent hand-written add/sub
+  /mul route list.
+- A direct route must require the selected RVV callable family and selected
+  scalar callable family to match the route family before emitting source,
+  header, object bytes, or self-check harness code.
+- Source/header/object records in one dispatch external ABI group must agree on
+  runtime ABI kind/name, component group, external ABI name, selected component
+  paths, and ordered runtime ABI parameters.
+- Python evidence helpers may consume the compiler-emitted route and bundle
+  metadata, but they must not decide route selection, runtime ABI shape,
+  artifact kind, source generation, or family semantics.
+
+### 4. Validation & Error Matrix
+
+- Manifest has fewer or more than five routes per finite family -> C++ registry
+  coverage fails.
+- Duplicate manifest route ids -> C++ registry coverage fails.
+- Missing source/header/object route for any finite family -> built-in target
+  exporter registration fails coverage.
+- Direct source/header/object/self-check route family does not match the
+  selected dispatch pair -> fail before artifact output with a diagnostic that
+  names the expected family and selected family.
+- Selected RVV callable family differs from selected scalar fallback callable
+  family -> fail before dispatch artifact output.
+- Composite bundle records in the same component group disagree on runtime ABI,
+  external ABI name, component paths, or ABI signature -> fail before complete
+  bundle index output.
+- Object or self-check-object routes must switch stdout to binary mode only for
+  object output and must still report bounded diagnostics on failure.
+
+### 5. Good/Base/Bad Cases
+
+- Good: a selected `i32-vmul` dispatch pair exported through
+  `--tcrv-export-rvv-scalar-i32-vmul-dispatch-c` emits vmul RVV intrinsic,
+  scalar `lhs * rhs`, vmul dispatcher ABI, and vmul self-check marker.
+- Base: `--tcrv-export-target-artifact-bundle` selects source/header/object
+  records for the same finite dispatch family by registry metadata and writes
+  one coherent external ABI group.
+- Bad: a vmul direct route accepts selected vadd artifacts and emits add route
+  ids, add ABI names, or `lhs + rhs`. It must fail before output.
+- Bad: generic tool registration manually lists add/sub/mul direct routes while
+  target/export registration uses a different route list. Both surfaces must
+  iterate the same manifest-backed API.
+
+### 6. Tests Required
+
+- C++ registry tests must prove the manifest covers exactly add/sub/mul, five
+  route kinds per family, distinct route ids, distinct component groups,
+  distinct runtime ABI names, distinct self-check markers, and family-derived
+  operator/intrinsic metadata.
+- C++ target exporter tests must prove source/header/object composite routes
+  for add/sub/mul are registered with runtime ABI callbacks, route-local
+  candidate validation, direct helper metadata, component group, and external
+  ABI name.
+- lit/FileCheck tests must prove public `tcrv-translate --help` exposes all
+  add/sub/mul direct routes through manifest registration.
+- lit/FileCheck tests must prove direct source/header/object/self-check routes
+  fail closed on stale-family mismatches and that generic routes still emit the
+  family-selected source/header/bundle records.
+- Python runner tests may cover self-test, local dry-run, and bundle dry-run
+  consumption of emitted metadata. Passing those tests is tooling evidence only.
+- Full `check-tianchenrv` must pass before the task is archived.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```cpp
+static TranslateFromMLIRRegistration addRoute(...);
+static TranslateFromMLIRRegistration subRoute(...);
+static TranslateFromMLIRRegistration mulRoute(...);
+```
+
+Correct:
+
+```cpp
+for (const RVVScalarDispatchRouteManifestEntry &route :
+     getRVVScalarDispatchRouteManifest()) {
+  registerTranslateRoute(route);
+}
+```
+
+The correct shape keeps finite dispatch family facts in the target-owned
+registry/manifest boundary, keeps generic front doors route-id driven, and makes
+stale-family mismatches fail before artifacts are emitted.
+
 ## Selected Lowering Boundary First Slice
 
 Before executable lowering exists, the compiler may materialize selected-path

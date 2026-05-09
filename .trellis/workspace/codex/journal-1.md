@@ -339,3 +339,36 @@ Extended descriptor-backed i32-vmul into the RVV-primary plus scalar-fallback di
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Descriptor-driven i32 binary dispatch route manifest
+
+**Date**: 2026-05-09
+**Task**: Descriptor-driven i32 binary dispatch route manifest
+**Branch**: `main`
+
+### Summary
+
+Completed the RVV+scalar i32 add/sub/mul dispatch route manifest, migrated target exporter and tcrv-translate registration to manifest-backed APIs, added stale-family fail-closed coverage, updated the lowering-runtime code-spec, and archived the Trellis task after focused and full checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

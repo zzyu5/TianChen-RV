@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth and stack boundaries for this compiler task."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Ensures route manifest stays target/plugin-local and does not add core extension-specific branches."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines bounded RVV i32 add/sub/mul descriptor and artifact route expectations."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines bounded scalar fallback i32 add/sub/mul descriptor and artifact route expectations."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines artifact route, runtime ABI, component group, and parameter layering rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required focused lit/C++/script validation for target/export route changes."}

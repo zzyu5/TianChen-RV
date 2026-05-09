@@ -55,6 +55,10 @@ constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kSelfCheckCSourceArtifactKind(
+    "self-check-c-source");
+constexpr llvm::StringLiteral kSelfCheckObjectArtifactKind(
+    "self-check-riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
     "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
 constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
@@ -192,6 +196,9 @@ const DispatchI32FamilySpec &getI32VSubDispatchFamilySpec() {
 const DispatchI32FamilySpec &getI32VMulDispatchFamilySpec() {
   return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().dispatch;
 }
+
+using DispatchRouteKind = RVVScalarDispatchRouteKind;
+using DispatchRouteManifestEntry = RVVScalarDispatchRouteManifestEntry;
 
 bool containsForbiddenText(llvm::StringRef value) {
   std::string lower = value.lower();
@@ -975,7 +982,7 @@ getDispatchCompositeMatchFn(const DispatchI32FamilySpec &family) {
   return nullptr;
 }
 
-llvm::Error validateRVVScalarI32VAddDispatchCandidates(
+llvm::Error validateRVVScalarDispatchCandidates(
     llvm::ArrayRef<TargetArtifactCandidate> candidates) {
   llvm::Expected<DispatchPair> pair =
       collectDispatchPairFromCandidates(candidates);
@@ -985,7 +992,7 @@ llvm::Error validateRVVScalarI32VAddDispatchCandidates(
 }
 
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
-resolveRVVScalarI32VAddDispatchRuntimeABIParameters(
+resolveRVVScalarDispatchRuntimeABIParameters(
     llvm::ArrayRef<TargetArtifactCandidate> candidates) {
   llvm::Expected<DispatchPair> pair =
       collectDispatchPairFromCandidates(candidates);
@@ -1683,245 +1690,517 @@ llvm::Error compileGeneratedDispatchSourceToObject(
   return llvm::Error::success();
 }
 
-} // namespace
-
-llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
-                                            llvm::raw_ostream &os) {
-  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
-  if (!pair)
-    return pair.takeError();
-
-  std::string rvvSource;
-  std::string scalarSource;
-  if (llvm::Error error =
-          buildEmbeddedCallableSources(module, rvvSource, scalarSource))
-    return error;
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = printDispatchSource(*pair, rvvSource, scalarSource,
-                                              /*includeSelfCheck=*/false,
-                                              stream))
-    return error;
-  stream.flush();
-  os << source;
-  return llvm::Error::success();
-}
-
-llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
-                                                 llvm::raw_ostream &os) {
-  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
-  if (!pair) {
-    std::string message = llvm::toString(pair.takeError());
-    return makeModuleDispatchHeaderError(message);
-  }
-
-  std::string rvvSource;
-  std::string scalarSource;
-  if (llvm::Error error =
-          buildEmbeddedCallableSources(module, rvvSource, scalarSource)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeModuleDispatchHeaderError(message);
-  }
-
-  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
-      buildDispatchObjectCompileConfig(*pair);
-  if (!compileConfig) {
-    std::string message = llvm::toString(compileConfig.takeError());
-    return makeModuleDispatchHeaderError(message);
-  }
-
-  if (llvm::Error error = printDispatchHeader(*pair, os)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeModuleDispatchHeaderError(message);
-  }
-  return llvm::Error::success();
-}
-
-llvm::Error exportRVVScalarDispatchSelfCheckCForFamily(
+llvm::Expected<DispatchPair> collectDispatchPairForExpectedFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
-    llvm::raw_ostream &os) {
+    llvm::StringRef routeContext) {
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
   if (!pair)
     return pair.takeError();
   if (pair->family != &expectedFamily)
     return makeDispatchError(
         pair->rvv.kernel,
-        llvm::Twine("self-check export route expected ") +
+        llvm::Twine(routeContext) + " expected " +
             expectedFamily.diagnosticName + " dispatch artifacts, got " +
             pair->family->diagnosticName);
+  return std::move(*pair);
+}
 
+llvm::Error exportDispatchSourceFromPair(const DispatchPair &pair,
+                                         bool includeSelfCheck,
+                                         llvm::raw_ostream &os) {
   std::string rvvSource;
   std::string scalarSource;
   if (llvm::Error error =
-          buildEmbeddedCallableSources(module, rvvSource, scalarSource))
+          buildEmbeddedCallableSources(pair.rvv.kernel->getParentOfType<
+                                           mlir::ModuleOp>(),
+                                       rvvSource, scalarSource))
     return error;
 
   std::string source;
   llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = printDispatchSource(*pair, rvvSource, scalarSource,
-                                              /*includeSelfCheck=*/true,
-                                              stream))
+  if (llvm::Error error = printDispatchSource(pair, rvvSource, scalarSource,
+                                              includeSelfCheck, stream))
     return error;
   stream.flush();
   os << source;
   return llvm::Error::success();
 }
 
-llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
-                                                     llvm::raw_ostream &os) {
-  return exportRVVScalarDispatchSelfCheckCForFamily(
-      module, getI32VAddDispatchFamilySpec(), os);
-}
-
-llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
-                                                     llvm::raw_ostream &os) {
-  return exportRVVScalarDispatchSelfCheckCForFamily(
-      module, getI32VSubDispatchFamilySpec(), os);
-}
-
-llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
-                                                     llvm::raw_ostream &os) {
-  return exportRVVScalarDispatchSelfCheckCForFamily(
-      module, getI32VMulDispatchFamilySpec(), os);
-}
-
-llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
-                                                 llvm::raw_ostream &os) {
+llvm::Error exportDispatchSourceImpl(mlir::ModuleOp module,
+                                     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
-  if (!pair) {
-    std::string message = llvm::toString(pair.takeError());
-    return makeModuleDispatchObjectError(message);
-  }
-
-  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
-      buildDispatchObjectCompileConfig(*pair);
-  if (!compileConfig)
-    return compileConfig.takeError();
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = exportRVVScalarI32VAddDispatchC(module, stream)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeModuleDispatchObjectError(message);
-  }
-  stream.flush();
-  if (source.empty())
-    return makeDispatchObjectError(
-        pair->rvv.kernel,
-        "validated library-style dispatch C source must be non-empty before "
-        "object export");
-
-  return compileGeneratedDispatchSourceToObject(pair->rvv.kernel, source,
-                                                *compileConfig, os);
+  if (!pair)
+    return pair.takeError();
+  return exportDispatchSourceFromPair(*pair, /*includeSelfCheck=*/false, os);
 }
 
-llvm::Error exportRVVScalarDispatchSelfCheckObjectForFamily(
+llvm::Error exportDispatchSourceForFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
     llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
+      module, expectedFamily, "direct source export route");
+  if (!pair)
+    return pair.takeError();
+  return exportDispatchSourceFromPair(*pair, /*includeSelfCheck=*/false, os);
+}
+
+llvm::Error exportDispatchHeaderFromPair(const DispatchPair &pair,
+                                         llvm::raw_ostream &os) {
+  std::string rvvSource;
+  std::string scalarSource;
+  if (llvm::Error error =
+          buildEmbeddedCallableSources(pair.rvv.kernel->getParentOfType<
+                                           mlir::ModuleOp>(),
+                                       rvvSource, scalarSource)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchHeaderError(message);
+  }
+
+  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
+      buildDispatchObjectCompileConfig(pair);
+  if (!compileConfig) {
+    std::string message = llvm::toString(compileConfig.takeError());
+    return makeModuleDispatchHeaderError(message);
+  }
+
+  if (llvm::Error error = printDispatchHeader(pair, os)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchHeaderError(message);
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error exportDispatchHeaderImpl(mlir::ModuleOp module,
+                                     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
   if (!pair) {
     std::string message = llvm::toString(pair.takeError());
-    return makeModuleDispatchObjectError(message);
+    return makeModuleDispatchHeaderError(message);
   }
-  if (pair->family != &expectedFamily)
-    return makeDispatchObjectError(
-        pair->rvv.kernel,
-        llvm::Twine("self-check object export route expected ") +
-            expectedFamily.diagnosticName + " dispatch artifacts, got " +
-            pair->family->diagnosticName);
+  return exportDispatchHeaderFromPair(*pair, os);
+}
 
+llvm::Error exportDispatchHeaderForFamily(
+    mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
+    llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
+      module, expectedFamily, "direct header export route");
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchHeaderError(message);
+  }
+  return exportDispatchHeaderFromPair(*pair, os);
+}
+
+llvm::Error exportDispatchSelfCheckSourceForFamily(
+    mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
+    llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
+      module, expectedFamily, "self-check export route");
+  if (!pair)
+    return pair.takeError();
+  return exportDispatchSourceFromPair(*pair, /*includeSelfCheck=*/true, os);
+}
+
+llvm::Error exportDispatchObjectFromPair(const DispatchPair &pair,
+                                         bool includeSelfCheck,
+                                         llvm::raw_ostream &os) {
   llvm::Expected<DispatchObjectCompileConfig> compileConfig =
-      buildDispatchObjectCompileConfig(*pair);
+      buildDispatchObjectCompileConfig(pair);
   if (!compileConfig)
     return compileConfig.takeError();
 
   std::string source;
   llvm::raw_string_ostream stream(source);
   if (llvm::Error error =
-          exportRVVScalarDispatchSelfCheckCForFamily(module, expectedFamily,
-                                                     stream)) {
+          exportDispatchSourceFromPair(pair, includeSelfCheck, stream)) {
     std::string message = llvm::toString(std::move(error));
     return makeModuleDispatchObjectError(message);
   }
   stream.flush();
   if (source.empty())
     return makeDispatchObjectError(
-        pair->rvv.kernel,
-        "validated self-check C source must be non-empty before object export");
+        pair.rvv.kernel,
+        includeSelfCheck
+            ? "validated self-check C source must be non-empty before object "
+              "export"
+            : "validated library-style dispatch C source must be non-empty "
+              "before object export");
 
-  return compileGeneratedDispatchSourceToObject(pair->rvv.kernel, source,
+  return compileGeneratedDispatchSourceToObject(pair.rvv.kernel, source,
                                                 *compileConfig, os);
+}
+
+llvm::Error exportDispatchObjectImpl(mlir::ModuleOp module,
+                                     llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchObjectError(message);
+  }
+  return exportDispatchObjectFromPair(*pair, /*includeSelfCheck=*/false, os);
+}
+
+llvm::Error exportDispatchObjectForFamily(
+    mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
+    llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
+      module, expectedFamily, "direct object export route");
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchObjectError(message);
+  }
+  return exportDispatchObjectFromPair(*pair, /*includeSelfCheck=*/false, os);
+}
+
+llvm::Error exportDispatchSelfCheckObjectForFamily(
+    mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
+    llvm::raw_ostream &os) {
+  llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
+      module, expectedFamily, "self-check object export route");
+  if (!pair) {
+    std::string message = llvm::toString(pair.takeError());
+    return makeModuleDispatchObjectError(message);
+  }
+  return exportDispatchObjectFromPair(*pair, /*includeSelfCheck=*/true, os);
+}
+
+} // namespace
+
+llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
+getRVVScalarDispatchRouteManifest() {
+  static const RVVScalarDispatchRouteManifestEntry routes[] = {
+      {&getI32VAddDispatchFamilySpec(),
+       DispatchRouteKind::Source,
+       getI32VAddDispatchFamilySpec().dispatchSourceRouteID,
+       "export one host RVV+scalar i32 vector-add dispatch C source",
+       kRuntimeCallableCSourceArtifactKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VAddDispatchFamilySpec(),
+       DispatchRouteKind::Header,
+       getI32VAddDispatchFamilySpec().dispatchHeaderRouteID,
+       "export one host RVV+scalar i32 vector-add dispatch C ABI header",
+       kRuntimeCallableCHeaderArtifactKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VAddDispatchFamilySpec(),
+       DispatchRouteKind::Object,
+       getI32VAddDispatchFamilySpec().dispatchObjectRouteID,
+       "export one host RVV+scalar i32 vector-add dispatch library object file",
+       kRiscvELFRelocatableObjectArtifactKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/true},
+      {&getI32VAddDispatchFamilySpec(),
+       DispatchRouteKind::SelfCheckSource,
+       "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c",
+       "export one host RVV+scalar i32 vector-add dispatch C source with "
+       "self-check harness",
+       kSelfCheckCSourceArtifactKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VAddDispatchFamilySpec(),
+       DispatchRouteKind::SelfCheckObject,
+       "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
+       "export one host RVV+scalar i32 vector-add dispatch self-check object "
+       "file",
+       kSelfCheckObjectArtifactKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/true},
+      {&getI32VSubDispatchFamilySpec(),
+       DispatchRouteKind::Source,
+       getI32VSubDispatchFamilySpec().dispatchSourceRouteID,
+       "export one host RVV+scalar i32 vector-subtract dispatch C source",
+       kRuntimeCallableCSourceArtifactKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VSubDispatchFamilySpec(),
+       DispatchRouteKind::Header,
+       getI32VSubDispatchFamilySpec().dispatchHeaderRouteID,
+       "export one host RVV+scalar i32 vector-subtract dispatch C ABI header",
+       kRuntimeCallableCHeaderArtifactKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VSubDispatchFamilySpec(),
+       DispatchRouteKind::Object,
+       getI32VSubDispatchFamilySpec().dispatchObjectRouteID,
+       "export one host RVV+scalar i32 vector-subtract dispatch library "
+       "object file",
+       kRiscvELFRelocatableObjectArtifactKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/true},
+      {&getI32VSubDispatchFamilySpec(),
+       DispatchRouteKind::SelfCheckSource,
+       "tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c",
+       "export one host RVV+scalar i32 vector-subtract dispatch C source with "
+       "self-check harness",
+       kSelfCheckCSourceArtifactKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VSubDispatchFamilySpec(),
+       DispatchRouteKind::SelfCheckObject,
+       "tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-object",
+       "export one host RVV+scalar i32 vector-subtract dispatch self-check "
+       "object file",
+       kSelfCheckObjectArtifactKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/true},
+      {&getI32VMulDispatchFamilySpec(),
+       DispatchRouteKind::Source,
+       getI32VMulDispatchFamilySpec().dispatchSourceRouteID,
+       "export one host RVV+scalar i32 vector-multiply dispatch C source",
+       kRuntimeCallableCSourceArtifactKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VMulDispatchFamilySpec(),
+       DispatchRouteKind::Header,
+       getI32VMulDispatchFamilySpec().dispatchHeaderRouteID,
+       "export one host RVV+scalar i32 vector-multiply dispatch C ABI header",
+       kRuntimeCallableCHeaderArtifactKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VMulDispatchFamilySpec(),
+       DispatchRouteKind::Object,
+       getI32VMulDispatchFamilySpec().dispatchObjectRouteID,
+       "export one host RVV+scalar i32 vector-multiply dispatch library "
+       "object file",
+       kRiscvELFRelocatableObjectArtifactKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/true},
+      {&getI32VMulDispatchFamilySpec(),
+       DispatchRouteKind::SelfCheckSource,
+       "tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c",
+       "export one host RVV+scalar i32 vector-multiply dispatch C source with "
+       "self-check harness",
+       kSelfCheckCSourceArtifactKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/false},
+      {&getI32VMulDispatchFamilySpec(),
+       DispatchRouteKind::SelfCheckObject,
+       "tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-object",
+       "export one host RVV+scalar i32 vector-multiply dispatch self-check "
+       "object file",
+       kSelfCheckObjectArtifactKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
+       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
+       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
+       /*requiresBinaryStdout=*/true},
+  };
+  return llvm::ArrayRef(routes);
+}
+
+llvm::Error exportRVVScalarDispatchRoute(
+    mlir::ModuleOp module, const RVVScalarDispatchRouteManifestEntry &route,
+    llvm::raw_ostream &os) {
+  if (!route.family)
+    return makeModuleDispatchError("manifest route is missing a dispatch family");
+
+  switch (route.routeKind) {
+  case DispatchRouteKind::Source:
+    return exportDispatchSourceForFamily(module, *route.family, os);
+  case DispatchRouteKind::Header:
+    return exportDispatchHeaderForFamily(module, *route.family, os);
+  case DispatchRouteKind::Object:
+    return exportDispatchObjectForFamily(module, *route.family, os);
+  case DispatchRouteKind::SelfCheckSource:
+    return exportDispatchSelfCheckSourceForFamily(module, *route.family, os);
+  case DispatchRouteKind::SelfCheckObject:
+    return exportDispatchSelfCheckObjectForFamily(module, *route.family, os);
+  }
+  return makeModuleDispatchError("unsupported RVV+scalar dispatch manifest route");
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportDispatchSourceForFamily(module, getI32VAddDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VSubDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportDispatchSourceForFamily(module, getI32VSubDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VMulDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportDispatchSourceForFamily(module, getI32VMulDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchHeaderForFamily(module, getI32VAddDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VSubDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchHeaderForFamily(module, getI32VSubDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VMulDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchHeaderForFamily(module, getI32VMulDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckSourceForFamily(
+      module, getI32VAddDispatchFamilySpec(), os);
+}
+
+llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckSourceForFamily(
+      module, getI32VSubDispatchFamilySpec(), os);
+}
+
+llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckSourceForFamily(
+      module, getI32VMulDispatchFamilySpec(), os);
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchObjectForFamily(module, getI32VAddDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VSubDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchObjectForFamily(module, getI32VSubDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI32VMulDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchObjectForFamily(module, getI32VMulDispatchFamilySpec(),
+                                       os);
 }
 
 llvm::Error
 exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
-  return exportRVVScalarDispatchSelfCheckObjectForFamily(
+  return exportDispatchSelfCheckObjectForFamily(
       module, getI32VAddDispatchFamilySpec(), os);
 }
 
 llvm::Error
 exportRVVScalarI32VSubDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
-  return exportRVVScalarDispatchSelfCheckObjectForFamily(
+  return exportDispatchSelfCheckObjectForFamily(
       module, getI32VSubDispatchFamilySpec(), os);
 }
 
 llvm::Error
 exportRVVScalarI32VMulDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
-  return exportRVVScalarDispatchSelfCheckObjectForFamily(
+  return exportDispatchSelfCheckObjectForFamily(
       module, getI32VMulDispatchFamilySpec(), os);
 }
 
-llvm::Error registerRVVScalarDispatchFamilyTargetExporters(
+llvm::Error registerRVVScalarDispatchRouteTargetExporter(
     TargetArtifactExporterRegistry &registry,
-    const DispatchI32FamilySpec &family) {
-  bool directHelperRoute = family.kind == DispatchI32FamilyKind::Add;
-  TargetArtifactCompositeMatchFn matchFn = getDispatchCompositeMatchFn(family);
+    const RVVScalarDispatchRouteManifestEntry &route) {
+  TargetArtifactCompositeMatchFn matchFn =
+      getDispatchCompositeMatchFn(*route.family);
   if (!matchFn)
     return llvm::make_error<llvm::StringError>(
         "missing RVV+scalar dispatch composite matcher for i32 binary family",
         llvm::errc::invalid_argument);
-  if (llvm::Error error =
-          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-              family.dispatchSourceRouteID, kRuntimeCallableCSourceArtifactKind,
-              matchFn, exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
-              family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-              resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
-              directHelperRoute, family.dispatchExternalABIComponentGroup,
-              family.dispatchRuntimeABIName,
-              validateRVVScalarI32VAddDispatchCandidates)))
-    return error;
 
-  if (llvm::Error error =
-          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-              family.dispatchHeaderRouteID, kRuntimeCallableCHeaderArtifactKind,
-              matchFn, exportRVVScalarI32VAddDispatchHeader,
-              kDispatchTargetOwner,
-              family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-              resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
-              directHelperRoute, family.dispatchExternalABIComponentGroup,
-              family.dispatchRuntimeABIName,
-              validateRVVScalarI32VAddDispatchCandidates)))
-    return error;
+  TargetArtifactExportFn exportFn = nullptr;
+  switch (route.routeKind) {
+  case DispatchRouteKind::Source:
+    exportFn = exportDispatchSourceImpl;
+    break;
+  case DispatchRouteKind::Header:
+    exportFn = exportDispatchHeaderImpl;
+    break;
+  case DispatchRouteKind::Object:
+    exportFn = exportDispatchObjectImpl;
+    break;
+  case DispatchRouteKind::SelfCheckSource:
+  case DispatchRouteKind::SelfCheckObject:
+    return llvm::Error::success();
+  }
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      family.dispatchObjectRouteID, kRiscvELFRelocatableObjectArtifactKind,
-      matchFn, exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
-      family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-      resolveRVVScalarI32VAddDispatchRuntimeABIParameters, directHelperRoute,
-      family.dispatchExternalABIComponentGroup, family.dispatchRuntimeABIName,
-      validateRVVScalarI32VAddDispatchCandidates));
+      route.routeID, route.artifactKind, matchFn, exportFn,
+      kDispatchTargetOwner, route.runtimeABIKind, route.runtimeABIName,
+      resolveRVVScalarDispatchRuntimeABIParameters,
+      /*directHelperRoute=*/true, route.componentGroup, route.externalABIName,
+      validateRVVScalarDispatchCandidates));
 }
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  for (const auto *descriptor :
-       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
-    if (llvm::Error error = registerRVVScalarDispatchFamilyTargetExporters(
-            registry, descriptor->dispatch))
+  for (const RVVScalarDispatchRouteManifestEntry &route :
+       getRVVScalarDispatchRouteManifest()) {
+    if (llvm::Error error =
+            registerRVVScalarDispatchRouteTargetExporter(registry, route))
       return error;
   }
   return llvm::Error::success();

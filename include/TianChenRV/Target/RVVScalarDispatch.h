@@ -1,7 +1,11 @@
 #ifndef TIANCHENRV_TARGET_RVVSCALARDISPATCH_H
 #define TIANCHENRV_TARGET_RVVSCALARDISPATCH_H
 
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -14,10 +18,51 @@ class TargetArtifactExporterRegistry;
 
 namespace rvv_scalar {
 
+enum class RVVScalarDispatchRouteKind {
+  Source,
+  Header,
+  Object,
+  SelfCheckSource,
+  SelfCheckObject,
+};
+
+struct RVVScalarDispatchRouteManifestEntry {
+  const i32_binary::DispatchI32FamilyDescriptor *family = nullptr;
+  RVVScalarDispatchRouteKind routeKind;
+  llvm::StringRef routeID;
+  llvm::StringRef description;
+  llvm::StringRef artifactKind;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef componentGroup;
+  llvm::StringRef externalABIName;
+  llvm::StringRef selfCheckSuccessMarker;
+  bool requiresBinaryStdout = false;
+};
+
+llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
+getRVVScalarDispatchRouteManifest();
+
+llvm::Error exportRVVScalarDispatchRoute(
+    mlir::ModuleOp module, const RVVScalarDispatchRouteManifestEntry &route,
+    llvm::raw_ostream &os);
+
 llvm::Error exportRVVScalarI32VAddDispatchC(mlir::ModuleOp module,
                                             llvm::raw_ostream &os);
 
+llvm::Error exportRVVScalarI32VSubDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI32VMulDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+
 llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI32VSubDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI32VMulDispatchHeader(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os);
 
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
@@ -30,6 +75,12 @@ llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 
 llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI32VSubDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI32VMulDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os);
 
 llvm::Error
