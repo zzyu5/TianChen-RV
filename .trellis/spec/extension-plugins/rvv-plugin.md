@@ -54,7 +54,9 @@ typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
 finite lowering descriptor attr name: tcrv_rvv.lowering_descriptor
-finite lowering descriptor value: i32-vadd-microkernel.v1
+finite lowering descriptor values:
+  i32-vadd-microkernel.v1
+  i32-vsub-microkernel.v1
 finite element-count attr name: tcrv_rvv.element_count
 smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
 smoke-probe descriptor value: standalone-c-toolchain-smoke-probe.v1
@@ -111,10 +113,14 @@ plugin-owned `tcrv_rvv.required_march` string attribute derived from the
 validated `rvv.probe.compile_run.selected_march` property, optional
 capability-derived `tcrv_rvv.vlenb_bytes` /
 `tcrv_rvv.i32_m1_lanes` integer attributes when structured vlenb/lane
-capabilities are available, and the finite plugin-owned lowering descriptor
-for exactly the i32 vector-add microkernel slice:
-`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` with bounded
-descriptor-local integer `tcrv_rvv.element_count`. When structured
+capabilities are available, and a finite plugin-owned lowering descriptor for
+the bounded i32 RVV C-intrinsic microkernel family. The current supported
+family members are `i32-vadd-microkernel.v1` and `i32-vsub-microkernel.v1`,
+both using the same explicit i32/m1 runtime ABI shape and bounded
+descriptor-local integer `tcrv_rvv.element_count`. The default automatic
+first-slice proposal still selects `i32-vadd-microkernel.v1`; hand-authored
+or test TianChen-RV MLIR may select `i32-vsub-microkernel.v1` to exercise the
+same plugin-owned materialization and export contract. When structured
 `rvv.i32_m1_lane_count` capacity evidence is present through an exact
 capability provider or a relation-provider target profile, the RVV plugin
 chooses that descriptor-local sample size as four M1 i32 vectors, capped at 64
@@ -133,10 +139,10 @@ arbitrary RVV lowering, runtime correctness evidence, or performance evidence.
 When the explicit capability scope also makes plugin-local capability id
 `rvv.smoke_probe` available, the first-slice proposal may choose the
 plugin-local `tcrv_rvv.smoke_probe_descriptor` instead of the finite
-i32-vadd microkernel descriptor. That descriptor selects the standalone
+i32 microkernel descriptor. That descriptor selects the standalone
 smoke-probe source artifact route only. It must preserve the same selected
 RVV march/profile validation and lowering-boundary metadata as the direct
-smoke exporter, and it must not materialize `tcrv_rvv.i32_vadd_microkernel`,
+smoke exporter, and it must not materialize an executable RVV microkernel,
 runtime callable ABI parameters, kernel lowering, correctness evidence, or
 performance evidence.
 
@@ -149,16 +155,19 @@ provider relation is present.
 
 When the selected `rvv-plugin` path carries the finite descriptor above,
 `RVVExtensionPlugin` owns the lowering-boundary materialization step that
-creates the matching plugin-local `tcrv_rvv.i32_vadd_microkernel` direct
-kernel-child op. The materialized op must preserve source kernel, selected
+creates the matching plugin-local direct kernel-child microkernel op:
+`tcrv_rvv.i32_vadd_microkernel` for `i32-vadd-microkernel.v1`, or
+`tcrv_rvv.i32_vsub_microkernel` for `i32-vsub-microkernel.v1`. The
+materialized op must preserve source kernel, selected
 variant, origin, selected role, required capability refs, required march,
 optional selected mabi, bounded element count, and one structured RVV
 dataflow body. That body has a runtime index block argument for the
 target/export-owned runtime `n`/AVL value, one `tcrv_rvv.setvl`, one matching
 `tcrv_rvv.with_vl`, and a nested finite `tcrv_rvv.i32_load`,
-`tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_store` dataflow
-sequence. The load/store ops reference the target/export-owned lhs input, rhs
-input, and output buffer ABI roles consumed by the exporter; the runtime
+`tcrv_rvv.i32_load`, one family-selected arithmetic op
+(`tcrv_rvv.i32_add` or `tcrv_rvv.i32_sub`), and `tcrv_rvv.i32_store`
+dataflow sequence. The load/store ops reference the target/export-owned lhs
+input, rhs input, and output buffer ABI roles consumed by the exporter; the runtime
 element-count role remains a direct `tcrv.exec.runtime_param` ABI boundary in
 the callable plan. If descriptor metadata is missing or
 malformed, required march is missing, the structured body is malformed, or an
@@ -167,18 +176,21 @@ plugin must fail before claiming a supported emission path.
 
 The microkernel slice is the first narrow exception to the metadata-only RVV
 unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
-`tcrv_rvv.i32_vadd_microkernel` direct kernel-child attachment, either explicitly
-authored or plugin-materialized from the finite descriptor, `RVVExtensionPlugin`
-may report a supported plugin-owned emission path for deterministic
+RVV i32 microkernel direct kernel-child attachment, either explicitly authored
+or plugin-materialized from the finite descriptor, `RVVExtensionPlugin` may
+report a supported plugin-owned emission path for deterministic
 runtime-callable C source export through
 `tcrv-translate --tcrv-export-rvv-microkernel-c`. This support is bounded to
-the i32 vector-add microkernel artifact route. When the selected variant
+the explicit i32 add/sub RVV C-intrinsic microkernel artifact routes. When the selected variant
 carries the finite descriptor, supported readiness/plan
 metadata must also validate that the attached microkernel's `element_count`
 matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
 must also validate the microkernel's `setvl` / `with_vl` / explicit
-load/add/store body against the selected RVV first-slice policy and the finite
-i32-vadd runtime ABI role contract before reporting the supported handoff. It
+load/arithmetic/store body against the selected RVV first-slice policy and the finite
+i32 runtime ABI role contract before reporting the supported handoff. The
+target-owned exporter must emit riscv_vector.h C intrinsic source from the
+structured body/config: `__riscv_vadd_vv_i32m1` for add and
+`__riscv_vsub_vv_i32m1` for subtract. It
 does not provide generic RVV lowering or runtime ABI integration, and it does
 not create correctness or performance evidence without separate `ssh rvv`
 compile/run artifacts.

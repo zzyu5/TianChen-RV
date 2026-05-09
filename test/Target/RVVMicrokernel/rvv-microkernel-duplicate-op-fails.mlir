@@ -84,4 +84,4 @@ module {
   }
 }
 
-// CHECK: selected RVV path @rvv_first_slice as direct variant has duplicate tcrv_rvv.i32_vadd_microkernel metadata
+// CHECK: selected RVV path @rvv_first_slice as direct variant has duplicate RVV i32 microkernel metadata

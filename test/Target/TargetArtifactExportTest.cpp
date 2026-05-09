@@ -1363,8 +1363,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 4) {
-    llvm::errs() << "expected exactly 4 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 5) {
+    llvm::errs() << "expected exactly 5 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -1393,6 +1393,19 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-microkernel-c",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
+    return 1;
+  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+                   "runtime-callable-c-source", "rvv-plugin",
+                   "rvv-explicit-i32-vsub-microkernel-c-source", 4,
+                   /*expectedDirectHelperRoute=*/false,
+                   /*expectedHandoffKind=*/{},
+                   "rvv-i32-vsub-microkernel-external-abi.v1",
+                   "rvv-i32-vsub-runtime-callable-c-function.v1"))
+    return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
           tianchenrv::support::getI32VAddRuntimeABIContract()
               .getCallableRoleRequirements()))
     return 1;

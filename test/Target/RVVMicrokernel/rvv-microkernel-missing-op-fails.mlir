@@ -42,4 +42,4 @@ module {
   }
 }
 
-// CHECK: selected RVV path @rvv_first_slice as direct variant requires exactly one matching tcrv_rvv.i32_vadd_microkernel
+// CHECK: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel

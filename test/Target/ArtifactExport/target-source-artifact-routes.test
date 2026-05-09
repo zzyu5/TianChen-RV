@@ -67,7 +67,7 @@
 # MISSING-BOUNDARY: selected path @rvv_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-microkernel.txt 2>&1 | FileCheck %s --check-prefix=MISSING-MICRO --implicit-check-not="#include <riscv_vector.h>"
-# MISSING-MICRO: selected RVV path @rvv_first_slice as direct variant requires exactly one matching tcrv_rvv.i32_vadd_microkernel
+# MISSING-MICRO: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-runtime-abi-parameter-role.txt 2>&1 | FileCheck %s --check-prefix=MISSING-ABI-ROLE --implicit-check-not="#include <riscv_vector.h>"
 # MISSING-ABI-ROLE: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'

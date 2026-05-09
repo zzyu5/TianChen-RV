@@ -51,7 +51,9 @@ using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32AddOp;
 using tianchenrv::tcrv::rvv::I32LoadOp;
 using tianchenrv::tcrv::rvv::I32StoreOp;
+using tianchenrv::tcrv::rvv::I32SubOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
+using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::SetVLOp;
@@ -90,8 +92,12 @@ constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
 constexpr llvm::StringLiteral kMicrokernelEmissionKind(
     "rvv-explicit-i32-vadd-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionKind(
+    "rvv-explicit-i32-vsub-microkernel-c-source");
 constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-rvv-microkernel-c");
+constexpr llvm::StringLiteral kI32VSubMicrokernelRouteID(
+    "tcrv-export-rvv-i32-vsub-microkernel-c");
 constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
     "tcrv-export-rvv-microkernel-object");
 constexpr llvm::StringLiteral kMicrokernelHeaderRouteID(
@@ -104,6 +110,22 @@ constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kMicrokernelExternalABIComponentGroup(
     "rvv-i32-vadd-microkernel-external-abi.v1");
+constexpr llvm::StringLiteral kI32VSubMicrokernelExternalABIComponentGroup(
+    "rvv-i32-vsub-microkernel-external-abi.v1");
+constexpr llvm::StringLiteral kI32VAddRuntimeABI(
+    "rvv-i32-vadd-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VSubRuntimeABI(
+    "rvv-i32-vsub-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VAddRuntimeABIName(
+    "rvv-i32-vadd-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VSubRuntimeABIName(
+    "rvv-i32-vsub-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kRVVRuntimeCallableABIKind(
+    "rvv-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kI32VAddRuntimeGlueRole(
+    "runtime-callable-i32-vadd-function");
+constexpr llvm::StringLiteral kI32VSubRuntimeGlueRole(
+    "runtime-callable-i32-vsub-function");
 enum class RVVMicrokernelCExportMode {
   RuntimeCallableLibrary,
   SelfCheckHarness,
@@ -112,6 +134,7 @@ enum class RVVMicrokernelCExportMode {
 enum class RVVI32VAddDataflowStepKind {
   Load,
   Add,
+  Sub,
   Store,
 };
 
@@ -119,7 +142,7 @@ enum class RVVI32VAddDataflowValue {
   None,
   LHSVector,
   RHSVector,
-  SumVector,
+  ResultVector,
 };
 
 struct RVVI32VAddDataflowStep {
@@ -136,6 +159,29 @@ struct RVVI32VAddDataflowEmissionPlan {
   llvm::SmallVector<RVVI32VAddDataflowStep, 4> steps;
 };
 
+enum class RVVI32MicrokernelKind {
+  Add,
+  Sub,
+};
+
+struct RVVI32MicrokernelFamilySpec {
+  RVVI32MicrokernelKind kind;
+  llvm::StringRef microkernelOpName;
+  llvm::StringRef arithmeticOpName;
+  llvm::StringRef arithmeticVerb;
+  llvm::StringRef functionStem;
+  llvm::StringRef headerGuardStem;
+  llvm::StringRef intrinsicName;
+  llvm::StringRef resultCName;
+  llvm::StringRef emissionKind;
+  llvm::StringRef routeID;
+  llvm::StringRef runtimeABI;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeGlueRole;
+  llvm::StringRef externalABIComponentGroup;
+};
+
 struct SelectedPath {
   VariantOp variant;
   mlir::Operation *selector = nullptr;
@@ -143,6 +189,7 @@ struct SelectedPath {
 };
 
 struct RVVMicrokernelRecord {
+  const RVVI32MicrokernelFamilySpec *family = nullptr;
   std::string kernelSymbol;
   std::string variantSymbol;
   std::string role;
@@ -169,6 +216,55 @@ struct TemporaryFile {
 
   llvm::StringRef get() const { return llvm::StringRef(path); }
 };
+
+const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
+  static const RVVI32MicrokernelFamilySpec spec{
+      RVVI32MicrokernelKind::Add,
+      "tcrv_rvv.i32_vadd_microkernel",
+      "tcrv_rvv.i32_add",
+      "add",
+      "i32_vadd",
+      "I32_VADD",
+      "__riscv_vadd_vv_i32m1",
+      "sum_vec",
+      kMicrokernelEmissionKind,
+      kMicrokernelRouteID,
+      kI32VAddRuntimeABI,
+      kRVVRuntimeCallableABIKind,
+      kI32VAddRuntimeABIName,
+      kI32VAddRuntimeGlueRole,
+      kMicrokernelExternalABIComponentGroup};
+  return spec;
+}
+
+const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
+  static const RVVI32MicrokernelFamilySpec spec{
+      RVVI32MicrokernelKind::Sub,
+      "tcrv_rvv.i32_vsub_microkernel",
+      "tcrv_rvv.i32_sub",
+      "subtract",
+      "i32_vsub",
+      "I32_VSUB",
+      "__riscv_vsub_vv_i32m1",
+      "difference_vec",
+      kI32VSubMicrokernelEmissionKind,
+      kI32VSubMicrokernelRouteID,
+      kI32VSubRuntimeABI,
+      kRVVRuntimeCallableABIKind,
+      kI32VSubRuntimeABIName,
+      kI32VSubRuntimeGlueRole,
+      kI32VSubMicrokernelExternalABIComponentGroup};
+  return spec;
+}
+
+const RVVI32MicrokernelFamilySpec *
+getI32MicrokernelFamilyForOp(mlir::Operation *op) {
+  if (llvm::isa_and_nonnull<I32VAddMicrokernelOp>(op))
+    return &getI32VAddFamilySpec();
+  if (llvm::isa_and_nonnull<I32VSubMicrokernelOp>(op))
+    return &getI32VSubFamilySpec();
+  return nullptr;
+}
 
 VariantOp getPathVariant(const SelectedPath &path) {
   return const_cast<SelectedPath &>(path).variant;
@@ -426,6 +522,17 @@ RVVI32VAddDataflowStep makeAddStep(RVVI32VAddDataflowValue lhs,
   return step;
 }
 
+RVVI32VAddDataflowStep makeSubStep(RVVI32VAddDataflowValue lhs,
+                                   RVVI32VAddDataflowValue rhs,
+                                   RVVI32VAddDataflowValue result) {
+  RVVI32VAddDataflowStep step;
+  step.kind = RVVI32VAddDataflowStepKind::Sub;
+  step.lhs = lhs;
+  step.rhs = rhs;
+  step.result = result;
+  return step;
+}
+
 RVVI32VAddDataflowStep makeStoreStep(support::RuntimeABIParameterRole role,
                                      RVVI32VAddDataflowValue value) {
   RVVI32VAddDataflowStep step;
@@ -452,7 +559,7 @@ getLoadResultForBufferRole(KernelOp kernel,
     return makeMicrokernelError(
         kernel, "tcrv_rvv.i32_load buffer_role must reference "
                 "'lhs-input-buffer' or 'rhs-input-buffer' for this bounded "
-                "RVV i32-vadd export route");
+                "RVV i32 microkernel export route");
   }
   return makeMicrokernelError(kernel,
                               "unsupported tcrv_rvv.i32_load buffer_role");
@@ -482,6 +589,7 @@ lookupTypedDataflowValue(KernelOp kernel,
 llvm::Error buildDataflowEmissionPlanFromTypedBody(
     KernelOp kernel, WithVLOp withVL,
     llvm::ArrayRef<mlir::Operation *> dataflowOps,
+    const RVVI32MicrokernelFamilySpec &family,
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   dataflowPlan.steps.clear();
   llvm::SmallVector<DataflowValueBinding, 3> bindings;
@@ -505,7 +613,7 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
         return result.takeError();
       if (dataflowPlanAlreadyDefines(dataflowPlan, *result))
         return makeMicrokernelError(
-            kernel, "tcrv_rvv.i32_vadd_microkernel dataflow body has a "
+            kernel, "RVV i32 microkernel dataflow body has a "
                     "duplicate load role before C emission");
 
       dataflowPlan.steps.push_back(makeLoadStep(*role, *result));
@@ -514,6 +622,10 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
     }
 
     if (auto add = llvm::dyn_cast<I32AddOp>(op)) {
+      if (family.kind != RVVI32MicrokernelKind::Add)
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_add does not match the selected RVV i32 "
+                    "microkernel family before C emission");
       if (add.getVl() != withVL.getVl())
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_add must consume the !tcrv_rvv.vl token "
@@ -536,14 +648,53 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
                     "preceding lhs-input-buffer and rhs-input-buffer "
                     "tcrv_rvv.i32_load ops before C emission");
       if (dataflowPlanAlreadyDefines(dataflowPlan,
-                                     RVVI32VAddDataflowValue::SumVector))
+                                     RVVI32VAddDataflowValue::ResultVector))
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_vadd_microkernel dataflow body has a "
                     "duplicate add result before C emission");
 
       dataflowPlan.steps.push_back(
-          makeAddStep(*lhs, *rhs, RVVI32VAddDataflowValue::SumVector));
-      bindings.push_back({add.getSum(), RVVI32VAddDataflowValue::SumVector});
+          makeAddStep(*lhs, *rhs, RVVI32VAddDataflowValue::ResultVector));
+      bindings.push_back({add.getSum(), RVVI32VAddDataflowValue::ResultVector});
+      continue;
+    }
+
+    if (auto sub = llvm::dyn_cast<I32SubOp>(op)) {
+      if (family.kind != RVVI32MicrokernelKind::Sub)
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_sub does not match the selected RVV i32 "
+                    "microkernel family before C emission");
+      if (sub.getVl() != withVL.getVl())
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_sub must consume the !tcrv_rvv.vl token "
+                    "owned by the surrounding tcrv_rvv.with_vl");
+
+      llvm::Expected<RVVI32VAddDataflowValue> lhs =
+          lookupTypedDataflowValue(kernel, bindings, sub.getLhs(),
+                                   "tcrv_rvv.i32_sub lhs");
+      if (!lhs)
+        return lhs.takeError();
+      llvm::Expected<RVVI32VAddDataflowValue> rhs =
+          lookupTypedDataflowValue(kernel, bindings, sub.getRhs(),
+                                   "tcrv_rvv.i32_sub rhs");
+      if (!rhs)
+        return rhs.takeError();
+      if (*lhs != RVVI32VAddDataflowValue::LHSVector ||
+          *rhs != RVVI32VAddDataflowValue::RHSVector)
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_sub operands must be derived from the "
+                    "preceding lhs-input-buffer and rhs-input-buffer "
+                    "tcrv_rvv.i32_load ops before C emission");
+      if (dataflowPlanAlreadyDefines(dataflowPlan,
+                                     RVVI32VAddDataflowValue::ResultVector))
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_vsub_microkernel dataflow body has a "
+                    "duplicate subtract result before C emission");
+
+      dataflowPlan.steps.push_back(
+          makeSubStep(*lhs, *rhs, RVVI32VAddDataflowValue::ResultVector));
+      bindings.push_back(
+          {sub.getDifference(), RVVI32VAddDataflowValue::ResultVector});
       continue;
     }
 
@@ -561,7 +712,7 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
       if (*role != support::RuntimeABIParameterRole::OutputBuffer)
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_store buffer_role must reference "
-                    "'output-buffer' for this bounded RVV i32-vadd export "
+                    "'output-buffer' for this bounded RVV i32 microkernel export "
                     "route");
 
       llvm::Expected<RVVI32VAddDataflowValue> value =
@@ -569,10 +720,10 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
                                    "tcrv_rvv.i32_store value");
       if (!value)
         return value.takeError();
-      if (*value != RVVI32VAddDataflowValue::SumVector)
+      if (*value != RVVI32VAddDataflowValue::ResultVector)
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_store value must be derived from the "
-                    "preceding tcrv_rvv.i32_add result before C emission");
+                    "preceding arithmetic result before C emission");
 
       dataflowPlan.steps.push_back(makeStoreStep(*role, *value));
       continue;
@@ -580,22 +731,27 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
 
     return makeMicrokernelError(
         kernel,
-        llvm::Twine("tcrv_rvv.i32_vadd_microkernel dataflow body has "
+        llvm::Twine("RVV i32 microkernel dataflow body has "
                     "unexpected operation '") +
             op->getName().getStringRef() +
             "'; C emission consumes only tcrv_rvv.i32_load, "
-            "tcrv_rvv.i32_add, and tcrv_rvv.i32_store");
+            "tcrv_rvv.i32_add or tcrv_rvv.i32_sub, and "
+            "tcrv_rvv.i32_store");
   }
 
   if (dataflowPlan.steps.size() != 4 ||
       dataflowPlan.steps[0].kind != RVVI32VAddDataflowStepKind::Load ||
       dataflowPlan.steps[1].kind != RVVI32VAddDataflowStepKind::Load ||
-      dataflowPlan.steps[2].kind != RVVI32VAddDataflowStepKind::Add ||
+      dataflowPlan.steps[2].kind !=
+          (family.kind == RVVI32MicrokernelKind::Add
+               ? RVVI32VAddDataflowStepKind::Add
+               : RVVI32VAddDataflowStepKind::Sub) ||
       dataflowPlan.steps[3].kind != RVVI32VAddDataflowStepKind::Store) {
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel dataflow emission plan must "
-                "come from exactly the verified load/load/add/store "
-                "tcrv_rvv body order");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " dataflow emission plan must come from exactly the "
+                    "verified load/load/" +
+                    family.arithmeticVerb + "/store tcrv_rvv body order");
   }
 
   return llvm::Error::success();
@@ -1194,49 +1350,50 @@ llvm::Error findAndValidateBoundary(
 llvm::Error validateMicrokernelForPath(
     KernelOp kernel, const SelectedPath &path, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
-    PolicyAttr expectedPolicy, I32VAddMicrokernelOp microkernel,
+    PolicyAttr expectedPolicy, mlir::Operation *microkernel,
+    const RVVI32MicrokernelFamilySpec &family,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL,
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   if (!microkernel)
-    return makeMicrokernelError(kernel, "requires a matching "
-                                        "tcrv_rvv.i32_vadd_microkernel");
+    return makeMicrokernelError(kernel, llvm::Twine("requires a matching ") +
+                                            family.microkernelOpName);
   if (microkernel->getParentOp() != kernel.getOperation())
     return makeMicrokernelError(
-        kernel, "matching tcrv_rvv.i32_vadd_microkernel must be a direct "
-                "child of the selected kernel");
+        kernel, llvm::Twine("matching ") + family.microkernelOpName +
+                    " must be a direct child of the selected kernel");
 
   std::string sourceKernel;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
-                                kSourceKernelAttrName,
-                                "tcrv_rvv.i32_vadd_microkernel", sourceKernel))
+          requireSafeStringAttr(kernel, microkernel, kSourceKernelAttrName,
+                                family.microkernelOpName, sourceKernel))
     return error;
   if (sourceKernel != kernel.getSymName())
     return makeMicrokernelError(
-        kernel, llvm::Twine("tcrv_rvv.i32_vadd_microkernel source_kernel '") +
+        kernel, llvm::Twine(family.microkernelOpName) + " source_kernel '" +
                     sourceKernel + "' does not match selected kernel @" +
                     kernel.getSymName());
 
   std::string origin;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
+          requireSafeStringAttr(kernel, microkernel,
                                 execDiagnostic::kOriginAttrName,
-                                "tcrv_rvv.i32_vadd_microkernel", origin))
+                                family.microkernelOpName, origin))
     return error;
   if (origin != kRVVPluginName)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel origin must be 'rvv-plugin'");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " origin must be 'rvv-plugin'");
 
   std::string role;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
+          requireSafeStringAttr(kernel, microkernel,
                                 execDiagnostic::kRoleAttrName,
-                                "tcrv_rvv.i32_vadd_microkernel", role))
+                                family.microkernelOpName, role))
     return error;
   if (role != path.role)
     return makeMicrokernelError(
-        kernel, llvm::Twine("tcrv_rvv.i32_vadd_microkernel role '") + role +
+        kernel, llvm::Twine(family.microkernelOpName) + " role '" + role +
                     "' does not match selected RVV path role '" + path.role +
                     "'");
 
@@ -1245,8 +1402,8 @@ llvm::Error validateMicrokernelForPath(
           kSelectedVariantAttrName);
   if (!selectedVariant || selectedVariant.getValue() != getPathVariantSymbol(path))
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel selected_variant does not "
-                "match the selected RVV path");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " selected_variant does not match the selected RVV path");
 
   auto microkernelCapabilities =
       microkernel->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
@@ -1254,20 +1411,20 @@ llvm::Error validateMicrokernelForPath(
       path.variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   if (!arrayAttrsEqual(microkernelCapabilities, variantRequires))
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel required_capabilities must "
-                "match selected variant requires metadata");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " required_capabilities must match selected variant "
+                    "requires metadata");
 
   std::string microkernelMarch;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
-                                kRequiredMarchAttrName,
-                                "tcrv_rvv.i32_vadd_microkernel",
+          requireSafeStringAttr(kernel, microkernel, kRequiredMarchAttrName,
+                                family.microkernelOpName,
                                 microkernelMarch))
     return error;
   if (microkernelMarch != selectedMarch)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel required_march must match "
-                "selected RVV march metadata");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " required_march must match selected RVV march metadata");
 
   if (auto mabi =
           microkernel->getAttrOfType<mlir::StringAttr>(kSelectedMABIAttrName)) {
@@ -1277,35 +1434,38 @@ llvm::Error validateMicrokernelForPath(
       return error;
     if (!selectedMABI || *selectedMABI != value)
       return makeMicrokernelError(
-          kernel, "tcrv_rvv.i32_vadd_microkernel selected_mabi must match "
-                  "preserved selected_mabi capability metadata");
+          kernel, llvm::Twine(family.microkernelOpName) +
+                      " selected_mabi must match preserved selected_mabi "
+                      "capability metadata");
   }
 
   auto elementCountAttr =
       microkernel->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
   if (!elementCountAttr)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel requires integer "
-                "element_count metadata");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " requires integer element_count metadata");
   elementCount = elementCountAttr.getInt();
   if (elementCount <= 0 || elementCount > 64)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel element_count must be in the "
-                "bounded smoke range [1, 64]");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " element_count must be in the bounded smoke range "
+                    "[1, 64]");
 
-  mlir::Region &body = microkernel.getBody();
+  mlir::Region &body = microkernel->getRegion(0);
   if (body.empty() || !llvm::hasSingleElement(body))
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel requires exactly one "
-                "structured RVV control-plane body block");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " requires exactly one structured RVV control-plane body "
+                    "block");
 
   mlir::Block &block = body.front();
   if (block.getNumArguments() != 1 ||
       !block.getArgument(0).getType().isIndex()) {
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body must expose "
-                "one runtime index block argument for target/export-owned n/"
-                "AVL");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane body must expose one runtime index block "
+                    "argument for target/export-owned n/AVL");
   }
 
   SetVLOp setvl;
@@ -1325,35 +1485,39 @@ llvm::Error validateMicrokernelForPath(
     }
     return makeMicrokernelError(
         kernel,
-        llvm::Twine("tcrv_rvv.i32_vadd_microkernel control-plane body has "
-                    "unexpected operation '") +
+        llvm::Twine(family.microkernelOpName) +
+            " control-plane body has unexpected operation '" +
             bodyOp.getName().getStringRef() +
             "'; exporter consumes only tcrv_rvv.setvl and tcrv_rvv.with_vl");
   }
 
   if (setvlCount != 1 || withVLCount != 1)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body requires "
-                "exactly one tcrv_rvv.setvl and exactly one "
-                "tcrv_rvv.with_vl");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane body requires exactly one "
+                    "tcrv_rvv.setvl and exactly one tcrv_rvv.with_vl");
   if (setvl.getAvl() != block.getArgument(0))
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body requires "
-                "setvl AVL to come from the runtime index body argument, not "
-                "descriptor-local element_count or a constant");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane body requires setvl AVL to come from the "
+                    "runtime index body argument, not descriptor-local "
+                    "element_count or a constant");
   if (withVL.getVl() != setvl.getVl())
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body requires "
-                "with_vl to consume the !tcrv_rvv.vl token produced by setvl");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane body requires with_vl to consume the "
+                    "!tcrv_rvv.vl token produced by setvl");
 
   if (setvl.getSew() != 32 || setvl.getLmul() != "m1")
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane body must keep "
-                "the bounded first-slice compile-time config sew=32,lmul=m1");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane body must keep the bounded first-slice "
+                    "compile-time config sew=32,lmul=m1");
   if (setvl.getPolicy() != expectedPolicy)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane setvl policy "
-                "must match selected variant tcrv_rvv.policy metadata");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane setvl policy must match selected variant "
+                    "tcrv_rvv.policy metadata");
 
   auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
@@ -1362,59 +1526,88 @@ llvm::Error validateMicrokernelForPath(
       withVLLMUL.getValue() != "m1" || !withVLPolicy ||
       withVLPolicy != expectedPolicy) {
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl "
-                "metadata must match setvl and selected variant "
-                "SEW/LMUL/policy metadata");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane with_vl metadata must match setvl and "
+                    "selected variant SEW/LMUL/policy metadata");
   }
 
   mlir::Region &withVLBody = withVL.getBody();
   if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
-                "must be present for this bounded i32-vadd export slice");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane with_vl body must be present for this "
+                    "bounded i32 RVV export slice");
   if (withVLBody.front().getNumArguments() != 0)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
-                "must not have block arguments");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane with_vl body must not have block "
+                    "arguments");
 
   llvm::SmallVector<mlir::Operation *, 4> dataflowOps;
   for (mlir::Operation &withVLOp : withVLBody.front())
     dataflowOps.push_back(&withVLOp);
   if (dataflowOps.size() != 4)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
-                "requires exactly the finite tcrv_rvv.i32_load, "
-                "tcrv_rvv.i32_load, tcrv_rvv.i32_add, tcrv_rvv.i32_store "
-                "dataflow sequence");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane with_vl body requires exactly the finite "
+                    "tcrv_rvv.i32_load, tcrv_rvv.i32_load, " +
+                    family.arithmeticOpName +
+                    ", tcrv_rvv.i32_store dataflow sequence");
 
   auto lhsLoad = llvm::dyn_cast<I32LoadOp>(dataflowOps[0]);
   auto rhsLoad = llvm::dyn_cast<I32LoadOp>(dataflowOps[1]);
-  auto add = llvm::dyn_cast<I32AddOp>(dataflowOps[2]);
   auto store = llvm::dyn_cast<I32StoreOp>(dataflowOps[3]);
-  if (!lhsLoad || !rhsLoad || !add || !store)
+  mlir::Value arithmeticLHS;
+  mlir::Value arithmeticRHS;
+  mlir::Value arithmeticVL;
+  mlir::Value arithmeticResult;
+  if (auto add = llvm::dyn_cast<I32AddOp>(dataflowOps[2])) {
+    if (family.kind != RVVI32MicrokernelKind::Add)
+      return makeMicrokernelError(
+          kernel, "RVV microkernel arithmetic op does not match selected "
+                  "family");
+    arithmeticLHS = add.getLhs();
+    arithmeticRHS = add.getRhs();
+    arithmeticVL = add.getVl();
+    arithmeticResult = add.getSum();
+  } else if (auto sub = llvm::dyn_cast<I32SubOp>(dataflowOps[2])) {
+    if (family.kind != RVVI32MicrokernelKind::Sub)
+      return makeMicrokernelError(
+          kernel, "RVV microkernel arithmetic op does not match selected "
+                  "family");
+    arithmeticLHS = sub.getLhs();
+    arithmeticRHS = sub.getRhs();
+    arithmeticVL = sub.getVl();
+    arithmeticResult = sub.getDifference();
+  }
+  if (!lhsLoad || !rhsLoad || !arithmeticResult || !store)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel control-plane with_vl body "
-                "requires exactly the finite tcrv_rvv.i32_load, "
-                "tcrv_rvv.i32_load, tcrv_rvv.i32_add, tcrv_rvv.i32_store "
-                "dataflow sequence");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " control-plane with_vl body requires exactly the finite "
+                    "tcrv_rvv.i32_load, tcrv_rvv.i32_load, " +
+                    family.arithmeticOpName +
+                    ", tcrv_rvv.i32_store dataflow sequence");
 
   if (lhsLoad.getVl() != withVL.getVl() ||
-      rhsLoad.getVl() != withVL.getVl() || add.getVl() != withVL.getVl() ||
+      rhsLoad.getVl() != withVL.getVl() ||
+      arithmeticVL != withVL.getVl() ||
       store.getVl() != withVL.getVl())
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel requires every finite RVV i32 "
-                "dataflow op to consume the !tcrv_rvv.vl token owned by "
-                "with_vl");
-  if (add.getLhs() != lhsLoad.getLoaded() ||
-      add.getRhs() != rhsLoad.getLoaded() ||
-      store.getValue() != add.getSum())
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " requires every finite RVV i32 dataflow op to consume "
+                    "the !tcrv_rvv.vl token owned by with_vl");
+  if (arithmeticLHS != lhsLoad.getLoaded() ||
+      arithmeticRHS != rhsLoad.getLoaded() ||
+      store.getValue() != arithmeticResult)
     return makeMicrokernelError(
-        kernel, "tcrv_rvv.i32_vadd_microkernel requires finite RVV i32 "
-                "dataflow SSA chain lhs-load,rhs-load -> add -> store");
+        kernel, llvm::Twine(family.microkernelOpName) +
+                    " requires finite RVV i32 dataflow SSA chain "
+                    "lhs-load,rhs-load -> " +
+                    family.arithmeticVerb + " -> store");
 
   if (llvm::Error error =
           buildDataflowEmissionPlanFromTypedBody(kernel, withVL, dataflowOps,
-                                                 dataflowPlan))
+                                                 family, dataflowPlan))
     return error;
 
   controlPlaneSEW = 32;
@@ -1426,20 +1619,22 @@ llvm::Error findAndValidateMicrokernel(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
-    PolicyAttr expectedPolicy, I32VAddMicrokernelOp &matchedMicrokernel,
+    PolicyAttr expectedPolicy, mlir::Operation *&matchedMicrokernel,
+    const RVVI32MicrokernelFamilySpec *&matchedFamily,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL,
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
-    if (!microkernel)
+    const RVVI32MicrokernelFamilySpec *family =
+        getI32MicrokernelFamilyForOp(&op);
+    if (!family)
       continue;
 
     auto selectedVariant =
-        microkernel->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(
             kSelectedVariantAttrName);
-    auto role = microkernel->getAttrOfType<mlir::StringAttr>(
+    auto role = op.getAttrOfType<mlir::StringAttr>(
         execDiagnostic::kRoleAttrName);
     if (!selectedVariant || !role)
       continue;
@@ -1447,7 +1642,7 @@ llvm::Error findAndValidateMicrokernel(
     std::string key = makePathKey(selectedVariant.getValue(), role.getValue());
     if (!selectedRVVPathKeys.count(key))
       return makeMicrokernelError(
-          kernel, llvm::Twine("stale tcrv_rvv.i32_vadd_microkernel for @") +
+          kernel, llvm::Twine("stale ") + family->microkernelOpName + " for @" +
                       selectedVariant.getValue() + " as " + role.getValue() +
                       " is not selected by the current RVV microkernel "
                       "surface");
@@ -1455,7 +1650,8 @@ llvm::Error findAndValidateMicrokernel(
     if (selectedVariant.getValue() == getPathVariantSymbol(path) &&
         role.getValue() == path.role) {
       ++matches;
-      matchedMicrokernel = microkernel;
+      matchedMicrokernel = &op;
+      matchedFamily = family;
     }
   }
 
@@ -1464,21 +1660,23 @@ llvm::Error findAndValidateMicrokernel(
         kernel, llvm::Twine("selected RVV path @") + getPathVariantSymbol(path) +
                     " as " + path.role +
                     " requires exactly one matching "
-                    "tcrv_rvv.i32_vadd_microkernel");
+                    "RVV i32 microkernel");
   if (matches > 1)
     return makeMicrokernelError(
         kernel, llvm::Twine("selected RVV path @") + getPathVariantSymbol(path) +
                     " as " + path.role +
-                    " has duplicate tcrv_rvv.i32_vadd_microkernel metadata");
+                    " has duplicate RVV i32 microkernel metadata");
 
   return validateMicrokernelForPath(kernel, path, selectedMarch, selectedMABI,
                                     expectedPolicy, matchedMicrokernel,
+                                    *matchedFamily,
                                     elementCount, controlPlaneSEW,
                                     controlPlaneLMUL, dataflowPlan);
 }
 
 llvm::Error resolveRuntimeABIParametersForPath(
     KernelOp kernel, const SelectedPath &path,
+    const RVVI32MicrokernelFamilySpec &family,
     support::I32VAddCallableABIPlan &callablePlan) {
   llvm::Expected<support::I32VAddCallableABIPlan> irBackedPlan =
       support::buildI32VAddCallableABIPlan(kernel);
@@ -1544,11 +1742,11 @@ llvm::Error resolveRuntimeABIParametersForPath(
                                 execDiagnostic::kLoweringPipelineAttrName,
                                 "supported emission-plan route", routeID))
     return error;
-  if (routeID != kMicrokernelRouteID)
+  if (routeID != family.routeID)
     return makeMicrokernelError(
         kernel, llvm::Twine("supported emission-plan route '") + routeID +
                     "' does not match RVV microkernel route '" +
-                    kMicrokernelRouteID + "'");
+                    family.routeID + "'");
 
   std::string emissionKind;
   if (llvm::Error error =
@@ -1556,12 +1754,12 @@ llvm::Error resolveRuntimeABIParametersForPath(
                                 execDiagnostic::kEmissionKindAttrName,
                                 "supported emission-plan route", emissionKind))
     return error;
-  if (emissionKind != kMicrokernelEmissionKind)
+  if (emissionKind != family.emissionKind)
     return makeMicrokernelError(
         kernel, llvm::Twine("supported emission-plan emission_kind '") +
                     emissionKind +
                     "' does not match RVV microkernel emission kind '" +
-                    kMicrokernelEmissionKind + "'");
+                    family.emissionKind + "'");
 
   std::string artifactKind;
   if (llvm::Error error =
@@ -1662,23 +1860,26 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           findAndValidateBoundary(kernel, path, selectedRVVPathKeys, boundary))
     return std::move(error);
 
-  I32VAddMicrokernelOp microkernel;
+  mlir::Operation *microkernel = nullptr;
+  const RVVI32MicrokernelFamilySpec *microkernelFamily = nullptr;
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
   RVVI32VAddDataflowEmissionPlan dataflowPlan;
   if (llvm::Error error = findAndValidateMicrokernel(
           kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
-          policy, microkernel, elementCount, controlPlaneSEW,
-          controlPlaneLMUL, dataflowPlan))
+          policy, microkernel, microkernelFamily, elementCount,
+          controlPlaneSEW, controlPlaneLMUL, dataflowPlan))
     return std::move(error);
 
   support::I32VAddCallableABIPlan callablePlan;
   if (llvm::Error error =
-          resolveRuntimeABIParametersForPath(kernel, path, callablePlan))
+          resolveRuntimeABIParametersForPath(kernel, path, *microkernelFamily,
+                                             callablePlan))
     return std::move(error);
 
   RVVMicrokernelRecord record;
+  record.family = microkernelFamily;
   record.kernelSymbol = kernel.getSymName().str();
   record.variantSymbol = getPathVariantSymbol(path).str();
   record.role = path.role;
@@ -1781,7 +1982,7 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
 
   if (records.size() != 1)
     return makeModuleMicrokernelError(
-        "requires exactly one valid tcrv_rvv.i32_vadd_microkernel record in "
+        "requires exactly one valid RVV i32 microkernel record in "
         "the module");
   return std::move(records.front());
 }
@@ -1805,7 +2006,7 @@ std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
 std::string makeMicrokernelFunctionName(const RVVMicrokernelRecord &record) {
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_rvv_i32_vadd_microkernel_"
+  stream << "tcrv_rvv_" << record.family->functionStem << "_microkernel_"
          << sanitizeCIdentifierComponent(record.kernelSymbol) << "_"
          << sanitizeCIdentifierComponent(record.variantSymbol);
   stream.flush();
@@ -1814,7 +2015,9 @@ std::string makeMicrokernelFunctionName(const RVVMicrokernelRecord &record) {
 
 std::string makeMicrokernelHeaderIncludeGuard(
     const RVVMicrokernelRecord &record) {
-  std::string guard = "TIANCHENRV_RVV_I32_VADD_MICROKERNEL_";
+  std::string guard = "TIANCHENRV_RVV_";
+  guard += record.family->headerGuardStem;
+  guard += "_MICROKERNEL_";
   guard += sanitizeCIdentifierComponent(record.kernelSymbol);
   guard += "_";
   guard += sanitizeCIdentifierComponent(record.variantSymbol);
@@ -1839,6 +2042,8 @@ getDataflowStepOpName(const RVVI32VAddDataflowStep &step) {
     return "tcrv_rvv.i32_load";
   case RVVI32VAddDataflowStepKind::Add:
     return "tcrv_rvv.i32_add";
+  case RVVI32VAddDataflowStepKind::Sub:
+    return "tcrv_rvv.i32_sub";
   case RVVI32VAddDataflowStepKind::Store:
     return "tcrv_rvv.i32_store";
   }
@@ -1846,14 +2051,15 @@ getDataflowStepOpName(const RVVI32VAddDataflowStep &step) {
 }
 
 llvm::StringRef
-getDataflowValueCName(RVVI32VAddDataflowValue value) {
+getDataflowValueCName(RVVI32VAddDataflowValue value,
+                      const RVVI32MicrokernelFamilySpec &family) {
   switch (value) {
   case RVVI32VAddDataflowValue::LHSVector:
     return "lhs_vec";
   case RVVI32VAddDataflowValue::RHSVector:
     return "rhs_vec";
-  case RVVI32VAddDataflowValue::SumVector:
-    return "sum_vec";
+  case RVVI32VAddDataflowValue::ResultVector:
+    return family.resultCName;
   case RVVI32VAddDataflowValue::None:
     return "";
   }
@@ -1879,7 +2085,8 @@ const support::RuntimeABIParameter *lookupBoundBufferParameter(
 
 void printDataflowPlanMetadata(
     llvm::raw_ostream &os,
-    const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+    const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+    const RVVI32MicrokernelFamilySpec &family) {
   for (auto [index, step] : llvm::enumerate(dataflowPlan.steps)) {
     os << "/* dataflow_emission_step[" << index
        << "]: op=" << getDataflowStepOpName(step);
@@ -1887,17 +2094,18 @@ void printDataflowPlanMetadata(
     case RVVI32VAddDataflowStepKind::Load:
       os << ", role="
          << support::stringifyRuntimeABIParameterRole(step.bufferRole)
-         << ", result=" << getDataflowValueCName(step.result);
+         << ", result=" << getDataflowValueCName(step.result, family);
       break;
     case RVVI32VAddDataflowStepKind::Add:
-      os << ", lhs=" << getDataflowValueCName(step.lhs)
-         << ", rhs=" << getDataflowValueCName(step.rhs)
-         << ", result=" << getDataflowValueCName(step.result);
+    case RVVI32VAddDataflowStepKind::Sub:
+      os << ", lhs=" << getDataflowValueCName(step.lhs, family)
+         << ", rhs=" << getDataflowValueCName(step.rhs, family)
+         << ", result=" << getDataflowValueCName(step.result, family);
       break;
     case RVVI32VAddDataflowStepKind::Store:
       os << ", role="
          << support::stringifyRuntimeABIParameterRole(step.bufferRole)
-         << ", value=" << getDataflowValueCName(step.value);
+         << ", value=" << getDataflowValueCName(step.value, family);
       break;
     }
     os << " */\n";
@@ -1953,14 +2161,15 @@ void printRecordComment(llvm::raw_ostream &os,
   if (record.selectedMABI)
     os << "/* selected_mabi: " << *record.selectedMABI << " */\n";
   os << "/* lowering_boundary: tcrv_rvv.lowering_boundary */\n";
-  os << "/* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */\n";
+  os << "/* executable_microkernel: " << record.family->microkernelOpName
+     << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
         "target/export-owned runtime n ABI parameter */\n";
   os << "/* control_plane_vl: !tcrv_rvv.vl value consumed by "
         "tcrv_rvv.with_vl */\n";
   os << "/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> "
-        "tcrv_rvv.i32_add -> tcrv_rvv.i32_store */\n";
+     << record.family->arithmeticOpName << " -> tcrv_rvv.i32_store */\n";
   os << "/* dataflow_emission_source: derived from verified "
         "tcrv_rvv.with_vl body order, SSA chain, and buffer_role "
         "attributes */\n";
@@ -1968,7 +2177,7 @@ void printRecordComment(llvm::raw_ostream &os,
         "rhs_load.buffer_role=rhs-input-buffer, "
         "store.buffer_role=output-buffer; runtime n remains the "
         "target/export-owned runtime element-count ABI parameter */\n";
-  printDataflowPlanMetadata(os, record.dataflowPlan);
+  printDataflowPlanMetadata(os, record.dataflowPlan, *record.family);
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
      << ", policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */\n";
@@ -2003,11 +2212,12 @@ void printRecordComment(llvm::raw_ostream &os,
 llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    const RVVI32MicrokernelFamilySpec &family,
     const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   if (dataflowPlan.steps.size() != 4)
     return makeModuleMicrokernelError(
         "validated RVV dataflow emission plan requires exactly four "
-        "load/load/add/store steps");
+        "load/load/arithmetic/store steps");
 
   llvm::Expected<support::I32VAddCallableRuntimeABIParameterBindings> bindings =
       support::bindI32VAddCallableRuntimeABIParametersByRole(
@@ -2037,16 +2247,17 @@ llvm::Error printMicrokernelFunction(
       if (!parameter)
         return makeModuleMicrokernelError(
             "RVV dataflow load step references a non-buffer ABI role");
-      os << "    vint32m1_t " << getDataflowValueCName(step.result)
+      os << "    vint32m1_t " << getDataflowValueCName(step.result, family)
          << " = __riscv_vle32_v_i32m1(&" << parameter->cName
          << "[offset], vl);\n";
       break;
     }
     case RVVI32VAddDataflowStepKind::Add:
-      os << "    vint32m1_t " << getDataflowValueCName(step.result)
-         << " = __riscv_vadd_vv_i32m1("
-         << getDataflowValueCName(step.lhs) << ", "
-         << getDataflowValueCName(step.rhs) << ", vl);\n";
+    case RVVI32VAddDataflowStepKind::Sub:
+      os << "    vint32m1_t " << getDataflowValueCName(step.result, family)
+         << " = " << family.intrinsicName << "("
+         << getDataflowValueCName(step.lhs, family) << ", "
+         << getDataflowValueCName(step.rhs, family) << ", vl);\n";
       break;
     case RVVI32VAddDataflowStepKind::Store: {
       const support::RuntimeABIParameter *parameter =
@@ -2055,7 +2266,7 @@ llvm::Error printMicrokernelFunction(
         return makeModuleMicrokernelError(
             "RVV dataflow store step references a non-buffer ABI role");
       os << "    __riscv_vse32_v_i32m1(&" << parameter->cName
-         << "[offset], " << getDataflowValueCName(step.value)
+         << "[offset], " << getDataflowValueCName(step.value, family)
          << ", vl);\n";
       break;
     }
@@ -2082,6 +2293,7 @@ void printMicrokernelPrototype(llvm::raw_ostream &os,
 
 void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
+                                      const RVVI32MicrokernelFamilySpec &family,
                                       std::int64_t elementCount) {
   os << "/* Harness capacity comes from descriptor-local element_count; each "
         "call still supplies runtime n through the generated C ABI. */\n";
@@ -2110,7 +2322,10 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n\n";
   os << "  " << functionName << "(lhs, rhs, out, runtime_n);\n\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
-  os << "    int32_t expected = lhs[index] + rhs[index];\n";
+  if (family.kind == RVVI32MicrokernelKind::Add)
+    os << "    int32_t expected = lhs[index] + rhs[index];\n";
+  else
+    os << "    int32_t expected = lhs[index] - rhs[index];\n";
   os << "    if (out[index] != expected) {\n";
   os << "      fprintf(stderr, \"rvv microkernel mismatch at %zu\\n\", index);\n";
   os << "      return 3;\n";
@@ -2176,7 +2391,7 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
 
   os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "
-        "tcrv_rvv.i32_vadd_microkernel. */\n";
+     << record.family->microkernelOpName << ". */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   if (includeHarness)
@@ -2195,25 +2410,26 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   if (llvm::Error error =
           printMicrokernelFunction(os, functionName,
                                    record.runtimeABIParameters,
+                                   *record.family,
                                    record.dataflowPlan))
     return error;
   if (includeHarness)
-    printMicrokernelSelfCheckHarness(os, functionName, record.elementCount);
+    printMicrokernelSelfCheckHarness(os, functionName, *record.family,
+                                     record.elementCount);
   return llvm::Error::success();
 }
 
 bool isRVVMicrokernelSourceCandidate(
     const tianchenrv::target::TargetArtifactCandidate &candidate) {
-  const support::RuntimeABICallableIdentity &abi =
-      support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
+  const RVVI32MicrokernelFamilySpec &family = getI32VAddFamilySpec();
   return candidate.origin == kRVVPluginName &&
-         candidate.routeID == kMicrokernelRouteID &&
-         candidate.emissionKind == kMicrokernelEmissionKind &&
+         candidate.routeID == family.routeID &&
+         candidate.emissionKind == family.emissionKind &&
          candidate.artifactKind == kMicrokernelArtifactKind &&
-         candidate.runtimeABI == abi.runtimeABI &&
-         candidate.runtimeABIKind == abi.runtimeABIKind &&
-         candidate.runtimeABIName == abi.runtimeABIName &&
-         candidate.runtimeGlueRole == abi.runtimeGlueRole;
+         candidate.runtimeABI == family.runtimeABI &&
+         candidate.runtimeABIKind == family.runtimeABIKind &&
+         candidate.runtimeABIName == family.runtimeABIName &&
+         candidate.runtimeGlueRole == family.runtimeGlueRole;
 }
 
 llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
@@ -2222,10 +2438,10 @@ llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
     return makeModuleMicrokernelError(
         "RVV microkernel helper routes require exactly one callable artifact "
         "candidate for preflight");
-
+  const RVVI32MicrokernelFamilySpec &family = getI32VAddFamilySpec();
   TargetArtifactExporter sourceExporter(
-      kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
-      kMicrokernelEmissionKind, exportRVVMicrokernelC,
+      family.routeID, kMicrokernelArtifactKind, kRVVPluginName,
+      family.emissionKind, exportRVVMicrokernelC,
       support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
       /*directHelperRoute=*/true);
   return validateTargetArtifactCandidateAgainstExporter(candidates.front(),
@@ -2488,35 +2704,45 @@ llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
 
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  const support::RuntimeABICallableIdentity &abi =
-      support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
+  const RVVI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-          kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
-          kMicrokernelEmissionKind, exportRVVMicrokernelC,
+          addFamily.routeID, kMicrokernelArtifactKind, kRVVPluginName,
+          addFamily.emissionKind, exportRVVMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/true, /*handoffKind=*/{},
           /*candidateValidationFn=*/nullptr,
-          kMicrokernelExternalABIComponentGroup, abi.runtimeABIName)))
+          addFamily.externalABIComponentGroup, addFamily.runtimeABIName)))
+    return error;
+
+  const RVVI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          subFamily.routeID, kMicrokernelArtifactKind, kRVVPluginName,
+          subFamily.emissionKind, exportRVVMicrokernelC,
+          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          /*candidateValidationFn=*/nullptr,
+          subFamily.externalABIComponentGroup, subFamily.runtimeABIName)))
     return error;
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
               matchRVVMicrokernelHeaderCandidate,
-              exportRVVMicrokernelHeader, kRVVPluginName, abi.runtimeABIKind,
-              abi.runtimeABIName, resolveRVVMicrokernelRuntimeABIParameters,
+              exportRVVMicrokernelHeader, kRVVPluginName,
+              addFamily.runtimeABIKind, addFamily.runtimeABIName,
+              resolveRVVMicrokernelRuntimeABIParameters,
               /*directHelperRoute=*/true,
-              kMicrokernelExternalABIComponentGroup, abi.runtimeABIName,
+              addFamily.externalABIComponentGroup, addFamily.runtimeABIName,
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
       matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject,
-      kRVVPluginName, abi.runtimeABIKind, abi.runtimeABIName,
+      kRVVPluginName, addFamily.runtimeABIKind, addFamily.runtimeABIName,
       resolveRVVMicrokernelRuntimeABIParameters,
-      /*directHelperRoute=*/true, kMicrokernelExternalABIComponentGroup,
-      abi.runtimeABIName,
+      /*directHelperRoute=*/true, addFamily.externalABIComponentGroup,
+      addFamily.runtimeABIName,
       validateRVVMicrokernelCallableCandidatePreflight));
 }
 

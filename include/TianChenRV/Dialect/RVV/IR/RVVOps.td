@@ -18,9 +18,10 @@ def TCRV_RVV_Dialect : Dialect {
     The initial control-plane slice exposes the bounded tcrv_rvv.setvl runtime
     AVL-to-VL surface and the matching tcrv_rvv.with_vl VL scope region. The
     first executable microkernel exception adds finite plugin-local
-    tcrv_rvv.i32_load, tcrv_rvv.i32_add, and tcrv_rvv.i32_store dataflow
-    operations under that scope so the RVV exporter can consume structured i32
-    vector-add dataflow without turning tcrv.exec into a compute IR. Generic
+    tcrv_rvv.i32_load, tcrv_rvv.i32_add, tcrv_rvv.i32_sub, and
+    tcrv_rvv.i32_store dataflow operations under that scope so the RVV
+    exporter can consume a structured i32 vector add/sub microkernel family
+    without turning tcrv.exec into a compute IR. Generic
     RVV lowering, arbitrary vector memory modeling, runtime ABI implementation,
     correctness claims, and performance evidence remain out of scope for the
     dialect skeleton.
@@ -98,10 +99,11 @@ def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {
 def TCRVRVV_I32M1VectorType : TCRVRVV_Type<"I32M1Vector", "i32m1"> {
   let summary = "finite RVV i32 m1 vector dataflow token type";
   let description = [{
-    A bounded plugin-local vector dataflow token for the current RVV i32-vadd
-    microkernel slice. It represents the compiler-visible result of the finite
-    tcrv_rvv.i32_load / tcrv_rvv.i32_add dataflow chain under an existing
-    tcrv_rvv.with_vl scope. It does not model arbitrary vector registers,
+    A bounded plugin-local vector dataflow token for the current RVV i32 binary
+    microkernel family slice. It represents the compiler-visible result of the
+    finite tcrv_rvv.i32_load plus tcrv_rvv.i32_add or tcrv_rvv.i32_sub
+    dataflow chain under an existing tcrv_rvv.with_vl scope. It does not model
+    arbitrary vector registers,
     generic memory, masks, layouts, runtime ABI parameters, hardware facts,
     correctness evidence, or performance evidence.
   }];
@@ -171,7 +173,7 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
 def I32LoadOp : TCRVRVV_Op<"i32_load", []> {
   let summary = "bounded RVV i32 load dataflow op";
   let description = [{
-    Records one finite plugin-local RVV i32 load in the current i32-vadd
+    Records one finite plugin-local RVV i32 load in the current i32 binary
     microkernel body. The op is nested directly under tcrv_rvv.with_vl,
     consumes the same runtime !tcrv_rvv.vl control token as the surrounding
     scope, carries exactly one input buffer ABI role, and produces one bounded
@@ -219,10 +221,35 @@ def I32AddOp : TCRVRVV_Op<"i32_add", []> {
   let hasVerifier = 1;
 }
 
+def I32SubOp : TCRVRVV_Op<"i32_sub", []> {
+  let summary = "bounded RVV i32 subtract dataflow op";
+  let description = [{
+    Records the finite plugin-local RVV i32 vector subtract in the current
+    i32-vsub microkernel body. The op is nested directly under
+    tcrv_rvv.with_vl, consumes two !tcrv_rvv.i32m1 dataflow tokens and the
+    same runtime !tcrv_rvv.vl control token as the surrounding scope, and
+    produces one bounded !tcrv_rvv.i32m1 dataflow token.
+
+    This is not a generic arithmetic IR. It is admitted only as part of the
+    finite i32-vsub microkernel slice validated by the RVV plugin/exporter.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$difference);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($difference)";
+  let hasVerifier = 1;
+}
+
 def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
   let summary = "bounded RVV i32 store dataflow op";
   let description = [{
-    Records one finite plugin-local RVV i32 store in the current i32-vadd
+    Records one finite plugin-local RVV i32 store in the current i32 binary
     microkernel body. The op is nested directly under tcrv_rvv.with_vl,
     consumes one !tcrv_rvv.i32m1 dataflow token and the same runtime
     !tcrv_rvv.vl control token as the surrounding scope, and carries exactly
@@ -297,6 +324,45 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
     bounded RVV executable microkernel slice for i32 vector-add smoke
     correctness, while keeping descriptor-local element_count distinct from
     runtime n/AVL/VL control.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    I64Attr:$element_count,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$required_march,
+    OptionalAttr<StrAttr>:$selected_mabi
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
+def I32VSubMicrokernelOp : TCRVRVV_Op<"i32_vsub_microkernel",
+    [NoTerminator, SingleBlock]> {
+  let summary = "explicit bounded RVV i32 vector-subtract executable microkernel";
+  let description = [{
+    Records one plugin-local executable RVV i32 vector-subtract microkernel
+    body for a selected RVV variant. This is intentionally a finite sibling in
+    the bounded RVV C-intrinsic microkernel family: it carries selected-path
+    metadata, required RVV capability references, the required march, a tiny
+    element count, and one structured RVV dataflow body that a target-local
+    exporter can validate before emitting deterministic standalone C using
+    RVV riscv_vector.h intrinsics. The body has one runtime index block
+    argument representing the target/export-owned runtime element count/AVL
+    control value, then a bounded tcrv_rvv.setvl to tcrv_rvv.with_vl chain
+    whose nested body contains exactly one finite lhs-load, rhs-load, subtract,
+    output-store sequence.
+
+    This op is not a generic tensor, tile, benchmark, bufferization, lowering,
+    runtime ABI, or arbitrary vector math IR. It represents exactly the
+    bounded RVV executable microkernel slice for i32 vector-subtract, while
+    keeping descriptor-local element_count distinct from runtime n/AVL/VL
+    control.
   }];
 
   let arguments = (ins

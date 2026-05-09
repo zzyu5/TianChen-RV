@@ -78,7 +78,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{selected RVV emission plan path @rvv_first_slice as direct variant has duplicate tcrv_rvv.i32_vadd_microkernel metadata}}
+  // expected-error@+1 {{selected RVV emission plan path @rvv_first_slice as direct variant has duplicate RVV i32 microkernel metadata}}
   tcrv.exec.kernel @duplicate_rvv_microkernel_plan {
     tcrv.exec.capability @rvv {
       id = "rvv",
