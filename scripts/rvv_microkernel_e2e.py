@@ -3,7 +3,7 @@
 
 This helper is runner/evidence tooling only. It orchestrates existing
 TianChen-RV MLIR tools and optional ``ssh rvv`` compile/run evidence for the
-explicit RVV i32 add/sub/mul microkernel first slice. It does not implement
+explicit RVV binary microkernel first slice. It does not implement
 compiler IR, plugin decisions, capability modeling, lowering, emission,
 runtime ABI, correctness logic, or performance measurement.
 """
@@ -34,38 +34,17 @@ DEFAULT_BUNDLE_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_bundle_e2e")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
-
-RVV_RUNTIME_ABI_SIGNATURE = [
-    {
-        "c_name": "lhs",
-        "c_type": "const int32_t *",
-        "role": "lhs-input-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    {
-        "c_name": "rhs",
-        "c_type": "const int32_t *",
-        "role": "rhs-input-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    {
-        "c_name": "out",
-        "c_type": "int32_t *",
-        "role": "output-buffer",
-        "ownership": "target-export-abi-owned",
-    },
-    {
-        "c_name": "n",
-        "c_type": "size_t",
-        "role": "runtime-element-count",
-        "ownership": "target-export-abi-owned",
-    },
-]
+DIRECT_EXTERNAL_RUNTIME_COUNTS = [7, 16]
+DTYPE_SCALAR_C_TYPES = {
+    "i32": "int32_t",
+    "i64": "int64_t",
+}
 
 ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     "i32-vadd": {
         "diagnostic_name": "i32-vadd",
         "default_input": DEFAULT_INPUT,
+        "default_vector_shape": "i32m1",
         "selected_variant": "rvv_first_slice",
         "microkernel_op_name": "tcrv_rvv.i32_vadd_microkernel",
         "arithmetic_op_name": "tcrv_rvv.i32_add",
@@ -89,6 +68,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     "i32-vsub": {
         "diagnostic_name": "i32-vsub",
         "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir"),
+        "default_vector_shape": "i32m1",
         "i32m2_default_input": Path(
             "test/Target/RVVMicrokernel/rvv-microkernel-i32m2-family-sub.mlir"
         ),
@@ -116,6 +96,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     "i32-vmul": {
         "diagnostic_name": "i32-vmul",
         "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir"),
+        "default_vector_shape": "i32m1",
         "selected_variant": "rvv_mul_slice",
         "microkernel_op_name": "tcrv_rvv.i32_vmul_microkernel",
         "arithmetic_op_name": "tcrv_rvv.i32_mul",
@@ -136,11 +117,39 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "self_check_success_marker": "tcrv_rvv_microkernel_ok",
         "external_abi_success_marker": "tcrv_rvv_i32_vmul_microkernel_external_abi_ok",
     },
+    "i64-vadd": {
+        "diagnostic_name": "i64-vadd",
+        "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-i64-vadd.mlir"),
+        "default_vector_shape": "i64m1",
+        "selected_variant": "rvv_i64_slice",
+        "microkernel_op_name": "tcrv_rvv.i64_vadd_microkernel",
+        "arithmetic_op_name": "tcrv_rvv.i64_add",
+        "intrinsic": "__riscv_vadd_vv_i64m1",
+        "function_stem": "i64_vadd",
+        "result_vec": "sum_vec",
+        "c_operator": "+",
+        "source_route": "tcrv-export-rvv-i64-vadd-microkernel-c",
+        "source_translation_route": "tcrv-export-rvv-microkernel-c",
+        "header_route": "tcrv-export-rvv-i64-vadd-microkernel-header",
+        "header_translation_route": "tcrv-export-rvv-microkernel-header",
+        "object_route": "tcrv-export-rvv-i64-vadd-microkernel-object",
+        "object_translation_route": "tcrv-export-rvv-microkernel-object",
+        "emission_kind": "rvv-explicit-i64-vadd-microkernel-c-source",
+        "runtime_abi": "rvv-i64-vadd-runtime-callable-c-abi.v1",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-i64-vadd-runtime-callable-c-function.v1",
+        "runtime_glue_role": "runtime-callable-i64-vadd-function",
+        "component_group": "rvv-i64-vadd-microkernel-external-abi.v1",
+        "external_abi_name": "rvv-i64-vadd-runtime-callable-c-function.v1",
+        "self_check_success_marker": "tcrv_rvv_microkernel_ok",
+        "external_abi_success_marker": "tcrv_rvv_i64_vadd_microkernel_external_abi_ok",
+    },
 }
 
 RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
     "i32m1": {
         "shape": "i32m1",
+        "dtype": "i32",
         "sew_bits": 32,
         "lmul": "m1",
         "tail_policy": "agnostic",
@@ -158,6 +167,7 @@ RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
     },
     "i32m2": {
         "shape": "i32m2",
+        "dtype": "i32",
         "sew_bits": 32,
         "lmul": "m2",
         "tail_policy": "agnostic",
@@ -172,6 +182,24 @@ RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
             "rvv.i32_m2.mask_policy.agnostic",
         ],
         "planning_pipeline": "tcrv-execution-planning-pipeline",
+    },
+    "i64m1": {
+        "shape": "i64m1",
+        "dtype": "i64",
+        "sew_bits": 64,
+        "lmul": "m1",
+        "tail_policy": "agnostic",
+        "mask_policy": "agnostic",
+        "vector_type": "vint64m1_t",
+        "vector_suffix": "i64m1",
+        "setvl_suffix": "e64m1",
+        "capability_ids": [
+            "rvv.i64_m1.sew64",
+            "rvv.i64_m1.lmul_m1",
+            "rvv.i64_m1.tail_policy.agnostic",
+            "rvv.i64_m1.mask_policy.agnostic",
+        ],
+        "planning_pipeline": "tcrv-materialize-selected-lowering-boundaries",
     },
 }
 
@@ -214,19 +242,74 @@ def direct_helper_flag(route_id: str) -> str:
     return "--" + route_id
 
 
+def family_dtype(family: dict[str, str | Path]) -> str:
+    function_stem = str(family["function_stem"])
+    dtype = function_stem.split("_", 1)[0]
+    if dtype not in DTYPE_SCALAR_C_TYPES:
+        raise BridgeError(f"unsupported RVV binary dtype in family: {function_stem}")
+    return dtype
+
+
+def family_scalar_c_type(family: dict[str, str | Path]) -> str:
+    return DTYPE_SCALAR_C_TYPES[family_dtype(family)]
+
+
+def runtime_abi_signature_for_family(
+    family: dict[str, str | Path],
+) -> list[dict[str, str]]:
+    scalar_type = family_scalar_c_type(family)
+    return [
+        {
+            "c_name": "lhs",
+            "c_type": f"const {scalar_type} *",
+            "role": "lhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "rhs",
+            "c_type": f"const {scalar_type} *",
+            "role": "rhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "out",
+            "c_type": f"{scalar_type} *",
+            "role": "output-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "n",
+            "c_type": "size_t",
+            "role": "runtime-element-count",
+            "ownership": "target-export-abi-owned",
+        },
+    ]
+
+
+def direct_helper_translation_route(
+    family: dict[str, str | Path], artifact_role: str
+) -> str:
+    translation_key = artifact_role + "_translation_route"
+    route_key = artifact_role + "_route"
+    return str(family.get(translation_key, family[route_key]))
+
+
 def arithmetic_intrinsic_for_family(
     family: dict[str, str | Path], shape: dict[str, Any]
 ) -> str:
-    stem = str(family["function_stem"]).removeprefix("i32_v")
-    return "__riscv_v" + stem + "_vv_" + str(shape["vector_suffix"])
+    function_stem = str(family["function_stem"])
+    match = re.match(r"^i[0-9]+_v([A-Za-z0-9]+)$", function_stem)
+    if not match:
+        raise BridgeError(f"unsupported RVV binary function stem: {function_stem}")
+    return "__riscv_v" + match.group(1) + "_vv_" + str(shape["vector_suffix"])
 
 
 def load_intrinsic_for_shape(shape: dict[str, Any]) -> str:
-    return "__riscv_vle32_v_" + str(shape["vector_suffix"])
+    return "__riscv_vle" + str(shape["sew_bits"]) + "_v_" + str(shape["vector_suffix"])
 
 
 def store_intrinsic_for_shape(shape: dict[str, Any]) -> str:
-    return "__riscv_vse32_v_" + str(shape["vector_suffix"])
+    return "__riscv_vse" + str(shape["sew_bits"]) + "_v_" + str(shape["vector_suffix"])
 
 
 def setvl_intrinsic_for_shape(shape: dict[str, Any]) -> str:
@@ -236,6 +319,7 @@ def setvl_intrinsic_for_shape(shape: dict[str, Any]) -> str:
 def vector_shape_evidence(shape: dict[str, Any]) -> dict[str, Any]:
     return {
         "shape": str(shape["shape"]),
+        "dtype": str(shape["dtype"]),
         "sew_bits": int(shape["sew_bits"]),
         "lmul": str(shape["lmul"]),
         "tail_policy": str(shape["tail_policy"]),
@@ -313,6 +397,7 @@ def make_expected_dataflow_provenance(
     family: dict[str, str | Path],
 ) -> dict[str, list[str]]:
     result_vec = str(family["result_vec"])
+    dtype = family_dtype(family)
     return {
         "dataflow_abi_roles": [
             "lhs_load.buffer_role=lhs-input-buffer",
@@ -321,12 +406,12 @@ def make_expected_dataflow_provenance(
             "runtime n remains the target/export-owned runtime element-count ABI parameter",
         ],
         "dataflow_emission_step[0]": [
-            "op=tcrv_rvv.i32_load",
+            "op=tcrv_rvv." + dtype + "_load",
             "role=lhs-input-buffer",
             "result=lhs_vec",
         ],
         "dataflow_emission_step[1]": [
-            "op=tcrv_rvv.i32_load",
+            "op=tcrv_rvv." + dtype + "_load",
             "role=rhs-input-buffer",
             "result=rhs_vec",
         ],
@@ -337,7 +422,7 @@ def make_expected_dataflow_provenance(
             "result=" + result_vec,
         ],
         "dataflow_emission_step[3]": [
-            "op=tcrv_rvv.i32_store",
+            "op=tcrv_rvv." + dtype + "_store",
             "role=output-buffer",
             "value=" + result_vec,
         ],
@@ -369,6 +454,17 @@ def configure_vector_shape(shape_name: str) -> None:
     shape = RVV_VECTOR_SHAPE_SPECS.get(shape_name)
     if shape is None:
         raise BridgeError(f"unsupported RVV vector shape: {shape_name}")
+    if str(shape["dtype"]) != family_dtype(ACTIVE_ARITHMETIC_FAMILY):
+        raise BridgeError(
+            "RVV vector shape "
+            + shape_name
+            + " has dtype "
+            + str(shape["dtype"])
+            + " but arithmetic family "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+            + " requires dtype "
+            + family_dtype(ACTIVE_ARITHMETIC_FAMILY)
+        )
     ACTIVE_VECTOR_SHAPE = shape
 
 SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -415,6 +511,21 @@ class BridgeError(RuntimeError):
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def current_git_commit(root: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    commit = sanitize_text(result.stdout.strip())
+    if not re.match(r"^[0-9a-f]{40}$", commit):
+        raise BridgeError("git rev-parse HEAD returned an invalid commit hash")
+    return commit
 
 
 def utc_run_id() -> str:
@@ -797,7 +908,7 @@ def find_supported_handoff(manifest_text: str) -> dict[str, str]:
 
 
 def parse_source_comment(source: str, field: str, *, required: bool) -> str:
-    match = re.search(rf"/\*\s*{re.escape(field)}:\s*([^*]+?)\s*\*/", source)
+    match = re.search(rf"/\*\s*{re.escape(field)}:\s*(.*?)\s*\*/", source)
     if not match:
         if required:
             raise BridgeError(f"generated C source missing comment field: {field}")
@@ -805,6 +916,66 @@ def parse_source_comment(source: str, field: str, *, required: bool) -> str:
     value = match.group(1).strip()
     reject_secret_like_text(f"generated C source field {field}", value)
     return value
+
+
+def parse_runtime_abi_parameters_from_source(source: str) -> list[dict[str, str]]:
+    parameters_by_index: dict[int, dict[str, str]] = {}
+    pattern = re.compile(
+        r"/\*\s*runtime_abi_parameter\[([0-9]+)\]:\s*"
+        r"c_name=([^,]+),\s*c_type=(.*?),\s*role=([^,]+),\s*"
+        r"ownership=([^*]+?)\s*\*/"
+    )
+    for match in pattern.finditer(source):
+        index = int(match.group(1))
+        parameter = {
+            "c_name": match.group(2).strip(),
+            "c_type": match.group(3).strip(),
+            "role": match.group(4).strip(),
+            "ownership": match.group(5).strip(),
+        }
+        for field, value in parameter.items():
+            if not value:
+                raise BridgeError(
+                    f"generated C source runtime_abi_parameter[{index}] missing {field}"
+                )
+            reject_secret_like_text(
+                f"generated C source runtime_abi_parameter[{index}] {field}",
+                value,
+            )
+        if index in parameters_by_index:
+            raise BridgeError(
+                f"generated C source duplicates runtime_abi_parameter[{index}]"
+            )
+        parameters_by_index[index] = parameter
+
+    if not parameters_by_index:
+        raise BridgeError(
+            "generated C source missing runtime_abi_parameter metadata"
+        )
+
+    parameters: list[dict[str, str]] = []
+    for index in range(len(parameters_by_index)):
+        parameter = parameters_by_index.get(index)
+        if parameter is None:
+            raise BridgeError(
+                f"generated C source missing runtime_abi_parameter[{index}]"
+            )
+        parameters.append(parameter)
+    return parameters
+
+
+def validate_runtime_abi_signature(
+    observed: list[dict[str, str]], family: dict[str, str | Path]
+) -> list[dict[str, str]]:
+    expected = runtime_abi_signature_for_family(family)
+    if observed != expected:
+        raise BridgeError(
+            "generated C source runtime ABI signature does not match the "
+            "selected RVV "
+            + str(family["diagnostic_name"])
+            + " compiler-emitted descriptor contract"
+        )
+    return observed
 
 
 def normalize_symbol_name(value: str) -> str:
@@ -874,12 +1045,12 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "/* executable_microkernel: "
         + str(ACTIVE_ARITHMETIC_FAMILY["microkernel_op_name"])
         + " */",
-        "/* selected_vector_shape_config: shape="
-        + str(ACTIVE_VECTOR_SHAPE["shape"]),
+        "/* arithmetic_c_operator: " + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"]),
+        "/* selected_vector_shape_config:",
         "/* selected_vector_shape_capabilities:",
-        "/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> "
+        "/* dataflow_body: tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_load -> tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_load -> "
         + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
-        + " -> tcrv_rvv.i32_store */",
+        + " -> tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_store */",
     ]
     if require_harness:
         required_snippets.extend(
@@ -908,7 +1079,6 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
             "vector_type=" + str(other_shape["vector_type"]),
             "vector_suffix=" + str(other_shape["vector_suffix"]),
             "setvl_suffix=" + str(other_shape["setvl_suffix"]),
-            "lmul=" + str(other_shape["lmul"]),
         ]
         leaked = [snippet for snippet in stale_snippets if snippet in source]
         if leaked:
@@ -931,13 +1101,24 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     for other_name, other_family in ARITHMETIC_FAMILY_SPECS.items():
         if other_family is ACTIVE_ARITHMETIC_FAMILY:
             continue
+        other_dtype = family_dtype(other_family)
         stale_snippets = [
             arithmetic_intrinsic_for_family(other_family, ACTIVE_VECTOR_SHAPE),
             "executable_microkernel: " + str(other_family["microkernel_op_name"]),
+            "arithmetic_family: " + str(other_family["diagnostic_name"]),
             "op=" + str(other_family["arithmetic_op_name"]),
-            "result=" + str(other_family["result_vec"]),
             str(other_family["runtime_abi_name"]),
             str(other_family["runtime_glue_role"]),
+            "dataflow_body: tcrv_rvv." + other_dtype + "_load -> tcrv_rvv." + other_dtype + "_load -> "
+            + str(other_family["arithmetic_op_name"]) + " -> tcrv_rvv." + other_dtype + "_store",
+        ]
+        active_snippets = {
+            arithmetic_intrinsic_for_family(
+                ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE
+            )
+        }
+        stale_snippets = [
+            snippet for snippet in stale_snippets if snippet not in active_snippets
         ]
         leaked = [snippet for snippet in stale_snippets if snippet in source]
         if leaked:
@@ -951,17 +1132,31 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
             )
     selected_march = parse_source_comment(source, "selected_march", required=True)
     selected_mabi = parse_source_comment(source, "selected_mabi", required=False)
+    arithmetic_operator = parse_source_comment(
+        source, "arithmetic_c_operator", required=True
+    )
+    if arithmetic_operator != str(ACTIVE_ARITHMETIC_FAMILY["c_operator"]):
+        raise BridgeError(
+            "generated RVV microkernel C source arithmetic_c_operator "
+            f"{arithmetic_operator!r} does not match selected family "
+            f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
+        )
     if "v" not in selected_march.lower():
         raise BridgeError("selected_march from generated source must contain RVV vector evidence")
     vector_config = validate_vector_shape_metadata(source)
     provenance = validate_dataflow_provenance(source)
     compiler_path_context = validate_compiler_path_context(source)
+    runtime_abi_parameters = validate_runtime_abi_signature(
+        parse_runtime_abi_parameters_from_source(source), ACTIVE_ARITHMETIC_FAMILY
+    )
     return {
         "selected_march": selected_march,
         "selected_mabi": selected_mabi,
+        "arithmetic_operator": arithmetic_operator,
         "vector_config": vector_config,
         "dataflow_provenance": provenance,
         "compiler_path_context": compiler_path_context,
+        "runtime_abi_parameters": runtime_abi_parameters,
     }
 
 
@@ -1006,6 +1201,10 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
         "vector_suffix=" + str(ACTIVE_VECTOR_SHAPE["vector_suffix"]),
         "setvl_suffix=" + str(ACTIVE_VECTOR_SHAPE["setvl_suffix"]),
     ]
+    if str(ACTIVE_VECTOR_SHAPE["dtype"]) != "i32":
+        expected_selected_shape_fragments.insert(
+            0, "dtype=" + str(ACTIVE_VECTOR_SHAPE["dtype"])
+        )
     missing_selected_shape = [
         fragment
         for fragment in expected_selected_shape_fragments
@@ -1086,6 +1285,13 @@ def validate_dataflow_provenance(source: str) -> dict[str, str]:
     return provenance
 
 
+def normalize_c_parameter_list(parameter_text: str) -> str:
+    normalized = " ".join(parameter_text.strip().split())
+    normalized = re.sub(r"\s*\*\s*", "*", normalized)
+    normalized = re.sub(r"\s*,\s*", ",", normalized)
+    return normalized
+
+
 def validate_generated_header(header: str) -> str:
     if not header.strip():
         raise BridgeError("generated RVV microkernel C header is empty")
@@ -1112,10 +1318,7 @@ def validate_generated_header(header: str) -> str:
                 f"generated RVV microkernel C header missing required snippet: {snippet}"
             )
     prototypes = re.findall(
-        r"(?m)^\s*void\s+([A-Za-z_][A-Za-z0-9_]*)\s*"
-        r"\(\s*const\s+int32_t\s*\*\s*lhs\s*,\s*"
-        r"const\s+int32_t\s*\*\s*rhs\s*,\s*"
-        r"int32_t\s*\*\s*out\s*,\s*size_t\s+n\s*\)\s*;\s*$",
+        r"(?m)^\s*void\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^;{}]*)\)\s*;\s*$",
         header,
     )
     if len(prototypes) != 1:
@@ -1123,14 +1326,25 @@ def validate_generated_header(header: str) -> str:
             "generated RVV microkernel C header must contain exactly one "
             f"runtime-callable {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} prototype"
         )
-    if str(ACTIVE_ARITHMETIC_FAMILY["function_stem"]) not in prototypes[0]:
+    function_name, parameter_text = prototypes[0]
+    if str(ACTIVE_ARITHMETIC_FAMILY["function_stem"]) not in function_name:
         raise BridgeError(
             "generated RVV microkernel C header prototype does not match "
             f"selected arithmetic family {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
         )
+    expected_parameters = []
+    for parameter in runtime_abi_signature_for_family(ACTIVE_ARITHMETIC_FAMILY):
+        expected_parameters.append(parameter["c_type"] + " " + parameter["c_name"])
+    observed = normalize_c_parameter_list(parameter_text)
+    expected = normalize_c_parameter_list(", ".join(expected_parameters))
+    if observed != expected:
+        raise BridgeError(
+            "generated RVV microkernel C header prototype ABI does not match "
+            f"selected arithmetic family {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
+        )
     if re.search(r"(?m)^\s*void\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^;]*\)\s*\{", header):
         raise BridgeError("generated RVV microkernel C header must not contain a function body")
-    return prototypes[0]
+    return function_name
 
 
 def validate_bundle_file_name(file_name: str) -> None:
@@ -1143,15 +1357,41 @@ def validate_bundle_file_name(file_name: str) -> None:
         )
 
 
+def c_scalar_type_from_abi_type(c_type: str) -> str:
+    normalized = " ".join(c_type.strip().split())
+    normalized = normalized.removeprefix("const ").strip()
+    normalized = normalized.removesuffix("*").strip()
+    if normalized not in DTYPE_SCALAR_C_TYPES.values():
+        raise BridgeError(f"unsupported RVV caller scalar type: {c_type}")
+    return normalized
+
+
 def build_external_caller_source(
-    function_name: str, header_file_name: str = "rvv_microkernel.h"
+    function_name: str,
+    header_file_name: str = "rvv_microkernel.h",
+    runtime_abi_parameters: list[dict[str, str]] | None = None,
+    arithmetic_operator: str | None = None,
+    runtime_counts: list[int] | None = None,
 ) -> str:
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", function_name):
         raise BridgeError("generated header function name is not a valid C identifier")
     validate_bundle_file_name(header_file_name)
+    parameters = runtime_abi_parameters or runtime_abi_signature_for_family(
+        ACTIVE_ARITHMETIC_FAMILY
+    )
+    if parameters != runtime_abi_signature_for_family(ACTIVE_ARITHMETIC_FAMILY):
+        validate_runtime_abi_signature(parameters, ACTIVE_ARITHMETIC_FAMILY)
+    scalar_c_type = c_scalar_type_from_abi_type(parameters[0]["c_type"])
+    c_operator = arithmetic_operator or str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+    if c_operator not in {"+", "-", "*"}:
+        raise BridgeError(f"unsupported arithmetic operator: {c_operator}")
+    counts = runtime_counts or DIRECT_EXTERNAL_RUNTIME_COUNTS
+    if len(counts) < 2:
+        raise BridgeError("external caller evidence requires at least two runtime counts")
     escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
-    c_operator = str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
     family_name = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    runtime_counts_list = ", ".join(str(count) for count in counts)
+    runtime_counts_csv = ",".join(str(count) for count in counts)
     return f"""\
 #include <stddef.h>
 #include <stdint.h>
@@ -1161,21 +1401,28 @@ def build_external_caller_source(
 
 int main(void) {{
   enum {{ kElements = 16 }};
-  const int32_t lhs[kElements] = {{0, 1, 2, 3, 4, 5, 6, 7,
-                                  8, 9, 10, 11, 12, 13, 14, 15}};
-  const int32_t rhs[kElements] = {{31, 29, 23, 19, 17, 13, 11, 7,
-                                  5, 3, 2, 1, -1, -3, -5, -7}};
-  int32_t out[kElements] = {{0}};
+  const {scalar_c_type} lhs[kElements] = {{0, 1, 2, 3, 4, 5, 6, 7,
+                                           8, 9, 10, 11, 12, 13, 14, 15}};
+  const {scalar_c_type} rhs[kElements] = {{31, 29, 23, 19, 17, 13, 11, 7,
+                                           5, 3, 2, 1, -1, -3, -5, -7}};
+  {scalar_c_type} out[kElements] = {{0}};
+  const size_t runtime_counts[] = {{{runtime_counts_list}}};
 
-  {function_name}(lhs, rhs, out, (size_t)kElements);
-  for (size_t index = 0; index < (size_t)kElements; ++index) {{
-    if (out[index] != lhs[index] {c_operator} rhs[index]) {{
-      fprintf(stderr, "rvv {family_name} microkernel external ABI mismatch at %zu\\n", index);
-      return 3;
+  for (size_t runtime_index = 0; runtime_index < sizeof(runtime_counts) / sizeof(runtime_counts[0]); ++runtime_index) {{
+    size_t runtime_n = runtime_counts[runtime_index];
+    for (size_t index = 0; index < (size_t)kElements; ++index)
+      out[index] = 0;
+
+    {function_name}(lhs, rhs, out, runtime_n);
+    for (size_t index = 0; index < runtime_n; ++index) {{
+      if (out[index] != lhs[index] {c_operator} rhs[index]) {{
+        fprintf(stderr, "rvv {family_name} microkernel external ABI mismatch at %zu for n=%zu\\n", index, runtime_n);
+        return 3;
+      }}
     }}
   }}
 
-  printf("{EXTERNAL_ABI_SUCCESS_MARKER} elements=%zu\\n", (size_t)kElements);
+  printf("{EXTERNAL_ABI_SUCCESS_MARKER} counts={runtime_counts_csv}\\n");
   return 0;
 }}
 """
@@ -1368,7 +1615,7 @@ def require_rvv_runtime_abi_signature(
         seen_roles.add(parameter["role"])
         parameters.append(parameter)
 
-    if parameters != RVV_RUNTIME_ABI_SIGNATURE:
+    if parameters != runtime_abi_signature_for_family(ACTIVE_ARITHMETIC_FAMILY):
         raise BridgeError(
             f"bundle record route {record.get('route')} runtime ABI signature "
             "does not match the RVV "
@@ -1699,6 +1946,7 @@ def run_remote_external_abi_evidence(
     root: Path,
     artifact_dir: Path,
     commands: list[dict[str, Any]],
+    source_path: Path,
     header_path: Path,
     object_path: Path,
     caller_path: Path,
@@ -1722,6 +1970,7 @@ def run_remote_external_abi_evidence(
         "scp_external_abi_inputs",
         [
             *scp_base_command(args),
+            str(source_path),
             str(header_path),
             str(object_path),
             str(caller_path),
@@ -1733,45 +1982,143 @@ def run_remote_external_abi_evidence(
         timeout_seconds=args.timeout,
     )
 
-    compile_command = build_remote_external_link_command(remote_dir, flags)
     run_command(
-        "ssh_compile_external_header_object_caller",
-        remote_shell_command(args, compile_command),
+        "ssh_compile_external_caller_object",
+        remote_shell_command(
+            args, build_remote_bundle_compile_caller_object_command(remote_dir, flags)
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    caller_object_hash_stdout, _, _ = run_command(
+        "ssh_external_caller_object_sha256",
+        remote_shell_command(
+            args, remote_sha256_command(remote_dir, "rvv_microkernel_external_caller.o")
+        ),
         cwd=root,
         artifact_dir=artifact_dir,
         commands=commands,
         timeout_seconds=args.timeout,
     )
 
-    binary_hash_stdout, _, _ = run_command(
-        "ssh_binary_sha256",
+    run_command(
+        "ssh_compile_external_source_object",
+        remote_shell_command(
+            args,
+            build_remote_bundle_compile_source_object_command(
+                remote_dir, "rvv_microkernel.c", flags
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    source_object_hash_stdout, _, _ = run_command(
+        "ssh_external_source_object_sha256",
+        remote_shell_command(
+            args, remote_sha256_command(remote_dir, "rvv_microkernel_from_source.o")
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_link_external_source_caller",
+        remote_shell_command(
+            args,
+            build_remote_bundle_link_executable_command(
+                remote_dir,
+                "rvv_microkernel_from_source.o",
+                "rvv_microkernel_external_caller_from_source",
+                flags,
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    source_executable_hash_stdout, _, _ = run_command(
+        "ssh_external_source_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_microkernel_external_caller_from_source"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    source_run_stdout, _, _ = run_command(
+        "ssh_run_external_source_caller",
         remote_shell_command(
             args,
             f"cd {quote_remote_path(remote_dir)} && "
-            "if command -v sha256sum >/dev/null 2>&1; then "
-            "set -- $(sha256sum rvv_microkernel_external_caller); printf '%s\\n' \"$1\"; "
-            "else printf '\\n'; fi",
+            "./rvv_microkernel_external_caller_from_source",
         ),
         cwd=root,
         artifact_dir=artifact_dir,
         commands=commands,
         timeout_seconds=args.timeout,
     )
+    if EXTERNAL_ABI_SUCCESS_MARKER not in source_run_stdout:
+        raise BridgeError(
+            "remote source-built external caller stdout missing expected marker: "
+            + EXTERNAL_ABI_SUCCESS_MARKER
+        )
 
-    run_stdout, _, _ = run_command(
-        "ssh_run_external_header_object_caller",
+    run_command(
+        "ssh_link_external_object_caller",
         remote_shell_command(
             args,
-            f"cd {quote_remote_path(remote_dir)} && ./rvv_microkernel_external_caller",
+            build_remote_bundle_link_executable_command(
+                remote_dir,
+                "rvv_microkernel.o",
+                "rvv_microkernel_external_caller_from_object",
+                flags,
+            ),
         ),
         cwd=root,
         artifact_dir=artifact_dir,
         commands=commands,
         timeout_seconds=args.timeout,
     )
-    if EXTERNAL_ABI_SUCCESS_MARKER not in run_stdout:
+    object_executable_hash_stdout, _, _ = run_command(
+        "ssh_external_object_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_microkernel_external_caller_from_object"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    object_run_stdout, _, _ = run_command(
+        "ssh_run_external_object_caller",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && "
+            "./rvv_microkernel_external_caller_from_object",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if EXTERNAL_ABI_SUCCESS_MARKER not in object_run_stdout:
         raise BridgeError(
-            f"remote external caller stdout missing expected marker: {EXTERNAL_ABI_SUCCESS_MARKER}"
+            "remote generated-object external caller stdout missing expected marker: "
+            + EXTERNAL_ABI_SUCCESS_MARKER
         )
 
     cleanup_status = "success"
@@ -1790,12 +2137,34 @@ def run_remote_external_abi_evidence(
     return {
         "ssh_target": args.ssh_target,
         "remote_dir": remote_dir,
+        "remote_artifacts": {
+            "source_file": "rvv_microkernel.c",
+            "header_file": header_path.name,
+            "object_file": object_path.name,
+            "caller_file": caller_path.name,
+            "caller_object_file": "rvv_microkernel_external_caller.o",
+            "source_built_object_file": "rvv_microkernel_from_source.o",
+            "source_built_executable": "rvv_microkernel_external_caller_from_source",
+            "object_executable": "rvv_microkernel_external_caller_from_object",
+        },
         "compile_flags": remote_compile_flags(flags),
-        "compile_exit_code": 0,
-        "run_exit_code": 0,
+        "caller_object_compile_exit_code": 0,
+        "source_object_compile_exit_code": 0,
+        "source_link_exit_code": 0,
+        "source_run_exit_code": 0,
+        "object_link_exit_code": 0,
+        "object_run_exit_code": 0,
         "expected_stdout_marker": EXTERNAL_ABI_SUCCESS_MARKER,
-        "stdout_marker_observed": True,
-        "binary_sha256": first_sanitized_line(binary_hash_stdout),
+        "source_stdout_marker_observed": True,
+        "object_stdout_marker_observed": True,
+        "caller_object_sha256": first_sanitized_line(caller_object_hash_stdout),
+        "source_built_object_sha256": first_sanitized_line(source_object_hash_stdout),
+        "source_built_executable_sha256": first_sanitized_line(
+            source_executable_hash_stdout
+        ),
+        "object_executable_sha256": first_sanitized_line(
+            object_executable_hash_stdout
+        ),
         "cleanup_status": cleanup_status,
     }
 
@@ -2088,18 +2457,21 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
 def selected_input_path(args: argparse.Namespace) -> Path:
     if args.input:
         return Path(args.input)
-    if ACTIVE_VECTOR_SHAPE["shape"] != "i32m1":
-        key = str(ACTIVE_VECTOR_SHAPE["shape"]) + "_default_input"
-        default_input = ACTIVE_ARITHMETIC_FAMILY.get(key)
-        if default_input is None:
-            raise BridgeError(
-                "no default MLIR fixture for arithmetic family "
-                f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} and vector "
-                f"shape {ACTIVE_VECTOR_SHAPE['shape']}; pass --input only if "
-                "the fixture already carries the matching typed compiler path"
-            )
-        return Path(default_input)
-    return Path(ACTIVE_ARITHMETIC_FAMILY["default_input"])
+    active_shape = str(ACTIVE_VECTOR_SHAPE["shape"])
+    default_shape = str(ACTIVE_ARITHMETIC_FAMILY.get("default_vector_shape", "i32m1"))
+    if active_shape == default_shape:
+        return Path(ACTIVE_ARITHMETIC_FAMILY["default_input"])
+
+    key = active_shape + "_default_input"
+    default_input = ACTIVE_ARITHMETIC_FAMILY.get(key)
+    if default_input is None:
+        raise BridgeError(
+            "no default MLIR fixture for arithmetic family "
+            f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} and vector "
+            f"shape {ACTIVE_VECTOR_SHAPE['shape']}; pass --input only if "
+            "the fixture already carries the matching typed compiler path"
+        )
+    return Path(default_input)
 
 
 def selected_planning_pipeline() -> tuple[str, list[str]]:
@@ -2215,7 +2587,11 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         raise BridgeError("bundled RVV microkernel object must be a non-empty ELF relocatable")
 
     caller_text = build_external_caller_source(
-        header_function_name, str(selected_records["header"]["file_name"])
+        header_function_name,
+        str(selected_records["header"]["file_name"]),
+        source_flags["runtime_abi_parameters"],
+        source_flags["arithmetic_operator"],
+        DIRECT_EXTERNAL_RUNTIME_COUNTS,
     )
     caller_path = artifact_dir / "rvv_microkernel_external_caller.c"
     write_generated_text(
@@ -2264,7 +2640,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "run_id": run_id,
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
+        "repo_commit": current_git_commit(root),
         "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
+        "function_symbol": source_flags["compiler_path_context"]["microkernel_function"],
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_pipeline": planned_pipeline,
@@ -2287,21 +2665,24 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_export_mode": "runtime-callable-library",
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
         "compiler_path_context": source_flags["compiler_path_context"],
+        "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+        "arithmetic_operator": source_flags["arithmetic_operator"],
         "expected_selected_kernel": expected_selected_kernel,
         "external_caller": {
             "kind": "generated-c-caller",
             "function": header_function_name,
-            "runtime_abi_signature": RVV_RUNTIME_ABI_SIGNATURE,
+            "runtime_abi_signature": source_flags["runtime_abi_parameters"],
             "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
             "arithmetic_check": "lhs "
-            + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+            + source_flags["arithmetic_operator"]
             + " rhs",
-            "runtime_element_counts": [16],
+            "runtime_element_counts": DIRECT_EXTERNAL_RUNTIME_COUNTS,
         },
         "selected_compile_flags": remote_compile_flags(source_flags),
         "expected_stdout_marker": EXTERNAL_ABI_SUCCESS_MARKER,
         "stdout_marker_observed": False,
         "pass_fail_result": "pass",
+        "no_performance_claim": True,
         "hashes": hashes,
         "artifacts": artifacts,
         "commands": commands,
@@ -2457,8 +2838,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         source_export_route = "direct-rvv-microkernel-self-check-harness"
     else:
         source_export_route = str(ACTIVE_ARITHMETIC_FAMILY["source_route"])
-        source_export_flag = direct_helper_flag(source_export_route)
-        source_export_name = command_name_for_route(source_export_route)
+        source_export_flag = direct_helper_flag(
+            direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, "source")
+        )
+        source_export_name = command_name_for_route(
+            direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, "source")
+        )
     source_text, _, _ = run_command(
         source_export_name,
         [
@@ -2488,6 +2873,10 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     header_sha256 = ""
     caller_sha256 = ""
     direct_helper_routes = direct_helper_routes_for_family(ACTIVE_ARITHMETIC_FAMILY)
+    direct_helper_translation_routes = {
+        role: direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, role)
+        for role in ("source", "header", "object")
+    }
     uses_direct_family_helpers = not args.generic_route and not use_harness
     direct_helper_artifacts: dict[str, str] = {}
     if uses_direct_family_helpers:
@@ -2495,11 +2884,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     should_export_direct_header = uses_direct_family_helpers
     if should_export_direct_header:
         header_route = direct_helper_routes["header"]
+        header_translation_route = direct_helper_translation_routes["header"]
         header_text, _, _ = run_command(
-            command_name_for_route(header_route),
+            command_name_for_route(header_translation_route),
             [
                 tcrv_translate,
-                direct_helper_flag(header_route),
+                direct_helper_flag(header_translation_route),
                 str(post_planning_path),
             ],
             cwd=root,
@@ -2515,12 +2905,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         direct_helper_artifacts["header"] = relative_to_repo(header_path, root)
 
     if not args.dry_run and not use_harness:
-        object_route = direct_helper_routes["object"]
+        object_translation_route = direct_helper_translation_routes["object"]
         run_command_stdout_to_file(
-            command_name_for_route(object_route),
+            command_name_for_route(object_translation_route),
             [
                 tcrv_translate,
-                direct_helper_flag(object_route),
+                direct_helper_flag(object_translation_route),
                 str(post_planning_path),
             ],
             object_path,
@@ -2534,7 +2924,13 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         object_sha256 = sha256_file(object_path)
         direct_helper_artifacts["object"] = relative_to_repo(object_path, root)
 
-        caller_text = build_external_caller_source(header_function_name)
+        caller_text = build_external_caller_source(
+            header_function_name,
+            header_path.name,
+            source_flags["runtime_abi_parameters"],
+            source_flags["arithmetic_operator"],
+            DIRECT_EXTERNAL_RUNTIME_COUNTS,
+        )
         write_generated_text(
             caller_path, "generated RVV microkernel external caller", caller_text
         )
@@ -2561,7 +2957,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "run_id": run_id,
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
+        "repo_commit": current_git_commit(root),
         "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
+        "function_symbol": source_flags["compiler_path_context"]["microkernel_function"],
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_pipeline": str(ACTIVE_VECTOR_SHAPE["planning_pipeline"]),
@@ -2571,6 +2969,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_export_flag": source_export_flag,
         "source_export_route": source_export_route,
         "direct_helper_routes": direct_helper_routes,
+        "direct_helper_translation_routes": direct_helper_translation_routes,
         "direct_helper_artifacts": direct_helper_artifacts,
         "source_export_mode": (
             "self-check-harness" if use_harness else "runtime-callable-library"
@@ -2586,11 +2985,15 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         ],
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
         "compiler_path_context": source_flags["compiler_path_context"],
+        "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+        "arithmetic_operator": source_flags["arithmetic_operator"],
         "expected_selected_kernel": expected_selected_kernel,
         "expected_stdout_marker": (
             SUCCESS_MARKER if use_harness else EXTERNAL_ABI_SUCCESS_MARKER
         ),
         "stdout_marker_observed": False,
+        "pass_fail_result": "pass",
+        "no_performance_claim": True,
         "hashes": hashes,
         "artifacts": {
             "post_planning_mlir": relative_to_repo(post_planning_path, root),
@@ -2603,15 +3006,19 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "claim_scope": (
             "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
             if args.dry_run and uses_direct_family_helpers
-            else "local dry-run verifies compiler-tool handoff and source export only"
-            if args.dry_run
-            else "bounded generated RVV "
-            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
-            + " self-check executable correctness only"
-            if use_harness
-            else "bounded generated RVV "
-            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
-            + " direct helper artifact handoff plus header/object external caller correctness only"
+            else (
+                "local dry-run verifies compiler-tool handoff and source export only"
+                if args.dry_run
+                else (
+                    "bounded generated RVV "
+                    + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+                    + " self-check executable correctness only"
+                    if use_harness
+                    else "bounded generated RVV "
+                    + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+                    + " direct helper artifact handoff plus header/object external caller correctness only"
+                )
+            )
         ),
     }
     if should_export_direct_header:
@@ -2641,12 +3048,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             evidence["external_caller"] = {
                 "kind": "generated-c-caller",
                 "function": header_function_name,
-                "runtime_abi_signature": RVV_RUNTIME_ABI_SIGNATURE,
+                "runtime_abi_signature": source_flags["runtime_abi_parameters"],
                 "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
                 "arithmetic_check": "lhs "
-                + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+                + source_flags["arithmetic_operator"]
                 + " rhs",
-                "runtime_element_counts": [16],
+                "runtime_element_counts": DIRECT_EXTERNAL_RUNTIME_COUNTS,
             }
 
     if not args.dry_run:
@@ -2670,6 +3077,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                     root=root,
                     artifact_dir=artifact_dir,
                     commands=commands,
+                    source_path=source_path,
                     header_path=header_path,
                     object_path=object_path,
                     caller_path=caller_path,
@@ -2689,6 +3097,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
+            evidence["pass_fail_result"] = "fail"
             evidence["ssh_evidence"] = False
             evidence["stdout_marker_observed"] = False
             evidence["error"] = sanitize_text(str(error))
@@ -2827,6 +3236,9 @@ kernel @rvv_microkernel_manifest
 /* active_route: tcrv-export-rvv-microkernel-self-check-c */
 /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+/* arithmetic_family: i32-vadd */
+/* dtype: i32 */
+/* arithmetic_c_operator: + */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -2837,6 +3249,10 @@ kernel @rvv_microkernel_manifest
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
+/* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1;
@@ -2916,6 +3332,9 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* active_route: tcrv-export-rvv-i32-vsub-microkernel-c */
 /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+/* arithmetic_family: i32-vsub */
+/* dtype: i32 */
+/* arithmetic_c_operator: - */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -2926,6 +3345,10 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
+/* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1;
@@ -2965,6 +3388,9 @@ void f(void) {
 /* active_route: tcrv-export-rvv-i32-vsub-microkernel-c */
 /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+/* arithmetic_family: i32-vsub */
+/* dtype: i32 */
+/* arithmetic_c_operator: - */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -2975,6 +3401,10 @@ void f(void) {
 /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
+/* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m2;
@@ -3018,6 +3448,9 @@ void f(void) {
 /* active_route: tcrv-export-rvv-i32-vmul-microkernel-c */
 /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
+/* arithmetic_family: i32-vmul */
+/* dtype: i32 */
+/* arithmetic_c_operator: * */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -3028,6 +3461,10 @@ void f(void) {
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
+/* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1;
@@ -3055,7 +3492,91 @@ void f(void) {
         "vmul external ABI caller success marker missing",
     )
 
+    configure_arithmetic_family("i64-vadd")
+    configure_vector_shape("i64m1")
+    sample_i64_source = """\
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+/* microkernel function: tcrv_rvv_i64_vadd_microkernel_rvv_i64_vadd_kernel_rvv_i64_slice */
+/* selected_kernel: @rvv_i64_vadd_kernel */
+/* selected_variant: @rvv_i64_slice */
+/* selected_role: direct variant */
+/* lowering_boundary: tcrv_rvv.lowering_boundary */
+/* active_route: tcrv-export-rvv-i64-vadd-microkernel-c */
+/* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
+/* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
+/* arithmetic_family: i64-vadd */
+/* dtype: i64 */
+/* arithmetic_c_operator: + */
+/* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_add -> tcrv_rvv.i64_store */
+/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
+/* dataflow_emission_step[0]: op=tcrv_rvv.i64_load, role=lhs-input-buffer, result=lhs_vec */
+/* dataflow_emission_step[1]: op=tcrv_rvv.i64_load, role=rhs-input-buffer, result=rhs_vec */
+/* dataflow_emission_step[2]: op=tcrv_rvv.i64_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
+/* dataflow_emission_step[3]: op=tcrv_rvv.i64_store, role=output-buffer, value=sum_vec */
+/* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
+/* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
+/* control_plane_config: sew=64, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
+/* intrinsic_config: vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1, tail_policy=agnostic, mask_policy=agnostic */
+/* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[1]: c_name=rhs, c_type=const int64_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
+/* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+#include <riscv_vector.h>
+void f(void) {
+  __riscv_vsetvl_e64m1;
+  __riscv_vle64_v_i64m1;
+  __riscv_vadd_vv_i64m1;
+  __riscv_vse64_v_i64m1;
+}
+"""
+    i64_flags = validate_generated_source(sample_i64_source, require_harness=False)
+    assert_self_test(
+        i64_flags["runtime_abi_parameters"][0]["c_type"] == "const int64_t *",
+        "i64 runtime ABI signature was not preserved",
+    )
+    i64_header = """\
+#ifndef TIANCHENRV_RVV_I64_VADD_MICROKERNEL_SELF_TEST_H
+#define TIANCHENRV_RVV_I64_VADD_MICROKERNEL_SELF_TEST_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void tcrv_rvv_i64_vadd_microkernel_self_test(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* TIANCHENRV_RVV_I64_VADD_MICROKERNEL_SELF_TEST_H */
+"""
+    i64_function_name = validate_generated_header(i64_header)
+    i64_caller = build_external_caller_source(
+        i64_function_name,
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i64-vadd-microkernel-header.h",
+        i64_flags["runtime_abi_parameters"],
+        i64_flags["arithmetic_operator"],
+        DIRECT_EXTERNAL_RUNTIME_COUNTS,
+    )
+    assert_self_test(
+        "lhs[index] + rhs[index]" in i64_caller,
+        "i64 external caller did not check add semantics",
+    )
+    assert_self_test(
+        "counts=7,16" in i64_caller,
+        "i64 external caller did not record the expected runtime counts",
+    )
+    assert_self_test(
+        EXTERNAL_ABI_SUCCESS_MARKER in i64_caller,
+        "i64 external ABI caller success marker missing",
+    )
+
     configure_arithmetic_family("i32-vadd")
+    configure_vector_shape("i32m1")
     remote_command = build_remote_compile_command(
         "/tmp/tianchenrv_rvv_microkernel_e2e_self_test",
         {"selected_march": "rv64gcv", "selected_mabi": "lp64d"},
@@ -3112,10 +3633,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--vector-shape",
         choices=sorted(RVV_VECTOR_SHAPE_SPECS),
-        default="i32m1",
+        default="",
         help=(
-            "Bounded typed RVV i32 vector shape to validate; i32m2 selects "
-            "the existing typed m2 compiler/export fixture when available"
+            "Bounded typed RVV vector shape to validate; defaults to the "
+            "selected family's descriptor-backed shape"
         ),
     )
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))
@@ -3168,7 +3689,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     configure_arithmetic_family(args.arithmetic_family)
-    configure_vector_shape(args.vector_shape)
+    configure_vector_shape(
+        args.vector_shape
+        or str(ACTIVE_ARITHMETIC_FAMILY.get("default_vector_shape", "i32m1"))
+    )
     if args.self_test:
         run_self_test()
         return 0

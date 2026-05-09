@@ -3480,6 +3480,11 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* executable_microkernel: "
      << record.descriptor.getRVVMicrokernelOpName()
      << " */\n";
+  os << "/* arithmetic_family: "
+     << record.descriptor.getArithmeticFamilyID() << " */\n";
+  os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
+  os << "/* arithmetic_c_operator: " << record.descriptor.getCOperator()
+     << " */\n";
   os << "/* active_route: " << record.activeRouteID << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
@@ -3889,6 +3894,14 @@ llvm::Expected<bool> matchRVVMicrokernelMulObjectCandidate(
                                              getI32VMulFamilySpec());
 }
 
+llvm::Expected<bool> matchRVVMicrokernelI64VAddObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return candidateMatchesRVVBinaryDescriptor(candidates.front(),
+                                            getI64VAddIntrinsicDescriptor());
+}
+
 llvm::Expected<bool> matchRVVMicrokernelAddHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
@@ -3911,6 +3924,14 @@ llvm::Expected<bool> matchRVVMicrokernelMulHeaderCandidate(
     return false;
   return candidateMatchesRVVMicrokernelFamily(candidates.front(),
                                              getI32VMulFamilySpec());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelI64VAddHeaderCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return candidateMatchesRVVBinaryDescriptor(candidates.front(),
+                                            getI64VAddIntrinsicDescriptor());
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
@@ -4293,6 +4314,21 @@ llvm::Error registerRVVMicrokernelTargetExporters(
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              i64VAddDescriptor.getRVVHeaderRouteID(),
+              kMicrokernelHeaderArtifactKind,
+              matchRVVMicrokernelI64VAddHeaderCandidate,
+              exportRVVMicrokernelHeader, kRVVPluginName,
+              i64VAddDescriptor.getRVVRuntimeABIKind(),
+              i64VAddDescriptor.getRVVRuntimeABIName(),
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true,
+              i64VAddDescriptor.getRVVExternalABIComponentGroup(),
+              i64VAddDescriptor.getRVVRuntimeABIName(),
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               addFamily.objectRouteID, kMicrokernelObjectArtifactKind,
               matchRVVMicrokernelAddObjectCandidate,
               exportRVVMicrokernelObject, kRVVPluginName,
@@ -4315,13 +4351,27 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
 
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              mulFamily.objectRouteID, kMicrokernelObjectArtifactKind,
+              matchRVVMicrokernelMulObjectCandidate, exportRVVMicrokernelObject,
+              kRVVPluginName, mulFamily.runtimeABIKind,
+              mulFamily.runtimeABIName,
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true, mulFamily.externalABIComponentGroup,
+              mulFamily.runtimeABIName,
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      mulFamily.objectRouteID, kMicrokernelObjectArtifactKind,
-      matchRVVMicrokernelMulObjectCandidate, exportRVVMicrokernelObject,
-      kRVVPluginName, mulFamily.runtimeABIKind, mulFamily.runtimeABIName,
+      i64VAddDescriptor.getRVVObjectRouteID(), kMicrokernelObjectArtifactKind,
+      matchRVVMicrokernelI64VAddObjectCandidate, exportRVVMicrokernelObject,
+      kRVVPluginName, i64VAddDescriptor.getRVVRuntimeABIKind(),
+      i64VAddDescriptor.getRVVRuntimeABIName(),
       resolveRVVMicrokernelRuntimeABIParameters,
-      /*directHelperRoute=*/true, mulFamily.externalABIComponentGroup,
-      mulFamily.runtimeABIName,
+      /*directHelperRoute=*/true,
+      i64VAddDescriptor.getRVVExternalABIComponentGroup(),
+      i64VAddDescriptor.getRVVRuntimeABIName(),
       validateRVVMicrokernelCallableCandidatePreflight));
 }
 

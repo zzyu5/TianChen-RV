@@ -3,15 +3,18 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-e2e-vsub --overwrite | FileCheck %s --check-prefix=VSUB-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id lit-rvv-microkernel-e2e-vsub-i32m2 --overwrite | FileCheck %s --check-prefix=VSUB-M2-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-e2e-vmul --overwrite | FileCheck %s --check-prefix=VMUL-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --run-id lit-rvv-microkernel-e2e-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --generic-route --run-id lit-rvv-microkernel-e2e-generic --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=GENERIC-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --self-check-harness --run-id lit-rvv-microkernel-e2e-harness --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=HARNESS-DRY
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/rvv_microkernel.c
@@ -26,6 +29,8 @@
 # RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/evidence.json
 # RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/evidence.json
+# RUN: FileCheck %s --check-prefix=I64-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/evidence.json
+# RUN: FileCheck %s --check-prefix=I64-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.c
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-missing-handoff --overwrite --input %S/../Fixtures/rvv_microkernel_e2e/missing-handoff.txt 2>&1 | FileCheck %s --check-prefix=MISSING
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-stale-vadd --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir 2>&1 | FileCheck %s --check-prefix=STALE
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id lit-rvv-microkernel-m2-reject-m1 --overwrite --input %S/../Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir 2>&1 | FileCheck %s --check-prefix=M2-REJECT-M1
@@ -85,6 +90,24 @@
 # VMUL-DRY: "status": "success"
 # VMUL-DRY-NOT: live-token
 # VMUL-DRY-NOT: hunter2
+
+# I64-DRY: "arithmetic_family": "i64-vadd"
+# I64-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd"
+# I64-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+# I64-DRY: "lmul": "m1"
+# I64-DRY: "manifest_handoff": true
+# I64-DRY: "mode": "dry-run"
+# I64-DRY: "planned_pipeline": "tcrv-materialize-selected-lowering-boundaries"
+# I64-DRY: "source_export_mode": "runtime-callable-library"
+# I64-DRY: "source_export_route": "tcrv-export-rvv-i64-vadd-microkernel-c"
+# I64-DRY: "ssh_evidence": false
+# I64-DRY: "status": "success"
+# I64-DRY: "vector_shape": "i64m1"
+# I64-DRY-NOT: int32_t
+# I64-DRY-NOT: i32-vsub
+# I64-DRY-NOT: i32-vmul
+# I64-DRY-NOT: live-token
+# I64-DRY-NOT: hunter2
 
 # GENERIC-DRY: "arithmetic_family": "i32-vadd"
 # GENERIC-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic"
@@ -214,6 +237,54 @@
 # VMUL-EVIDENCE-NOT: __riscv_vsub_vv_i32m1
 # VMUL-EVIDENCE-NOT: live-token
 # VMUL-EVIDENCE-NOT: hunter2
+
+# I64-EVIDENCE: "arithmetic_family": "i64-vadd"
+# I64-EVIDENCE: "arithmetic_operator": "+"
+# I64-EVIDENCE: "function_symbol": "tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice"
+# I64-EVIDENCE: "input": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vadd.mlir"
+# I64-EVIDENCE: "no_performance_claim": true
+# I64-EVIDENCE: "repo_commit":
+# I64-EVIDENCE: "runtime_abi_signature"
+# I64-EVIDENCE: "c_type": "const int64_t *"
+# I64-EVIDENCE: "c_type": "int64_t *"
+# I64-EVIDENCE-DAG: "dtype": "i64"
+# I64-EVIDENCE-DAG: "shape": "i64m1"
+# I64-EVIDENCE-DAG: "sew_bits": 64
+# I64-EVIDENCE-DAG: "vector_type": "vint64m1_t"
+# I64-EVIDENCE-DAG: "vector_suffix": "i64m1"
+# I64-EVIDENCE-DAG: "setvl_suffix": "e64m1"
+# I64-EVIDENCE-DAG: "__riscv_vsetvl_e64m1"
+# I64-EVIDENCE-DAG: "__riscv_vle64_v_i64m1"
+# I64-EVIDENCE-DAG: "__riscv_vadd_vv_i64m1"
+# I64-EVIDENCE-DAG: "__riscv_vse64_v_i64m1"
+# I64-EVIDENCE: "ssh_evidence": false
+# I64-EVIDENCE: "stdout_marker_observed": false
+# I64-EVIDENCE-NOT: int32_t
+# I64-EVIDENCE-NOT: i32-vsub
+# I64-EVIDENCE-NOT: i32-vmul
+# I64-EVIDENCE-NOT: runtime_success
+# I64-EVIDENCE-NOT: throughput
+# I64-EVIDENCE-NOT: latency
+# I64-EVIDENCE-NOT: live-token
+# I64-EVIDENCE-NOT: hunter2
+
+# I64-SOURCE: /* arithmetic_family: i64-vadd */
+# I64-SOURCE: /* dtype: i64 */
+# I64-SOURCE: /* arithmetic_c_operator: + */
+# I64-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
+# I64-SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# I64-SOURCE: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
+# I64-SOURCE: __riscv_vsetvl_e64m1
+# I64-SOURCE: __riscv_vle64_v_i64m1
+# I64-SOURCE: __riscv_vadd_vv_i64m1
+# I64-SOURCE: __riscv_vse64_v_i64m1
+# I64-SOURCE-NOT: int32_t
+# I64-SOURCE-NOT: i32-vsub
+# I64-SOURCE-NOT: i32-vmul
+# I64-SOURCE-NOT: __riscv_vadd_vv_i32m1
+# I64-SOURCE-NOT: runtime_success
+# I64-SOURCE-NOT: throughput
+# I64-SOURCE-NOT: latency
 
 # MANIFEST: emission_status: "supported"
 # MANIFEST: emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"

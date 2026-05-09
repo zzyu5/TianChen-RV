@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that implementation stayed inside TianChen-RV global boundaries."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check ssh rvv evidence interpretation and no-performance-claim discipline."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/script coverage and RVV direct microkernel evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check manifest/ABI/export ownership and fail-closed behavior."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin/target locality and i64/i64m1 evidence boundaries."}

@@ -113,6 +113,9 @@ module @rvv_microkernel_i64_vadd_export_input {
 // SOURCE: /* selected_kernel: @export_i64_vadd */
 // SOURCE: /* selected_variant: @rvv_i64_slice */
 // SOURCE: /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
+// SOURCE: /* arithmetic_family: i64-vadd */
+// SOURCE: /* dtype: i64 */
+// SOURCE: /* arithmetic_c_operator: + */
 // SOURCE: /* active_route: tcrv-export-rvv-i64-vadd-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_add -> tcrv_rvv.i64_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
