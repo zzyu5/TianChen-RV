@@ -1,0 +1,104 @@
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+
+#map = affine_map<(d0) -> (d0)>
+
+module {
+  // LOWER-LABEL: tcrv.exec.target @frontend_rvv_scalar_profile
+  // PIPE-LABEL: tcrv.exec.target @frontend_rvv_scalar_profile
+  tcrv.exec.target @frontend_rvv_scalar_profile {
+    architecture = "riscv64",
+    count = 64 : i64,
+    id = "rvv.profile.frontend",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    kind = "profile",
+    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run", "rvv.toolchain.march", "scalar.fallback"],
+    bytes = 16 : i64,
+    lanes = 4 : i64,
+    selected_march = "rv64gcv",
+    status = "available",
+    value = "rv64gcv"
+  }
+
+  func.func @source_vadd(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>)
+      attributes {
+        tcrv_frontend_kernel = "frontend_i32_vadd",
+        tcrv_frontend_target = @frontend_rvv_scalar_profile
+      } {
+    linalg.generic {
+        indexing_maps = [#map, #map, #map],
+        iterator_types = ["parallel"],
+        tcrv_frontend_lowering = "i32-vadd"
+      }
+      ins(%lhs, %rhs : memref<?xi32>, memref<?xi32>)
+      outs(%out : memref<?xi32>) {
+    ^bb0(%a: i32, %b: i32, %old: i32):
+      %sum = arith.addi %a, %b : i32
+      linalg.yield %sum : i32
+    }
+    return
+  }
+}
+
+// LOWER-LABEL: tcrv.exec.kernel @frontend_i32_vadd
+// LOWER-SAME: target = @frontend_rvv_scalar_profile
+// LOWER: tcrv.exec.mem_window @abi_lhs_input_buffer
+// LOWER-SAME: abi_role = "lhs-input-buffer"
+// LOWER-SAME: access = "read"
+// LOWER-SAME: c_type = "const int32_t *"
+// LOWER-SAME: ownership = "target-export-abi-owned"
+// LOWER-SAME: purpose = "runtime-abi-buffer"
+// LOWER: tcrv.exec.mem_window @abi_rhs_input_buffer
+// LOWER-SAME: abi_role = "rhs-input-buffer"
+// LOWER-SAME: access = "read"
+// LOWER-SAME: c_type = "const int32_t *"
+// LOWER: tcrv.exec.mem_window @abi_output_buffer
+// LOWER-SAME: abi_role = "output-buffer"
+// LOWER-SAME: access = "write"
+// LOWER-SAME: c_type = "int32_t *"
+// LOWER: tcrv.exec.runtime_param @abi_runtime_element_count
+// LOWER-SAME: abi_role = "runtime-element-count"
+// LOWER-SAME: c_name = "n"
+// LOWER-SAME: c_type = "size_t"
+// LOWER-SAME: ownership = "target-export-abi-owned"
+// LOWER-SAME: purpose = "runtime-abi-scalar"
+
+// PIPE-LABEL: tcrv.exec.kernel @frontend_i32_vadd
+// PIPE-SAME: target = @frontend_rvv_scalar_profile
+// PIPE: tcrv.exec.mem_window @abi_lhs_input_buffer
+// PIPE: tcrv.exec.runtime_param @abi_runtime_element_count
+// PIPE: tcrv.exec.variant @rvv_first_slice
+// PIPE-SAME: origin = "rvv-plugin"
+// PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: tcrv_rvv.element_count = 16 : i64
+// PIPE-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
+// PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
+// PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
+// PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
+// PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+// PIPE-SAME: fallback_role = "conservative"
+// PIPE-SAME: origin = "scalar-plugin"
+// PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+// PIPE: tcrv.exec.diagnostic
+// PIPE-SAME: reason = "variant-selected"
+// PIPE-SAME: selection_kind = "static-variant"
+// PIPE-SAME: target = @rvv_first_slice
+// PIPE: tcrv_rvv.lowering_boundary
+// PIPE-SAME: origin = "rvv-plugin"
+// PIPE-SAME: required_capabilities = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: role = "direct variant"
+// PIPE-SAME: selected_variant = @rvv_first_slice
+// PIPE-SAME: source_kernel = "frontend_i32_vadd"
+// PIPE: tcrv_rvv.i32_vadd_microkernel
+// PIPE-SAME: element_count = 16 : i64
+// PIPE-SAME: required_capabilities = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: selected_variant = @rvv_first_slice
+// PIPE-SAME: source_kernel = "frontend_i32_vadd"
+// PIPE: tcrv.exec.diagnostic
+// PIPE-SAME: artifact_kind = "runtime-callable-c-source"
+// PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
+// PIPE-SAME: reason = "emission_plan"
+// PIPE-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
+// PIPE-SAME: status = "supported"
+// PIPE-SAME: target = @rvv_first_slice

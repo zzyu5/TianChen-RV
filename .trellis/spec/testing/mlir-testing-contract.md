@@ -151,6 +151,16 @@ Use lit/FileCheck for:
   self-description when RVV capacity facts are present; and a focused
   fail-closed negative case proving planning failure does not print bundle
   completion or emit a complete bundle index.
+- bounded linalg frontend lowering coverage, including a hand-written/test
+  `linalg.generic` i32 vector-add wrapper that lowers through
+  `--tcrv-lower-linalg-i32-vadd-to-exec` to a parseable `tcrv.exec.kernel`
+  with a module target profile reference plus lhs/rhs/out `mem_window` roles
+  and runtime `n` `runtime_param`; pipeline coverage proving the generated
+  kernel can feed existing RVV/scalar proposal, selection, selected-boundary,
+  and supported emission-plan materialization; and fail-closed negative
+  coverage proving unsupported marked linalg bodies do not create an exec
+  kernel. These tests must not claim generic linalg lowering, LLVM/RISC-V
+  lowering, runtime success, correctness, or performance.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;
   existing execution-planning pipeline output followed by the preflight pass;

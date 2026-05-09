@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Primary MLIR/C++/TableGen/CMake implementation boundary for the frontend lowering pass."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Prevents Python or pseudo-IR replacement for compiler lowering behavior."}
+{"file": ".trellis/spec/architecture/index.md", "reason": "Project boundary: capability-driven execution layer after high-level MLIR."}
+{"file": ".trellis/spec/architecture/system-positioning.md", "reason": "Frontend lowering must target execution variants instead of a new tensor IR."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines allowed tcrv.exec kernel, target, mem_window, runtime_param, variant, dispatch, fallback surfaces."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Target profile and capability facts must remain structured compiler objects."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Updated contract allowing frontend owner from hand-written/test linalg while plugins remain local."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines high-level MLIR to plugin-proposed variant pipeline and execution-planning pipeline."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI and artifact boundary semantics for the generated mem_window/runtime_param surfaces."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Lit/FileCheck expectations for pass behavior and planning pipeline coverage."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensures the pass does not introduce core compute ops."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Ensures target facts remain capability-driven."}

@@ -3,6 +3,29 @@
 
 include "mlir/Pass/PassBase.td"
 
+def LowerLinalgI32VAddToExec
+    : Pass<"tcrv-lower-linalg-i32-vadd-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Lower a bounded marked linalg i32 vector-add wrapper to tcrv.exec";
+  let description = [{
+    Consumes explicitly marked hand-written/test linalg.generic i32 vector-add
+    wrappers and materializes the TianChen-RV execution boundary consumed by
+    the existing plugin planning pipeline. The pass creates a tcrv.exec.kernel
+    with a selected module target profile reference and the bounded i32-vadd
+    runtime ABI mem_window/runtime_param surface, then removes the source
+    wrapper.
+
+    This is a narrow frontend lowering slice. It does not add generic tcrv
+    compute ops, infer arbitrary linalg semantics, select variants, branch on
+    RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
+    runtime correctness/performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createLowerLinalgI32VAddToExecPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def CheckCapabilityRequires
     : Pass<"tcrv-check-capability-requires", "::mlir::ModuleOp"> {
   let summary = "Check tcrv.exec.variant requirements against generic capability availability";

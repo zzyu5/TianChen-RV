@@ -96,6 +96,22 @@ to consume the generic handoff contract. It does not emit LLVM/RISC-V/RVV IR,
 generate objects, link runtime libraries, run hardware, prove correctness, or
 measure performance.
 
+The public `tcrv-opt --tcrv-lower-linalg-i32-vadd-to-exec` pass is the first
+bounded frontend lowering slice from high-level MLIR into TianChen-RV execution
+surfaces. It accepts only explicitly marked hand-written/test `linalg.generic`
+i32 vector-add wrappers whose region body is exactly the current two-input
+`arith.addi` / `linalg.yield` shape. The pass materializes one
+`tcrv.exec.kernel` with a source-selected `target = @profile` module target
+reference plus the IR-backed i32-vadd callable ABI boundary:
+`tcrv.exec.mem_window` for lhs/rhs/out buffers and
+`tcrv.exec.runtime_param` for runtime `n`. The resulting kernel is directly
+consumable by `--tcrv-execution-planning-pipeline`, so existing RVV/scalar
+plugin proposal, legality, selection, selected-boundary, emission-plan, and
+target-artifact routes remain reused. This pass is not generic linalg lowering,
+does not add a `tcrv` compute op, does not infer arbitrary tensor semantics,
+does not invent target capabilities, does not lower to LLVM/RISC-V, and does
+not create runtime correctness or performance evidence.
+
 The `tcrv-translate --tcrv-export-rvv-smoke-probe-c` tool exports a
 deterministic standalone C RVV hardware/toolchain smoke probe from post-planning
 MLIR that has selected RVV metadata and a matching
@@ -300,6 +316,23 @@ This proves only that the exported standalone smoke program can compile and run
 on the RVV host when separate `ssh rvv` evidence is recorded. It does not prove
 TianChen-RV lowered a selected kernel, generated an object for that kernel,
 linked runtime glue, produced a correctness result, or measured performance.
+
+For the first frontend slice, start from a hand-written/test `linalg.generic`
+i32 vector-add wrapper with `tcrv_frontend_lowering = "i32-vadd"`,
+`tcrv_frontend_kernel = "<kernel-symbol>"`, and
+`tcrv_frontend_target = @<module-target-profile>`, then run:
+
+```bash
+tcrv-opt input_linalg.mlir \
+  --tcrv-lower-linalg-i32-vadd-to-exec \
+  --tcrv-execution-planning-pipeline
+```
+
+The first pass only creates the `tcrv.exec` kernel and ABI boundary. The
+planning pipeline still owns plugin proposal, legality, variant selection,
+selected lowering-boundary materialization, emission-plan diagnostics, and
+coherence checks. Any RVV runtime or correctness claim from artifacts exported
+after this point still requires separate real `ssh rvv` evidence.
 
 For the first microkernel slice, use post-planning MLIR that contains the
 selected RVV path and matching `tcrv_rvv.i32_vadd_microkernel`. The op may be

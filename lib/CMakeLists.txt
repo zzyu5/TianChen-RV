@@ -10,5 +10,8 @@ add_mlir_library(TianChenRVInitAll
   LINK_LIBS PUBLIC
   TianChenRVExecDialect
   TianChenRVPlugin
+  MLIRArithDialect
+  MLIRFuncDialect
   MLIRIR
+  MLIRLinalgDialect
 )

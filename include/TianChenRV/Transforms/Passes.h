@@ -21,6 +21,8 @@ class TargetArtifactExporterRegistry;
 
 namespace transforms {
 
+std::unique_ptr<::mlir::Pass> createLowerLinalgI32VAddToExecPass();
+
 void buildExecutionPlanningPipeline(::mlir::OpPassManager &pm);
 void buildExecutionPlanningPipeline(
     ::mlir::OpPassManager &pm,
