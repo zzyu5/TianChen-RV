@@ -406,9 +406,10 @@ exporter without requiring `ssh rvv`, including the runtime-callable C ABI
 function, absence of an embedded `main` in the default source artifact, and the
 explicit harness call into that function when using the harness export. Any
 remote compile/run of the harness source must be reported separately as bounded
-microkernel correctness evidence only for that explicit source and selected
-flags. It must not be reported as generic TianChen-RV lowering correctness,
-arbitrary RVV emission support, full runtime integration, or performance
+microkernel correctness evidence only for that explicit source, selected flags,
+and generated runtime `n` cases. It must not be reported as generic TianChen-RV
+lowering correctness, arbitrary RVV emission support, full runtime integration,
+or performance
 evidence.
 
 If the repository exports a generated RVV+scalar dispatch self-check C harness,

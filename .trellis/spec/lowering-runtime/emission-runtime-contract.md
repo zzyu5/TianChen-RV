@@ -988,7 +988,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   self-check harness.
 - The explicit self-check harness export must call the same callable ABI from a
   bounded helper over bounded local arrays and is evidence tooling, not the
-  default target artifact contract.
+  default target artifact contract. Descriptor-local `element_count` may bound
+  harness capacity, but the harness must pass explicit runtime `n` values
+  through the generated ABI and must not treat `element_count` as shape, AVL,
+  VL, or the only runtime trip count.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
   benchmark sizes, latency/throughput numbers, or performance claims.
 

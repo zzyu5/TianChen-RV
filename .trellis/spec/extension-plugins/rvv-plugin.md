@@ -717,8 +717,10 @@ export is a library-style callable source artifact with no embedded `main` or
 self-check harness. If a bounded self-check executable is
 needed for evidence
 collection, `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the
-explicit harness export and calls the same ABI function over fixed local
-arrays.
+explicit harness export. It calls the same ABI function over bounded local
+arrays with explicit runtime `n` values; descriptor-local `element_count`
+provides only the bounded local-array capacity and is not shape, AVL, VL, or
+the only runtime trip count.
 Successful `ssh rvv` compile/run evidence for the harness source supports only
 the bounded microkernel correctness claim for the generated callable ABI plus
 harness. It is not generic high-level lowering, arbitrary RVV executable

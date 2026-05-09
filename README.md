@@ -149,7 +149,10 @@ metadata fails before source output. The default artifact has no embedded
 ABI boundary directly. The explicit
 `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` helper emits the
 same callable function plus a bounded self-check `main` for evidence
-collection.
+collection. That harness uses descriptor-local `element_count` only as bounded
+local-array capacity and calls the generated ABI function with explicit
+runtime `n` values, including a shorter runtime count and the bounded capacity,
+so `n` remains caller-provided runtime ABI state.
 The `tcrv-translate --tcrv-export-rvv-microkernel-object` helper compiles the
 same validated library-style source into one RISC-V ELF relocatable object
 using the structured RVV architecture capability, selected compile capability
@@ -306,10 +309,11 @@ tcrv-translate --tcrv-export-target-source-artifact post_planning_microkernel.ml
   > rvv_microkernel.c
 ```
 
-Compile and run that source on `ssh rvv` with the selected `-march` and, when
-present, selected `-mabi`. The resulting evidence is bounded to the i32
-vector-add microkernel self-check and must not be reported as generic
-TianChen-RV RVV lowering correctness or performance.
+Compile and run the explicit self-check source on `ssh rvv` with the selected
+`-march` and, when present, selected `-mabi`. The resulting evidence is bounded
+to the i32 vector-add microkernel self-check for the explicit runtime `n`
+values reported by the generated success marker and must not be reported as
+generic TianChen-RV RVV lowering correctness or performance.
 
 The helper below ties the existing manifest-supported microkernel route to
 source export and optional real `ssh rvv` evidence without broadening compiler

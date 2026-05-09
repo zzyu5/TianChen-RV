@@ -136,9 +136,13 @@ module @rvv_microkernel_input {
 // HARNESS: #include <stdio.h>
 // HARNESS: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
 // HARNESS: __riscv_vadd_vv_i32m1
-// HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check(void)
-// HARNESS: enum { kTCRVMicrokernelElements = 16 };
-// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);
+// HARNESS: /* Harness capacity comes from descriptor-local element_count; each call still supplies runtime n through the generated C ABI. */
+// HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one(size_t runtime_n)
+// HARNESS: enum { kTCRVMicrokernelCapacity = 16 };
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, runtime_n);
+// HARNESS: for (size_t index = runtime_n; index < (size_t)kTCRVMicrokernelCapacity; ++index)
 // HARNESS-LABEL: int main(void)
-// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check();
-// HARNESS: printf("tcrv_rvv_microkernel_ok elements=%zu\n", (size_t)16);
+// HARNESS: enum { kTCRVMicrokernelShortRuntimeN = kTCRVMicrokernelCapacity >= 7 ? 7 : kTCRVMicrokernelCapacity };
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one((size_t)kTCRVMicrokernelShortRuntimeN);
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one((size_t)kTCRVMicrokernelCapacity);
+// HARNESS: printf("tcrv_rvv_microkernel_ok runtime_counts=%zu,%zu\n", (size_t)kTCRVMicrokernelShortRuntimeN, (size_t)kTCRVMicrokernelCapacity);

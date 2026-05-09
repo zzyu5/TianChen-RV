@@ -1945,39 +1945,65 @@ void printMicrokernelPrototype(llvm::raw_ostream &os,
 void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
                                       std::int64_t elementCount) {
-  os << "static int " << functionName << "_self_check(void) {\n";
-  os << "  enum { kTCRVMicrokernelElements = " << elementCount << " };\n";
-  os << "  int32_t lhs[kTCRVMicrokernelElements];\n";
-  os << "  int32_t rhs[kTCRVMicrokernelElements];\n";
-  os << "  int32_t out[kTCRVMicrokernelElements];\n\n";
-  os << "  for (int index = 0; index < kTCRVMicrokernelElements; ++index) {\n";
+  os << "/* Harness capacity comes from descriptor-local element_count; each "
+        "call still supplies runtime n through the generated C ABI. */\n";
+  os << "static int " << functionName
+     << "_self_check_one(size_t runtime_n) {\n";
+  os << "  enum { kTCRVMicrokernelCapacity = " << elementCount << " };\n";
+  os << "  int32_t lhs[kTCRVMicrokernelCapacity];\n";
+  os << "  int32_t rhs[kTCRVMicrokernelCapacity];\n";
+  os << "  int32_t out[kTCRVMicrokernelCapacity];\n\n";
+  os << "  if (runtime_n == 0 || runtime_n > (size_t)kTCRVMicrokernelCapacity) "
+        "{\n";
+  os << "    fprintf(stderr, \"invalid rvv microkernel runtime_n=%zu\\n\", "
+        "runtime_n);\n";
+  os << "    return 1;\n";
+  os << "  }\n\n";
+  os << "  for (size_t index = 0; index < (size_t)kTCRVMicrokernelCapacity; "
+        "++index) {\n";
   os << "    lhs[index] = index + 1;\n";
   os << "    rhs[index] = 100 - index;\n";
-  os << "    out[index] = 0;\n";
+  os << "    out[index] = -12345;\n";
   os << "  }\n\n";
-  os << "  size_t first_vl = __riscv_vsetvl_e32m1(kTCRVMicrokernelElements);\n";
-  os << "  if (first_vl == 0 || first_vl > kTCRVMicrokernelElements) {\n";
+  os << "  size_t first_vl = __riscv_vsetvl_e32m1(runtime_n);\n";
+  os << "  if (first_vl == 0 || first_vl > runtime_n) {\n";
   os << "    fprintf(stderr, \"invalid rvv microkernel vl=%zu\\n\", first_vl);\n";
   os << "    return 2;\n";
   os << "  }\n\n";
-  os << "  " << functionName
-     << "(lhs, rhs, out, (size_t)kTCRVMicrokernelElements);\n\n";
-  os << "  for (int index = 0; index < kTCRVMicrokernelElements; ++index) {\n";
+  os << "  " << functionName << "(lhs, rhs, out, runtime_n);\n\n";
+  os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
   os << "    int32_t expected = lhs[index] + rhs[index];\n";
   os << "    if (out[index] != expected) {\n";
-  os << "      fprintf(stderr, \"rvv microkernel mismatch at %d\\n\", index);\n";
+  os << "      fprintf(stderr, \"rvv microkernel mismatch at %zu\\n\", index);\n";
   os << "      return 3;\n";
+  os << "    }\n";
+  os << "  }\n";
+  os << "  for (size_t index = runtime_n; "
+        "index < (size_t)kTCRVMicrokernelCapacity; ++index) {\n";
+  os << "    if (out[index] != -12345) {\n";
+  os << "      fprintf(stderr, \"rvv microkernel wrote past runtime_n at "
+        "%zu\\n\", index);\n";
+  os << "      return 4;\n";
   os << "    }\n";
   os << "  }\n";
   os << "  return 0;\n";
   os << "}\n\n";
 
   os << "int main(void) {\n";
-  os << "  int status = " << functionName << "_self_check();\n";
+  os << "  enum { kTCRVMicrokernelCapacity = " << elementCount << " };\n";
+  os << "  enum { kTCRVMicrokernelShortRuntimeN = "
+        "kTCRVMicrokernelCapacity >= 7 ? 7 : kTCRVMicrokernelCapacity };\n";
+  os << "  int status = " << functionName
+     << "_self_check_one((size_t)kTCRVMicrokernelShortRuntimeN);\n";
   os << "  if (status != 0)\n";
   os << "    return status;\n";
-  os << "  printf(\"tcrv_rvv_microkernel_ok elements=%zu\\n\", (size_t)"
-     << elementCount << ");\n";
+  os << "  status = " << functionName
+     << "_self_check_one((size_t)kTCRVMicrokernelCapacity);\n";
+  os << "  if (status != 0)\n";
+  os << "    return 10 + status;\n";
+  os << "  printf(\"tcrv_rvv_microkernel_ok runtime_counts=%zu,%zu\\n\", "
+        "(size_t)kTCRVMicrokernelShortRuntimeN, "
+        "(size_t)kTCRVMicrokernelCapacity);\n";
   os << "  return 0;\n";
   os << "}\n";
 }

@@ -515,6 +515,8 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
             [
                 "int main(void)",
                 SUCCESS_MARKER,
+                "runtime_counts=",
+                "_self_check_one(size_t runtime_n)",
             ]
         )
     elif "int main(void)" in source or SUCCESS_MARKER in source:
@@ -1299,7 +1301,8 @@ void f(void) {
   __riscv_vadd_vv_i32m1;
   __riscv_vse32_v_i32m1;
 }
-int main(void) { puts("tcrv_rvv_microkernel_ok elements=16"); }
+static int f_self_check_one(size_t runtime_n) { return runtime_n == 0; }
+int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 """
     source_flags = validate_generated_source(sample_source, require_harness=True)
     assert_self_test(
