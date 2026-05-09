@@ -536,6 +536,14 @@ TargetArtifactCandidate makeRVVSubDirectCandidate(
   return candidate;
 }
 
+TargetArtifactCandidate makeRVVSubDispatchCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  TargetArtifactCandidate candidate =
+      makeRVVSubDirectCandidate(kernel, selectedVariant);
+  candidate.role = "dispatch case";
+  return candidate;
+}
+
 TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
   const tianchenrv::support::RuntimeABICallableIdentity &abi =
@@ -576,6 +584,14 @@ TargetArtifactCandidate makeScalarSubDirectCandidate(
   candidate.runtimeGlueRole = "runtime-callable-i32-vsub-fallback-function";
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32VAddRuntimeABIParameters();
+  return candidate;
+}
+
+TargetArtifactCandidate makeScalarSubDispatchFallbackCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  TargetArtifactCandidate candidate =
+      makeScalarSubDirectCandidate(kernel, selectedVariant);
+  candidate.role = "dispatch fallback";
   return candidate;
 }
 
@@ -635,9 +651,16 @@ module {
   }
 
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
-  candidates.push_back(makeRVVDispatchCandidate(kernel, "rvv_first_slice"));
-  candidates.push_back(makeScalarDispatchFallbackCandidate(
-      kernel, "scalar_fallback_first_slice"));
+  if (routeID.contains("i32-vsub")) {
+    candidates.push_back(
+        makeRVVSubDispatchCandidate(kernel, "rvv_first_slice"));
+    candidates.push_back(makeScalarSubDispatchFallbackCandidate(
+        kernel, "scalar_fallback_first_slice"));
+  } else {
+    candidates.push_back(makeRVVDispatchCandidate(kernel, "rvv_first_slice"));
+    candidates.push_back(makeScalarDispatchFallbackCandidate(
+        kernel, "scalar_fallback_first_slice"));
+  }
 
   llvm::Expected<bool> matched = dispatchComposite->getMatchFn()(candidates);
   if (!matched) {
@@ -676,7 +699,16 @@ bool expectDispatchCompositeRejectsFallbackMismatch(
              "tcrv-export-rvv-scalar-i32-vadd-dispatch-header") &&
          expectDispatchCompositeRejectsFallbackMismatchForRoute(
              context, registry,
-             "tcrv-export-rvv-scalar-i32-vadd-dispatch-object");
+             "tcrv-export-rvv-scalar-i32-vadd-dispatch-object") &&
+         expectDispatchCompositeRejectsFallbackMismatchForRoute(
+             context, registry,
+             "tcrv-export-rvv-scalar-i32-vsub-dispatch-c") &&
+         expectDispatchCompositeRejectsFallbackMismatchForRoute(
+             context, registry,
+             "tcrv-export-rvv-scalar-i32-vsub-dispatch-header") &&
+         expectDispatchCompositeRejectsFallbackMismatchForRoute(
+             context, registry,
+             "tcrv-export-rvv-scalar-i32-vsub-dispatch-object");
 }
 
 bool expectGenericHeaderArtifactRouteSelection(mlir::MLIRContext &context) {
@@ -949,11 +981,19 @@ bool expectScalarMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
 bool expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
   TargetArtifactCandidate rvvCandidate =
-      makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
-                               "rvv_first_slice");
+      routeID.contains("i32-vsub")
+          ? makeRVVSubDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                        "rvv_first_slice")
+          : makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                     "rvv_first_slice");
   TargetArtifactCandidate scalarCandidate =
-      makeScalarDispatchFallbackCandidate(tianchenrv::tcrv::exec::KernelOp(),
-                                          "scalar_fallback_first_slice");
+      routeID.contains("i32-vsub")
+          ? makeScalarSubDispatchFallbackCandidate(
+                tianchenrv::tcrv::exec::KernelOp(),
+                "scalar_fallback_first_slice")
+          : makeScalarDispatchFallbackCandidate(
+                tianchenrv::tcrv::exec::KernelOp(),
+                "scalar_fallback_first_slice");
   scalarCandidate.runtimeABIParameters[3].cType = "long";
 
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
@@ -964,7 +1004,9 @@ bool expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
       registry, routeID, candidates,
       "dispatch composite rejects stale scalar callable ABI for " +
           routeID.str(),
-      {"route id 'tcrv-export-scalar-microkernel-c'",
+      {routeID.contains("i32-vsub")
+           ? "route id 'tcrv-export-scalar-i32-vsub-microkernel-c'"
+           : "route id 'tcrv-export-scalar-microkernel-c'",
        "runtime ABI parameter role 'runtime-element-count'",
        "must use c type 'size_t'"});
 }
@@ -1470,8 +1512,8 @@ int main() {
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 9) {
-    llvm::errs() << "expected exactly 9 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 12) {
+    llvm::errs() << "expected exactly 12 built-in composite target artifact "
                     "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -1558,6 +1600,10 @@ int main() {
           .getDispatchIdentity();
   constexpr llvm::StringLiteral dispatchExternalABIComponentGroup(
       "rvv-scalar-i32-vadd-dispatch-external-abi.v1");
+  constexpr llvm::StringLiteral dispatchSubExternalABIComponentGroup(
+      "rvv-scalar-i32-vsub-dispatch-external-abi.v1");
+  constexpr llvm::StringLiteral dispatchSubRuntimeABIName(
+      "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1");
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
@@ -1666,6 +1712,43 @@ int main() {
           dispatchABI.runtimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vsub-dispatch-c",
+          "runtime-callable-c-source", "rvv-scalar-dispatch-target",
+          dispatchABI.runtimeABIKind, dispatchSubRuntimeABIName,
+          /*expectedDirectHelperRoute=*/false,
+          dispatchSubExternalABIComponentGroup, dispatchSubRuntimeABIName,
+          /*expectedCandidateValidation=*/true))
+    return 1;
+  const TargetArtifactCompositeExporter *dispatchSubSourceComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-c");
+  if (!dispatchSubSourceComposite ||
+      !dispatchSubSourceComposite->getRuntimeABIParametersFn() ||
+      !dispatchSubSourceComposite->getCandidateValidationFn()) {
+    llvm::errs() << "vsub dispatch source composite route must publish "
+                    "runtime ABI parameters and route-local candidate "
+                    "preflight through C++ callbacks\n";
+    return 1;
+  }
+  if (!expectCompositeRoute(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-header",
+          "runtime-callable-c-header", "rvv-scalar-dispatch-target",
+          dispatchABI.runtimeABIKind, dispatchSubRuntimeABIName,
+          /*expectedDirectHelperRoute=*/false,
+          dispatchSubExternalABIComponentGroup, dispatchSubRuntimeABIName,
+          /*expectedCandidateValidation=*/true))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-object",
+          "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
+          dispatchABI.runtimeABIKind, dispatchSubRuntimeABIName,
+          /*expectedDirectHelperRoute=*/false,
+          dispatchSubExternalABIComponentGroup, dispatchSubRuntimeABIName,
+          /*expectedCandidateValidation=*/true))
+    return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))
     return 1;
@@ -1701,6 +1784,17 @@ int main() {
     return 1;
   if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vsub-dispatch-c"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-header"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-object"))
     return 1;
   if (!expectDispatchCompositeRejectsFallbackMismatch(context,
                                                       builtinRegistry))

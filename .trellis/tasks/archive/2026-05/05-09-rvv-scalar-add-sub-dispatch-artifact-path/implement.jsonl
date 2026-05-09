@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV project boundaries and implementation-stack red lines"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin/core boundary and target-owned artifact route locality"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV add/sub descriptor, microkernel, runtime ABI, and artifact route contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback add/sub descriptor, runtime ABI, and fallback artifact contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission plan, target artifact front door, dispatch ABI, and bundle boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "frontend add/sub lowering and selection/dispatch pipeline contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and build validation requirements"}

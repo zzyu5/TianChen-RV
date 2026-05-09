@@ -58,18 +58,76 @@ constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
     "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
 constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 
-constexpr llvm::StringLiteral kRVVRouteID("tcrv-export-rvv-microkernel-c");
-constexpr llvm::StringLiteral kRVVEmissionKind(
+constexpr llvm::StringLiteral kI32VAddRVVRouteID(
+    "tcrv-export-rvv-microkernel-c");
+constexpr llvm::StringLiteral kI32VAddRVVEmissionKind(
     "rvv-explicit-i32-vadd-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VSubRVVRouteID(
+    "tcrv-export-rvv-i32-vsub-microkernel-c");
+constexpr llvm::StringLiteral kI32VSubRVVEmissionKind(
+    "rvv-explicit-i32-vsub-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VAddRVVRuntimeABI(
+    "rvv-i32-vadd-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VSubRVVRuntimeABI(
+    "rvv-i32-vsub-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VAddRVVRuntimeABIName(
+    "rvv-i32-vadd-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VSubRVVRuntimeABIName(
+    "rvv-i32-vsub-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kRVVRuntimeCallableABIKind(
+    "rvv-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kI32VAddRVVRuntimeGlueRole(
+    "runtime-callable-i32-vadd-function");
+constexpr llvm::StringLiteral kI32VSubRVVRuntimeGlueRole(
+    "runtime-callable-i32-vsub-function");
 
-constexpr llvm::StringLiteral kScalarRouteID(
+constexpr llvm::StringLiteral kI32VAddScalarRouteID(
     "tcrv-export-scalar-microkernel-c");
-constexpr llvm::StringLiteral kScalarEmissionKind(
+constexpr llvm::StringLiteral kI32VAddScalarEmissionKind(
     "scalar-explicit-i32-vadd-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VSubScalarRouteID(
+    "tcrv-export-scalar-i32-vsub-microkernel-c");
+constexpr llvm::StringLiteral kI32VSubScalarEmissionKind(
+    "scalar-explicit-i32-vsub-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VAddScalarRuntimeABI(
+    "scalar-i32-vadd-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VSubScalarRuntimeABI(
+    "scalar-i32-vsub-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VAddScalarRuntimeABIName(
+    "scalar-i32-vadd-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VSubScalarRuntimeABIName(
+    "scalar-i32-vsub-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kScalarRuntimeCallableABIKind(
+    "scalar-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kI32VAddScalarRuntimeGlueRole(
+    "runtime-callable-i32-vadd-fallback-function");
+constexpr llvm::StringLiteral kI32VSubScalarRuntimeGlueRole(
+    "runtime-callable-i32-vsub-fallback-function");
+
 constexpr llvm::StringLiteral kDispatchTargetOwner(
     "rvv-scalar-dispatch-target");
-constexpr llvm::StringLiteral kDispatchExternalABIComponentGroup(
+constexpr llvm::StringLiteral kI32VAddDispatchSourceRouteID(
+    "tcrv-export-rvv-scalar-i32-vadd-dispatch-c");
+constexpr llvm::StringLiteral kI32VAddDispatchHeaderRouteID(
+    "tcrv-export-rvv-scalar-i32-vadd-dispatch-header");
+constexpr llvm::StringLiteral kI32VAddDispatchObjectRouteID(
+    "tcrv-export-rvv-scalar-i32-vadd-dispatch-object");
+constexpr llvm::StringLiteral kI32VSubDispatchSourceRouteID(
+    "tcrv-export-rvv-scalar-i32-vsub-dispatch-c");
+constexpr llvm::StringLiteral kI32VSubDispatchHeaderRouteID(
+    "tcrv-export-rvv-scalar-i32-vsub-dispatch-header");
+constexpr llvm::StringLiteral kI32VSubDispatchObjectRouteID(
+    "tcrv-export-rvv-scalar-i32-vsub-dispatch-object");
+constexpr llvm::StringLiteral kDispatchRuntimeABIKind(
+    "rvv-scalar-dispatch-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kI32VAddDispatchRuntimeABIName(
+    "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VSubDispatchRuntimeABIName(
+    "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VAddDispatchExternalABIComponentGroup(
     "rvv-scalar-i32-vadd-dispatch-external-abi.v1");
+constexpr llvm::StringLiteral kI32VSubDispatchExternalABIComponentGroup(
+    "rvv-scalar-i32-vsub-dispatch-external-abi.v1");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -113,7 +171,41 @@ struct DispatchIRLink {
   std::string fallbackTarget;
 };
 
+enum class DispatchI32FamilyKind {
+  Add,
+  Sub,
+};
+
+struct DispatchI32FamilySpec {
+  DispatchI32FamilyKind kind;
+  llvm::StringRef diagnosticName;
+  llvm::StringRef operationNoun;
+  llvm::StringRef functionStem;
+  llvm::StringRef headerGuardStem;
+  llvm::StringRef cOperator;
+  llvm::StringRef selfCheckSuccessMarker;
+  llvm::StringRef rvvRouteID;
+  llvm::StringRef rvvEmissionKind;
+  llvm::StringRef rvvRuntimeABI;
+  llvm::StringRef rvvRuntimeABIKind;
+  llvm::StringRef rvvRuntimeABIName;
+  llvm::StringRef rvvRuntimeGlueRole;
+  llvm::StringRef scalarRouteID;
+  llvm::StringRef scalarEmissionKind;
+  llvm::StringRef scalarRuntimeABI;
+  llvm::StringRef scalarRuntimeABIKind;
+  llvm::StringRef scalarRuntimeABIName;
+  llvm::StringRef scalarRuntimeGlueRole;
+  llvm::StringRef dispatchSourceRouteID;
+  llvm::StringRef dispatchHeaderRouteID;
+  llvm::StringRef dispatchObjectRouteID;
+  llvm::StringRef dispatchRuntimeABIKind;
+  llvm::StringRef dispatchRuntimeABIName;
+  llvm::StringRef dispatchExternalABIComponentGroup;
+};
+
 struct DispatchPair {
+  const DispatchI32FamilySpec *family = nullptr;
   TargetArtifactCandidate rvv;
   TargetArtifactCandidate scalar;
   DispatchIRLink irLink;
@@ -134,7 +226,7 @@ struct TemporaryFile {
 llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32-vadd dispatch C export failed";
+  stream << "TianChen-RV RVV+scalar i32 add/sub dispatch C export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -147,7 +239,8 @@ llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch C export failed: ") +
+      llvm::Twine("TianChen-RV RVV+scalar i32 add/sub dispatch C export "
+                  "failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -155,7 +248,8 @@ llvm::Error makeModuleDispatchError(llvm::Twine message) {
 llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32-vadd dispatch object export failed";
+  stream << "TianChen-RV RVV+scalar i32 add/sub dispatch object export "
+            "failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -168,7 +262,7 @@ llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch object export "
+      llvm::Twine("TianChen-RV RVV+scalar i32 add/sub dispatch object export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -176,10 +270,70 @@ llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
 
 llvm::Error makeModuleDispatchHeaderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32-vadd dispatch header export "
+      llvm::Twine("TianChen-RV RVV+scalar i32 add/sub dispatch header export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
+}
+
+const DispatchI32FamilySpec &getI32VAddDispatchFamilySpec() {
+  static const DispatchI32FamilySpec spec{
+      DispatchI32FamilyKind::Add,
+      "i32-vadd",
+      "i32 vector-add",
+      "i32_vadd",
+      "I32_VADD",
+      "+",
+      "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok",
+      kI32VAddRVVRouteID,
+      kI32VAddRVVEmissionKind,
+      kI32VAddRVVRuntimeABI,
+      kRVVRuntimeCallableABIKind,
+      kI32VAddRVVRuntimeABIName,
+      kI32VAddRVVRuntimeGlueRole,
+      kI32VAddScalarRouteID,
+      kI32VAddScalarEmissionKind,
+      kI32VAddScalarRuntimeABI,
+      kScalarRuntimeCallableABIKind,
+      kI32VAddScalarRuntimeABIName,
+      kI32VAddScalarRuntimeGlueRole,
+      kI32VAddDispatchSourceRouteID,
+      kI32VAddDispatchHeaderRouteID,
+      kI32VAddDispatchObjectRouteID,
+      kDispatchRuntimeABIKind,
+      kI32VAddDispatchRuntimeABIName,
+      kI32VAddDispatchExternalABIComponentGroup};
+  return spec;
+}
+
+const DispatchI32FamilySpec &getI32VSubDispatchFamilySpec() {
+  static const DispatchI32FamilySpec spec{
+      DispatchI32FamilyKind::Sub,
+      "i32-vsub",
+      "i32 vector-subtract",
+      "i32_vsub",
+      "I32_VSUB",
+      "-",
+      "tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok",
+      kI32VSubRVVRouteID,
+      kI32VSubRVVEmissionKind,
+      kI32VSubRVVRuntimeABI,
+      kRVVRuntimeCallableABIKind,
+      kI32VSubRVVRuntimeABIName,
+      kI32VSubRVVRuntimeGlueRole,
+      kI32VSubScalarRouteID,
+      kI32VSubScalarEmissionKind,
+      kI32VSubScalarRuntimeABI,
+      kScalarRuntimeCallableABIKind,
+      kI32VSubScalarRuntimeABIName,
+      kI32VSubScalarRuntimeGlueRole,
+      kI32VSubDispatchSourceRouteID,
+      kI32VSubDispatchHeaderRouteID,
+      kI32VSubDispatchObjectRouteID,
+      kDispatchRuntimeABIKind,
+      kI32VSubDispatchRuntimeABIName,
+      kI32VSubDispatchExternalABIComponentGroup};
+  return spec;
 }
 
 bool containsForbiddenText(llvm::StringRef value) {
@@ -259,22 +413,66 @@ bool hasCandidateShape(const TargetArtifactCandidate &candidate,
          candidate.runtimeGlueRole == runtimeGlueRole;
 }
 
-bool isRVVCallableCandidate(const TargetArtifactCandidate &candidate) {
-  const support::RuntimeABICallableIdentity &abi =
-      support::getI32VAddRuntimeABIContract().getRVVCallableIdentity();
+bool isRVVCallableCandidateForFamily(const TargetArtifactCandidate &candidate,
+                                     const DispatchI32FamilySpec &family) {
   return hasCandidateShape(candidate, kRVVPluginName, kDispatchCaseRole,
-                           kRVVRouteID, kRVVEmissionKind, abi.runtimeABI,
-                           abi.runtimeABIKind, abi.runtimeABIName,
-                           abi.runtimeGlueRole);
+                           family.rvvRouteID, family.rvvEmissionKind,
+                           family.rvvRuntimeABI, family.rvvRuntimeABIKind,
+                           family.rvvRuntimeABIName,
+                           family.rvvRuntimeGlueRole);
 }
 
-bool isScalarCallableCandidate(const TargetArtifactCandidate &candidate) {
-  const support::RuntimeABICallableIdentity &abi =
-      support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
-  return hasCandidateShape(candidate, kScalarPluginName, kDispatchFallbackRole,
-                           kScalarRouteID, kScalarEmissionKind,
-                           abi.runtimeABI, abi.runtimeABIKind,
-                           abi.runtimeABIName, abi.runtimeGlueRole);
+bool isScalarCallableCandidateForFamily(
+    const TargetArtifactCandidate &candidate,
+    const DispatchI32FamilySpec &family) {
+  return hasCandidateShape(candidate, kScalarPluginName,
+                           kDispatchFallbackRole, family.scalarRouteID,
+                           family.scalarEmissionKind,
+                           family.scalarRuntimeABI,
+                           family.scalarRuntimeABIKind,
+                           family.scalarRuntimeABIName,
+                           family.scalarRuntimeGlueRole);
+}
+
+const DispatchI32FamilySpec *
+getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
+  if (isRVVCallableCandidateForFamily(candidate,
+                                      getI32VAddDispatchFamilySpec()))
+    return &getI32VAddDispatchFamilySpec();
+  if (isRVVCallableCandidateForFamily(candidate,
+                                      getI32VSubDispatchFamilySpec()))
+    return &getI32VSubDispatchFamilySpec();
+  return nullptr;
+}
+
+const DispatchI32FamilySpec *
+getScalarCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
+  if (isScalarCallableCandidateForFamily(candidate,
+                                         getI32VAddDispatchFamilySpec()))
+    return &getI32VAddDispatchFamilySpec();
+  if (isScalarCallableCandidateForFamily(candidate,
+                                         getI32VSubDispatchFamilySpec()))
+    return &getI32VSubDispatchFamilySpec();
+  return nullptr;
+}
+
+llvm::Error makeFamilyMismatchError(
+    const TargetArtifactCandidate &rvvCandidate,
+    const DispatchI32FamilySpec &rvvFamily,
+    const TargetArtifactCandidate &scalarCandidate,
+    const DispatchI32FamilySpec &scalarFamily) {
+  std::string message;
+  llvm::raw_string_ostream stream(message);
+  stream << "selected RVV dispatch case callable family '"
+         << rvvFamily.diagnosticName
+         << "' does not match selected scalar dispatch fallback callable "
+            "family '"
+         << scalarFamily.diagnosticName
+         << "'; refusing to emit a mixed RVV/scalar dispatch artifact for @"
+         << rvvCandidate.selectedVariant << " and @"
+         << scalarCandidate.selectedVariant;
+  stream.flush();
+  return makeDispatchError(rvvCandidate.kernel, message);
 }
 
 llvm::Error validateRegisteredCallableRouteMetadata(
@@ -778,8 +976,11 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
 
   const TargetArtifactCandidate *rvvCandidate = nullptr;
   const TargetArtifactCandidate *scalarCandidate = nullptr;
+  const DispatchI32FamilySpec *rvvFamily = nullptr;
+  const DispatchI32FamilySpec *scalarFamily = nullptr;
   for (const TargetArtifactCandidate &candidate : candidates) {
-    if (isRVVCallableCandidate(candidate)) {
+    if (const DispatchI32FamilySpec *family =
+            getRVVCallableCandidateFamily(candidate)) {
       if (rvvCandidate)
         return makeDispatchError(candidate.kernel,
                                  "requires exactly one supported RVV dispatch "
@@ -788,10 +989,12 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
               validateRegisteredCallableRouteMetadata(candidate, registry))
         return std::move(error);
       rvvCandidate = &candidate;
+      rvvFamily = family;
       continue;
     }
 
-    if (isScalarCallableCandidate(candidate)) {
+    if (const DispatchI32FamilySpec *family =
+            getScalarCallableCandidateFamily(candidate)) {
       if (scalarCandidate)
         return makeDispatchError(
             candidate.kernel,
@@ -801,13 +1004,15 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
               validateRegisteredCallableRouteMetadata(candidate, registry))
         return std::move(error);
       scalarCandidate = &candidate;
+      scalarFamily = family;
       continue;
     }
 
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("unsupported supported artifact candidate route '") +
-            candidate.routeID + "' for RVV+scalar i32-vadd dispatch export");
+            candidate.routeID +
+            "' for RVV+scalar i32 add/sub dispatch export");
   }
 
   if (!rvvCandidate)
@@ -822,8 +1027,12 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
     return makeModuleDispatchError(
         "requires RVV dispatch case and scalar fallback callable routes in "
         "the same tcrv.exec.kernel");
+  if (rvvFamily != scalarFamily)
+    return makeFamilyMismatchError(*rvvCandidate, *rvvFamily, *scalarCandidate,
+                                   *scalarFamily);
 
   DispatchPair pair;
+  pair.family = rvvFamily;
   pair.rvv = *rvvCandidate;
   pair.scalar = *scalarCandidate;
   llvm::Expected<DispatchIRLink> irLink = resolveDispatchIRLinkForPair(pair);
@@ -844,28 +1053,50 @@ llvm::Expected<DispatchPair> collectDispatchPair(mlir::ModuleOp module) {
   return collectDispatchPairFromCandidates(candidates);
 }
 
-llvm::Expected<bool> matchRVVScalarI32VAddDispatchCandidates(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+llvm::Expected<bool> matchRVVScalarDispatchCandidatesForFamily(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const DispatchI32FamilySpec &expectedFamily) {
   if (candidates.size() != 2)
     return false;
 
-  bool hasRVV = false;
-  bool hasScalar = false;
+  const TargetArtifactCandidate *rvvCandidate = nullptr;
+  const TargetArtifactCandidate *scalarCandidate = nullptr;
+  const DispatchI32FamilySpec *rvvFamily = nullptr;
+  const DispatchI32FamilySpec *scalarFamily = nullptr;
   for (const TargetArtifactCandidate &candidate : candidates) {
-    if (isRVVCallableCandidate(candidate)) {
-      hasRVV = true;
+    if (const DispatchI32FamilySpec *family =
+            getRVVCallableCandidateFamily(candidate)) {
+      rvvCandidate = &candidate;
+      rvvFamily = family;
       continue;
     }
-    if (isScalarCallableCandidate(candidate)) {
-      hasScalar = true;
+    if (const DispatchI32FamilySpec *family =
+            getScalarCallableCandidateFamily(candidate)) {
+      scalarCandidate = &candidate;
+      scalarFamily = family;
       continue;
     }
     return false;
   }
-  if (!hasRVV || !hasScalar)
+  if (!rvvCandidate || !scalarCandidate)
     return false;
+  if (rvvFamily != scalarFamily)
+    return makeFamilyMismatchError(*rvvCandidate, *rvvFamily,
+                                   *scalarCandidate, *scalarFamily);
 
-  return true;
+  return rvvFamily == &expectedFamily;
+}
+
+llvm::Expected<bool> matchRVVScalarI32VAddDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVScalarDispatchCandidatesForFamily(
+      candidates, getI32VAddDispatchFamilySpec());
+}
+
+llvm::Expected<bool> matchRVVScalarI32VSubDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVScalarDispatchCandidatesForFamily(
+      candidates, getI32VSubDispatchFamilySpec());
 }
 
 llvm::Error validateRVVScalarI32VAddDispatchCandidates(
@@ -903,22 +1134,24 @@ std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   return result;
 }
 
-std::string makeRVVFunctionName(const TargetArtifactCandidate &candidate) {
+std::string makeRVVFunctionName(const DispatchPair &pair) {
+  const TargetArtifactCandidate &candidate = pair.rvv;
   KernelOp kernel = candidate.kernel;
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_rvv_i32_vadd_microkernel_"
+  stream << "tcrv_rvv_" << pair.family->functionStem << "_microkernel_"
          << sanitizeCIdentifierComponent(kernel.getSymName()) << "_"
          << sanitizeCIdentifierComponent(candidate.selectedVariant);
   stream.flush();
   return name;
 }
 
-std::string makeScalarFunctionName(const TargetArtifactCandidate &candidate) {
+std::string makeScalarFunctionName(const DispatchPair &pair) {
+  const TargetArtifactCandidate &candidate = pair.scalar;
   KernelOp kernel = candidate.kernel;
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_scalar_i32_vadd_microkernel_"
+  stream << "tcrv_scalar_" << pair.family->functionStem << "_microkernel_"
          << sanitizeCIdentifierComponent(kernel.getSymName()) << "_"
          << sanitizeCIdentifierComponent(candidate.selectedVariant);
   stream.flush();
@@ -929,7 +1162,7 @@ std::string makeDispatcherFunctionName(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_dispatch_i32_vadd_"
+  stream << "tcrv_dispatch_" << pair.family->functionStem << "_"
          << sanitizeCIdentifierComponent(kernel.getSymName());
   stream.flush();
   return name;
@@ -937,7 +1170,9 @@ std::string makeDispatcherFunctionName(const DispatchPair &pair) {
 
 std::string makeDispatchHeaderIncludeGuard(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
-  std::string guard = "TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_";
+  std::string guard = "TIANCHENRV_RVV_SCALAR_";
+  guard += pair.family->headerGuardStem;
+  guard += "_DISPATCH_";
   guard += sanitizeCIdentifierComponent(kernel.getSymName());
   guard += "_H";
   for (char &character : guard)
@@ -1298,6 +1533,7 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
 }
 
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
+                                   const DispatchI32FamilySpec &family,
                                    llvm::StringRef dispatcherFunctionName,
                                    llvm::StringRef runtimeElementCountName,
                                    llvm::StringRef guardParameterName) {
@@ -1326,7 +1562,8 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "  " << dispatcherFunctionName
      << "(lhs, rhs, out, runtime_n, " << guardParameterName << ");\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
-  os << "    if (out[index] != lhs[index] + rhs[index])\n";
+  os << "    if (out[index] != lhs[index] " << family.cOperator
+     << " rhs[index])\n";
   os << "      return 1;\n";
   os << "  }\n";
   os << "  for (size_t index = runtime_n; index < (size_t)kCapacity; "
@@ -1345,8 +1582,8 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "    return 3;\n";
   os << "  if (" << dispatcherFunctionName << "_self_check_one(16, 1))\n";
   os << "    return 4;\n";
-  os << "  puts(\"tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok "
-        "runtime_counts=7,16 branches=scalar_and_rvv\");\n";
+  os << "  puts(\"" << family.selfCheckSuccessMarker
+     << " runtime_counts=7,16 branches=scalar_and_rvv\");\n";
   os << "  return 0;\n";
   os << "}\n";
 }
@@ -1356,8 +1593,8 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
                                 llvm::StringRef scalarSource,
                                 bool includeSelfCheck, llvm::raw_ostream &os) {
   KernelOp kernel = pair.rvv.kernel;
-  std::string rvvFunctionName = makeRVVFunctionName(pair.rvv);
-  std::string scalarFunctionName = makeScalarFunctionName(pair.scalar);
+  std::string rvvFunctionName = makeRVVFunctionName(pair);
+  std::string scalarFunctionName = makeScalarFunctionName(pair);
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
   llvm::ArrayRef<support::RuntimeABIParameter> dispatchParameters =
       pair.abiPlan.parameters;
@@ -1368,8 +1605,9 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
     return bindings.takeError();
 
   os << "/* TianChen-RV RVV+scalar host runtime dispatch C export. */\n";
-  os << "/* Scope: one selected RVV i32-vadd dispatch case plus one scalar "
-        "i32-vadd dispatch fallback. */\n";
+  os << "/* Scope: one selected RVV " << pair.family->diagnosticName
+     << " dispatch case plus one scalar " << pair.family->diagnosticName
+     << " dispatch fallback. */\n";
   os << "/* Runtime guard: explicit host-provided "
      << bindings->dispatchAvailabilityGuard->cName
      << " parameter; no automatic hardware probe is generated. */\n";
@@ -1418,7 +1656,7 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
                           scalarFunctionName, dispatchParameters, *bindings);
   if (includeSelfCheck)
-    printDispatchSelfCheckHarness(os, dispatcherFunctionName,
+    printDispatchSelfCheckHarness(os, *pair.family, dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
                                   bindings->dispatchAvailabilityGuard->cName);
   return llvm::Error::success();
@@ -1708,47 +1946,54 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                                 *compileConfig, os);
 }
 
-llvm::Error registerRVVScalarDispatchTargetExporters(
-    TargetArtifactExporterRegistry &registry) {
-  const support::I32VAddRuntimeABIContract &contract =
-      support::getI32VAddRuntimeABIContract();
-  const support::RuntimeABIDispatchIdentity &abi =
-      contract.getDispatchIdentity();
+llvm::Error registerRVVScalarDispatchFamilyTargetExporters(
+    TargetArtifactExporterRegistry &registry,
+    const DispatchI32FamilySpec &family) {
+  bool directHelperRoute = family.kind == DispatchI32FamilyKind::Add;
+  TargetArtifactCompositeMatchFn matchFn =
+      family.kind == DispatchI32FamilyKind::Add
+          ? matchRVVScalarI32VAddDispatchCandidates
+          : matchRVVScalarI32VSubDispatchCandidates;
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-              "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
-              kRuntimeCallableCSourceArtifactKind,
-              matchRVVScalarI32VAddDispatchCandidates,
-              exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
-              abi.runtimeABIKind, abi.runtimeABIName,
+              family.dispatchSourceRouteID, kRuntimeCallableCSourceArtifactKind,
+              matchFn, exportRVVScalarI32VAddDispatchC, kDispatchTargetOwner,
+              family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
               resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
-              /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
-              abi.runtimeABIName,
+              directHelperRoute, family.dispatchExternalABIComponentGroup,
+              family.dispatchRuntimeABIName,
               validateRVVScalarI32VAddDispatchCandidates)))
     return error;
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-              "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
-              kRuntimeCallableCHeaderArtifactKind,
-              matchRVVScalarI32VAddDispatchCandidates,
-              exportRVVScalarI32VAddDispatchHeader, kDispatchTargetOwner,
-              abi.runtimeABIKind, abi.runtimeABIName,
+              family.dispatchHeaderRouteID, kRuntimeCallableCHeaderArtifactKind,
+              matchFn, exportRVVScalarI32VAddDispatchHeader,
+              kDispatchTargetOwner,
+              family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
               resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
-              /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
-              abi.runtimeABIName,
+              directHelperRoute, family.dispatchExternalABIComponentGroup,
+              family.dispatchRuntimeABIName,
               validateRVVScalarI32VAddDispatchCandidates)))
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
-      kRiscvELFRelocatableObjectArtifactKind,
-      matchRVVScalarI32VAddDispatchCandidates,
-      exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
-      abi.runtimeABIKind, abi.runtimeABIName,
-      resolveRVVScalarI32VAddDispatchRuntimeABIParameters,
-      /*directHelperRoute=*/true, kDispatchExternalABIComponentGroup,
-      abi.runtimeABIName, validateRVVScalarI32VAddDispatchCandidates));
+      family.dispatchObjectRouteID, kRiscvELFRelocatableObjectArtifactKind,
+      matchFn, exportRVVScalarI32VAddDispatchObject, kDispatchTargetOwner,
+      family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
+      resolveRVVScalarI32VAddDispatchRuntimeABIParameters, directHelperRoute,
+      family.dispatchExternalABIComponentGroup, family.dispatchRuntimeABIName,
+      validateRVVScalarI32VAddDispatchCandidates));
+}
+
+llvm::Error registerRVVScalarDispatchTargetExporters(
+    TargetArtifactExporterRegistry &registry) {
+  if (llvm::Error error = registerRVVScalarDispatchFamilyTargetExporters(
+          registry, getI32VAddDispatchFamilySpec()))
+    return error;
+
+  return registerRVVScalarDispatchFamilyTargetExporters(
+      registry, getI32VSubDispatchFamilySpec());
 }
 
 } // namespace tianchenrv::target::rvv_scalar
