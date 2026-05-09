@@ -158,6 +158,27 @@ def make_required_handoff(family: dict[str, str | Path]) -> dict[str, str]:
     }
 
 
+def direct_helper_routes_for_family(
+    family: dict[str, str | Path],
+) -> dict[str, str]:
+    return {
+        "source": str(family["source_route"]),
+        "header": str(family["header_route"]),
+        "object": str(family["object_route"]),
+    }
+
+
+def direct_helper_flag(route_id: str) -> str:
+    return "--" + route_id
+
+
+def command_name_for_route(route_id: str) -> str:
+    name = route_id
+    if name.startswith("tcrv-export-"):
+        name = name.removeprefix("tcrv-export-")
+    return "export_" + safe_file_component(name).replace("-", "_")
+
+
 def make_rvv_bundle_routes(
     family: dict[str, str | Path],
 ) -> dict[str, dict[str, str]]:
@@ -2094,12 +2115,15 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     if args.generic_route:
         source_export_flag = "--tcrv-export-target-source-artifact"
         source_export_name = "export_target_source_artifact"
+        source_export_route = "generic-target-source-artifact"
     elif use_harness:
         source_export_flag = "--tcrv-export-rvv-microkernel-self-check-c"
         source_export_name = "export_rvv_microkernel_self_check_c"
+        source_export_route = "direct-rvv-microkernel-self-check-harness"
     else:
-        source_export_flag = "--tcrv-export-rvv-microkernel-c"
-        source_export_name = "export_rvv_microkernel_c"
+        source_export_route = str(ACTIVE_ARITHMETIC_FAMILY["source_route"])
+        source_export_flag = direct_helper_flag(source_export_route)
+        source_export_name = command_name_for_route(source_export_route)
     source_text, _, _ = run_command(
         source_export_name,
         [
@@ -2125,12 +2149,19 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     object_sha256 = ""
     header_sha256 = ""
     caller_sha256 = ""
-    if not args.dry_run and not use_harness:
+    direct_helper_routes = direct_helper_routes_for_family(ACTIVE_ARITHMETIC_FAMILY)
+    uses_direct_family_helpers = not args.generic_route and not use_harness
+    direct_helper_artifacts: dict[str, str] = {}
+    if uses_direct_family_helpers:
+        direct_helper_artifacts["source"] = relative_to_repo(source_path, root)
+    should_export_direct_header = uses_direct_family_helpers
+    if should_export_direct_header:
+        header_route = direct_helper_routes["header"]
         header_text, _, _ = run_command(
-            "export_target_header_artifact",
+            command_name_for_route(header_route),
             [
                 tcrv_translate,
-                "--tcrv-export-target-header-artifact",
+                direct_helper_flag(header_route),
                 str(post_planning_path),
             ],
             cwd=root,
@@ -2143,12 +2174,15 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             header_path, "generated RVV microkernel header", header_text
         )
         header_sha256 = sha256_text(header_text)
+        direct_helper_artifacts["header"] = relative_to_repo(header_path, root)
 
+    if not args.dry_run and not use_harness:
+        object_route = direct_helper_routes["object"]
         run_command_stdout_to_file(
-            "export_target_object_artifact",
+            command_name_for_route(object_route),
             [
                 tcrv_translate,
-                "--tcrv-export-target-artifact",
+                direct_helper_flag(object_route),
                 str(post_planning_path),
             ],
             object_path,
@@ -2160,6 +2194,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         if object_path.stat().st_size < 4 or object_path.read_bytes()[:4] != b"\x7fELF":
             raise BridgeError("generated RVV microkernel object must be a non-empty ELF relocatable")
         object_sha256 = sha256_file(object_path)
+        direct_helper_artifacts["object"] = relative_to_repo(object_path, root)
 
         caller_text = build_external_caller_source(header_function_name)
         write_generated_text(
@@ -2173,10 +2208,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "emission_manifest_sha256": sha256_text(manifest_text),
         "rvv_microkernel_c_sha256": sha256_text(source_text),
     }
+    if header_sha256:
+        hashes["rvv_microkernel_h_sha256"] = header_sha256
     if not args.dry_run and not use_harness:
         hashes.update(
             {
-                "rvv_microkernel_h_sha256": header_sha256,
                 "rvv_microkernel_o_sha256": object_sha256,
                 "rvv_microkernel_external_caller_c_sha256": caller_sha256,
             }
@@ -2193,13 +2229,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "manifest_handoff": True,
         "manifest_record": manifest_handoff,
         "source_export_flag": source_export_flag,
-        "source_export_route": (
-            "generic-target-source-artifact"
-            if args.generic_route
-            else "direct-rvv-microkernel-self-check-harness"
-            if use_harness
-            else "direct-rvv-microkernel"
-        ),
+        "source_export_route": source_export_route,
+        "direct_helper_routes": direct_helper_routes,
+        "direct_helper_artifacts": direct_helper_artifacts,
         "source_export_mode": (
             "self-check-harness" if use_harness else "runtime-callable-library"
         ),
@@ -2222,7 +2254,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "commands": commands,
         "ssh_evidence": None,
         "claim_scope": (
-            "local dry-run verifies compiler-tool handoff and source export only"
+            "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+            if args.dry_run and uses_direct_family_helpers
+            else "local dry-run verifies compiler-tool handoff and source export only"
             if args.dry_run
             else "bounded generated RVV "
             + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
@@ -2230,9 +2264,13 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             if use_harness
             else "bounded generated RVV "
             + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
-            + " header plus object external caller correctness only"
+            + " direct helper artifact handoff plus header/object external caller correctness only"
         ),
     }
+    if should_export_direct_header:
+        evidence["artifacts"]["rvv_microkernel_h"] = relative_to_repo(
+            header_path, root
+        )
     if not args.dry_run:
         if use_harness:
             evidence["self_check"] = {
@@ -2245,7 +2283,6 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         else:
             evidence["artifacts"].update(
                 {
-                    "rvv_microkernel_h": relative_to_repo(header_path, root),
                     "rvv_microkernel_o": relative_to_repo(object_path, root),
                     "rvv_microkernel_external_caller_c": relative_to_repo(
                         caller_path, root
@@ -2456,6 +2493,21 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
         raise AssertionError("source without complete dataflow provenance was accepted")
 
     configure_arithmetic_family("i32-vsub")
+    vsub_routes = direct_helper_routes_for_family(ACTIVE_ARITHMETIC_FAMILY)
+    assert_self_test(
+        vsub_routes["source"] == "tcrv-export-rvv-i32-vsub-microkernel-c",
+        "vsub direct helper source route changed",
+    )
+    assert_self_test(
+        direct_helper_flag(vsub_routes["header"])
+        == "--tcrv-export-rvv-i32-vsub-microkernel-header",
+        "vsub direct helper header flag changed",
+    )
+    assert_self_test(
+        command_name_for_route(vsub_routes["object"])
+        == "export_rvv_i32_vsub_microkernel_object",
+        "vsub direct helper object command name changed",
+    )
     sample_vsub_source = """\
 /* selected_march: rv64gcv */
 /* selected_mabi: lp64d */

@@ -55,6 +55,59 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 10: RVV i32 family direct helper SSH evidence handoff
+
+**Date**: 2026-05-09
+**Task**: RVV i32 family direct helper SSH evidence handoff
+**Branch**: `main`
+
+### Summary
+
+Extended the bounded RVV microkernel evidence runner so direct non-bundle
+evidence for `i32-vsub` and `i32-vmul` calls the family-specific
+source/header/object `tcrv-translate` helper routes and records ssh-backed
+external caller evidence under `artifacts/tmp`.
+
+### Main Changes
+
+- Routed non-bundle direct source/header/object evidence through the active
+  family route ids instead of the generic target artifact front doors.
+- Recorded `direct_helper_routes`, produced direct helper artifacts, hashes,
+  sanitized command summaries, and bounded claim scope in evidence JSON.
+- Kept Python limited to evidence orchestration; compiler route registration,
+  artifact emission, and ABI truth remain in the C++/MLIR target/export stack.
+- Updated script self-test and lit coverage for vsub/vmul direct helper route
+  evidence and header artifact dry-run output.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] vsub direct dry-run: `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id codex-direct-vsub-dry --overwrite`
+- [OK] vmul direct dry-run: `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id codex-direct-vmul-dry --overwrite`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vsub --run-id 20260509-rvv-i32-vsub-direct-helper-ssh --overwrite --timeout 120 --ssh-target rvv`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vmul --run-id 20260509-rvv-i32-vmul-direct-helper-ssh --overwrite --timeout 120 --ssh-target rvv`
+- [OK] focused lit filter `rvv-microkernel-e2e|rvv-microkernel-bundle-e2e|rvv-microkernel-family-(sub|mul)` (6/6)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-09-rvv-i32-family-direct-helper-ssh-evidence-handoff`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate -j2`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (164/164 tests passed)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 10: RVV i32 binary microkernel e2e family evidence bridge
 
 **Date**: 2026-05-09

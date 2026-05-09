@@ -7,6 +7,8 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/rvv_microkernel.c
@@ -27,11 +29,11 @@
 
 # DRY: "arithmetic_family": "i32-vadd"
 # DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e"
-# DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
+# DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
 # DRY: "manifest_handoff": true
 # DRY: "mode": "dry-run"
 # DRY: "source_export_mode": "runtime-callable-library"
-# DRY: "source_export_route": "direct-rvv-microkernel"
+# DRY: "source_export_route": "tcrv-export-rvv-microkernel-c"
 # DRY: "ssh_evidence": false
 # DRY: "status": "success"
 # DRY-NOT: live-token
@@ -39,11 +41,11 @@
 
 # VSUB-DRY: "arithmetic_family": "i32-vsub"
 # VSUB-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub"
-# VSUB-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
+# VSUB-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
 # VSUB-DRY: "manifest_handoff": true
 # VSUB-DRY: "mode": "dry-run"
 # VSUB-DRY: "source_export_mode": "runtime-callable-library"
-# VSUB-DRY: "source_export_route": "direct-rvv-microkernel"
+# VSUB-DRY: "source_export_route": "tcrv-export-rvv-i32-vsub-microkernel-c"
 # VSUB-DRY: "ssh_evidence": false
 # VSUB-DRY: "status": "success"
 # VSUB-DRY-NOT: live-token
@@ -51,11 +53,11 @@
 
 # VMUL-DRY: "arithmetic_family": "i32-vmul"
 # VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul"
-# VMUL-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
+# VMUL-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
 # VMUL-DRY: "manifest_handoff": true
 # VMUL-DRY: "mode": "dry-run"
 # VMUL-DRY: "source_export_mode": "runtime-callable-library"
-# VMUL-DRY: "source_export_route": "direct-rvv-microkernel"
+# VMUL-DRY: "source_export_route": "tcrv-export-rvv-i32-vmul-microkernel-c"
 # VMUL-DRY: "ssh_evidence": false
 # VMUL-DRY: "status": "success"
 # VMUL-DRY-NOT: live-token
@@ -119,6 +121,12 @@
 # HARNESS-EVIDENCE-NOT: hunter2
 
 # VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
+# VSUB-EVIDENCE: "direct_helper_artifacts"
+# VSUB-EVIDENCE: "direct_helper_routes"
+# VSUB-EVIDENCE: "header": "tcrv-export-rvv-i32-vsub-microkernel-header"
+# VSUB-EVIDENCE: "object": "tcrv-export-rvv-i32-vsub-microkernel-object"
+# VSUB-EVIDENCE: "source": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VSUB-EVIDENCE: "rvv_microkernel_h_sha256"
 # VSUB-EVIDENCE: "emission_kind": "rvv-explicit-i32-vsub-microkernel-c-source"
 # VSUB-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vsub-microkernel-c"
 # VSUB-EVIDENCE: "runtime_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1"
@@ -130,6 +138,12 @@
 # VSUB-EVIDENCE-NOT: hunter2
 
 # VMUL-EVIDENCE: "arithmetic_family": "i32-vmul"
+# VMUL-EVIDENCE: "direct_helper_artifacts"
+# VMUL-EVIDENCE: "direct_helper_routes"
+# VMUL-EVIDENCE: "header": "tcrv-export-rvv-i32-vmul-microkernel-header"
+# VMUL-EVIDENCE: "object": "tcrv-export-rvv-i32-vmul-microkernel-object"
+# VMUL-EVIDENCE: "source": "tcrv-export-rvv-i32-vmul-microkernel-c"
+# VMUL-EVIDENCE: "rvv_microkernel_h_sha256"
 # VMUL-EVIDENCE: "emission_kind": "rvv-explicit-i32-vmul-microkernel-c-source"
 # VMUL-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vmul-microkernel-c"
 # VMUL-EVIDENCE: "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"

@@ -1,0 +1,31 @@
+{
+  "id": "rvv-i32-family-direct-helper-ssh-evidence-handoff",
+  "name": "rvv-i32-family-direct-helper-ssh-evidence-handoff",
+  "title": "RVV i32 family direct helper SSH evidence handoff",
+  "description": "Extend the RVV direct microkernel evidence runner so i32-vsub and i32-vmul exercise family-specific direct source/header/object helper routes and collect real ssh rvv external caller evidence.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "rvv",
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-09",
+  "completedAt": "2026-05-09",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "scripts/rvv_microkernel_e2e.py",
+    "test/Scripts/rvv-microkernel-e2e.test",
+    "artifacts/tmp/rvv_microkernel_e2e/20260509-rvv-i32-vsub-direct-helper-ssh/evidence.json",
+    "artifacts/tmp/rvv_microkernel_e2e/20260509-rvv-i32-vmul-direct-helper-ssh/evidence.json"
+  ],
+  "notes": "Completed direct helper evidence handoff for i32-vsub and i32-vmul. Non-bundle direct mode now invokes family source/header/object route ids; dry-run records direct source/header helper artifacts; ssh mode records source/header/object artifacts and runs generated external callers against direct helper objects on ssh rvv. No runtime/correctness claim is made without ssh_evidence=true.",
+  "meta": {}
+}
