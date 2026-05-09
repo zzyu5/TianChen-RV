@@ -372,9 +372,11 @@ must also validate the microkernel's `setvl` / `with_vl` / explicit
 load/arithmetic/store body against the selected RVV first-slice policy and the
 finite i32 runtime ABI role contract before reporting the supported handoff. The
 target-owned exporter must emit riscv_vector.h C intrinsic source from the
-structured body/config: `__riscv_vadd_vv_i32m1` for add and
-`__riscv_vsub_vv_i32m1` for subtract, and `__riscv_vmul_vv_i32m1` for
-multiply. It
+structured body/config by combining the family-owned arithmetic intrinsic
+prefix (`__riscv_vadd_vv_`, `__riscv_vsub_vv_`, or `__riscv_vmul_vv_`) with
+the selected vector-shape suffix (`i32m1` or `i32m2`). The family registry must
+not bake a selected shape suffix into the arithmetic intrinsic prefix; selected
+shape metadata is the only owner of the `i32m1`/`i32m2` suffix. It
 does not provide generic RVV lowering or runtime ABI integration, and it does
 not create correctness or performance evidence without separate `ssh rvv`
 compile/run artifacts.
@@ -696,6 +698,12 @@ RVV work must keep these parameter layers distinct:
   attribute is present, the complete group is required. An i32m2 selected path
   must not carry stale selected i32m1 config even though it may still carry the
   separate `base_i32_m1_lanes` capacity fact.
+- RVV arithmetic family identity and selected vector-shape suffix are separate
+  contracts. The i32 add/sub/mul family registry owns only the suffix-free
+  arithmetic intrinsic prefix; the target exporter appends the selected
+  vector-shape suffix after validating the selected shape group. A full
+  intrinsic string such as `__riscv_vadd_vv_i32m2` is therefore an emission
+  result, not a family descriptor field.
 - AVL and vl are runtime SSA values / runtime control values. The current
   bounded `tcrv_rvv.setvl` surface models AVL as a real runtime SSA operand and
   vl as a real `!tcrv_rvv.vl` result. The bounded `tcrv_rvv.with_vl` surface

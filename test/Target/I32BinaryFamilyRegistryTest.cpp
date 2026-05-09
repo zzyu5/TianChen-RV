@@ -393,8 +393,28 @@ int expectStaleFamilyMismatchGuards() {
       if (int result = expect(lhs->rvv.routeID != rhs->rvv.routeID,
                               "RVV source routes are pairwise distinct"))
         return result;
-      if (int result = expect(lhs->rvv.intrinsicName != rhs->rvv.intrinsicName,
-                              "RVV intrinsics are pairwise distinct"))
+      if (int result =
+              expect(lhs->rvv.arithmeticIntrinsicPrefix !=
+                         rhs->rvv.arithmeticIntrinsicPrefix,
+                     "RVV arithmetic intrinsic prefixes are pairwise distinct"))
+        return result;
+      if (int result =
+              expect(lhs->rvv.arithmeticIntrinsicPrefix.starts_with(
+                         "__riscv_v"),
+                     "RVV arithmetic intrinsic prefix starts with RVV "
+                     "intrinsic namespace"))
+        return result;
+      if (int result =
+              expect(lhs->rvv.arithmeticIntrinsicPrefix.ends_with("_"),
+                     "RVV arithmetic intrinsic prefix is suffix-free"))
+        return result;
+      if (int result =
+              expect(!lhs->rvv.arithmeticIntrinsicPrefix.ends_with("i32m1"),
+                     "RVV arithmetic intrinsic prefix does not bake in m1"))
+        return result;
+      if (int result =
+              expect(!lhs->rvv.arithmeticIntrinsicPrefix.ends_with("i32m2"),
+                     "RVV arithmetic intrinsic prefix does not bake in m2"))
         return result;
       if (int result = expect(lhs->scalar.routeID != rhs->scalar.routeID,
                               "scalar source routes are pairwise distinct"))

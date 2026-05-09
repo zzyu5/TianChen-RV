@@ -2643,22 +2643,6 @@ getDataflowStepOpName(const RVVI32VAddDataflowStep &step) {
 }
 
 llvm::StringRef
-getArithmeticIntrinsicPrefix(RVVI32VAddDataflowStepKind kind) {
-  switch (kind) {
-  case RVVI32VAddDataflowStepKind::Add:
-    return "__riscv_vadd_vv_";
-  case RVVI32VAddDataflowStepKind::Sub:
-    return "__riscv_vsub_vv_";
-  case RVVI32VAddDataflowStepKind::Mul:
-    return "__riscv_vmul_vv_";
-  case RVVI32VAddDataflowStepKind::Load:
-  case RVVI32VAddDataflowStepKind::Store:
-    return "";
-  }
-  return "";
-}
-
-llvm::StringRef
 getDataflowValueCName(RVVI32VAddDataflowValue value,
                       const RVVI32MicrokernelFamilySpec &family) {
   switch (value) {
@@ -2898,7 +2882,7 @@ llvm::Error printMicrokernelFunction(
     case RVVI32VAddDataflowStepKind::Mul:
       os << "    " << intrinsicConfig.vectorType << " "
          << getDataflowValueCName(step.result, family)
-         << " = " << getArithmeticIntrinsicPrefix(step.kind)
+         << " = " << family.arithmeticIntrinsicPrefix
          << intrinsicConfig.vectorSuffix << "("
          << getDataflowValueCName(step.lhs, family) << ", "
          << getDataflowValueCName(step.rhs, family) << ", vl);\n";

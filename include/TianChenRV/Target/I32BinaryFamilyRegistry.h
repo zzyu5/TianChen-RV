@@ -19,7 +19,7 @@ struct RVVI32MicrokernelFamilyDescriptor {
   llvm::StringRef arithmeticVerb;
   llvm::StringRef functionStem;
   llvm::StringRef headerGuardStem;
-  llvm::StringRef intrinsicName;
+  llvm::StringRef arithmeticIntrinsicPrefix;
   llvm::StringRef resultCName;
   llvm::StringRef emissionKind;
   llvm::StringRef routeID;
@@ -102,7 +102,7 @@ inline const I32BinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
        "add",
        "i32_vadd",
        "I32_VADD",
-       "__riscv_vadd_vv_i32m1",
+       "__riscv_vadd_vv_",
        "sum_vec",
        "rvv-explicit-i32-vadd-microkernel-c-source",
        "tcrv-export-rvv-microkernel-c",
@@ -169,7 +169,7 @@ inline const I32BinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
        "subtract",
        "i32_vsub",
        "I32_VSUB",
-       "__riscv_vsub_vv_i32m1",
+       "__riscv_vsub_vv_",
        "difference_vec",
        "rvv-explicit-i32-vsub-microkernel-c-source",
        "tcrv-export-rvv-i32-vsub-microkernel-c",
@@ -236,7 +236,7 @@ inline const I32BinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
        "multiply",
        "i32_vmul",
        "I32_VMUL",
-       "__riscv_vmul_vv_i32m1",
+       "__riscv_vmul_vv_",
        "product_vec",
        "rvv-explicit-i32-vmul-microkernel-c-source",
        "tcrv-export-rvv-i32-vmul-microkernel-c",

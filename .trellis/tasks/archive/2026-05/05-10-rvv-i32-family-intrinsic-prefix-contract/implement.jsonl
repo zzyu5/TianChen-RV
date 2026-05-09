@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "compiler stack and Python boundary for RVV intrinsic prefix ownership"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "selected vector shape versus family and hardware fact layering"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector-shape and i32 family descriptor contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "RVV emission and generated source claim boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++ and lit validation policy"}

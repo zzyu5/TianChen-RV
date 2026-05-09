@@ -224,7 +224,10 @@ preserve parameter layering:
   metadata may include shape id, SEW, LMUL, tail/mask policy, vector type,
   intrinsic suffix, and setvl suffix, but those fields remain target/plugin
   compile-time config rather than runtime ABI values or `tcrv.exec` compute
-  semantics;
+  semantics. The RVV arithmetic family registry owns only the suffix-free
+  arithmetic intrinsic prefix; target source emission forms the full RVV
+  arithmetic intrinsic name by appending the selected vector-shape suffix after
+  selected-shape validation;
 - runtime SSA values / runtime control values such as AVL, vl, pointer
   arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
   only as real IR/control fields or generated ABI parameters;

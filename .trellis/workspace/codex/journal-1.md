@@ -55,6 +55,58 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 11: RVV i32 family intrinsic prefix contract
+
+**Date**: 2026-05-10
+**Task**: RVV i32 family intrinsic prefix contract
+**Branch**: `main`
+
+### Summary
+
+Separated RVV i32 arithmetic family identity from selected vector-shape suffix
+ownership. The family registry now records suffix-free RVV arithmetic intrinsic
+prefixes, and RVV target source emission composes the final intrinsic from the
+family prefix plus the validated selected vector-shape suffix.
+
+### Main Changes
+
+- Replaced RVV family descriptor `intrinsicName` strings such as
+  `__riscv_vadd_vv_i32m1` with suffix-free `arithmeticIntrinsicPrefix` values.
+- Removed the local arithmetic intrinsic prefix switch in
+  `lib/Target/RVV/RVVMicrokernel.cpp`; emission now consumes the registry-owned
+  family prefix and the selected vector-shape suffix from validated RVV config.
+- Strengthened `tianchenrv-i32-binary-family-registry-test` so add/sub/mul
+  prefixes are distinct, end at the suffix boundary, and do not bake in
+  `i32m1` or `i32m2`.
+- Updated RVV plugin and lowering/runtime specs to state that full intrinsic
+  spellings are emission results, not family descriptor fields.
+- Completed and archived Trellis task
+  `.trellis/tasks/archive/2026-05/05-10-rvv-i32-family-intrinsic-prefix-contract/`.
+
+Validation:
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-i32-binary-family-registry-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] Focused lit on linalg i32 vadd/vsub/vmul and RVV i32m2 source export (4/4)
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-10-rvv-i32-family-intrinsic-prefix-contract`
+- No new `ssh rvv` run was collected; emitted source semantics and runtime
+  claims did not change.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 11: RVV selected vector-shape config boundary cleanup
 
 **Date**: 2026-05-10
