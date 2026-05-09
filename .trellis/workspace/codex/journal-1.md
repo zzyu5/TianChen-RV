@@ -55,6 +55,64 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 14: RVV capability-driven vector-shape proposal and selection
+
+**Date**: 2026-05-10
+**Task**: RVV capability-driven vector-shape proposal and selection
+**Branch**: `main`
+
+### Summary
+
+Moved bounded RVV i32 binary vector-shape choice further upstream into plugin
+proposal/legality. The RVV plugin can now consume a structured selected-shape
+capability selector when both finite i32m1 and i32m2 config facts are present,
+validate that selector against the target-owned `RVVVectorShape` descriptors,
+and emit descriptor-derived selected shape capability requirements.
+
+### Main Changes
+
+- Added finite selector capability contract
+  `rvv.i32_binary.selected_vector_shape` with bounded `shape = "i32m1" |
+  "i32m2"` semantics in the RVV spec and C++ target/RVV helper.
+- Updated `RVVExtensionPlugin` proposal selection so an available selector
+  drives the selected finite config; selector-requested incomplete i32m2 facts
+  now decline/fail closed instead of silently falling back to i32m1.
+- Kept no-selector behavior compatible: existing i32m1 fixtures still select
+  the deterministic default when only i32m1 config facts are available.
+- Routed proposal required capability ids through the composed
+  `RVVI32BinaryIntrinsicDescriptor` so add/sub/mul proposal requirements stay
+  aligned with descriptor-owned selected shape metadata.
+- Added C++ and lit coverage for selector-driven i32m2 with both shapes
+  present, default i32m1 without selector, planned IR/lowering-boundary
+  metadata agreement, and missing i32m2 capability rejection.
+- No new `ssh rvv` evidence was run; this changed compiler planning metadata
+  selection and preserved existing runtime/export routes without making a new
+  runtime correctness or performance claim.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter `plugin-variant-materialization-rvv-selected-shape|linalg-i32-vsub-to-rvv-artifact|plan-linalg-i32m2-vmul|plan-linalg-i32m2-vsub` passed 5/5 selected tests
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 175/175
+- [NOTE] `clang-format` was not installed in this environment; formatting was kept manually and `git diff --check` passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV i32 binary descriptor registry across family and shape
 
 **Date**: 2026-05-10

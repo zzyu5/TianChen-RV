@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Transforms/Passes.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"
@@ -349,9 +350,9 @@ int runRegistrationAndCapabilityMetadataTest() {
 
   llvm::SmallVector<PluginCapability, 4> capabilities;
   registry.collectCapabilities(capabilities);
-  if (int result = expect(capabilities.size() == 9,
-                          "RVV plugin exposes RVV plus finite m1/m2 config "
-                          "capabilities"))
+  if (int result = expect(capabilities.size() == 10,
+                          "RVV plugin exposes RVV, finite m1/m2 config, and "
+                          "selected-shape selector capabilities"))
     return result;
   if (int result =
           expect(capabilities[0].getID() ==
@@ -363,6 +364,12 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
   if (int result = expect(registry.lookupCapabilityByID("rvv") != nullptr,
                           "RVV capability id lookup succeeds"))
+    return result;
+  if (int result = expect(
+          registry.lookupCapabilityByID(
+              tianchenrv::target::rvv::
+                  getRVVI32BinarySelectedVectorShapeCapabilityID()) != nullptr,
+          "RVV selected-shape selector capability id lookup succeeds"))
     return result;
 
   ExtensionPluginRegistry builtinRegistry;
@@ -1843,13 +1850,62 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
-      provides = ["rvv.i32_m2.sew32", "rvv.i32_m2.lmul_m2", "rvv.i32_m2.tail_policy.agnostic", "rvv.i32_m2.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m2",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_binary_selected_shape {
+      id = "rvv.i32_binary.selected_vector_shape",
+      kind = "isa-vector-config",
+      shape = "i32m2",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_sew32 {
+      id = "rvv.i32_m1.sew32",
+      kind = "isa-vector-config",
+      sew_bits = 32 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_lmul_m1 {
+      id = "rvv.i32_m1.lmul_m1",
+      kind = "isa-vector-config",
+      lmul = "m1",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_tail_agnostic {
+      id = "rvv.i32_m1.tail_policy.agnostic",
+      kind = "isa-vector-config",
+      tail_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_mask_agnostic {
+      id = "rvv.i32_m1.mask_policy.agnostic",
+      kind = "isa-vector-config",
+      mask_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m2_sew32 {
+      id = "rvv.i32_m2.sew32",
+      kind = "isa-vector-config",
+      sew_bits = 32 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m2_lmul_m2 {
+      id = "rvv.i32_m2.lmul_m2",
+      kind = "isa-vector-config",
+      lmul = "m2",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m2_tail_agnostic {
+      id = "rvv.i32_m2.tail_policy.agnostic",
+      kind = "isa-vector-config",
+      tail_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m2_mask_agnostic {
+      id = "rvv.i32_m2.mask_policy.agnostic",
+      kind = "isa-vector-config",
+      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.capability @rvv_hart_count {
@@ -1915,6 +1971,12 @@ module {
               proposals[0].getRequiredCapabilityIDs()[4] ==
                   "rvv.i32_m2.mask_policy.agnostic",
           "RVV i32m2 proposal requires m2 config capability ids"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_shape", "i32m2"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_type", "vint32m2_t"))
     return result;
 
   mlir::OpBuilder builder(&context);

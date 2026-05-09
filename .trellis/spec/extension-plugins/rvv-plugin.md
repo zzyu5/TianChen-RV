@@ -57,6 +57,10 @@ finite i32m2 capability ids:
   rvv.i32_m2.lmul_m2
   rvv.i32_m2.tail_policy.agnostic
   rvv.i32_m2.mask_policy.agnostic
+optional finite i32 binary selected vector-shape selector capability id:
+  rvv.i32_binary.selected_vector_shape
+selector property:
+  shape = "i32m1" | "i32m2"
 preferred first-slice config symbols:
   @rvv_i32_m1_sew32
   @rvv_i32_m1_lmul_m1
@@ -108,8 +112,16 @@ The current minimal proposal gate is:
   properties, and `isa_vector_hints` contains RVV vector evidence;
 - capability id `rvv.hart_count` is available and has a positive integer
   `count` property;
-- exactly one finite i32 config shape is selected by available capability ids:
-  either the m1 shape
+- exactly one finite i32 config shape is selected by structured target
+  capability facts. If an available provider satisfies capability id
+  `rvv.i32_binary.selected_vector_shape`, its bounded string property `shape`
+  must be exactly `i32m1` or `i32m2`; the plugin then validates only that
+  selected shape's finite config/policy capability ids and must not silently
+  fall back to another shape when the requested shape is incomplete. If no
+  selector capability is present, the bounded default remains availability
+  based and chooses the first valid finite config shape in deterministic order,
+  preserving existing `i32m1` fixtures before trying `i32m2`. The finite shapes
+  are either the m1 shape
   (`rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
   `rvv.i32_m1.tail_policy.agnostic`,
   `rvv.i32_m1.mask_policy.agnostic`) or the m2 shape
@@ -545,6 +557,7 @@ rvv.i32_m2.sew32
 rvv.i32_m2.lmul_m2
 rvv.i32_m2.tail_policy.agnostic
 rvv.i32_m2.mask_policy.agnostic
+rvv.i32_binary.selected_vector_shape
 vlen
 elen
 supported SEW

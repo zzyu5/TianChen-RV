@@ -76,6 +76,14 @@ getFiniteI32VectorShapeConfigs() {
   return llvm::ArrayRef(configs);
 }
 
+inline llvm::StringRef getRVVI32BinarySelectedVectorShapeCapabilityID() {
+  return "rvv.i32_binary.selected_vector_shape";
+}
+
+inline llvm::StringRef getRVVI32BinarySelectedVectorShapePropertyName() {
+  return "shape";
+}
+
 inline const RVVI32VectorShapeConfig *
 lookupFiniteI32VectorShapeConfigByShapeID(llvm::StringRef shapeID) {
   shapeID = shapeID.trim();

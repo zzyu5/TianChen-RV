@@ -8,6 +8,7 @@
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
@@ -642,8 +643,57 @@ llvm::Error addSelectedVectorShapeMetadataToPlan(
 }
 
 llvm::Expected<const RVVI32VectorShapeConfig *>
+selectExplicitI32BinaryVectorShapeCapability(
+    const support::TargetCapabilitySet &capabilities) {
+  const support::CapabilityDescriptor *selector =
+      capabilities.lookupProviderByID(
+          tianchenrv::target::rvv::
+              getRVVI32BinarySelectedVectorShapeCapabilityID());
+  if (!selector)
+    return static_cast<const RVVI32VectorShapeConfig *>(nullptr);
+
+  if (!selector->isAvailable())
+    return makeRVVPluginError(
+        llvm::Twine("RVV i32 binary selected vector-shape capability id '") +
+        tianchenrv::target::rvv::
+            getRVVI32BinarySelectedVectorShapeCapabilityID() +
+        "' must be available when present");
+
+  llvm::Expected<std::string> selectedShape = getRequiredRVVProperty(
+      *selector, tianchenrv::target::rvv::
+                     getRVVI32BinarySelectedVectorShapePropertyName());
+  if (!selectedShape)
+    return selectedShape.takeError();
+
+  const RVVI32VectorShapeConfig *config =
+      tianchenrv::target::rvv::lookupFiniteI32VectorShapeConfigByShapeID(
+          *selectedShape);
+  if (!config)
+    return makeRVVPluginError(
+        llvm::Twine("RVV i32 binary selected vector-shape capability property "
+                    "'") +
+        tianchenrv::target::rvv::
+            getRVVI32BinarySelectedVectorShapePropertyName() +
+        "' must be one finite descriptor shape: '" +
+        getI32M1ConfigSpec().shapeID + "' or '" +
+        getI32M2ConfigSpec().shapeID + "'");
+
+  if (llvm::Error error = verifyFirstSliceConfigCapabilities(capabilities,
+                                                            *config))
+    return std::move(error);
+  return config;
+}
+
+llvm::Expected<const RVVI32VectorShapeConfig *>
 selectAvailableFirstSliceConfigCapabilities(
     const support::TargetCapabilitySet &capabilities) {
+  llvm::Expected<const RVVI32VectorShapeConfig *> explicitSelection =
+      selectExplicitI32BinaryVectorShapeCapability(capabilities);
+  if (!explicitSelection)
+    return explicitSelection.takeError();
+  if (*explicitSelection)
+    return *explicitSelection;
+
   if (llvm::Error error =
           verifyFirstSliceConfigCapabilities(capabilities,
                                              getI32M1ConfigSpec())) {
@@ -1873,12 +1923,11 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
 
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
-  proposal.addRequiredCapabilityID(propertyView->i32Config->sewCapabilityID);
-  proposal.addRequiredCapabilityID(propertyView->i32Config->lmulCapabilityID);
-  proposal.addRequiredCapabilityID(
-      propertyView->i32Config->tailPolicyCapabilityID);
-  proposal.addRequiredCapabilityID(
-      propertyView->i32Config->maskPolicyCapabilityID);
+  tianchenrv::target::rvv::RVVI32BinaryIntrinsicDescriptor descriptor =
+      tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor(
+          *requestedFamily->family, *propertyView->i32Config);
+  for (llvm::StringRef capabilityID : descriptor.getSelectedShapeCapabilityIDs())
+    proposal.addRequiredCapabilityID(capabilityID);
   proposal.setCondition("rvv_capability_properties_available");
   proposal.setGuard("plugin_local_rvv_property_evidence");
   proposal.setPolicy("metadata_only_first_slice");
@@ -2138,6 +2187,11 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       rvv::getRVVI32M2MaskAgnosticCapabilityID(), "isa-vector-config",
       "RVV finite i32m2 mask agnostic policy capability"));
+  capabilities.push_back(PluginCapability(
+      tianchenrv::target::rvv::
+          getRVVI32BinarySelectedVectorShapeCapabilityID(),
+      "isa-vector-config",
+      "RVV finite i32 binary selected vector-shape selector capability"));
 }
 
 llvm::StringRef RVVExtensionPlugin::getName() const {
