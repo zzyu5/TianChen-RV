@@ -102,6 +102,10 @@ constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
     "tcrv-export-rvv-microkernel-object");
 constexpr llvm::StringLiteral kMicrokernelHeaderRouteID(
     "tcrv-export-rvv-microkernel-header");
+constexpr llvm::StringLiteral kI32VSubMicrokernelObjectRouteID(
+    "tcrv-export-rvv-i32-vsub-microkernel-object");
+constexpr llvm::StringLiteral kI32VSubMicrokernelHeaderRouteID(
+    "tcrv-export-rvv-i32-vsub-microkernel-header");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
 constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
@@ -175,6 +179,8 @@ struct RVVI32MicrokernelFamilySpec {
   llvm::StringRef resultCName;
   llvm::StringRef emissionKind;
   llvm::StringRef routeID;
+  llvm::StringRef headerRouteID;
+  llvm::StringRef objectRouteID;
   llvm::StringRef runtimeABI;
   llvm::StringRef runtimeABIKind;
   llvm::StringRef runtimeABIName;
@@ -229,6 +235,8 @@ const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
       "sum_vec",
       kMicrokernelEmissionKind,
       kMicrokernelRouteID,
+      kMicrokernelHeaderRouteID,
+      kMicrokernelObjectRouteID,
       kI32VAddRuntimeABI,
       kRVVRuntimeCallableABIKind,
       kI32VAddRuntimeABIName,
@@ -249,6 +257,8 @@ const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
       "difference_vec",
       kI32VSubMicrokernelEmissionKind,
       kI32VSubMicrokernelRouteID,
+      kI32VSubMicrokernelHeaderRouteID,
+      kI32VSubMicrokernelObjectRouteID,
       kI32VSubRuntimeABI,
       kRVVRuntimeCallableABIKind,
       kI32VSubRuntimeABIName,
@@ -264,6 +274,30 @@ getI32MicrokernelFamilyForOp(mlir::Operation *op) {
   if (llvm::isa_and_nonnull<I32VSubMicrokernelOp>(op))
     return &getI32VSubFamilySpec();
   return nullptr;
+}
+
+const RVVI32MicrokernelFamilySpec *
+getI32MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
+  const RVVI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
+  if (routeID == addFamily.routeID)
+    return &addFamily;
+  const RVVI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
+  if (routeID == subFamily.routeID)
+    return &subFamily;
+  return nullptr;
+}
+
+bool candidateMatchesRVVMicrokernelFamily(
+    const TargetArtifactCandidate &candidate,
+    const RVVI32MicrokernelFamilySpec &family) {
+  return candidate.origin == kRVVPluginName &&
+         candidate.routeID == family.routeID &&
+         candidate.emissionKind == family.emissionKind &&
+         candidate.artifactKind == kMicrokernelArtifactKind &&
+         candidate.runtimeABI == family.runtimeABI &&
+         candidate.runtimeABIKind == family.runtimeABIKind &&
+         candidate.runtimeABIName == family.runtimeABIName &&
+         candidate.runtimeGlueRole == family.runtimeGlueRole;
 }
 
 VariantOp getPathVariant(const SelectedPath &path) {
@@ -1774,6 +1808,61 @@ llvm::Error resolveRuntimeABIParametersForPath(
                     "' does not match RVV microkernel artifact kind '" +
                     kMicrokernelArtifactKind + "'");
 
+  std::string runtimeABI;
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABIAttrName,
+                                "supported emission-plan route", runtimeABI))
+    return error;
+  if (runtimeABI != family.runtimeABI)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("supported emission-plan runtime_abi '") +
+                    runtimeABI +
+                    "' does not match RVV microkernel runtime ABI '" +
+                    family.runtimeABI + "'");
+
+  std::string runtimeABIKind;
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABIKindAttrName,
+                                "supported emission-plan route",
+                                runtimeABIKind))
+    return error;
+  if (runtimeABIKind != family.runtimeABIKind)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("supported emission-plan runtime_abi_kind '") +
+                    runtimeABIKind +
+                    "' does not match RVV microkernel runtime ABI kind '" +
+                    family.runtimeABIKind + "'");
+
+  std::string runtimeABIName;
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeABINameAttrName,
+                                "supported emission-plan route",
+                                runtimeABIName))
+    return error;
+  if (runtimeABIName != family.runtimeABIName)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("supported emission-plan runtime_abi_name '") +
+                    runtimeABIName +
+                    "' does not match RVV microkernel runtime ABI name '" +
+                    family.runtimeABIName + "'");
+
+  std::string runtimeGlueRole;
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kRuntimeGlueRoleAttrName,
+                                "supported emission-plan route",
+                                runtimeGlueRole))
+    return error;
+  if (runtimeGlueRole != family.runtimeGlueRole)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("supported emission-plan runtime_glue_role '") +
+                    runtimeGlueRole +
+                    "' does not match RVV microkernel runtime glue role '" +
+                    family.runtimeGlueRole + "'");
+
   llvm::SmallVector<support::RuntimeABIParameter, 5> planParameters;
   if (llvm::Error error =
           collectRuntimeABIParameters(kernel, diagnostic, planParameters))
@@ -2419,17 +2508,35 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   return llvm::Error::success();
 }
 
-bool isRVVMicrokernelSourceCandidate(
-    const tianchenrv::target::TargetArtifactCandidate &candidate) {
-  const RVVI32MicrokernelFamilySpec &family = getI32VAddFamilySpec();
-  return candidate.origin == kRVVPluginName &&
-         candidate.routeID == family.routeID &&
-         candidate.emissionKind == family.emissionKind &&
-         candidate.artifactKind == kMicrokernelArtifactKind &&
-         candidate.runtimeABI == family.runtimeABI &&
-         candidate.runtimeABIKind == family.runtimeABIKind &&
-         candidate.runtimeABIName == family.runtimeABIName &&
-         candidate.runtimeGlueRole == family.runtimeGlueRole;
+llvm::Error validateRVVMicrokernelSourceCandidate(
+    const TargetArtifactCandidate &candidate) {
+  const RVVI32MicrokernelFamilySpec *family =
+      getI32MicrokernelFamilyForSourceRoute(candidate.routeID);
+  if (!family)
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' is not a supported RVV i32 microkernel source route");
+
+  if (!candidateMatchesRVVMicrokernelFamily(candidate, *family))
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' does not match supported RVV i32 microkernel family ABI metadata; "
+        "expected emission_kind '" +
+        family->emissionKind + "', artifact_kind '" +
+        kMicrokernelArtifactKind + "', runtime_abi '" + family->runtimeABI +
+        "', runtime_abi_kind '" + family->runtimeABIKind +
+        "', runtime_abi_name '" + family->runtimeABIName +
+        "', runtime_glue_role '" + family->runtimeGlueRole + "'");
+
+  TargetArtifactExporter sourceExporter(
+      family->routeID, kMicrokernelArtifactKind, kRVVPluginName,
+      family->emissionKind, exportRVVMicrokernelC,
+      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+      family->kind == RVVI32MicrokernelKind::Add,
+      /*handoffKind=*/{}, /*candidateValidationFn=*/nullptr,
+      family->externalABIComponentGroup, family->runtimeABIName);
+  return validateTargetArtifactCandidateAgainstExporter(candidate,
+                                                        sourceExporter);
 }
 
 llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
@@ -2438,14 +2545,7 @@ llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
     return makeModuleMicrokernelError(
         "RVV microkernel helper routes require exactly one callable artifact "
         "candidate for preflight");
-  const RVVI32MicrokernelFamilySpec &family = getI32VAddFamilySpec();
-  TargetArtifactExporter sourceExporter(
-      family.routeID, kMicrokernelArtifactKind, kRVVPluginName,
-      family.emissionKind, exportRVVMicrokernelC,
-      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
-      /*directHelperRoute=*/true);
-  return validateTargetArtifactCandidateAgainstExporter(candidates.front(),
-                                                        sourceExporter);
+  return validateRVVMicrokernelSourceCandidate(candidates.front());
 }
 
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
@@ -2461,18 +2561,36 @@ resolveRVVMicrokernelRuntimeABIParameters(
   return parameters;
 }
 
-llvm::Expected<bool> matchRVVMicrokernelObjectCandidate(
+llvm::Expected<bool> matchRVVMicrokernelAddObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
     return false;
-  return isRVVMicrokernelSourceCandidate(candidates.front());
+  return candidateMatchesRVVMicrokernelFamily(candidates.front(),
+                                             getI32VAddFamilySpec());
 }
 
-llvm::Expected<bool> matchRVVMicrokernelHeaderCandidate(
+llvm::Expected<bool> matchRVVMicrokernelSubObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
     return false;
-  return isRVVMicrokernelSourceCandidate(candidates.front());
+  return candidateMatchesRVVMicrokernelFamily(candidates.front(),
+                                             getI32VSubFamilySpec());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelAddHeaderCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return candidateMatchesRVVMicrokernelFamily(candidates.front(),
+                                             getI32VAddFamilySpec());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelSubHeaderCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return candidateMatchesRVVMicrokernelFamily(candidates.front(),
+                                             getI32VSubFamilySpec());
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
@@ -2524,11 +2642,12 @@ std::string readBoundedStderr(llvm::StringRef stderrPath) {
   return text;
 }
 
-std::string formatCompileCommand(const RVVMicrokernelRecord &record) {
+std::string formatCompileCommand(const RVVMicrokernelRecord &record,
+                                 llvm::StringRef compilerPath) {
   std::string command;
   llvm::raw_string_ostream stream(command);
-  stream << "clang -target " << record.targetTriple << " -O2 -march="
-         << record.selectedMarch;
+  stream << compilerPath << " -target " << record.targetTriple
+         << " -O2 -march=" << record.selectedMarch;
   if (record.selectedMABI)
     stream << " -mabi=" << *record.selectedMABI;
   stream << " -c <generated-rvv-microkernel-source> -o <object-file>";
@@ -2556,10 +2675,12 @@ llvm::Error compileGeneratedMicrokernelSourceToObject(
   llvm::ErrorOr<std::string> clangPath =
       llvm::sys::findProgramByName("clang");
   if (!clangPath)
+    clangPath = llvm::sys::findProgramByName("clang-20");
+  if (!clangPath)
     return makeMicrokernelObjectError(
         record.kernelSymbol,
-        "requires clang on PATH to compile the bounded RVV microkernel C "
-        "source into an object file");
+        "requires clang or clang-20 on PATH to compile the bounded RVV "
+        "microkernel C source into an object file");
 
   TemporaryFile sourceFile;
   if (llvm::Error error = writeTempSource(source, sourceFile))
@@ -2606,8 +2727,9 @@ llvm::Error compileGeneratedMicrokernelSourceToObject(
     std::string stderrText = readBoundedStderr(stderrFile.get());
     return makeMicrokernelObjectError(
         record.kernelSymbol,
-        llvm::Twine("clang failed while creating object file; command: ") +
-            formatCompileCommand(record) + "; exit_code=" +
+        llvm::Twine("RVV object compiler failed while creating object file; "
+                    "command: ") +
+            formatCompileCommand(record, *clangPath) + "; exit_code=" +
             llvm::Twine(exitCode) + "; stderr: " + stderrText);
   }
 
@@ -2710,7 +2832,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           addFamily.emissionKind, exportRVVMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/true, /*handoffKind=*/{},
-          /*candidateValidationFn=*/nullptr,
+          validateRVVMicrokernelSourceCandidate,
           addFamily.externalABIComponentGroup, addFamily.runtimeABIName)))
     return error;
 
@@ -2720,14 +2842,14 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           subFamily.emissionKind, exportRVVMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
-          /*candidateValidationFn=*/nullptr,
+          validateRVVMicrokernelSourceCandidate,
           subFamily.externalABIComponentGroup, subFamily.runtimeABIName)))
     return error;
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-              kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
-              matchRVVMicrokernelHeaderCandidate,
+              addFamily.headerRouteID, kMicrokernelHeaderArtifactKind,
+              matchRVVMicrokernelAddHeaderCandidate,
               exportRVVMicrokernelHeader, kRVVPluginName,
               addFamily.runtimeABIKind, addFamily.runtimeABIName,
               resolveRVVMicrokernelRuntimeABIParameters,
@@ -2736,13 +2858,37 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
 
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              subFamily.headerRouteID, kMicrokernelHeaderArtifactKind,
+              matchRVVMicrokernelSubHeaderCandidate,
+              exportRVVMicrokernelHeader, kRVVPluginName,
+              subFamily.runtimeABIKind, subFamily.runtimeABIName,
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/false,
+              subFamily.externalABIComponentGroup, subFamily.runtimeABIName,
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              addFamily.objectRouteID, kMicrokernelObjectArtifactKind,
+              matchRVVMicrokernelAddObjectCandidate,
+              exportRVVMicrokernelObject, kRVVPluginName,
+              addFamily.runtimeABIKind, addFamily.runtimeABIName,
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true, addFamily.externalABIComponentGroup,
+              addFamily.runtimeABIName,
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
-      matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject,
-      kRVVPluginName, addFamily.runtimeABIKind, addFamily.runtimeABIName,
+      subFamily.objectRouteID, kMicrokernelObjectArtifactKind,
+      matchRVVMicrokernelSubObjectCandidate, exportRVVMicrokernelObject,
+      kRVVPluginName, subFamily.runtimeABIKind, subFamily.runtimeABIName,
       resolveRVVMicrokernelRuntimeABIParameters,
-      /*directHelperRoute=*/true, addFamily.externalABIComponentGroup,
-      addFamily.runtimeABIName,
+      /*directHelperRoute=*/false, subFamily.externalABIComponentGroup,
+      subFamily.runtimeABIName,
       validateRVVMicrokernelCallableCandidatePreflight));
 }
 

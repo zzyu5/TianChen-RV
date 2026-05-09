@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Top-level project spec index and verification routing."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin locality and family metadata behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify emission/runtime ABI metadata and artifact contract behavior."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Verify plugin registration and target-neutral generic interface boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/FileCheck coverage and test style."}

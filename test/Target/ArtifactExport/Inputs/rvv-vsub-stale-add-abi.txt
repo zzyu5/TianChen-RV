@@ -1,0 +1,52 @@
+module @rvv_microkernel_i32_vsub_stale_add_abi_input {
+  tcrv.exec.kernel @bundle_i32_vsub_stale_abi {
+    tcrv.exec.capability @rvv {architecture = "riscv64", id = "rvv", isa_vector_hints = "rv64gcv_zvl128b", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @rvv_hart_count {count = 64 : i64, id = "rvv.hart_count", kind = "uarch", status = "available"}
+    tcrv.exec.capability @rvv_probe_compile_run {id = "rvv.probe.compile_run", kind = "toolchain", selected_mabi = "lp64d", selected_march = "rv64gcv", status = "available"}
+    tcrv.exec.capability @rvv_toolchain_march {id = "rvv.toolchain.march", kind = "toolchain", status = "available", value = "rv64gcv"}
+    tcrv.exec.capability @rvv_toolchain_mabi {id = "rvv.toolchain.mabi", kind = "toolchain", status = "available", value = "lp64d"}
+    tcrv.exec.variant @rvv_sub_slice attributes {condition = "rvv_capability_properties_available", guard = "plugin_local_rvv_property_evidence", origin = "rvv-plugin", policy = "metadata_only_first_slice", requires = [@rvv], tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, tcrv_rvv.required_march = "rv64gcv"} {
+    }
+    tcrv.exec.diagnostic {message = "static RVV i32 vsub microkernel path selected by stale ABI fixture", origin = "rvv-plugin", reason = "variant-selected", selection_kind = "static-variant", severity = "note", status = "selected", target = @rvv_sub_slice}
+    tcrv.exec.mem_window @abi_lhs_input_buffer {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.mem_window @abi_rhs_input_buffer {abi_role = "rhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.mem_window @abi_output_buffer {abi_role = "output-buffer", access = "write", binding = "kernel-argument", c_type = "int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+    tcrv_rvv.lowering_boundary {capability_summary = "rvv", origin = "rvv-plugin", required_capabilities = [@rvv], role = "direct variant", selected_variant = @rvv_sub_slice, source_kernel = "bundle_i32_vsub_stale_abi", status = "unsupported", unsupported_reason = "RVV lowering boundary is pre-executable metadata only"}
+    tcrv_rvv.i32_vsub_microkernel attributes {element_count = 16 : i64, origin = "rvv-plugin", required_capabilities = [@rvv], required_march = "rv64gcv", role = "direct variant", selected_mabi = "lp64d", selected_variant = @rvv_sub_slice, source_kernel = "bundle_i32_vsub_stale_abi"} {
+    ^bb0(%arg0: index):
+      %0 = tcrv_rvv.setvl %arg0 {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %0 attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %1 = tcrv_rvv.i32_load %0 {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %2 = tcrv_rvv.i32_load %0 {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %3 = tcrv_rvv.i32_sub %1, %2, %0 : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %3, %0 {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "runtime-callable-c-source",
+      emission_kind = "rvv-explicit-i32-vsub-microkernel-c-source",
+      lowering_boundary = "tcrv_rvv.lowering_boundary",
+      lowering_pipeline = "tcrv-export-rvv-i32-vsub-microkernel-c",
+      message = "stale vadd ABI metadata must not label a selected vsub artifact",
+      origin = "rvv-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1",
+      runtime_abi_kind = "rvv-runtime-callable-c-abi",
+      runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1",
+      runtime_abi_parameters = [
+        {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"},
+        {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"},
+        {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
+        {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
+      ],
+      runtime_glue_role = "runtime-callable-i32-vadd-function",
+      severity = "info",
+      status = "supported",
+      target = @rvv_sub_slice
+    }
+  }
+}

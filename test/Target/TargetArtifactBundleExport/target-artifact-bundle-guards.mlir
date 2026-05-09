@@ -7,6 +7,9 @@
 // RUN: rm -rf %t.ambiguous.bundle && mkdir %t.ambiguous.bundle
 // RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.ambiguous.bundle %S/../ArtifactExport/Inputs/multiple-standalone-bundle-frontdoors.txt 2>&1 | FileCheck %s --check-prefix=AMBIGUOUS --implicit-check-not="bundle_status: \"complete\"" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: test ! -e %t.ambiguous.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.vsub-stale-abi.bundle && mkdir %t.vsub-stale-abi.bundle
+// RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vsub-stale-abi.bundle %S/../ArtifactExport/Inputs/rvv-vsub-stale-add-abi.txt 2>&1 | FileCheck %s --check-prefix=VSUB-STALE-ABI --implicit-check-not="bundle_status: \"complete\"" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: test ! -e %t.vsub-stale-abi.bundle/tianchenrv-target-artifact-bundle.index
 
 module @target_artifact_bundle_guard_input {
   tcrv.exec.kernel @metadata_only_bundle {
@@ -72,3 +75,9 @@ module @target_artifact_bundle_guard_input {
 // AMBIGUOUS-SAME: multiple ambiguous supported artifacts without a registered composite route
 // AMBIGUOUS-SAME: @offload_runtime_first_slice as dispatch case route 'tcrv-export-offload-runtime-descriptor' artifact_kind 'runtime-offload-handoff-descriptor'
 // AMBIGUOUS-SAME: @scalar_case_first_slice as dispatch case route 'tcrv-export-scalar-microkernel-c' artifact_kind 'runtime-callable-c-source'
+
+// VSUB-STALE-ABI: TianChen-RV target source artifact export failed for kernel @bundle_i32_vsub_stale_abi
+// VSUB-STALE-ABI-SAME: route id 'tcrv-export-rvv-i32-vsub-microkernel-c'
+// VSUB-STALE-ABI-SAME: target artifact candidate validation failed
+// VSUB-STALE-ABI-SAME: supported RVV i32 microkernel family ABI metadata
+// VSUB-STALE-ABI-SAME: runtime_abi_name 'rvv-i32-vsub-runtime-callable-c-function.v1'

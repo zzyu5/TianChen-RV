@@ -1,0 +1,10 @@
+// REQUIRES: tianchenrv-local-rvv-object-clang
+
+// RUN: tcrv-opt %S/rvv-microkernel-family-sub.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.vsub.o
+// RUN: test -s %t.vsub.o
+// RUN: llvm-readobj --file-headers --symbols %t.vsub.o | FileCheck %s --check-prefixes=OBJ,VSUB-OBJ --implicit-check-not="Name: main"
+
+// OBJ: Format: elf
+// OBJ: Arch: riscv
+// OBJ: Type: Relocatable
+// VSUB-OBJ: Name: tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
