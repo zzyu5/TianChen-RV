@@ -30,10 +30,77 @@ SCRIPT_NAME = "tianchenrv-rvv-microkernel-e2e"
 SCHEMA_VERSION = 1
 DEFAULT_INPUT = Path("test/Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir")
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_e2e")
+DEFAULT_BUNDLE_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_bundle_e2e")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 SUCCESS_MARKER = "tcrv_rvv_microkernel_ok"
 EXTERNAL_ABI_SUCCESS_MARKER = "tcrv_rvv_microkernel_external_abi_ok"
+BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
+BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP = "rvv-i32-vadd-microkernel-external-abi.v1"
+BUNDLE_EXTERNAL_ABI_NAME = "rvv-i32-vadd-runtime-callable-c-function.v1"
+
+RVV_RUNTIME_ABI_SIGNATURE = [
+    {
+        "c_name": "lhs",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int32_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+]
+
+RVV_BUNDLE_ROUTES = {
+    "source": {
+        "route": "tcrv-export-rvv-microkernel-c",
+        "artifact_kind": "runtime-callable-c-source",
+        "component_group": BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP,
+        "component_role": "source",
+        "external_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
+        "owner": "rvv-plugin",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
+        "evidence_role": "compiler-artifact",
+    },
+    "header": {
+        "route": "tcrv-export-rvv-microkernel-header",
+        "artifact_kind": "runtime-callable-c-header",
+        "component_group": BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP,
+        "component_role": "header",
+        "external_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
+        "owner": "rvv-plugin",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
+        "evidence_role": "header-declaration",
+    },
+    "object": {
+        "route": "tcrv-export-rvv-microkernel-object",
+        "artifact_kind": "riscv-elf-relocatable-object",
+        "component_group": BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP,
+        "component_role": "object",
+        "external_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
+        "owner": "rvv-plugin",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
+        "evidence_role": "relocatable-object",
+    },
+}
 
 EXPECTED_DATAFLOW_PROVENANCE = {
     "dataflow_abi_roles": [
@@ -599,15 +666,29 @@ def validate_generated_header(header: str) -> str:
     return prototypes[0]
 
 
-def build_external_caller_source(function_name: str) -> str:
+def validate_bundle_file_name(file_name: str) -> None:
+    if not file_name:
+        raise BridgeError("bundle index artifact file_name must be non-empty")
+    reject_secret_like_text("bundle index artifact file_name", file_name)
+    if Path(file_name).name != file_name or "/" in file_name or "\\" in file_name:
+        raise BridgeError(
+            f"bundle index artifact file_name must be a plain file name: {file_name}"
+        )
+
+
+def build_external_caller_source(
+    function_name: str, header_file_name: str = "rvv_microkernel.h"
+) -> str:
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", function_name):
         raise BridgeError("generated header function name is not a valid C identifier")
+    validate_bundle_file_name(header_file_name)
+    escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
     return f"""\
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
-#include "rvv_microkernel.h"
+#include "{escaped_header}"
 
 int main(void) {{
   enum {{ kElements = 16 }};
@@ -629,6 +710,296 @@ int main(void) {{
   return 0;
 }}
 """
+
+
+def parse_bundle_index_value(raw: str) -> str:
+    value = raw.strip()
+    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
+        inner = value[1:-1]
+        return (
+            inner.replace(r"\t", "\t")
+            .replace(r"\"", '"')
+            .replace(r"\\", "\\")
+        )
+    if value.startswith("@"):
+        return value[1:]
+    return value
+
+
+def parse_target_artifact_bundle_index(index_text: str) -> list[dict[str, Any]]:
+    reject_secret_like_text("target artifact bundle index", index_text)
+    bundle_status = ""
+    artifact_count: int | None = None
+    records: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    current_component: dict[str, str] | None = None
+    current_runtime_abi_parameter: dict[str, str] | None = None
+    current_selected_plan_metadata: dict[str, str] | None = None
+
+    for raw_line in index_text.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        if line.startswith("bundle_status:"):
+            bundle_status = parse_bundle_index_value(line.split(":", 1)[1])
+            continue
+        if line.startswith("artifact_count:"):
+            count_text = line.split(":", 1)[1].strip()
+            if not count_text.isdigit():
+                raise BridgeError("bundle index artifact_count must be an integer")
+            artifact_count = int(count_text)
+            continue
+        artifact_match = re.match(r"^artifact\[([0-9]+)\]:$", line)
+        if artifact_match:
+            current = {
+                "index": int(artifact_match.group(1)),
+                "components": [],
+                "runtime_abi_parameters": [],
+                "selected_plan_metadata": [],
+            }
+            records.append(current)
+            current_component = None
+            current_runtime_abi_parameter = None
+            current_selected_plan_metadata = None
+            continue
+        component_match = re.match(r"^  component\[([0-9]+)\]:$", line)
+        if component_match:
+            if current is None:
+                raise BridgeError("bundle index component appears before artifact")
+            current_component = {"index": component_match.group(1)}
+            current["components"].append(current_component)
+            current_runtime_abi_parameter = None
+            current_selected_plan_metadata = None
+            continue
+        parameter_match = re.match(r"^  runtime_abi_parameter\[([0-9]+)\]:$", line)
+        if parameter_match:
+            if current is None:
+                raise BridgeError(
+                    "bundle index runtime_abi_parameter appears before artifact"
+                )
+            current_runtime_abi_parameter = {"index": parameter_match.group(1)}
+            current["runtime_abi_parameters"].append(current_runtime_abi_parameter)
+            current_component = None
+            current_selected_plan_metadata = None
+            continue
+        selected_metadata_match = re.match(
+            r"^  selected_plan_metadata\[([0-9]+)\]:$", line
+        )
+        if selected_metadata_match:
+            if current is None:
+                raise BridgeError(
+                    "bundle index selected_plan_metadata appears before artifact"
+                )
+            current_selected_plan_metadata = {
+                "index": selected_metadata_match.group(1)
+            }
+            current["selected_plan_metadata"].append(current_selected_plan_metadata)
+            current_component = None
+            current_runtime_abi_parameter = None
+            continue
+
+        field_match = re.match(r"^  ([A-Za-z0-9_]+):\s*(.*)$", line)
+        if field_match and current is not None:
+            key, raw_value = field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(f"bundle index field {key}", value)
+            current[key] = value
+            current_component = None
+            current_runtime_abi_parameter = None
+            current_selected_plan_metadata = None
+            continue
+
+        component_field_match = re.match(r"^    ([A-Za-z0-9_]+):\s*(.*)$", line)
+        if component_field_match and current_component is not None:
+            key, raw_value = component_field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(f"bundle index component field {key}", value)
+            current_component[key] = value
+            continue
+        if component_field_match and current_runtime_abi_parameter is not None:
+            key, raw_value = component_field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(
+                f"bundle index runtime_abi_parameter field {key}", value
+            )
+            current_runtime_abi_parameter[key] = value
+            continue
+        if component_field_match and current_selected_plan_metadata is not None:
+            key, raw_value = component_field_match.groups()
+            value = parse_bundle_index_value(raw_value)
+            reject_secret_like_text(
+                f"bundle index selected_plan_metadata field {key}", value
+            )
+            current_selected_plan_metadata[key] = value
+            continue
+
+    if bundle_status != "complete":
+        raise BridgeError("bundle index must record bundle_status complete")
+    if artifact_count is None:
+        raise BridgeError("bundle index missing artifact_count")
+    if artifact_count != len(records):
+        raise BridgeError(
+            f"bundle index artifact_count={artifact_count} does not match parsed records={len(records)}"
+        )
+
+    required_fields = [
+        "file_name",
+        "component_group",
+        "component_role",
+        "external_abi_name",
+        "artifact_kind",
+        "route",
+        "owner",
+        "runtime_abi_kind",
+        "runtime_abi_name",
+        "evidence_role",
+    ]
+    for record in records:
+        for field in required_fields:
+            if not str(record.get(field, "")).strip():
+                raise BridgeError(
+                    f"bundle index artifact[{record.get('index')}] missing required field {field}"
+                )
+        validate_bundle_file_name(str(record["file_name"]))
+    return records
+
+
+def require_rvv_runtime_abi_signature(
+    record: dict[str, Any],
+) -> list[dict[str, str]]:
+    raw_parameters = record.get("runtime_abi_parameters")
+    if not isinstance(raw_parameters, list) or not raw_parameters:
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must publish runtime_abi_parameter signature metadata"
+        )
+
+    parameters: list[dict[str, str]] = []
+    seen_roles: set[str] = set()
+    for index, raw_parameter in enumerate(raw_parameters):
+        if not isinstance(raw_parameter, dict):
+            raise BridgeError(
+                f"bundle record route {record.get('route')} runtime_abi_parameter[{index}] must be a dictionary"
+            )
+        parameter = {
+            "c_name": str(raw_parameter.get("c_name", "")),
+            "c_type": str(raw_parameter.get("c_type", "")),
+            "role": str(raw_parameter.get("role", "")),
+            "ownership": str(raw_parameter.get("ownership", "")),
+        }
+        for field, value in parameter.items():
+            if not value.strip():
+                raise BridgeError(
+                    f"bundle record route {record.get('route')} runtime_abi_parameter[{index}] missing {field}"
+                )
+            reject_secret_like_text(f"runtime ABI parameter {field}", value)
+        if parameter["role"] in seen_roles:
+            raise BridgeError(
+                f"bundle record route {record.get('route')} has duplicate runtime ABI parameter role {parameter['role']}"
+            )
+        seen_roles.add(parameter["role"])
+        parameters.append(parameter)
+
+    if parameters != RVV_RUNTIME_ABI_SIGNATURE:
+        raise BridgeError(
+            f"bundle record route {record.get('route')} runtime ABI signature does not match the RVV i32-vadd callable ABI"
+        )
+    return parameters
+
+
+def require_rvv_component_metadata(record: dict[str, Any]) -> None:
+    if record.get("selected_variant") != "rvv_first_slice":
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must preserve selected_variant @rvv_first_slice"
+        )
+    if record.get("role") != "direct variant":
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must preserve direct variant role"
+        )
+    components = record.get("components")
+    if not isinstance(components, list) or len(components) != 1:
+        raise BridgeError(
+            f"bundle record route {record.get('route')} must preserve exactly one selected component"
+        )
+    component = components[0]
+    if component.get("selected_variant") != "rvv_first_slice":
+        raise BridgeError(
+            f"bundle record route {record.get('route')} component must preserve rvv_first_slice"
+        )
+    if component.get("role") != "direct variant":
+        raise BridgeError(
+            f"bundle record route {record.get('route')} component must preserve direct variant role"
+        )
+
+
+def select_rvv_bundle_records(
+    records: list[dict[str, Any]], bundle_dir: Path
+) -> dict[str, dict[str, Any]]:
+    selected: dict[str, dict[str, Any]] = {}
+    for label, expected in RVV_BUNDLE_ROUTES.items():
+        matches = [record for record in records if record.get("route") == expected["route"]]
+        if len(matches) != 1:
+            raise BridgeError(
+                f"bundle index must contain exactly one {label} record for route {expected['route']}; found {len(matches)}"
+            )
+        record = matches[0]
+        for field in (
+            "artifact_kind",
+            "component_group",
+            "component_role",
+            "external_abi_name",
+            "owner",
+            "runtime_abi_kind",
+            "runtime_abi_name",
+            "evidence_role",
+        ):
+            if record.get(field) != expected[field]:
+                raise BridgeError(
+                    f"bundle {label} record field {field}={record.get(field)!r} does not match expected {expected[field]!r}"
+                )
+        require_rvv_component_metadata(record)
+        require_rvv_runtime_abi_signature(record)
+        artifact_path = bundle_dir / str(record["file_name"])
+        if not artifact_path.exists() or artifact_path.stat().st_size == 0:
+            raise BridgeError(
+                f"bundle {label} artifact is missing or empty: {record['file_name']}"
+            )
+        selected[label] = record
+
+    signatures = {
+        json.dumps(record.get("runtime_abi_parameters", []), sort_keys=True)
+        for record in selected.values()
+    }
+    if len(signatures) != 1:
+        raise BridgeError(
+            "selected RVV bundle records must share the compiler-emitted runtime ABI parameter signature"
+        )
+    return selected
+
+
+def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summary: list[dict[str, Any]] = []
+    for record in records:
+        summary.append(
+            {
+                "index": record.get("index"),
+                "file_name": record.get("file_name"),
+                "component_group": record.get("component_group", ""),
+                "component_role": record.get("component_role", ""),
+                "external_abi_name": record.get("external_abi_name", ""),
+                "artifact_kind": record.get("artifact_kind"),
+                "route": record.get("route"),
+                "owner": record.get("owner"),
+                "runtime_abi_kind": record.get("runtime_abi_kind"),
+                "runtime_abi_name": record.get("runtime_abi_name"),
+                "evidence_role": record.get("evidence_role"),
+                "runtime_abi_parameters": record.get("runtime_abi_parameters", []),
+                "selected_variant": record.get("selected_variant", ""),
+                "role": record.get("role", ""),
+                "components": record.get("components", []),
+                "selected_plan_metadata": record.get("selected_plan_metadata", []),
+            }
+        )
+    return summary
 
 
 def quote_remote_path(path: str) -> str:
@@ -693,6 +1064,45 @@ def build_remote_external_link_command(remote_dir: str, flags: dict[str, str]) -
         f"cd {quote_remote_path(remote_dir)} && "
         f"clang {quoted_flags} rvv_microkernel_external_caller.c "
         "rvv_microkernel.o -o rvv_microkernel_external_caller"
+    )
+
+
+def build_remote_bundle_compile_caller_object_command(
+    remote_dir: str, flags: dict[str, str]
+) -> str:
+    quoted_flags = " ".join(shlex.quote(part) for part in remote_compile_flags(flags))
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        f"clang {quoted_flags} -c rvv_microkernel_external_caller.c "
+        "-o rvv_microkernel_external_caller.o"
+    )
+
+
+def build_remote_bundle_compile_source_object_command(
+    remote_dir: str, source_file_name: str, flags: dict[str, str]
+) -> str:
+    validate_bundle_file_name(source_file_name)
+    quoted_flags = " ".join(shlex.quote(part) for part in remote_compile_flags(flags))
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        f"clang {quoted_flags} -c {shlex.quote(source_file_name)} "
+        "-o rvv_microkernel_from_source.o"
+    )
+
+
+def build_remote_bundle_link_executable_command(
+    remote_dir: str,
+    object_file_name: str,
+    executable_file_name: str,
+    flags: dict[str, str],
+) -> str:
+    validate_bundle_file_name(object_file_name)
+    validate_bundle_file_name(executable_file_name)
+    quoted_flags = " ".join(shlex.quote(part) for part in remote_compile_flags(flags))
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        f"clang {quoted_flags} rvv_microkernel_external_caller.o "
+        f"{shlex.quote(object_file_name)} -o {shlex.quote(executable_file_name)}"
     )
 
 
@@ -916,13 +1326,517 @@ def run_remote_external_abi_evidence(
     }
 
 
+def run_remote_bundle_external_abi_evidence(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    artifact_dir: Path,
+    commands: list[dict[str, Any]],
+    source_path: Path,
+    header_path: Path,
+    object_path: Path,
+    caller_path: Path,
+    source_file_name: str,
+    object_file_name: str,
+    flags: dict[str, str],
+    run_id: str,
+) -> dict[str, Any]:
+    reject_secret_like_text("ssh target", args.ssh_target)
+    remote_dir = f"/tmp/tianchenrv_rvv_microkernel_bundle_{safe_run_id(run_id)}"
+
+    setup_command = f"rm -rf {quote_remote_path(remote_dir)} && mkdir -p {quote_remote_path(remote_dir)}"
+    run_command(
+        "ssh_setup_remote_dir",
+        remote_shell_command(args, setup_command),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    uname_stdout, _, _ = run_command(
+        "ssh_uname",
+        remote_shell_command(args, "uname -a"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    arch_stdout, _, _ = run_command(
+        "ssh_architecture",
+        remote_shell_command(args, "uname -m"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    clang_path_stdout, _, _ = run_command(
+        "ssh_clang_path",
+        remote_shell_command(args, "command -v clang || true"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    clang_version_stdout, _, _ = run_command(
+        "ssh_clang_version",
+        remote_shell_command(args, "clang --version | head -n 1"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "scp_bundle_source_header_object_and_external_caller",
+        [
+            *scp_base_command(args),
+            relative_to_repo(source_path, root),
+            relative_to_repo(header_path, root),
+            relative_to_repo(object_path, root),
+            relative_to_repo(caller_path, root),
+            f"{args.ssh_target}:{remote_dir}/",
+        ],
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_compile_bundle_external_caller_object",
+        remote_shell_command(
+            args, build_remote_bundle_compile_caller_object_command(remote_dir, flags)
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    caller_object_hash_stdout, _, _ = run_command(
+        "ssh_bundle_caller_object_sha256",
+        remote_shell_command(
+            args, remote_sha256_command(remote_dir, "rvv_microkernel_external_caller.o")
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_compile_bundle_source_object",
+        remote_shell_command(
+            args,
+            build_remote_bundle_compile_source_object_command(
+                remote_dir, source_file_name, flags
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    source_object_hash_stdout, _, _ = run_command(
+        "ssh_bundle_source_object_sha256",
+        remote_shell_command(
+            args, remote_sha256_command(remote_dir, "rvv_microkernel_from_source.o")
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_link_bundle_source_external_caller",
+        remote_shell_command(
+            args,
+            build_remote_bundle_link_executable_command(
+                remote_dir,
+                "rvv_microkernel_from_source.o",
+                "rvv_microkernel_external_caller_from_source",
+                flags,
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    source_executable_hash_stdout, _, _ = run_command(
+        "ssh_bundle_source_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_microkernel_external_caller_from_source"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    source_run_stdout, _, _ = run_command(
+        "ssh_run_bundle_source_external_caller",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && "
+            "./rvv_microkernel_external_caller_from_source",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if EXTERNAL_ABI_SUCCESS_MARKER not in source_run_stdout:
+        raise BridgeError(
+            "remote bundle source-built external caller stdout missing expected marker: "
+            + EXTERNAL_ABI_SUCCESS_MARKER
+        )
+
+    run_command(
+        "ssh_link_bundle_index_object_external_caller",
+        remote_shell_command(
+            args,
+            build_remote_bundle_link_executable_command(
+                remote_dir,
+                object_file_name,
+                "rvv_microkernel_external_caller_from_bundle_object",
+                flags,
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    bundle_object_executable_hash_stdout, _, _ = run_command(
+        "ssh_bundle_object_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_microkernel_external_caller_from_bundle_object"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    bundle_object_run_stdout, _, _ = run_command(
+        "ssh_run_bundle_index_object_external_caller",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && "
+            "./rvv_microkernel_external_caller_from_bundle_object",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if EXTERNAL_ABI_SUCCESS_MARKER not in bundle_object_run_stdout:
+        raise BridgeError(
+            "remote bundle object external caller stdout missing expected marker: "
+            + EXTERNAL_ABI_SUCCESS_MARKER
+        )
+
+    cleanup_status = "success"
+    try:
+        run_command(
+            "ssh_cleanup_remote_dir",
+            remote_shell_command(args, f"rm -rf {quote_remote_path(remote_dir)}"),
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    except BridgeError:
+        cleanup_status = "failure"
+
+    return {
+        "ssh_target": args.ssh_target,
+        "remote_dir": remote_dir,
+        "host_facts": {
+            "uname": first_sanitized_line(uname_stdout),
+            "architecture": first_sanitized_line(arch_stdout),
+            "clang_path": first_sanitized_line(clang_path_stdout),
+            "clang_version": first_sanitized_line(clang_version_stdout),
+        },
+        "remote_artifacts": {
+            "source_file": source_file_name,
+            "header_file": header_path.name,
+            "bundle_object_file": object_file_name,
+            "caller_file": caller_path.name,
+            "caller_object_file": "rvv_microkernel_external_caller.o",
+            "source_built_object_file": "rvv_microkernel_from_source.o",
+            "source_built_executable": "rvv_microkernel_external_caller_from_source",
+            "bundle_object_executable": "rvv_microkernel_external_caller_from_bundle_object",
+        },
+        "compile_flags": remote_compile_flags(flags),
+        "caller_object_compile_exit_code": 0,
+        "source_object_compile_exit_code": 0,
+        "source_link_exit_code": 0,
+        "source_run_exit_code": 0,
+        "bundle_object_link_exit_code": 0,
+        "bundle_object_run_exit_code": 0,
+        "expected_stdout_marker": EXTERNAL_ABI_SUCCESS_MARKER,
+        "source_stdout_marker_observed": True,
+        "bundle_object_stdout_marker_observed": True,
+        "caller_object_sha256": first_sanitized_line(caller_object_hash_stdout),
+        "source_built_object_sha256": first_sanitized_line(source_object_hash_stdout),
+        "source_built_executable_sha256": first_sanitized_line(
+            source_executable_hash_stdout
+        ),
+        "bundle_object_executable_sha256": first_sanitized_line(
+            bundle_object_executable_hash_stdout
+        ),
+        "cleanup_status": cleanup_status,
+    }
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     reject_secret_like_text(path.name, text)
     path.write_text(text, encoding="utf-8")
 
 
+def selected_artifact_root(args: argparse.Namespace) -> Path:
+    if (
+        args.use_target_artifact_bundle
+        and args.artifact_root == str(DEFAULT_ARTIFACT_ROOT)
+    ):
+        return DEFAULT_BUNDLE_ARTIFACT_ROOT
+    return Path(args.artifact_root)
+
+
+def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
+    root = repo_root()
+    if args.evidence_note:
+        reject_secret_like_text("evidence note", args.evidence_note)
+
+    run_id = safe_run_id(args.run_id or utc_run_id())
+    artifact_dir = prepare_artifact_dir(
+        selected_artifact_root(args), run_id, root, args.overwrite
+    )
+    commands: list[dict[str, Any]] = []
+
+    input_path = resolve_repo_path(Path(args.input), root)
+    if not input_path.exists():
+        raise BridgeError(f"input MLIR does not exist: {args.input}")
+    reject_secret_like_text("input MLIR path", str(args.input))
+
+    tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
+    local_clang = ensure_local_clang_on_path()
+
+    bundle_dir = artifact_dir / "target_artifact_bundle"
+    bundle_dir.mkdir()
+
+    post_planning_path: Path | None = None
+    post_planning_mlir = ""
+    if args.use_plan_and_export_bundle_front_door:
+        bundle_stdout, _, _ = run_command(
+            "plan_and_export_target_artifact_bundle",
+            [
+                tcrv_translate,
+                "--tcrv-plan-and-export-target-artifact-bundle",
+                f"--tcrv-target-artifact-bundle-output-dir={relative_to_repo(bundle_dir, root)}",
+                relative_to_repo(input_path, root),
+            ],
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    else:
+        tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
+        post_planning_mlir, _, _ = run_command(
+            "tcrv_opt_materialize_plans",
+            [
+                tcrv_opt,
+                relative_to_repo(input_path, root),
+                "--tcrv-materialize-selected-lowering-boundaries",
+                "--tcrv-materialize-emission-plans",
+            ],
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+        post_planning_path = artifact_dir / "post_planning.mlir"
+        write_generated_text(
+            post_planning_path, "post-planning MLIR", post_planning_mlir
+        )
+
+        bundle_stdout, _, _ = run_command(
+            "export_target_artifact_bundle",
+            [
+                tcrv_translate,
+                "--tcrv-export-target-artifact-bundle",
+                f"--tcrv-target-artifact-bundle-output-dir={relative_to_repo(bundle_dir, root)}",
+                relative_to_repo(post_planning_path, root),
+            ],
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    bundle_stdout_path = artifact_dir / "bundle_export_stdout.txt"
+    write_generated_text(
+        bundle_stdout_path, "target artifact bundle export stdout", bundle_stdout
+    )
+
+    index_path = bundle_dir / BUNDLE_INDEX_FILE_NAME
+    if not index_path.exists():
+        raise BridgeError(f"target artifact bundle index was not emitted: {BUNDLE_INDEX_FILE_NAME}")
+    index_text = index_path.read_text(encoding="utf-8")
+    records = parse_target_artifact_bundle_index(index_text)
+    selected_records = select_rvv_bundle_records(records, bundle_dir)
+
+    source_path = bundle_dir / str(selected_records["source"]["file_name"])
+    header_path = bundle_dir / str(selected_records["header"]["file_name"])
+    object_path = bundle_dir / str(selected_records["object"]["file_name"])
+    source_text = source_path.read_text(encoding="utf-8")
+    header_text = header_path.read_text(encoding="utf-8")
+    source_flags = validate_generated_source(source_text, require_harness=False)
+    header_function_name = validate_generated_header(header_text)
+    if object_path.stat().st_size < 4 or object_path.read_bytes()[:4] != b"\x7fELF":
+        raise BridgeError("bundled RVV microkernel object must be a non-empty ELF relocatable")
+
+    caller_text = build_external_caller_source(
+        header_function_name, str(selected_records["header"]["file_name"])
+    )
+    caller_path = artifact_dir / "rvv_microkernel_external_caller.c"
+    write_generated_text(
+        caller_path, "generated RVV microkernel bundle external caller", caller_text
+    )
+
+    hashes = {
+        "input_sha256": sha256_file(input_path),
+        "bundle_export_stdout_sha256": sha256_text(bundle_stdout),
+        "bundle_index_sha256": sha256_text(index_text),
+        "bundle_microkernel_source_sha256": sha256_text(source_text),
+        "bundle_microkernel_header_sha256": sha256_text(header_text),
+        "bundle_microkernel_object_sha256": sha256_file(object_path),
+        "bundle_external_caller_c_sha256": sha256_text(caller_text),
+    }
+    if post_planning_path is not None:
+        hashes["post_planning_mlir_sha256"] = sha256_text(post_planning_mlir)
+
+    bundle_export_mode = (
+        "plan-and-export-target-artifact-bundle"
+        if args.use_plan_and_export_bundle_front_door
+        else "target-artifact-bundle"
+    )
+    planned_pipeline = (
+        "tcrv-plan-and-export-target-artifact-bundle"
+        if args.use_plan_and_export_bundle_front_door
+        else "tcrv-materialize-selected-lowering-boundaries"
+    )
+    artifacts = {
+        "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
+        "bundle_dir": relative_to_repo(bundle_dir, root),
+        "bundle_index": relative_to_repo(index_path, root),
+        "bundle_microkernel_source": relative_to_repo(source_path, root),
+        "bundle_microkernel_header": relative_to_repo(header_path, root),
+        "bundle_microkernel_object": relative_to_repo(object_path, root),
+        "bundle_external_caller_c": relative_to_repo(caller_path, root),
+    }
+    if post_planning_path is not None:
+        artifacts["post_planning_mlir"] = relative_to_repo(
+            post_planning_path, root
+        )
+
+    evidence: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "runner": SCRIPT_NAME,
+        "run_id": run_id,
+        "mode": "dry-run" if args.dry_run else "ssh",
+        "status": "success",
+        "input": relative_to_repo(input_path, root),
+        "artifact_dir": relative_to_repo(artifact_dir, root),
+        "planned_pipeline": planned_pipeline,
+        "bundle_export_mode": bundle_export_mode,
+        "bundle_index": relative_to_repo(index_path, root),
+        "bundle_index_summary": bundle_records_summary(records),
+        "local_object_export_clang": sanitize_text(local_clang),
+        "selected_bundle_records": {
+            label: bundle_records_summary([record])[0]
+            for label, record in selected_records.items()
+        },
+        "selected_artifact_paths": {
+            "bundle_index": relative_to_repo(index_path, root),
+            "source": relative_to_repo(source_path, root),
+            "header": relative_to_repo(header_path, root),
+            "object": relative_to_repo(object_path, root),
+            "external_caller": relative_to_repo(caller_path, root),
+        },
+        "source_export_mode": "runtime-callable-library",
+        "source_dataflow_provenance": source_flags["dataflow_provenance"],
+        "external_caller": {
+            "kind": "generated-c-caller",
+            "function": header_function_name,
+            "runtime_abi_signature": RVV_RUNTIME_ABI_SIGNATURE,
+            "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
+            "runtime_element_counts": [16],
+        },
+        "selected_compile_flags": remote_compile_flags(source_flags),
+        "pass_fail_result": "pass",
+        "hashes": hashes,
+        "artifacts": artifacts,
+        "commands": commands,
+        "ssh_evidence": None,
+        "claim_scope": (
+            "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
+            if args.dry_run
+            else "bounded RVV i32-vadd target-artifact bundle external caller correctness only"
+        ),
+    }
+
+    if not args.dry_run:
+        try:
+            evidence["ssh_evidence"] = run_remote_bundle_external_abi_evidence(
+                args,
+                root=root,
+                artifact_dir=artifact_dir,
+                commands=commands,
+                source_path=source_path,
+                header_path=header_path,
+                object_path=object_path,
+                caller_path=caller_path,
+                source_file_name=str(selected_records["source"]["file_name"]),
+                object_file_name=str(selected_records["object"]["file_name"]),
+                flags=source_flags,
+                run_id=run_id,
+            )
+            evidence["commands"] = commands
+        except BridgeError as error:
+            evidence["status"] = "failure"
+            evidence["pass_fail_result"] = "fail"
+            evidence["error"] = sanitize_text(str(error))
+            evidence["commands"] = commands
+            write_json(artifact_dir / "command_summary.json", {
+                "artifact_dir": relative_to_repo(artifact_dir, root),
+                "commands": commands,
+            })
+            write_json(artifact_dir / "hashes.json", hashes)
+            write_json(artifact_dir / "evidence.json", evidence)
+            raise
+
+    write_json(artifact_dir / "command_summary.json", {
+        "artifact_dir": relative_to_repo(artifact_dir, root),
+        "commands": commands,
+    })
+    write_json(artifact_dir / "hashes.json", hashes)
+    write_json(artifact_dir / "evidence.json", evidence)
+    return evidence
+
+
 def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
+    if args.use_target_artifact_bundle:
+        return run_bundle_bridge(args)
+
     root = repo_root()
     if args.evidence_note:
         reject_secret_like_text("evidence note", args.evidence_note)
@@ -1391,6 +2305,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Use the explicit RVV microkernel self-check harness export",
     )
+    parser.add_argument(
+        "--use-target-artifact-bundle",
+        action="store_true",
+        help="Export and consume the registry-derived target artifact bundle",
+    )
+    parser.add_argument(
+        "--use-plan-and-export-bundle-front-door",
+        action="store_true",
+        help=(
+            "In target artifact bundle mode, call the C++ tcrv-translate "
+            "plan-and-export bundle front door instead of orchestrating "
+            "tcrv-opt followed by bundle export"
+        ),
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
 
@@ -1400,6 +2328,25 @@ def main(argv: list[str]) -> int:
     if args.self_test:
         run_self_test()
         return 0
+    if (
+        args.use_plan_and_export_bundle_front_door
+        and not args.use_target_artifact_bundle
+    ):
+        print(
+            "rvv_microkernel_e2e: --use-plan-and-export-bundle-front-door "
+            "requires --use-target-artifact-bundle",
+            file=sys.stderr,
+        )
+        return 1
+    if args.use_target_artifact_bundle and (
+        args.generic_route or args.self_check_harness
+    ):
+        print(
+            "rvv_microkernel_e2e: --use-target-artifact-bundle cannot be "
+            "combined with --generic-route or --self-check-harness",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         evidence = run_bridge(args)
@@ -1411,12 +2358,17 @@ def main(argv: list[str]) -> int:
         json.dumps(
             {
                 "artifact_dir": evidence["artifact_dir"],
+                "bundle_export_mode": evidence.get("bundle_export_mode", ""),
                 "mode": evidence["mode"],
                 "status": evidence["status"],
-                "manifest_handoff": evidence["manifest_handoff"],
-                "source_sha256": evidence["hashes"]["rvv_microkernel_c_sha256"],
+                "manifest_handoff": evidence.get("manifest_handoff", False),
+                "planned_pipeline": evidence.get("planned_pipeline", ""),
+                "source_sha256": evidence["hashes"].get(
+                    "rvv_microkernel_c_sha256",
+                    evidence["hashes"].get("bundle_microkernel_source_sha256", ""),
+                ),
                 "source_export_mode": evidence["source_export_mode"],
-                "source_export_route": evidence["source_export_route"],
+                "source_export_route": evidence.get("source_export_route", ""),
                 "ssh_evidence": bool(evidence["ssh_evidence"]),
                 "claim_scope": evidence["claim_scope"],
             },

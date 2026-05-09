@@ -1254,6 +1254,11 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.selectedPlanMetadata.append(candidate.selectedPlanMetadata.begin(),
                                      candidate.selectedPlanMetadata.end());
   record.handoffKind = exporter->getHandoffKind().str();
+  record.componentGroup = exporter->getComponentGroup().str();
+  if (!record.componentGroup.empty())
+    record.externalABIName = exporter->getExternalABIName().empty()
+                                 ? record.runtimeABIName
+                                 : exporter->getExternalABIName().str();
   record.evidenceRole =
       getEvidenceRoleForArtifactKind(candidate.artifactKind).str();
   out.push_back(std::move(record));
@@ -2146,11 +2151,13 @@ TargetArtifactExporter::TargetArtifactExporter(
     llvm::ArrayRef<support::RuntimeABIParameter>
         requiredRuntimeABIParameters,
     bool directHelperRoute, llvm::StringRef handoffKind,
-    TargetArtifactCandidateValidationFn candidateValidationFn)
+    TargetArtifactCandidateValidationFn candidateValidationFn,
+    llvm::StringRef componentGroup, llvm::StringRef externalABIName)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
       exportFn(exportFn), directHelperRoute(directHelperRoute),
-      handoffKind(handoffKind.str()),
+      handoffKind(handoffKind.str()), componentGroup(componentGroup.str()),
+      externalABIName(externalABIName.str()),
       candidateValidationFn(candidateValidationFn) {
   this->requiredRuntimeABIParameters.append(
       requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());

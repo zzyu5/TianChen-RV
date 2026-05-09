@@ -56,6 +56,9 @@ module @plan_linalg_i32_vadd_bundle_input {
 // INDEX: artifact_count: 3
 // INDEX: artifact[0]:
 // INDEX: file_name: "artifact-0-runtime-callable-c-source-tcrv-export-rvv-microkernel-c.c"
+// INDEX: component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
+// INDEX: component_role: "source"
+// INDEX: external_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
 // INDEX: selected_variant: @rvv_first_slice
 // INDEX: role: "direct variant"
 // INDEX: component[0]:
@@ -80,13 +83,39 @@ module @plan_linalg_i32_vadd_bundle_input {
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-microkernel-header.h"
+// INDEX: component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
+// INDEX: component_role: "header"
+// INDEX: external_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
 // INDEX: artifact_kind: "runtime-callable-c-header"
 // INDEX: route: "tcrv-export-rvv-microkernel-header"
+// INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// INDEX: runtime_abi_parameter[0]:
+// INDEX: c_name: "lhs"
+// INDEX: role: "lhs-input-buffer"
+// INDEX: runtime_abi_parameter[3]:
+// INDEX: c_name: "n"
+// INDEX: role: "runtime-element-count"
+// INDEX: selected_plan_metadata[0]:
+// INDEX: name: "tcrv_rvv.vlenb_bytes"
 // INDEX: evidence_role: "header-declaration"
 // INDEX: artifact[2]:
 // INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-microkernel-object.o"
+// INDEX: component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
+// INDEX: component_role: "object"
+// INDEX: external_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
 // INDEX: artifact_kind: "riscv-elf-relocatable-object"
 // INDEX: route: "tcrv-export-rvv-microkernel-object"
+// INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// INDEX: runtime_abi_parameter[0]:
+// INDEX: c_name: "lhs"
+// INDEX: role: "lhs-input-buffer"
+// INDEX: runtime_abi_parameter[3]:
+// INDEX: c_name: "n"
+// INDEX: role: "runtime-element-count"
+// INDEX: selected_plan_metadata[0]:
+// INDEX: name: "tcrv_rvv.vlenb_bytes"
 // INDEX: evidence_role: "relocatable-object"
 
 // SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */

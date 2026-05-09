@@ -100,6 +100,8 @@ constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kMicrokernelExternalABIComponentGroup(
+    "rvv-i32-vadd-microkernel-external-abi.v1");
 enum class RVVMicrokernelCExportMode {
   RuntimeCallableLibrary,
   SelfCheckHarness,
@@ -2094,6 +2096,19 @@ llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
                                                         sourceExporter);
 }
 
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
+resolveRVVMicrokernelRuntimeABIParameters(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (llvm::Error error =
+          validateRVVMicrokernelCallableCandidatePreflight(candidates))
+    return std::move(error);
+
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.append(candidates.front().runtimeABIParameters.begin(),
+                    candidates.front().runtimeABIParameters.end());
+  return parameters;
+}
+
 llvm::Expected<bool> matchRVVMicrokernelObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
@@ -2343,7 +2358,9 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           kMicrokernelRouteID, kMicrokernelArtifactKind, kRVVPluginName,
           kMicrokernelEmissionKind, exportRVVMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
-          /*directHelperRoute=*/true)))
+          /*directHelperRoute=*/true, /*handoffKind=*/{},
+          /*candidateValidationFn=*/nullptr,
+          kMicrokernelExternalABIComponentGroup, abi.runtimeABIName)))
     return error;
 
   if (llvm::Error error =
@@ -2351,9 +2368,9 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
               matchRVVMicrokernelHeaderCandidate,
               exportRVVMicrokernelHeader, kRVVPluginName, abi.runtimeABIKind,
-              abi.runtimeABIName,
-              /*directHelperRoute=*/true, /*componentGroup=*/{},
-              /*externalABIName=*/{},
+              abi.runtimeABIName, resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true,
+              kMicrokernelExternalABIComponentGroup, abi.runtimeABIName,
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
 
@@ -2361,8 +2378,9 @@ llvm::Error registerRVVMicrokernelTargetExporters(
       kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
       matchRVVMicrokernelObjectCandidate, exportRVVMicrokernelObject,
       kRVVPluginName, abi.runtimeABIKind, abi.runtimeABIName,
-      /*directHelperRoute=*/true, /*componentGroup=*/{},
-      /*externalABIName=*/{},
+      resolveRVVMicrokernelRuntimeABIParameters,
+      /*directHelperRoute=*/true, kMicrokernelExternalABIComponentGroup,
+      abi.runtimeABIName,
       validateRVVMicrokernelCallableCandidatePreflight));
 }
 

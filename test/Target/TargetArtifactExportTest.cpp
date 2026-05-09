@@ -93,7 +93,9 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
                  llvm::StringRef emissionKind,
                  std::size_t expectedABIParameterCount = 0,
                  bool expectedDirectHelperRoute = false,
-                 llvm::StringRef expectedHandoffKind = {}) {
+                 llvm::StringRef expectedHandoffKind = {},
+                 llvm::StringRef expectedComponentGroup = {},
+                 llvm::StringRef expectedExternalABIName = {}) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
   if (!exporter) {
     llvm::errs() << "missing built-in exporter route '" << routeID << "'\n";
@@ -105,7 +107,9 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
       exporter->getRequiredRuntimeABIParameters().size() !=
           expectedABIParameterCount ||
       exporter->hasDirectHelperRoute() != expectedDirectHelperRoute ||
-      exporter->getHandoffKind() != expectedHandoffKind) {
+      exporter->getHandoffKind() != expectedHandoffKind ||
+      exporter->getComponentGroup() != expectedComponentGroup ||
+      exporter->getExternalABIName() != expectedExternalABIName) {
     llvm::errs() << "malformed built-in exporter metadata for route '"
                  << routeID << "'\n";
     return false;
@@ -1375,10 +1379,17 @@ int main() {
                    "rvv-smoke-probe-standalone-c-source", 0,
                    /*expectedDirectHelperRoute=*/true))
     return 1;
+  const tianchenrv::support::RuntimeABICallableIdentity &rvvABI =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getRVVCallableIdentity();
+  constexpr llvm::StringLiteral rvvExternalABIComponentGroup(
+      "rvv-i32-vadd-microkernel-external-abi.v1");
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
                    "rvv-explicit-i32-vadd-microkernel-c-source", 4,
-                   /*expectedDirectHelperRoute=*/true))
+                   /*expectedDirectHelperRoute=*/true,
+                   /*expectedHandoffKind=*/{}, rvvExternalABIComponentGroup,
+                   rvvABI.runtimeABIName))
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-microkernel-c",
@@ -1413,9 +1424,6 @@ int main() {
         << "offload descriptor route lacks runtime ABI preflight validator\n";
     return 1;
   }
-  const tianchenrv::support::RuntimeABICallableIdentity &rvvABI =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getRVVCallableIdentity();
   const tianchenrv::support::RuntimeABIDispatchIdentity &dispatchABI =
       tianchenrv::support::getI32VAddRuntimeABIContract()
           .getDispatchIdentity();
@@ -1425,18 +1433,28 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
           rvvABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true, /*expectedComponentGroup=*/{},
-          /*expectedExternalABIName=*/{},
+          /*expectedDirectHelperRoute=*/true, rvvExternalABIComponentGroup,
+          rvvABI.runtimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-object",
           "riscv-elf-relocatable-object", "rvv-plugin",
           rvvABI.runtimeABIKind, rvvABI.runtimeABIName,
-          /*expectedDirectHelperRoute=*/true, /*expectedComponentGroup=*/{},
-          /*expectedExternalABIName=*/{},
+          /*expectedDirectHelperRoute=*/true, rvvExternalABIComponentGroup,
+          rvvABI.runtimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
+  const TargetArtifactCompositeExporter *rvvHeaderComposite =
+      builtinRegistry.lookupComposite("tcrv-export-rvv-microkernel-header");
+  const TargetArtifactCompositeExporter *rvvObjectComposite =
+      builtinRegistry.lookupComposite("tcrv-export-rvv-microkernel-object");
+  if (!rvvHeaderComposite || !rvvHeaderComposite->getRuntimeABIParametersFn() ||
+      !rvvObjectComposite || !rvvObjectComposite->getRuntimeABIParametersFn()) {
+    llvm::errs() << "RVV microkernel header/object composites must publish "
+                    "runtime ABI parameters through route-local C++ callbacks\n";
+    return 1;
+  }
   const tianchenrv::support::RuntimeABICallableIdentity &scalarABI =
       tianchenrv::support::getI32VAddRuntimeABIContract()
           .getScalarCallableIdentity();

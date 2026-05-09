@@ -47,7 +47,9 @@ public:
                          bool directHelperRoute = false,
                          llvm::StringRef handoffKind = {},
                          TargetArtifactCandidateValidationFn
-                             candidateValidationFn = nullptr);
+                             candidateValidationFn = nullptr,
+                         llvm::StringRef componentGroup = {},
+                         llvm::StringRef externalABIName = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -56,6 +58,8 @@ public:
   TargetArtifactExportFn getExportFn() const { return exportFn; }
   bool hasDirectHelperRoute() const { return directHelperRoute; }
   llvm::StringRef getHandoffKind() const { return handoffKind; }
+  llvm::StringRef getComponentGroup() const { return componentGroup; }
+  llvm::StringRef getExternalABIName() const { return externalABIName; }
   llvm::ArrayRef<support::RuntimeABIParameter>
   getRequiredRuntimeABIParameters() const {
     return requiredRuntimeABIParameters;
@@ -72,6 +76,8 @@ private:
   TargetArtifactExportFn exportFn = nullptr;
   bool directHelperRoute = false;
   std::string handoffKind;
+  std::string componentGroup;
+  std::string externalABIName;
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       requiredRuntimeABIParameters;
   TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
