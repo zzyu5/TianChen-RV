@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Review global project boundaries and implementation stack constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, typed metadata validation, and bounded microkernel behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export, runtime ABI, and fail-closed emission route behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck and C++ testing expectations."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Check that validation claims do not exceed collected ssh rvv evidence."}

@@ -77,8 +77,11 @@ module @rvv_microkernel_i32_vmul_export_input {
 // SOURCE: /* selected_march: rv64gcv */
 // SOURCE: /* selected_mabi: lp64d */
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
+// SOURCE: /* active_route: tcrv-export-rvv-i32-vmul-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
+// SOURCE: /* intrinsic_config_source: validated tcrv_rvv.setvl and tcrv_rvv.with_vl SEW/LMUL/policy metadata */
+// SOURCE: /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // SOURCE: void tcrv_rvv_i32_vmul_microkernel_export_i32_vmul_rvv_mul_slice

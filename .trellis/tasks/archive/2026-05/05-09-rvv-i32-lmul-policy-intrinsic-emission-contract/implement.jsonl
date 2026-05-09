@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundary: C++/MLIR stack, capability-first design, compute-free tcrv.exec, and RVV plugin ownership."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local dialect, typed setvl/with_vl policy metadata, and bounded i32 microkernel export contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target/export route, runtime ABI, artifact emission, and fail-closed preflight contract for RVV microkernels."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and C++ coverage for RVV microkernel emission and diagnostics."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Evidence interpretation boundary: no runtime/correctness claim without real ssh rvv evidence."}

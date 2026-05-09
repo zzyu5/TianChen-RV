@@ -58,8 +58,10 @@ using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
+using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::SetVLOp;
+using tianchenrv::tcrv::rvv::TailPolicy;
 using tianchenrv::tcrv::rvv::WithVLOp;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
@@ -133,6 +135,16 @@ struct RVVI32VAddDataflowEmissionPlan {
   llvm::SmallVector<RVVI32VAddDataflowStep, 4> steps;
 };
 
+struct RVVIntrinsicConfig {
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string vectorType;
+  std::string vectorSuffix;
+  std::string setvlSuffix;
+  std::string tailPolicy;
+  std::string maskPolicy;
+};
+
 using RVVI32MicrokernelKind =
     tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using RVVI32MicrokernelFamilySpec =
@@ -146,6 +158,7 @@ struct SelectedPath {
 
 struct RVVMicrokernelRecord {
   const RVVI32MicrokernelFamilySpec *family = nullptr;
+  std::string activeRouteID;
   std::string kernelSymbol;
   std::string variantSymbol;
   std::string role;
@@ -157,6 +170,7 @@ struct RVVMicrokernelRecord {
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   RVVI32VAddDataflowEmissionPlan dataflowPlan;
+  RVVIntrinsicConfig intrinsicConfig;
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
@@ -521,6 +535,105 @@ RVVI32VAddDataflowStep makeStoreStep(support::RuntimeABIParameterRole role,
   step.bufferRole = role;
   step.value = value;
   return step;
+}
+
+llvm::StringRef stringifyTailPolicyValue(TailPolicy policy) {
+  switch (policy) {
+  case TailPolicy::Agnostic:
+    return "agnostic";
+  case TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "unknown";
+}
+
+llvm::StringRef stringifyMaskPolicyValue(MaskPolicy policy) {
+  switch (policy) {
+  case MaskPolicy::Agnostic:
+    return "agnostic";
+  case MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "unknown";
+}
+
+std::string getEffectiveRouteID(
+    llvm::StringRef activeRouteID,
+    const RVVI32MicrokernelFamilySpec &family) {
+  if (!activeRouteID.empty())
+    return activeRouteID.str();
+  return family.routeID.str();
+}
+
+llvm::Error makeIntrinsicConfigError(
+    KernelOp kernel, llvm::StringRef activeRouteID,
+    const RVVI32MicrokernelFamilySpec &family, llvm::Twine message) {
+  std::string routeID = getEffectiveRouteID(activeRouteID, family);
+  return makeMicrokernelError(
+      kernel, llvm::Twine("route '") + routeID + "' selected family '" +
+                  family.microkernelOpName +
+                  "' has invalid RVV intrinsic metadata: " + message);
+}
+
+llvm::Expected<RVVIntrinsicConfig> buildRVVIntrinsicConfig(
+    KernelOp kernel, llvm::StringRef activeRouteID,
+    const RVVI32MicrokernelFamilySpec &family, SetVLOp setvl, WithVLOp withVL,
+    PolicyAttr selectedPolicy) {
+  if (!selectedPolicy)
+    return makeIntrinsicConfigError(
+        kernel, activeRouteID, family,
+        "missing selected variant tcrv_rvv.policy metadata");
+
+  if (setvl.getPolicy() != selectedPolicy)
+    return makeIntrinsicConfigError(
+        kernel, activeRouteID, family,
+        "tcrv_rvv.setvl policy must match selected variant "
+        "tcrv_rvv.policy metadata before C intrinsic emission");
+
+  auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto withVLPolicy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!withVLSew || !withVLLMUL || !withVLPolicy)
+    return makeIntrinsicConfigError(
+        kernel, activeRouteID, family,
+        "tcrv_rvv.with_vl must carry explicit SEW/LMUL/policy metadata "
+        "before C intrinsic emission");
+
+  if (withVLSew.getInt() != static_cast<std::int64_t>(setvl.getSew()) ||
+      withVLLMUL.getValue() != setvl.getLmul() ||
+      withVLPolicy != setvl.getPolicy())
+    return makeIntrinsicConfigError(
+        kernel, activeRouteID, family,
+        "tcrv_rvv.with_vl SEW/LMUL/policy metadata must match the "
+        "defining tcrv_rvv.setvl metadata before C intrinsic emission");
+
+  llvm::StringRef tail = stringifyTailPolicyValue(selectedPolicy.getTail());
+  llvm::StringRef mask = stringifyMaskPolicyValue(selectedPolicy.getMask());
+  if (selectedPolicy.getTail() != TailPolicy::Agnostic ||
+      selectedPolicy.getMask() != MaskPolicy::Agnostic)
+    return makeIntrinsicConfigError(
+        kernel, activeRouteID, family,
+        llvm::Twine("unsupported policy tail=") + tail + ", mask=" + mask +
+            "; supported i32 C intrinsic emission requires tail=agnostic, "
+            "mask=agnostic");
+
+  if (setvl.getSew() != 32 || setvl.getLmul() != "m1")
+    return makeIntrinsicConfigError(
+        kernel, activeRouteID, family,
+        llvm::Twine("unsupported SEW/LMUL sew=") +
+            llvm::Twine(setvl.getSew()) + ", lmul=" + setvl.getLmul() +
+            "; supported i32 C intrinsic emission currently requires "
+            "sew=32,lmul=m1");
+
+  RVVIntrinsicConfig config;
+  config.sew = static_cast<std::int64_t>(setvl.getSew());
+  config.lmul = setvl.getLmul().str();
+  config.vectorType = "vint32m1_t";
+  config.vectorSuffix = "i32m1";
+  config.setvlSuffix = "e32m1";
+  config.tailPolicy = tail.str();
+  config.maskPolicy = mask.str();
+  return config;
 }
 
 using DataflowValueBinding =
@@ -1376,8 +1489,9 @@ llvm::Error validateMicrokernelForPath(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *microkernel,
     const RVVI32MicrokernelFamilySpec &family,
+    llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
-    std::string &controlPlaneLMUL,
+    std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   if (!microkernel)
     return makeMicrokernelError(kernel, llvm::Twine("requires a matching ") +
@@ -1532,28 +1646,10 @@ llvm::Error validateMicrokernelForPath(
                     " control-plane body requires with_vl to consume the "
                     "!tcrv_rvv.vl token produced by setvl");
 
-  if (setvl.getSew() != 32 || setvl.getLmul() != "m1")
-    return makeMicrokernelError(
-        kernel, llvm::Twine(family.microkernelOpName) +
-                    " control-plane body must keep the bounded first-slice "
-                    "compile-time config sew=32,lmul=m1");
-  if (setvl.getPolicy() != expectedPolicy)
-    return makeMicrokernelError(
-        kernel, llvm::Twine(family.microkernelOpName) +
-                    " control-plane setvl policy must match selected variant "
-                    "tcrv_rvv.policy metadata");
-
-  auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
-  auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  auto withVLPolicy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
-  if (!withVLSew || withVLSew.getInt() != 32 || !withVLLMUL ||
-      withVLLMUL.getValue() != "m1" || !withVLPolicy ||
-      withVLPolicy != expectedPolicy) {
-    return makeMicrokernelError(
-        kernel, llvm::Twine(family.microkernelOpName) +
-                    " control-plane with_vl metadata must match setvl and "
-                    "selected variant SEW/LMUL/policy metadata");
-  }
+  llvm::Expected<RVVIntrinsicConfig> config = buildRVVIntrinsicConfig(
+      kernel, activeRouteID, family, setvl, withVL, expectedPolicy);
+  if (!config)
+    return config.takeError();
 
   mlir::Region &withVLBody = withVL.getBody();
   if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
@@ -1643,8 +1739,9 @@ llvm::Error validateMicrokernelForPath(
                                                  family, dataflowPlan))
     return error;
 
-  controlPlaneSEW = 32;
-  controlPlaneLMUL = "m1";
+  intrinsicConfig = std::move(*config);
+  controlPlaneSEW = intrinsicConfig.sew;
+  controlPlaneLMUL = intrinsicConfig.lmul;
   return llvm::Error::success();
 }
 
@@ -1654,8 +1751,9 @@ llvm::Error findAndValidateMicrokernel(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *&matchedMicrokernel,
     const RVVI32MicrokernelFamilySpec *&matchedFamily,
+    llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
-    std::string &controlPlaneLMUL,
+    std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -1702,9 +1800,10 @@ llvm::Error findAndValidateMicrokernel(
 
   return validateMicrokernelForPath(kernel, path, selectedMarch, selectedMABI,
                                     expectedPolicy, matchedMicrokernel,
-                                    *matchedFamily,
+                                    *matchedFamily, activeRouteID,
                                     elementCount, controlPlaneSEW,
-                                    controlPlaneLMUL, dataflowPlan);
+                                    controlPlaneLMUL, intrinsicConfig,
+                                    dataflowPlan);
 }
 
 llvm::Error resolveRuntimeABIParametersForPath(
@@ -1881,7 +1980,8 @@ llvm::Error resolveRuntimeABIParametersForPath(
 llvm::Expected<RVVMicrokernelRecord>
 buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                        const TargetCapabilitySet &capabilities,
-                       const llvm::StringSet<> &selectedRVVPathKeys) {
+                       const llvm::StringSet<> &selectedRVVPathKeys,
+                       llvm::StringRef activeRouteID) {
   if (path.role == kDispatchFallbackRole)
     return makeMicrokernelError(
         kernel, "RVV microkernel export does not accept RVV dispatch fallback "
@@ -1927,14 +2027,6 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                     getPathVariantSymbol(path) +
                     " requires typed 'tcrv_rvv.policy' metadata before "
                     "microkernel export");
-  if (policy.getTail() != tianchenrv::tcrv::rvv::TailPolicy::Agnostic ||
-      policy.getMask() != tianchenrv::tcrv::rvv::MaskPolicy::Agnostic)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("selected RVV variant @") +
-                    getPathVariantSymbol(path) +
-                    " 'tcrv_rvv.policy' metadata must match the RVV "
-                    "first-slice agnostic tail/mask policy");
-
   llvm::Expected<std::string> selectedMarch =
       getRequiredSelectedMarch(kernel, getPathVariant(path), capabilities);
   if (!selectedMarch)
@@ -1955,11 +2047,12 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
+  RVVIntrinsicConfig intrinsicConfig;
   RVVI32VAddDataflowEmissionPlan dataflowPlan;
   if (llvm::Error error = findAndValidateMicrokernel(
           kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
-          policy, microkernel, microkernelFamily, elementCount,
-          controlPlaneSEW, controlPlaneLMUL, dataflowPlan))
+          policy, microkernel, microkernelFamily, activeRouteID, elementCount,
+          controlPlaneSEW, controlPlaneLMUL, intrinsicConfig, dataflowPlan))
     return std::move(error);
 
   support::I32BinaryCallableABIPlan callablePlan;
@@ -1970,6 +2063,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
 
   RVVMicrokernelRecord record;
   record.family = microkernelFamily;
+  record.activeRouteID =
+      getEffectiveRouteID(activeRouteID, *microkernelFamily);
   record.kernelSymbol = kernel.getSymName().str();
   record.variantSymbol = getPathVariantSymbol(path).str();
   record.role = path.role;
@@ -1981,6 +2076,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.bufferWindows = std::move(callablePlan.bufferWindows);
   record.runtimeElementCountParam = callablePlan.runtimeElementCountParam;
   record.dataflowPlan = std::move(dataflowPlan);
+  record.intrinsicConfig = std::move(intrinsicConfig);
   record.elementCount = elementCount;
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
@@ -2004,7 +2100,8 @@ bool hasRVVLikeOrigin(const SelectedPath &path) {
   return llvm::StringRef(lower).contains("rvv");
 }
 
-llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
+llvm::Expected<RVVMicrokernelRecord>
+buildModuleRecord(mlir::ModuleOp module, llvm::StringRef activeRouteID) {
   if (!module)
     return makeModuleMicrokernelError("requires a builtin.module operation");
 
@@ -2064,7 +2161,7 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
       return capabilities.takeError();
     llvm::Expected<RVVMicrokernelRecord> record = buildMicrokernelRecord(
         kernel, selectedRVVPaths.front(), *capabilities,
-        selectedRVVPathKeys);
+        selectedRVVPathKeys, activeRouteID);
     if (!record)
       return record.takeError();
     records.push_back(std::move(*record));
@@ -2077,11 +2174,16 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
   return std::move(records.front());
 }
 
+llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
+  return buildModuleRecord(module, llvm::StringRef());
+}
+
 llvm::Expected<RVVMicrokernelRecord>
 buildModuleRecordForFamily(mlir::ModuleOp module,
                            RVVI32MicrokernelKind expectedFamily,
                            llvm::StringRef routeID) {
-  llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
+  llvm::Expected<RVVMicrokernelRecord> record =
+      buildModuleRecord(module, routeID);
   if (!record)
     return record.takeError();
 
@@ -2162,6 +2264,22 @@ getDataflowStepOpName(const RVVI32VAddDataflowStep &step) {
     return "tcrv_rvv.i32_store";
   }
   return "unknown";
+}
+
+llvm::StringRef
+getArithmeticIntrinsicPrefix(RVVI32VAddDataflowStepKind kind) {
+  switch (kind) {
+  case RVVI32VAddDataflowStepKind::Add:
+    return "__riscv_vadd_vv_";
+  case RVVI32VAddDataflowStepKind::Sub:
+    return "__riscv_vsub_vv_";
+  case RVVI32VAddDataflowStepKind::Mul:
+    return "__riscv_vmul_vv_";
+  case RVVI32VAddDataflowStepKind::Load:
+  case RVVI32VAddDataflowStepKind::Store:
+    return "";
+  }
+  return "";
 }
 
 llvm::StringRef
@@ -2278,6 +2396,7 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* lowering_boundary: tcrv_rvv.lowering_boundary */\n";
   os << "/* executable_microkernel: " << record.family->microkernelOpName
      << " */\n";
+  os << "/* active_route: " << record.activeRouteID << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
         "target/export-owned runtime n ABI parameter */\n";
@@ -2295,7 +2414,17 @@ void printRecordComment(llvm::raw_ostream &os,
   printDataflowPlanMetadata(os, record.dataflowPlan, *record.family);
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
-     << ", policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */\n";
+     << ", policy=#tcrv_rvv.policy<tail = "
+     << record.intrinsicConfig.tailPolicy
+     << ", mask = " << record.intrinsicConfig.maskPolicy << "> */\n";
+  os << "/* intrinsic_config_source: validated tcrv_rvv.setvl and "
+        "tcrv_rvv.with_vl SEW/LMUL/policy metadata */\n";
+  os << "/* intrinsic_config: vector_type="
+     << record.intrinsicConfig.vectorType
+     << ", vector_suffix=" << record.intrinsicConfig.vectorSuffix
+     << ", setvl_suffix=" << record.intrinsicConfig.setvlSuffix
+     << ", tail_policy=" << record.intrinsicConfig.tailPolicy
+     << ", mask_policy=" << record.intrinsicConfig.maskPolicy << " */\n";
   os << "/* artifact_kind: runtime-callable-c-source */\n";
   os << "/* element_count: " << record.elementCount << " */\n";
   os << "/* required_capabilities:";
@@ -2328,6 +2457,7 @@ llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     const RVVI32MicrokernelFamilySpec &family,
+    const RVVIntrinsicConfig &intrinsicConfig,
     const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   if (dataflowPlan.steps.size() != 4)
     return makeModuleMicrokernelError(
@@ -2352,7 +2482,8 @@ llvm::Error printMicrokernelFunction(
   os << ") {\n";
   os << "  size_t offset = 0;\n";
   os << "  while (offset < " << runtimeN.cName << ") {\n";
-  os << "    size_t vl = __riscv_vsetvl_e32m1(" << runtimeN.cName
+  os << "    size_t vl = __riscv_vsetvl_" << intrinsicConfig.setvlSuffix
+     << "(" << runtimeN.cName
      << " - offset);\n";
   for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
     switch (step.kind) {
@@ -2362,16 +2493,20 @@ llvm::Error printMicrokernelFunction(
       if (!parameter)
         return makeModuleMicrokernelError(
             "RVV dataflow load step references a non-buffer ABI role");
-      os << "    vint32m1_t " << getDataflowValueCName(step.result, family)
-         << " = __riscv_vle32_v_i32m1(&" << parameter->cName
+      os << "    " << intrinsicConfig.vectorType << " "
+         << getDataflowValueCName(step.result, family)
+         << " = __riscv_vle" << intrinsicConfig.sew << "_v_"
+         << intrinsicConfig.vectorSuffix << "(&" << parameter->cName
          << "[offset], vl);\n";
       break;
     }
     case RVVI32VAddDataflowStepKind::Add:
     case RVVI32VAddDataflowStepKind::Sub:
     case RVVI32VAddDataflowStepKind::Mul:
-      os << "    vint32m1_t " << getDataflowValueCName(step.result, family)
-         << " = " << family.intrinsicName << "("
+      os << "    " << intrinsicConfig.vectorType << " "
+         << getDataflowValueCName(step.result, family)
+         << " = " << getArithmeticIntrinsicPrefix(step.kind)
+         << intrinsicConfig.vectorSuffix << "("
          << getDataflowValueCName(step.lhs, family) << ", "
          << getDataflowValueCName(step.rhs, family) << ", vl);\n";
       break;
@@ -2381,7 +2516,8 @@ llvm::Error printMicrokernelFunction(
       if (!parameter)
         return makeModuleMicrokernelError(
             "RVV dataflow store step references a non-buffer ABI role");
-      os << "    __riscv_vse32_v_i32m1(&" << parameter->cName
+      os << "    __riscv_vse" << intrinsicConfig.sew << "_v_"
+         << intrinsicConfig.vectorSuffix << "(&" << parameter->cName
          << "[offset], " << getDataflowValueCName(step.value, family)
          << ", vl);\n";
       break;
@@ -2410,6 +2546,7 @@ void printMicrokernelPrototype(llvm::raw_ostream &os,
 void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
                                       const RVVI32MicrokernelFamilySpec &family,
+                                      const RVVIntrinsicConfig &intrinsicConfig,
                                       std::int64_t elementCount) {
   os << "/* Harness capacity comes from descriptor-local element_count; each "
         "call still supplies runtime n through the generated C ABI. */\n";
@@ -2431,7 +2568,8 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "    rhs[index] = 100 - index;\n";
   os << "    out[index] = -12345;\n";
   os << "  }\n\n";
-  os << "  size_t first_vl = __riscv_vsetvl_e32m1(runtime_n);\n";
+  os << "  size_t first_vl = __riscv_vsetvl_"
+     << intrinsicConfig.setvlSuffix << "(runtime_n);\n";
   os << "  if (first_vl == 0 || first_vl > runtime_n) {\n";
   os << "    fprintf(stderr, \"invalid rvv microkernel vl=%zu\\n\", first_vl);\n";
   os << "    return 2;\n";
@@ -2528,11 +2666,12 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   if (llvm::Error error =
           printMicrokernelFunction(os, functionName,
                                    record.runtimeABIParameters,
-                                   *record.family,
+                                   *record.family, record.intrinsicConfig,
                                    record.dataflowPlan))
     return error;
   if (includeHarness)
     printMicrokernelSelfCheckHarness(os, functionName, *record.family,
+                                     record.intrinsicConfig,
                                      record.elementCount);
   return llvm::Error::success();
 }

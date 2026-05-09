@@ -680,3 +680,52 @@ Added route-id-aligned tcrv-translate helpers for bounded RVV i32 vsub/vmul micr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: RVV i32 LMUL policy intrinsic emission contract
+
+**Date**: 2026-05-09
+**Task**: RVV i32 LMUL policy intrinsic emission contract
+**Branch**: `main`
+
+### Summary
+
+Implemented body-driven e32/m1 RVV i32 microkernel intrinsic emission from validated setvl/with_vl metadata; archived the Trellis task after full check-tianchenrv validation.
+
+### Main Changes
+
+- Added `RVVIntrinsicConfig` in RVV target/export code so the C emitter derives vector type, intrinsic suffixes, setvl/load/arithmetic/store intrinsic names, and emitted policy metadata from validated `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` config.
+- Preserved existing e32/m1 add/sub/mul behavior while moving hardcoded C intrinsic spellings behind the validated config object.
+- Strengthened policy/config mismatch diagnostics to name the active route and selected RVV microkernel family before source/header/object emission.
+- Added focused FileCheck coverage for generated intrinsic config metadata and route/family policy mismatch diagnostics.
+- Completed Trellis task `.trellis/tasks/archive/2026-05/05-09-rvv-i32-lmul-policy-intrinsic-emission-contract/`; e32/m2 is explicitly left as the next continuation because the current dialect/plugin slice is still `i32m1`-only.
+
+Validation:
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] Focused lit filter `rvv-microkernel-(auto-materialization|family-sub|family-mul|control-body-policy-mismatch-fails)` passed 6/6
+- [OK] Focused lit filter `(Dialect/RVV|Target/RVVMicrokernel)` passed 29/29
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-09-rvv-i32-lmul-policy-intrinsic-emission-contract`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 164/164
+- No new `ssh rvv` run was collected; no new RVV runtime/correctness/performance claim is made.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
