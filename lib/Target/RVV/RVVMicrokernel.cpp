@@ -105,6 +105,33 @@ enum class RVVMicrokernelCExportMode {
   SelfCheckHarness,
 };
 
+enum class RVVI32VAddDataflowStepKind {
+  Load,
+  Add,
+  Store,
+};
+
+enum class RVVI32VAddDataflowValue {
+  None,
+  LHSVector,
+  RHSVector,
+  SumVector,
+};
+
+struct RVVI32VAddDataflowStep {
+  RVVI32VAddDataflowStepKind kind = RVVI32VAddDataflowStepKind::Load;
+  support::RuntimeABIParameterRole bufferRole =
+      support::RuntimeABIParameterRole::LHSInputBuffer;
+  RVVI32VAddDataflowValue result = RVVI32VAddDataflowValue::None;
+  RVVI32VAddDataflowValue lhs = RVVI32VAddDataflowValue::None;
+  RVVI32VAddDataflowValue rhs = RVVI32VAddDataflowValue::None;
+  RVVI32VAddDataflowValue value = RVVI32VAddDataflowValue::None;
+};
+
+struct RVVI32VAddDataflowEmissionPlan {
+  llvm::SmallVector<RVVI32VAddDataflowStep, 4> steps;
+};
+
 struct SelectedPath {
   VariantOp variant;
   mlir::Operation *selector = nullptr;
@@ -122,6 +149,7 @@ struct RVVMicrokernelRecord {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
+  RVVI32VAddDataflowEmissionPlan dataflowPlan;
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
@@ -355,13 +383,13 @@ llvm::Error validateCParameterName(KernelOp kernel, llvm::StringRef value) {
   return llvm::Error::success();
 }
 
-llvm::Error requireDataflowRoleAttr(
+llvm::Expected<support::RuntimeABIParameterRole> getRequiredDataflowRoleAttr(
     KernelOp kernel, mlir::Operation *op, llvm::StringRef attrName,
     llvm::StringRef context, support::RuntimeABIParameterRole expectedRole) {
   std::string value;
   if (llvm::Error error =
           requireSafeStringAttr(kernel, op, attrName, context, value))
-    return error;
+    return std::move(error);
 
   std::optional<support::RuntimeABIParameterRole> parsedRole =
       support::symbolizeRuntimeABIParameterRole(value);
@@ -377,7 +405,36 @@ llvm::Error requireDataflowRoleAttr(
                     attrName + "' must reference runtime ABI role '" +
                     support::stringifyRuntimeABIParameterRole(expectedRole) +
                     "' for this bounded export route");
-  return llvm::Error::success();
+  return *parsedRole;
+}
+
+RVVI32VAddDataflowStep makeLoadStep(support::RuntimeABIParameterRole role,
+                                    RVVI32VAddDataflowValue result) {
+  RVVI32VAddDataflowStep step;
+  step.kind = RVVI32VAddDataflowStepKind::Load;
+  step.bufferRole = role;
+  step.result = result;
+  return step;
+}
+
+RVVI32VAddDataflowStep makeAddStep(RVVI32VAddDataflowValue lhs,
+                                   RVVI32VAddDataflowValue rhs,
+                                   RVVI32VAddDataflowValue result) {
+  RVVI32VAddDataflowStep step;
+  step.kind = RVVI32VAddDataflowStepKind::Add;
+  step.lhs = lhs;
+  step.rhs = rhs;
+  step.result = result;
+  return step;
+}
+
+RVVI32VAddDataflowStep makeStoreStep(support::RuntimeABIParameterRole role,
+                                     RVVI32VAddDataflowValue value) {
+  RVVI32VAddDataflowStep step;
+  step.kind = RVVI32VAddDataflowStepKind::Store;
+  step.bufferRole = role;
+  step.value = value;
+  return step;
 }
 
 llvm::Error collectRuntimeABIParameters(
@@ -975,7 +1032,8 @@ llvm::Error validateMicrokernelForPath(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, I32VAddMicrokernelOp microkernel,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
-    std::string &controlPlaneLMUL) {
+    std::string &controlPlaneLMUL,
+    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   if (!microkernel)
     return makeMicrokernelError(kernel, "requires a matching "
                                         "tcrv_rvv.i32_vadd_microkernel");
@@ -1190,21 +1248,39 @@ llvm::Error validateMicrokernelForPath(
         kernel, "tcrv_rvv.i32_vadd_microkernel requires finite RVV i32 "
                 "dataflow SSA chain lhs-load,rhs-load -> add -> store");
 
-  if (llvm::Error error = requireDataflowRoleAttr(
+  llvm::Expected<support::RuntimeABIParameterRole> lhsRole =
+      getRequiredDataflowRoleAttr(
           kernel, lhsLoad.getOperation(), kBufferRoleAttrName,
           "tcrv_rvv.i32_load",
-          support::RuntimeABIParameterRole::LHSInputBuffer))
-    return error;
-  if (llvm::Error error = requireDataflowRoleAttr(
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhsRole)
+    return lhsRole.takeError();
+  llvm::Expected<support::RuntimeABIParameterRole> rhsRole =
+      getRequiredDataflowRoleAttr(
           kernel, rhsLoad.getOperation(), kBufferRoleAttrName,
           "tcrv_rvv.i32_load",
-          support::RuntimeABIParameterRole::RHSInputBuffer))
-    return error;
-  if (llvm::Error error = requireDataflowRoleAttr(
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!rhsRole)
+    return rhsRole.takeError();
+  llvm::Expected<support::RuntimeABIParameterRole> outputRole =
+      getRequiredDataflowRoleAttr(
           kernel, store.getOperation(), kBufferRoleAttrName,
           "tcrv_rvv.i32_store",
-          support::RuntimeABIParameterRole::OutputBuffer))
-    return error;
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!outputRole)
+    return outputRole.takeError();
+
+  dataflowPlan.steps.clear();
+  dataflowPlan.steps.push_back(
+      makeLoadStep(*lhsRole, RVVI32VAddDataflowValue::LHSVector));
+  dataflowPlan.steps.push_back(
+      makeLoadStep(*rhsRole, RVVI32VAddDataflowValue::RHSVector));
+  dataflowPlan.steps.push_back(
+      makeAddStep(RVVI32VAddDataflowValue::LHSVector,
+                  RVVI32VAddDataflowValue::RHSVector,
+                  RVVI32VAddDataflowValue::SumVector));
+  dataflowPlan.steps.push_back(
+      makeStoreStep(*outputRole, RVVI32VAddDataflowValue::SumVector));
 
   controlPlaneSEW = 32;
   controlPlaneLMUL = "m1";
@@ -1217,7 +1293,8 @@ llvm::Error findAndValidateMicrokernel(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, I32VAddMicrokernelOp &matchedMicrokernel,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
-    std::string &controlPlaneLMUL) {
+    std::string &controlPlaneLMUL,
+    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
     auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
@@ -1262,7 +1339,7 @@ llvm::Error findAndValidateMicrokernel(
   return validateMicrokernelForPath(kernel, path, selectedMarch, selectedMABI,
                                     expectedPolicy, matchedMicrokernel,
                                     elementCount, controlPlaneSEW,
-                                    controlPlaneLMUL);
+                                    controlPlaneLMUL, dataflowPlan);
 }
 
 llvm::Error resolveRuntimeABIParametersForPath(
@@ -1454,10 +1531,11 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
+  RVVI32VAddDataflowEmissionPlan dataflowPlan;
   if (llvm::Error error = findAndValidateMicrokernel(
           kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
           policy, microkernel, elementCount, controlPlaneSEW,
-          controlPlaneLMUL))
+          controlPlaneLMUL, dataflowPlan))
     return std::move(error);
 
   support::I32VAddCallableABIPlan callablePlan;
@@ -1476,6 +1554,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.runtimeABIParameters = std::move(callablePlan.parameters);
   record.bufferWindows = std::move(callablePlan.bufferWindows);
   record.runtimeElementCountParam = callablePlan.runtimeElementCountParam;
+  record.dataflowPlan = std::move(dataflowPlan);
   record.elementCount = elementCount;
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
@@ -1618,6 +1697,78 @@ llvm::StringRef getAttrValue(mlir::Operation *op, llvm::StringRef attrName) {
   return attr.getValue();
 }
 
+llvm::StringRef
+getDataflowStepOpName(const RVVI32VAddDataflowStep &step) {
+  switch (step.kind) {
+  case RVVI32VAddDataflowStepKind::Load:
+    return "tcrv_rvv.i32_load";
+  case RVVI32VAddDataflowStepKind::Add:
+    return "tcrv_rvv.i32_add";
+  case RVVI32VAddDataflowStepKind::Store:
+    return "tcrv_rvv.i32_store";
+  }
+  return "unknown";
+}
+
+llvm::StringRef
+getDataflowValueCName(RVVI32VAddDataflowValue value) {
+  switch (value) {
+  case RVVI32VAddDataflowValue::LHSVector:
+    return "lhs_vec";
+  case RVVI32VAddDataflowValue::RHSVector:
+    return "rhs_vec";
+  case RVVI32VAddDataflowValue::SumVector:
+    return "sum_vec";
+  case RVVI32VAddDataflowValue::None:
+    return "";
+  }
+  return "";
+}
+
+const support::RuntimeABIParameter *lookupBoundBufferParameter(
+    const support::I32VAddCallableRuntimeABIParameterBindings &bindings,
+    support::RuntimeABIParameterRole role) {
+  switch (role) {
+  case support::RuntimeABIParameterRole::LHSInputBuffer:
+    return bindings.lhs;
+  case support::RuntimeABIParameterRole::RHSInputBuffer:
+    return bindings.rhs;
+  case support::RuntimeABIParameterRole::OutputBuffer:
+    return bindings.out;
+  case support::RuntimeABIParameterRole::RuntimeElementCount:
+  case support::RuntimeABIParameterRole::DispatchAvailabilityGuard:
+    return nullptr;
+  }
+  return nullptr;
+}
+
+void printDataflowPlanMetadata(
+    llvm::raw_ostream &os,
+    const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+  for (auto [index, step] : llvm::enumerate(dataflowPlan.steps)) {
+    os << "/* dataflow_emission_step[" << index
+       << "]: op=" << getDataflowStepOpName(step);
+    switch (step.kind) {
+    case RVVI32VAddDataflowStepKind::Load:
+      os << ", role="
+         << support::stringifyRuntimeABIParameterRole(step.bufferRole)
+         << ", result=" << getDataflowValueCName(step.result);
+      break;
+    case RVVI32VAddDataflowStepKind::Add:
+      os << ", lhs=" << getDataflowValueCName(step.lhs)
+         << ", rhs=" << getDataflowValueCName(step.rhs)
+         << ", result=" << getDataflowValueCName(step.result);
+      break;
+    case RVVI32VAddDataflowStepKind::Store:
+      os << ", role="
+         << support::stringifyRuntimeABIParameterRole(step.bufferRole)
+         << ", value=" << getDataflowValueCName(step.value);
+      break;
+    }
+    os << " */\n";
+  }
+}
+
 void printCallableBoundaryMetadata(llvm::raw_ostream &os,
                                    const RVVMicrokernelRecord &record) {
   os << "/* callable_abi_source: tcrv.exec.mem_window + "
@@ -1679,6 +1830,7 @@ void printRecordComment(llvm::raw_ostream &os,
         "rhs_load.buffer_role=rhs-input-buffer, "
         "store.buffer_role=output-buffer; runtime n remains the "
         "target/export-owned runtime element-count ABI parameter */\n";
+  printDataflowPlanMetadata(os, record.dataflowPlan);
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
      << ", policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */\n";
@@ -1712,16 +1864,19 @@ void printRecordComment(llvm::raw_ostream &os,
 
 llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
-    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+  if (dataflowPlan.steps.size() != 4)
+    return makeModuleMicrokernelError(
+        "validated RVV dataflow emission plan requires exactly four "
+        "load/load/add/store steps");
+
   llvm::Expected<support::I32VAddCallableRuntimeABIParameterBindings> bindings =
       support::bindI32VAddCallableRuntimeABIParametersByRole(
           parameters, "RVV direct microkernel C emission");
   if (!bindings)
     return bindings.takeError();
 
-  const support::RuntimeABIParameter &lhs = *bindings->lhs;
-  const support::RuntimeABIParameter &rhs = *bindings->rhs;
-  const support::RuntimeABIParameter &out = *bindings->out;
   const support::RuntimeABIParameter &runtimeN =
       *bindings->runtimeElementCount;
 
@@ -1736,13 +1891,38 @@ llvm::Error printMicrokernelFunction(
   os << "  while (offset < " << runtimeN.cName << ") {\n";
   os << "    size_t vl = __riscv_vsetvl_e32m1(" << runtimeN.cName
      << " - offset);\n";
-  os << "    vint32m1_t lhs_vec = __riscv_vle32_v_i32m1(&" << lhs.cName
-     << "[offset], vl);\n";
-  os << "    vint32m1_t rhs_vec = __riscv_vle32_v_i32m1(&" << rhs.cName
-     << "[offset], vl);\n";
-  os << "    vint32m1_t sum_vec = __riscv_vadd_vv_i32m1(lhs_vec, rhs_vec, vl);\n";
-  os << "    __riscv_vse32_v_i32m1(&" << out.cName
-     << "[offset], sum_vec, vl);\n";
+  for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
+    switch (step.kind) {
+    case RVVI32VAddDataflowStepKind::Load: {
+      const support::RuntimeABIParameter *parameter =
+          lookupBoundBufferParameter(*bindings, step.bufferRole);
+      if (!parameter)
+        return makeModuleMicrokernelError(
+            "RVV dataflow load step references a non-buffer ABI role");
+      os << "    vint32m1_t " << getDataflowValueCName(step.result)
+         << " = __riscv_vle32_v_i32m1(&" << parameter->cName
+         << "[offset], vl);\n";
+      break;
+    }
+    case RVVI32VAddDataflowStepKind::Add:
+      os << "    vint32m1_t " << getDataflowValueCName(step.result)
+         << " = __riscv_vadd_vv_i32m1("
+         << getDataflowValueCName(step.lhs) << ", "
+         << getDataflowValueCName(step.rhs) << ", vl);\n";
+      break;
+    case RVVI32VAddDataflowStepKind::Store: {
+      const support::RuntimeABIParameter *parameter =
+          lookupBoundBufferParameter(*bindings, step.bufferRole);
+      if (!parameter)
+        return makeModuleMicrokernelError(
+            "RVV dataflow store step references a non-buffer ABI role");
+      os << "    __riscv_vse32_v_i32m1(&" << parameter->cName
+         << "[offset], " << getDataflowValueCName(step.value)
+         << ", vl);\n";
+      break;
+    }
+    }
+  }
   os << "    offset += vl;\n";
   os << "  }\n";
   os << "}\n\n";
@@ -1849,7 +2029,9 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
 
   printRecordComment(os, record, functionName);
   if (llvm::Error error =
-          printMicrokernelFunction(os, functionName, record.runtimeABIParameters))
+          printMicrokernelFunction(os, functionName,
+                                   record.runtimeABIParameters,
+                                   record.dataflowPlan))
     return error;
   if (includeHarness)
     printMicrokernelSelfCheckHarness(os, functionName, record.elementCount);

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core-dialect/index.md", "reason": "Review that tcrv.exec stays execution-only."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV plugin-local dataflow and export contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review target-owned source emission and ABI layering."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused test coverage and evidence claims."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute boundary preservation."}
