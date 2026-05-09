@@ -6,6 +6,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -58,76 +59,8 @@ constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
     "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
 constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
 
-constexpr llvm::StringLiteral kI32VAddRVVRouteID(
-    "tcrv-export-rvv-microkernel-c");
-constexpr llvm::StringLiteral kI32VAddRVVEmissionKind(
-    "rvv-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VSubRVVRouteID(
-    "tcrv-export-rvv-i32-vsub-microkernel-c");
-constexpr llvm::StringLiteral kI32VSubRVVEmissionKind(
-    "rvv-explicit-i32-vsub-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VAddRVVRuntimeABI(
-    "rvv-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VSubRVVRuntimeABI(
-    "rvv-i32-vsub-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VAddRVVRuntimeABIName(
-    "rvv-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubRVVRuntimeABIName(
-    "rvv-i32-vsub-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kRVVRuntimeCallableABIKind(
-    "rvv-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddRVVRuntimeGlueRole(
-    "runtime-callable-i32-vadd-function");
-constexpr llvm::StringLiteral kI32VSubRVVRuntimeGlueRole(
-    "runtime-callable-i32-vsub-function");
-
-constexpr llvm::StringLiteral kI32VAddScalarRouteID(
-    "tcrv-export-scalar-microkernel-c");
-constexpr llvm::StringLiteral kI32VAddScalarEmissionKind(
-    "scalar-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VSubScalarRouteID(
-    "tcrv-export-scalar-i32-vsub-microkernel-c");
-constexpr llvm::StringLiteral kI32VSubScalarEmissionKind(
-    "scalar-explicit-i32-vsub-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VAddScalarRuntimeABI(
-    "scalar-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VSubScalarRuntimeABI(
-    "scalar-i32-vsub-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VAddScalarRuntimeABIName(
-    "scalar-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubScalarRuntimeABIName(
-    "scalar-i32-vsub-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kScalarRuntimeCallableABIKind(
-    "scalar-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddScalarRuntimeGlueRole(
-    "runtime-callable-i32-vadd-fallback-function");
-constexpr llvm::StringLiteral kI32VSubScalarRuntimeGlueRole(
-    "runtime-callable-i32-vsub-fallback-function");
-
 constexpr llvm::StringLiteral kDispatchTargetOwner(
     "rvv-scalar-dispatch-target");
-constexpr llvm::StringLiteral kI32VAddDispatchSourceRouteID(
-    "tcrv-export-rvv-scalar-i32-vadd-dispatch-c");
-constexpr llvm::StringLiteral kI32VAddDispatchHeaderRouteID(
-    "tcrv-export-rvv-scalar-i32-vadd-dispatch-header");
-constexpr llvm::StringLiteral kI32VAddDispatchObjectRouteID(
-    "tcrv-export-rvv-scalar-i32-vadd-dispatch-object");
-constexpr llvm::StringLiteral kI32VSubDispatchSourceRouteID(
-    "tcrv-export-rvv-scalar-i32-vsub-dispatch-c");
-constexpr llvm::StringLiteral kI32VSubDispatchHeaderRouteID(
-    "tcrv-export-rvv-scalar-i32-vsub-dispatch-header");
-constexpr llvm::StringLiteral kI32VSubDispatchObjectRouteID(
-    "tcrv-export-rvv-scalar-i32-vsub-dispatch-object");
-constexpr llvm::StringLiteral kDispatchRuntimeABIKind(
-    "rvv-scalar-dispatch-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddDispatchRuntimeABIName(
-    "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubDispatchRuntimeABIName(
-    "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VAddDispatchExternalABIComponentGroup(
-    "rvv-scalar-i32-vadd-dispatch-external-abi.v1");
-constexpr llvm::StringLiteral kI32VSubDispatchExternalABIComponentGroup(
-    "rvv-scalar-i32-vsub-dispatch-external-abi.v1");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -171,38 +104,10 @@ struct DispatchIRLink {
   std::string fallbackTarget;
 };
 
-enum class DispatchI32FamilyKind {
-  Add,
-  Sub,
-};
-
-struct DispatchI32FamilySpec {
-  DispatchI32FamilyKind kind;
-  llvm::StringRef diagnosticName;
-  llvm::StringRef operationNoun;
-  llvm::StringRef functionStem;
-  llvm::StringRef headerGuardStem;
-  llvm::StringRef cOperator;
-  llvm::StringRef selfCheckSuccessMarker;
-  llvm::StringRef rvvRouteID;
-  llvm::StringRef rvvEmissionKind;
-  llvm::StringRef rvvRuntimeABI;
-  llvm::StringRef rvvRuntimeABIKind;
-  llvm::StringRef rvvRuntimeABIName;
-  llvm::StringRef rvvRuntimeGlueRole;
-  llvm::StringRef scalarRouteID;
-  llvm::StringRef scalarEmissionKind;
-  llvm::StringRef scalarRuntimeABI;
-  llvm::StringRef scalarRuntimeABIKind;
-  llvm::StringRef scalarRuntimeABIName;
-  llvm::StringRef scalarRuntimeGlueRole;
-  llvm::StringRef dispatchSourceRouteID;
-  llvm::StringRef dispatchHeaderRouteID;
-  llvm::StringRef dispatchObjectRouteID;
-  llvm::StringRef dispatchRuntimeABIKind;
-  llvm::StringRef dispatchRuntimeABIName;
-  llvm::StringRef dispatchExternalABIComponentGroup;
-};
+using DispatchI32FamilyKind =
+    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+using DispatchI32FamilySpec =
+    tianchenrv::target::i32_binary::DispatchI32FamilyDescriptor;
 
 struct DispatchPair {
   const DispatchI32FamilySpec *family = nullptr;
@@ -277,63 +182,11 @@ llvm::Error makeModuleDispatchHeaderError(llvm::Twine message) {
 }
 
 const DispatchI32FamilySpec &getI32VAddDispatchFamilySpec() {
-  static const DispatchI32FamilySpec spec{
-      DispatchI32FamilyKind::Add,
-      "i32-vadd",
-      "i32 vector-add",
-      "i32_vadd",
-      "I32_VADD",
-      "+",
-      "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok",
-      kI32VAddRVVRouteID,
-      kI32VAddRVVEmissionKind,
-      kI32VAddRVVRuntimeABI,
-      kRVVRuntimeCallableABIKind,
-      kI32VAddRVVRuntimeABIName,
-      kI32VAddRVVRuntimeGlueRole,
-      kI32VAddScalarRouteID,
-      kI32VAddScalarEmissionKind,
-      kI32VAddScalarRuntimeABI,
-      kScalarRuntimeCallableABIKind,
-      kI32VAddScalarRuntimeABIName,
-      kI32VAddScalarRuntimeGlueRole,
-      kI32VAddDispatchSourceRouteID,
-      kI32VAddDispatchHeaderRouteID,
-      kI32VAddDispatchObjectRouteID,
-      kDispatchRuntimeABIKind,
-      kI32VAddDispatchRuntimeABIName,
-      kI32VAddDispatchExternalABIComponentGroup};
-  return spec;
+  return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor().dispatch;
 }
 
 const DispatchI32FamilySpec &getI32VSubDispatchFamilySpec() {
-  static const DispatchI32FamilySpec spec{
-      DispatchI32FamilyKind::Sub,
-      "i32-vsub",
-      "i32 vector-subtract",
-      "i32_vsub",
-      "I32_VSUB",
-      "-",
-      "tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok",
-      kI32VSubRVVRouteID,
-      kI32VSubRVVEmissionKind,
-      kI32VSubRVVRuntimeABI,
-      kRVVRuntimeCallableABIKind,
-      kI32VSubRVVRuntimeABIName,
-      kI32VSubRVVRuntimeGlueRole,
-      kI32VSubScalarRouteID,
-      kI32VSubScalarEmissionKind,
-      kI32VSubScalarRuntimeABI,
-      kScalarRuntimeCallableABIKind,
-      kI32VSubScalarRuntimeABIName,
-      kI32VSubScalarRuntimeGlueRole,
-      kI32VSubDispatchSourceRouteID,
-      kI32VSubDispatchHeaderRouteID,
-      kI32VSubDispatchObjectRouteID,
-      kDispatchRuntimeABIKind,
-      kI32VSubDispatchRuntimeABIName,
-      kI32VSubDispatchExternalABIComponentGroup};
-  return spec;
+  return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().dispatch;
 }
 
 bool containsForbiddenText(llvm::StringRef value) {

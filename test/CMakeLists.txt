@@ -250,6 +250,18 @@ target_link_libraries(tianchenrv-target-artifact-export-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-i32-binary-family-registry-test
+  Target/I32BinaryFamilyRegistryTest.cpp
+)
+
+target_link_libraries(tianchenrv-i32-binary-family-registry-test
+  PRIVATE
+  TianChenRVBuiltinTargetArtifactExporters
+  TianChenRVTarget
+  MLIRIR
+  MLIRSupport
+)
+
 add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
@@ -261,6 +273,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-plugin-variant-legality-test
   tianchenrv-plugin-variant-proposal-test
   tianchenrv-emission-readiness-test
+  tianchenrv-i32-binary-family-registry-test
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
   tianchenrv-rvv-extension-plugin-test

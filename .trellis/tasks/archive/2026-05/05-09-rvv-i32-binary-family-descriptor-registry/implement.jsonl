@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and architecture invariants"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin/target boundary and emission ownership constraints"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "C++ plugin registry/interface expectations"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "avoid moving extension-specific details into generic core"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "stable RVV i32 add/sub descriptor, route, intrinsic, and ABI names"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "stable scalar fallback i32 add/sub descriptor, route, operator, and ABI names"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact route and runtime ABI ownership contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++/lit validation requirements for migrated compiler behavior"}

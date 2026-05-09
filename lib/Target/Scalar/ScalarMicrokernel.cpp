@@ -8,6 +8,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
@@ -80,18 +81,6 @@ constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
-constexpr llvm::StringLiteral kMicrokernelEmissionKind(
-    "scalar-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionKind(
-    "scalar-explicit-i32-vsub-microkernel-c-source");
-constexpr llvm::StringLiteral kMicrokernelRouteID(
-    "tcrv-export-scalar-microkernel-c");
-constexpr llvm::StringLiteral kI32VSubMicrokernelRouteID(
-    "tcrv-export-scalar-i32-vsub-microkernel-c");
-constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
-    "tcrv-export-scalar-microkernel-object");
-constexpr llvm::StringLiteral kMicrokernelHeaderRouteID(
-    "tcrv-export-scalar-microkernel-header");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
 constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
@@ -102,80 +91,18 @@ constexpr llvm::StringLiteral kScalarLoweringDescriptorAttrName(
     "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
-constexpr llvm::StringLiteral kI32VAddLoweringDescriptor(
-    "i32-vadd-microkernel.v1");
-constexpr llvm::StringLiteral kI32VSubLoweringDescriptor(
-    "i32-vsub-microkernel.v1");
-constexpr llvm::StringLiteral kI32VAddRuntimeABI(
-    "scalar-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABI(
-    "scalar-i32-vsub-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kScalarRuntimeCallableABIKind(
-    "scalar-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddRuntimeABIName(
-    "scalar-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABIName(
-    "scalar-i32-vsub-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VAddRuntimeGlueRole(
-    "runtime-callable-i32-vadd-fallback-function");
-constexpr llvm::StringLiteral kI32VSubRuntimeGlueRole(
-    "runtime-callable-i32-vsub-fallback-function");
 
-enum class ScalarI32MicrokernelKind {
-  Add,
-  Sub,
-};
-
-struct ScalarI32MicrokernelFamilySpec {
-  ScalarI32MicrokernelKind kind;
-  llvm::StringRef microkernelOpName;
-  llvm::StringRef operationNoun;
-  llvm::StringRef functionStem;
-  llvm::StringRef headerGuardStem;
-  llvm::StringRef descriptor;
-  llvm::StringRef emissionKind;
-  llvm::StringRef routeID;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
-  llvm::StringRef cOperator;
-};
+using ScalarI32MicrokernelKind =
+    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+using ScalarI32MicrokernelFamilySpec =
+    tianchenrv::target::i32_binary::ScalarI32MicrokernelFamilyDescriptor;
 
 const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
-  static const ScalarI32MicrokernelFamilySpec spec{
-      ScalarI32MicrokernelKind::Add,
-      "tcrv_scalar.i32_vadd_microkernel",
-      "i32 vector-add",
-      "i32_vadd",
-      "I32_VADD",
-      kI32VAddLoweringDescriptor,
-      kMicrokernelEmissionKind,
-      kMicrokernelRouteID,
-      kI32VAddRuntimeABI,
-      kScalarRuntimeCallableABIKind,
-      kI32VAddRuntimeABIName,
-      kI32VAddRuntimeGlueRole,
-      "+"};
-  return spec;
+  return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
-  static const ScalarI32MicrokernelFamilySpec spec{
-      ScalarI32MicrokernelKind::Sub,
-      "tcrv_scalar.i32_vsub_microkernel",
-      "i32 vector-subtract",
-      "i32_vsub",
-      "I32_VSUB",
-      kI32VSubLoweringDescriptor,
-      kI32VSubMicrokernelEmissionKind,
-      kI32VSubMicrokernelRouteID,
-      kI32VSubRuntimeABI,
-      kScalarRuntimeCallableABIKind,
-      kI32VSubRuntimeABIName,
-      kI32VSubRuntimeGlueRole,
-      "-"};
-  return spec;
+  return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec *
@@ -1790,9 +1717,10 @@ llvm::Error validateScalarMicrokernelCallableCandidatePreflight(
         "scalar microkernel helper routes require exactly one callable "
         "artifact candidate for preflight");
 
+  const ScalarI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
   TargetArtifactExporter sourceExporter(
-      kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
-      kMicrokernelEmissionKind, exportScalarMicrokernelC,
+      addFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+      addFamily.emissionKind, exportScalarMicrokernelC,
       support::getI32VAddRuntimeABIContract().getCallableRoleRequirements());
   return validateTargetArtifactCandidateAgainstExporter(candidates.front(),
                                                         sourceExporter);
@@ -2071,20 +1999,21 @@ llvm::Error exportScalarMicrokernelObject(mlir::ModuleOp module,
 
 llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
+  const ScalarI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
+  const ScalarI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
   const support::RuntimeABICallableIdentity &abi =
       support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-          kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
-          kMicrokernelEmissionKind, exportScalarMicrokernelC,
+          addFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+          addFamily.emissionKind, exportScalarMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;
 
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-          kI32VSubMicrokernelRouteID, kMicrokernelArtifactKind,
-          kScalarPluginName, kI32VSubMicrokernelEmissionKind,
-          exportScalarMicrokernelC,
+          subFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+          subFamily.emissionKind, exportScalarMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
@@ -2092,7 +2021,7 @@ llvm::Error registerScalarMicrokernelTargetExporters(
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-              kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
+              addFamily.headerRouteID, kMicrokernelHeaderArtifactKind,
               matchScalarMicrokernelHeaderCandidate,
               exportScalarMicrokernelHeader, kScalarPluginName,
               abi.runtimeABIKind, abi.runtimeABIName,
@@ -2102,7 +2031,7 @@ llvm::Error registerScalarMicrokernelTargetExporters(
     return error;
 
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
+      addFamily.objectRouteID, kMicrokernelObjectArtifactKind,
       matchScalarMicrokernelObjectCandidate, exportScalarMicrokernelObject,
       kScalarPluginName, abi.runtimeABIKind, abi.runtimeABIName,
       /*directHelperRoute=*/false, /*componentGroup=*/{},

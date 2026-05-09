@@ -1,0 +1,275 @@
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVMicrokernel.h"
+#include "TianChenRV/Target/RVVScalarDispatch.h"
+#include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
+
+#include "llvm/Support/Error.h"
+#include "llvm/Support/raw_ostream.h"
+
+using namespace tianchenrv::target;
+using namespace tianchenrv::target::i32_binary;
+
+namespace {
+
+constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
+constexpr llvm::StringLiteral kScalarPluginName("scalar-plugin");
+constexpr llvm::StringLiteral kDispatchTargetOwner(
+    "rvv-scalar-dispatch-target");
+constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
+    "runtime-callable-c-source");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
+    "riscv-elf-relocatable-object");
+
+int fail(llvm::Twine message) {
+  llvm::errs() << "FAIL: " << message << "\n";
+  return 1;
+}
+
+int expect(bool condition, llvm::Twine message) {
+  if (condition)
+    return 0;
+  return fail(message);
+}
+
+int expectSuccess(llvm::Error error, llvm::Twine context) {
+  if (!error)
+    return 0;
+  std::string message = llvm::toString(std::move(error));
+  return fail(context + ": " + message);
+}
+
+int expectRoute(const TargetArtifactExporterRegistry &registry,
+                llvm::StringRef routeID, llvm::StringRef artifactKind,
+                llvm::StringRef originPlugin, llvm::StringRef emissionKind,
+                llvm::StringRef componentGroup = {},
+                llvm::StringRef externalABIName = {}) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter)
+    return fail(llvm::Twine("missing exporter route '") + routeID + "'");
+  if (exporter->getArtifactKind() != artifactKind)
+    return fail(llvm::Twine("artifact kind mismatch for route '") + routeID +
+                "'");
+  if (exporter->getOriginPlugin() != originPlugin)
+    return fail(llvm::Twine("origin mismatch for route '") + routeID + "'");
+  if (exporter->getEmissionKind() != emissionKind)
+    return fail(llvm::Twine("emission kind mismatch for route '") + routeID +
+                "'");
+  if (!exporter->getExportFn())
+    return fail(llvm::Twine("missing export callback for route '") + routeID +
+                "'");
+  if (exporter->getComponentGroup() != componentGroup)
+    return fail(llvm::Twine("component group mismatch for route '") + routeID +
+                "'");
+  if (exporter->getExternalABIName() != externalABIName)
+    return fail(llvm::Twine("external ABI name mismatch for route '") +
+                routeID + "'");
+  return 0;
+}
+
+int expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
+                         llvm::StringRef routeID, llvm::StringRef artifactKind,
+                         llvm::StringRef owner, llvm::StringRef runtimeABIKind,
+                         llvm::StringRef runtimeABIName,
+                         llvm::StringRef componentGroup,
+                         llvm::StringRef externalABIName) {
+  const TargetArtifactCompositeExporter *exporter =
+      registry.lookupComposite(routeID);
+  if (!exporter)
+    return fail(llvm::Twine("missing composite route '") + routeID + "'");
+  if (exporter->getArtifactKind() != artifactKind)
+    return fail(llvm::Twine("artifact kind mismatch for composite route '") +
+                routeID + "'");
+  if (exporter->getOwner() != owner)
+    return fail(llvm::Twine("owner mismatch for composite route '") + routeID +
+                "'");
+  if (exporter->getRuntimeABIKind() != runtimeABIKind)
+    return fail(llvm::Twine("runtime ABI kind mismatch for composite route '") +
+                routeID + "'");
+  if (exporter->getRuntimeABIName() != runtimeABIName)
+    return fail(llvm::Twine("runtime ABI name mismatch for composite route '") +
+                routeID + "'");
+  if (exporter->getComponentGroup() != componentGroup)
+    return fail(llvm::Twine("component group mismatch for composite route '") +
+                routeID + "'");
+  if (exporter->getExternalABIName() != externalABIName)
+    return fail(llvm::Twine("external ABI name mismatch for composite route '") +
+                routeID + "'");
+  if (!exporter->getExportFn() || !exporter->getMatchFn())
+    return fail(llvm::Twine("missing composite callbacks for route '") +
+                routeID + "'");
+  return 0;
+}
+
+int expectFamilyDescriptorShape(const I32BinaryFamilyDescriptor &family) {
+  if (int result = expect(lookupI32BinaryFamilyByID(family.familyID) == &family,
+                          "lookup by family id returns descriptor"))
+    return result;
+  if (int result =
+          expect(lookupI32BinaryFamilyByFrontendLowering(
+                     family.frontendLowering) == &family,
+                 "lookup by frontend lowering returns descriptor"))
+    return result;
+  if (int result =
+          expect(lookupI32BinaryFamilyByLoweringDescriptor(
+                     family.loweringDescriptor) == &family,
+                 "lookup by lowering descriptor returns descriptor"))
+    return result;
+
+  if (int result =
+          expect(family.rvv.kind == family.kind &&
+                     family.scalar.kind == family.kind &&
+                     family.dispatch.kind == family.kind,
+                 "family sub-descriptors preserve common kind"))
+    return result;
+  if (int result = expect(family.rvv.routeID ==
+                              family.dispatch.rvvRouteID,
+                          "dispatch RVV route mirrors RVV descriptor"))
+    return result;
+  if (int result = expect(family.rvv.emissionKind ==
+                              family.dispatch.rvvEmissionKind,
+                          "dispatch RVV emission kind mirrors RVV descriptor"))
+    return result;
+  if (int result =
+          expect(family.rvv.runtimeABI == family.dispatch.rvvRuntimeABI,
+                 "dispatch RVV ABI mirrors RVV descriptor"))
+    return result;
+  if (int result =
+          expect(family.scalar.routeID == family.dispatch.scalarRouteID,
+                 "dispatch scalar route mirrors scalar descriptor"))
+    return result;
+  if (int result =
+          expect(family.scalar.emissionKind ==
+                     family.dispatch.scalarEmissionKind,
+                 "dispatch scalar emission kind mirrors scalar descriptor"))
+    return result;
+  if (int result =
+          expect(family.scalar.runtimeABI == family.dispatch.scalarRuntimeABI,
+                 "dispatch scalar ABI mirrors scalar descriptor"))
+    return result;
+  return expect(!family.dispatch.selfCheckSuccessMarker.empty(),
+                "dispatch self-check marker is present");
+}
+
+int expectFamilyExporterRoutes(const TargetArtifactExporterRegistry &registry,
+                               const I32BinaryFamilyDescriptor &family) {
+  if (int result = expectRoute(
+          registry, family.rvv.routeID, kRuntimeCallableCSourceArtifactKind,
+          kRVVPluginName, family.rvv.emissionKind,
+          family.rvv.externalABIComponentGroup, family.rvv.runtimeABIName))
+    return result;
+
+  if (int result = expectRoute(
+          registry, family.scalar.routeID, kRuntimeCallableCSourceArtifactKind,
+          kScalarPluginName, family.scalar.emissionKind))
+    return result;
+
+  if (int result = expectCompositeRoute(
+          registry, family.dispatch.dispatchSourceRouteID,
+          kRuntimeCallableCSourceArtifactKind, kDispatchTargetOwner,
+          family.dispatch.dispatchRuntimeABIKind,
+          family.dispatch.dispatchRuntimeABIName,
+          family.dispatch.dispatchExternalABIComponentGroup,
+          family.dispatch.dispatchRuntimeABIName))
+    return result;
+
+  if (int result = expectCompositeRoute(
+          registry, family.dispatch.dispatchHeaderRouteID,
+          kRuntimeCallableCHeaderArtifactKind, kDispatchTargetOwner,
+          family.dispatch.dispatchRuntimeABIKind,
+          family.dispatch.dispatchRuntimeABIName,
+          family.dispatch.dispatchExternalABIComponentGroup,
+          family.dispatch.dispatchRuntimeABIName))
+    return result;
+
+  return expectCompositeRoute(
+      registry, family.dispatch.dispatchObjectRouteID,
+      kRiscvELFRelocatableObjectArtifactKind, kDispatchTargetOwner,
+      family.dispatch.dispatchRuntimeABIKind,
+      family.dispatch.dispatchRuntimeABIName,
+      family.dispatch.dispatchExternalABIComponentGroup,
+      family.dispatch.dispatchRuntimeABIName);
+}
+
+int expectStaleFamilyMismatchGuards() {
+  const I32BinaryFamilyDescriptor &add = getI32VAddFamilyDescriptor();
+  const I32BinaryFamilyDescriptor &sub = getI32VSubFamilyDescriptor();
+  if (int result = expect(add.familyID != sub.familyID,
+                          "add/sub family ids are distinct"))
+    return result;
+  if (int result = expect(add.rvv.routeID != sub.rvv.routeID,
+                          "add/sub RVV routes are distinct"))
+    return result;
+  if (int result = expect(add.rvv.intrinsicName != sub.rvv.intrinsicName,
+                          "add/sub RVV intrinsics are distinct"))
+    return result;
+  if (int result = expect(add.scalar.routeID != sub.scalar.routeID,
+                          "add/sub scalar source routes are distinct"))
+    return result;
+  if (int result = expect(add.scalar.cOperator != sub.scalar.cOperator,
+                          "add/sub scalar operators are distinct"))
+    return result;
+  if (int result =
+          expect(add.dispatch.selfCheckSuccessMarker !=
+                     sub.dispatch.selfCheckSuccessMarker,
+                 "add/sub dispatch self-check markers are distinct"))
+    return result;
+  if (int result =
+          expect(add.dispatch.dispatchSourceRouteID !=
+                     sub.dispatch.dispatchSourceRouteID,
+                 "add/sub dispatch source routes are distinct"))
+    return result;
+  return expect(add.dispatch.dispatchRuntimeABIName !=
+                    sub.dispatch.dispatchRuntimeABIName,
+                "add/sub dispatch ABI names are distinct");
+}
+
+} // namespace
+
+int main() {
+  llvm::ArrayRef<const I32BinaryFamilyDescriptor *> families =
+      getI32BinaryFamilyDescriptors();
+  if (int result = expect(families.size() == 2,
+                          "registry contains exactly two i32 binary families"))
+    return result;
+  if (int result =
+          expect(families[0] == &getI32VAddFamilyDescriptor(),
+                 "registry preserves vadd descriptor order"))
+    return result;
+  if (int result =
+          expect(families[1] == &getI32VSubFamilyDescriptor(),
+                 "registry preserves vsub descriptor order"))
+    return result;
+  if (int result = expect(!lookupI32BinaryFamilyByID("i32-vmul"),
+                          "registry rejects unsupported families"))
+    return result;
+
+  for (const I32BinaryFamilyDescriptor *family : families)
+    if (int result = expectFamilyDescriptorShape(*family))
+      return result;
+  if (int result = expectStaleFamilyMismatchGuards())
+    return result;
+
+  TargetArtifactExporterRegistry registry;
+  if (int result = expectSuccess(
+          rvv::registerRVVMicrokernelTargetExporters(registry),
+          "register RVV microkernel exporters"))
+    return result;
+  if (int result = expectSuccess(
+          scalar::registerScalarMicrokernelTargetExporters(registry),
+          "register scalar microkernel exporters"))
+    return result;
+  if (int result = expectSuccess(
+          rvv_scalar::registerRVVScalarDispatchTargetExporters(registry),
+          "register RVV+scalar dispatch exporters"))
+    return result;
+
+  for (const I32BinaryFamilyDescriptor *family : families)
+    if (int result = expectFamilyExporterRoutes(registry, *family))
+      return result;
+
+  llvm::outs() << "i32 binary family descriptor registry test passed\n";
+  return 0;
+}

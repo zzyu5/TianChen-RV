@@ -8,6 +8,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
@@ -90,46 +91,12 @@ constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
-constexpr llvm::StringLiteral kMicrokernelEmissionKind(
-    "rvv-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionKind(
-    "rvv-explicit-i32-vsub-microkernel-c-source");
-constexpr llvm::StringLiteral kMicrokernelRouteID(
-    "tcrv-export-rvv-microkernel-c");
-constexpr llvm::StringLiteral kI32VSubMicrokernelRouteID(
-    "tcrv-export-rvv-i32-vsub-microkernel-c");
-constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
-    "tcrv-export-rvv-microkernel-object");
-constexpr llvm::StringLiteral kMicrokernelHeaderRouteID(
-    "tcrv-export-rvv-microkernel-header");
-constexpr llvm::StringLiteral kI32VSubMicrokernelObjectRouteID(
-    "tcrv-export-rvv-i32-vsub-microkernel-object");
-constexpr llvm::StringLiteral kI32VSubMicrokernelHeaderRouteID(
-    "tcrv-export-rvv-i32-vsub-microkernel-header");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
 constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kMicrokernelExternalABIComponentGroup(
-    "rvv-i32-vadd-microkernel-external-abi.v1");
-constexpr llvm::StringLiteral kI32VSubMicrokernelExternalABIComponentGroup(
-    "rvv-i32-vsub-microkernel-external-abi.v1");
-constexpr llvm::StringLiteral kI32VAddRuntimeABI(
-    "rvv-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABI(
-    "rvv-i32-vsub-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VAddRuntimeABIName(
-    "rvv-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABIName(
-    "rvv-i32-vsub-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kRVVRuntimeCallableABIKind(
-    "rvv-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddRuntimeGlueRole(
-    "runtime-callable-i32-vadd-function");
-constexpr llvm::StringLiteral kI32VSubRuntimeGlueRole(
-    "runtime-callable-i32-vsub-function");
 enum class RVVMicrokernelCExportMode {
   RuntimeCallableLibrary,
   SelfCheckHarness,
@@ -163,30 +130,10 @@ struct RVVI32VAddDataflowEmissionPlan {
   llvm::SmallVector<RVVI32VAddDataflowStep, 4> steps;
 };
 
-enum class RVVI32MicrokernelKind {
-  Add,
-  Sub,
-};
-
-struct RVVI32MicrokernelFamilySpec {
-  RVVI32MicrokernelKind kind;
-  llvm::StringRef microkernelOpName;
-  llvm::StringRef arithmeticOpName;
-  llvm::StringRef arithmeticVerb;
-  llvm::StringRef functionStem;
-  llvm::StringRef headerGuardStem;
-  llvm::StringRef intrinsicName;
-  llvm::StringRef resultCName;
-  llvm::StringRef emissionKind;
-  llvm::StringRef routeID;
-  llvm::StringRef headerRouteID;
-  llvm::StringRef objectRouteID;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
-  llvm::StringRef externalABIComponentGroup;
-};
+using RVVI32MicrokernelKind =
+    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+using RVVI32MicrokernelFamilySpec =
+    tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
 
 struct SelectedPath {
   VariantOp variant;
@@ -224,47 +171,11 @@ struct TemporaryFile {
 };
 
 const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
-  static const RVVI32MicrokernelFamilySpec spec{
-      RVVI32MicrokernelKind::Add,
-      "tcrv_rvv.i32_vadd_microkernel",
-      "tcrv_rvv.i32_add",
-      "add",
-      "i32_vadd",
-      "I32_VADD",
-      "__riscv_vadd_vv_i32m1",
-      "sum_vec",
-      kMicrokernelEmissionKind,
-      kMicrokernelRouteID,
-      kMicrokernelHeaderRouteID,
-      kMicrokernelObjectRouteID,
-      kI32VAddRuntimeABI,
-      kRVVRuntimeCallableABIKind,
-      kI32VAddRuntimeABIName,
-      kI32VAddRuntimeGlueRole,
-      kMicrokernelExternalABIComponentGroup};
-  return spec;
+  return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor().rvv;
 }
 
 const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
-  static const RVVI32MicrokernelFamilySpec spec{
-      RVVI32MicrokernelKind::Sub,
-      "tcrv_rvv.i32_vsub_microkernel",
-      "tcrv_rvv.i32_sub",
-      "subtract",
-      "i32_vsub",
-      "I32_VSUB",
-      "__riscv_vsub_vv_i32m1",
-      "difference_vec",
-      kI32VSubMicrokernelEmissionKind,
-      kI32VSubMicrokernelRouteID,
-      kI32VSubMicrokernelHeaderRouteID,
-      kI32VSubMicrokernelObjectRouteID,
-      kI32VSubRuntimeABI,
-      kRVVRuntimeCallableABIKind,
-      kI32VSubRuntimeABIName,
-      kI32VSubRuntimeGlueRole,
-      kI32VSubMicrokernelExternalABIComponentGroup};
-  return spec;
+  return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().rvv;
 }
 
 const RVVI32MicrokernelFamilySpec *

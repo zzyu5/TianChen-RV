@@ -55,6 +55,50 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 5: RVV i32 binary family descriptor registry
+
+**Date**: 2026-05-09
+**Task**: RVV i32 binary family descriptor registry
+**Branch**: `main`
+
+### Summary
+
+Created a bounded C++ i32 binary family descriptor registry for the existing
+`i32-vadd` and `i32-vsub` microkernel families, then migrated real target/export
+consumers to read descriptor-backed route, ABI, function-stem, intrinsic,
+scalar operator, dispatch, and self-check metadata.
+
+### Main Changes
+
+- Added `include/TianChenRV/Target/I32BinaryFamilyRegistry.h`.
+- Migrated `RVVScalarDispatch.cpp`, `RVVMicrokernel.cpp`, and
+  `ScalarMicrokernel.cpp` to remove local duplicate add/sub family string
+  tables from active target/export code.
+- Added a focused C++/lit registry test proving both descriptors are present,
+  stale add/sub identities remain distinct, and registered RVV/scalar/dispatch
+  exporter routes match descriptor values.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake -S . -B artifacts/tmp/tianchenrv-build -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-i32-binary-family-registry-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] focused lit filter for registry, add/sub dispatch routes, bundle export, and dispatch scripts
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional continuation: migrate plugin-local RVV/scalar proposal and
+  materialization family structs to consume the registry where that does not
+  obscure plugin-specific supported-message and materialization wording.
+
+
 ## Session 2: Optimize Hermes Codex module-sized Trellis workflow
 
 **Date**: 2026-05-09

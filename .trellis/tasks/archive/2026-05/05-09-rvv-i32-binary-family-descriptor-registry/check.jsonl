@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "verify global stack and architecture invariants"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "check plugin locality and no generic core family branching"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check descriptor values against RVV contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "check descriptor values against scalar fallback contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check route/runtime ABI stability and ownership"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check required focused validation"}
