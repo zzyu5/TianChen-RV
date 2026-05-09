@@ -149,21 +149,23 @@ Use lit/FileCheck for:
   component_group/component_role/external_abi_name metadata, and ordered
   runtime_abi_parameter signature fields plus bounded selected-plan metadata
   self-description when RVV capacity facts are present; focused bounded linalg
-  i32 add/sub frontend input coverage proving the same front door first lowers
-  the marked source into the exec ABI boundary and then exports a
+  i32 add/sub/mul frontend input coverage proving the same front door first
+  lowers the marked source into the exec ABI boundary and then exports a
   registry-derived bundle without hand-authored selected-path or emission
   metadata; and a focused fail-closed negative case proving planning failure
   does not print bundle completion or emit a complete bundle index.
 - bounded linalg frontend lowering coverage, including a hand-written/test
-  `linalg.generic` i32 vector add/sub wrapper that lowers through
+  `linalg.generic` i32 vector add/sub/mul wrapper that lowers through
   `--tcrv-lower-linalg-i32-vadd-to-exec` to a parseable `tcrv.exec.kernel`
   with a module target profile reference plus lhs/rhs/out `mem_window` roles
   and runtime `n` `runtime_param`; pipeline coverage proving the generated
   kernel can feed existing RVV/scalar proposal, selection, selected-boundary,
-  and supported emission-plan materialization; RVV subtract coverage proving
-  `tcrv_frontend_lowering = "i32-vsub"` selects the bounded
+  and supported emission-plan materialization; RVV subtract/multiply coverage
+  proving `tcrv_frontend_lowering = "i32-vsub"` selects the bounded
   `i32-vsub-microkernel.v1` descriptor and target-owned source export emits
-  `__riscv_vsub_vv_i32m1` instead of stale vadd metadata; and fail-closed
+  `__riscv_vsub_vv_i32m1`, while `tcrv_frontend_lowering = "i32-vmul"`
+  selects `i32-vmul-microkernel.v1` and emits `__riscv_vmul_vv_i32m1` instead
+  of stale vadd metadata; and fail-closed
   negative coverage proving unsupported marked linalg bodies do not create an
   exec kernel. These tests must not claim generic linalg lowering, LLVM/RISC-V
   lowering, runtime success, correctness, or performance.
@@ -438,9 +440,10 @@ If the repository exports a generated RVV+scalar dispatch self-check C harness,
 local lit tests must cover the harness structure without requiring `ssh rvv`.
 Any remote compile/run of that generated harness must be reported separately as
 bounded correctness/runtime-invocation evidence for the explicit finite i32
-add/sub dispatcher family only. Vsub tests must prove subtract semantics and
-must reject stale vadd intrinsic, route, ABI-name, callable-stem, success
-marker, or `lhs + rhs` expectations. It must not be reported as generic
+add/sub/mul dispatcher family only. Vsub tests must prove subtract semantics,
+and vmul tests must prove multiply semantics; both must reject stale vadd
+intrinsic, route, ABI-name, callable-stem, success marker, or `lhs + rhs`
+expectations. It must not be reported as generic
 high-level lowering correctness, arbitrary RVV emission support, object
 generation, dynamic runtime integration, or performance evidence.
 
@@ -461,12 +464,12 @@ explicit self-check source export, deterministic artifact layout below
 `artifacts/tmp`, command-summary redaction, and failure on secret-like evidence
 metadata. If the bridge supports more than one arithmetic family, local lit
 coverage must include the CLI family selector and any frontend-lowering flag
-needed to feed bounded linalg add/sub input into the same execution-planning
+needed to feed bounded linalg add/sub/mul input into the same execution-planning
 pipeline. Passing dry-run proves only planned dispatch handoff and source
 export. Any runtime/correctness claim must use real `ssh rvv` evidence where
 the generated self-check dispatch source is compiled to an object, linked to an
 executable, and run with the bounded success marker observed. That claim must
-remain limited to the finite family-selected RVV+scalar i32 add/sub dispatcher
+remain limited to the finite family-selected RVV+scalar i32 add/sub/mul dispatcher
 executable path and must not be reported as generic RVV lowering, arbitrary
 kernel support, dynamic runtime integration, broad correctness, or performance
 evidence.
@@ -483,8 +486,9 @@ generation from the emitted header prototype plus the emitted ordered ABI
 signature, command-summary redaction, and absence of any dry-run
 runtime/correctness claim. Family-specific bundle dry-runs must verify the
 selected route/component group and generated external caller arithmetic; for
-vsub the caller must check `lhs - rhs`, not stale vadd semantics. Passing
-bundle dry-run proves only compiler bundle export, typed index parsing, file
+vsub the caller must check `lhs - rhs`, and for vmul the caller must check
+`lhs * rhs`, not stale vadd semantics. Passing bundle dry-run proves only
+compiler bundle export, typed index parsing, file
 discovery, and caller construction. Any bundle external ABI runtime/correctness
 claim must use real `ssh rvv` evidence
 where only the generated source, generated header, generated object, and

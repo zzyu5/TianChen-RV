@@ -45,5 +45,5 @@ module {
 // IR-SAME: role = "dispatch fallback"
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
 
-// OBJECT-MISMATCH: RVV+scalar i32 add/sub dispatch object export failed
+// OBJECT-MISMATCH: RVV+scalar i32 binary dispatch object export failed
 // OBJECT-MISMATCH: selected RVV dispatch case variant @rvv_first_slice 'tcrv_rvv.required_march' metadata is not satisfied by preserved selected_march capability metadata

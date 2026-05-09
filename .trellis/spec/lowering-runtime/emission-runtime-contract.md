@@ -522,14 +522,15 @@ from file names.
 `tcrv-translate --tcrv-export-target-artifact-bundle` remains the
 coherence-gated exporter for already planned MLIR. The separate
 `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` entry may first
-run the bounded marked-linalg i32 add/sub frontend lowering slice, then run the
-existing execution planning pipeline with built-in plugin and target artifact
+run the bounded marked-linalg i32 add/sub/mul frontend lowering slice, then run
+the existing execution planning pipeline with built-in plugin and target artifact
 exporter registries, and finally call the same bundle exporter. The frontend
 step is limited to creating the already specified `tcrv.exec.kernel` plus
 `mem_window` / `runtime_param` ABI boundary from explicitly marked test or
 hand-written linalg input and preserving the bounded frontend family marker
-that lets plugins choose the existing add or subtract microkernel descriptor;
-it must not become generic linalg lowering or bypass plugin-owned realization.
+that lets plugins choose the existing add, subtract, or multiply microkernel
+descriptor; it must not become generic linalg lowering or bypass plugin-owned
+realization.
 It must fail before printing bundle completion if frontend lowering, planning,
 execution-plan coherence, route validation, or artifact materialization fails,
 and it must not weaken the bundle component contract or runtime ABI signature
@@ -952,7 +953,8 @@ void <generated_name>(const int32_t *lhs, const int32_t *rhs,
                       int32_t *out, size_t n);
 ```
 
-The callable function computes finite i32 vector add using RVV intrinsics. The
+The callable function computes finite family-selected i32 vector add, subtract,
+or multiply using RVV intrinsics. The
 default artifact has no embedded `main` or self-check harness; later runtime
 glue can embed the source and call the ABI boundary directly. A separate
   explicit harness export may add bounded local arrays and `main` only for bounded
@@ -1116,11 +1118,12 @@ performance.
 Trigger: post-planning MLIR contains one selected `scalar-plugin` fallback
 path, a matching plugin-owned `tcrv_scalar.lowering_boundary`, and exactly one
 explicit `tcrv_scalar.i32_vadd_microkernel` or
-`tcrv_scalar.i32_vsub_microkernel` op for that selected kernel/variant/role.
+`tcrv_scalar.i32_vsub_microkernel` or `tcrv_scalar.i32_vmul_microkernel` op for
+that selected kernel/variant/role.
 
 This export is the first bounded scalar fallback executable source slice. It
 may emit a deterministic portable runtime-callable C library source artifact
-that computes finite scalar i32 vector add or subtract through a
+that computes finite scalar i32 vector add, subtract, or multiply through a
 pointer-plus-length C ABI. It is not generic scalar lowering, arbitrary scalar
 kernel emission, generic runtime dispatch glue, object generation, linking,
 benchmarking, or performance evidence.
@@ -1146,6 +1149,11 @@ sub lowering pipeline: tcrv-export-scalar-i32-vsub-microkernel-c
 sub runtime ABI: scalar-i32-vsub-runtime-callable-c-abi.v1
 sub runtime ABI name: scalar-i32-vsub-runtime-callable-c-function.v1
 sub runtime glue role: runtime-callable-i32-vsub-fallback-function
+mul emission kind: scalar-explicit-i32-vmul-microkernel-c-source
+mul lowering pipeline: tcrv-export-scalar-i32-vmul-microkernel-c
+mul runtime ABI: scalar-i32-vmul-runtime-callable-c-abi.v1
+mul runtime ABI name: scalar-i32-vmul-runtime-callable-c-function.v1
+mul runtime glue role: runtime-callable-i32-vmul-fallback-function
 runtime ABI kind: scalar-runtime-callable-c-abi
 artifact kind: runtime-callable-c-source
 ```
@@ -1159,12 +1167,13 @@ Contracts:
   same source kernel, selected variant, origin, role, metadata-only status, and
   required capability refs.
 - A matching direct child `tcrv_scalar.i32_vadd_microkernel` or
-  `tcrv_scalar.i32_vsub_microkernel` must identify the same selected path and
-  required capability refs with a bounded element count.
+  `tcrv_scalar.i32_vsub_microkernel` or `tcrv_scalar.i32_vmul_microkernel` must
+  identify the same selected path and required capability refs with a bounded
+  element count.
 - Output must be deterministic portable C with a callable function
   `void <name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`
-  that performs scalar i32 add or subtract over the provided arrays according
-  to the selected scalar microkernel family.
+  that performs scalar i32 add, subtract, or multiply over the provided arrays
+  according to the selected scalar microkernel family.
 - The default artifact must not include a hidden `main`, stdio-only self-check
   machinery, or a self-check success marker.
 - Output must not include RVV headers, RVV intrinsics, route-spoof claims,
@@ -1284,14 +1293,15 @@ explicit runtime element-count ABI inputs:
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
 tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c
+tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c
 ```
 
 That harness is target-owned runtime invocation evidence tooling for the
-finite i32 add/sub dispatch family only. The command route must match the
+finite i32 add/sub/mul dispatch family only. The command route must match the
 selected callable family: the vadd self-check route must reject vsub artifacts,
-and the vsub self-check route must reject vadd artifacts. It may emit one
-bounded family-specific success marker after both scalar fallback and RVV
-branch checks pass. It must not replace the default library-style dispatch
+and the vsub/vmul self-check routes must reject artifacts from other families.
+It may emit one bounded family-specific success marker after both scalar
+fallback and RVV branch checks pass. It must not replace the default library-style dispatch
 artifact, broaden selected-path validation, perform automatic hardware probing,
 generate objects, link a runtime library, report benchmarks, or claim generic
 RVV lowering correctness. Real correctness claims for the RVV branch still
@@ -1303,11 +1313,11 @@ source and selected flags.
 #### 1. Scope / Trigger
 
 Trigger: a post-planning module already satisfies the host RVV+scalar finite
-i32 add/sub dispatch C export boundary, and the caller wants explicit runtime
+i32 add/sub/mul dispatch C export boundary, and the caller wants explicit runtime
 invocation evidence for the generated dispatcher rather than the default
 library-style source artifact.
 
-This is a target-owned evidence export mode for the finite i32 add/sub
+This is a target-owned evidence export mode for the finite i32 add/sub/mul
 dispatcher family. It must not become a generic object/link/runtime pipeline.
 
 #### 2. Signatures
@@ -1317,6 +1327,7 @@ Public command:
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
 tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c
+tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c
 ```
 
 C++ entry point:
@@ -1325,6 +1336,8 @@ C++ entry point:
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 ```
 
@@ -1341,9 +1354,9 @@ llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
   scalar fallback branch and with `rvv_available = 1` to exercise the RVV
   branch.
 - The harness expected arithmetic must come from the selected family: vadd
-  checks `lhs + rhs`, and vsub checks `lhs - rhs`. A stale route, ABI name,
-  intrinsic, callable symbol stem, or success marker from the other family is
-  invalid.
+  checks `lhs + rhs`, vsub checks `lhs - rhs`, and vmul checks `lhs * rhs`. A
+  stale route, ABI name, intrinsic, callable symbol stem, or success marker from
+  another family is invalid.
 - The harness must exercise more than one target/export-owned runtime `n` ABI
   value. The current bounded slice uses `n = 7` and `n = 16` for each branch.
 - The harness uses bounded local arrays and a target/export-owned runtime `n`
@@ -1368,7 +1381,8 @@ llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
   fail before source output.
 - Self-check route family mismatch, such as vsub artifacts routed through the
   vadd self-check command or vadd artifacts routed through the vsub self-check
-  command -> fail before source output.
+  command, or vmul artifacts routed through an add/sub self-check command ->
+  fail before source output.
 - Remote compile/run failure of generated harness -> evidence collection
   failure only; it must not be converted into a compiler-side success claim.
 
@@ -1395,7 +1409,8 @@ llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
   `tcrv-opt --tcrv-execution-planning-pipeline | tcrv-translate
   --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c` for vadd and the
   matching `--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c` route for
-  vsub.
+  vsub or `--tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c` route for
+  vmul.
 - Any RVV runtime/correctness claim for the self-check source must include
   separate `ssh rvv` compile/run evidence and must name the selected compile
   flags.
@@ -1412,7 +1427,7 @@ and runtime integration.
 Correct:
 
 ```text
-The generated bounded RVV+scalar i32 add/sub dispatch self-check source
+The generated bounded RVV+scalar i32 add/sub/mul dispatch self-check source
 compiled and ran on ssh rvv with selected flags; this proves only that the
 finite family-selected dispatcher harness invoked both callable branches
 correctly for the explicit runtime element-count ABI values in the harness.
@@ -1423,11 +1438,11 @@ correctly for the explicit runtime element-count ABI values in the harness.
 #### 1. Scope / Trigger
 
 Trigger: the same post-planning module satisfies the default host RVV+scalar
-i32-vadd dispatch C export boundary, and the caller requests a bounded
+i32 family-selected dispatch C export boundary, and the caller requests a bounded
 object-file artifact for that exact generated library-style dispatch source.
 
 This is the generic target-owned object-generation boundary for the finite
-RVV+scalar i32-vadd dispatcher. It compiles the runtime-callable dispatch
+RVV+scalar i32 add/sub/mul dispatcher. It compiles the runtime-callable dispatch
 library source without adding a hidden `main`, self-check helper, or success
 marker. It must not become a generic object/link/runtime pipeline.
 
@@ -1439,6 +1454,10 @@ Public command:
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object
 tcrv-translate --tcrv-export-target-artifact
 ```
+
+The direct command remains the first finite convenience alias; generic
+artifact-kind-aware export must select the family-specific add/sub/mul object
+route from registry metadata.
 
 C++ entry point:
 
@@ -1452,6 +1471,7 @@ Explicit evidence-helper command:
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
 tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-object
+tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-object
 ```
 
 C++ entry point:
@@ -1460,6 +1480,8 @@ C++ entry point:
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
     mlir::ModuleOp module, llvm::raw_ostream &os);
 llvm::Error exportRVVScalarI32VSubDispatchSelfCheckObject(
+    mlir::ModuleOp module, llvm::raw_ostream &os);
+llvm::Error exportRVVScalarI32VMulDispatchSelfCheckObject(
     mlir::ModuleOp module, llvm::raw_ostream &os);
 ```
 
@@ -1557,7 +1579,7 @@ tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c \
   post_planning.mlir
 ```
 
-For a bounded linalg frontend input, the bridge may run the existing add/sub
+For a bounded linalg frontend input, the bridge may run the existing add/sub/mul
 frontend lowering pass before execution planning:
 
 ```bash
@@ -1604,11 +1626,11 @@ and run the same caller against the generated bundle object. It must require
 the bounded bundle external ABI success marker and record sanitized
 host/toolchain facts such as `uname`, architecture, and clang path/version.
 Successful ssh bundle evidence proves only that the finite family-selected
-RVV+scalar i32 add/sub compiler-generated bundle source/header/object external
+RVV+scalar i32 add/sub/mul compiler-generated bundle source/header/object external
 ABI caller executed both `rvv_available = 0` and `rvv_available = 1` branches
 on that host for the explicit runtime `n = 7` and `n = 16` caller inputs. For
-vsub, the generated external caller must check `lhs - rhs`, not stale vadd
-semantics. It is not generic lowering, arbitrary RVV support, dynamic runtime
+vsub, the generated external caller must check `lhs - rhs`; for vmul, it must
+check `lhs * rhs`; neither may use stale vadd semantics. It is not generic lowering, arbitrary RVV support, dynamic runtime
 integration, performance evidence, or broad correctness coverage.
 
 Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
@@ -1627,7 +1649,7 @@ run, timeout, or success-marker failure and must record sanitized command logs
 rather than synthesizing runtime evidence.
 
 Successful ssh evidence proves only that the finite generated family-selected
-RVV+scalar i32 add/sub dispatcher self-check executable compiled, linked, and
+RVV+scalar i32 add/sub/mul dispatcher self-check executable compiled, linked, and
 ran both the scalar fallback and RVV dispatch branches on the selected RVV host
 flags for the explicit runtime `n = 7` and `n = 16` ABI inputs. It is not
 generic high-level lowering correctness, arbitrary RVV emission support,
@@ -1637,9 +1659,9 @@ performance evidence, or broad correctness coverage.
 ### Dispatch ABI Header Export
 
 Trigger: the same post-planning module satisfies the host RVV+scalar i32-vadd
-dispatch C export boundary and carries the selected RVV compile metadata needed
-by the matching library-object route. A target/export tool may emit a bounded C
-header for an external runtime caller:
+or registry-selected i32-vsub/i32-vmul dispatch C export boundary and carries
+the selected RVV compile metadata needed by the matching library-object route.
+A target/export tool may emit a bounded C header for an external runtime caller:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header
@@ -1648,7 +1670,8 @@ tcrv-translate --tcrv-export-target-header-artifact
 
 The direct header command may remain a convenience alias, but the generic
 header command must select the header through the target artifact exporter
-registry using artifact kind `runtime-callable-c-header`. The header exporter
+registry using artifact kind `runtime-callable-c-header` and family-specific
+route metadata. The header exporter
 must reuse the same selected-path, lowering-boundary, callable route metadata,
 scalar `tcrv.exec.fallback` link, `tcrv.exec.case runtime_guard` link, selected
 RVV compile metadata, and structured runtime ABI parameter validation as the

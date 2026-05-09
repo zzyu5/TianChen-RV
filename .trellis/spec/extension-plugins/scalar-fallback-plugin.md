@@ -36,6 +36,7 @@ lowering descriptor attr: tcrv_scalar.lowering_descriptor
 lowering descriptor values:
   i32-vadd-microkernel.v1
   i32-vsub-microkernel.v1
+  i32-vmul-microkernel.v1
 descriptor-local element attr: tcrv_scalar.element_count
 default descriptor-local element count: 16
 ```
@@ -49,11 +50,12 @@ list satisfies id `scalar.fallback`. Missing or unavailable fallback capability
 must produce no proposal rather than an implicit always-available variant.
 
 The proposal also carries a finite plugin-owned lowering descriptor for the
-bounded i32 vector add/sub fallback source slice:
+bounded i32 vector add/sub/mul fallback source slice:
 
 ```text
 tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
 tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
+tcrv_scalar.lowering_descriptor = "i32-vmul-microkernel.v1"
 tcrv_scalar.element_count = 16 : i64
 ```
 
@@ -62,10 +64,11 @@ microkernel attachment. `tcrv_scalar.element_count` is descriptor-local bounded
 metadata only; it is not high-level shape, problem size, AVL, vl, runtime loop
 trip count, or performance evidence.
 Bounded frontend lowering may preserve
-`tcrv_frontend_lowering = "i32-vadd"` or `"i32-vsub"` on the generated
-kernel. The scalar plugin must select the matching descriptor and must not use
-the vadd descriptor, route id, ABI name, runtime glue role, operation label, or
-emitted arithmetic for subtract.
+`tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, or `"i32-vmul"` on the
+generated kernel. The scalar plugin must select the matching descriptor and
+must not use
+another family descriptor, route id, ABI name, runtime glue role, operation
+label, or emitted arithmetic for subtract or multiply.
 
 ## Capability And Legality
 
@@ -115,9 +118,9 @@ artifact kind: metadata-diagnostic
 
 This metadata-only emission-plan diagnostic records plugin-owned intent only.
 It applies when the selected scalar fallback path has no validated matching
-`tcrv_scalar.i32_vadd_microkernel`. It does not mean that TianChen-RV emitted
-LLVM IR, generated an object, linked a runtime, executed a scalar kernel,
-proved correctness, or measured performance.
+family-specific `tcrv_scalar.i32_*_microkernel`. It does not mean that
+TianChen-RV emitted LLVM IR, generated an object, linked a runtime, executed a
+scalar kernel, proved correctness, or measured performance.
 
 ## Selected Lowering Boundary
 
@@ -159,11 +162,12 @@ fallback path.
 
 When the selected variant carries
 `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
-`"i32-vsub-microkernel.v1"` and a valid
+`"i32-vsub-microkernel.v1"` or `"i32-vmul-microkernel.v1"` and a valid
 descriptor-local `tcrv_scalar.element_count`, the same plugin-local
 materialization step must also create exactly one matching direct-child
 `tcrv_scalar.i32_vadd_microkernel` or
-`tcrv_scalar.i32_vsub_microkernel`. A pre-existing matching scalar microkernel
+`tcrv_scalar.i32_vsub_microkernel` or
+`tcrv_scalar.i32_vmul_microkernel`. A pre-existing matching scalar microkernel
 for that selected path is rejected during descriptor materialization so that
 the descriptor has a single owner and stale hand-authored fallback bodies
 cannot silently replace the plugin-owned proposal.
@@ -175,16 +179,17 @@ source-export plan. The lowering boundary itself still records selected-path
 metadata only. It is not LLVM lowering, object generation, linked runtime glue,
 hardware execution, correctness evidence, or performance evidence.
 
-Real scalar fallback lowering beyond the bounded i32 vector add/sub C source
+Real scalar fallback lowering beyond the bounded i32 vector add/sub/mul C source
 microkernel must be added by later plugin-local lowering slices and validated
 with compiler-generated artifacts and runtime evidence appropriate to those
 paths.
 
-## Explicit I32 Vector Add/Sub Microkernel Export
+## Explicit I32 Vector Add/Sub/Mul Microkernel Export
 
 `tcrv_scalar.i32_vadd_microkernel` and
-`tcrv_scalar.i32_vsub_microkernel` are scalar extension-dialect executable
-source-export microkernel ops for the bounded i32 add/sub family. Each
+`tcrv_scalar.i32_vsub_microkernel` and
+`tcrv_scalar.i32_vmul_microkernel` are scalar extension-dialect executable
+source-export microkernel ops for the bounded i32 add/sub/mul family. Each
 represents exactly one bounded i32 callable body for a selected scalar fallback
 path. The ops are plugin-local under the `tcrv_scalar` dialect and must carry
 only selected-path metadata: source kernel, selected variant, origin, selected
@@ -196,7 +201,8 @@ fallback capability refs, and required-capability mismatches.
 When the selected scalar fallback path has exactly one matching
 `tcrv_scalar.lowering_boundary` and exactly one matching
 `tcrv_scalar.i32_vadd_microkernel` or
-`tcrv_scalar.i32_vsub_microkernel`, including the microkernel materialized
+`tcrv_scalar.i32_vsub_microkernel` or
+`tcrv_scalar.i32_vmul_microkernel`, including the microkernel materialized
 from the finite descriptor above, the scalar plugin may return a supported
 runtime-callable C source export route:
 
@@ -211,6 +217,11 @@ sub lowering pipeline: tcrv-export-scalar-i32-vsub-microkernel-c
 sub runtime ABI: scalar-i32-vsub-runtime-callable-c-abi.v1
 sub runtime ABI name: scalar-i32-vsub-runtime-callable-c-function.v1
 sub runtime glue role: runtime-callable-i32-vsub-fallback-function
+mul emission kind: scalar-explicit-i32-vmul-microkernel-c-source
+mul lowering pipeline: tcrv-export-scalar-i32-vmul-microkernel-c
+mul runtime ABI: scalar-i32-vmul-runtime-callable-c-abi.v1
+mul runtime ABI name: scalar-i32-vmul-runtime-callable-c-function.v1
+mul runtime glue role: runtime-callable-i32-vmul-fallback-function
 runtime ABI kind: scalar-runtime-callable-c-abi
 status: supported
 artifact kind: runtime-callable-c-source
@@ -219,9 +230,10 @@ artifact kind: runtime-callable-c-source
 The exported source must contain a deterministic callable C function with
 `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, and `size_t n`
 parameters. The add route must emit `out[index] = lhs[index] + rhs[index]`;
-the subtract route must emit `out[index] = lhs[index] - rhs[index]` and must
-not inherit stale vadd route or ABI metadata. The callable ABI plan must be
-built from direct
+the subtract route must emit `out[index] = lhs[index] - rhs[index]`; the
+multiply route must emit `out[index] = lhs[index] * rhs[index]`; and no route
+may inherit stale route or ABI metadata from another family. The callable ABI
+plan must be built from direct
 `tcrv.exec.mem_window` IR for lhs/rhs/out buffer roles plus direct
 `tcrv.exec.runtime_param` IR for runtime `n`; supported emission-plan
 `runtime_abi_parameters` entries are validated mirrors of that IR-backed plan.

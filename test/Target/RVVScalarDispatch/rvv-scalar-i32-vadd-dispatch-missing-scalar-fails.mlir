@@ -93,5 +93,5 @@ module @rvv_scalar_dispatch_missing_scalar_input {
   }
 }
 
-// CHECK: RVV+scalar i32 add/sub dispatch C export failed
+// CHECK: RVV+scalar i32 binary dispatch C export failed
 // CHECK-SAME: requires exactly one supported scalar dispatch fallback callable route; found none

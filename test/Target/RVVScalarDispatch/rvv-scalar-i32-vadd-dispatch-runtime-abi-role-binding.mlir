@@ -49,10 +49,10 @@
 // UNKNOWN: target source artifact export failed
 // UNKNOWN-SAME: unsupported runtime ABI parameter role 'mystery-runtime-count'
 
-// GUARD-TYPE: RVV+scalar i32 add/sub dispatch C export failed
+// GUARD-TYPE: RVV+scalar i32 binary dispatch C export failed
 // GUARD-TYPE-SAME: runtime ABI runtime_param validation failed
 // GUARD-TYPE-SAME: tcrv.exec.runtime_param @abi_dispatch_availability_guard requires attribute 'c_type' = "int"
 
-// DETACHED: RVV+scalar i32 add/sub dispatch C export failed
+// DETACHED: RVV+scalar i32 binary dispatch C export failed
 // DETACHED-SAME: tcrv_rvv_scalar.dispatch_runtime_abi_parameters is detached dispatch ABI metadata
 // DETACHED-SAME: use direct tcrv.exec.runtime_param IR

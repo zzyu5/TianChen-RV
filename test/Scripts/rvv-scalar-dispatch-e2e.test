@@ -13,6 +13,10 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VSUB-SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vmul --lower-linalg-frontend --run-id lit-rvv-scalar-vmul-dispatch-e2e --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vmul-dispatch-generic-route.mlir | FileCheck %s --check-prefix=VMUL-DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=VMUL-SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -86,6 +90,27 @@
 # VSUB-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
 # VSUB-EVIDENCE: "ssh_evidence": null
 # VSUB-EVIDENCE: "status": "success"
+
+# VMUL-DRY: "arithmetic_family": "i32-vmul"
+# VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e"
+# VMUL-DRY: "mode": "dry-run"
+# VMUL-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VMUL-DRY: "ssh_evidence": false
+# VMUL-DRY: "status": "success"
+
+# VMUL-SOURCE: /* Scope: one selected RVV i32-vmul dispatch case plus one scalar i32-vmul dispatch fallback. */
+# VMUL-SOURCE: __riscv_vmul_vv_i32m1
+# VMUL-SOURCE: out[index] = lhs[index] * rhs[index];
+# VMUL-SOURCE: tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul_self_check_one(7, 0)
+# VMUL-SOURCE: tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul_self_check_one(16, 1)
+# VMUL-SOURCE: tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok
+# VMUL-SOURCE-SAME: runtime_counts=7,16
+
+# VMUL-EVIDENCE: "arithmetic_family": "i32-vmul"
+# VMUL-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vmul-dispatch-generic-route.mlir"
+# VMUL-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VMUL-EVIDENCE: "ssh_evidence": null
+# VMUL-EVIDENCE: "status": "success"
 
 # SECRET: rvv_scalar_dispatch_e2e:
 # SECRET-SAME: evidence note contains secret-like, credential, or URL text

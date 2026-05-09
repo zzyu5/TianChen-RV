@@ -26,6 +26,9 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 
+llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+
 llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os);
 
@@ -35,6 +38,10 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
 
 llvm::Error
 exportRVVScalarI32VSubDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os);
+
+llvm::Error
+exportRVVScalarI32VMulDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os);
 
 llvm::Error registerRVVScalarDispatchTargetExporters(

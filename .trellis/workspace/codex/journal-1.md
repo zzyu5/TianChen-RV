@@ -121,7 +121,16 @@ Shortened the Codex base prompt, changed Hermes reviews to emit module-sized tas
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `git diff --check`
+- [OK] CMake configure with `/usr/lib/llvm-20`
+- [OK] focused `tcrv-opt`, `tcrv-translate`, registry, and target artifact
+  exporter build targets
+- [OK] focused registry and target artifact exporter C++ tests
+- [OK] focused lit filter for vmul dispatch, script dry-runs, bundle export,
+  and touched add/sub dispatch regressions
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+- [OK] fresh `ssh rvv` vmul bundle external ABI evidence:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/vmul-dispatch-ssh-rvv-20260509/evidence.json`
 
 ### Status
 
@@ -285,6 +294,43 @@ Implemented descriptor-backed i32-vmul through registry, RVV/scalar plugin mater
 - [OK] focused registry/RVV plugin/scalar plugin/target exporter C++ binaries
 - [OK] focused lit filter for vmul plus touched add/sub artifact tests
 - [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 7: i32-vmul RVV scalar dispatch bundle ssh rvv evidence
+
+**Date**: 2026-05-09
+**Task**: i32-vmul RVV scalar dispatch bundle ssh rvv evidence
+**Branch**: `main`
+
+### Summary
+
+Extended descriptor-backed i32-vmul into the RVV-primary plus scalar-fallback dispatch bundle path, added local route/script/frontend coverage, and captured fresh ssh rvv bundle external ABI evidence for both scalar and RVV guard cases.
+
+### Main Changes
+
+- Registered descriptor-backed vmul RVV+scalar dispatch source/header/object bundle routes from the i32 binary family registry, with distinct route ids, ABI names, component group, function stems, intrinsic, scalar operator, and self-check marker.
+- Added vmul direct self-check source/object translate routes and extended the dispatch evidence runner so `--arithmetic-family=i32-vmul` drives existing compiler tools instead of Python compiler semantics.
+- Added bounded linalg/frontend-to-dispatch bundle tests, script dry-run coverage, target/export C++ coverage, add/sub regression expectations, and spec wording for the finite add/sub/vmul family.
+- Captured fresh `ssh rvv` bundle external ABI evidence under `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/vmul-dispatch-ssh-rvv-20260509` with source-built and bundle-object paths passing.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

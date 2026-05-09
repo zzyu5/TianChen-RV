@@ -3,7 +3,7 @@
 
 This helper is runner/evidence tooling only. It orchestrates existing
 TianChen-RV MLIR tools and optional ``ssh rvv`` compile/link/run evidence for
-the planned RVV+scalar i32 add/sub dispatch slice. It does not
+the planned RVV+scalar i32 add/sub/mul dispatch slice. It does not
 implement compiler IR, plugin decisions, target selection, capability modeling,
 lowering, emission, runtime ABI, correctness logic, or performance measurement.
 """
@@ -112,6 +112,28 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         ),
         "default_plan_and_export_input": Path(
             "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir"
+        ),
+    },
+    "i32-vmul": {
+        "diagnostic_name": "i32-vmul",
+        "function_stem": "i32_vmul",
+        "intrinsic": "__riscv_vmul_vv_i32m1",
+        "c_operator": "*",
+        "success_marker": "tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok",
+        "bundle_success_marker": "tcrv_rvv_scalar_i32_vmul_bundle_external_abi_ok",
+        "component_group": "rvv-scalar-i32-vmul-dispatch-external-abi.v1",
+        "external_abi_name": "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1",
+        "source_route": "tcrv-export-rvv-scalar-i32-vmul-dispatch-c",
+        "header_route": "tcrv-export-rvv-scalar-i32-vmul-dispatch-header",
+        "object_route": "tcrv-export-rvv-scalar-i32-vmul-dispatch-object",
+        "rvv_callable_route": "tcrv-export-rvv-i32-vmul-microkernel-c",
+        "scalar_callable_route": "tcrv-export-scalar-i32-vmul-microkernel-c",
+        "self_check_route": "--tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c",
+        "default_input": Path(
+            "test/Target/RVVScalarDispatch/rvv-scalar-i32-vmul-dispatch-generic-route.mlir"
+        ),
+        "default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir"
         ),
     },
 }
@@ -2144,6 +2166,38 @@ int main(void) { puts("tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_c
         BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in vsub_caller,
         "vsub bundle caller success marker missing",
     )
+
+    configure_arithmetic_family("i32-vmul")
+    sample_vmul_source = """
+/* TianChen-RV RVV+scalar host runtime dispatch C export. */
+/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+#include <riscv_vector.h>
+void tcrv_dispatch_i32_vmul_self_test(void) {}
+void f(void) { __riscv_vmul_vv_i32m1; out[index] = lhs[index] * rhs[index]; }
+/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+/* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+int main(void) { puts("tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }
+""".strip()
+    vmul_flags = validate_self_check_dispatch_source(sample_vmul_source)
+    assert_self_test(
+        vmul_flags["selected_march"] == "rv64gcv",
+        "vmul selected march parser failed",
+    )
+    vmul_caller = build_dispatch_external_caller_source(
+        "tcrv_dispatch_i32_vmul_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vmul-dispatch-header.h",
+        DISPATCH_RUNTIME_ABI_SIGNATURE,
+    )
+    assert_self_test(
+        "lhs[index] * rhs[index]" in vmul_caller,
+        "vmul bundle caller did not check multiply semantics",
+    )
+    assert_self_test(
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in vmul_caller,
+        "vmul bundle caller success marker missing",
+    )
     configure_arithmetic_family("i32-vadd")
 
     sample_bundle_index = """
@@ -2486,7 +2540,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--lower-linalg-frontend",
         action="store_true",
         help=(
-            "Run the bounded linalg i32 add/sub frontend lowering pass before "
+            "Run the bounded linalg i32 add/sub/mul frontend lowering pass before "
             "the execution-planning pipeline"
         ),
     )

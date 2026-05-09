@@ -131,7 +131,7 @@ struct TemporaryFile {
 llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32 add/sub dispatch C export failed";
+  stream << "TianChen-RV RVV+scalar i32 binary dispatch C export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -144,7 +144,7 @@ llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32 add/sub dispatch C export "
+      llvm::Twine("TianChen-RV RVV+scalar i32 binary dispatch C export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -153,7 +153,7 @@ llvm::Error makeModuleDispatchError(llvm::Twine message) {
 llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32 add/sub dispatch object export "
+  stream << "TianChen-RV RVV+scalar i32 binary dispatch object export "
             "failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
@@ -167,7 +167,7 @@ llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32 add/sub dispatch object export "
+      llvm::Twine("TianChen-RV RVV+scalar i32 binary dispatch object export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -175,7 +175,7 @@ llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
 
 llvm::Error makeModuleDispatchHeaderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32 add/sub dispatch header export "
+      llvm::Twine("TianChen-RV RVV+scalar i32 binary dispatch header export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -187,6 +187,10 @@ const DispatchI32FamilySpec &getI32VAddDispatchFamilySpec() {
 
 const DispatchI32FamilySpec &getI32VSubDispatchFamilySpec() {
   return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().dispatch;
+}
+
+const DispatchI32FamilySpec &getI32VMulDispatchFamilySpec() {
+  return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().dispatch;
 }
 
 bool containsForbiddenText(llvm::StringRef value) {
@@ -289,23 +293,23 @@ bool isScalarCallableCandidateForFamily(
 
 const DispatchI32FamilySpec *
 getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
-  if (isRVVCallableCandidateForFamily(candidate,
-                                      getI32VAddDispatchFamilySpec()))
-    return &getI32VAddDispatchFamilySpec();
-  if (isRVVCallableCandidateForFamily(candidate,
-                                      getI32VSubDispatchFamilySpec()))
-    return &getI32VSubDispatchFamilySpec();
+  for (const auto *descriptor :
+       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
+    const DispatchI32FamilySpec &family = descriptor->dispatch;
+    if (isRVVCallableCandidateForFamily(candidate, family))
+      return &family;
+  }
   return nullptr;
 }
 
 const DispatchI32FamilySpec *
 getScalarCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
-  if (isScalarCallableCandidateForFamily(candidate,
-                                         getI32VAddDispatchFamilySpec()))
-    return &getI32VAddDispatchFamilySpec();
-  if (isScalarCallableCandidateForFamily(candidate,
-                                         getI32VSubDispatchFamilySpec()))
-    return &getI32VSubDispatchFamilySpec();
+  for (const auto *descriptor :
+       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
+    const DispatchI32FamilySpec &family = descriptor->dispatch;
+    if (isScalarCallableCandidateForFamily(candidate, family))
+      return &family;
+  }
   return nullptr;
 }
 
@@ -865,7 +869,7 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
         candidate.kernel,
         llvm::Twine("unsupported supported artifact candidate route '") +
             candidate.routeID +
-            "' for RVV+scalar i32 add/sub dispatch export");
+            "' for RVV+scalar i32 binary dispatch export");
   }
 
   if (!rvvCandidate)
@@ -950,6 +954,25 @@ llvm::Expected<bool> matchRVVScalarI32VSubDispatchCandidates(
     llvm::ArrayRef<TargetArtifactCandidate> candidates) {
   return matchRVVScalarDispatchCandidatesForFamily(
       candidates, getI32VSubDispatchFamilySpec());
+}
+
+llvm::Expected<bool> matchRVVScalarI32VMulDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVScalarDispatchCandidatesForFamily(
+      candidates, getI32VMulDispatchFamilySpec());
+}
+
+TargetArtifactCompositeMatchFn
+getDispatchCompositeMatchFn(const DispatchI32FamilySpec &family) {
+  switch (family.kind) {
+  case DispatchI32FamilyKind::Add:
+    return matchRVVScalarI32VAddDispatchCandidates;
+  case DispatchI32FamilyKind::Sub:
+    return matchRVVScalarI32VSubDispatchCandidates;
+  case DispatchI32FamilyKind::Mul:
+    return matchRVVScalarI32VMulDispatchCandidates;
+  }
+  return nullptr;
 }
 
 llvm::Error validateRVVScalarI32VAddDispatchCandidates(
@@ -1757,6 +1780,12 @@ llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
       module, getI32VSubDispatchFamilySpec(), os);
 }
 
+llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportRVVScalarDispatchSelfCheckCForFamily(
+      module, getI32VMulDispatchFamilySpec(), os);
+}
+
 llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
@@ -1839,14 +1868,22 @@ exportRVVScalarI32VSubDispatchSelfCheckObject(mlir::ModuleOp module,
       module, getI32VSubDispatchFamilySpec(), os);
 }
 
+llvm::Error
+exportRVVScalarI32VMulDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportRVVScalarDispatchSelfCheckObjectForFamily(
+      module, getI32VMulDispatchFamilySpec(), os);
+}
+
 llvm::Error registerRVVScalarDispatchFamilyTargetExporters(
     TargetArtifactExporterRegistry &registry,
     const DispatchI32FamilySpec &family) {
   bool directHelperRoute = family.kind == DispatchI32FamilyKind::Add;
-  TargetArtifactCompositeMatchFn matchFn =
-      family.kind == DispatchI32FamilyKind::Add
-          ? matchRVVScalarI32VAddDispatchCandidates
-          : matchRVVScalarI32VSubDispatchCandidates;
+  TargetArtifactCompositeMatchFn matchFn = getDispatchCompositeMatchFn(family);
+  if (!matchFn)
+    return llvm::make_error<llvm::StringError>(
+        "missing RVV+scalar dispatch composite matcher for i32 binary family",
+        llvm::errc::invalid_argument);
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               family.dispatchSourceRouteID, kRuntimeCallableCSourceArtifactKind,
@@ -1881,12 +1918,13 @@ llvm::Error registerRVVScalarDispatchFamilyTargetExporters(
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error = registerRVVScalarDispatchFamilyTargetExporters(
-          registry, getI32VAddDispatchFamilySpec()))
-    return error;
-
-  return registerRVVScalarDispatchFamilyTargetExporters(
-      registry, getI32VSubDispatchFamilySpec());
+  for (const auto *descriptor :
+       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
+    if (llvm::Error error = registerRVVScalarDispatchFamilyTargetExporters(
+            registry, descriptor->dispatch))
+      return error;
+  }
+  return llvm::Error::success();
 }
 
 } // namespace tianchenrv::target::rvv_scalar

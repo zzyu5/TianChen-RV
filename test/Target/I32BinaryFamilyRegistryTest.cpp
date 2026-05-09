@@ -295,8 +295,7 @@ int main() {
   for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectStandaloneFamilyExporterRoutes(registry, *family))
       return result;
-  for (const I32BinaryFamilyDescriptor *family :
-       {&getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor()})
+  for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
       return result;
 

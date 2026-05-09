@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
+- **Total Sessions**: 7
 - **Last Active**: 2026-05-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~283 | Active |
+| `journal-1.md` | ~332 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-05-09 | i32-vmul RVV scalar dispatch bundle ssh rvv evidence | this commit | `main` |
 | 6 | 2026-05-09 | Descriptor-backed i32-vmul standalone artifacts | this commit | `main` |
 | 5 | 2026-05-09 | Plugin i32 binary family descriptor consumption | this commit | `main` |
 | 4 | 2026-05-09 | RVV/scalar vsub dispatch ssh rvv runtime evidence | this commit | `main` |
