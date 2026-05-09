@@ -1,5 +1,5 @@
 module {
-  tcrv.exec.kernel @offload_descriptor_raw_log {
+  tcrv.exec.kernel @offload_descriptor_missing_selected_plan_metadata {
     tcrv.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -57,13 +57,13 @@ module {
     }
     tcrv_offload.lowering_boundary {
       handoff_kind = "runtime-offload",
-      handoff_reason = "raw log from adapter startup should not be serialized",
+      handoff_reason = "runtime-offload descriptor boundary is compiler handoff metadata only",
       origin = "offload-plugin",
       required_capabilities = [@offload_runtime],
       role = "direct variant",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
-      source_kernel = "offload_descriptor_raw_log",
+      source_kernel = "offload_descriptor_missing_selected_plan_metadata",
       status = "metadata-only"
     }
     tcrv.exec.diagnostic {
@@ -87,11 +87,6 @@ module {
         {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
       ],
       runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary",
-      selected_plan_metadata = [
-        {name = "runtime_offload_capability_id", note = "records the generic capability id required by the runtime-offload handoff descriptor", role = "capability-requirement", value = "offload.runtime"},
-        {name = "runtime_offload_handoff_kind", note = "mirrors the capability handoff_kind property for descriptor and bundle validation", role = "runtime-offload-handoff", value = "runtime-offload"},
-        {name = "runtime_offload_descriptor_scope", note = "records that this route exports compiler handoff metadata without runtime execution", role = "evidence-scope", value = "descriptor-only"}
-      ],
       status = "supported",
       target = @offload_runtime_first_slice
     }

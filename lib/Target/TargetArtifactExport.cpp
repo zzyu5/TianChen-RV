@@ -2046,7 +2046,7 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
       return makeArtifactExportError(
           candidate.kernel,
           llvm::Twine("route id '") + candidate.routeID +
-              "' runtime ABI role contract validation failed: " + message);
+              "' target artifact candidate validation failed: " + message);
     }
   }
 

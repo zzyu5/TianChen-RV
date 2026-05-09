@@ -1072,10 +1072,12 @@ findSelectedPlanMetadata(
 }
 
 llvm::Error requireSelectedPlanMetadata(
-    KernelOp kernel, const DescriptorRecord &record, llvm::StringRef name,
+    KernelOp kernel,
+    llvm::ArrayRef<tianchenrv::target::SelectedPlanMetadataEntry> metadata,
+    llvm::StringRef name,
     llvm::StringRef expectedValue, llvm::StringRef expectedRole) {
   const tianchenrv::target::SelectedPlanMetadataEntry *entry =
-      findSelectedPlanMetadata(record.selectedPlanMetadata, name);
+      findSelectedPlanMetadata(metadata, name);
   if (!entry)
     return makeDescriptorError(
         kernel, llvm::Twine("offload descriptor requires selected_plan_metadata "
@@ -1092,14 +1094,14 @@ llvm::Error requireSelectedPlanMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error validateSelectedPlanMetadataContract(KernelOp kernel,
-                                                const DescriptorRecord &record) {
-  if (record.selectedPlanMetadata.empty())
+llvm::Error validateSelectedPlanMetadataContract(
+    KernelOp kernel,
+    llvm::ArrayRef<tianchenrv::target::SelectedPlanMetadataEntry> metadata) {
+  if (metadata.empty())
     return makeDescriptorError(
         kernel, "offload descriptor requires selected-plan handoff metadata");
 
-  for (const tianchenrv::target::SelectedPlanMetadataEntry &entry :
-       record.selectedPlanMetadata) {
+  for (const tianchenrv::target::SelectedPlanMetadataEntry &entry : metadata) {
     if (containsDescriptorSampleOrHardwareFact(entry.name) ||
         containsDescriptorSampleOrHardwareFact(entry.value))
       return makeDescriptorError(
@@ -1108,15 +1110,15 @@ llvm::Error validateSelectedPlanMetadataContract(KernelOp kernel,
   }
 
   if (llvm::Error error = requireSelectedPlanMetadata(
-          kernel, record, kSelectedPlanRuntimeCapabilityIDName,
+          kernel, metadata, kSelectedPlanRuntimeCapabilityIDName,
           "offload.runtime", "capability-requirement"))
     return error;
   if (llvm::Error error = requireSelectedPlanMetadata(
-          kernel, record, kSelectedPlanHandoffKindName,
+          kernel, metadata, kSelectedPlanHandoffKindName,
           kRuntimeOffloadHandoffKind, "runtime-offload-handoff"))
     return error;
   if (llvm::Error error = requireSelectedPlanMetadata(
-          kernel, record, kSelectedPlanDescriptorScopeName, "descriptor-only",
+          kernel, metadata, kSelectedPlanDescriptorScopeName, "descriptor-only",
           "evidence-scope"))
     return error;
 
@@ -1273,6 +1275,10 @@ llvm::Error validateAndAttachRuntimeABIContract(KernelOp kernel,
 
 llvm::Error validateOffloadDescriptorTargetArtifactRuntimeABIContract(
     const tianchenrv::target::TargetArtifactCandidate &candidate) {
+  if (llvm::Error error = validateSelectedPlanMetadataContract(
+          candidate.kernel, candidate.selectedPlanMetadata))
+    return error;
+
   llvm::Expected<support::I32VAddCallableABIPlan> abiPlan =
       support::buildI32VAddCallableABIPlan(candidate.kernel);
   if (!abiPlan) {
@@ -1338,7 +1344,8 @@ buildKernelDescriptor(KernelOp kernel) {
       return std::move(error);
     if (llvm::Error error = validateBoundaryForRecord(kernel, record))
       return std::move(error);
-    if (llvm::Error error = validateSelectedPlanMetadataContract(kernel, record))
+    if (llvm::Error error = validateSelectedPlanMetadataContract(
+            kernel, record.selectedPlanMetadata))
       return std::move(error);
     if (llvm::Error error = validateAndAttachRuntimeABIContract(kernel, record))
       return std::move(error);

@@ -87,6 +87,11 @@ module {
         {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
       ],
       runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary",
+      selected_plan_metadata = [
+        {name = "runtime_offload_capability_id", note = "records the generic capability id required by the runtime-offload handoff descriptor", role = "capability-requirement", value = "offload.runtime"},
+        {name = "runtime_offload_handoff_kind", note = "mirrors the capability handoff_kind property for descriptor and bundle validation", role = "runtime-offload-handoff", value = "runtime-offload"},
+        {name = "runtime_offload_descriptor_scope", note = "records that this route exports compiler handoff metadata without runtime execution", role = "evidence-scope", value = "descriptor-only"}
+      ],
       status = "supported",
       target = @offload_runtime_first_slice
     }

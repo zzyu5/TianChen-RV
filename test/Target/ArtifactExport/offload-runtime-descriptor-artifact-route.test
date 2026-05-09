@@ -35,6 +35,18 @@
 # OFFLOAD-DESC: c_name: "n"
 # OFFLOAD-DESC: c_type: "size_t"
 # OFFLOAD-DESC: source_symbol: @abi_runtime_element_count
+# OFFLOAD-DESC: selected_plan_metadata[0]:
+# OFFLOAD-DESC: name: "runtime_offload_capability_id"
+# OFFLOAD-DESC: value: "offload.runtime"
+# OFFLOAD-DESC: role: "capability-requirement"
+# OFFLOAD-DESC: selected_plan_metadata[1]:
+# OFFLOAD-DESC: name: "runtime_offload_handoff_kind"
+# OFFLOAD-DESC: value: "runtime-offload"
+# OFFLOAD-DESC: role: "runtime-offload-handoff"
+# OFFLOAD-DESC: selected_plan_metadata[2]:
+# OFFLOAD-DESC: name: "runtime_offload_descriptor_scope"
+# OFFLOAD-DESC: value: "descriptor-only"
+# OFFLOAD-DESC: role: "evidence-scope"
 # OFFLOAD-DESC: evidence_scope: "descriptor export only; no offload runtime execution, vendor call, DMA, object generation, hardware correctness, or performance evidence"
 # OFFLOAD-DESC: non_claims: ["no-vendor-runtime-call", "no-dma-or-buffer-management", "no-accelerator-kernel", "no-object-generation", "no-hardware-execution", "no-correctness-proof", "no-performance-claim"]
 
@@ -57,8 +69,12 @@
 # MISSING-ABI-CONTRACT: route id 'tcrv-export-offload-runtime-descriptor' requires structured runtime ABI parameter role 'lhs-input-buffer'
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-inconsistent-abi-role-contract.txt 2>&1 | FileCheck %s --check-prefix=BAD-ABI-CONTRACT --implicit-check-not=offload_runtime_handoff_descriptor
-# BAD-ABI-CONTRACT: route id 'tcrv-export-offload-runtime-descriptor' runtime ABI role contract validation failed
+# BAD-ABI-CONTRACT: route id 'tcrv-export-offload-runtime-descriptor' target artifact candidate validation failed
 # BAD-ABI-CONTRACT: offload descriptor target artifact preflight runtime ABI parameter role 'runtime-element-count' must mirror IR-backed callable ABI parameter c_name='n'
+
+# RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-selected-plan-metadata.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SELECTED-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
+# MISSING-SELECTED-PLAN: route id 'tcrv-export-offload-runtime-descriptor' target artifact candidate validation failed
+# MISSING-SELECTED-PLAN: offload descriptor requires selected-plan handoff metadata
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
 # STALE-PLAN: stale emission-plan diagnostic is not selected by the current execution plan surface

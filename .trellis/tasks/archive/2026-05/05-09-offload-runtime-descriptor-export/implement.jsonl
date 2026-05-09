@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and implementation stack boundary"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Compute-free tcrv.exec and emission-plan metadata contract"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability/provider and parameter layering contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry, lowering-boundary, emission-plan, and artifact preflight interfaces"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Extension locality and core/plugin boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and runtime-offload descriptor boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Execution planning pipeline order and coherence gate"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Offload plugin first-slice descriptor and handoff metadata contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck evidence requirements for offload descriptor export"}
