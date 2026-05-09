@@ -8,6 +8,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <optional>
 
 using namespace tianchenrv::target;
 using namespace tianchenrv::target::i32_binary;
@@ -47,7 +48,9 @@ int expectRoute(const TargetArtifactExporterRegistry &registry,
                 llvm::StringRef routeID, llvm::StringRef artifactKind,
                 llvm::StringRef originPlugin, llvm::StringRef emissionKind,
                 llvm::StringRef componentGroup = {},
-                llvm::StringRef externalABIName = {}) {
+                llvm::StringRef externalABIName = {},
+                std::optional<bool> expectedDirectHelperRoute =
+                    std::nullopt) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
   if (!exporter)
     return fail(llvm::Twine("missing exporter route '") + routeID + "'");
@@ -68,6 +71,10 @@ int expectRoute(const TargetArtifactExporterRegistry &registry,
   if (exporter->getExternalABIName() != externalABIName)
     return fail(llvm::Twine("external ABI name mismatch for route '") +
                 routeID + "'");
+  if (expectedDirectHelperRoute &&
+      exporter->hasDirectHelperRoute() != *expectedDirectHelperRoute)
+    return fail(llvm::Twine("direct helper route flag mismatch for route '") +
+                routeID + "'");
   return 0;
 }
 
@@ -76,7 +83,9 @@ int expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                          llvm::StringRef owner, llvm::StringRef runtimeABIKind,
                          llvm::StringRef runtimeABIName,
                          llvm::StringRef componentGroup,
-                         llvm::StringRef externalABIName) {
+                         llvm::StringRef externalABIName,
+                         std::optional<bool> expectedDirectHelperRoute =
+                             std::nullopt) {
   const TargetArtifactCompositeExporter *exporter =
       registry.lookupComposite(routeID);
   if (!exporter)
@@ -99,8 +108,20 @@ int expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
   if (exporter->getExternalABIName() != externalABIName)
     return fail(llvm::Twine("external ABI name mismatch for composite route '") +
                 routeID + "'");
+  if (expectedDirectHelperRoute &&
+      exporter->hasDirectHelperRoute() != *expectedDirectHelperRoute)
+    return fail(llvm::Twine("direct helper route flag mismatch for composite "
+                            "route '") +
+                routeID + "'");
   if (!exporter->getExportFn() || !exporter->getMatchFn())
     return fail(llvm::Twine("missing composite callbacks for route '") +
+                routeID + "'");
+  if (runtimeABIKind.empty() && exporter->getRuntimeABIParametersFn())
+    return fail(llvm::Twine("unexpected runtime ABI callback for route '") +
+                routeID + "'");
+  if (!runtimeABIKind.empty() && !exporter->getRuntimeABIParametersFn() &&
+      exporter->getRuntimeABIParameters().empty())
+    return fail(llvm::Twine("missing runtime ABI callback for route '") +
                 routeID + "'");
   return 0;
 }
@@ -161,13 +182,49 @@ int expectStandaloneFamilyExporterRoutes(
   if (int result = expectRoute(
           registry, family.rvv.routeID, kRuntimeCallableCSourceArtifactKind,
           kRVVPluginName, family.rvv.emissionKind,
-          family.rvv.externalABIComponentGroup, family.rvv.runtimeABIName))
+          family.rvv.externalABIComponentGroup, family.rvv.runtimeABIName,
+          /*expectedDirectHelperRoute=*/true))
     return result;
 
   if (int result = expectRoute(
           registry, family.scalar.routeID, kRuntimeCallableCSourceArtifactKind,
-          kScalarPluginName, family.scalar.emissionKind))
+          kScalarPluginName, family.scalar.emissionKind,
+          /*componentGroup=*/{}, /*externalABIName=*/{},
+          /*expectedDirectHelperRoute=*/false))
     return result;
+
+  if (int result = expectCompositeRoute(
+          registry, family.rvv.headerRouteID,
+          kRuntimeCallableCHeaderArtifactKind, kRVVPluginName,
+          family.rvv.runtimeABIKind, family.rvv.runtimeABIName,
+          family.rvv.externalABIComponentGroup, family.rvv.runtimeABIName,
+          /*expectedDirectHelperRoute=*/true))
+    return result;
+
+  if (int result = expectCompositeRoute(
+          registry, family.rvv.objectRouteID,
+          kRiscvELFRelocatableObjectArtifactKind, kRVVPluginName,
+          family.rvv.runtimeABIKind, family.rvv.runtimeABIName,
+          family.rvv.externalABIComponentGroup, family.rvv.runtimeABIName,
+          /*expectedDirectHelperRoute=*/true))
+    return result;
+
+  if (family.kind == I32BinaryFamilyKind::Add) {
+    if (int result = expectCompositeRoute(
+            registry, family.scalar.headerRouteID,
+            kRuntimeCallableCHeaderArtifactKind, kScalarPluginName,
+            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+            /*componentGroup=*/{}, /*externalABIName=*/{},
+            /*expectedDirectHelperRoute=*/false))
+      return result;
+    if (int result = expectCompositeRoute(
+            registry, family.scalar.objectRouteID,
+            kRiscvELFRelocatableObjectArtifactKind, kScalarPluginName,
+            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+            /*componentGroup=*/{}, /*externalABIName=*/{},
+            /*expectedDirectHelperRoute=*/false))
+      return result;
+  }
 
   return 0;
 }

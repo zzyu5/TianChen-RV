@@ -3,6 +3,9 @@
 // RUN: tcrv-opt %S/rvv-microkernel-family-sub.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.vsub.o
 // RUN: test -s %t.vsub.o
 // RUN: llvm-readobj --file-headers --symbols %t.vsub.o | FileCheck %s --check-prefixes=OBJ,VSUB-OBJ --implicit-check-not="Name: main"
+// RUN: tcrv-opt %S/rvv-microkernel-family-sub.mlir --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i32-vsub-microkernel-object > %t.vsub.direct.o
+// RUN: test -s %t.vsub.direct.o
+// RUN: llvm-readobj --file-headers --symbols %t.vsub.direct.o | FileCheck %s --check-prefixes=OBJ,VSUB-OBJ --implicit-check-not="Name: main"
 
 // OBJ: Format: elf
 // OBJ: Arch: riscv

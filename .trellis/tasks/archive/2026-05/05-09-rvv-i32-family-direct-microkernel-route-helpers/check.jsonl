@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR project boundaries and compiler stack red lines."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Quality check must ensure compiler behavior remains in the MLIR/C++ stack."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Quality check must preserve RVV plugin locality and bounded first-slice semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Quality check must verify route registration and stale-family fail-closed behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Quality check must verify focused lit/FileCheck and C++ route coverage."}

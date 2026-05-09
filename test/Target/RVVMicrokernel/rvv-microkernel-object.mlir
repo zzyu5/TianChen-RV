@@ -67,4 +67,6 @@ module @rvv_microkernel_object_input {
 // SOURCE: void tcrv_rvv_i32_vadd_microkernel_static_object_i32_vadd_rvv_first_slice
 // SOURCE: __riscv_vadd_vv_i32m1
 
-// HELP: --tcrv-export-rvv-microkernel-object
+// HELP-DAG: --tcrv-export-rvv-microkernel-object
+// HELP-DAG: --tcrv-export-rvv-i32-vsub-microkernel-object
+// HELP-DAG: --tcrv-export-rvv-i32-vmul-microkernel-object

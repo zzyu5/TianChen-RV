@@ -185,6 +185,19 @@ const RVVI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
   return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().rvv;
 }
 
+const RVVI32MicrokernelFamilySpec &
+getI32MicrokernelFamilySpec(RVVI32MicrokernelKind kind) {
+  switch (kind) {
+  case RVVI32MicrokernelKind::Add:
+    return getI32VAddFamilySpec();
+  case RVVI32MicrokernelKind::Sub:
+    return getI32VSubFamilySpec();
+  case RVVI32MicrokernelKind::Mul:
+    return getI32VMulFamilySpec();
+  }
+  llvm_unreachable("unknown RVV i32 microkernel family");
+}
+
 const RVVI32MicrokernelFamilySpec *
 getI32MicrokernelFamilyForOp(mlir::Operation *op) {
   if (llvm::isa_and_nonnull<I32VAddMicrokernelOp>(op))
@@ -2064,6 +2077,28 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
   return std::move(records.front());
 }
 
+llvm::Expected<RVVMicrokernelRecord>
+buildModuleRecordForFamily(mlir::ModuleOp module,
+                           RVVI32MicrokernelKind expectedFamily,
+                           llvm::StringRef routeID) {
+  llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record)
+    return record.takeError();
+
+  const RVVI32MicrokernelFamilySpec &expected =
+      getI32MicrokernelFamilySpec(expectedFamily);
+  if (!record->family || record->family->kind != expected.kind) {
+    llvm::StringRef actual =
+        record->family ? record->family->microkernelOpName : "<missing>";
+    return makeModuleMicrokernelError(
+        llvm::Twine("route '") + routeID + "' requires " +
+        expected.microkernelOpName + " but the selected RVV record is " +
+        actual);
+  }
+
+  return std::move(*record);
+}
+
 std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   std::string result;
   result.reserve(std::min<std::size_t>(value.size(), 64));
@@ -2785,6 +2820,27 @@ llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportRVVMicrokernelCForFamily(
+    mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,
+    llvm::raw_ostream &os) {
+  const RVVI32MicrokernelFamilySpec &expected =
+      getI32MicrokernelFamilySpec(family);
+  llvm::Expected<RVVMicrokernelRecord> record =
+      buildModuleRecordForFamily(module, family, expected.routeID);
+  if (!record)
+    return record.takeError();
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  RVVMicrokernelCExportMode mode =
+      RVVMicrokernelCExportMode::RuntimeCallableLibrary;
+  if (llvm::Error error = printMicrokernelSource(*record, stream, mode))
+    return error;
+  stream.flush();
+  os << source;
+  return llvm::Error::success();
+}
+
 llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
   llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
@@ -2811,9 +2867,51 @@ llvm::Error exportRVVMicrokernelHeader(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportRVVMicrokernelHeaderForFamily(
+    mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,
+    llvm::raw_ostream &os) {
+  const RVVI32MicrokernelFamilySpec &expected =
+      getI32MicrokernelFamilySpec(family);
+  llvm::Expected<RVVMicrokernelRecord> record =
+      buildModuleRecordForFamily(module, family, expected.headerRouteID);
+  if (!record)
+    return record.takeError();
+
+  printMicrokernelHeader(*record, os);
+  return llvm::Error::success();
+}
+
 llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
                                        llvm::raw_ostream &os) {
   llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record) {
+    std::string message = llvm::toString(record.takeError());
+    return makeModuleMicrokernelObjectError(message);
+  }
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  RVVMicrokernelCExportMode mode =
+      RVVMicrokernelCExportMode::RuntimeCallableLibrary;
+  if (llvm::Error error = printMicrokernelSource(*record, stream, mode))
+    return error;
+  stream.flush();
+  if (source.empty())
+    return makeMicrokernelObjectError(
+        record->kernelSymbol,
+        "validated RVV microkernel C source must be non-empty before object "
+        "export");
+
+  return compileGeneratedMicrokernelSourceToObject(*record, source, os);
+}
+
+llvm::Error exportRVVMicrokernelObjectForFamily(
+    mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,
+    llvm::raw_ostream &os) {
+  const RVVI32MicrokernelFamilySpec &expected =
+      getI32MicrokernelFamilySpec(family);
+  llvm::Expected<RVVMicrokernelRecord> record =
+      buildModuleRecordForFamily(module, family, expected.objectRouteID);
   if (!record) {
     std::string message = llvm::toString(record.takeError());
     return makeModuleMicrokernelObjectError(message);
@@ -2854,7 +2952,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           subFamily.emissionKind, exportRVVMicrokernelC,
           support::getI32BinaryRuntimeABIContract(subFamily.kind)
               .getCallableRoleRequirements(),
-          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          /*directHelperRoute=*/true, /*handoffKind=*/{},
           validateRVVMicrokernelSourceCandidate,
           subFamily.externalABIComponentGroup, subFamily.runtimeABIName)))
     return error;
@@ -2865,7 +2963,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           mulFamily.emissionKind, exportRVVMicrokernelC,
           support::getI32BinaryRuntimeABIContract(mulFamily.kind)
               .getCallableRoleRequirements(),
-          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          /*directHelperRoute=*/true, /*handoffKind=*/{},
           validateRVVMicrokernelSourceCandidate,
           mulFamily.externalABIComponentGroup, mulFamily.runtimeABIName)))
     return error;
@@ -2889,7 +2987,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               exportRVVMicrokernelHeader, kRVVPluginName,
               subFamily.runtimeABIKind, subFamily.runtimeABIName,
               resolveRVVMicrokernelRuntimeABIParameters,
-              /*directHelperRoute=*/false,
+              /*directHelperRoute=*/true,
               subFamily.externalABIComponentGroup, subFamily.runtimeABIName,
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
@@ -2901,7 +2999,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               exportRVVMicrokernelHeader, kRVVPluginName,
               mulFamily.runtimeABIKind, mulFamily.runtimeABIName,
               resolveRVVMicrokernelRuntimeABIParameters,
-              /*directHelperRoute=*/false,
+              /*directHelperRoute=*/true,
               mulFamily.externalABIComponentGroup, mulFamily.runtimeABIName,
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
@@ -2925,7 +3023,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               exportRVVMicrokernelObject, kRVVPluginName,
               subFamily.runtimeABIKind, subFamily.runtimeABIName,
               resolveRVVMicrokernelRuntimeABIParameters,
-              /*directHelperRoute=*/false, subFamily.externalABIComponentGroup,
+              /*directHelperRoute=*/true, subFamily.externalABIComponentGroup,
               subFamily.runtimeABIName,
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
@@ -2935,7 +3033,7 @@ llvm::Error registerRVVMicrokernelTargetExporters(
       matchRVVMicrokernelMulObjectCandidate, exportRVVMicrokernelObject,
       kRVVPluginName, mulFamily.runtimeABIKind, mulFamily.runtimeABIName,
       resolveRVVMicrokernelRuntimeABIParameters,
-      /*directHelperRoute=*/false, mulFamily.externalABIComponentGroup,
+      /*directHelperRoute=*/true, mulFamily.externalABIComponentGroup,
       mulFamily.runtimeABIName,
       validateRVVMicrokernelCallableCandidatePreflight));
 }

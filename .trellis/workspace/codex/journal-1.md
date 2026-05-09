@@ -347,25 +347,6 @@ Added family-aware RVV/scalar dispatch artifact exports for bounded i32 vadd/vsu
 - None - task complete
 
 
-### Git Commits
-
-| Hash | Message |
-|------|---------|
-| `this commit` | (see git log) |
-
-### Testing
-
-- [OK] (Add test results)
-
-### Status
-
-[OK] **Completed**
-
-### Next Steps
-
-- None - task complete
-
-
 ## Session 4: RVV/scalar vsub dispatch ssh rvv runtime evidence
 
 **Date**: 2026-05-09
@@ -588,6 +569,56 @@ paths were migrated off vadd-named ABI ownership.
 - [OK] `git diff --check`
 - [OK] `cmake -S . -B artifacts/tmp/tianchenrv-build -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir`
 - [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (161/161 tests passed)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 9: RVV i32 family direct microkernel route helpers
+
+**Date**: 2026-05-09
+**Task**: RVV i32 family direct microkernel route helpers
+**Branch**: `main`
+
+### Summary
+
+Added route-id-aligned tcrv-translate helpers for bounded RVV i32 vsub/vmul microkernel source/header/object exports, with route-specific stale-family validation, direct-helper metadata coverage, focused lit object/header/source checks, and full check-tianchenrv validation.
+
+### Main Changes
+
+- Added route-specific RVV microkernel target APIs for bounded i32 family
+  source/header/object export, with stale selected-family diagnostics before
+  artifact bytes are emitted.
+- Registered `tcrv-translate` helpers from the finite i32 binary descriptor
+  registry for vsub/vmul source/header/object route ids while preserving the
+  legacy generic vadd helper route.
+- Marked RVV vsub/vmul source/header/object routes as direct helper routes in
+  built-in exporter metadata and extended registry/exporter C++ coverage.
+- Added lit/FileCheck coverage for vsub/vmul direct C/header helpers,
+  stale-family negative routes, help registration, and direct object export.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `python3 .trellis/scripts/task.py validate 05-09-rvv-i32-family-direct-microkernel-route-helpers`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate -j2`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test tcrv-translate -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] focused lit on RVV family source/header/object/helper tests (6/6)
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (164/164 tests passed)
+- [OK] archived task context validation
 
 ### Status
 

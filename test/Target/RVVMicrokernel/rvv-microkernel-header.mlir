@@ -72,5 +72,9 @@ module @rvv_microkernel_header_input {
 // SOURCE: void tcrv_rvv_i32_vadd_microkernel_header_i32_vadd_rvv_first_slice
 // SOURCE: __riscv_vadd_vv_i32m1
 
-// HELP: --tcrv-export-rvv-microkernel-header
-// HELP: --tcrv-export-target-header-artifact
+// HELP-DAG: --tcrv-export-rvv-microkernel-header
+// HELP-DAG: --tcrv-export-rvv-i32-vsub-microkernel-c
+// HELP-DAG: --tcrv-export-rvv-i32-vsub-microkernel-header
+// HELP-DAG: --tcrv-export-rvv-i32-vmul-microkernel-c
+// HELP-DAG: --tcrv-export-rvv-i32-vmul-microkernel-header
+// HELP-DAG: --tcrv-export-target-header-artifact

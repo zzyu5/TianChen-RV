@@ -1743,7 +1743,7 @@ int main() {
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
                    "rvv-explicit-i32-vsub-microkernel-c-source", 4,
-                   /*expectedDirectHelperRoute=*/false,
+                   /*expectedDirectHelperRoute=*/true,
                    /*expectedHandoffKind=*/{},
                    "rvv-i32-vsub-microkernel-external-abi.v1",
                    "rvv-i32-vsub-runtime-callable-c-function.v1"))
@@ -1755,7 +1755,7 @@ int main() {
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
                    "rvv-explicit-i32-vmul-microkernel-c-source", 4,
-                   /*expectedDirectHelperRoute=*/false,
+                   /*expectedDirectHelperRoute=*/true,
                    /*expectedHandoffKind=*/{},
                    "rvv-i32-vmul-microkernel-external-abi.v1",
                    "rvv-i32-vmul-runtime-callable-c-function.v1"))
@@ -1840,7 +1840,7 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
           rvvSubRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           rvvSubExternalABIComponentGroup, rvvSubRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1848,7 +1848,7 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-object",
           "riscv-elf-relocatable-object", "rvv-plugin",
           rvvABI.runtimeABIKind, rvvSubRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           rvvSubExternalABIComponentGroup, rvvSubRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1856,7 +1856,7 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
           rvvMulRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           rvvMulExternalABIComponentGroup, rvvMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
@@ -1864,7 +1864,7 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-object",
           "riscv-elf-relocatable-object", "rvv-plugin",
           rvvABI.runtimeABIKind, rvvMulRuntimeABIName,
-          /*expectedDirectHelperRoute=*/false,
+          /*expectedDirectHelperRoute=*/true,
           rvvMulExternalABIComponentGroup, rvvMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
