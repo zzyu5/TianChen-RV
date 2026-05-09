@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "review C++/MLIR ownership and Python evidence-consumer boundary"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "review parameter layering and capability fact classification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review RVV selected shape and base capacity boundary"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "review plugin locality and absence of target-family branches in core"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "review selected proposal/materialization behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review emission-plan/export metadata coherence"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review focused test coverage and claim hygiene"}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir", "reason": "i32m2 selected-shape positive path and stale i32m1 guard"}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir", "reason": "existing i32m1 path selected-shape coverage"}
+{"file": "test/Transforms/LoweringBoundary/rvv-capacity-selected-plan-metadata.mlir", "reason": "selected-plan shape metadata plus base capacity metadata coverage"}
+{"file": "test/Transforms/ExecutionPlanning/execution-planning-pipeline-module-target-profile.mlir", "reason": "module target-profile selected-shape and base-capacity coverage"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-i32m2-family-sub.mlir", "reason": "target/export selected i32m2 source-comment coverage"}
+{"file": "test/Scripts/rvv-microkernel-bundle-e2e.test", "reason": "bundle evidence selected-shape parser coverage"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ RVV plugin selected-shape proposal/materialization coverage"}
+{"file": "test/Transforms/EmissionReadiness/EmissionReadinessTest.cpp", "reason": "unsupported RVV emission fixture updated for selected-shape config contract"}

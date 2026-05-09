@@ -337,7 +337,15 @@ def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
     StrAttr:$status,
     ArrayAttr:$required_capabilities,
     OptionalAttr<I64Attr>:$vlenb_bytes,
-    OptionalAttr<I64Attr>:$i32_m1_lanes,
+    OptionalAttr<I64Attr>:$base_i32_m1_lanes,
+    OptionalAttr<StrAttr>:$selected_vector_shape,
+    OptionalAttr<I64Attr>:$selected_vector_sew,
+    OptionalAttr<StrAttr>:$selected_vector_lmul,
+    OptionalAttr<StrAttr>:$selected_tail_policy,
+    OptionalAttr<StrAttr>:$selected_mask_policy,
+    OptionalAttr<StrAttr>:$selected_vector_type,
+    OptionalAttr<StrAttr>:$selected_vector_suffix,
+    OptionalAttr<StrAttr>:$selected_setvl_suffix,
     OptionalAttr<StrAttr>:$capability_summary,
     StrAttr:$unsupported_reason
   );
@@ -376,6 +384,14 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
     I64Attr:$element_count,
     ArrayAttr:$required_capabilities,
     StrAttr:$required_march,
+    OptionalAttr<StrAttr>:$selected_vector_shape,
+    OptionalAttr<I64Attr>:$selected_vector_sew,
+    OptionalAttr<StrAttr>:$selected_vector_lmul,
+    OptionalAttr<StrAttr>:$selected_tail_policy,
+    OptionalAttr<StrAttr>:$selected_mask_policy,
+    OptionalAttr<StrAttr>:$selected_vector_type,
+    OptionalAttr<StrAttr>:$selected_vector_suffix,
+    OptionalAttr<StrAttr>:$selected_setvl_suffix,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -415,6 +431,14 @@ def I32VSubMicrokernelOp : TCRVRVV_Op<"i32_vsub_microkernel",
     I64Attr:$element_count,
     ArrayAttr:$required_capabilities,
     StrAttr:$required_march,
+    OptionalAttr<StrAttr>:$selected_vector_shape,
+    OptionalAttr<I64Attr>:$selected_vector_sew,
+    OptionalAttr<StrAttr>:$selected_vector_lmul,
+    OptionalAttr<StrAttr>:$selected_tail_policy,
+    OptionalAttr<StrAttr>:$selected_mask_policy,
+    OptionalAttr<StrAttr>:$selected_vector_type,
+    OptionalAttr<StrAttr>:$selected_vector_suffix,
+    OptionalAttr<StrAttr>:$selected_setvl_suffix,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -454,6 +478,14 @@ def I32VMulMicrokernelOp : TCRVRVV_Op<"i32_vmul_microkernel",
     I64Attr:$element_count,
     ArrayAttr:$required_capabilities,
     StrAttr:$required_march,
+    OptionalAttr<StrAttr>:$selected_vector_shape,
+    OptionalAttr<I64Attr>:$selected_vector_sew,
+    OptionalAttr<StrAttr>:$selected_vector_lmul,
+    OptionalAttr<StrAttr>:$selected_tail_policy,
+    OptionalAttr<StrAttr>:$selected_mask_policy,
+    OptionalAttr<StrAttr>:$selected_vector_type,
+    OptionalAttr<StrAttr>:$selected_vector_suffix,
+    OptionalAttr<StrAttr>:$selected_setvl_suffix,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);

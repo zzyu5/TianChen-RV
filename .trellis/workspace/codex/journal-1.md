@@ -55,6 +55,58 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 11: RVV selected vector-shape config boundary cleanup
+
+**Date**: 2026-05-10
+**Task**: RVV selected vector-shape config boundary cleanup
+**Branch**: `main`
+
+### Summary
+
+Completed the RVV selected vector-shape boundary cleanup for existing i32m1
+and i32m2 i32 binary flows. The selected compile-time shape is now explicit
+plugin/target-owned metadata, while base i32 M1 lane capacity remains a
+separate hardware/profile fact.
+
+### Main Changes
+
+- Added shared `RVVI32VectorShapeConfig` for the finite i32m1/i32m2 RVV
+  selected shape contract.
+- Threaded selected-shape metadata through RVV proposals, materialized
+  variants, `tcrv_rvv.lowering_boundary`, i32 add/sub/mul microkernel ops,
+  emission-plan selected metadata, target source comments, bundle metadata,
+  and evidence validation.
+- Renamed plugin-local capacity metadata from selected-looking
+  `i32_m1_lanes` wording to `base_i32_m1_lanes`, while preserving
+  `rvv.i32_m1_lane_count` as the hardware/profile capacity fact.
+- Added i32m2 positive FileCheck coverage and a stale selected i32m1 metadata
+  guard that fails before target source output.
+- Updated capability/RVV/emission specs to lock the parameter-layer boundary.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emission-readiness-test`
+- [OK] focused lit filter covering linalg i32m1/i32m2 planning/export, stale
+  selected-shape guard, RVV microkernel i32m2 export, probe, and bundle tests
+  (11/11)
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] focused lit filter `rvv-microkernel-bundle-e2e` (1/1)
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+  (169/169 tests passed)
+- [OK] real `ssh rvv` linalg-origin i32-vsub i32m2 bundle evidence:
+  `artifacts/tmp/rvv_microkernel_bundle_e2e/codex-shape-boundary-linalg-vsub-i32m2/evidence.json`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 12: Linalg i32m2 vsub SSH RVV evidence handoff
 
 **Date**: 2026-05-10

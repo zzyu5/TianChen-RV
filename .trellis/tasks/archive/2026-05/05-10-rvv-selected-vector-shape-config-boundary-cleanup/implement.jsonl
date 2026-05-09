@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "compiler implementation and Python boundary for the RVV shape cleanup"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability/profile facts versus selected config and runtime value layering"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected i32m1/i32m2 shape, capability, lowering boundary, and export contract"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "keeps RVV-specific selected shape behavior plugin/target local"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "proposal/materialization/selection pipeline behavior for linalg-origin i32 binary paths"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission-plan, selected metadata, target artifact export, and parameter claim boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and evidence-validation coverage requirements"}
+{"file": "include/TianChenRV/Target/RVV/RVVVectorShape.h", "reason": "shared target-owned finite i32m1/i32m2 selected vector-shape config"}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "RVV proposal, legality, lowering boundary, microkernel materialization, and selected-plan metadata"}
+{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "target/export validation and generated source comments for selected vector shape"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "RVV lowering-boundary and microkernel selected-shape attributes"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "RVV dialect verifier and allowed selected-shape/base-capacity metadata"}
+{"file": "scripts/rvv_microkernel_e2e.py", "reason": "evidence-consumer validation of compiler-emitted selected-shape comments"}

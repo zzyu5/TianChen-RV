@@ -129,12 +129,16 @@ module @plan_and_export_target_artifact_bundle_input {
 // INDEX: role: "dispatch-availability-guard"
 // INDEX: ownership: "target-export-abi-owned"
 // INDEX: selected_plan_metadata[0]:
+// INDEX: name: "tcrv_rvv.selected_vector_shape"
+// INDEX: value: "i32m1"
+// INDEX: role: "selected-rvv-vector-shape-config"
+// INDEX: selected_plan_metadata[8]:
 // INDEX: name: "tcrv_rvv.vlenb_bytes"
 // INDEX: value: "16"
-// INDEX: role: "selected-rvv-capacity-fact"
-// INDEX: note: "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
-// INDEX: selected_plan_metadata[1]:
-// INDEX: name: "tcrv_rvv.i32_m1_lanes"
+// INDEX: role: "rvv-base-capacity-fact"
+// INDEX: note: "base i32 M1 capacity fact from target/profile evidence; not selected vector shape, runtime input, VL/AVL, or performance evidence"
+// INDEX: selected_plan_metadata[9]:
+// INDEX: name: "tcrv_rvv.base_i32_m1_lanes"
 // INDEX: value: "4"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:

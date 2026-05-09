@@ -108,11 +108,17 @@ or ABI surface that states the new meaning.
    A plugin-local hart-count fact may expose the generic relation id
    `target.hart_count` with positive integer property `count` so
    target-neutral core checks can consume capacity without branching on a
-   concrete extension.
+   concrete extension. RVV `rvv.i32_m1_lane_count` is a base i32 M1 capacity
+   fact derived from vlenb/profile evidence; when serialized into plugin
+   metadata it must use a name such as `base_i32_m1_lanes` so an i32m2 selected
+   path cannot confuse the hardware capacity fact with selected m1 vector
+   config.
 2. Compile-time variant config belongs in plugin-proposed variant metadata,
    selected config, tuning, or lowering-boundary metadata and must be checked
    against target capability. Examples include SEW, LMUL, tail policy, mask
-   policy, unroll, and selected lowering strategy.
+   policy, unroll, selected vector type/suffix, setvl suffix, and selected
+   lowering strategy. RVV selected vector-shape config is plugin/target-owned
+   metadata and must not become `tcrv.exec` compute semantics.
 3. Runtime SSA values / runtime control values belong in real IR or ABI
    surfaces: SSA values, region or block arguments, op attributes that
    explicitly mean ABI/control values, or generated C ABI parameters. Examples

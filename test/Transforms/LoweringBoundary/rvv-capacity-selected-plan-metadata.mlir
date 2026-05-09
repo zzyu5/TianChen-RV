@@ -52,28 +52,38 @@ module {
     }
 
     // POS: tcrv.exec.variant @rvv_first_slice
+    // POS-SAME: tcrv_rvv.base_i32_m1_lanes = 8 : i64
     // POS-SAME: tcrv_rvv.element_count = 32 : i64
-    // POS-SAME: tcrv_rvv.i32_m1_lanes = 8 : i64
+    // POS-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
     // POS-SAME: tcrv_rvv.vlenb_bytes = 32 : i64
     // POS: tcrv_rvv.lowering_boundary
-    // POS-SAME: i32_m1_lanes = 8 : i64
+    // POS-SAME: base_i32_m1_lanes = 8 : i64
     // POS-SAME: role = "direct variant"
     // POS-SAME: selected_variant = @rvv_first_slice
+    // POS-SAME: selected_vector_shape = "i32m1"
     // POS-SAME: status = "unsupported"
     // POS-SAME: vlenb_bytes = 32 : i64
     // POS: tcrv_rvv.i32_vadd_microkernel
     // POS-SAME: element_count = 32 : i64
+    // POS-SAME: selected_vector_shape = "i32m1"
     // POS: tcrv.exec.diagnostic
     // POS-SAME: reason = "emission_plan"
     // POS-SAME: role = "direct variant"
     // POS-SAME: selected_plan_metadata =
-    // POS-SAME: name = "tcrv_rvv.vlenb_bytes"
-    // POS-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
-    // POS-SAME: role = "selected-rvv-capacity-fact"
+    // POS-SAME: name = "tcrv_rvv.selected_vector_shape"
+    // POS-SAME: role = "selected-rvv-vector-shape-config"
+    // POS-SAME: value = "i32m1"
+    // POS-SAME: name = "tcrv_rvv.selected_vector_sew"
     // POS-SAME: value = "32"
-    // POS-SAME: name = "tcrv_rvv.i32_m1_lanes"
-    // POS-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
-    // POS-SAME: role = "selected-rvv-capacity-fact"
+    // POS-SAME: name = "tcrv_rvv.selected_vector_lmul"
+    // POS-SAME: value = "m1"
+    // POS-SAME: name = "tcrv_rvv.vlenb_bytes"
+    // POS-SAME: note = "base i32 M1 capacity fact from target/profile evidence; not selected vector shape, runtime input, VL/AVL, or performance evidence"
+    // POS-SAME: role = "rvv-base-capacity-fact"
+    // POS-SAME: value = "32"
+    // POS-SAME: name = "tcrv_rvv.base_i32_m1_lanes"
+    // POS-SAME: note = "base i32 M1 capacity fact from target/profile evidence; not selected vector shape, runtime input, VL/AVL, or performance evidence"
+    // POS-SAME: role = "rvv-base-capacity-fact"
     // POS-SAME: value = "8"
   }
 }

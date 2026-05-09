@@ -52,8 +52,8 @@ module {
 // PIPE: tcrv.exec.variant @rvv_first_slice
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
 // PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1"
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64

@@ -50,7 +50,7 @@ module {
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.vlenb_bytes = 16 : i64,
-      tcrv_rvv.i32_m1_lanes = 4 : i64
+      tcrv_rvv.base_i32_m1_lanes = 4 : i64
     } {
     }
     tcrv.exec.diagnostic {
@@ -70,7 +70,7 @@ module {
       status = "unsupported",
       required_capabilities = [@rvv],
       vlenb_bytes = 32 : i64,
-      i32_m1_lanes = 8 : i64,
+      base_i32_m1_lanes = 8 : i64,
       capability_summary = "rvv",
       unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
     }

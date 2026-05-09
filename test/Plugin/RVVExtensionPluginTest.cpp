@@ -667,11 +667,23 @@ module {
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 16))
     return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 4))
+  if (int result = expectProposalIntegerAttr(
+          proposals[0], "tcrv_rvv.base_i32_m1_lanes", 4))
     return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
+    return result;
+  if (int result = expectProposalIntegerAttr(
+          proposals[0], "tcrv_rvv.selected_vector_sew", 32))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_lmul", "m1"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_type", "vint32m1_t"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -749,7 +761,7 @@ module {
     return result;
   if (int result =
           expect(estimate.getScore() == 0.25 &&
-                     estimate.getExplanation().contains("i32_m1_lanes=4") &&
+                     estimate.getExplanation().contains("base_i32_m1_lanes=4") &&
                      estimate.getExplanation().contains(
                          "not a runtime performance claim"),
                  "RVV capacity is exposed only as plugin-local heuristic "
@@ -781,7 +793,7 @@ module {
                  "wide RVV capability facts still propose one variant"))
     return result;
   if (int result = expectProposalIntegerAttr(
-          wideProposals[0], "tcrv_rvv.i32_m1_lanes", 32))
+          wideProposals[0], "tcrv_rvv.base_i32_m1_lanes", 32))
     return result;
   if (int result = expectProposalIntegerAttr(
           wideProposals[0], "tcrv_rvv.element_count", 64))
@@ -987,11 +999,17 @@ module {
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 32))
     return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 8))
+  if (int result = expectProposalIntegerAttr(
+          proposals[0], "tcrv_rvv.base_i32_m1_lanes", 8))
     return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 32))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_setvl_suffix", "e32m1"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1029,7 +1047,7 @@ module {
   auto variantVLenB =
       variant->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.vlenb_bytes");
   auto variantI32Lanes =
-      variant->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.i32_m1_lanes");
+      variant->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.base_i32_m1_lanes");
   if (int result =
           expect(variantVLenB && variantVLenB.getInt() == 32 &&
                      variantI32Lanes && variantI32Lanes.getInt() == 8,
@@ -1038,6 +1056,14 @@ module {
     return result;
   if (int result = expectIntegerAttr(variant.getOperation(),
                                      "tcrv_rvv.element_count", 32))
+    return result;
+  if (int result = expectStringAttr(variant.getOperation(),
+                                    "tcrv_rvv.selected_vector_shape",
+                                    "i32m1"))
+    return result;
+  if (int result = expectStringAttr(variant.getOperation(),
+                                    "tcrv_rvv.selected_vector_type",
+                                    "vint32m1_t"))
     return result;
 
   auto expectProposalDecline =
@@ -1287,7 +1313,7 @@ module {
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.vlenb_bytes = 16 : i64,
-      tcrv_rvv.i32_m1_lanes = 8 : i64
+      tcrv_rvv.base_i32_m1_lanes = 8 : i64
     } {
     }
   }
@@ -1464,8 +1490,8 @@ module {
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.vlenb_bytes", 32))
     return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.i32_m1_lanes", 8))
+  if (int result = expectProposalIntegerAttr(
+          proposals[0], "tcrv_rvv.base_i32_m1_lanes", 8))
     return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 32))
@@ -1513,7 +1539,7 @@ module {
     return result;
   if (int result =
           expect(estimate.getScore() == 0.125 &&
-                     estimate.getExplanation().contains("i32_m1_lanes=8") &&
+                     estimate.getExplanation().contains("base_i32_m1_lanes=8") &&
                      estimate.getExplanation().contains(
                          "not a runtime performance claim"),
                  "module target-profile RVV capacity is only plugin-local "
@@ -2077,9 +2103,9 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 4,
-                 "RVV proposal carries typed policy and property evidence "
-                 "attributes"))
+          expect(proposalAttributes.size() == 12,
+                 "RVV proposal carries typed policy, selected vector-shape, "
+                 "and property evidence attributes"))
     return result;
   mlir::Attribute rvvPolicy =
       findProposalAttribute(proposals[0],
@@ -2100,6 +2126,18 @@ module {
     return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
+    return result;
+  if (int result = expectProposalIntegerAttr(
+          proposals[0], "tcrv_rvv.selected_vector_sew", 32))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_lmul", "m1"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_type", "vint32m1_t"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -2135,6 +2173,14 @@ module {
     return result;
   if (int result = expectIntegerAttr(variant.getOperation(),
                                      "tcrv_rvv.element_count", 16))
+    return result;
+  if (int result = expectStringAttr(variant.getOperation(),
+                                    "tcrv_rvv.selected_vector_shape",
+                                    "i32m1"))
+    return result;
+  if (int result = expectStringAttr(variant.getOperation(),
+                                    "tcrv_rvv.selected_vector_suffix",
+                                    "i32m1"))
     return result;
   if (int result = expectRVVPolicyAttr(rvvPolicyAttr, TailPolicy::Agnostic,
                                        MaskPolicy::Agnostic))

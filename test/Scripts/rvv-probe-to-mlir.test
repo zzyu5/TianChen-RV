@@ -78,10 +78,11 @@
 # PIPE: tcrv.exec.variant @rvv_first_slice
 # PIPE-SAME: origin = "rvv-plugin"
 # PIPE-SAME: requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
+# PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
 # PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-# PIPE-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
 # PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
 # PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
+# PIPE-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
 # PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
 # PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 # PIPE-SAME: origin = "scalar-plugin"

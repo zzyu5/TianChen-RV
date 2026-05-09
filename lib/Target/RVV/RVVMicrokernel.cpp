@@ -10,6 +10,7 @@
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -68,22 +69,6 @@ using tianchenrv::tcrv::rvv::WithVLOp;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
-constexpr llvm::StringLiteral kRVVI32M1SEW32CapabilityID(
-    "rvv.i32_m1.sew32");
-constexpr llvm::StringLiteral kRVVI32M1LMULM1CapabilityID(
-    "rvv.i32_m1.lmul_m1");
-constexpr llvm::StringLiteral kRVVI32M1TailAgnosticCapabilityID(
-    "rvv.i32_m1.tail_policy.agnostic");
-constexpr llvm::StringLiteral kRVVI32M1MaskAgnosticCapabilityID(
-    "rvv.i32_m1.mask_policy.agnostic");
-constexpr llvm::StringLiteral kRVVI32M2SEW32CapabilityID(
-    "rvv.i32_m2.sew32");
-constexpr llvm::StringLiteral kRVVI32M2LMULM2CapabilityID(
-    "rvv.i32_m2.lmul_m2");
-constexpr llvm::StringLiteral kRVVI32M2TailAgnosticCapabilityID(
-    "rvv.i32_m2.tail_policy.agnostic");
-constexpr llvm::StringLiteral kRVVI32M2MaskAgnosticCapabilityID(
-    "rvv.i32_m2.mask_policy.agnostic");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
@@ -100,6 +85,38 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kRVVSelectedVectorShapeAttrName(
+    "tcrv_rvv.selected_vector_shape");
+constexpr llvm::StringLiteral kRVVSelectedVectorSEWAttrName(
+    "tcrv_rvv.selected_vector_sew");
+constexpr llvm::StringLiteral kRVVSelectedVectorLMULAttrName(
+    "tcrv_rvv.selected_vector_lmul");
+constexpr llvm::StringLiteral kRVVSelectedTailPolicyAttrName(
+    "tcrv_rvv.selected_tail_policy");
+constexpr llvm::StringLiteral kRVVSelectedMaskPolicyAttrName(
+    "tcrv_rvv.selected_mask_policy");
+constexpr llvm::StringLiteral kRVVSelectedVectorTypeAttrName(
+    "tcrv_rvv.selected_vector_type");
+constexpr llvm::StringLiteral kRVVSelectedVectorSuffixAttrName(
+    "tcrv_rvv.selected_vector_suffix");
+constexpr llvm::StringLiteral kRVVSelectedSetVLSuffixAttrName(
+    "tcrv_rvv.selected_setvl_suffix");
+constexpr llvm::StringLiteral kBoundarySelectedVectorShapeAttrName(
+    "selected_vector_shape");
+constexpr llvm::StringLiteral kBoundarySelectedVectorSEWAttrName(
+    "selected_vector_sew");
+constexpr llvm::StringLiteral kBoundarySelectedVectorLMULAttrName(
+    "selected_vector_lmul");
+constexpr llvm::StringLiteral kBoundarySelectedTailPolicyAttrName(
+    "selected_tail_policy");
+constexpr llvm::StringLiteral kBoundarySelectedMaskPolicyAttrName(
+    "selected_mask_policy");
+constexpr llvm::StringLiteral kBoundarySelectedVectorTypeAttrName(
+    "selected_vector_type");
+constexpr llvm::StringLiteral kBoundarySelectedVectorSuffixAttrName(
+    "selected_vector_suffix");
+constexpr llvm::StringLiteral kBoundarySelectedSetVLSuffixAttrName(
+    "selected_setvl_suffix");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
@@ -172,18 +189,6 @@ using RVVI32MicrokernelKind =
 using RVVI32MicrokernelFamilySpec =
     tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
 
-struct RVVI32LMULConfigSpec {
-  llvm::StringRef configName;
-  llvm::StringRef lmul;
-  llvm::StringRef sewCapabilityID;
-  llvm::StringRef lmulCapabilityID;
-  llvm::StringRef tailPolicyCapabilityID;
-  llvm::StringRef maskPolicyCapabilityID;
-  llvm::StringRef vectorType;
-  llvm::StringRef vectorSuffix;
-  llvm::StringRef setvlSuffix;
-};
-
 struct SelectedPath {
   VariantOp variant;
   mlir::Operation *selector = nullptr;
@@ -205,6 +210,7 @@ struct RVVMicrokernelRecord {
   RuntimeParamOp runtimeElementCountParam;
   RVVI32VAddDataflowEmissionPlan dataflowPlan;
   RVVIntrinsicConfig intrinsicConfig;
+  const RVVI32VectorShapeConfig *selectedShape = nullptr;
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
@@ -246,32 +252,12 @@ getI32MicrokernelFamilySpec(RVVI32MicrokernelKind kind) {
   llvm_unreachable("unknown RVV i32 microkernel family");
 }
 
-const RVVI32LMULConfigSpec &getI32M1ConfigSpec() {
-  static const RVVI32LMULConfigSpec spec{
-      "i32m1",
-      "m1",
-      kRVVI32M1SEW32CapabilityID,
-      kRVVI32M1LMULM1CapabilityID,
-      kRVVI32M1TailAgnosticCapabilityID,
-      kRVVI32M1MaskAgnosticCapabilityID,
-      "vint32m1_t",
-      "i32m1",
-      "e32m1"};
-  return spec;
+const RVVI32VectorShapeConfig &getI32M1ConfigSpec() {
+  return getI32M1VectorShapeConfig();
 }
 
-const RVVI32LMULConfigSpec &getI32M2ConfigSpec() {
-  static const RVVI32LMULConfigSpec spec{
-      "i32m2",
-      "m2",
-      kRVVI32M2SEW32CapabilityID,
-      kRVVI32M2LMULM2CapabilityID,
-      kRVVI32M2TailAgnosticCapabilityID,
-      kRVVI32M2MaskAgnosticCapabilityID,
-      "vint32m2_t",
-      "i32m2",
-      "e32m2"};
-  return spec;
+const RVVI32VectorShapeConfig &getI32M2ConfigSpec() {
+  return getI32M2VectorShapeConfig();
 }
 
 const RVVI32MicrokernelFamilySpec *
@@ -640,7 +626,7 @@ llvm::Error makeIntrinsicConfigError(
 llvm::Expected<RVVIntrinsicConfig> buildRVVIntrinsicConfig(
     KernelOp kernel, llvm::StringRef activeRouteID,
     const RVVI32MicrokernelFamilySpec &family, SetVLOp setvl, WithVLOp withVL,
-    PolicyAttr selectedPolicy, const RVVI32LMULConfigSpec &selectedConfig) {
+    PolicyAttr selectedPolicy, const RVVI32VectorShapeConfig &selectedConfig) {
   if (!selectedPolicy)
     return makeIntrinsicConfigError(
         kernel, activeRouteID, family,
@@ -679,16 +665,18 @@ llvm::Expected<RVVIntrinsicConfig> buildRVVIntrinsicConfig(
             "; supported i32 C intrinsic emission requires tail=agnostic, "
             "mask=agnostic");
 
-  if (setvl.getSew() != 32 || setvl.getLmul() != selectedConfig.lmul)
+  if (setvl.getSew() != static_cast<std::uint64_t>(selectedConfig.sewBits) ||
+      setvl.getLmul() != selectedConfig.lmul)
     return makeIntrinsicConfigError(
         kernel, activeRouteID, family,
         llvm::Twine("unsupported SEW/LMUL sew=") +
             llvm::Twine(setvl.getSew()) + ", lmul=" + setvl.getLmul() +
-            "; selected capability config requires sew=32,lmul=" +
+            "; selected capability config requires sew=" +
+            llvm::Twine(selectedConfig.sewBits) + ",lmul=" +
             selectedConfig.lmul);
 
   RVVIntrinsicConfig config;
-  config.sew = static_cast<std::int64_t>(setvl.getSew());
+  config.sew = selectedConfig.sewBits;
   config.lmul = setvl.getLmul().str();
   config.vectorType = selectedConfig.vectorType.str();
   config.vectorSuffix = selectedConfig.vectorSuffix.str();
@@ -1390,7 +1378,7 @@ variantRequiresCapabilityID(KernelOp kernel, VariantOp variant,
 
 llvm::Expected<bool> variantRequiresConfig(
     KernelOp kernel, VariantOp variant, const TargetCapabilitySet &capabilities,
-    const RVVI32LMULConfigSpec &config) {
+    const RVVI32VectorShapeConfig &config) {
   llvm::Expected<bool> requiresSEW =
       variantRequiresCapabilityID(kernel, variant, capabilities,
                                   config.sewCapabilityID);
@@ -1436,7 +1424,87 @@ llvm::Error requireConfigCapabilityProperty(
   return llvm::Error::success();
 }
 
-llvm::Expected<const RVVI32LMULConfigSpec *>
+llvm::Error validateSelectedVectorShapeMetadata(
+    KernelOp kernel, mlir::Operation *op, llvm::StringRef context,
+    const RVVI32VectorShapeConfig &config, llvm::StringRef shapeAttrName,
+    llvm::StringRef sewAttrName, llvm::StringRef lmulAttrName,
+    llvm::StringRef tailPolicyAttrName, llvm::StringRef maskPolicyAttrName,
+    llvm::StringRef vectorTypeAttrName, llvm::StringRef vectorSuffixAttrName,
+    llvm::StringRef setvlSuffixAttrName) {
+  bool hasAnyMetadata = op->hasAttr(shapeAttrName) ||
+                        op->hasAttr(sewAttrName) ||
+                        op->hasAttr(lmulAttrName) ||
+                        op->hasAttr(tailPolicyAttrName) ||
+                        op->hasAttr(maskPolicyAttrName) ||
+                        op->hasAttr(vectorTypeAttrName) ||
+                        op->hasAttr(vectorSuffixAttrName) ||
+                        op->hasAttr(setvlSuffixAttrName);
+  if (!hasAnyMetadata)
+    return llvm::Error::success();
+
+  auto shape = op->getAttrOfType<mlir::StringAttr>(shapeAttrName);
+  auto sew = op->getAttrOfType<mlir::IntegerAttr>(sewAttrName);
+  auto lmul = op->getAttrOfType<mlir::StringAttr>(lmulAttrName);
+  auto tailPolicy =
+      op->getAttrOfType<mlir::StringAttr>(tailPolicyAttrName);
+  auto maskPolicy =
+      op->getAttrOfType<mlir::StringAttr>(maskPolicyAttrName);
+  auto vectorType =
+      op->getAttrOfType<mlir::StringAttr>(vectorTypeAttrName);
+  auto vectorSuffix =
+      op->getAttrOfType<mlir::StringAttr>(vectorSuffixAttrName);
+  auto setvlSuffix =
+      op->getAttrOfType<mlir::StringAttr>(setvlSuffixAttrName);
+  if (!shape || !sew || !lmul || !tailPolicy || !maskPolicy || !vectorType ||
+      !vectorSuffix || !setvlSuffix)
+    return makeMicrokernelError(
+        kernel, llvm::Twine(context) +
+                    " selected vector-shape metadata must be complete when "
+                    "any selected-shape attribute is present");
+
+  auto validateStringField = [&](llvm::StringRef fieldName,
+                                 llvm::StringRef observed,
+                                 llvm::StringRef expected) -> llvm::Error {
+    if (llvm::Error error = validateBoundedText(kernel, fieldName, observed))
+      return error;
+    if (observed != expected)
+      return makeMicrokernelError(
+          kernel, llvm::Twine(context) + " selected vector-shape " +
+                      fieldName + " must be '" + expected + "'");
+    return llvm::Error::success();
+  };
+
+  if (llvm::Error error = validateStringField(
+          "shape", shape.getValue().trim(), config.shapeID))
+    return error;
+  if (sew.getInt() != config.sewBits)
+    return makeMicrokernelError(
+        kernel, llvm::Twine(context) +
+                    " selected vector-shape sew must be '" +
+                    llvm::Twine(config.sewBits) + "'");
+  if (llvm::Error error =
+          validateStringField("lmul", lmul.getValue().trim(), config.lmul))
+    return error;
+  if (llvm::Error error = validateStringField(
+          "tail policy", tailPolicy.getValue().trim(), config.tailPolicy))
+    return error;
+  if (llvm::Error error = validateStringField(
+          "mask policy", maskPolicy.getValue().trim(), config.maskPolicy))
+    return error;
+  if (llvm::Error error = validateStringField(
+          "vector type", vectorType.getValue().trim(), config.vectorType))
+    return error;
+  if (llvm::Error error = validateStringField(
+          "vector suffix", vectorSuffix.getValue().trim(),
+          config.vectorSuffix))
+    return error;
+  if (llvm::Error error = validateStringField(
+          "setvl suffix", setvlSuffix.getValue().trim(), config.setvlSuffix))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Expected<const RVVI32VectorShapeConfig *>
 getSelectedRVVI32Config(KernelOp kernel, VariantOp variant,
                         const TargetCapabilitySet &capabilities) {
   llvm::Expected<bool> requiresM1 =
@@ -1454,7 +1522,7 @@ getSelectedRVVI32Config(KernelOp kernel, VariantOp variant,
                     " must require exactly one finite RVV i32 LMUL config "
                     "shape, not both i32m1 and i32m2");
 
-  const RVVI32LMULConfigSpec *selectedConfig = nullptr;
+  const RVVI32VectorShapeConfig *selectedConfig = nullptr;
   if (*requiresM1)
     selectedConfig = &getI32M1ConfigSpec();
   else if (*requiresM2)
@@ -1467,7 +1535,7 @@ getSelectedRVVI32Config(KernelOp kernel, VariantOp variant,
 
   if (llvm::Error error = requireConfigCapabilityProperty(
           kernel, capabilities, selectedConfig->sewCapabilityID,
-          kSEWBitsPropertyName, "32"))
+          kSEWBitsPropertyName, std::to_string(selectedConfig->sewBits)))
     return std::move(error);
   if (llvm::Error error = requireConfigCapabilityProperty(
           kernel, capabilities, selectedConfig->lmulCapabilityID,
@@ -1475,11 +1543,23 @@ getSelectedRVVI32Config(KernelOp kernel, VariantOp variant,
     return std::move(error);
   if (llvm::Error error = requireConfigCapabilityProperty(
           kernel, capabilities, selectedConfig->tailPolicyCapabilityID,
-          kTailPolicyPropertyName, "agnostic"))
+          kTailPolicyPropertyName, selectedConfig->tailPolicy))
     return std::move(error);
   if (llvm::Error error = requireConfigCapabilityProperty(
           kernel, capabilities, selectedConfig->maskPolicyCapabilityID,
-          kMaskPolicyPropertyName, "agnostic"))
+          kMaskPolicyPropertyName, selectedConfig->maskPolicy))
+    return std::move(error);
+  if (llvm::Error error =
+          validateSelectedVectorShapeMetadata(
+              kernel, variant.getOperation(),
+              (llvm::Twine("selected RVV variant @") + variant.getSymName())
+                  .str(),
+              *selectedConfig, kRVVSelectedVectorShapeAttrName,
+              kRVVSelectedVectorSEWAttrName, kRVVSelectedVectorLMULAttrName,
+              kRVVSelectedTailPolicyAttrName, kRVVSelectedMaskPolicyAttrName,
+              kRVVSelectedVectorTypeAttrName,
+              kRVVSelectedVectorSuffixAttrName,
+              kRVVSelectedSetVLSuffixAttrName))
     return std::move(error);
 
   return selectedConfig;
@@ -1615,7 +1695,8 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
 }
 
 llvm::Error validateBoundaryForPath(KernelOp kernel, const SelectedPath &path,
-                                    LoweringBoundaryOp boundary) {
+                                    LoweringBoundaryOp boundary,
+                                    const RVVI32VectorShapeConfig &selectedConfig) {
   if (!boundary)
     return makeMicrokernelError(kernel, "requires a matching "
                                         "tcrv_rvv.lowering_boundary");
@@ -1686,12 +1767,29 @@ llvm::Error validateBoundaryForPath(KernelOp kernel, const SelectedPath &path,
         kernel, "tcrv_rvv.lowering_boundary required_capabilities must match "
                 "selected variant requires metadata");
 
+  if (llvm::Error error =
+          validateSelectedVectorShapeMetadata(
+              kernel, boundary.getOperation(),
+              (llvm::Twine("tcrv_rvv.lowering_boundary for @") +
+               getPathVariantSymbol(path))
+                  .str(),
+              selectedConfig, kBoundarySelectedVectorShapeAttrName,
+              kBoundarySelectedVectorSEWAttrName,
+              kBoundarySelectedVectorLMULAttrName,
+              kBoundarySelectedTailPolicyAttrName,
+              kBoundarySelectedMaskPolicyAttrName,
+              kBoundarySelectedVectorTypeAttrName,
+              kBoundarySelectedVectorSuffixAttrName,
+              kBoundarySelectedSetVLSuffixAttrName))
+    return error;
+
   return llvm::Error::success();
 }
 
 llvm::Error findAndValidateBoundary(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys,
+    const RVVI32VectorShapeConfig &selectedConfig,
     LoweringBoundaryOp &matchedBoundary) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -1734,7 +1832,7 @@ llvm::Error findAndValidateBoundary(
                     " as " + path.role +
                     " has duplicate tcrv_rvv.lowering_boundary metadata");
 
-  return validateBoundaryForPath(kernel, path, matchedBoundary);
+  return validateBoundaryForPath(kernel, path, matchedBoundary, selectedConfig);
 }
 
 llvm::Error validateMicrokernelForPath(
@@ -1742,7 +1840,7 @@ llvm::Error validateMicrokernelForPath(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *microkernel,
     const RVVI32MicrokernelFamilySpec &family,
-    const RVVI32LMULConfigSpec &selectedConfig,
+    const RVVI32VectorShapeConfig &selectedConfig,
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
@@ -1806,6 +1904,19 @@ llvm::Error validateMicrokernelForPath(
         kernel, llvm::Twine(family.microkernelOpName) +
                     " required_capabilities must match selected variant "
                     "requires metadata");
+
+  if (llvm::Error error =
+          validateSelectedVectorShapeMetadata(
+              kernel, microkernel, family.microkernelOpName, selectedConfig,
+              kBoundarySelectedVectorShapeAttrName,
+              kBoundarySelectedVectorSEWAttrName,
+              kBoundarySelectedVectorLMULAttrName,
+              kBoundarySelectedTailPolicyAttrName,
+              kBoundarySelectedMaskPolicyAttrName,
+              kBoundarySelectedVectorTypeAttrName,
+              kBoundarySelectedVectorSuffixAttrName,
+              kBoundarySelectedSetVLSuffixAttrName))
+    return error;
 
   std::string microkernelMarch;
   if (llvm::Error error =
@@ -2007,7 +2118,7 @@ llvm::Error findAndValidateMicrokernel(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *&matchedMicrokernel,
     const RVVI32MicrokernelFamilySpec *&matchedFamily,
-    const RVVI32LMULConfigSpec &selectedConfig,
+    const RVVI32VectorShapeConfig &selectedConfig,
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
@@ -2268,7 +2379,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error = validateRequiredCapabilities(
           kernel, getPathVariant(path), capabilities, requiredCapabilities))
     return std::move(error);
-  llvm::Expected<const RVVI32LMULConfigSpec *> selectedConfig =
+  llvm::Expected<const RVVI32VectorShapeConfig *> selectedConfig =
       getSelectedRVVI32Config(kernel, getPathVariant(path), capabilities);
   if (!selectedConfig)
     return selectedConfig.takeError();
@@ -2301,7 +2412,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
 
   LoweringBoundaryOp boundary;
   if (llvm::Error error =
-          findAndValidateBoundary(kernel, path, selectedRVVPathKeys, boundary))
+          findAndValidateBoundary(kernel, path, selectedRVVPathKeys,
+                                  **selectedConfig, boundary))
     return std::move(error);
 
   mlir::Operation *microkernel = nullptr;
@@ -2340,6 +2452,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.runtimeElementCountParam = callablePlan.runtimeElementCountParam;
   record.dataflowPlan = std::move(dataflowPlan);
   record.intrinsicConfig = std::move(intrinsicConfig);
+  record.selectedShape = *selectedConfig;
   record.elementCount = elementCount;
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
@@ -2675,6 +2788,23 @@ void printRecordComment(llvm::raw_ostream &os,
         "store.buffer_role=output-buffer; runtime n remains the "
         "target/export-owned runtime element-count ABI parameter */\n";
   printDataflowPlanMetadata(os, record.dataflowPlan, *record.family);
+  if (record.selectedShape) {
+    os << "/* selected_vector_shape_config: shape="
+       << record.selectedShape->shapeID
+       << ", sew=" << record.selectedShape->sewBits
+       << ", lmul=" << record.selectedShape->lmul
+       << ", tail_policy=" << record.selectedShape->tailPolicy
+       << ", mask_policy=" << record.selectedShape->maskPolicy
+       << ", vector_type=" << record.selectedShape->vectorType
+       << ", vector_suffix=" << record.selectedShape->vectorSuffix
+       << ", setvl_suffix=" << record.selectedShape->setvlSuffix
+       << " */\n";
+    os << "/* selected_vector_shape_capabilities:"
+       << " " << record.selectedShape->sewCapabilityID
+       << " " << record.selectedShape->lmulCapabilityID
+       << " " << record.selectedShape->tailPolicyCapabilityID
+       << " " << record.selectedShape->maskPolicyCapabilityID << " */\n";
+  }
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
      << ", policy=#tcrv_rvv.policy<tail = "

@@ -77,10 +77,14 @@ module {
 // PIPE: tcrv.exec.variant @rvv_first_slice
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
 // PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
+// PIPE-SAME: tcrv_rvv.selected_setvl_suffix = "e32m1"
+// PIPE-SAME: tcrv_rvv.selected_vector_lmul = "m1"
+// PIPE-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
+// PIPE-SAME: tcrv_rvv.selected_vector_type = "vint32m1_t"
 // PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
 // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 // PIPE-SAME: fallback_role = "conservative"
@@ -101,6 +105,7 @@ module {
 // PIPE-SAME: element_count = 16 : i64
 // PIPE-SAME: required_capabilities = [@frontend_rvv_scalar_profile]
 // PIPE-SAME: selected_variant = @rvv_first_slice
+// PIPE-SAME: selected_vector_shape = "i32m1"
 // PIPE-SAME: source_kernel = "frontend_i32_vadd"
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: artifact_kind = "runtime-callable-c-source"
@@ -112,5 +117,7 @@ module {
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
+// SOURCE: /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
+// SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 // SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_i32_vadd_rvv_first_slice
 // SOURCE: __riscv_vadd_vv_i32m1

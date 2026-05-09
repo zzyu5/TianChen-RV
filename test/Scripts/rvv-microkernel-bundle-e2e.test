@@ -102,8 +102,11 @@
 # LINALG-VSUB-M2-EVIDENCE: "input": "test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir"
 # LINALG-VSUB-M2-EVIDENCE: "lmul": "m2"
 # LINALG-VSUB-M2-EVIDENCE: "__riscv_vsub_vv_i32m2"
+# LINALG-VSUB-M2-EVIDENCE: "selected_vector_shape_capabilities": "rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic"
+# LINALG-VSUB-M2-EVIDENCE: "selected_vector_shape_config": "shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2"
 # LINALG-VSUB-M2-EVIDENCE: "shape": "i32m2"
 # LINALG-VSUB-M2-EVIDENCE: "ssh_evidence": false
+# LINALG-VSUB-M2-EVIDENCE-NOT: selected_vector_shape_config": "shape=i32m1
 # LINALG-VSUB-M2-EVIDENCE-NOT: __riscv_vsub_vv_i32m1
 # LINALG-VSUB-M2-EVIDENCE-NOT: runtime_success
 # LINALG-VSUB-M2-EVIDENCE-NOT: throughput

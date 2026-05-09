@@ -44,7 +44,24 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kBoundaryVLenBBytesAttrName("vlenb_bytes");
-constexpr llvm::StringLiteral kBoundaryI32M1LanesAttrName("i32_m1_lanes");
+constexpr llvm::StringLiteral kBoundaryI32M1LanesAttrName(
+    "base_i32_m1_lanes");
+constexpr llvm::StringLiteral kSelectedVectorShapeAttrName(
+    "selected_vector_shape");
+constexpr llvm::StringLiteral kSelectedVectorSEWAttrName(
+    "selected_vector_sew");
+constexpr llvm::StringLiteral kSelectedVectorLMULAttrName(
+    "selected_vector_lmul");
+constexpr llvm::StringLiteral kSelectedTailPolicyAttrName(
+    "selected_tail_policy");
+constexpr llvm::StringLiteral kSelectedMaskPolicyAttrName(
+    "selected_mask_policy");
+constexpr llvm::StringLiteral kSelectedVectorTypeAttrName(
+    "selected_vector_type");
+constexpr llvm::StringLiteral kSelectedVectorSuffixAttrName(
+    "selected_vector_suffix");
+constexpr llvm::StringLiteral kSelectedSetVLSuffixAttrName(
+    "selected_setvl_suffix");
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
 constexpr llvm::StringLiteral kAVLAttrName("avl");
@@ -189,7 +206,16 @@ bool isAllowedMicrokernelAttr(llvm::StringRef name) {
          name == kOriginAttrName || name == kRoleAttrName ||
          name == kElementCountAttrName ||
          name == kRequiredCapabilitiesAttrName ||
-         name == kRequiredMarchAttrName || name == kSelectedMABIAttrName;
+         name == kRequiredMarchAttrName ||
+         name == kSelectedVectorShapeAttrName ||
+         name == kSelectedVectorSEWAttrName ||
+         name == kSelectedVectorLMULAttrName ||
+         name == kSelectedTailPolicyAttrName ||
+         name == kSelectedMaskPolicyAttrName ||
+         name == kSelectedVectorTypeAttrName ||
+         name == kSelectedVectorSuffixAttrName ||
+         name == kSelectedSetVLSuffixAttrName ||
+         name == kSelectedMABIAttrName;
 }
 
 bool isAllowedSetVLAttr(llvm::StringRef name) {
@@ -1108,8 +1134,8 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
     if (vlenb <= 0 || lanes <= 0 || vlenb < 4 || vlenb % 4 != 0 ||
         vlenb / 4 != lanes)
       return emitOpError()
-             << "selected capacity metadata requires i32_m1_lanes to equal "
-                "vlenb_bytes divided by four";
+             << "selected capacity metadata requires base_i32_m1_lanes to "
+                "equal vlenb_bytes divided by four";
   }
 
   return mlir::success();

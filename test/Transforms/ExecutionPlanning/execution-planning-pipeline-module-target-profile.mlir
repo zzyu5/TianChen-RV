@@ -39,14 +39,15 @@ module {
     // CHECK: tcrv.exec.variant @rvv_first_slice
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: requires = [@module_rvv_profile]
+    // CHECK-SAME: tcrv_rvv.base_i32_m1_lanes = 8 : i64
     // CHECK-SAME: tcrv_rvv.element_count = 32 : i64
-    // CHECK-SAME: tcrv_rvv.i32_m1_lanes = 8 : i64
     // CHECK-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
     // CHECK-SAME: tcrv_rvv.required_march = "rv64gcv"
+    // CHECK-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
     // CHECK-SAME: tcrv_rvv.vlenb_bytes = 32 : i64
 
     // CHECK: tcrv.exec.diagnostic
-    // CHECK-SAME: preference_explanation = "RVV metadata-only first slice; capability-derived i32_m1_lanes=8 is a plugin-local selection heuristic input, not a runtime performance claim"
+    // CHECK-SAME: preference_explanation = "RVV metadata-only first slice; capability-derived base_i32_m1_lanes=8 is a plugin-local selection heuristic input, not a runtime performance claim"
     // CHECK-SAME: preference_score = 1.250000e-01 : f64
     // CHECK-SAME: reason = "variant-selected"
     // CHECK-SAME: selection_kind = "static-variant"
@@ -67,12 +68,13 @@ module {
     // CHECK-SAME: abi_role = "runtime-element-count"
 
     // CHECK: tcrv_rvv.lowering_boundary
+    // CHECK-SAME: base_i32_m1_lanes = 8 : i64
     // CHECK-SAME: capability_summary = "rvv.profile.module"
-    // CHECK-SAME: i32_m1_lanes = 8 : i64
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: required_capabilities = [@module_rvv_profile]
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: selected_variant = @rvv_first_slice
+    // CHECK-SAME: selected_vector_shape = "i32m1"
     // CHECK-SAME: source_kernel = "module_profile_pipeline"
     // CHECK-SAME: status = "unsupported"
     // CHECK-SAME: vlenb_bytes = 32 : i64
@@ -83,6 +85,7 @@ module {
     // CHECK-SAME: required_march = "rv64gcv"
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: selected_variant = @rvv_first_slice
+    // CHECK-SAME: selected_vector_shape = "i32m1"
     // CHECK-SAME: source_kernel = "module_profile_pipeline"
     // CHECK: tcrv_rvv.i32_load
     // CHECK: tcrv_rvv.i32_add
@@ -100,13 +103,20 @@ module {
     // CHECK-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
     // CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
     // CHECK-SAME: selected_plan_metadata =
-    // CHECK-SAME: name = "tcrv_rvv.vlenb_bytes"
-    // CHECK-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
-    // CHECK-SAME: role = "selected-rvv-capacity-fact"
+    // CHECK-SAME: name = "tcrv_rvv.selected_vector_shape"
+    // CHECK-SAME: role = "selected-rvv-vector-shape-config"
+    // CHECK-SAME: value = "i32m1"
+    // CHECK-SAME: name = "tcrv_rvv.selected_vector_sew"
     // CHECK-SAME: value = "32"
-    // CHECK-SAME: name = "tcrv_rvv.i32_m1_lanes"
-    // CHECK-SAME: note = "diagnostic self-description only; not runtime input, shape, VL/AVL, or performance evidence"
-    // CHECK-SAME: role = "selected-rvv-capacity-fact"
+    // CHECK-SAME: name = "tcrv_rvv.selected_vector_lmul"
+    // CHECK-SAME: value = "m1"
+    // CHECK-SAME: name = "tcrv_rvv.vlenb_bytes"
+    // CHECK-SAME: note = "base i32 M1 capacity fact from target/profile evidence; not selected vector shape, runtime input, VL/AVL, or performance evidence"
+    // CHECK-SAME: role = "rvv-base-capacity-fact"
+    // CHECK-SAME: value = "32"
+    // CHECK-SAME: name = "tcrv_rvv.base_i32_m1_lanes"
+    // CHECK-SAME: note = "base i32 M1 capacity fact from target/profile evidence; not selected vector shape, runtime input, VL/AVL, or performance evidence"
+    // CHECK-SAME: role = "rvv-base-capacity-fact"
     // CHECK-SAME: value = "8"
     // CHECK-SAME: status = "supported"
     // CHECK-SAME: target = @rvv_first_slice

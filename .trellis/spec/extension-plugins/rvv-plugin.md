@@ -82,7 +82,16 @@ finite element-count attr name: tcrv_rvv.element_count
 smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
 smoke-probe descriptor value: standalone-c-toolchain-smoke-probe.v1
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
-optional i32 m1 lane attr name: tcrv_rvv.i32_m1_lanes
+optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
+selected vector-shape attr names:
+  tcrv_rvv.selected_vector_shape
+  tcrv_rvv.selected_vector_sew
+  tcrv_rvv.selected_vector_lmul
+  tcrv_rvv.selected_tail_policy
+  tcrv_rvv.selected_mask_policy
+  tcrv_rvv.selected_vector_type
+  tcrv_rvv.selected_vector_suffix
+  tcrv_rvv.selected_setvl_suffix
 ```
 
 The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
@@ -152,13 +161,19 @@ The first slice carries generic decision metadata (`condition`, `guard`, and
 (`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), a
 plugin-owned `tcrv_rvv.required_march` string attribute derived from the
 validated `rvv.probe.compile_run.selected_march` property, optional
-capability-derived `tcrv_rvv.vlenb_bytes` /
-`tcrv_rvv.i32_m1_lanes` integer attributes when structured vlenb/lane
-capabilities are available, and a finite plugin-owned lowering descriptor for
-the bounded i32 RVV C-intrinsic microkernel family. The current supported
-family members are `i32-vadd-microkernel.v1`, `i32-vsub-microkernel.v1`, and
-`i32-vmul-microkernel.v1`, all using the same explicit i32/m1 runtime ABI shape
-and bounded descriptor-local integer `tcrv_rvv.element_count`. The default
+capability-derived `tcrv_rvv.vlenb_bytes` and
+`tcrv_rvv.base_i32_m1_lanes` integer attributes when structured vlenb/lane
+capabilities are available, a complete selected vector-shape metadata group,
+and a finite plugin-owned lowering descriptor for the bounded i32 RVV
+C-intrinsic microkernel family. The selected vector-shape group records the
+plugin/target-owned compile-time choice: shape id, SEW, LMUL, tail policy,
+mask policy, C vector type, intrinsic suffix, setvl suffix, and the backing
+capability ids through selected-plan metadata and generated source comments.
+It is required to match exactly one finite config shape and is distinct from
+base i32 M1 lane capacity. The current supported family members are
+`i32-vadd-microkernel.v1`, `i32-vsub-microkernel.v1`, and
+`i32-vmul-microkernel.v1`, all using the same runtime-callable i32 binary ABI
+shape and bounded descriptor-local integer `tcrv_rvv.element_count`. The default
 automatic first-slice proposal still selects `i32-vadd-microkernel.v1`; bounded frontend
 lowering may preserve `tcrv_frontend_lowering = "i32-vsub"` or
 `"i32-vmul"` on the generated `tcrv.exec.kernel`, in which case the RVV plugin
@@ -174,7 +189,7 @@ fallback sample size `16`. This is a compiler descriptor decision, not a
 runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.
 The generic string policy remains the input for core selection/dispatch; the
 typed policy, required march, optional capacity metadata, lowering descriptor,
-and element count are plugin-local metadata preserved by the generic
+selected vector-shape metadata, and element count are plugin-local metadata preserved by the generic
 proposal/materialization path and validated by `RVVExtensionPlugin` when
 present on a materialized variant. These fields are
 compiler-visible metadata for the existing generic materialization, legality,
@@ -645,16 +660,18 @@ RVV work must keep these parameter layers distinct:
 
 - VLEN and vlenb are hardware facts / target capability evidence. They may
   constrain legality, vector capacity, and selection after provenance is
-  validated, including plugin-owned `tcrv_rvv.vlenb_bytes` /
-  `tcrv_rvv.i32_m1_lanes` variant metadata. They are not per-variant runtime
-  values.
+  validated, including plugin-owned `tcrv_rvv.vlenb_bytes` and
+  `tcrv_rvv.base_i32_m1_lanes` variant metadata. The base lane attribute is the
+  i32 M1 capacity implied by vlenb, even when the selected vector shape is
+  i32m2. It is not selected m1 config metadata and is not a per-variant runtime
+  value.
 - Selected RVV lowering-boundary capacity metadata, when present, is a
   plugin-owned copy of selected variant metadata on `tcrv_rvv.lowering_boundary`
-  using `vlenb_bytes` and `i32_m1_lanes`. The pair must be integer, present
-  together, positive, ratio-valid for i32 m1 lanes, and validated against both
-  the selected variant and the preserved target capability facts by the RVV
-  plugin. It is diagnostic selected-plan metadata, not runtime IR, shape, AVL,
-  VL, runtime `n`, or performance evidence.
+  using `vlenb_bytes` and `base_i32_m1_lanes`. The pair must be integer,
+  present together, positive, ratio-valid for base i32 M1 lanes, and validated
+  against both the selected variant and the preserved target capability facts
+  by the RVV plugin. It is diagnostic selected-plan metadata, not runtime IR,
+  selected vector shape, AVL, VL, runtime `n`, or performance evidence.
 - SEW, LMUL, tail policy, and mask policy are compile-time variant config
   selected or proposed by the RVV plugin and checked against target
   capabilities. The current executable first slice admits only SEW 32 with
@@ -669,6 +686,16 @@ RVV work must keep these parameter layers distinct:
   mismatches before artifact bytes are emitted. These config ids are not
   sufficient as standalone hardware facts without the surrounding
   RVV/profile/toolchain evidence.
+- The selected vector-shape config is the target-owned serialization of that
+  compile-time choice. Materialized RVV variants, `tcrv_rvv.lowering_boundary`,
+  the i32 add/sub/mul microkernel ops, selected-plan metadata, and generated
+  RVV C source comments must agree on `selected_vector_shape`,
+  `selected_vector_sew`, `selected_vector_lmul`, `selected_tail_policy`,
+  `selected_mask_policy`, `selected_vector_type`,
+  `selected_vector_suffix`, and `selected_setvl_suffix`. If any selected-shape
+  attribute is present, the complete group is required. An i32m2 selected path
+  must not carry stale selected i32m1 config even though it may still carry the
+  separate `base_i32_m1_lanes` capacity fact.
 - AVL and vl are runtime SSA values / runtime control values. The current
   bounded `tcrv_rvv.setvl` surface models AVL as a real runtime SSA operand and
   vl as a real `!tcrv_rvv.vl` result. The bounded `tcrv_rvv.with_vl` surface
@@ -691,10 +718,11 @@ region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` and
 `tcrv_rvv.with_vl` ops model only runtime AVL/VL control-plane IR; they do not
 make VLEN/vlenb or descriptor-local `element_count` runtime values.
 RVV emission plans may carry bounded `selected_plan_metadata` entries such as
-`tcrv_rvv.vlenb_bytes` and `tcrv_rvv.i32_m1_lanes` only as plugin-owned
-selected-plan self-description. Those entries must be generated from validated
-selected variant metadata and must not become runtime ABI parameters, generated
-control values, shapes, or performance claims.
+the selected vector-shape group, `tcrv_rvv.vlenb_bytes`, and
+`tcrv_rvv.base_i32_m1_lanes` only as plugin-owned selected-plan
+self-description. Those entries must be generated from validated selected
+variant metadata and must not become runtime ABI parameters, generated control
+values, runtime shapes, or performance claims.
 
 ## First Lowering Boundary Slice
 

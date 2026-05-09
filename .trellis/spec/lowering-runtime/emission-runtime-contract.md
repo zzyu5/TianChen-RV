@@ -220,7 +220,11 @@ preserve parameter layering:
 - compile-time variant config such as SEW, LMUL, tail/mask policy, unroll, and
   selected lowering strategy may be serialized as compiler decision metadata
   only when it was actually selected or proposed by the plugin and checked
-  against capabilities;
+  against capabilities. For RVV i32 binary paths, selected vector-shape
+  metadata may include shape id, SEW, LMUL, tail/mask policy, vector type,
+  intrinsic suffix, and setvl suffix, but those fields remain target/plugin
+  compile-time config rather than runtime ABI values or `tcrv.exec` compute
+  semantics;
 - runtime SSA values / runtime control values such as AVL, vl, pointer
   arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
   only as real IR/control fields or generated ABI parameters;

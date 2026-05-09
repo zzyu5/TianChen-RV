@@ -874,6 +874,9 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "/* executable_microkernel: "
         + str(ACTIVE_ARITHMETIC_FAMILY["microkernel_op_name"])
         + " */",
+        "/* selected_vector_shape_config: shape="
+        + str(ACTIVE_VECTOR_SHAPE["shape"]),
+        "/* selected_vector_shape_capabilities:",
         "/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> "
         + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
         + " -> tcrv_rvv.i32_store */",
@@ -900,6 +903,8 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
             load_intrinsic_for_shape(other_shape),
             arithmetic_intrinsic_for_family(ACTIVE_ARITHMETIC_FAMILY, other_shape),
             store_intrinsic_for_shape(other_shape),
+            "selected_vector_shape_config: shape="
+            + str(other_shape["shape"]),
             "vector_type=" + str(other_shape["vector_type"]),
             "vector_suffix=" + str(other_shape["vector_suffix"]),
             "setvl_suffix=" + str(other_shape["setvl_suffix"]),
@@ -961,6 +966,12 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
 
 
 def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
+    selected_shape_config = parse_source_comment(
+        source, "selected_vector_shape_config", required=True
+    )
+    selected_shape_capabilities = parse_source_comment(
+        source, "selected_vector_shape_capabilities", required=True
+    )
     control_config = parse_source_comment(
         source, "control_plane_config", required=True
     )
@@ -985,6 +996,42 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
             + ", ".join(missing_control)
         )
 
+    expected_selected_shape_fragments = [
+        "shape=" + str(ACTIVE_VECTOR_SHAPE["shape"]),
+        "sew=" + str(ACTIVE_VECTOR_SHAPE["sew_bits"]),
+        "lmul=" + str(ACTIVE_VECTOR_SHAPE["lmul"]),
+        "tail_policy=" + str(ACTIVE_VECTOR_SHAPE["tail_policy"]),
+        "mask_policy=" + str(ACTIVE_VECTOR_SHAPE["mask_policy"]),
+        "vector_type=" + str(ACTIVE_VECTOR_SHAPE["vector_type"]),
+        "vector_suffix=" + str(ACTIVE_VECTOR_SHAPE["vector_suffix"]),
+        "setvl_suffix=" + str(ACTIVE_VECTOR_SHAPE["setvl_suffix"]),
+    ]
+    missing_selected_shape = [
+        fragment
+        for fragment in expected_selected_shape_fragments
+        if fragment not in selected_shape_config
+    ]
+    if missing_selected_shape:
+        raise BridgeError(
+            "generated RVV microkernel C source selected_vector_shape_config "
+            "does not match requested vector shape "
+            + str(ACTIVE_VECTOR_SHAPE["shape"])
+            + "; missing fragments: "
+            + ", ".join(missing_selected_shape)
+        )
+
+    missing_capabilities = [
+        str(capability)
+        for capability in ACTIVE_VECTOR_SHAPE["capability_ids"]
+        if str(capability) not in selected_shape_capabilities
+    ]
+    if missing_capabilities:
+        raise BridgeError(
+            "generated RVV microkernel C source selected_vector_shape_capabilities "
+            "does not contain requested vector-shape capability ids: "
+            + ", ".join(missing_capabilities)
+        )
+
     expected_intrinsic_fragments = [
         "vector_type=" + str(ACTIVE_VECTOR_SHAPE["vector_type"]),
         "vector_suffix=" + str(ACTIVE_VECTOR_SHAPE["vector_suffix"]),
@@ -1007,6 +1054,8 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
         )
 
     evidence = vector_shape_evidence(ACTIVE_VECTOR_SHAPE)
+    evidence["selected_vector_shape_config"] = selected_shape_config
+    evidence["selected_vector_shape_capabilities"] = selected_shape_capabilities
     evidence["control_plane_config"] = control_config
     evidence["intrinsic_config"] = intrinsic_config
     evidence["required_intrinsics"] = [
@@ -2784,6 +2833,8 @@ kernel @rvv_microkernel_manifest
 /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
+/* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
+/* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 #include <riscv_vector.h>
@@ -2871,6 +2922,8 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec */
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec */
+/* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
+/* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 #include <riscv_vector.h>
@@ -2918,6 +2971,8 @@ void f(void) {
 /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec */
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec */
+/* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
+/* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
 #include <riscv_vector.h>
@@ -2969,6 +3024,8 @@ void f(void) {
 /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=product_vec */
+/* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
+/* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 #include <riscv_vector.h>
