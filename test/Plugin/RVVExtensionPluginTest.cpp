@@ -54,6 +54,10 @@ using tianchenrv::tcrv::rvv::I32M2VectorType;
 using tianchenrv::tcrv::rvv::I32SubOp;
 using tianchenrv::tcrv::rvv::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
+using tianchenrv::tcrv::rvv::I64AddOp;
+using tianchenrv::tcrv::rvv::I64LoadOp;
+using tianchenrv::tcrv::rvv::I64M1VectorType;
+using tianchenrv::tcrv::rvv::I64VAddMicrokernelOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::SetVLOp;
@@ -276,6 +280,23 @@ I32VMulMicrokernelOp findRVVMulMicrokernel(
   return result;
 }
 
+I64VAddMicrokernelOp findRVVI64VAddMicrokernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  I64VAddMicrokernelOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<I64VAddMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = microkernel;
+  }
+  return result;
+}
+
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
   return module.lookupSymbol<mlir::func::FuncOp>("high_level_placeholder");
 }
@@ -350,9 +371,9 @@ int runRegistrationAndCapabilityMetadataTest() {
 
   llvm::SmallVector<PluginCapability, 4> capabilities;
   registry.collectCapabilities(capabilities);
-  if (int result = expect(capabilities.size() == 10,
-                          "RVV plugin exposes RVV, finite m1/m2 config, and "
-                          "selected-shape selector capabilities"))
+  if (int result = expect(capabilities.size() == 14,
+                          "RVV plugin exposes RVV, finite i32m1/i32m2/i64m1 "
+                          "config, and selected-shape selector capabilities"))
     return result;
   if (int result =
           expect(capabilities[0].getID() ==
@@ -2053,6 +2074,300 @@ module {
                 "RVV i32m2 emission plan preserves vsub route");
 }
 
+int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @rvv_i64_vadd attributes {
+    tcrv_frontend_lowering = "i64-vadd"
+  } {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_sew64 {
+      id = "rvv.i64_m1.sew64",
+      kind = "isa-vector-config",
+      sew_bits = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_lmul_m1 {
+      id = "rvv.i64_m1.lmul_m1",
+      kind = "isa-vector-config",
+      lmul = "m1",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_tail_agnostic {
+      id = "rvv.i64_m1.tail_policy.agnostic",
+      kind = "isa-vector-config",
+      tail_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_mask_agnostic {
+      id = "rvv.i64_m1.mask_policy.agnostic",
+      kind = "isa-vector-config",
+      mask_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV i64 proposal module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "rvv_i64_vadd");
+  if (int result = expect(highLevelOp && kernel,
+                          "RVV i64 proposal test has op and kernel"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for i64 proposal test"))
+    return result;
+
+  VariantProposalRequest request =
+      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(request, proposals),
+          "collect RVV i64 proposal"))
+    return result;
+  if (int result =
+          expect(proposals.size() == 1,
+                 "finite i64m1 capability facts produce one proposal"))
+    return result;
+  if (int result = expect(
+          proposals[0].getRequiredCapabilityIDs().size() == 5 &&
+              proposals[0].getRequiredCapabilityIDs()[1] ==
+                  "rvv.i64_m1.sew64" &&
+              proposals[0].getRequiredCapabilityIDs()[2] ==
+                  "rvv.i64_m1.lmul_m1" &&
+              proposals[0].getRequiredCapabilityIDs()[3] ==
+                  "rvv.i64_m1.tail_policy.agnostic" &&
+              proposals[0].getRequiredCapabilityIDs()[4] ==
+                  "rvv.i64_m1.mask_policy.agnostic",
+          "RVV i64 proposal requires i64m1 config capability ids"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.lowering_descriptor",
+          "i64-vadd-microkernel.v1"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_type", "vint64m1_t"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_setvl_suffix", "e64m1"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize RVV i64 proposal"))
+    return result;
+  if (int result = expect(materializedVariants.size() == 1,
+                          "one RVV i64 variant materialized"))
+    return result;
+  VariantOp variant = materializedVariants.front();
+
+  if (int result = expectStringAttr(variant.getOperation(),
+                                    "tcrv_rvv.lowering_descriptor",
+                                    "i64-vadd-microkernel.v1"))
+    return result;
+  if (int result = expectStringAttr(variant.getOperation(),
+                                    "tcrv_rvv.selected_vector_shape", "i64m1"))
+    return result;
+
+  VariantLoweringBoundaryResult boundaryResult;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                boundaryResult),
+            "materialize RVV i64 lowering boundary"))
+      return result;
+  }
+  if (int result = expect(boundaryResult.isMaterialized(),
+                          "RVV i64 boundary materialized"))
+    return result;
+
+  I64VAddMicrokernelOp microkernel =
+      findRVVI64VAddMicrokernel(kernel, variant.getSymName());
+  if (int result = expect(microkernel,
+                          "RVV i64 descriptor materializes i64 vadd op"))
+    return result;
+
+  SetVLOp setvl;
+  I64LoadOp load;
+  I64AddOp add;
+  microkernel->walk([&](SetVLOp op) { setvl = op; });
+  microkernel->walk([&](I64LoadOp op) {
+    if (!load)
+      load = op;
+  });
+  microkernel->walk([&](I64AddOp op) { add = op; });
+
+  if (int result = expect(setvl && setvl.getSew() == 64 &&
+                              setvl.getLmul() == "m1",
+                          "RVV i64 materialization emits SEW64 m1 setvl"))
+    return result;
+  if (int result =
+          expect(load && llvm::isa<I64M1VectorType>(load.getLoaded().getType()),
+                 "RVV i64 materialization emits i64m1 load type"))
+    return result;
+  if (int result =
+          expect(add && llvm::isa<I64M1VectorType>(add.getSum().getType()),
+                 "RVV i64 materialization emits i64m1 arithmetic result"))
+    return result;
+
+  VariantEmissionPlan emissionPlan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              emissionPlan),
+          "build RVV i64 emission plan"))
+    return result;
+  if (int result = expect(emissionPlan.isSupported() &&
+                              emissionPlan.getLoweringPipeline() ==
+                                  "tcrv-export-rvv-i64-vadd-microkernel-c" &&
+                              emissionPlan.getRuntimeABIName() ==
+                                  "rvv-i64-vadd-runtime-callable-c-function.v1",
+                          "RVV i64 emission plan preserves route and ABI"))
+    return result;
+
+  llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters =
+      emissionPlan.getRuntimeABIParameters();
+  return expect(parameters.size() == 4 &&
+                    parameters[0].cType == "const int64_t *" &&
+                    parameters[1].cType == "const int64_t *" &&
+                    parameters[2].cType == "int64_t *" &&
+                    parameters[3].cType == "size_t",
+                "RVV i64 emission plan carries int64 callable ABI params");
+}
+
+int runRVVI64VAddMissingCapabilityDeclinesTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @rvv_i64_vadd_missing_i64_caps attributes {
+    tcrv_frontend_lowering = "i64-vadd"
+  } {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_sew32 {
+      id = "rvv.i32_m1.sew32",
+      kind = "isa-vector-config",
+      sew_bits = 32 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_lmul_m1 {
+      id = "rvv.i32_m1.lmul_m1",
+      kind = "isa-vector-config",
+      lmul = "m1",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_tail_agnostic {
+      id = "rvv.i32_m1.tail_policy.agnostic",
+      kind = "isa-vector-config",
+      tail_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i32_m1_mask_agnostic {
+      id = "rvv.i32_m1.mask_policy.agnostic",
+      kind = "isa-vector-config",
+      mask_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV i64 negative proposal module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "rvv_i64_vadd_missing_i64_caps");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for i64 negative test"))
+    return result;
+
+  VariantProposalRequest request =
+      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(request, proposals),
+          "collect RVV i64 negative proposal"))
+    return result;
+  return expect(proposals.empty(),
+                "RVV i64 proposal fails closed without i64m1 capability facts");
+}
+
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -2491,6 +2806,10 @@ int main() {
   if (int result = runRVVDescriptorBackedI32FamilyTest(context))
     return result;
   if (int result = runRVVI32M2ProposalMaterializationTest(context))
+    return result;
+  if (int result = runRVVI64VAddProposalMaterializationTest(context))
+    return result;
+  if (int result = runRVVI64VAddMissingCapabilityDeclinesTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

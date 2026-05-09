@@ -9,7 +9,7 @@
 
 namespace tianchenrv::target::rvv {
 
-struct RVVI32VectorShapeConfig {
+struct RVVVectorShapeConfig {
   llvm::StringRef shapeID;
   std::int64_t sewBits = 0;
   llvm::StringRef lmul;
@@ -23,7 +23,11 @@ struct RVVI32VectorShapeConfig {
   llvm::StringRef vectorSuffix;
   llvm::StringRef setvlSuffix;
   llvm::StringRef diagnosticSpelling;
+  llvm::StringRef dtypeID;
+  llvm::StringRef dtypeDiagnosticSpelling;
 };
+
+using RVVI32VectorShapeConfig = RVVVectorShapeConfig;
 
 struct RVVI32VectorShapeSelectedPlanMetadataDescriptor {
   llvm::StringRef name;
@@ -47,7 +51,9 @@ inline const RVVI32VectorShapeConfig &getI32M1VectorShapeConfig() {
       "vint32m1_t",
       "i32m1",
       "e32m1",
-      "i32m1"};
+      "i32m1",
+      "i32",
+      "i32"};
   return config;
 }
 
@@ -65,7 +71,29 @@ inline const RVVI32VectorShapeConfig &getI32M2VectorShapeConfig() {
       "vint32m2_t",
       "i32m2",
       "e32m2",
-      "i32m2"};
+      "i32m2",
+      "i32",
+      "i32"};
+  return config;
+}
+
+inline const RVVVectorShapeConfig &getI64M1VectorShapeConfig() {
+  static const RVVVectorShapeConfig config{
+      "i64m1",
+      64,
+      "m1",
+      "agnostic",
+      "agnostic",
+      "rvv.i64_m1.sew64",
+      "rvv.i64_m1.lmul_m1",
+      "rvv.i64_m1.tail_policy.agnostic",
+      "rvv.i64_m1.mask_policy.agnostic",
+      "vint64m1_t",
+      "i64m1",
+      "e64m1",
+      "i64m1",
+      "i64",
+      "i64"};
   return config;
 }
 
@@ -73,6 +101,13 @@ inline llvm::ArrayRef<const RVVI32VectorShapeConfig *>
 getFiniteI32VectorShapeConfigs() {
   static const RVVI32VectorShapeConfig *configs[] = {
       &getI32M1VectorShapeConfig(), &getI32M2VectorShapeConfig()};
+  return llvm::ArrayRef(configs);
+}
+
+inline llvm::ArrayRef<const RVVVectorShapeConfig *>
+getFiniteI64VectorShapeConfigs() {
+  static const RVVVectorShapeConfig *configs[] = {
+      &getI64M1VectorShapeConfig()};
   return llvm::ArrayRef(configs);
 }
 
@@ -89,6 +124,16 @@ lookupFiniteI32VectorShapeConfigByShapeID(llvm::StringRef shapeID) {
   shapeID = shapeID.trim();
   for (const RVVI32VectorShapeConfig *config :
        getFiniteI32VectorShapeConfigs()) {
+    if (config->shapeID == shapeID)
+      return config;
+  }
+  return nullptr;
+}
+
+inline const RVVVectorShapeConfig *
+lookupFiniteI64VectorShapeConfigByShapeID(llvm::StringRef shapeID) {
+  shapeID = shapeID.trim();
+  for (const RVVVectorShapeConfig *config : getFiniteI64VectorShapeConfigs()) {
     if (config->shapeID == shapeID)
       return config;
   }
@@ -132,7 +177,7 @@ inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataRole() {
 }
 
 inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
-  return "compile-time RVV i32 vector-shape config selected by the RVV "
+  return "compile-time RVV vector-shape config selected by the RVV "
          "plugin and validated against capabilities; not base lane capacity, "
          "runtime AVL/VL, or descriptor element_count";
 }
@@ -141,6 +186,8 @@ inline llvm::StringRef
 getRVVI32VectorShapeSEWMetadataValue(const RVVI32VectorShapeConfig &config) {
   if (config.sewBits == 32)
     return "32";
+  if (config.sewBits == 64)
+    return "64";
   return {};
 }
 

@@ -1,4 +1,5 @@
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
@@ -686,6 +687,93 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
   return 0;
 }
 
+int expectRVVI64VAddDescriptorShape() {
+  using tianchenrv::target::rvv::getI64M1VectorShapeConfig;
+  using tianchenrv::target::rvv::getI64VAddFamilyDescriptor;
+  using tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor;
+  using tianchenrv::target::rvv::lookupFiniteI64VectorShapeConfigByShapeID;
+  using tianchenrv::target::rvv::lookupRVVBinaryFamilyByFrontendLowering;
+  using tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor;
+
+  const auto &family = getI64VAddFamilyDescriptor();
+  const auto &shape = getI64M1VectorShapeConfig();
+  auto descriptor = getI64VAddIntrinsicDescriptor();
+
+  if (int result = expect(family.dtypeID == "i64" &&
+                              family.frontendLowering == "i64-vadd" &&
+                              family.loweringDescriptor ==
+                                  "i64-vadd-microkernel.v1",
+                          "RVV i64 vadd family exposes dtype and descriptor"))
+    return result;
+  if (int result = expect(lookupRVVBinaryFamilyByFrontendLowering("i64-vadd") ==
+                              &family,
+                          "RVV binary lookup accepts i64 frontend lowering"))
+    return result;
+  if (int result = expect(
+          lookupRVVBinaryFamilyByLoweringDescriptor(
+              "i64-vadd-microkernel.v1") == &family,
+          "RVV binary lookup accepts i64 lowering descriptor"))
+    return result;
+  if (int result = expect(lookupFiniteI64VectorShapeConfigByShapeID("i64m1") ==
+                              &shape,
+                          "RVV i64 shape lookup accepts i64m1"))
+    return result;
+  if (int result = expect(shape.dtypeID == "i64" &&
+                              shape.sewBits == 64 &&
+                              shape.vectorType == "vint64m1_t" &&
+                              shape.vectorSuffix == "i64m1" &&
+                              shape.setvlSuffix == "e64m1",
+                          "RVV i64m1 shape carries SEW64/vector spellings"))
+    return result;
+
+  if (int result = expect(descriptor.getDTypeID() == "i64" &&
+                              descriptor.getShapeID() == "i64m1" &&
+                              descriptor.getScalarCType() == "int64_t" &&
+                              descriptor.getConstInputPointerCType() ==
+                                  "const int64_t *" &&
+                              descriptor.getOutputPointerCType() ==
+                                  "int64_t *",
+                          "RVV i64 vadd descriptor owns int64 ABI types"))
+    return result;
+  if (int result = expect(descriptor.getSetVLIntrinsicName() ==
+                                  "__riscv_vsetvl_e64m1" &&
+                              descriptor.getLoadIntrinsicName() ==
+                                  "__riscv_vle64_v_i64m1" &&
+                              descriptor.getArithmeticIntrinsicName() ==
+                                  "__riscv_vadd_vv_i64m1" &&
+                              descriptor.getStoreIntrinsicName() ==
+                                  "__riscv_vse64_v_i64m1",
+                          "RVV i64 vadd descriptor derives SEW64 intrinsics"))
+    return result;
+  if (int result = expect(descriptor.getRVVRouteID() ==
+                                  "tcrv-export-rvv-i64-vadd-microkernel-c" &&
+                              descriptor.getRVVRuntimeABIName() ==
+                                  "rvv-i64-vadd-runtime-callable-c-function.v1",
+                          "RVV i64 vadd descriptor owns source route and ABI"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+      descriptor.getCallableRuntimeABIParameters();
+  if (int result = expect(parameters.size() == 4 &&
+                              parameters[0].cType == "const int64_t *" &&
+                              parameters[1].cType == "const int64_t *" &&
+                              parameters[2].cType == "int64_t *" &&
+                              parameters[3].cType == "size_t",
+                          "RVV i64 vadd descriptor derives callable ABI"))
+    return result;
+
+  llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
+      descriptor.getSelectedShapeCapabilityIDs();
+  return expect(capabilityIDs.size() == 4 &&
+                    capabilityIDs[0] == "rvv.i64_m1.sew64" &&
+                    capabilityIDs[1] == "rvv.i64_m1.lmul_m1" &&
+                    capabilityIDs[2] ==
+                        "rvv.i64_m1.tail_policy.agnostic" &&
+                    capabilityIDs[3] ==
+                        "rvv.i64_m1.mask_policy.agnostic",
+                "RVV i64 vadd descriptor reports i64m1 capability ids");
+}
+
 } // namespace
 
 int main() {
@@ -726,6 +814,8 @@ int main() {
     return result;
   if (int result = expectRVVI32BinaryIntrinsicDescriptorShape())
     return result;
+  if (int result = expectRVVI64VAddDescriptorShape())
+    return result;
 
   TargetArtifactExporterRegistry registry;
   if (int result = expectSuccess(
@@ -744,6 +834,14 @@ int main() {
   for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectStandaloneFamilyExporterRoutes(registry, *family))
       return result;
+  if (int result = expectRoute(
+          registry, "tcrv-export-rvv-i64-vadd-microkernel-c",
+          kRuntimeCallableCSourceArtifactKind, kRVVPluginName,
+          "rvv-explicit-i64-vadd-microkernel-c-source",
+          "rvv-i64-vadd-microkernel-external-abi.v1",
+          "rvv-i64-vadd-runtime-callable-c-function.v1",
+          /*expectedDirectHelperRoute=*/true))
+    return result;
   for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
       return result;

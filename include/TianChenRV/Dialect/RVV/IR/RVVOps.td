@@ -124,6 +124,18 @@ def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
   }];
 }
 
+def TCRVRVV_I64M1VectorType : TCRVRVV_Type<"I64M1Vector", "i64m1"> {
+  let summary = "finite RVV i64 m1 vector dataflow token type";
+  let description = [{
+    A bounded plugin-local vector dataflow token for the first non-i32 RVV
+    binary microkernel slice when the selected compile-time config is SEW 64
+    and LMUL m1. It is not a generic RVV vector type. The enclosing
+    tcrv_rvv.setvl / tcrv_rvv.with_vl control-plane metadata remains the
+    source of SEW/LMUL/policy truth, and verifiers require i64m1 dataflow
+    values to agree with that finite m1 scope before target emission.
+  }];
+}
+
 def SetVLOp : TCRVRVV_Op<"setvl", []> {
   let summary = "bounded RVV runtime AVL to VL control-plane op";
   let description = [{
@@ -315,6 +327,69 @@ def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
   let hasVerifier = 1;
 }
 
+def I64LoadOp : TCRVRVV_Op<"i64_load", []> {
+  let summary = "bounded RVV i64 load dataflow op";
+  let description = [{
+    Records one finite plugin-local RVV i64 load in the current i64-vadd
+    microkernel body. The op is nested directly under tcrv_rvv.with_vl,
+    consumes the same runtime !tcrv_rvv.vl control token as the surrounding
+    scope, carries exactly one input buffer ABI role, and produces one bounded
+    !tcrv_rvv.i64m1 dataflow token matching the enclosing SEW64/LMUL m1 scope.
+  }];
+
+  let arguments = (ins
+    AnyType:$vl,
+    StrAttr:$buffer_role
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat = "$vl attr-dict `:` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def I64AddOp : TCRVRVV_Op<"i64_add", []> {
+  let summary = "bounded RVV i64 add dataflow op";
+  let description = [{
+    Records the finite plugin-local RVV i64 vector add in the current i64-vadd
+    microkernel body. The op is nested directly under tcrv_rvv.with_vl,
+    consumes two i64m1 dataflow tokens and the same runtime !tcrv_rvv.vl
+    control token as the surrounding scope, and produces one i64m1 dataflow
+    token. This is not a generic arithmetic IR.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$sum);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($sum)";
+  let hasVerifier = 1;
+}
+
+def I64StoreOp : TCRVRVV_Op<"i64_store", []> {
+  let summary = "bounded RVV i64 store dataflow op";
+  let description = [{
+    Records one finite plugin-local RVV i64 store in the current i64-vadd
+    microkernel body. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one bounded i64m1 dataflow token and the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope, and carries exactly
+    one output buffer ABI role.
+  }];
+
+  let arguments = (ins
+    AnyType:$value,
+    AnyType:$vl,
+    StrAttr:$buffer_role
+  );
+
+  let assemblyFormat =
+    "$value `,` $vl attr-dict `:` type($value) `,` type($vl)";
+  let hasVerifier = 1;
+}
+
 def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
   let summary = "pre-executable RVV lowering boundary metadata";
   let description = [{
@@ -468,6 +543,49 @@ def I32VMulMicrokernelOp : TCRVRVV_Op<"i32_vmul_microkernel",
     bounded RVV executable microkernel slice for i32 vector-multiply, while
     keeping descriptor-local element_count distinct from runtime n/AVL/VL
     control.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    I64Attr:$element_count,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$required_march,
+    OptionalAttr<StrAttr>:$selected_vector_shape,
+    OptionalAttr<I64Attr>:$selected_vector_sew,
+    OptionalAttr<StrAttr>:$selected_vector_lmul,
+    OptionalAttr<StrAttr>:$selected_tail_policy,
+    OptionalAttr<StrAttr>:$selected_mask_policy,
+    OptionalAttr<StrAttr>:$selected_vector_type,
+    OptionalAttr<StrAttr>:$selected_vector_suffix,
+    OptionalAttr<StrAttr>:$selected_setvl_suffix,
+    OptionalAttr<StrAttr>:$selected_mabi
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
+def I64VAddMicrokernelOp : TCRVRVV_Op<"i64_vadd_microkernel",
+    [NoTerminator, SingleBlock]> {
+  let summary = "explicit bounded RVV i64 vector-add executable microkernel";
+  let description = [{
+    Records one plugin-local executable RVV i64 vector-add microkernel body for
+    a selected RVV variant. This is the first bounded dtype-axis proof beyond
+    the finite i32 family: it carries selected-path metadata, required RVV
+    capability references, required march, a tiny element count, and one
+    structured RVV dataflow body that a target-local exporter can validate
+    before emitting deterministic library-style C using i64 RVV intrinsics.
+
+    The body has one runtime index block argument representing the
+    target/export-owned runtime element count/AVL control value, then a bounded
+    tcrv_rvv.setvl to tcrv_rvv.with_vl chain whose nested body contains
+    exactly one lhs-load, rhs-load, i64-add, output-store sequence. This op is
+    not a generic tensor, tile, benchmark, bufferization, lowering, runtime
+    ABI, arbitrary vector math IR, correctness proof, or performance claim.
   }];
 
   let arguments = (ins

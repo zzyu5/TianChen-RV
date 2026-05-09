@@ -248,6 +248,18 @@ bool isAllowedI32StoreAttr(llvm::StringRef name) {
   return name == kBufferRoleAttrName;
 }
 
+bool isAllowedI64LoadAttr(llvm::StringRef name) {
+  return name == kBufferRoleAttrName;
+}
+
+bool isAllowedI64AddAttr(llvm::StringRef name) {
+  return false;
+}
+
+bool isAllowedI64StoreAttr(llvm::StringRef name) {
+  return name == kBufferRoleAttrName;
+}
+
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
   return name == kAVLAttrName || name == kVLenAttrName ||
          name == kVLenBAttrName || name == kElementCountAttrName ||
@@ -341,6 +353,24 @@ bool isSupportedI32LMUL(llvm::StringRef lmul) {
   return lmul == "m1" || lmul == "m2";
 }
 
+bool isI64M1Vector(mlir::Type type) {
+  return llvm::isa<I64M1VectorType>(type);
+}
+
+llvm::StringRef getI64VectorLMUL(mlir::Type type) {
+  if (isI64M1Vector(type))
+    return "m1";
+  return {};
+}
+
+bool isSupportedRVVFirstSliceConfig(std::int64_t sew, llvm::StringRef lmul) {
+  if (sew == 32)
+    return isSupportedI32LMUL(lmul);
+  if (sew == 64)
+    return lmul == "m1";
+  return false;
+}
+
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
                                                  mlir::Value value,
                                                  llvm::StringRef role) {
@@ -353,6 +383,38 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
   if (!withVL)
     return mlir::success();
+
+  auto expectedLMUL =
+      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (expectedLMUL && expectedLMUL.getValue() != valueLMUL)
+    return op->emitOpError()
+           << "requires " << role << " type " << value.getType()
+           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << expectedLMUL.getValue() << "'";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult verifyI64VectorTypeForWithVL(mlir::Operation *op,
+                                                 mlir::Value value,
+                                                 llvm::StringRef role) {
+  llvm::StringRef valueLMUL = getI64VectorLMUL(value.getType());
+  if (valueLMUL.empty())
+    return op->emitOpError()
+           << "requires " << role << " type to be !tcrv_rvv.i64m1";
+
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
+
+  auto expectedSEW =
+      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (expectedSEW && expectedSEW.getInt() != 64)
+    return op->emitOpError()
+           << "requires " << role
+           << " type !tcrv_rvv.i64m1 to agree with enclosing "
+              "tcrv_rvv.with_vl SEW metadata '"
+           << expectedSEW.getInt() << "'";
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
@@ -410,6 +472,24 @@ getEnclosingI32MicrokernelArithmetic(mlir::Operation *op) {
   if (op->getParentOfType<I32VMulMicrokernelOp>())
     return I32MicrokernelArithmetic::Mul;
   return std::nullopt;
+}
+
+bool isNestedUnderI64VAddMicrokernel(mlir::Operation *op) {
+  return static_cast<bool>(op->getParentOfType<I64VAddMicrokernelOp>());
+}
+
+mlir::LogicalResult verifyNestedI64DataflowOp(mlir::Operation *op) {
+  if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
+    return op->emitOpError()
+           << "must be nested directly in a tcrv_rvv.with_vl body";
+  if (!isNestedUnderI64VAddMicrokernel(op))
+    return op->emitOpError()
+           << "must be nested under tcrv_rvv.i64_vadd_microkernel; it is a "
+              "finite i64 microkernel dataflow op, not a standalone RVV "
+              "compute op";
+  if (op->getNumRegions() != 0)
+    return op->emitOpError() << "does not own regions";
+  return mlir::success();
 }
 
 mlir::LogicalResult verifyNestedI32DataflowOp(
@@ -625,6 +705,141 @@ verifyMicrokernelStructuredControlPlane(
   return mlir::success();
 }
 
+mlir::LogicalResult
+verifyI64VAddMicrokernelStructuredControlPlane(mlir::Operation *microkernel) {
+  mlir::Region &body = microkernel->getRegion(0);
+  if (body.empty() || !llvm::hasSingleElement(body))
+    return microkernel->emitOpError()
+           << "requires exactly one structured RVV control-plane body block";
+
+  mlir::Block &block = body.front();
+  if (block.getNumArguments() != 1)
+    return microkernel->emitOpError()
+           << "requires structured control-plane body to have exactly one "
+              "runtime index block argument for target/export-owned n/AVL";
+  if (!block.getArgument(0).getType().isIndex())
+    return microkernel->emitOpError()
+           << "requires structured control-plane body argument to have index "
+              "type for runtime n/AVL";
+
+  SetVLOp setvl;
+  WithVLOp withVL;
+  unsigned setvlCount = 0;
+  unsigned withVLCount = 0;
+  for (mlir::Operation &bodyOp : block) {
+    if (auto candidate = llvm::dyn_cast<SetVLOp>(bodyOp)) {
+      setvl = candidate;
+      ++setvlCount;
+      continue;
+    }
+    if (auto candidate = llvm::dyn_cast<WithVLOp>(bodyOp)) {
+      withVL = candidate;
+      ++withVLCount;
+      continue;
+    }
+    return microkernel->emitOpError()
+           << "structured control-plane body accepts only "
+              "tcrv_rvv.setvl and tcrv_rvv.with_vl direct operations; "
+              "unexpected operation '"
+           << bodyOp.getName().getStringRef() << "'";
+  }
+
+  if (setvlCount != 1 || withVLCount != 1)
+    return microkernel->emitOpError()
+           << "requires exactly one tcrv_rvv.setvl and exactly one "
+              "tcrv_rvv.with_vl in the structured control-plane body";
+  if (setvl.getAvl() != block.getArgument(0))
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.setvl AVL operand to be the runtime index "
+              "body argument, not descriptor-local element_count or a "
+              "constant";
+  if (withVL.getVl() != setvl.getVl())
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.with_vl to consume the !tcrv_rvv.vl token "
+              "produced by the body tcrv_rvv.setvl";
+
+  auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!withVLSew || !withVLLMUL ||
+      !withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName)) {
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.with_vl to carry explicit SEW/LMUL/policy "
+              "control metadata so emission can consume the structured body";
+  }
+  if (setvl.getSew() != 64 || setvl.getLmul() != "m1" ||
+      withVLSew.getInt() != 64 || withVLLMUL.getValue() != "m1")
+    return microkernel->emitOpError()
+           << "requires finite i64 vadd control-plane config SEW64/LMUL m1";
+
+  mlir::Region &withVLBody = withVL.getBody();
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.with_vl to own one body block";
+  if (withVLBody.front().getNumArguments() != 0)
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.with_vl body to have no block arguments; "
+              "runtime n/AVL/VL is carried by the enclosing control-plane "
+              "surface";
+
+  llvm::SmallVector<mlir::Operation *, 4> ops;
+  for (mlir::Operation &withVLOp : withVLBody.front())
+    ops.push_back(&withVLOp);
+  if (ops.size() != 4)
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
+              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, tcrv_rvv.i64_add, "
+              "tcrv_rvv.i64_store dataflow sequence";
+
+  auto lhsLoad = llvm::dyn_cast<I64LoadOp>(ops[0]);
+  auto rhsLoad = llvm::dyn_cast<I64LoadOp>(ops[1]);
+  auto add = llvm::dyn_cast<I64AddOp>(ops[2]);
+  auto store = llvm::dyn_cast<I64StoreOp>(ops[3]);
+  if (!lhsLoad || !rhsLoad || !add || !store)
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
+              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, tcrv_rvv.i64_add, "
+              "tcrv_rvv.i64_store dataflow sequence";
+
+  if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
+      add.getVl() != withVL.getVl() || store.getVl() != withVL.getVl())
+    return microkernel->emitOpError()
+           << "requires every finite RVV i64 dataflow op to consume the "
+              "!tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl";
+
+  auto lhsRole = lhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  auto rhsRole = rhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  auto outRole = store->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  if (!lhsRole || lhsRole.getValue() !=
+                      tianchenrv::support::stringifyRuntimeABIParameterRole(
+                          tianchenrv::support::RuntimeABIParameterRole::
+                              LHSInputBuffer))
+    return microkernel->emitOpError()
+           << "requires first tcrv_rvv.i64_load to reference runtime ABI role "
+              "'lhs-input-buffer'";
+  if (!rhsRole || rhsRole.getValue() !=
+                      tianchenrv::support::stringifyRuntimeABIParameterRole(
+                          tianchenrv::support::RuntimeABIParameterRole::
+                              RHSInputBuffer))
+    return microkernel->emitOpError()
+           << "requires second tcrv_rvv.i64_load to reference runtime ABI role "
+              "'rhs-input-buffer'";
+  if (!outRole || outRole.getValue() !=
+                      tianchenrv::support::stringifyRuntimeABIParameterRole(
+                          tianchenrv::support::RuntimeABIParameterRole::
+                              OutputBuffer))
+    return microkernel->emitOpError()
+           << "requires tcrv_rvv.i64_store to reference runtime ABI role "
+              "'output-buffer'";
+
+  if (add.getLhs() != lhsLoad.getLoaded() ||
+      add.getRhs() != rhsLoad.getLoaded() || store.getValue() != add.getSum())
+    return microkernel->emitOpError()
+           << "requires finite RVV i64 dataflow SSA chain "
+              "lhs-load,rhs-load -> add -> store";
+
+  return mlir::success();
+}
+
 } // namespace
 
 mlir::LogicalResult SetVLOp::verify() {
@@ -667,15 +882,11 @@ mlir::LogicalResult SetVLOp::verify() {
     return emitOpError()
            << "requires result type to be !tcrv_rvv.vl";
 
-  if (getSew() != 32)
+  if (!isSupportedRVVFirstSliceConfig(static_cast<std::int64_t>(getSew()),
+                                      getLmul()))
     return emitOpError()
-           << "requires SEW compile-time config 'sew' to be 32 for the "
-              "bounded RVV first slice";
-
-  if (!isSupportedI32LMUL(getLmul()))
-    return emitOpError()
-           << "requires LMUL compile-time config 'lmul' to be \"m1\" or "
-              "\"m2\" for the bounded RVV first slice";
+           << "requires bounded RVV first-slice compile-time config to be "
+              "SEW32 with LMUL \"m1\"/\"m2\" or SEW64 with LMUL \"m1\"";
 
   if (!getPolicy())
     return emitOpError()
@@ -724,16 +935,20 @@ mlir::LogicalResult WithVLOp::verify() {
               "consumed !tcrv_rvv.vl operand is the scope control value";
 
   auto sew = op->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
-  if (sew && sew.getInt() != 32)
-    return emitOpError()
-           << "requires optional SEW compile-time config 'sew' to be 32 for "
-              "the bounded RVV first slice";
-
   auto lmul = op->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  if (lmul && !isSupportedI32LMUL(lmul.getValue()))
+  if (sew && lmul &&
+      !isSupportedRVVFirstSliceConfig(sew.getInt(), lmul.getValue()))
     return emitOpError()
-           << "requires optional LMUL compile-time config 'lmul' to be "
-              "\"m1\" or \"m2\" for the bounded RVV first slice";
+           << "requires bounded RVV first-slice compile-time config to be "
+              "SEW32 with LMUL \"m1\"/\"m2\" or SEW64 with LMUL \"m1\"";
+  if (sew && !lmul)
+    return emitOpError()
+           << "requires optional 'lmul' metadata when optional 'sew' "
+              "metadata is present";
+  if (!sew && lmul)
+    return emitOpError()
+           << "requires optional 'sew' metadata when optional 'lmul' "
+              "metadata is present";
 
   auto policy = op->getAttrOfType<PolicyAttr>(kPolicyAttrName);
   if (op->hasAttr(kPolicyAttrName) && !policy)
@@ -980,6 +1195,130 @@ mlir::LogicalResult I32StoreOp::verify() {
     return mlir::failure();
 
   return mlir::success();
+}
+
+mlir::LogicalResult I64LoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i64_load keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and element_count as descriptor-local "
+                "microkernel metadata";
+
+    if (!isAllowedI64LoadAttr(attrName))
+      return emitOpError()
+             << "only accepts finite input buffer runtime ABI role attribute '"
+             << kBufferRoleAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 1 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires exactly one !tcrv_rvv.vl operand and one "
+              "bounded RVV i64 vector result";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedI64DataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyI64VectorTypeForWithVL(op, getLoaded(), "result")))
+    return mlir::failure();
+
+  llvm::StringSet<> seenRoles;
+  return verifyBoundedDataflowRoleAttr(
+      op, kBufferRoleAttrName,
+      {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+       tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer},
+      &seenRoles);
+}
+
+mlir::LogicalResult I64AddOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i64_add keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "element_count as descriptor-local microkernel metadata";
+
+    if (!isAllowedI64AddAttr(attrName))
+      return emitOpError()
+             << "does not accept dataflow attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs bounded RVV i64 vector operands, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i64 vector result";
+  if (!isI64M1Vector(getLhs().getType()) ||
+      !isI64M1Vector(getRhs().getType()) ||
+      !isI64M1Vector(getSum().getType()))
+    return emitOpError()
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i64m1";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getSum().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same bounded RVV "
+              "i64 vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedI64DataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyI64VectorTypeForWithVL(op, getSum(), "result");
+}
+
+mlir::LogicalResult I64StoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i64_store keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and element_count as descriptor-local "
+                "microkernel metadata";
+
+    if (!isAllowedI64StoreAttr(attrName))
+      return emitOpError()
+             << "only accepts finite output buffer runtime ABI role attribute '"
+             << kBufferRoleAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one bounded RVV i64 vector value operand, one "
+              "!tcrv_rvv.vl operand, and no results";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedI64DataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getValue(), "stored value")))
+    return mlir::failure();
+
+  llvm::StringSet<> seenRoles;
+  return verifyBoundedDataflowRoleAttr(
+      op, kBufferRoleAttrName,
+      {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer},
+      &seenRoles);
 }
 
 mlir::LogicalResult LoweringBoundaryOp::verify() {
@@ -1334,6 +1673,200 @@ verifyI32MicrokernelOp(mlir::Operation *op,
   return mlir::success();
 }
 
+mlir::LogicalResult verifyI64VAddMicrokernelOp(mlir::Operation *op) {
+  constexpr llvm::StringLiteral kMicrokernelOpName(
+      "tcrv_rvv.i64_vadd_microkernel");
+  auto emitOpError = [&]() { return op->emitOpError(); };
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    if (!isAllowedMicrokernelAttr(attr.getName().getValue()))
+      return emitOpError()
+             << "does not accept generic tensor/tile/benchmark or unknown "
+                "attribute '"
+             << attr.getName()
+             << "'; this op is exactly a bounded RVV i64 vector-add "
+                "microkernel";
+  }
+
+  if (hasMissingOrEmptyStringAttr(op, kSourceKernelAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kSourceKernelAttrName
+           << "'";
+  if (hasMissingOrEmptyStringAttr(op, kOriginAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kOriginAttrName
+           << "'";
+  if (hasMissingOrEmptyStringAttr(op, kRoleAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kRoleAttrName << "'";
+  if (hasMissingOrEmptyStringAttr(op, kRequiredMarchAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kRequiredMarchAttrName
+           << "'";
+  if (hasPresentButEmptyStringAttr(op, kSelectedMABIAttrName))
+    return emitOpError()
+           << "requires non-empty string attribute '" << kSelectedMABIAttrName
+           << "' when present";
+
+  for (llvm::StringRef attrName :
+       {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName,
+        kRequiredMarchAttrName, kSelectedMABIAttrName}) {
+    if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
+      if (mlir::failed(
+              verifyBoundedMetadata(op, attrName, attr.getValue().trim())))
+        return mlir::failure();
+  }
+
+  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (origin.getValue() != kRVVPluginName)
+    return emitOpError()
+           << "origin must be '" << kRVVPluginName
+           << "' because this executable microkernel is RVV plugin-local";
+
+  auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+  if (!isAllowedLoweringBoundaryRole(role.getValue()))
+    return emitOpError()
+           << "role must be '" << kDirectVariantRoleValue << "' or '"
+           << kDispatchCaseRoleValue
+           << "'; dispatch fallback executable RVV microkernels are not "
+              "admitted by this first slice";
+
+  auto elementCount =
+      op->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
+  if (!elementCount)
+    return emitOpError()
+           << "requires integer attribute '" << kElementCountAttrName << "'";
+  int64_t count = elementCount.getInt();
+  if (count <= 0 || count > 64)
+    return emitOpError()
+           << "element_count must be in the bounded smoke range [1, 64]";
+
+  auto requiredMarch =
+      op->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
+  if (!hasRVVVectorHint(requiredMarch.getValue()))
+    return emitOpError()
+           << "required_march must contain RVV vector evidence";
+
+  auto selectedVariant =
+      op->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+  if (!selectedVariant || selectedVariant.getValue().trim().empty())
+    return emitOpError()
+           << "requires non-empty variant symbol reference attribute '"
+           << kSelectedVariantAttrName << "'";
+
+  auto requiredCapabilities =
+      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
+  if (!requiredCapabilities || requiredCapabilities.empty())
+    return emitOpError()
+           << "requires non-empty array attribute '"
+           << kRequiredCapabilitiesAttrName
+           << "' containing capability symbol references";
+
+  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  if (!kernel)
+    return emitOpError() << "must be nested directly in a tcrv.exec.kernel";
+  if (op->getParentOp() != kernel.getOperation())
+    return emitOpError()
+           << "must be a direct child of the enclosing tcrv.exec.kernel";
+
+  auto sourceKernel =
+      op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
+  if (sourceKernel.getValue() != kernel.getSymName())
+    return emitOpError()
+           << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
+           << kernel.getSymName();
+
+  if (kernel.getBody().empty())
+    return emitOpError()
+           << "requires enclosing tcrv.exec.kernel to have a body block";
+
+  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+      capabilitiesOrError =
+          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+              kernel);
+  if (!capabilitiesOrError) {
+    std::string message = llvm::toString(capabilitiesOrError.takeError());
+    return emitOpError() << message;
+  }
+  const tianchenrv::support::TargetCapabilitySet &capabilities =
+      *capabilitiesOrError;
+
+  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
+  for (mlir::Operation &sibling : kernel.getBody().front()) {
+    auto variant =
+        llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling);
+    if (variant && variant.getSymName() == selectedVariant.getValue()) {
+      resolvedVariant = variant;
+      break;
+    }
+  }
+  if (!resolvedVariant)
+    return emitOpError()
+           << "selected_variant @" << selectedVariant.getValue()
+           << " must resolve to a direct sibling tcrv.exec.variant in the "
+              "enclosing tcrv.exec.kernel";
+
+  auto variantOrigin =
+      resolvedVariant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!variantOrigin || variantOrigin.getValue() != kRVVPluginName)
+    return emitOpError()
+           << "selected_variant must be owned by origin '" << kRVVPluginName
+           << "'";
+
+  auto variantRequiredMarch =
+      resolvedVariant->getAttrOfType<mlir::StringAttr>(
+          kRVVVariantRequiredMarchAttrName);
+  if (!variantRequiredMarch || variantRequiredMarch.getValue().trim().empty())
+    return emitOpError()
+           << "selected_variant requires non-empty string metadata '"
+           << kRVVVariantRequiredMarchAttrName << "'";
+  if (variantRequiredMarch.getValue().trim() != requiredMarch.getValue().trim())
+    return emitOpError()
+           << "required_march must match selected variant '"
+           << kRVVVariantRequiredMarchAttrName << "' metadata";
+
+  auto variantRequires =
+      resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!arrayAttrsEqual(requiredCapabilities, variantRequires))
+    return emitOpError()
+           << "required_capabilities must match selected variant requires "
+              "metadata";
+
+  bool requiresRVV = false;
+  for (mlir::Attribute requiredCapability : requiredCapabilities) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef)
+      return emitOpError()
+             << "attribute '" << kRequiredCapabilitiesAttrName
+             << "' must contain only capability symbol references";
+
+    const tianchenrv::support::CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbolRef.getValue());
+    if (!capability)
+      return emitOpError()
+             << "requires unknown capability @" << symbolRef.getValue()
+             << " in enclosing tcrv.exec.kernel";
+
+    if (!capability->isAvailable())
+      return emitOpError()
+             << "requires unavailable capability @" << symbolRef.getValue();
+
+    if (capability->satisfiesID(kRVVCapabilityID))
+      requiresRVV = true;
+  }
+
+  if (!requiresRVV)
+    return emitOpError()
+           << "required_capabilities must include capability id 'rvv'";
+
+  if (mlir::failed(verifyI64VAddMicrokernelStructuredControlPlane(op)))
+    return mlir::failure();
+
+  (void)kMicrokernelOpName;
+  return mlir::success();
+}
+
 mlir::LogicalResult I32VAddMicrokernelOp::verify() {
   return verifyI32MicrokernelOp(
       getOperation(),
@@ -1350,6 +1883,10 @@ mlir::LogicalResult I32VMulMicrokernelOp::verify() {
   return verifyI32MicrokernelOp(
       getOperation(),
       getI32MicrokernelFamilySpec(I32MicrokernelArithmetic::Mul));
+}
+
+mlir::LogicalResult I64VAddMicrokernelOp::verify() {
+  return verifyI64VAddMicrokernelOp(getOperation());
 }
 
 void TCRVRVVDialect::initialize() {

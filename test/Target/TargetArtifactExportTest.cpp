@@ -4,6 +4,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/DialectRegistry.h"
@@ -1701,8 +1702,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 8) {
-    llvm::errs() << "expected exactly 8 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 9) {
+    llvm::errs() << "expected exactly 9 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -1763,6 +1764,20 @@ int main() {
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
           getMulRuntimeABIContract().getCallableRoleRequirements()))
+    return 1;
+  auto i64VAddDescriptor =
+      tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor();
+  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i64-vadd-microkernel-c",
+                   "runtime-callable-c-source", "rvv-plugin",
+                   "rvv-explicit-i64-vadd-microkernel-c-source", 4,
+                   /*expectedDirectHelperRoute=*/true,
+                   /*expectedHandoffKind=*/{},
+                   "rvv-i64-vadd-microkernel-external-abi.v1",
+                   "rvv-i64-vadd-runtime-callable-c-function.v1"))
+    return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-rvv-i64-vadd-microkernel-c",
+          i64VAddDescriptor.getCallableRuntimeABIRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
