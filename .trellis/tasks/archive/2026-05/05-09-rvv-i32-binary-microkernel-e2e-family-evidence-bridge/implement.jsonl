@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and evidence boundaries for this task"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture red lines and ssh rvv evidence boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV direct i32 add/sub/mul microkernel route and descriptor contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, bundle metadata, and Python evidence runner boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and RVV evidence requirements for script tooling"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Claim-scope wording for local dry-run versus ssh rvv evidence"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first review for target/export evidence bridge work"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality check for avoiding target-specific core changes"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary check for keeping Python and exec dialect non-semantic"}
+{"file": ".trellis/tasks/archive/2026-05/05-09-descriptor-backed-i32-binary-linalg-frontend-lowering-contract/prd.md", "reason": "Prior completed family frontend-lowering context consumed by plan-and-export paths"}

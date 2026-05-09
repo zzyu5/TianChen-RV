@@ -3,9 +3,9 @@
 
 This helper is runner/evidence tooling only. It orchestrates existing
 TianChen-RV MLIR tools and optional ``ssh rvv`` compile/run evidence for the
-explicit ``tcrv_rvv.i32_vadd_microkernel`` first slice. It does not implement
-compiler IR, plugin decisions, capability modeling, lowering, emission, runtime
-ABI, correctness logic, or performance measurement.
+explicit RVV i32 add/sub/mul microkernel first slice. It does not implement
+compiler IR, plugin decisions, capability modeling, lowering, emission,
+runtime ABI, correctness logic, or performance measurement.
 """
 
 from __future__ import annotations
@@ -33,11 +33,7 @@ DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_e2e")
 DEFAULT_BUNDLE_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_bundle_e2e")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
-SUCCESS_MARKER = "tcrv_rvv_microkernel_ok"
-EXTERNAL_ABI_SUCCESS_MARKER = "tcrv_rvv_microkernel_external_abi_ok"
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
-BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP = "rvv-i32-vadd-microkernel-external-abi.v1"
-BUNDLE_EXTERNAL_ABI_NAME = "rvv-i32-vadd-runtime-callable-c-function.v1"
 
 RVV_RUNTIME_ABI_SIGNATURE = [
     {
@@ -66,84 +62,200 @@ RVV_RUNTIME_ABI_SIGNATURE = [
     },
 ]
 
-RVV_BUNDLE_ROUTES = {
-    "source": {
-        "route": "tcrv-export-rvv-microkernel-c",
+ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
+    "i32-vadd": {
+        "diagnostic_name": "i32-vadd",
+        "default_input": DEFAULT_INPUT,
+        "selected_variant": "rvv_first_slice",
+        "microkernel_op_name": "tcrv_rvv.i32_vadd_microkernel",
+        "arithmetic_op_name": "tcrv_rvv.i32_add",
+        "intrinsic": "__riscv_vadd_vv_i32m1",
+        "function_stem": "i32_vadd",
+        "result_vec": "sum_vec",
+        "c_operator": "+",
+        "source_route": "tcrv-export-rvv-microkernel-c",
+        "header_route": "tcrv-export-rvv-microkernel-header",
+        "object_route": "tcrv-export-rvv-microkernel-object",
+        "emission_kind": "rvv-explicit-i32-vadd-microkernel-c-source",
+        "runtime_abi": "rvv-i32-vadd-runtime-callable-c-abi.v1",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1",
+        "runtime_glue_role": "runtime-callable-i32-vadd-function",
+        "component_group": "rvv-i32-vadd-microkernel-external-abi.v1",
+        "external_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1",
+        "self_check_success_marker": "tcrv_rvv_microkernel_ok",
+        "external_abi_success_marker": "tcrv_rvv_microkernel_external_abi_ok",
+    },
+    "i32-vsub": {
+        "diagnostic_name": "i32-vsub",
+        "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir"),
+        "selected_variant": "rvv_sub_slice",
+        "microkernel_op_name": "tcrv_rvv.i32_vsub_microkernel",
+        "arithmetic_op_name": "tcrv_rvv.i32_sub",
+        "intrinsic": "__riscv_vsub_vv_i32m1",
+        "function_stem": "i32_vsub",
+        "result_vec": "difference_vec",
+        "c_operator": "-",
+        "source_route": "tcrv-export-rvv-i32-vsub-microkernel-c",
+        "header_route": "tcrv-export-rvv-i32-vsub-microkernel-header",
+        "object_route": "tcrv-export-rvv-i32-vsub-microkernel-object",
+        "emission_kind": "rvv-explicit-i32-vsub-microkernel-c-source",
+        "runtime_abi": "rvv-i32-vsub-runtime-callable-c-abi.v1",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1",
+        "runtime_glue_role": "runtime-callable-i32-vsub-function",
+        "component_group": "rvv-i32-vsub-microkernel-external-abi.v1",
+        "external_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1",
+        "self_check_success_marker": "tcrv_rvv_microkernel_ok",
+        "external_abi_success_marker": "tcrv_rvv_i32_vsub_microkernel_external_abi_ok",
+    },
+    "i32-vmul": {
+        "diagnostic_name": "i32-vmul",
+        "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir"),
+        "selected_variant": "rvv_mul_slice",
+        "microkernel_op_name": "tcrv_rvv.i32_vmul_microkernel",
+        "arithmetic_op_name": "tcrv_rvv.i32_mul",
+        "intrinsic": "__riscv_vmul_vv_i32m1",
+        "function_stem": "i32_vmul",
+        "result_vec": "product_vec",
+        "c_operator": "*",
+        "source_route": "tcrv-export-rvv-i32-vmul-microkernel-c",
+        "header_route": "tcrv-export-rvv-i32-vmul-microkernel-header",
+        "object_route": "tcrv-export-rvv-i32-vmul-microkernel-object",
+        "emission_kind": "rvv-explicit-i32-vmul-microkernel-c-source",
+        "runtime_abi": "rvv-i32-vmul-runtime-callable-c-abi.v1",
+        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
+        "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1",
+        "runtime_glue_role": "runtime-callable-i32-vmul-function",
+        "component_group": "rvv-i32-vmul-microkernel-external-abi.v1",
+        "external_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1",
+        "self_check_success_marker": "tcrv_rvv_microkernel_ok",
+        "external_abi_success_marker": "tcrv_rvv_i32_vmul_microkernel_external_abi_ok",
+    },
+}
+
+ACTIVE_ARITHMETIC_FAMILY = ARITHMETIC_FAMILY_SPECS["i32-vadd"]
+SUCCESS_MARKER = str(ACTIVE_ARITHMETIC_FAMILY["self_check_success_marker"])
+EXTERNAL_ABI_SUCCESS_MARKER = str(
+    ACTIVE_ARITHMETIC_FAMILY["external_abi_success_marker"]
+)
+BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP = str(ACTIVE_ARITHMETIC_FAMILY["component_group"])
+BUNDLE_EXTERNAL_ABI_NAME = str(ACTIVE_ARITHMETIC_FAMILY["external_abi_name"])
+
+
+def make_required_handoff(family: dict[str, str | Path]) -> dict[str, str]:
+    return {
+        "origin": "rvv-plugin",
+        "emission_status": "supported",
+        "emission_kind": str(family["emission_kind"]),
+        "lowering_pipeline": str(family["source_route"]),
+        "lowering_boundary": "tcrv_rvv.lowering_boundary",
+        "runtime_abi": str(family["runtime_abi"]),
+        "runtime_abi_kind": str(family["runtime_abi_kind"]),
+        "runtime_abi_name": str(family["runtime_abi_name"]),
+        "runtime_glue_role": str(family["runtime_glue_role"]),
         "artifact_kind": "runtime-callable-c-source",
-        "component_group": BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP,
-        "component_role": "source",
-        "external_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
-        "owner": "rvv-plugin",
-        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
-        "runtime_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
-        "evidence_role": "compiler-artifact",
-    },
-    "header": {
-        "route": "tcrv-export-rvv-microkernel-header",
-        "artifact_kind": "runtime-callable-c-header",
-        "component_group": BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP,
-        "component_role": "header",
-        "external_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
-        "owner": "rvv-plugin",
-        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
-        "runtime_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
-        "evidence_role": "header-declaration",
-    },
-    "object": {
-        "route": "tcrv-export-rvv-microkernel-object",
-        "artifact_kind": "riscv-elf-relocatable-object",
-        "component_group": BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP,
-        "component_role": "object",
-        "external_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
-        "owner": "rvv-plugin",
-        "runtime_abi_kind": "rvv-runtime-callable-c-abi",
-        "runtime_abi_name": BUNDLE_EXTERNAL_ABI_NAME,
-        "evidence_role": "relocatable-object",
-    },
-}
+    }
 
-EXPECTED_DATAFLOW_PROVENANCE = {
-    "dataflow_abi_roles": [
-        "lhs_load.buffer_role=lhs-input-buffer",
-        "rhs_load.buffer_role=rhs-input-buffer",
-        "store.buffer_role=output-buffer",
-        "runtime n remains the target/export-owned runtime element-count ABI parameter",
-    ],
-    "dataflow_emission_step[0]": [
-        "op=tcrv_rvv.i32_load",
-        "role=lhs-input-buffer",
-        "result=lhs_vec",
-    ],
-    "dataflow_emission_step[1]": [
-        "op=tcrv_rvv.i32_load",
-        "role=rhs-input-buffer",
-        "result=rhs_vec",
-    ],
-    "dataflow_emission_step[2]": [
-        "op=tcrv_rvv.i32_add",
-        "lhs=lhs_vec",
-        "rhs=rhs_vec",
-        "result=sum_vec",
-    ],
-    "dataflow_emission_step[3]": [
-        "op=tcrv_rvv.i32_store",
-        "role=output-buffer",
-        "value=sum_vec",
-    ],
-}
 
-REQUIRED_HANDOFF = {
-    "origin": "rvv-plugin",
-    "emission_status": "supported",
-    "emission_kind": "rvv-explicit-i32-vadd-microkernel-c-source",
-    "lowering_pipeline": "tcrv-export-rvv-microkernel-c",
-    "lowering_boundary": "tcrv_rvv.lowering_boundary",
-    "runtime_abi": "rvv-i32-vadd-runtime-callable-c-abi.v1",
-    "runtime_abi_kind": "rvv-runtime-callable-c-abi",
-    "runtime_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1",
-    "runtime_glue_role": "runtime-callable-i32-vadd-function",
-    "artifact_kind": "runtime-callable-c-source",
-}
+def make_rvv_bundle_routes(
+    family: dict[str, str | Path],
+) -> dict[str, dict[str, str]]:
+    component_group = str(family["component_group"])
+    external_abi_name = str(family["external_abi_name"])
+    runtime_abi_kind = str(family["runtime_abi_kind"])
+    return {
+        "source": {
+            "route": str(family["source_route"]),
+            "artifact_kind": "runtime-callable-c-source",
+            "component_group": component_group,
+            "component_role": "source",
+            "external_abi_name": external_abi_name,
+            "owner": "rvv-plugin",
+            "runtime_abi_kind": runtime_abi_kind,
+            "runtime_abi_name": external_abi_name,
+            "evidence_role": "compiler-artifact",
+        },
+        "header": {
+            "route": str(family["header_route"]),
+            "artifact_kind": "runtime-callable-c-header",
+            "component_group": component_group,
+            "component_role": "header",
+            "external_abi_name": external_abi_name,
+            "owner": "rvv-plugin",
+            "runtime_abi_kind": runtime_abi_kind,
+            "runtime_abi_name": external_abi_name,
+            "evidence_role": "header-declaration",
+        },
+        "object": {
+            "route": str(family["object_route"]),
+            "artifact_kind": "riscv-elf-relocatable-object",
+            "component_group": component_group,
+            "component_role": "object",
+            "external_abi_name": external_abi_name,
+            "owner": "rvv-plugin",
+            "runtime_abi_kind": runtime_abi_kind,
+            "runtime_abi_name": external_abi_name,
+            "evidence_role": "relocatable-object",
+        },
+    }
+
+
+RVV_BUNDLE_ROUTES = make_rvv_bundle_routes(ACTIVE_ARITHMETIC_FAMILY)
+
+
+def make_expected_dataflow_provenance(
+    family: dict[str, str | Path],
+) -> dict[str, list[str]]:
+    result_vec = str(family["result_vec"])
+    return {
+        "dataflow_abi_roles": [
+            "lhs_load.buffer_role=lhs-input-buffer",
+            "rhs_load.buffer_role=rhs-input-buffer",
+            "store.buffer_role=output-buffer",
+            "runtime n remains the target/export-owned runtime element-count ABI parameter",
+        ],
+        "dataflow_emission_step[0]": [
+            "op=tcrv_rvv.i32_load",
+            "role=lhs-input-buffer",
+            "result=lhs_vec",
+        ],
+        "dataflow_emission_step[1]": [
+            "op=tcrv_rvv.i32_load",
+            "role=rhs-input-buffer",
+            "result=rhs_vec",
+        ],
+        "dataflow_emission_step[2]": [
+            "op=" + str(family["arithmetic_op_name"]),
+            "lhs=lhs_vec",
+            "rhs=rhs_vec",
+            "result=" + result_vec,
+        ],
+        "dataflow_emission_step[3]": [
+            "op=tcrv_rvv.i32_store",
+            "role=output-buffer",
+            "value=" + result_vec,
+        ],
+    }
+
+
+def configure_arithmetic_family(family_name: str) -> None:
+    global ACTIVE_ARITHMETIC_FAMILY
+    global SUCCESS_MARKER
+    global EXTERNAL_ABI_SUCCESS_MARKER
+    global BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP
+    global BUNDLE_EXTERNAL_ABI_NAME
+    global RVV_BUNDLE_ROUTES
+
+    family = ARITHMETIC_FAMILY_SPECS.get(family_name)
+    if family is None:
+        raise BridgeError(f"unsupported arithmetic family: {family_name}")
+    ACTIVE_ARITHMETIC_FAMILY = family
+    SUCCESS_MARKER = str(family["self_check_success_marker"])
+    EXTERNAL_ABI_SUCCESS_MARKER = str(family["external_abi_success_marker"])
+    BUNDLE_EXTERNAL_ABI_COMPONENT_GROUP = str(family["component_group"])
+    BUNDLE_EXTERNAL_ABI_NAME = str(family["external_abi_name"])
+    RVV_BUNDLE_ROUTES = make_rvv_bundle_routes(family)
 
 SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -540,17 +652,32 @@ def parse_manifest_paths(manifest_text: str) -> list[dict[str, str]]:
 def find_supported_handoff(manifest_text: str) -> dict[str, str]:
     reject_secret_like_text("emission manifest", manifest_text)
     matches: list[dict[str, str]] = []
+    required_handoff = make_required_handoff(ACTIVE_ARITHMETIC_FAMILY)
     for path in parse_manifest_paths(manifest_text):
-        if all(path.get(key) == value for key, value in REQUIRED_HANDOFF.items()):
+        if all(path.get(key) == value for key, value in required_handoff.items()):
             matches.append(path)
 
     if not matches:
+        for path in parse_manifest_paths(manifest_text):
+            for family_name, family in ARITHMETIC_FAMILY_SPECS.items():
+                if family is ACTIVE_ARITHMETIC_FAMILY:
+                    continue
+                other_handoff = make_required_handoff(family)
+                if all(path.get(key) == value for key, value in other_handoff.items()):
+                    raise BridgeError(
+                        "manifest contains stale RVV microkernel handoff for "
+                        f"{family_name}; expected "
+                        f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
+                    )
         raise BridgeError(
-            "manifest missing supported bounded RVV microkernel source-export handoff"
+            "manifest missing supported bounded RVV "
+            f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} microkernel "
+            "source-export handoff"
         )
     if len(matches) != 1:
         raise BridgeError(
-            "manifest must contain exactly one supported bounded RVV microkernel handoff"
+            "manifest must contain exactly one supported bounded RVV "
+            f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} microkernel handoff"
         )
     return matches[0]
 
@@ -570,12 +697,19 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     if not source.strip():
         raise BridgeError("generated RVV microkernel C source is empty")
     reject_secret_like_text("generated RVV microkernel C source", source)
+    family_name = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
     required_snippets = [
         "#include <riscv_vector.h>",
         "__riscv_vsetvl_e32m1",
         "__riscv_vle32_v_i32m1",
-        "__riscv_vadd_vv_i32m1",
+        str(ACTIVE_ARITHMETIC_FAMILY["intrinsic"]),
         "__riscv_vse32_v_i32m1",
+        "/* executable_microkernel: "
+        + str(ACTIVE_ARITHMETIC_FAMILY["microkernel_op_name"])
+        + " */",
+        "/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> "
+        + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+        + " -> tcrv_rvv.i32_store */",
     ]
     if require_harness:
         required_snippets.extend(
@@ -594,9 +728,32 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     missing = [snippet for snippet in required_snippets if snippet not in source]
     if missing:
         raise BridgeError(
-            "generated RVV microkernel C source missing required snippets: "
+            "generated RVV "
+            + family_name
+            + " microkernel C source missing required snippets: "
             + ", ".join(missing)
         )
+    for other_name, other_family in ARITHMETIC_FAMILY_SPECS.items():
+        if other_family is ACTIVE_ARITHMETIC_FAMILY:
+            continue
+        stale_snippets = [
+            str(other_family["intrinsic"]),
+            "executable_microkernel: " + str(other_family["microkernel_op_name"]),
+            "op=" + str(other_family["arithmetic_op_name"]),
+            "result=" + str(other_family["result_vec"]),
+            str(other_family["runtime_abi_name"]),
+            str(other_family["runtime_glue_role"]),
+        ]
+        leaked = [snippet for snippet in stale_snippets if snippet in source]
+        if leaked:
+            raise BridgeError(
+                "generated RVV "
+                + family_name
+                + " microkernel C source contains stale "
+                + other_name
+                + " metadata: "
+                + ", ".join(leaked)
+            )
     selected_march = parse_source_comment(source, "selected_march", required=True)
     selected_mabi = parse_source_comment(source, "selected_mabi", required=False)
     if "v" not in selected_march.lower():
@@ -611,7 +768,9 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
 
 def validate_dataflow_provenance(source: str) -> dict[str, str]:
     provenance: dict[str, str] = {}
-    for field, required_fragments in EXPECTED_DATAFLOW_PROVENANCE.items():
+    for field, required_fragments in make_expected_dataflow_provenance(
+        ACTIVE_ARITHMETIC_FAMILY
+    ).items():
         value = parse_source_comment(source, field, required=True)
         missing = [fragment for fragment in required_fragments if fragment not in value]
         if missing:
@@ -659,7 +818,12 @@ def validate_generated_header(header: str) -> str:
     if len(prototypes) != 1:
         raise BridgeError(
             "generated RVV microkernel C header must contain exactly one "
-            "runtime-callable i32-vadd prototype"
+            f"runtime-callable {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} prototype"
+        )
+    if str(ACTIVE_ARITHMETIC_FAMILY["function_stem"]) not in prototypes[0]:
+        raise BridgeError(
+            "generated RVV microkernel C header prototype does not match "
+            f"selected arithmetic family {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
         )
     if re.search(r"(?m)^\s*void\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^;]*\)\s*\{", header):
         raise BridgeError("generated RVV microkernel C header must not contain a function body")
@@ -683,6 +847,8 @@ def build_external_caller_source(
         raise BridgeError("generated header function name is not a valid C identifier")
     validate_bundle_file_name(header_file_name)
     escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
+    c_operator = str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+    family_name = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
     return f"""\
 #include <stddef.h>
 #include <stdint.h>
@@ -700,8 +866,8 @@ int main(void) {{
 
   {function_name}(lhs, rhs, out, (size_t)kElements);
   for (size_t index = 0; index < (size_t)kElements; ++index) {{
-    if (out[index] != lhs[index] + rhs[index]) {{
-      fprintf(stderr, "rvv microkernel external ABI mismatch at %zu\\n", index);
+    if (out[index] != lhs[index] {c_operator} rhs[index]) {{
+      fprintf(stderr, "rvv {family_name} microkernel external ABI mismatch at %zu\\n", index);
       return 3;
     }}
   }}
@@ -901,15 +1067,19 @@ def require_rvv_runtime_abi_signature(
 
     if parameters != RVV_RUNTIME_ABI_SIGNATURE:
         raise BridgeError(
-            f"bundle record route {record.get('route')} runtime ABI signature does not match the RVV i32-vadd callable ABI"
+            f"bundle record route {record.get('route')} runtime ABI signature "
+            "does not match the RVV "
+            f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} callable ABI"
         )
     return parameters
 
 
 def require_rvv_component_metadata(record: dict[str, Any]) -> None:
-    if record.get("selected_variant") != "rvv_first_slice":
+    expected_variant = str(ACTIVE_ARITHMETIC_FAMILY["selected_variant"])
+    if record.get("selected_variant") != expected_variant:
         raise BridgeError(
-            f"bundle record route {record.get('route')} must preserve selected_variant @rvv_first_slice"
+            f"bundle record route {record.get('route')} must preserve "
+            f"selected_variant @{expected_variant}"
         )
     if record.get("role") != "direct variant":
         raise BridgeError(
@@ -921,9 +1091,10 @@ def require_rvv_component_metadata(record: dict[str, Any]) -> None:
             f"bundle record route {record.get('route')} must preserve exactly one selected component"
         )
     component = components[0]
-    if component.get("selected_variant") != "rvv_first_slice":
+    if component.get("selected_variant") != expected_variant:
         raise BridgeError(
-            f"bundle record route {record.get('route')} component must preserve rvv_first_slice"
+            f"bundle record route {record.get('route')} component must "
+            f"preserve {expected_variant}"
         )
     if component.get("role") != "direct variant":
         raise BridgeError(
@@ -1611,6 +1782,12 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
     return Path(args.artifact_root)
 
 
+def selected_input_path(args: argparse.Namespace) -> Path:
+    if args.input:
+        return Path(args.input)
+    return Path(ACTIVE_ARITHMETIC_FAMILY["default_input"])
+
+
 def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root()
     if args.evidence_note:
@@ -1622,10 +1799,11 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     )
     commands: list[dict[str, Any]] = []
 
-    input_path = resolve_repo_path(Path(args.input), root)
+    selected_input = selected_input_path(args)
+    input_path = resolve_repo_path(selected_input, root)
     if not input_path.exists():
-        raise BridgeError(f"input MLIR does not exist: {args.input}")
-    reject_secret_like_text("input MLIR path", str(args.input))
+        raise BridgeError(f"input MLIR does not exist: {selected_input}")
+    reject_secret_like_text("input MLIR path", str(selected_input))
 
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
     local_clang = ensure_local_clang_on_path()
@@ -1754,6 +1932,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "run_id": run_id,
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
+        "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_pipeline": planned_pipeline,
@@ -1779,6 +1958,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "function": header_function_name,
             "runtime_abi_signature": RVV_RUNTIME_ABI_SIGNATURE,
             "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
+            "arithmetic_check": "lhs "
+            + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+            + " rhs",
             "runtime_element_counts": [16],
         },
         "selected_compile_flags": remote_compile_flags(source_flags),
@@ -1790,7 +1972,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "claim_scope": (
             "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
             if args.dry_run
-            else "bounded RVV i32-vadd target-artifact bundle external caller correctness only"
+            else "bounded RVV "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+            + " target-artifact bundle external caller correctness only"
         ),
     }
 
@@ -1859,10 +2043,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     )
     commands: list[dict[str, Any]] = []
 
-    input_path = resolve_repo_path(Path(args.input), root)
+    selected_input = selected_input_path(args)
+    input_path = resolve_repo_path(selected_input, root)
     if not input_path.exists():
-        raise BridgeError(f"input MLIR does not exist: {args.input}")
-    reject_secret_like_text("input MLIR path", str(args.input))
+        raise BridgeError(f"input MLIR does not exist: {selected_input}")
+    reject_secret_like_text("input MLIR path", str(selected_input))
 
     tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
@@ -2002,6 +2187,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "run_id": run_id,
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
+        "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "manifest_handoff": True,
@@ -2038,9 +2224,13 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "claim_scope": (
             "local dry-run verifies compiler-tool handoff and source export only"
             if args.dry_run
-            else "bounded generated RVV i32-vadd self-check executable correctness only"
+            else "bounded generated RVV "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+            + " self-check executable correctness only"
             if use_harness
-            else "bounded generated RVV i32-vadd header plus object external caller correctness only"
+            else "bounded generated RVV "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+            + " header plus object external caller correctness only"
         ),
     }
     if not args.dry_run:
@@ -2048,6 +2238,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             evidence["self_check"] = {
                 "kind": "generated-c-self-check-main",
                 "success_marker": SUCCESS_MARKER,
+                "arithmetic_family": str(
+                    ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]
+                ),
             }
         else:
             evidence["artifacts"].update(
@@ -2061,6 +2254,16 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             )
             evidence["header_function_name"] = header_function_name
             evidence["local_object_export_clang"] = sanitize_text(local_clang)
+            evidence["external_caller"] = {
+                "kind": "generated-c-caller",
+                "function": header_function_name,
+                "runtime_abi_signature": RVV_RUNTIME_ABI_SIGNATURE,
+                "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
+                "arithmetic_check": "lhs "
+                + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+                + " rhs",
+                "runtime_element_counts": [16],
+            }
 
     if not args.dry_run:
         try:
@@ -2114,6 +2317,7 @@ def assert_self_test(condition: bool, message: str) -> None:
 
 
 def run_self_test() -> None:
+    configure_arithmetic_family("i32-vadd")
     supported_manifest = """
 tianchenrv.emission_manifest.version: 1
 module: "self_test"
@@ -2151,6 +2355,18 @@ kernel @rvv_microkernel_manifest
         assert_self_test("missing supported bounded" in str(error), "missing handoff error changed")
     else:
         raise AssertionError("manifest without supported handoff was accepted")
+
+    configure_arithmetic_family("i32-vsub")
+    try:
+        find_supported_handoff(supported_manifest)
+    except BridgeError as error:
+        assert_self_test(
+            "stale RVV microkernel handoff for i32-vadd" in str(error),
+            "stale vadd handoff error changed",
+        )
+    else:
+        raise AssertionError("stale vadd handoff was accepted for vsub")
+    configure_arithmetic_family("i32-vadd")
 
     unsafe_text = (
         "Authorization: Bearer abc.def.ghi\n"
@@ -2203,6 +2419,8 @@ kernel @rvv_microkernel_manifest
     sample_source = """\
 /* selected_march: rv64gcv */
 /* selected_mabi: lp64d */
+/* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
 /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
@@ -2237,6 +2455,83 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
     else:
         raise AssertionError("source without complete dataflow provenance was accepted")
 
+    configure_arithmetic_family("i32-vsub")
+    sample_vsub_source = """\
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+/* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
+/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
+/* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
+/* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
+/* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec */
+/* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec */
+#include <riscv_vector.h>
+void f(void) {
+  __riscv_vsetvl_e32m1;
+  __riscv_vle32_v_i32m1;
+  __riscv_vsub_vv_i32m1;
+  __riscv_vse32_v_i32m1;
+}
+"""
+    vsub_flags = validate_generated_source(sample_vsub_source, require_harness=False)
+    assert_self_test(
+        vsub_flags["dataflow_provenance"]["dataflow_emission_step[2]"]
+        == "op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec",
+        "dataflow provenance parser lost subtract step",
+    )
+    vsub_caller = build_external_caller_source(
+        "tcrv_rvv_i32_vsub_microkernel_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vsub-microkernel-header.h",
+    )
+    assert_self_test(
+        "lhs[index] - rhs[index]" in vsub_caller,
+        "vsub external caller did not check subtract semantics",
+    )
+    assert_self_test(
+        EXTERNAL_ABI_SUCCESS_MARKER in vsub_caller,
+        "vsub external ABI caller success marker missing",
+    )
+
+    configure_arithmetic_family("i32-vmul")
+    sample_vmul_source = """\
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+/* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
+/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
+/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
+/* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
+/* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
+/* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
+/* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=product_vec */
+#include <riscv_vector.h>
+void f(void) {
+  __riscv_vsetvl_e32m1;
+  __riscv_vle32_v_i32m1;
+  __riscv_vmul_vv_i32m1;
+  __riscv_vse32_v_i32m1;
+}
+"""
+    vmul_flags = validate_generated_source(sample_vmul_source, require_harness=False)
+    assert_self_test(
+        vmul_flags["dataflow_provenance"]["dataflow_emission_step[2]"]
+        == "op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec",
+        "dataflow provenance parser lost multiply step",
+    )
+    vmul_caller = build_external_caller_source(
+        "tcrv_rvv_i32_vmul_microkernel_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vmul-microkernel-header.h",
+    )
+    assert_self_test(
+        "lhs[index] * rhs[index]" in vmul_caller,
+        "vmul external caller did not check multiply semantics",
+    )
+    assert_self_test(
+        EXTERNAL_ABI_SUCCESS_MARKER in vmul_caller,
+        "vmul external ABI caller success marker missing",
+    )
+
+    configure_arithmetic_family("i32-vadd")
     remote_command = build_remote_compile_command(
         "/tmp/tianchenrv_rvv_microkernel_e2e_self_test",
         {"selected_march": "rv64gcv", "selected_mabi": "lp64d"},
@@ -2283,7 +2578,13 @@ void tcrv_rvv_i32_vadd_microkernel_self_test(const int32_t *lhs, const int32_t *
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", default=str(DEFAULT_INPUT))
+    parser.add_argument("--input", default="")
+    parser.add_argument(
+        "--arithmetic-family",
+        choices=sorted(ARITHMETIC_FAMILY_SPECS),
+        default="i32-vadd",
+        help="Bounded RVV direct microkernel arithmetic family to validate",
+    )
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))
     parser.add_argument("--run-id", default="")
     parser.add_argument("--overwrite", action="store_true")
@@ -2325,6 +2626,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    configure_arithmetic_family(args.arithmetic_family)
     if args.self_test:
         run_self_test()
         return 0
@@ -2358,6 +2660,7 @@ def main(argv: list[str]) -> int:
         json.dumps(
             {
                 "artifact_dir": evidence["artifact_dir"],
+                "arithmetic_family": evidence.get("arithmetic_family", ""),
                 "bundle_export_mode": evidence.get("bundle_export_mode", ""),
                 "mode": evidence["mode"],
                 "status": evidence["status"],

@@ -509,3 +509,140 @@ export the bounded manifest handoff, and export deterministic RVV C source;
 the source is standalone only when explicit harness mode is requested. It is
 not RVV runtime, correctness, generic lowering, runtime ABI, or performance
 evidence.
+
+## Scenario: RVV Direct I32 Binary Microkernel Evidence Bridge
+
+### 1. Scope / Trigger
+
+Trigger: `scripts/rvv_microkernel_e2e.py` is used to collect local dry-run or
+real `ssh rvv` evidence for the bounded direct RVV i32 add/sub/mul microkernel
+routes. This helper is Python runner/evidence tooling only. It must consume
+compiler-emitted manifest, source, header, object, and bundle metadata; it must
+not define compiler IR, plugin decisions, lowering, emission, route selection,
+runtime ABI shape, or arithmetic semantics.
+
+### 2. Signatures
+
+Primary command surface:
+
+```text
+python3 scripts/rvv_microkernel_e2e.py
+  [--arithmetic-family=i32-vadd|i32-vsub|i32-vmul]
+  [--dry-run]
+  [--generic-route]
+  [--self-check-harness]
+  [--use-target-artifact-bundle]
+  [--use-plan-and-export-bundle-front-door]
+  [--ssh-target rvv]
+```
+
+The default arithmetic family is `i32-vadd` for compatibility. Non-add
+families must use the existing bounded RVV direct microkernel fixtures or
+compiler front doors that already emit selected `rvv-plugin` paths and
+family-correct artifact routes.
+
+### 3. Contracts
+
+- The finite supported family set is exactly `i32-vadd`, `i32-vsub`, and
+  `i32-vmul`.
+- The helper must validate selected compiler-emitted fields against the chosen
+  family: emission kind, source/header/object route ids, runtime ABI kind/name,
+  runtime glue role, microkernel op name, arithmetic op name, RVV intrinsic,
+  result vector name, bundle `component_group`, bundle `component_role`,
+  `external_abi_name`, and ordered `runtime_abi_parameter[index]` records.
+- Bundle mode must discover source/header/object file names from
+  `tianchenrv-target-artifact-bundle.index`, not from hardcoded file-name
+  guesses.
+- The generated external C caller may check family arithmetic, but only as
+  evidence-runner caller construction from the compiler-emitted header
+  prototype and ABI signature. The caller must check `lhs + rhs` for add,
+  `lhs - rhs` for sub, and `lhs * rhs` for mul.
+- Dry-run evidence is local compiler/artifact tooling evidence only.
+- Runtime/correctness evidence requires real `ssh rvv` execution where the
+  generated caller is compiled and run against generated artifacts and the
+  bounded family-specific success marker is observed.
+- Evidence JSON and command summaries must record the selected arithmetic
+  family, sanitized artifact paths, hashes, bounded command metadata, selected
+  claim scope, and no credentials, raw URLs, throughput, latency, or
+  performance claims.
+
+### 4. Validation & Error Matrix
+
+- Unsupported `--arithmetic-family` value -> CLI rejects before running tools.
+- Selected family sees another family's supported manifest handoff -> fail with
+  stale-family diagnostic before source/header/object evidence is accepted.
+- Generated source lacks the selected family intrinsic, microkernel op,
+  arithmetic op, or dataflow provenance -> fail before evidence JSON success.
+- Generated source contains stale add/sub/mul metadata for another family ->
+  fail before evidence JSON success.
+- Bundle index lacks source/header/object records for the selected family,
+  lacks component metadata, has mismatched `external_abi_name`, duplicates
+  runtime ABI roles, or disagrees on ordered ABI parameters -> fail before
+  external caller construction.
+- Header prototype does not match the selected family function stem or ordered
+  ABI signature -> fail before external caller construction.
+- `--use-plan-and-export-bundle-front-door` without
+  `--use-target-artifact-bundle` -> CLI error.
+- `--use-target-artifact-bundle` combined with `--generic-route` or
+  `--self-check-harness` -> CLI error.
+- Secret-like evidence note, ssh option, command output, artifact metadata, or
+  URL-like text -> reject or redact before persisted evidence can claim
+  success.
+- Real `ssh rvv` compile/link/run fails or the family success marker is absent
+  -> evidence status must be failure; do not fabricate runtime evidence.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `--dry-run --arithmetic-family=i32-vsub` consumes a vsub selected path,
+  validates `tcrv-export-rvv-i32-vsub-microkernel-c`, observes
+  `__riscv_vsub_vv_i32m1`, and writes a no-runtime-claim evidence JSON.
+- Good: `--use-target-artifact-bundle --arithmetic-family=i32-vmul` consumes
+  source/header/object bundle records whose component group and external ABI
+  name are vmul-specific, then builds a caller that checks `lhs * rhs`.
+- Good: real `--use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i32-vsub --ssh-target rvv` compiles and runs the generated
+  external caller against both source-built and bundle object artifacts on
+  `ssh rvv`, observing the bounded vsub marker.
+- Base: default `--dry-run` remains i32-vadd-compatible and preserves existing
+  source-export evidence behavior.
+- Bad: `--arithmetic-family=i32-vsub` accepts a vadd manifest handoff, vadd
+  runtime ABI name, vadd component group, `__riscv_vadd_vv_i32m1`, or caller
+  check `lhs + rhs`.
+
+### 6. Tests Required
+
+- Script self-test must exercise the family table, handoff parsing,
+  stale-family rejection, source dataflow validation, external caller arithmetic,
+  artifact path restrictions, and redaction.
+- Local lit coverage must include default vadd dry-run compatibility, vsub and
+  vmul dry-run family selection, stale vadd metadata rejection for a non-add
+  selection, and secret-like metadata rejection.
+- Bundle lit coverage, gated on local RVV object clang when needed, must include
+  at least one non-add selected bundle and one plan-and-export bundle front door
+  path, checking compiler-emitted component metadata and generated external
+  caller arithmetic.
+- Focused target/export lit coverage must continue to prove C++ exporters emit
+  family-correct direct RVV source/header/object routes.
+- Completion evidence must include `git diff --check`, script self-test,
+  focused dry-runs for vsub/vmul, focused lit, full `check-tianchenrv` when
+  feasible, and at least one real non-add `ssh rvv` run when the remote remains
+  reachable.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+python evidence helper chooses route ids from file names, accepts a vadd
+manifest for --arithmetic-family=i32-vsub, and generates a caller that checks
+lhs + rhs.
+```
+
+Correct:
+
+```text
+python evidence helper selects i32-vsub only as an evidence-runner
+configuration, validates compiler-emitted vsub route/runtime ABI/component
+metadata, rejects stale vadd handoff fields, and generates a caller that checks
+lhs - rhs.
+```

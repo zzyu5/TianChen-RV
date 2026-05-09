@@ -59,16 +59,17 @@ The built-in RVV first slice registers the concrete MLIR namespace
 surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, `tcrv_rvv.setvl` for
 bounded runtime AVL-to-VL control, and `tcrv_rvv.with_vl` for the matching
 bounded VL scope region, plus finite `tcrv_rvv.i32_load`,
-`tcrv_rvv.i32_add`, and `tcrv_rvv.i32_store` dataflow ops for the current
-i32-vadd microkernel export route and
+`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, `tcrv_rvv.i32_mul`, and
+`tcrv_rvv.i32_store` dataflow ops for the current i32 add/sub/mul
+microkernel export routes and
 `tcrv_rvv.lowering_boundary` for selected RVV variants. The setvl surface is
 control-plane IR only: it consumes a runtime AVL
 SSA value, returns a `!tcrv_rvv.vl` token, and carries bounded first-slice
 SEW/LMUL/policy metadata. The with_vl surface consumes that runtime VL token and
 creates a single-block plugin-local region. Its first bounded dataflow payload
-is exactly the i32-vadd lhs-load, rhs-load, add, output-store sequence consumed
-by the RVV exporter; this is not a generic RVV memory model, arbitrary vector
-lowering, full runtime ABI, or evidence. The lowering boundary is
+is exactly the i32 add/sub/mul lhs-load, rhs-load, arithmetic, output-store
+sequence consumed by the RVV exporter; this is not a generic RVV memory model,
+arbitrary vector lowering, full runtime ABI, or evidence. The lowering boundary is
 pre-executable compiler metadata only: these
 RVV surfaces do not by themselves lower to LLVM/RISC-V, create runtime ABI glue,
 generate objects, run hardware, prove correctness, or measure performance.
@@ -145,34 +146,38 @@ runtime integration, correctness evidence, or performance evidence.
 
 The `tcrv-translate --tcrv-export-rvv-microkernel-c` tool exports a distinct
 deterministic library-style C source artifact for exactly one selected
-`tcrv_rvv.i32_vadd_microkernel` op attached to a selected RVV path. This is the
+RVV i32 add/sub/mul microkernel op attached to a selected RVV path. This is the
 first plugin-local RVV executable microkernel slice: post-planning MLIR must
 contain a selected `rvv-plugin` variant, matching `tcrv_rvv.lowering_boundary`,
-preserved selected march metadata, and the bounded RVV microkernel op. The op
-may come from an explicit fixture or from the RVV plugin materializing the
-finite `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` selected
-variant descriptor during the execution-planning pipeline. The microkernel op
-now carries a structured RVV body with one runtime index body argument for
+preserved selected march metadata, and one bounded RVV microkernel op
+(`tcrv_rvv.i32_vadd_microkernel`, `tcrv_rvv.i32_vsub_microkernel`, or
+`tcrv_rvv.i32_vmul_microkernel`). The op may come from an explicit fixture or
+from the RVV plugin materializing the finite
+`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"`,
+`"i32-vsub-microkernel.v1"`, or `"i32-vmul-microkernel.v1"` selected variant
+descriptor during the execution-planning pipeline. The microkernel op now
+carries a structured RVV body with one runtime index body argument for
 target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, one matching
 `tcrv_rvv.with_vl`, and a nested finite `tcrv_rvv.i32_load`,
-`tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_store` body. The load
-and store ops reference the target/export-owned lhs input, rhs input, and
-output buffer ABI roles; the runtime element-count role remains a
-`tcrv.exec.runtime_param` ABI boundary consumed by the callable plan rather
-than an RVV dataflow operand. Descriptor-local `element_count`
+`tcrv_rvv.i32_load`, one family-selected arithmetic op
+(`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`), and
+`tcrv_rvv.i32_store`. The load and store ops reference the target/export-owned
+lhs input, rhs input, and output buffer ABI roles; the runtime element-count
+role remains a `tcrv.exec.runtime_param` ABI boundary consumed by the callable
+plan rather than an RVV dataflow operand. Descriptor-local `element_count`
 is selected from structured RVV i32 M1 lane capacity when available, capped as
 a bounded sample, and otherwise falls back to the first-slice sample size 16;
 it remains metadata and is not promoted to shape, runtime `n`, AVL, VL,
 correctness coverage, or performance evidence. The generated source uses
-`riscv_vector.h` and RVV i32 add intrinsics to expose a deterministic
-runtime-callable C ABI function. The callable parameter roles, C type spellings,
-and deterministic lhs/rhs/out/runtime-count order are derived from direct
-`tcrv.exec.mem_window` buffer boundaries and direct
+`riscv_vector.h` and the selected RVV i32 add/sub/mul intrinsic to expose a
+deterministic runtime-callable C ABI function. The callable parameter roles, C
+type spellings, and deterministic lhs/rhs/out/runtime-count order are derived
+from direct `tcrv.exec.mem_window` buffer boundaries and direct
 `tcrv.exec.runtime_param` runtime-count boundaries; supported emission-plan
 metadata must mirror that IR-backed plan exactly:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
 The exporter validates and consumes that `setvl` / `with_vl` /
-explicit load/add/store dataflow body before emitting the runtime-callable loop and
+explicit load/arithmetic/store dataflow body before emitting the runtime-callable loop and
 validates any supported emission-plan parameter metadata as an exact mirror of
 the IR-backed callable plan, so mismatched or stale control/dataflow/ABI
 metadata fails before source output. The default artifact has no embedded
@@ -194,7 +199,7 @@ route has no hidden `main`, does not link or run, and does not perform
 automatic RVV probing.
 The matching `tcrv-translate --tcrv-export-rvv-microkernel-header` helper and
 the generic `--tcrv-export-target-header-artifact` front door emit the bounded
-runtime-callable C ABI header for the same selected RVV i32-vadd microkernel
+runtime-callable C ABI header for the same selected RVV i32 add/sub/mul microkernel
 path. The header is derived from the same selected path, validated
 microkernel, structured callable ABI plan, mem_window/runtime_param boundaries,
 and capability metadata as the source/object routes. It contains only an
@@ -222,9 +227,9 @@ runtime-ABI, emission-plan, and artifact-route metadata still describe the same
 path, including the structured ABI parameter roles required by the target-owned
 source exporter. Registered source routes are bounded to target-owned explicit
 artifacts: the RVV standalone smoke-probe C source exporter above, the RVV i32
-vector-add microkernel C exporter above, the scalar fallback explicit i32
-vector add/sub portable runtime-callable C source exporters below, and the RVV+scalar
-i32-vadd host dispatch C composite exporter when the selected plan contains
+vector add/sub/mul microkernel C exporters above, the scalar fallback explicit
+i32 vector add/sub portable runtime-callable C source exporters below, and the RVV+scalar
+i32 add/sub/mul host dispatch C composite exporter when the selected plan contains
 both supported callable sides.
 Unsupported
 metadata-only RVV/scalar paths, offload paths, unknown routes, stale selected
@@ -250,9 +255,9 @@ objects, link runtime libraries, run offload hardware, prove correctness, or
 measure performance.
 
 The same generic artifact front door can also select target-owned bounded
-RISC-V ELF relocatable object routes for scalar fallback i32-vadd microkernel
-paths, direct RVV i32-vadd microkernel paths, or RVV+scalar i32-vadd dispatch
-library-object composite paths. In those cases
+RISC-V ELF relocatable object routes for scalar fallback i32 add/sub/mul
+microkernel paths, direct RVV i32 add/sub/mul microkernel paths, or RVV+scalar
+i32 add/sub/mul dispatch library-object composite paths. In those cases
 `--tcrv-export-target-artifact` prefers the bounded non-source
 runtime-callable object route, while
 `--tcrv-export-target-source-artifact` remains source-only. The object routes
@@ -351,9 +356,10 @@ coherence checks. Any RVV runtime or correctness claim from artifacts exported
 after this point still requires separate real `ssh rvv` evidence.
 
 For the first microkernel slice, use post-planning MLIR that contains the
-selected RVV path and matching `tcrv_rvv.i32_vadd_microkernel`. The op may be
-an explicit fixture attachment or a plugin-materialized op produced from the
-finite RVV i32-vadd descriptor by `tcrv-opt --tcrv-execution-planning-pipeline`:
+selected RVV path and one matching RVV i32 add/sub/mul microkernel. The op may
+be an explicit fixture attachment or a plugin-materialized op produced from the
+finite RVV i32 add/sub/mul descriptor by
+`tcrv-opt --tcrv-execution-planning-pipeline`:
 
 ```bash
 tcrv-translate --tcrv-export-rvv-microkernel-c post_planning_microkernel.mlir \
@@ -364,9 +370,9 @@ tcrv-translate --tcrv-export-target-source-artifact post_planning_microkernel.ml
 
 Compile and run the explicit self-check source on `ssh rvv` with the selected
 `-march` and, when present, selected `-mabi`. The resulting evidence is bounded
-to the i32 vector-add microkernel self-check for the explicit runtime `n`
-values reported by the generated success marker and must not be reported as
-generic TianChen-RV RVV lowering correctness or performance.
+to the selected i32 add/sub/mul microkernel self-check for the explicit
+runtime `n` values reported by the generated success marker and must not be
+reported as generic TianChen-RV RVV lowering correctness or performance.
 
 The helper below ties the existing manifest-supported microkernel route to
 source export and optional real `ssh rvv` evidence without broadening compiler
@@ -374,21 +380,27 @@ semantics:
 
 ```bash
 python3 scripts/rvv_microkernel_e2e.py --dry-run
-python3 scripts/rvv_microkernel_e2e.py --dry-run --generic-route
-python3 scripts/rvv_microkernel_e2e.py --ssh-target rvv
+python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub
+python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --generic-route
+python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub \
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vsub --ssh-target rvv
 ```
 
 The dry-run mode runs local compiler tools only and writes sanitized
 post-planning MLIR, emission manifest, generated C source, hashes, and command
-summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Real ssh mode
-exports the generated runtime-callable C header and RISC-V relocatable object,
-creates an explicit external C caller under `artifacts/tmp`, copies those three
-inputs to `ssh rvv`, compiles/links the external caller against the generated
-object, runs it, and checks the finite i32-vadd result. That evidence is
+summaries under `artifacts/tmp/rvv_microkernel_e2e/<run-id>/`. Bundle dry-run
+mode writes the registry-derived source/header/object bundle and generated
+external caller under `artifacts/tmp/rvv_microkernel_bundle_e2e/<run-id>/`.
+Real ssh mode exports the generated runtime-callable C header and RISC-V
+relocatable object, creates an explicit external C caller under
+`artifacts/tmp`, copies those inputs to `ssh rvv`, compiles/links the external
+caller against the generated object, runs it, and checks the finite selected
+family result (`lhs + rhs`, `lhs - rhs`, or `lhs * rhs`). That evidence is
 bounded to this generated header plus generated object external caller
-correctness check only. It is not generic RVV lowering, full runtime
-integration, arbitrary kernel emission, broad correctness coverage, or
-performance evidence.
+correctness check for the selected arithmetic family only. It is not generic
+RVV lowering, full runtime integration, arbitrary kernel emission, broad
+correctness coverage, or performance evidence.
 
 ## Scalar Fallback First Slice
 

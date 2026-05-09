@@ -1,0 +1,77 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-bundle-vsub --overwrite | FileCheck %s --check-prefix=VSUB-BUNDLE
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-plan-bundle-vmul --overwrite | FileCheck %s --check-prefix=VMUL-PLAN-BUNDLE
+# RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-vsub/evidence.json
+# RUN: FileCheck %s --check-prefix=VSUB-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-vsub/rvv_microkernel_external_caller.c
+# RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul/evidence.json
+# RUN: FileCheck %s --check-prefix=VMUL-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul/rvv_microkernel_external_caller.c
+
+# VSUB-BUNDLE: "arithmetic_family": "i32-vsub"
+# VSUB-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-vsub"
+# VSUB-BUNDLE: "bundle_export_mode": "target-artifact-bundle"
+# VSUB-BUNDLE: "claim_scope": "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
+# VSUB-BUNDLE: "mode": "dry-run"
+# VSUB-BUNDLE: "planned_pipeline": "tcrv-materialize-selected-lowering-boundaries"
+# VSUB-BUNDLE: "ssh_evidence": false
+# VSUB-BUNDLE: "status": "success"
+# VSUB-BUNDLE-NOT: live-token
+# VSUB-BUNDLE-NOT: hunter2
+
+# VMUL-PLAN-BUNDLE: "arithmetic_family": "i32-vmul"
+# VMUL-PLAN-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul"
+# VMUL-PLAN-BUNDLE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VMUL-PLAN-BUNDLE: "claim_scope": "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
+# VMUL-PLAN-BUNDLE: "mode": "dry-run"
+# VMUL-PLAN-BUNDLE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VMUL-PLAN-BUNDLE: "ssh_evidence": false
+# VMUL-PLAN-BUNDLE: "status": "success"
+# VMUL-PLAN-BUNDLE-NOT: live-token
+# VMUL-PLAN-BUNDLE-NOT: hunter2
+
+# VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
+# VSUB-EVIDENCE: "component_group": "rvv-i32-vsub-microkernel-external-abi.v1"
+# VSUB-EVIDENCE: "component_role": "source"
+# VSUB-EVIDENCE: "external_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1"
+# VSUB-EVIDENCE: "route": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VSUB-EVIDENCE: "route": "tcrv-export-rvv-i32-vsub-microkernel-header"
+# VSUB-EVIDENCE: "route": "tcrv-export-rvv-i32-vsub-microkernel-object"
+# VSUB-EVIDENCE: "arithmetic_check": "lhs - rhs"
+# VSUB-EVIDENCE: "success_marker": "tcrv_rvv_i32_vsub_microkernel_external_abi_ok"
+# VSUB-EVIDENCE-NOT: rvv-i32-vadd-runtime-callable-c-function.v1
+# VSUB-EVIDENCE-NOT: lhs + rhs
+# VSUB-EVIDENCE-NOT: throughput
+# VSUB-EVIDENCE-NOT: latency
+# VSUB-EVIDENCE-NOT: live-token
+
+# VSUB-CALLER: #include "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vsub-microkernel-header.h"
+# VSUB-CALLER: if (out[index] != lhs[index] - rhs[index])
+# VSUB-CALLER: tcrv_rvv_i32_vsub_microkernel_external_abi_ok
+# VSUB-CALLER-NOT: lhs[index] + rhs[index]
+# VSUB-CALLER-NOT: throughput
+# VSUB-CALLER-NOT: latency
+
+# VMUL-EVIDENCE: "arithmetic_family": "i32-vmul"
+# VMUL-EVIDENCE: "component_group": "rvv-i32-vmul-microkernel-external-abi.v1"
+# VMUL-EVIDENCE: "component_role": "source"
+# VMUL-EVIDENCE: "external_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"
+# VMUL-EVIDENCE: "route": "tcrv-export-rvv-i32-vmul-microkernel-c"
+# VMUL-EVIDENCE: "route": "tcrv-export-rvv-i32-vmul-microkernel-header"
+# VMUL-EVIDENCE: "route": "tcrv-export-rvv-i32-vmul-microkernel-object"
+# VMUL-EVIDENCE: "arithmetic_check": "lhs * rhs"
+# VMUL-EVIDENCE: "success_marker": "tcrv_rvv_i32_vmul_microkernel_external_abi_ok"
+# VMUL-EVIDENCE-NOT: rvv-i32-vadd-runtime-callable-c-function.v1
+# VMUL-EVIDENCE-NOT: rvv-i32-vsub-runtime-callable-c-function.v1
+# VMUL-EVIDENCE-NOT: lhs + rhs
+# VMUL-EVIDENCE-NOT: lhs - rhs
+# VMUL-EVIDENCE-NOT: throughput
+# VMUL-EVIDENCE-NOT: latency
+# VMUL-EVIDENCE-NOT: live-token
+
+# VMUL-CALLER: #include "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vmul-microkernel-header.h"
+# VMUL-CALLER: if (out[index] != lhs[index] * rhs[index])
+# VMUL-CALLER: tcrv_rvv_i32_vmul_microkernel_external_abi_ok
+# VMUL-CALLER-NOT: lhs[index] + rhs[index]
+# VMUL-CALLER-NOT: lhs[index] - rhs[index]
+# VMUL-CALLER-NOT: throughput
+# VMUL-CALLER-NOT: latency

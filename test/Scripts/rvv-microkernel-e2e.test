@@ -1,8 +1,12 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --self-test | FileCheck %s --check-prefix=SELF
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-e2e --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-e2e-vsub --overwrite | FileCheck %s --check-prefix=VSUB-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-e2e-vmul --overwrite | FileCheck %s --check-prefix=VMUL-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --generic-route --run-id lit-rvv-microkernel-e2e-generic --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=GENERIC-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --self-check-harness --run-id lit-rvv-microkernel-e2e-harness --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir | FileCheck %s --check-prefix=HARNESS-DRY
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic/rvv_microkernel.c
@@ -13,11 +17,15 @@
 # RUN: test ! -f %S/../../rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=MANIFEST < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
+# RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/evidence.json
+# RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-missing-handoff --overwrite --input %S/../Fixtures/rvv_microkernel_e2e/missing-handoff.txt 2>&1 | FileCheck %s --check-prefix=MISSING
+# RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-stale-vadd --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir 2>&1 | FileCheck %s --check-prefix=STALE
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-secret --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_microkernel_e2e self-test passed
 
+# DRY: "arithmetic_family": "i32-vadd"
 # DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e"
 # DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
 # DRY: "manifest_handoff": true
@@ -29,6 +37,31 @@
 # DRY-NOT: live-token
 # DRY-NOT: hunter2
 
+# VSUB-DRY: "arithmetic_family": "i32-vsub"
+# VSUB-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub"
+# VSUB-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
+# VSUB-DRY: "manifest_handoff": true
+# VSUB-DRY: "mode": "dry-run"
+# VSUB-DRY: "source_export_mode": "runtime-callable-library"
+# VSUB-DRY: "source_export_route": "direct-rvv-microkernel"
+# VSUB-DRY: "ssh_evidence": false
+# VSUB-DRY: "status": "success"
+# VSUB-DRY-NOT: live-token
+# VSUB-DRY-NOT: hunter2
+
+# VMUL-DRY: "arithmetic_family": "i32-vmul"
+# VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul"
+# VMUL-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff and source export only"
+# VMUL-DRY: "manifest_handoff": true
+# VMUL-DRY: "mode": "dry-run"
+# VMUL-DRY: "source_export_mode": "runtime-callable-library"
+# VMUL-DRY: "source_export_route": "direct-rvv-microkernel"
+# VMUL-DRY: "ssh_evidence": false
+# VMUL-DRY: "status": "success"
+# VMUL-DRY-NOT: live-token
+# VMUL-DRY-NOT: hunter2
+
+# GENERIC-DRY: "arithmetic_family": "i32-vadd"
 # GENERIC-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-generic"
 # GENERIC-DRY: "manifest_handoff": true
 # GENERIC-DRY: "mode": "dry-run"
@@ -39,6 +72,7 @@
 # GENERIC-DRY-NOT: live-token
 # GENERIC-DRY-NOT: hunter2
 
+# HARNESS-DRY: "arithmetic_family": "i32-vadd"
 # HARNESS-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-harness"
 # HARNESS-DRY: "manifest_handoff": true
 # HARNESS-DRY: "mode": "dry-run"
@@ -84,6 +118,30 @@
 # HARNESS-EVIDENCE-NOT: live-token
 # HARNESS-EVIDENCE-NOT: hunter2
 
+# VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
+# VSUB-EVIDENCE: "emission_kind": "rvv-explicit-i32-vsub-microkernel-c-source"
+# VSUB-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VSUB-EVIDENCE: "runtime_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1"
+# VSUB-EVIDENCE: "dataflow_emission_step[2]": "op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec"
+# VSUB-EVIDENCE: "dataflow_emission_step[3]": "op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec"
+# VSUB-EVIDENCE-NOT: rvv-explicit-i32-vadd-microkernel-c-source
+# VSUB-EVIDENCE-NOT: __riscv_vadd_vv_i32m1
+# VSUB-EVIDENCE-NOT: live-token
+# VSUB-EVIDENCE-NOT: hunter2
+
+# VMUL-EVIDENCE: "arithmetic_family": "i32-vmul"
+# VMUL-EVIDENCE: "emission_kind": "rvv-explicit-i32-vmul-microkernel-c-source"
+# VMUL-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vmul-microkernel-c"
+# VMUL-EVIDENCE: "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"
+# VMUL-EVIDENCE: "dataflow_emission_step[2]": "op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec"
+# VMUL-EVIDENCE: "dataflow_emission_step[3]": "op=tcrv_rvv.i32_store, role=output-buffer, value=product_vec"
+# VMUL-EVIDENCE-NOT: rvv-explicit-i32-vadd-microkernel-c-source
+# VMUL-EVIDENCE-NOT: rvv-explicit-i32-vsub-microkernel-c-source
+# VMUL-EVIDENCE-NOT: __riscv_vadd_vv_i32m1
+# VMUL-EVIDENCE-NOT: __riscv_vsub_vv_i32m1
+# VMUL-EVIDENCE-NOT: live-token
+# VMUL-EVIDENCE-NOT: hunter2
+
 # MANIFEST: emission_status: "supported"
 # MANIFEST: emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"
 # MANIFEST: lowering_pipeline: "tcrv-export-rvv-microkernel-c"
@@ -95,7 +153,10 @@
 # MANIFEST-NOT: latency
 
 # MISSING: rvv_microkernel_e2e:
-# MISSING-SAME: manifest missing supported bounded RVV microkernel source-export handoff
+# MISSING-SAME: manifest missing supported bounded RVV i32-vadd microkernel source-export handoff
+
+# STALE: rvv_microkernel_e2e:
+# STALE-SAME: manifest contains stale RVV microkernel handoff for i32-vadd; expected i32-vsub
 
 # SECRET: rvv_microkernel_e2e:
 # SECRET-SAME: evidence note contains secret-like, credential, or URL text

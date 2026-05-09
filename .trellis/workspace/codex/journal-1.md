@@ -55,6 +55,66 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 10: RVV i32 binary microkernel e2e family evidence bridge
+
+**Date**: 2026-05-09
+**Task**: RVV i32 binary microkernel e2e family evidence bridge
+**Branch**: `main`
+
+### Summary
+
+Generalized `scripts/rvv_microkernel_e2e.py` from a vadd-only evidence bridge
+to a bounded direct RVV i32 add/sub/mul family evidence runner. The bridge now
+selects `i32-vadd`, `i32-vsub`, or `i32-vmul` via `--arithmetic-family`,
+validates family-specific compiler-emitted handoff and bundle metadata, rejects
+stale-family artifacts, generates family-correct external callers, and records
+family-aware sanitized evidence. A real non-add `ssh rvv` vsub target-artifact
+bundle external caller run succeeded.
+
+### Main Changes
+
+- Added a direct RVV microkernel family table covering default input, route ids,
+  runtime ABI fields, component group, external ABI name, microkernel op,
+  arithmetic op, intrinsic, result vector, success markers, and caller
+  arithmetic.
+- Generalized manifest, source/header, bundle-index, external-caller,
+  command-summary, evidence JSON, and claim-scope validation to the selected
+  family.
+- Added focused lit coverage for vsub/vmul dry-runs, stale vadd rejection, and
+  target-artifact bundle / plan-and-export bundle consumption.
+- Updated README and the testing code-spec for the finite add/sub/mul direct
+  RVV microkernel evidence bridge.
+- Produced real vsub evidence under
+  `artifacts/tmp/rvv_microkernel_bundle_e2e/20260509T-rvv-microkernel-vsub-bundle-ssh`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] focused vadd/vsub/vmul dry-runs and vsub/vmul bundle dry-runs
+- [OK] real `ssh rvv` vsub bundle external caller run with source-built and
+  bundle-object marker observations
+- [OK] focused lit filters `rvv-microkernel` and
+  `rvv-microkernel|TargetArtifactBundleExport`
+- [OK] `git diff --check`
+- [OK] `cmake -S . -B artifacts/tmp/tianchenrv-build -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (163/163 tests passed)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 10: Descriptor-backed i32 binary linalg frontend lowering contract
 
 **Date**: 2026-05-09
