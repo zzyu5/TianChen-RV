@@ -78,9 +78,12 @@ llvm::Error makeOffloadPluginError(llvm::Twine message) {
 
 bool hasAvailableOffloadRuntimeCapability(
     const VariantProposalRequest &request) {
-  return request.getKernel() &&
-         request.getCapabilities().isCapabilityAvailableByID(
-             kOffloadRuntimeCapabilityID);
+  if (!request.getKernel())
+    return false;
+
+  const support::CapabilityDescriptor *capability =
+      request.getCapabilities().lookupProviderByID(kOffloadRuntimeCapabilityID);
+  return capability && capability->isAvailable();
 }
 
 bool containsForbiddenOffloadPropertyText(llvm::StringRef value) {
@@ -147,15 +150,17 @@ llvm::Expected<OffloadRuntimeCapabilityView>
 buildOffloadRuntimeCapabilityView(
     const support::TargetCapabilitySet &capabilities) {
   const support::CapabilityDescriptor *capability =
-      capabilities.lookupByID(kOffloadRuntimeCapabilityID);
+      capabilities.lookupProviderByID(kOffloadRuntimeCapabilityID);
   if (!capability)
     return makeOffloadPluginError("runtime-offload proposal requires "
-                                  "capability id 'offload.runtime'");
+                                  "capability provider for id "
+                                  "'offload.runtime'");
   if (!capability->isAvailable())
     return makeOffloadPluginError("runtime-offload proposal requires "
-                                  "available capability id "
+                                  "available capability provider for id "
                                   "'offload.runtime'");
-  if (capability->getKind() != kOffloadRuntimeCapabilityKind)
+  if (capability->getID() == kOffloadRuntimeCapabilityID &&
+      capability->getKind() != kOffloadRuntimeCapabilityKind)
     return makeOffloadPluginError("capability id 'offload.runtime' kind must "
                                   "be 'runtime-offload'");
 
@@ -249,7 +254,7 @@ variantRequiresOffloadRuntime(tcrv::exec::VariantOp variant,
     if (!capability)
       continue;
 
-    if (capability->getID() == kOffloadRuntimeCapabilityID)
+    if (capability->satisfiesID(kOffloadRuntimeCapabilityID))
       return true;
   }
 

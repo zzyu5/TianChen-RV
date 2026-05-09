@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariant check"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability relation check"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar plugin check"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "offload plugin check"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++ validation policy"}

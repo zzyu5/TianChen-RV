@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler invariants"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "relation-provider capability and target profile contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback plugin capability and legality contract"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "offload plugin capability and descriptor contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "planning pipeline proposal and selection contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission plan and artifact handoff contract"}

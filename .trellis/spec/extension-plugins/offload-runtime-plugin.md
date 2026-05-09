@@ -37,7 +37,10 @@ preferred kernel capability symbol: @offload_runtime
 first-slice proposal / variant symbol: @offload_runtime_first_slice
 variant origin: offload-plugin
 required capability id: offload.runtime
-materialized requires form: requires = [@offload_runtime]
+materialized requires form: requires = [@offload_runtime] for an exact
+  runtime-offload capability, or a relation-provider symbol such as
+  [@module_offload_profile] when that capability structurally `provides` or
+  `implies` id `offload.runtime`
 runtime ABI handoff id: generic-runtime-offload-c-abi-handoff.v1
 handoff kind: runtime-offload
 descriptor route id: tcrv-export-offload-runtime-descriptor
@@ -45,8 +48,11 @@ descriptor artifact kind: runtime-offload-handoff-descriptor
 ```
 
 The first slice may propose `@offload_runtime_first_slice` only when the kernel
-declares an available structured capability with id `offload.runtime`, kind
-`runtime-offload`, and bounded generic properties:
+declares an available structured capability provider for id `offload.runtime`.
+That provider may be an exact capability with id `offload.runtime`, kind
+`runtime-offload`, or an explicit relation-provider profile whose `provides` or
+`implies` list satisfies id `offload.runtime`. The provider must carry bounded
+generic properties:
 
 ```text
 runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
@@ -59,15 +65,18 @@ handoff metadata is missing, malformed, unbounded, secret-like, or not the
 generic first-slice handoff contract, proposal collection records a recoverable
 plugin-local decline and produces no offload proposal. Vendor names, Sophgo
 strings, RVV probe facts, architecture names, and unrelated runtime-offload
-capabilities must not enable the generic offload slice.
+capabilities must not enable the generic offload slice unless they explicitly
+provide or imply `offload.runtime` and preserve the required generic handoff
+properties.
 
 The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`) and plugin-owned discardable string metadata
 `tcrv_offload.runtime_abi` plus `tcrv_offload.handoff_kind` on the materialized
-variant. Plugin legality checks that the selected variant requires
-`offload.runtime`, that the capability remains available, and that the
-plugin-owned variant metadata matches the preserved capability properties. This
-metadata is compiler handoff metadata only; it is not executable runtime glue.
+variant. Plugin legality checks that the selected variant requires an exact or
+relation-provider capability satisfying `offload.runtime`, that the provider
+remains available, and that the plugin-owned variant metadata matches the
+preserved capability properties. This metadata is compiler handoff metadata
+only; it is not executable runtime glue.
 
 The supported first-slice emission plan must also preserve bounded
 `selected_plan_metadata` for the descriptor handoff. At minimum, it records the

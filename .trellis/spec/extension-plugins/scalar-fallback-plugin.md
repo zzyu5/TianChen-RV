@@ -26,7 +26,10 @@ preferred kernel capability symbol: @scalar_fallback
 first-slice proposal / variant symbol: @scalar_fallback_first_slice
 variant origin: scalar-plugin
 required capability id: scalar.fallback
-materialized requires form: requires = [@scalar_fallback]
+materialized requires form: requires = [@scalar_fallback] for an exact scalar
+  fallback capability, or a relation-provider symbol such as
+  [@module_fallback_profile] when that capability structurally `provides` or
+  `implies` id `scalar.fallback`
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
 lowering descriptor attr: tcrv_scalar.lowering_descriptor
@@ -38,9 +41,10 @@ default descriptor-local element count: 16
 The first-slice scalar plugin may propose `@scalar_fallback_first_slice` only
 when the request contains a real high-level MLIR operation, a
 `tcrv.exec.kernel`, and a `TargetCapabilitySet` where capability id
-`scalar.fallback` is explicitly available. Missing or unavailable fallback
-capability must produce no proposal rather than an implicit always-available
-variant.
+`scalar.fallback` is available either as an exact capability id or through an
+explicit structured relation-provider capability whose `provides` or `implies`
+list satisfies id `scalar.fallback`. Missing or unavailable fallback capability
+must produce no proposal rather than an implicit always-available variant.
 
 The proposal also carries a finite plugin-owned lowering descriptor for the
 bounded i32 vector-add fallback source slice:
@@ -59,8 +63,9 @@ trip count, or performance evidence.
 
 Scalar fallback is still capability-driven:
 
-- target profiles must declare `scalar.fallback` as a structured
-  `tcrv.exec.capability`;
+- target profiles must declare `scalar.fallback` as a structured exact
+  `tcrv.exec.capability` or explicitly provide/imply it from a structured
+  capability-provider `tcrv.exec.target`;
 - generated variants must require that capability through `requires`;
 - plugin legality must reject variants with missing origin, missing fallback
   capability requirement, unavailable fallback capability, malformed

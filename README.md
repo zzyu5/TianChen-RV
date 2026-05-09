@@ -332,9 +332,11 @@ performance evidence.
 
 The built-in plugin registry also includes a C++ `scalar-plugin` first slice.
 It proposes `@scalar_fallback_first_slice` only when the target kernel declares
-an available structured capability `scalar.fallback`, and it participates in
-the same legality, cost, selection, emission-readiness, and emission-plan
-interfaces as other plugins.
+an available structured capability provider for `scalar.fallback`, either as an
+exact capability or through an explicit module target/profile relation such as
+`provides = ["scalar.fallback"]`, and it participates in the same legality,
+cost, selection, emission-readiness, and emission-plan interfaces as other
+plugins.
 
 This scalar fallback path is compiler metadata for a portable fallback route.
 It marks a generic conservative fallback role for dispatch synthesis and emits
@@ -564,10 +566,13 @@ the explicit runtime `n = 7` and `n = 16` caller inputs.
 ## Runtime Offload First Slice
 
 The built-in registry includes a generic C++ `offload-plugin` first slice for
-runtime-offload handoff metadata. It is enabled only by an explicit
-`offload.runtime` capability with `kind = "runtime-offload"` and bounded generic
-handoff properties; vendor strings, Sophgo names, RVV facts, or ordinary target
-attributes do not enable it.
+runtime-offload handoff metadata. It is enabled only by an explicit structured
+provider for `offload.runtime`: either an exact `offload.runtime` capability
+with `kind = "runtime-offload"` or a module target/profile relation such as
+`provides = ["offload.runtime"]`, with bounded generic handoff properties.
+Vendor strings, Sophgo names, RVV facts, or ordinary target attributes do not
+enable it unless they explicitly provide the generic offload capability and
+preserve the required handoff properties.
 
 The offload plugin owns the concrete `tcrv_offload` MLIR namespace. Its first
 operation, `tcrv_offload.lowering_boundary`, records selected runtime-offload

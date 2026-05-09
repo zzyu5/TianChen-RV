@@ -60,9 +60,12 @@ llvm::Error makeScalarPluginError(llvm::Twine message) {
 
 bool hasAvailableScalarFallbackCapability(
     const VariantProposalRequest &request) {
-  return request.getKernel() &&
-         request.getCapabilities().isCapabilityAvailableByID(
-             kScalarFallbackCapabilityID);
+  if (!request.getKernel())
+    return false;
+
+  const support::CapabilityDescriptor *capability =
+      request.getCapabilities().lookupProviderByID(kScalarFallbackCapabilityID);
+  return capability && capability->isAvailable();
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
@@ -231,7 +234,7 @@ llvm::Expected<bool> variantRequiresScalarFallback(
     if (!capability)
       continue;
 
-    if (capability->getID() == kScalarFallbackCapabilityID)
+    if (capability->satisfiesID(kScalarFallbackCapabilityID))
       return true;
   }
 
