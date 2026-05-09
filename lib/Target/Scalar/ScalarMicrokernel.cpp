@@ -19,6 +19,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
@@ -27,6 +30,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <system_error>
 
 namespace tianchenrv::target::scalar {
 namespace {
@@ -59,12 +63,36 @@ constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
+constexpr llvm::StringLiteral kRV64CapabilityID("rv64");
+constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
+constexpr llvm::StringLiteral kArchPropertyName("arch");
+constexpr llvm::StringLiteral kRiscvToolchainMarchCapabilityID(
+    "riscv.toolchain.march");
+constexpr llvm::StringLiteral kRiscvToolchainMABICapabilityID(
+    "riscv.toolchain.mabi");
+constexpr llvm::StringLiteral kRVVProbeCompileRunCapabilityID(
+    "rvv.probe.compile_run");
+constexpr llvm::StringLiteral kRVVToolchainMarchCapabilityID(
+    "rvv.toolchain.march");
+constexpr llvm::StringLiteral kRVVToolchainMABICapabilityID(
+    "rvv.toolchain.mabi");
+constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
+constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
+constexpr llvm::StringLiteral kValuePropertyName("value");
 constexpr llvm::StringLiteral kMicrokernelEmissionKind(
     "scalar-explicit-i32-vadd-microkernel-c-source");
 constexpr llvm::StringLiteral kMicrokernelRouteID(
     "tcrv-export-scalar-microkernel-c");
+constexpr llvm::StringLiteral kMicrokernelObjectRouteID(
+    "tcrv-export-scalar-microkernel-object");
+constexpr llvm::StringLiteral kMicrokernelHeaderRouteID(
+    "tcrv-export-scalar-microkernel-header");
 constexpr llvm::StringLiteral kMicrokernelArtifactKind(
     "runtime-callable-c-source");
+constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
+    "riscv-elf-relocatable-object");
 struct SelectedPath {
   VariantOp variant;
   std::string role;
@@ -80,6 +108,23 @@ struct ScalarMicrokernelRecord {
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   std::int64_t elementCount = 0;
+};
+
+struct ScalarObjectCompileConfig {
+  std::string targetTriple;
+  std::string selectedMarch;
+  std::optional<std::string> selectedMABI;
+};
+
+struct TemporaryFile {
+  llvm::SmallString<128> path;
+
+  ~TemporaryFile() {
+    if (!path.empty())
+      llvm::sys::fs::remove(path);
+  }
+
+  llvm::StringRef get() const { return llvm::StringRef(path); }
 };
 
 VariantOp getPathVariant(const SelectedPath &path) {
@@ -111,6 +156,28 @@ llvm::Error makeMicrokernelError(KernelOp kernel, llvm::Twine message) {
 llvm::Error makeModuleMicrokernelError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV scalar microkernel C export failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::Error makeMicrokernelObjectError(llvm::StringRef kernelSymbol,
+                                       llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "TianChen-RV scalar microkernel object export failed";
+  if (!kernelSymbol.empty())
+    stream << " for kernel @" << kernelSymbol;
+  else
+    stream << " for kernel <missing>";
+  stream << ": " << message;
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
+llvm::Error makeModuleMicrokernelObjectError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV scalar microkernel object export failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -636,6 +703,172 @@ llvm::Error validateRequiredCapabilities(
   return llvm::Error::success();
 }
 
+bool startsWithRV64March(llvm::StringRef march) {
+  std::string lower = march.trim().lower();
+  return llvm::StringRef(lower).starts_with("rv64");
+}
+
+llvm::Expected<std::string>
+getRequiredScalarObjectTargetTriple(KernelOp kernel,
+                                    const TargetCapabilitySet &capabilities) {
+  const CapabilityDescriptor *rv64Capability =
+      capabilities.lookupProviderByID(kRV64CapabilityID);
+  if (!rv64Capability || !rv64Capability->isAvailable())
+    return makeMicrokernelError(
+        kernel,
+        "scalar microkernel object export requires an available structured "
+        "capability provider for capability id 'rv64'");
+
+  llvm::SmallVector<llvm::StringRef, 2> architectureValues;
+  llvm::StringRef architecture =
+      rv64Capability->getProperty(kArchitecturePropertyName).trim();
+  if (!architecture.empty())
+    architectureValues.push_back(architecture);
+  llvm::StringRef arch = rv64Capability->getProperty(kArchPropertyName).trim();
+  if (!arch.empty())
+    architectureValues.push_back(arch);
+
+  if (architectureValues.empty())
+    return makeMicrokernelError(
+        kernel,
+        "scalar microkernel object export requires rv64 capability metadata "
+        "with architecture or arch property 'riscv64'");
+
+  bool sawRiscv64 = false;
+  for (llvm::StringRef value : architectureValues) {
+    if (llvm::Error error =
+            validateBoundedText(kernel, "rv64 architecture metadata", value))
+      return std::move(error);
+    if (value == "riscv64")
+      sawRiscv64 = true;
+  }
+
+  if (!sawRiscv64)
+    return makeMicrokernelError(
+        kernel,
+        "scalar microkernel object export requires rv64 architecture "
+        "metadata 'riscv64'");
+  return "riscv64";
+}
+
+llvm::Error mergeScalarObjectCompileText(KernelOp kernel,
+                                         llvm::StringRef fieldName,
+                                         llvm::StringRef value,
+                                         std::optional<std::string> &out) {
+  value = value.trim();
+  if (value.empty())
+    return llvm::Error::success();
+  if (llvm::Error error = validateBoundedText(kernel, fieldName, value))
+    return error;
+  if (out && *out != value)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("conflicting scalar object ") + fieldName +
+                    " capability metadata");
+  out = value.str();
+  return llvm::Error::success();
+}
+
+llvm::Expected<std::string>
+getRequiredScalarObjectSelectedMarch(
+    KernelOp kernel, const TargetCapabilitySet &capabilities) {
+  std::optional<std::string> selectedMarch;
+  auto mergeMarchFromCapability =
+      [&](llvm::StringRef capabilityID,
+          llvm::StringRef propertyName) -> llvm::Error {
+    if (selectedMarch)
+      return llvm::Error::success();
+    const CapabilityDescriptor *capability =
+        capabilities.lookupProviderByID(capabilityID);
+    if (!capability || !capability->isAvailable())
+      return llvm::Error::success();
+    return mergeScalarObjectCompileText(
+        kernel, propertyName, capability->getProperty(propertyName),
+        selectedMarch);
+  };
+
+  if (llvm::Error error = mergeMarchFromCapability(
+          kRiscvToolchainMarchCapabilityID, kValuePropertyName))
+    return std::move(error);
+  if (llvm::Error error = mergeMarchFromCapability(
+          kRVVProbeCompileRunCapabilityID, kSelectedMarchPropertyName))
+    return std::move(error);
+  if (llvm::Error error = mergeMarchFromCapability(
+          kRVVToolchainMarchCapabilityID, kValuePropertyName))
+    return std::move(error);
+
+  if (!selectedMarch)
+    return makeMicrokernelError(
+        kernel, "scalar microkernel object export requires available "
+                "selected_march metadata from capability id "
+                "'riscv.toolchain.march', 'rvv.probe.compile_run', or "
+                "'rvv.toolchain.march'");
+  if (!startsWithRV64March(*selectedMarch))
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("scalar microkernel object export selected_march '") +
+            *selectedMarch + "' must describe an rv64 RISC-V target");
+  return *selectedMarch;
+}
+
+llvm::Error getOptionalScalarObjectSelectedMABI(
+    KernelOp kernel, const TargetCapabilitySet &capabilities,
+    std::optional<std::string> &out) {
+  auto mergeMABIFromCapability =
+      [&](llvm::StringRef capabilityID,
+          llvm::StringRef propertyName) -> llvm::Error {
+    if (out)
+      return llvm::Error::success();
+    const CapabilityDescriptor *capability =
+        capabilities.lookupProviderByID(capabilityID);
+    if (!capability || !capability->isAvailable())
+      return llvm::Error::success();
+    return mergeScalarObjectCompileText(kernel, propertyName,
+                                        capability->getProperty(propertyName),
+                                        out);
+  };
+
+  if (llvm::Error error = mergeMABIFromCapability(
+          kRiscvToolchainMABICapabilityID, kValuePropertyName))
+    return error;
+  if (llvm::Error error = mergeMABIFromCapability(
+          kRVVProbeCompileRunCapabilityID, kSelectedMABIPropertyName))
+    return error;
+  if (llvm::Error error = mergeMABIFromCapability(kRVVToolchainMABICapabilityID,
+                                                  kValuePropertyName))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Expected<ScalarObjectCompileConfig>
+buildScalarObjectCompileConfig(KernelOp kernel) {
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  llvm::Expected<std::string> targetTriple =
+      getRequiredScalarObjectTargetTriple(kernel, *capabilities);
+  if (!targetTriple)
+    return targetTriple.takeError();
+
+  llvm::Expected<std::string> selectedMarch =
+      getRequiredScalarObjectSelectedMarch(kernel, *capabilities);
+  if (!selectedMarch)
+    return selectedMarch.takeError();
+
+  std::optional<std::string> selectedMABI;
+  if (llvm::Error error =
+          getOptionalScalarObjectSelectedMABI(kernel, *capabilities,
+                                             selectedMABI))
+    return std::move(error);
+
+  ScalarObjectCompileConfig config;
+  config.targetTriple = std::move(*targetTriple);
+  config.selectedMarch = std::move(*selectedMarch);
+  config.selectedMABI = std::move(selectedMABI);
+  return config;
+}
+
 llvm::Error validateBoundaryForPath(KernelOp kernel, const SelectedPath &path,
                                     LoweringBoundaryOp boundary) {
   if (!boundary)
@@ -1083,6 +1316,19 @@ std::string makeMicrokernelFunctionName(const ScalarMicrokernelRecord &record) {
   return name;
 }
 
+std::string
+makeMicrokernelHeaderIncludeGuard(const ScalarMicrokernelRecord &record) {
+  std::string guard = "TIANCHENRV_SCALAR_I32_VADD_MICROKERNEL_";
+  guard += sanitizeCIdentifierComponent(record.kernelSymbol);
+  guard += "_";
+  guard += sanitizeCIdentifierComponent(record.variantSymbol);
+  guard += "_H";
+  for (char &character : guard)
+    character = static_cast<char>(
+        std::toupper(static_cast<unsigned char>(character)));
+  return guard;
+}
+
 llvm::StringRef getAttrValue(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = getStringAttr(op, attrName);
   if (!attr)
@@ -1172,6 +1418,18 @@ void printRecordComment(llvm::raw_ostream &os,
   os << ") */\n";
 }
 
+void printMicrokernelPrototype(
+    llvm::raw_ostream &os, llvm::StringRef functionName,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  os << "void " << functionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ")";
+}
+
 llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
@@ -1187,19 +1445,36 @@ llvm::Error printMicrokernelFunction(
   const support::RuntimeABIParameter &runtimeN =
       *bindings->runtimeElementCount;
 
-  os << "void " << functionName << "(";
-  for (auto [index, parameter] : llvm::enumerate(parameters)) {
-    if (index != 0)
-      os << ", ";
-    support::printRuntimeABIParameterCDeclaration(os, parameter);
-  }
-  os << ") {\n";
+  printMicrokernelPrototype(os, functionName, parameters);
+  os << " {\n";
   os << "  for (size_t index = 0; index < " << runtimeN.cName
      << "; ++index)\n";
   os << "    " << out.cName << "[index] = " << lhs.cName << "[index] + "
      << rhs.cName << "[index];\n\n";
   os << "}\n\n";
   return llvm::Error::success();
+}
+
+void printMicrokernelHeader(const ScalarMicrokernelRecord &record,
+                            llvm::raw_ostream &os) {
+  std::string includeGuard = makeMicrokernelHeaderIncludeGuard(record);
+  std::string functionName = makeMicrokernelFunctionName(record);
+
+  os << "#ifndef " << includeGuard << "\n";
+  os << "#define " << includeGuard << "\n\n";
+  os << "#include <stddef.h>\n";
+  os << "#include <stdint.h>\n\n";
+  os << "#ifdef __cplusplus\n";
+  os << "extern \"C\" {\n";
+  os << "#endif\n\n";
+
+  printMicrokernelPrototype(os, functionName, record.runtimeABIParameters);
+  os << ";\n\n";
+
+  os << "#ifdef __cplusplus\n";
+  os << "}\n";
+  os << "#endif\n\n";
+  os << "#endif /* " << includeGuard << " */\n";
 }
 
 llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
@@ -1223,6 +1498,237 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
   return llvm::Error::success();
 }
 
+bool isScalarMicrokernelSourceCandidate(
+    const tianchenrv::target::TargetArtifactCandidate &candidate) {
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
+  return candidate.origin == kScalarPluginName &&
+         candidate.routeID == kMicrokernelRouteID &&
+         candidate.emissionKind == kMicrokernelEmissionKind &&
+         candidate.artifactKind == kMicrokernelArtifactKind &&
+         candidate.runtimeABI == abi.runtimeABI &&
+         candidate.runtimeABIKind == abi.runtimeABIKind &&
+         candidate.runtimeABIName == abi.runtimeABIName &&
+         candidate.runtimeGlueRole == abi.runtimeGlueRole;
+}
+
+llvm::Error validateScalarMicrokernelCallableCandidatePreflight(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return makeModuleMicrokernelError(
+        "scalar microkernel helper routes require exactly one callable "
+        "artifact candidate for preflight");
+
+  TargetArtifactExporter sourceExporter(
+      kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
+      kMicrokernelEmissionKind, exportScalarMicrokernelC,
+      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements());
+  return validateTargetArtifactCandidateAgainstExporter(candidates.front(),
+                                                        sourceExporter);
+}
+
+llvm::Expected<bool> matchScalarMicrokernelObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return isScalarMicrokernelSourceCandidate(candidates.front());
+}
+
+llvm::Expected<bool> matchScalarMicrokernelHeaderCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  return isScalarMicrokernelSourceCandidate(candidates.front());
+}
+
+llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
+                           TemporaryFile &file) {
+  std::error_code ec =
+      llvm::sys::fs::createTemporaryFile(prefix, suffix, file.path);
+  if (ec)
+    return makeModuleMicrokernelObjectError(
+        llvm::Twine("failed to create temporary ") + suffix +
+        " file for object export: " + ec.message());
+  return llvm::Error::success();
+}
+
+llvm::Error writeTempSource(llvm::StringRef source, TemporaryFile &sourceFile) {
+  int fd = -1;
+  std::error_code ec = llvm::sys::fs::createTemporaryFile(
+      "tcrv-scalar-microkernel", "c", fd, sourceFile.path);
+  if (ec)
+    return makeModuleMicrokernelObjectError(
+        llvm::Twine("failed to create temporary C source for object export: ") +
+        ec.message());
+
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/true);
+  stream << source;
+  stream.close();
+  if (stream.has_error())
+    return makeModuleMicrokernelObjectError(
+        "failed to write generated scalar microkernel C source before object "
+        "export");
+  return llvm::Error::success();
+}
+
+std::string readBoundedStderr(llvm::StringRef stderrPath) {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> buffer =
+      llvm::MemoryBuffer::getFile(stderrPath);
+  if (!buffer)
+    return "<stderr unavailable>";
+
+  std::string text = (*buffer)->getBuffer().str();
+  for (char &character : text) {
+    if (character == '\n' || character == '\r' || character == '\t')
+      character = ' ';
+  }
+  constexpr std::size_t kMaxDiagnosticBytes = 1024;
+  if (text.size() > kMaxDiagnosticBytes) {
+    text.resize(kMaxDiagnosticBytes);
+    text += "...";
+  }
+  return text;
+}
+
+std::string formatCompileCommand(const ScalarObjectCompileConfig &config) {
+  std::string command;
+  llvm::raw_string_ostream stream(command);
+  stream << "clang -target " << config.targetTriple << " -O2 -march="
+         << config.selectedMarch;
+  if (config.selectedMABI)
+    stream << " -mabi=" << *config.selectedMABI;
+  stream << " -c <generated-scalar-microkernel-source> -o <object-file>";
+  stream.flush();
+  return command;
+}
+
+llvm::Error validateBoundedCompileText(llvm::StringRef kernelSymbol,
+                                       llvm::StringRef fieldName,
+                                       llvm::StringRef value) {
+  if (value.empty() || value.size() > 512)
+    return makeMicrokernelObjectError(
+        kernelSymbol,
+        llvm::Twine(fieldName) +
+            " must be bounded non-empty single-line metadata");
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0 ||
+        (byte < 0x20 && character != '\t'))
+      return makeMicrokernelObjectError(
+          kernelSymbol,
+          llvm::Twine(fieldName) +
+              " must be bounded non-empty single-line metadata");
+  }
+  if (value.contains("/*") || value.contains("*/"))
+    return makeMicrokernelObjectError(
+        kernelSymbol,
+        llvm::Twine(fieldName) + " must not contain C comment delimiter text");
+  if (containsForbiddenText(value))
+    return makeMicrokernelObjectError(
+        kernelSymbol,
+        llvm::Twine(fieldName) +
+            " must not contain secret-like or raw credential text");
+  return llvm::Error::success();
+}
+
+llvm::Error compileGeneratedMicrokernelSourceToObject(
+    const ScalarMicrokernelRecord &record,
+    const ScalarObjectCompileConfig &compileConfig, llvm::StringRef source,
+    llvm::raw_ostream &os) {
+  if (llvm::Error error =
+          validateBoundedCompileText(record.kernelSymbol, "target triple",
+                                     compileConfig.targetTriple))
+    return error;
+  if (llvm::Error error =
+          validateBoundedCompileText(record.kernelSymbol, "selected_march",
+                                     compileConfig.selectedMarch))
+    return error;
+  if (compileConfig.selectedMABI)
+    if (llvm::Error error =
+            validateBoundedCompileText(record.kernelSymbol, "selected_mabi",
+                                       *compileConfig.selectedMABI))
+      return error;
+
+  llvm::ErrorOr<std::string> clangPath =
+      llvm::sys::findProgramByName("clang");
+  if (!clangPath)
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        "requires clang on PATH to compile the bounded scalar microkernel C "
+        "source into a RISC-V object file");
+
+  TemporaryFile sourceFile;
+  if (llvm::Error error = writeTempSource(source, sourceFile))
+    return error;
+
+  TemporaryFile objectFile;
+  if (llvm::Error error =
+          createTempFile("tcrv-scalar-microkernel", "o", objectFile))
+    return error;
+
+  TemporaryFile stderrFile;
+  if (llvm::Error error =
+          createTempFile("tcrv-scalar-microkernel", "stderr", stderrFile))
+    return error;
+
+  std::string marchArg = "-march=" + compileConfig.selectedMarch;
+  std::string mabiArg;
+  llvm::SmallVector<llvm::StringRef, 8> args;
+  args.push_back(*clangPath);
+  args.push_back("-target");
+  args.push_back(compileConfig.targetTriple);
+  args.push_back("-O2");
+  args.push_back(marchArg);
+  if (compileConfig.selectedMABI) {
+    mabiArg = "-mabi=" + *compileConfig.selectedMABI;
+    args.push_back(mabiArg);
+  }
+  args.push_back("-c");
+  args.push_back(sourceFile.get());
+  args.push_back("-o");
+  args.push_back(objectFile.get());
+
+  llvm::SmallVector<std::optional<llvm::StringRef>, 3> redirects;
+  redirects.emplace_back(llvm::StringRef());
+  redirects.emplace_back(llvm::StringRef());
+  redirects.emplace_back(stderrFile.get());
+
+  std::string executionError;
+  bool executionFailed = false;
+  int exitCode = llvm::sys::ExecuteAndWait(
+      *clangPath, args, std::nullopt, redirects, /*SecondsToWait=*/60,
+      /*MemoryLimit=*/0, &executionError, &executionFailed);
+  if (executionFailed || !executionError.empty() || exitCode != 0) {
+    std::string stderrText = readBoundedStderr(stderrFile.get());
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        llvm::Twine("clang failed while creating object file; command: ") +
+            formatCompileCommand(compileConfig) + "; exit_code=" +
+            llvm::Twine(exitCode) + "; stderr: " + stderrText);
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> objectBuffer =
+      llvm::MemoryBuffer::getFile(objectFile.get(), /*IsText=*/false,
+                                  /*RequiresNullTerminator=*/false);
+  if (!objectBuffer)
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        llvm::Twine("failed to read generated object file: ") +
+            objectBuffer.getError().message());
+
+  llvm::StringRef bytes = (*objectBuffer)->getBuffer();
+  if (bytes.empty())
+    return makeMicrokernelObjectError(record.kernelSymbol,
+                                      "generated object file must be non-empty");
+  if (bytes.size() < 4 || !bytes.starts_with("\177ELF"))
+    return makeMicrokernelObjectError(
+        record.kernelSymbol,
+        "generated object file must have an ELF object-file signature");
+
+  os.write(bytes.data(), bytes.size());
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
@@ -1240,12 +1746,86 @@ llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportScalarMicrokernelHeader(mlir::ModuleOp module,
+                                          llvm::raw_ostream &os) {
+  llvm::Expected<ScalarMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record)
+    return record.takeError();
+
+  printMicrokernelHeader(*record, os);
+  return llvm::Error::success();
+}
+
+llvm::Error exportScalarMicrokernelObject(mlir::ModuleOp module,
+                                          llvm::raw_ostream &os) {
+  llvm::Expected<ScalarMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record) {
+    std::string message = llvm::toString(record.takeError());
+    return makeModuleMicrokernelObjectError(message);
+  }
+
+  KernelOp selectedKernel;
+  if (module)
+    module->walk([&](KernelOp kernel) {
+      if (kernel.getSymName() == record->kernelSymbol)
+        selectedKernel = kernel;
+    });
+  if (!selectedKernel)
+    return makeMicrokernelObjectError(
+        record->kernelSymbol,
+        "requires the selected scalar microkernel kernel to remain present "
+        "while deriving object compile capability metadata");
+
+  llvm::Expected<ScalarObjectCompileConfig> compileConfig =
+      buildScalarObjectCompileConfig(selectedKernel);
+  if (!compileConfig) {
+    std::string message = llvm::toString(compileConfig.takeError());
+    return makeMicrokernelObjectError(record->kernelSymbol, message);
+  }
+
+  std::string source;
+  llvm::raw_string_ostream stream(source);
+  if (llvm::Error error = printMicrokernelSource(*record, stream))
+    return error;
+  stream.flush();
+  if (source.empty())
+    return makeMicrokernelObjectError(
+        record->kernelSymbol,
+        "validated scalar microkernel C source must be non-empty before "
+        "object export");
+
+  return compileGeneratedMicrokernelSourceToObject(*record, *compileConfig,
+                                                   source, os);
+}
+
 llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  return registry.registerExporter(TargetArtifactExporter(
-      kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
-      kMicrokernelEmissionKind, exportScalarMicrokernelC,
-      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements()));
+  const support::RuntimeABICallableIdentity &abi =
+      support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          kMicrokernelRouteID, kMicrokernelArtifactKind, kScalarPluginName,
+          kMicrokernelEmissionKind, exportScalarMicrokernelC,
+          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements())))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              kMicrokernelHeaderRouteID, kMicrokernelHeaderArtifactKind,
+              matchScalarMicrokernelHeaderCandidate,
+              exportScalarMicrokernelHeader, kScalarPluginName,
+              abi.runtimeABIKind, abi.runtimeABIName,
+              /*directHelperRoute=*/false, /*componentGroup=*/{},
+              /*externalABIName=*/{},
+              validateScalarMicrokernelCallableCandidatePreflight)))
+    return error;
+
+  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+      kMicrokernelObjectRouteID, kMicrokernelObjectArtifactKind,
+      matchScalarMicrokernelObjectCandidate, exportScalarMicrokernelObject,
+      kScalarPluginName, abi.runtimeABIKind, abi.runtimeABIName,
+      /*directHelperRoute=*/false, /*componentGroup=*/{},
+      /*externalABIName=*/{},
+      validateScalarMicrokernelCallableCandidatePreflight));
 }
 
 } // namespace tianchenrv::target::scalar

@@ -85,6 +85,7 @@ async execution support
 Examples:
 
 ```text
+generic RISC-V selected march/mabi facts
 LLVM RVV scalable vector support
 RVV intrinsic support
 compiler builtin support

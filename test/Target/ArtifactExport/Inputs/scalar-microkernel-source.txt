@@ -1,5 +1,23 @@
 module @scalar_microkernel_source_input {
   tcrv.exec.kernel @scalar_microkernel_export {
+    tcrv.exec.capability @rv64 {
+      id = "rv64",
+      kind = "isa-scalar",
+      architecture = "riscv64",
+      status = "available"
+    }
+    tcrv.exec.capability @riscv_toolchain_march {
+      id = "riscv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gc"
+    }
+    tcrv.exec.capability @riscv_toolchain_mabi {
+      id = "riscv.toolchain.mabi",
+      kind = "toolchain",
+      status = "available",
+      value = "lp64d"
+    }
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",

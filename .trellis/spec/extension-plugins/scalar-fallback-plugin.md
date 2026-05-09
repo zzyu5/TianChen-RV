@@ -216,8 +216,38 @@ no hidden `main`, stdio-only self-check machinery, or success marker. The source
 may include bounded metadata comments for selected kernel, selected variant,
 selected role/fallback role, artifact kind, element count, required
 capabilities, runtime ABI kind/name, runtime glue role, and ABI parameter roles.
-Scalar fallback selected paths without a valid descriptor or explicit matching
-microkernel remain metadata-only. The supported route does
-not add generic scalar lowering, arbitrary scalar source export, object
-generation, linking, full runtime dispatch integration, broad correctness
-coverage, or performance evidence.
+
+The same validated callable source candidate may also feed two bounded scalar
+target artifact helpers:
+
+```text
+header route: tcrv-export-scalar-microkernel-header
+header artifact kind: runtime-callable-c-header
+object route: tcrv-export-scalar-microkernel-object
+object artifact kind: riscv-elf-relocatable-object
+```
+
+The header route emits only the single external C prototype derived from the
+same IR-backed callable ABI plan. It must not embed a body, RVV intrinsics,
+`main`, self-check helpers, runtime probing, artifact paths, credentials, or
+performance text.
+
+The object route emits the default scalar library-style source internally and
+uses local `clang` to compile a RISC-V ELF relocatable object. It is selected
+only through the generic artifact front door after the scalar callable source
+candidate has passed the typed ABI preflight. The route also requires
+structured target/toolchain facts: an available `rv64` capability provider with
+`architecture = "riscv64"` or `arch = "riscv64"`, plus available selected march
+metadata from `riscv.toolchain.march.value`,
+`rvv.probe.compile_run.selected_march`, or `rvv.toolchain.march.value`.
+Optional selected MABI metadata may come from `riscv.toolchain.mabi.value`,
+`rvv.probe.compile_run.selected_mabi`, or `rvv.toolchain.mabi.value`.
+
+When source/header/object helpers all match the same scalar callable candidate,
+target artifact bundle export may emit a deterministic scalar bundle containing
+the C source, C header, and RISC-V relocatable object with matching selected
+path and runtime ABI metadata. These helpers still do not add generic scalar
+lowering, arbitrary scalar source export, linking, runtime dispatch
+integration, broad correctness coverage, RVV hardware evidence, or performance
+evidence. Scalar fallback selected paths without a valid descriptor or explicit
+matching microkernel remain metadata-only.

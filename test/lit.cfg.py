@@ -60,6 +60,49 @@ void tcrv_lit_rvv_probe(const int32_t *lhs, int32_t *out, size_t n) {
             return False
         return result.returncode == 0 and obj.exists() and obj.stat().st_size > 0
 
+def has_local_riscv_object_clang():
+    clang = Path(config.llvm_tools_dir) / "clang"
+    if not clang.exists():
+        return False
+    source = """\
+#include <stddef.h>
+#include <stdint.h>
+void tcrv_lit_riscv_probe(const int32_t *lhs, const int32_t *rhs,
+                          int32_t *out, size_t n) {
+  for (size_t index = 0; index < n; ++index)
+    out[index] = lhs[index] + rhs[index];
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="tcrv-lit-riscv-object-") as tmp:
+        src = Path(tmp) / "probe.c"
+        obj = Path(tmp) / "probe.o"
+        src.write_text(source)
+        try:
+            result = subprocess.run(
+                [
+                    str(clang),
+                    "-target",
+                    "riscv64",
+                    "-O2",
+                    "-march=rv64gc",
+                    "-mabi=lp64d",
+                    "-c",
+                    str(src),
+                    "-o",
+                    str(obj),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return result.returncode == 0 and obj.exists() and obj.stat().st_size > 0
+
+if has_local_riscv_object_clang():
+    config.available_features.add("tianchenrv-local-riscv-object-clang")
+
 if has_local_rvv_object_clang():
     config.available_features.add("tianchenrv-local-rvv-object-clang")
 

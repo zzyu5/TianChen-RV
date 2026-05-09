@@ -1,0 +1,57 @@
+# REQUIRES: tianchenrv-local-riscv-object-clang
+
+# RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-post-planning.mlir
+# RUN: tcrv-translate --tcrv-export-target-header-artifact %t.scalar-post-planning.mlir > %t.scalar.h
+# RUN: FileCheck %s --check-prefix=SCALAR-HEADER --implicit-check-not=") {" --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not="int main" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar.h
+# RUN: tcrv-translate --tcrv-export-target-artifact %t.scalar-post-planning.mlir > %t.scalar.o
+# RUN: llvm-readobj --file-headers --symbols %t.scalar.o | FileCheck %s --check-prefixes=SCALAR-OBJ --implicit-check-not="Name: main"
+# RUN: rm -rf %t.scalar.bundle && mkdir %t.scalar.bundle
+# RUN: tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.scalar.bundle %t.scalar-post-planning.mlir > %t.scalar.bundle.stdout
+# RUN: FileCheck %s --check-prefix=STDOUT < %t.scalar.bundle.stdout
+# RUN: test -s %t.scalar.bundle/artifact-0-runtime-callable-c-source-tcrv-export-scalar-microkernel-c.c
+# RUN: test -s %t.scalar.bundle/artifact-1-runtime-callable-c-header-tcrv-export-scalar-microkernel-header.h
+# RUN: test -s %t.scalar.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-microkernel-object.o
+# RUN: FileCheck %s --check-prefix=SCALAR-INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar.bundle/tianchenrv-target-artifact-bundle.index
+# RUN: llvm-readobj --file-headers --symbols %t.scalar.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-microkernel-object.o | FileCheck %s --check-prefixes=SCALAR-OBJ --implicit-check-not="Name: main"
+
+# SCALAR-HEADER: #ifndef TIANCHENRV_SCALAR_I32_VADD_MICROKERNEL_SCALAR_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H
+# SCALAR-HEADER: #define TIANCHENRV_SCALAR_I32_VADD_MICROKERNEL_SCALAR_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H
+# SCALAR-HEADER: #include <stddef.h>
+# SCALAR-HEADER: #include <stdint.h>
+# SCALAR-HEADER: extern "C" {
+# SCALAR-HEADER: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+# SCALAR-HEADER: #endif /* TIANCHENRV_SCALAR_I32_VADD_MICROKERNEL_SCALAR_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H */
+
+# SCALAR-OBJ: Format: elf
+# SCALAR-OBJ: Arch: riscv
+# SCALAR-OBJ: Type: Relocatable
+# SCALAR-OBJ: Name: tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice
+
+# STDOUT: tianchenrv.target_artifact_bundle_export: complete
+# STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
+
+# SCALAR-INDEX: tianchenrv.target_artifact_bundle.version: 1
+# SCALAR-INDEX: bundle_status: "complete"
+# SCALAR-INDEX: artifact_count: 3
+# SCALAR-INDEX: artifact[0]:
+# SCALAR-INDEX: file_name: "artifact-0-runtime-callable-c-source-tcrv-export-scalar-microkernel-c.c"
+# SCALAR-INDEX: selected_variant: @scalar_fallback_first_slice
+# SCALAR-INDEX: role: "dispatch fallback"
+# SCALAR-INDEX: artifact_kind: "runtime-callable-c-source"
+# SCALAR-INDEX: route: "tcrv-export-scalar-microkernel-c"
+# SCALAR-INDEX: owner: "scalar-plugin"
+# SCALAR-INDEX: runtime_abi_kind: "scalar-runtime-callable-c-abi"
+# SCALAR-INDEX: runtime_abi_name: "scalar-i32-vadd-runtime-callable-c-function.v1"
+# SCALAR-INDEX: evidence_role: "compiler-artifact"
+# SCALAR-INDEX: artifact[1]:
+# SCALAR-INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-scalar-microkernel-header.h"
+# SCALAR-INDEX: artifact_kind: "runtime-callable-c-header"
+# SCALAR-INDEX: route: "tcrv-export-scalar-microkernel-header"
+# SCALAR-INDEX: owner: "scalar-plugin"
+# SCALAR-INDEX: evidence_role: "header-declaration"
+# SCALAR-INDEX: artifact[2]:
+# SCALAR-INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-microkernel-object.o"
+# SCALAR-INDEX: artifact_kind: "riscv-elf-relocatable-object"
+# SCALAR-INDEX: route: "tcrv-export-scalar-microkernel-object"
+# SCALAR-INDEX: owner: "scalar-plugin"
+# SCALAR-INDEX: evidence_role: "relocatable-object"

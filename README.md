@@ -219,15 +219,19 @@ objects, link runtime libraries, run offload hardware, prove correctness, or
 measure performance.
 
 The same generic artifact front door can also select target-owned bounded
-RISC-V ELF relocatable object routes for direct RVV i32-vadd microkernel paths
-or for RVV+scalar i32-vadd dispatch library-object composite paths. In those
-cases `--tcrv-export-target-artifact` prefers the bounded non-source
+RISC-V ELF relocatable object routes for scalar fallback i32-vadd microkernel
+paths, direct RVV i32-vadd microkernel paths, or RVV+scalar i32-vadd dispatch
+library-object composite paths. In those cases
+`--tcrv-export-target-artifact` prefers the bounded non-source
 runtime-callable object route, while
 `--tcrv-export-target-source-artifact` remains source-only. The object routes
-emit from validated library-style source, the structured RVV architecture
-capability metadata, and selected compile capability metadata. They do not add
-a hidden `main` or self-check harness, link, run hardware, auto-probe RVV
-availability, prove correctness, or measure performance.
+emit from validated library-style source plus structured target/toolchain
+capability metadata. Scalar object export requires an available `rv64`
+capability provider with `riscv64` architecture metadata and selected RISC-V
+compile facts such as `riscv.toolchain.march`; RVV object export uses the
+structured RVV architecture and selected compile capability metadata. They do
+not add a hidden `main` or self-check harness, link, run hardware, auto-probe
+RVV availability, prove correctness, or measure performance.
 
 When the selected RVV path has that exact microkernel attachment, either
 explicitly authored or materialized by the RVV plugin from the finite descriptor,
@@ -381,15 +385,25 @@ supported runtime-callable C source-export emission plan routed through
 library-style portable scalar i32 vector-add function with the same structural
 pointer-plus-length callable ABI shape used by the bounded RVV microkernel
 route; the default artifact has no embedded `main` or self-check harness and
-uses no RVV headers or intrinsics. This is a callable fallback source artifact
-for later host dispatch glue. It is not generic scalar lowering, arbitrary
-scalar source export, object/linking support, runtime integration, correctness
-coverage beyond this explicit microkernel, or performance evidence. For generic
-single-artifact export, a supported primary non-fallback route wins over a
-supported `dispatch fallback` candidate; scalar-only selected fallback remains
-exportable when it is the only supported route. The bounded RVV+scalar
-dispatcher is the target-owned composite exception: when both selected callable
-sides are present, generic source export emits the dispatch source.
+uses no RVV headers or intrinsics.
+
+The same validated scalar callable candidate can now feed
+`--tcrv-export-target-header-artifact` and
+`--tcrv-export-target-artifact`. The header route emits only the external C
+prototype. The object route emits the scalar library source internally and
+compiles a RISC-V ELF relocatable object with local `clang`; it requires
+structured `rv64` architecture metadata and selected RISC-V compile facts such
+as `riscv.toolchain.march`, with optional MABI metadata from
+`riscv.toolchain.mabi` or compatible preserved profile facts. These are
+callable fallback artifacts for later host dispatch or external callers. They
+are not generic scalar lowering, arbitrary scalar source export, linked runtime
+integration, correctness coverage beyond this explicit microkernel, RVV
+hardware evidence, or performance evidence. For generic single-artifact export,
+a supported primary non-fallback route wins over a supported `dispatch
+fallback` candidate; scalar-only selected fallback remains exportable when it
+is the only supported route. The bounded RVV+scalar dispatcher is the
+target-owned composite exception: when both selected callable sides are present,
+generic source export emits the dispatch source.
 
 ## Host RVV + Scalar Dispatch First Slice
 

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines the scalar fallback plugin boundary and now covers scalar source/header/object artifact helpers."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines generic target artifact routing and plugin-owned emission/runtime boundaries."}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Defines structured rv64 and RISC-V toolchain capability identities consumed by scalar object export."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability objects and toolchain facts used to constrain artifact emission diagnostics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/C++ coverage expectations for target artifact export routes and bundles."}

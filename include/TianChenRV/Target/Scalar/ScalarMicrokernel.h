@@ -17,6 +17,12 @@ namespace tianchenrv::target::scalar {
 llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
                                      llvm::raw_ostream &os);
 
+llvm::Error exportScalarMicrokernelHeader(mlir::ModuleOp module,
+                                          llvm::raw_ostream &os);
+
+llvm::Error exportScalarMicrokernelObject(mlir::ModuleOp module,
+                                          llvm::raw_ostream &os);
+
 llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry);
 

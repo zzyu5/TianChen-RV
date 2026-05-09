@@ -173,6 +173,24 @@ capability metadata as the source/object routes. It must not embed callable
 bodies, RVV intrinsics, `main`, self-check helpers, runtime probing, evidence
 logs, credentials, artifact paths, or performance text.
 
+The artifact-kind-aware generic route may also select scalar fallback
+runtime-callable C header and RISC-V ELF relocatable object helpers for the same
+validated scalar i32-vadd callable source candidate. These scalar helpers are
+registered by scalar target/export code, not by core orchestration. The header
+route is a declaration-only external C surface for the same IR-backed
+`tcrv.exec.mem_window` plus `tcrv.exec.runtime_param` callable ABI plan. The
+object route emits the validated scalar library-style C source internally and
+compiles it with local `clang` using structured RISC-V target/toolchain
+capability metadata: an available `rv64` capability provider with `riscv64`
+architecture metadata and selected march metadata from
+`riscv.toolchain.march`, `rvv.probe.compile_run`, or `rvv.toolchain.march`.
+Optional MABI metadata may be supplied by the matching `riscv.toolchain.mabi`,
+`rvv.probe.compile_run`, or `rvv.toolchain.mabi` facts. If those facts or local
+`clang` are absent, object export fails with a bounded diagnostic instead of
+silently emitting a host object or a source-only substitute. The scalar helpers
+do not add generic scalar lowering, linked runtime glue, automatic dispatch,
+runtime execution, RVV evidence, correctness coverage, or performance evidence.
+
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
 the primary non-fallback route and ignore the fallback candidate for ambiguity

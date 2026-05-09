@@ -36,7 +36,12 @@ Rules:
   capability relations, RVV legality, variant selection, lowering, emission, or
   runtime decisions.
 - Required positive facts for the RVV probe-derived profile include `riscv64` architecture, `hart_count > 0`, bounded RVV ISA/vector hints, clang and CMake availability/version facts, minimal hand-written RVV compile/run success, and selected march/mabi facts when emitted by the probe.
-- Stable profile capability identities must remain plugin-local and generic, such as `rvv`, `rvv.hart_count`, `rvv.toolchain.clang`, `rvv.toolchain.cmake`, `rvv.probe.compile_run`, `rvv.toolchain.march`, and `rvv.toolchain.mabi`; provider identity, benchmark names, logs, and performance measurements must not become capability IDs.
+- Stable profile capability identities must remain plugin-local and generic,
+  such as `rv64`, `rvv`, `rvv.hart_count`, `riscv.toolchain.march`,
+  `riscv.toolchain.mabi`, `rvv.toolchain.clang`, `rvv.toolchain.cmake`,
+  `rvv.probe.compile_run`, `rvv.toolchain.march`, and `rvv.toolchain.mabi`;
+  provider identity, benchmark names, logs, and performance measurements must
+  not become capability IDs.
 - The RVV profile's `rvv.hart_count` capability may provide the generic
   relation id `target.hart_count` while retaining its plugin-local owning id.
   The `count` property is a hardware/uarch target fact for capability-aware

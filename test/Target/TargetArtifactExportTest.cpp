@@ -822,6 +822,24 @@ bool expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
        "must use c type 'size_t'"});
 }
 
+bool expectScalarMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  TargetArtifactCandidate candidate = makeScalarDispatchFallbackCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "scalar_fallback_first_slice");
+  candidate.role = "direct variant";
+  candidate.runtimeABIParameters[3].cType = "long";
+  llvm::SmallVector<TargetArtifactCandidate, 1> candidates;
+  candidates.push_back(candidate);
+
+  return expectCompositeCandidateValidationRejects(
+      registry, routeID, candidates,
+      "scalar composite helper rejects stale callable ABI for " +
+          routeID.str(),
+      {"route id 'tcrv-export-scalar-microkernel-c'",
+       "runtime ABI parameter role 'runtime-element-count'",
+       "must use c type 'size_t'"});
+}
+
 bool expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
   TargetArtifactCandidate rvvCandidate =
@@ -1346,8 +1364,8 @@ int main() {
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 5) {
-    llvm::errs() << "expected exactly 5 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 7) {
+    llvm::errs() << "expected exactly 7 built-in composite target artifact "
                     "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -1419,6 +1437,25 @@ int main() {
           /*expectedExternalABIName=*/{},
           /*expectedCandidateValidation=*/true))
     return 1;
+  const tianchenrv::support::RuntimeABICallableIdentity &scalarABI =
+      tianchenrv::support::getI32VAddRuntimeABIContract()
+          .getScalarCallableIdentity();
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-scalar-microkernel-header",
+          "runtime-callable-c-header", "scalar-plugin",
+          scalarABI.runtimeABIKind, scalarABI.runtimeABIName,
+          /*expectedDirectHelperRoute=*/false, /*expectedComponentGroup=*/{},
+          /*expectedExternalABIName=*/{},
+          /*expectedCandidateValidation=*/true))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-scalar-microkernel-object",
+          "riscv-elf-relocatable-object", "scalar-plugin",
+          scalarABI.runtimeABIKind, scalarABI.runtimeABIName,
+          /*expectedDirectHelperRoute=*/false, /*expectedComponentGroup=*/{},
+          /*expectedExternalABIName=*/{},
+          /*expectedCandidateValidation=*/true))
+    return 1;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
           "runtime-callable-c-source", "rvv-scalar-dispatch-target",
@@ -1466,6 +1503,12 @@ int main() {
     return 1;
   if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
           builtinRegistry, "tcrv-export-rvv-microkernel-object"))
+    return 1;
+  if (!expectScalarMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-scalar-microkernel-header"))
+    return 1;
+  if (!expectScalarMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-scalar-microkernel-object"))
     return 1;
   if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
           builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"))
