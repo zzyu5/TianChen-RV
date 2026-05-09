@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack and boundary invariants: C++/MLIR compiler core, Python tooling-only, compute-free tcrv.exec."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, finite i32m2 config metadata, remote evidence boundary, and bounded microkernel export contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and artifact-evidence testing requirements for RVV microkernel runner changes."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Interpretation rules for real ssh rvv evidence and forbidden broad correctness/performance claims."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target-owned source/header/object export, runtime ABI mirror, hash/artifact handoff, and fail-closed route contract."}

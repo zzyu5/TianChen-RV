@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global compiler-stack, Python tooling-only, and compute-boundary invariants after the change."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check typed i32m2 evidence remains RVV dialect/plugin/target owned and bounded to the finite microkernel slice."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/script coverage and no overbroad runtime/performance wording."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check the only runtime/correctness claim is backed by named ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check generated artifact hashes, runtime ABI handoff, target-owned object/source/header routes, and fail-closed evidence behavior."}

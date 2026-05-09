@@ -55,6 +55,66 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 11: RVV i32m2 typed microkernel SSH evidence handoff
+
+**Date**: 2026-05-10
+**Task**: RVV i32m2 typed microkernel SSH evidence handoff
+**Branch**: `main`
+
+### Summary
+
+Extended the bounded RVV microkernel evidence runner with an explicit typed
+`i32m2` vector-shape mode for the existing i32-vsub compiler/export path. The
+runner now selects the typed m2 MLIR fixture by default, uses the normal
+execution-planning pipeline, validates compiler-emitted m2 intrinsic metadata
+before any runtime claim, records boolean SSH evidence plus detailed remote
+compile/link/run metadata, and fails closed when an m1 artifact is supplied for
+an m2 claim.
+
+### Main Changes
+
+- Added `--vector-shape=i32m2` to `scripts/rvv_microkernel_e2e.py`, with m2
+  fixture selection for `i32-vsub` and m2-specific source metadata validation.
+- Recorded SEW=32, LMUL=m2, tail/mask policy, required m2 intrinsics, route ids,
+  artifact paths, hashes, expected marker, observed marker, and bounded claim
+  scope in evidence JSON.
+- Preserved existing m1 add/sub/mul behavior and kept Python limited to
+  orchestration/evidence collection.
+- Added focused lit coverage for m2 dry-run evidence/source metadata and the
+  m2-request/m1-artifact fail-closed path.
+- Collected real `ssh rvv` evidence under
+  `artifacts/tmp/rvv_microkernel_e2e/20260510-rvv-i32m2-vsub-ssh/`.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] i32-vsub m2 dry-run:
+  `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id codex-i32m2-vsub-dry --overwrite`
+- [OK] m2-request/m1-artifact fail-closed probe expectedly rejected stale
+  i32m1 vector-shape metadata.
+- [OK] focused lit filter `rvv-microkernel-e2e` passed 1/1.
+- [OK] focused lit filter `rvv-microkernel-i32m2-(family-sub|object)` passed
+  2/2.
+- [OK] real `ssh rvv` i32-vsub m2 run:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id 20260510-rvv-i32m2-vsub-ssh --overwrite --timeout 120 --ssh-target rvv`
+- [OK] evidence marker:
+  `tcrv_rvv_i32_vsub_microkernel_external_abi_ok`,
+  `ssh_evidence=true`, `stdout_marker_observed=true`.
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate -j2`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+  (168/168 tests passed)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 10: RVV i32 family direct helper SSH evidence handoff
 
 **Date**: 2026-05-09
