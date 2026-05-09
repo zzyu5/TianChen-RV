@@ -345,8 +345,9 @@ int runRegistrationAndCapabilityMetadataTest() {
 
   llvm::SmallVector<PluginCapability, 4> capabilities;
   registry.collectCapabilities(capabilities);
-  if (int result = expect(capabilities.size() == 1,
-                          "RVV plugin exposes one first-slice capability"))
+  if (int result = expect(capabilities.size() == 5,
+                          "RVV plugin exposes RVV plus first-slice config "
+                          "capabilities"))
     return result;
   if (int result =
           expect(capabilities[0].getID() ==
@@ -400,6 +401,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       status = "disabled"
     }
   }
@@ -459,7 +465,7 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                 llvm::toString(capabilitiesOrError.takeError()));
 
   TargetCapabilitySet capabilities = std::move(*capabilitiesOrError);
-  if (int result = expect(capabilities.size() == 9,
+  if (int result = expect(capabilities.size() == 13,
                           "RVV probe facts produce deterministic capabilities"))
     return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
@@ -506,6 +512,39 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                  "RVV profile preserves i32 m1 lane count as uarch fact"))
     return result;
 
+  const CapabilityDescriptor *sew32 = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M1SEW32CapabilityID());
+  if (int result =
+          expect(sew32 && sew32->getKind() == "isa-vector-config" &&
+                     sew32->getProperty("sew_bits") == "32",
+                 "RVV profile preserves first-slice SEW=32 config fact"))
+    return result;
+  const CapabilityDescriptor *lmulM1 = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M1LMULM1CapabilityID());
+  if (int result =
+          expect(lmulM1 && lmulM1->getKind() == "isa-vector-config" &&
+                     lmulM1->getProperty("lmul") == "m1",
+                 "RVV profile preserves first-slice LMUL=m1 config fact"))
+    return result;
+  const CapabilityDescriptor *tailAgnostic = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M1TailAgnosticCapabilityID());
+  if (int result =
+          expect(tailAgnostic &&
+                     tailAgnostic->getKind() == "isa-vector-config" &&
+                     tailAgnostic->getProperty("tail_policy") == "agnostic",
+                 "RVV profile preserves first-slice tail agnostic policy "
+                 "fact"))
+    return result;
+  const CapabilityDescriptor *maskAgnostic = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M1MaskAgnosticCapabilityID());
+  if (int result =
+          expect(maskAgnostic &&
+                     maskAgnostic->getKind() == "isa-vector-config" &&
+                     maskAgnostic->getProperty("mask_policy") == "agnostic",
+                 "RVV profile preserves first-slice mask agnostic policy "
+                 "fact"))
+    return result;
+
   const CapabilityDescriptor *clang = capabilities.lookupByID(
       tianchenrv::plugin::rvv::getRVVClangToolchainCapabilityID());
   if (int result = expect(clang && clang->getKind() == "toolchain" &&
@@ -547,8 +586,20 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                              getRVVI32M1LaneCountCapabilitySymbol() &&
                      orderedCapabilities[4].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVClangToolchainCapabilitySymbol() &&
+                             getRVVI32M1SEW32CapabilitySymbol() &&
                      orderedCapabilities[5].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI32M1LMULM1CapabilitySymbol() &&
+                     orderedCapabilities[6].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI32M1TailAgnosticCapabilitySymbol() &&
+                     orderedCapabilities[7].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI32M1MaskAgnosticCapabilitySymbol() &&
+                     orderedCapabilities[8].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVClangToolchainCapabilitySymbol() &&
+                     orderedCapabilities[9].getSymbolName() ==
                          tianchenrv::plugin::rvv::
                              getRVVCMakeToolchainCapabilitySymbol(),
                  "RVV profile capability ordering is deterministic"))
@@ -569,6 +620,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       status = "available"
     }
   }
@@ -664,9 +720,17 @@ module {
           expect(plan.getRuntimeGlueRole() == "deferred-rvv-runtime-glue",
                  "RVV unsupported plan records runtime glue role"))
     return result;
-  if (int result = expect(plan.getRequiredCapabilitySymbols().size() == 1 &&
-                              plan.getRequiredCapabilitySymbols().front() ==
-                                  "rvv",
+  if (int result = expect(plan.getRequiredCapabilitySymbols().size() == 5 &&
+                              plan.getRequiredCapabilitySymbols()[0] ==
+                                  "rvv" &&
+                              plan.getRequiredCapabilitySymbols()[1] ==
+                                  "rvv_i32_m1_sew32" &&
+                              plan.getRequiredCapabilitySymbols()[2] ==
+                                  "rvv_i32_m1_lmul_m1" &&
+                              plan.getRequiredCapabilitySymbols()[3] ==
+                                  "rvv_i32_m1_tail_agnostic" &&
+                              plan.getRequiredCapabilitySymbols()[4] ==
+                                  "rvv_i32_m1_mask_agnostic",
                           "RVV unsupported plan preserves required capability "
                           "refs"))
     return result;
@@ -796,6 +860,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl256b",
       status = "available",
@@ -817,6 +886,10 @@ module {
       id = "rvv.i32_m1_lane_count",
       kind = "uarch",
       lanes = 8 : i64,
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -892,8 +965,16 @@ module {
                          "rvv_capability_properties_available" &&
                      proposals[0].getGuard() ==
                          "plugin_local_rvv_property_evidence" &&
-                     proposals[0].getRequiredCapabilityIDs().size() == 1 &&
-                     proposals[0].getRequiredCapabilityIDs()[0] == "rvv",
+                     proposals[0].getRequiredCapabilityIDs().size() == 5 &&
+                     proposals[0].getRequiredCapabilityIDs()[0] == "rvv" &&
+                     proposals[0].getRequiredCapabilityIDs()[1] ==
+                         "rvv.i32_m1.sew32" &&
+                     proposals[0].getRequiredCapabilityIDs()[2] ==
+                         "rvv.i32_m1.lmul_m1" &&
+                     proposals[0].getRequiredCapabilityIDs()[3] ==
+                         "rvv.i32_m1.tail_policy.agnostic" &&
+                     proposals[0].getRequiredCapabilityIDs()[4] ==
+                         "rvv.i32_m1.mask_policy.agnostic",
                  "RVV property evidence enables proposal metadata"))
     return result;
   if (int result = expectProposalStringAttr(
@@ -1011,6 +1092,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       status = "available"
     }
@@ -1041,6 +1127,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1072,6 +1163,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "TOKEN=rv64gcv",
       status = "available"
@@ -1103,6 +1199,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1138,6 +1239,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1158,6 +1264,10 @@ module {
       id = "rvv.i32_m1_lane_count",
       kind = "uarch",
       lanes = 4 : i64,
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -1208,6 +1318,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1270,12 +1385,16 @@ module {
   tcrv.exec.target @module_rvv_capacity_profile {
     id = "rvv.profile.capacity",
     kind = "profile",
-    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run"],
+    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic", "rvv.probe.compile_run"],
     architecture = "riscv64",
     isa_vector_hints = "rv64gcv_zvl256b",
     count = 64 : i64,
     bytes = 32 : i64,
     lanes = 8 : i64,
+    sew_bits = 32 : i64,
+    lmul = "m1",
+    tail_policy = "agnostic",
+    mask_policy = "agnostic",
     selected_march = "rv64gcv",
     status = "available"
   }
@@ -1413,6 +1532,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1444,6 +1568,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1475,6 +1604,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1677,6 +1811,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -1756,8 +1895,16 @@ module {
                      proposals[0].getOriginPlugin() ==
                          tianchenrv::plugin::rvv::
                              getRVVExtensionPluginName() &&
-                     proposals[0].getRequiredCapabilityIDs().size() == 1 &&
+                     proposals[0].getRequiredCapabilityIDs().size() == 5 &&
                      proposals[0].getRequiredCapabilityIDs()[0] == "rvv" &&
+                     proposals[0].getRequiredCapabilityIDs()[1] ==
+                         "rvv.i32_m1.sew32" &&
+                     proposals[0].getRequiredCapabilityIDs()[2] ==
+                         "rvv.i32_m1.lmul_m1" &&
+                     proposals[0].getRequiredCapabilityIDs()[3] ==
+                         "rvv.i32_m1.tail_policy.agnostic" &&
+                     proposals[0].getRequiredCapabilityIDs()[4] ==
+                         "rvv.i32_m1.mask_policy.agnostic" &&
                      !proposals[0].getGuard().empty() &&
                      !proposals[0].getPolicy().empty(),
                  "RVV proposal has deterministic plugin-owned metadata"))
@@ -1892,6 +2039,11 @@ module {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"

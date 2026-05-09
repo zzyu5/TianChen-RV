@@ -3,8 +3,19 @@ module {
     tcrv.exec.capability @rvv_a {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count_a {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run_a {
@@ -81,8 +92,19 @@ module {
     tcrv.exec.capability @rvv_b {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count_b {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run_b {

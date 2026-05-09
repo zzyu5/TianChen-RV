@@ -7,6 +7,11 @@ module @rvv_microkernel_input {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"

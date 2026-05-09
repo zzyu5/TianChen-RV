@@ -27,6 +27,15 @@
 # MLIR: bytes = 16 : i64
 # MLIR: tcrv.exec.capability @rvv_i32_m1_lanes
 # MLIR: lanes = 4 : i64
+# MLIR: tcrv.exec.capability @rvv_i32_m1_sew32
+# MLIR: id = "rvv.i32_m1.sew32"
+# MLIR: sew_bits = 32 : i64
+# MLIR: tcrv.exec.capability @rvv_i32_m1_lmul_m1
+# MLIR: lmul = "m1"
+# MLIR: tcrv.exec.capability @rvv_i32_m1_tail_agnostic
+# MLIR: tail_policy = "agnostic"
+# MLIR: tcrv.exec.capability @rvv_i32_m1_mask_agnostic
+# MLIR: mask_policy = "agnostic"
 # MLIR: tcrv.exec.capability @rvv_probe_compile_run
 # MLIR: selected_march = "rv64gcv"
 # MLIR: selected_mabi = "lp64d"
@@ -56,11 +65,19 @@
 # PIPE-SAME: bytes = 16 : i64
 # PIPE: tcrv.exec.capability @rvv_i32_m1_lanes
 # PIPE-SAME: lanes = 4 : i64
+# PIPE: tcrv.exec.capability @rvv_i32_m1_sew32
+# PIPE-SAME: sew_bits = 32 : i64
+# PIPE: tcrv.exec.capability @rvv_i32_m1_lmul_m1
+# PIPE-SAME: lmul = "m1"
+# PIPE: tcrv.exec.capability @rvv_i32_m1_tail_agnostic
+# PIPE-SAME: tail_policy = "agnostic"
+# PIPE: tcrv.exec.capability @rvv_i32_m1_mask_agnostic
+# PIPE-SAME: mask_policy = "agnostic"
 # PIPE: tcrv.exec.capability @rvv_probe_compile_run
 # PIPE-SAME: selected_march = "rv64gcv"
 # PIPE: tcrv.exec.variant @rvv_first_slice
 # PIPE-SAME: origin = "rvv-plugin"
-# PIPE-SAME: requires = [@rvv]
+# PIPE-SAME: requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
 # PIPE-SAME: tcrv_rvv.element_count = 16 : i64
 # PIPE-SAME: tcrv_rvv.i32_m1_lanes = 4 : i64
 # PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
@@ -75,7 +92,7 @@
 # PIPE-SAME: target = @rvv_first_slice
 # PIPE: tcrv_rvv.lowering_boundary
 # PIPE-SAME: origin = "rvv-plugin"
-# PIPE-SAME: required_capabilities = [@rvv]
+# PIPE-SAME: required_capabilities = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
 # PIPE-SAME: role = "direct variant"
 # PIPE-SAME: selected_variant = @rvv_first_slice
 # PIPE-SAME: source_kernel = "rvv_probe_replay"
@@ -83,7 +100,7 @@
 # PIPE: tcrv_rvv.i32_vadd_microkernel
 # PIPE-SAME: element_count = 16 : i64
 # PIPE-SAME: origin = "rvv-plugin"
-# PIPE-SAME: required_capabilities = [@rvv]
+# PIPE-SAME: required_capabilities = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
 # PIPE-SAME: required_march = "rv64gcv"
 # PIPE-SAME: role = "direct variant"
 # PIPE-SAME: selected_mabi = "lp64d"
@@ -100,7 +117,7 @@
 # PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
 # PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
 # PIPE-SAME: reason = "emission_plan"
-# PIPE-SAME: required_capabilities = [@rvv]
+# PIPE-SAME: required_capabilities = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
 # PIPE-SAME: role = "direct variant"
 # PIPE-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
 # PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"

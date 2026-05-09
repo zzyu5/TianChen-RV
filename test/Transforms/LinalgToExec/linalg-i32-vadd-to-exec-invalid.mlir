@@ -9,7 +9,11 @@ module {
     id = "rvv.profile.frontend",
     isa_vector_hints = "rv64gcv_zvl128b",
     kind = "profile",
-    provides = ["rvv", "rvv.hart_count", "rvv.probe.compile_run"],
+    provides = ["rvv", "rvv.hart_count", "rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic", "rvv.probe.compile_run"],
+    sew_bits = 32 : i64,
+    lmul = "m1",
+    tail_policy = "agnostic",
+    mask_policy = "agnostic",
     selected_march = "rv64gcv",
     status = "available"
   }

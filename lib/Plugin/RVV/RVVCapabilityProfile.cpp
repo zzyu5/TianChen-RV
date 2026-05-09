@@ -27,6 +27,22 @@ constexpr llvm::StringLiteral kRVVI32M1LaneCountCapabilityID(
     "rvv.i32_m1_lane_count");
 constexpr llvm::StringLiteral kRVVI32M1LaneCountCapabilitySymbol(
     "rvv_i32_m1_lanes");
+constexpr llvm::StringLiteral kRVVI32M1SEW32CapabilityID(
+    "rvv.i32_m1.sew32");
+constexpr llvm::StringLiteral kRVVI32M1SEW32CapabilitySymbol(
+    "rvv_i32_m1_sew32");
+constexpr llvm::StringLiteral kRVVI32M1LMULM1CapabilityID(
+    "rvv.i32_m1.lmul_m1");
+constexpr llvm::StringLiteral kRVVI32M1LMULM1CapabilitySymbol(
+    "rvv_i32_m1_lmul_m1");
+constexpr llvm::StringLiteral kRVVI32M1TailAgnosticCapabilityID(
+    "rvv.i32_m1.tail_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M1TailAgnosticCapabilitySymbol(
+    "rvv_i32_m1_tail_agnostic");
+constexpr llvm::StringLiteral kRVVI32M1MaskAgnosticCapabilityID(
+    "rvv.i32_m1.mask_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M1MaskAgnosticCapabilitySymbol(
+    "rvv_i32_m1_mask_agnostic");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilityID(
     "rvv.toolchain.clang");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilitySymbol(
@@ -177,6 +193,38 @@ llvm::StringRef getRVVI32M1LaneCountCapabilitySymbol() {
   return kRVVI32M1LaneCountCapabilitySymbol;
 }
 
+llvm::StringRef getRVVI32M1SEW32CapabilityID() {
+  return kRVVI32M1SEW32CapabilityID;
+}
+
+llvm::StringRef getRVVI32M1SEW32CapabilitySymbol() {
+  return kRVVI32M1SEW32CapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M1LMULM1CapabilityID() {
+  return kRVVI32M1LMULM1CapabilityID;
+}
+
+llvm::StringRef getRVVI32M1LMULM1CapabilitySymbol() {
+  return kRVVI32M1LMULM1CapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M1TailAgnosticCapabilityID() {
+  return kRVVI32M1TailAgnosticCapabilityID;
+}
+
+llvm::StringRef getRVVI32M1TailAgnosticCapabilitySymbol() {
+  return kRVVI32M1TailAgnosticCapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M1MaskAgnosticCapabilityID() {
+  return kRVVI32M1MaskAgnosticCapabilityID;
+}
+
+llvm::StringRef getRVVI32M1MaskAgnosticCapabilitySymbol() {
+  return kRVVI32M1MaskAgnosticCapabilitySymbol;
+}
+
 llvm::StringRef getRVVClangToolchainCapabilityID() {
   return kRVVClangToolchainCapabilityID;
 }
@@ -238,6 +286,24 @@ validateRVVProbeCapabilityFacts(const RVVProbeCapabilityFacts &facts) {
       errors.push_back(
           "i32 m1 lane count must match vlenb bytes divided by four");
   }
+
+  if (facts.firstSliceSEWBits != 32)
+    errors.push_back("first-slice SEW bits must be 32");
+  validateFactString("first-slice LMUL", facts.firstSliceLMUL, errors,
+                     true);
+  if (!facts.firstSliceLMUL.empty() &&
+      normalizeFactString(facts.firstSliceLMUL) != "m1")
+    errors.push_back("first-slice LMUL must be m1");
+  validateFactString("first-slice tail policy", facts.firstSliceTailPolicy,
+                     errors, true);
+  if (!facts.firstSliceTailPolicy.empty() &&
+      normalizeFactString(facts.firstSliceTailPolicy) != "agnostic")
+    errors.push_back("first-slice tail policy must be agnostic");
+  validateFactString("first-slice mask policy", facts.firstSliceMaskPolicy,
+                     errors, true);
+  if (!facts.firstSliceMaskPolicy.empty() &&
+      normalizeFactString(facts.firstSliceMaskPolicy) != "agnostic")
+    errors.push_back("first-slice mask policy must be agnostic");
 
   validateFactString("ISA/vector hint", facts.isaVectorHints, errors,
                      true);
@@ -312,6 +378,26 @@ buildRVVTargetCapabilitiesFromProbeFacts(
             {{"lanes", std::to_string(facts.i32M1LaneCount)}}))
       return std::move(error);
   }
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M1SEW32CapabilitySymbol(),
+          getRVVI32M1SEW32CapabilityID(), "isa-vector-config",
+          {{"sew_bits", std::to_string(facts.firstSliceSEWBits)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M1LMULM1CapabilitySymbol(),
+          getRVVI32M1LMULM1CapabilityID(), "isa-vector-config",
+          {{"lmul", normalizeFactString(facts.firstSliceLMUL)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M1TailAgnosticCapabilitySymbol(),
+          getRVVI32M1TailAgnosticCapabilityID(), "isa-vector-config",
+          {{"tail_policy", normalizeFactString(facts.firstSliceTailPolicy)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M1MaskAgnosticCapabilitySymbol(),
+          getRVVI32M1MaskAgnosticCapabilityID(), "isa-vector-config",
+          {{"mask_policy", normalizeFactString(facts.firstSliceMaskPolicy)}}))
+    return std::move(error);
   if (llvm::Error error = addAvailableCapability(
           capabilities, getRVVClangToolchainCapabilitySymbol(),
           getRVVClangToolchainCapabilityID(), "toolchain",

@@ -1,6 +1,6 @@
 module @rvv_microkernel_i32_vsub_stale_add_abi_input {
   tcrv.exec.kernel @bundle_i32_vsub_stale_abi {
-    tcrv.exec.capability @rvv {architecture = "riscv64", id = "rvv", isa_vector_hints = "rv64gcv_zvl128b", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @rvv {architecture = "riscv64", id = "rvv", isa_vector_hints = "rv64gcv_zvl128b", kind = "isa-vector", lmul = "m1", mask_policy = "agnostic", provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"], sew_bits = 32 : i64, status = "available", tail_policy = "agnostic"}
     tcrv.exec.capability @rvv_hart_count {count = 64 : i64, id = "rvv.hart_count", kind = "uarch", status = "available"}
     tcrv.exec.capability @rvv_probe_compile_run {id = "rvv.probe.compile_run", kind = "toolchain", selected_mabi = "lp64d", selected_march = "rv64gcv", status = "available"}
     tcrv.exec.capability @rvv_toolchain_march {id = "rvv.toolchain.march", kind = "toolchain", status = "available", value = "rv64gcv"}

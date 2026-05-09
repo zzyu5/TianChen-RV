@@ -59,6 +59,10 @@ constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
 constexpr llvm::StringLiteral kVLenBBytesPropertyName("bytes");
 constexpr llvm::StringLiteral kI32M1LanesPropertyName("lanes");
+constexpr llvm::StringLiteral kSEWBitsPropertyName("sew_bits");
+constexpr llvm::StringLiteral kLMULPropertyName("lmul");
+constexpr llvm::StringLiteral kTailPolicyPropertyName("tail_policy");
+constexpr llvm::StringLiteral kMaskPolicyPropertyName("mask_policy");
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
@@ -376,6 +380,63 @@ llvm::Error requireAvailableCapability(
   return llvm::Error::success();
 }
 
+llvm::Error requireFirstSliceSEW32Capability(
+    const support::TargetCapabilitySet &capabilities) {
+  const support::CapabilityDescriptor *capability = nullptr;
+  if (llvm::Error error = requireAvailableCapability(
+          capabilities, rvv::getRVVI32M1SEW32CapabilityID(), capability))
+    return std::move(error);
+
+  llvm::Expected<std::uint64_t> sew =
+      getRequiredPositiveIntegerRVVProperty(*capability, kSEWBitsPropertyName);
+  if (!sew)
+    return sew.takeError();
+  if (*sew != 32)
+    return makeRVVPluginError(
+        "RVV first-slice config capability id 'rvv.i32_m1.sew32' property "
+        "'sew_bits' must be 32");
+  return llvm::Error::success();
+}
+
+llvm::Error requireFirstSliceStringCapability(
+    const support::TargetCapabilitySet &capabilities, llvm::StringRef id,
+    llvm::StringRef propertyName, llvm::StringRef expectedValue) {
+  const support::CapabilityDescriptor *capability = nullptr;
+  if (llvm::Error error = requireAvailableCapability(capabilities, id,
+                                                     capability))
+    return std::move(error);
+
+  llvm::Expected<std::string> property =
+      getRequiredRVVProperty(*capability, propertyName);
+  if (!property)
+    return property.takeError();
+  if (*property != expectedValue)
+    return makeRVVPluginError(llvm::Twine("RVV first-slice config capability "
+                                          "id '") +
+                              id + "' property '" + propertyName +
+                              "' must be '" + expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyFirstSliceConfigCapabilities(
+    const support::TargetCapabilitySet &capabilities) {
+  if (llvm::Error error = requireFirstSliceSEW32Capability(capabilities))
+    return error;
+  if (llvm::Error error = requireFirstSliceStringCapability(
+          capabilities, rvv::getRVVI32M1LMULM1CapabilityID(),
+          kLMULPropertyName, "m1"))
+    return error;
+  if (llvm::Error error = requireFirstSliceStringCapability(
+          capabilities, rvv::getRVVI32M1TailAgnosticCapabilityID(),
+          kTailPolicyPropertyName, "agnostic"))
+    return error;
+  if (llvm::Error error = requireFirstSliceStringCapability(
+          capabilities, rvv::getRVVI32M1MaskAgnosticCapabilityID(),
+          kMaskPolicyPropertyName, "agnostic"))
+    return error;
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVCapabilityPropertyView>
 buildRVVCapabilityPropertyView(
     const support::TargetCapabilitySet &capabilities) {
@@ -478,6 +539,9 @@ buildRVVCapabilityPropertyView(
     }
   }
 
+  if (llvm::Error error = verifyFirstSliceConfigCapabilities(capabilities))
+    return std::move(error);
+
   RVVCapabilityPropertyView view;
   view.architecture = std::move(*architecture);
   view.isaVectorHints = std::move(*isaVectorHints);
@@ -488,14 +552,14 @@ buildRVVCapabilityPropertyView(
   return view;
 }
 
-llvm::Expected<bool>
-variantRequiresRVV(tcrv::exec::VariantOp variant,
-                   const support::TargetCapabilitySet &capabilities) {
+llvm::Expected<bool> variantRequiresCapabilityID(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities, llvm::StringRef id) {
   auto requiresAttr =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   if (!requiresAttr)
-    return makeRVVPluginError(
-        "materialized RVV variant requires structured 'requires' metadata");
+    return makeRVVPluginError("materialized RVV variant requires structured "
+                              "'requires' metadata");
 
   for (mlir::Attribute requiredCapability : requiresAttr) {
     auto symbolRef =
@@ -510,11 +574,43 @@ variantRequiresRVV(tcrv::exec::VariantOp variant,
     if (!capability)
       continue;
 
-    if (capability->satisfiesID(kRVVCapabilityID))
+    if (capability->satisfiesID(id))
       return true;
   }
 
   return false;
+}
+
+llvm::Error verifyVariantRequiresCapabilityID(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities, llvm::StringRef id) {
+  llvm::Expected<bool> requiresID =
+      variantRequiresCapabilityID(variant, capabilities, id);
+  if (!requiresID)
+    return requiresID.takeError();
+  if (!*requiresID)
+    return makeRVVPluginError(llvm::Twine("materialized RVV variant must "
+                                          "require capability id '") +
+                              id + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyVariantRequiresFirstSliceConfigCapabilities(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities) {
+  if (llvm::Error error = verifyVariantRequiresCapabilityID(
+          variant, capabilities, rvv::getRVVI32M1SEW32CapabilityID()))
+    return error;
+  if (llvm::Error error = verifyVariantRequiresCapabilityID(
+          variant, capabilities, rvv::getRVVI32M1LMULM1CapabilityID()))
+    return error;
+  if (llvm::Error error = verifyVariantRequiresCapabilityID(
+          variant, capabilities, rvv::getRVVI32M1TailAgnosticCapabilityID()))
+    return error;
+  if (llvm::Error error = verifyVariantRequiresCapabilityID(
+          variant, capabilities, rvv::getRVVI32M1MaskAgnosticCapabilityID()))
+    return error;
+  return llvm::Error::success();
 }
 
 mlir::StringAttr getRVVPolicyAttrNameAttr(mlir::MLIRContext *context) {
@@ -1424,6 +1520,12 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
 
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
+  proposal.addRequiredCapabilityID(rvv::getRVVI32M1SEW32CapabilityID());
+  proposal.addRequiredCapabilityID(rvv::getRVVI32M1LMULM1CapabilityID());
+  proposal.addRequiredCapabilityID(
+      rvv::getRVVI32M1TailAgnosticCapabilityID());
+  proposal.addRequiredCapabilityID(
+      rvv::getRVVI32M1MaskAgnosticCapabilityID());
   proposal.setCondition("rvv_capability_properties_available");
   proposal.setGuard("plugin_local_rvv_property_evidence");
   proposal.setPolicy("metadata_only_first_slice");
@@ -1644,6 +1746,18 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
       kRVVCapabilityID, kRVVCapabilityKind,
       "RVV first-slice vector ISA capability participation; target "
       "availability is supplied by tcrv.exec.capability metadata"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M1SEW32CapabilityID(), "isa-vector-config",
+      "RVV first-slice i32m1 SEW=32 compile-time config capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M1LMULM1CapabilityID(), "isa-vector-config",
+      "RVV first-slice i32m1 LMUL=m1 compile-time config capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M1TailAgnosticCapabilityID(), "isa-vector-config",
+      "RVV first-slice tail agnostic policy capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M1MaskAgnosticCapabilityID(), "isa-vector-config",
+      "RVV first-slice mask agnostic policy capability"));
 }
 
 llvm::StringRef RVVExtensionPlugin::getName() const {
@@ -1726,14 +1840,12 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
     return makeRVVPluginError(
         "materialized RVV variant requires an available capability id 'rvv'");
 
-  llvm::Expected<bool> requiresRVV =
-      variantRequiresRVV(variant, request.getCapabilities());
-  if (!requiresRVV)
-    return requiresRVV.takeError();
-
-  if (!*requiresRVV)
-    return makeRVVPluginError(
-        "materialized RVV variant must require capability id 'rvv'");
+  if (llvm::Error error = verifyVariantRequiresCapabilityID(
+          variant, request.getCapabilities(), kRVVCapabilityID))
+    return error;
+  if (llvm::Error error = verifyVariantRequiresFirstSliceConfigCapabilities(
+          variant, request.getCapabilities()))
+    return error;
 
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
@@ -2061,7 +2173,11 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
                              kRVVI32M1LanesAttrName) ||
       hasAnyCapacityMetadata(boundary, kRVVBoundaryVLenBBytesAttrName,
                              kRVVBoundaryI32M1LanesAttrName);
-  if (!hasCapacityMetadata)
+  bool requiresSelectedLegality =
+      variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName) ||
+      variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
+      variant->hasAttr(kRVVRequiredMarchAttrName) || hasCapacityMetadata;
+  if (!requiresSelectedLegality)
     return llvm::Error::success();
 
   VariantLegalityRequest legality(variant, request.getKernel(),
@@ -2072,6 +2188,9 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
         llvm::Twine("selected RVV variant @") + variant.getSymName() +
         " failed plugin legality before boundary validation: " + message);
   }
+
+  if (!hasCapacityMetadata)
+    return llvm::Error::success();
 
   return validateBoundaryCapacityMetadata(variant, boundary);
 }

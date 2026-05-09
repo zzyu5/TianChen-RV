@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Review capability identity, availability, relation-provider, and parameter layering compliance."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV first-slice capability/profile/proposal/boundary semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review selected-path emission-readiness and artifact preflight fail-closed behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused MLIR/C++/script coverage and final build checks."}

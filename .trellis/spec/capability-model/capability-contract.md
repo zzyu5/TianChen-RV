@@ -177,6 +177,7 @@ Capability kind is an open set. Initial kinds include:
 ```text
 isa-scalar
 isa-vector
+isa-vector-config
 isa-matrix-vector-backed
 isa-matrix-separate-register
 isa-custom-instruction

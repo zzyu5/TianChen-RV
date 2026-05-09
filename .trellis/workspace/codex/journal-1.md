@@ -55,6 +55,61 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 9: Capability-backed RVV i32m1 policy legality
+
+**Date**: 2026-05-09
+**Task**: Capability-backed RVV i32m1 policy legality
+**Branch**: `main`
+
+### Summary
+
+Completed the RVV first-slice capability legality module for the existing i32
+add/sub/mul RVV microkernel families. The compiler now models SEW=32,
+LMUL=m1, tail agnostic, and mask agnostic as stable RVV capability ids and
+requires them through RVV proposal, materialized-variant legality, selected
+lowering-boundary validation, probe replay, and focused tests.
+
+### Main Changes
+
+- Added plugin-local first-slice capability ids/symbols for
+  `rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
+  `rvv.i32_m1.tail_policy.agnostic`, and
+  `rvv.i32_m1.mask_policy.agnostic`.
+- Updated the RVV capability profile, plugin proposal, variant legality, and
+  selected lowering-boundary validation so RVV i32m1 selected paths fail closed
+  before artifact support when required config/policy capabilities are missing,
+  disabled, or mismatched.
+- Extended `rvv_remote_probe.py` and `rvv_probe_to_mlir.py` to preserve/replay
+  first-slice config facts as evidence only; compiler decisions remain in
+  C++/MLIR.
+- Migrated RVV add/sub/mul, RVV+scalar dispatch, target/export, lowering, and
+  emission fixtures to provide the new first-slice capability requirements.
+- Updated RVV and capability code-specs with the executable capability/config
+  contract and validation matrix.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake -S . -B artifacts/tmp/tianchenrv-build -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir`
+- [OK] `python3 scripts/rvv_remote_probe.py --self-test`
+- [OK] `python3 scripts/rvv_probe_to_mlir.py --self-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 5: RVV i32 binary family descriptor registry
 
 **Date**: 2026-05-09
