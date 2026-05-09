@@ -295,6 +295,50 @@ bool isI32M1Vector(mlir::Type type) {
   return llvm::isa<I32M1VectorType>(type);
 }
 
+bool isI32M2Vector(mlir::Type type) {
+  return llvm::isa<I32M2VectorType>(type);
+}
+
+llvm::StringRef getI32VectorLMUL(mlir::Type type) {
+  if (isI32M1Vector(type))
+    return "m1";
+  if (isI32M2Vector(type))
+    return "m2";
+  return {};
+}
+
+bool isSupportedI32Vector(mlir::Type type) {
+  return !getI32VectorLMUL(type).empty();
+}
+
+bool isSupportedI32LMUL(llvm::StringRef lmul) {
+  return lmul == "m1" || lmul == "m2";
+}
+
+mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
+                                                 mlir::Value value,
+                                                 llvm::StringRef role) {
+  llvm::StringRef valueLMUL = getI32VectorLMUL(value.getType());
+  if (valueLMUL.empty())
+    return op->emitOpError()
+           << "requires " << role
+           << " type to be !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2";
+
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
+
+  auto expectedLMUL =
+      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (expectedLMUL && expectedLMUL.getValue() != valueLMUL)
+    return op->emitOpError()
+           << "requires " << role << " type " << value.getType()
+           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << expectedLMUL.getValue() << "'";
+
+  return mlir::success();
+}
+
 enum class I32MicrokernelArithmetic {
   Add,
   Sub,
@@ -602,10 +646,10 @@ mlir::LogicalResult SetVLOp::verify() {
            << "requires SEW compile-time config 'sew' to be 32 for the "
               "bounded RVV first slice";
 
-  if (getLmul() != "m1")
+  if (!isSupportedI32LMUL(getLmul()))
     return emitOpError()
-           << "requires LMUL compile-time config 'lmul' to be \"m1\" for the "
-              "bounded RVV first slice";
+           << "requires LMUL compile-time config 'lmul' to be \"m1\" or "
+              "\"m2\" for the bounded RVV first slice";
 
   if (!getPolicy())
     return emitOpError()
@@ -660,10 +704,10 @@ mlir::LogicalResult WithVLOp::verify() {
               "the bounded RVV first slice";
 
   auto lmul = op->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  if (lmul && lmul.getValue() != "m1")
+  if (lmul && !isSupportedI32LMUL(lmul.getValue()))
     return emitOpError()
            << "requires optional LMUL compile-time config 'lmul' to be "
-              "\"m1\" for the bounded RVV first slice";
+              "\"m1\" or \"m2\" for the bounded RVV first slice";
 
   auto policy = op->getAttrOfType<PolicyAttr>(kPolicyAttrName);
   if (op->hasAttr(kPolicyAttrName) && !policy)
@@ -711,13 +755,14 @@ mlir::LogicalResult I32LoadOp::verify() {
   if (op->getNumOperands() != 1 || op->getNumResults() != 1)
     return emitOpError()
            << "requires exactly one !tcrv_rvv.vl operand and one "
-              "!tcrv_rvv.i32m1 result";
+              "bounded RVV i32 vector result";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  if (!isI32M1Vector(getLoaded().getType()))
-    return emitOpError() << "requires result type to be !tcrv_rvv.i32m1";
   if (mlir::failed(verifyNestedI32DataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyI32VectorTypeForWithVL(op, getLoaded(), "result")))
     return mlir::failure();
 
   llvm::StringSet<> seenRoles;
@@ -751,17 +796,30 @@ mlir::LogicalResult I32AddOp::verify() {
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires lhs/rhs !tcrv_rvv.i32m1 operands, one "
-              "!tcrv_rvv.vl operand, and one !tcrv_rvv.i32m1 result";
-  if (!isI32M1Vector(getLhs().getType()) ||
-      !isI32M1Vector(getRhs().getType()) ||
-      !isI32M1Vector(getSum().getType()))
+           << "requires lhs/rhs bounded RVV i32 vector operands, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+  if (!isSupportedI32Vector(getLhs().getType()) ||
+      !isSupportedI32Vector(getRhs().getType()) ||
+      !isSupportedI32Vector(getSum().getType()))
     return emitOpError()
-           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1";
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1 "
+              "or !tcrv_rvv.i32m2";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getSum().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same bounded RVV "
+              "i32 vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  return verifyNestedI32DataflowOp(op, I32MicrokernelArithmetic::Add);
+  if (mlir::failed(verifyNestedI32DataflowOp(
+          op, I32MicrokernelArithmetic::Add)))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyI32VectorTypeForWithVL(op, getSum(), "result");
 }
 
 mlir::LogicalResult I32SubOp::verify() {
@@ -784,17 +842,30 @@ mlir::LogicalResult I32SubOp::verify() {
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires lhs/rhs !tcrv_rvv.i32m1 operands, one "
-              "!tcrv_rvv.vl operand, and one !tcrv_rvv.i32m1 result";
-  if (!isI32M1Vector(getLhs().getType()) ||
-      !isI32M1Vector(getRhs().getType()) ||
-      !isI32M1Vector(getDifference().getType()))
+           << "requires lhs/rhs bounded RVV i32 vector operands, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+  if (!isSupportedI32Vector(getLhs().getType()) ||
+      !isSupportedI32Vector(getRhs().getType()) ||
+      !isSupportedI32Vector(getDifference().getType()))
     return emitOpError()
-           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1";
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1 "
+              "or !tcrv_rvv.i32m2";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getDifference().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same bounded RVV "
+              "i32 vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  return verifyNestedI32DataflowOp(op, I32MicrokernelArithmetic::Sub);
+  if (mlir::failed(verifyNestedI32DataflowOp(
+          op, I32MicrokernelArithmetic::Sub)))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyI32VectorTypeForWithVL(op, getDifference(), "result");
 }
 
 mlir::LogicalResult I32MulOp::verify() {
@@ -817,17 +888,30 @@ mlir::LogicalResult I32MulOp::verify() {
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires lhs/rhs !tcrv_rvv.i32m1 operands, one "
-              "!tcrv_rvv.vl operand, and one !tcrv_rvv.i32m1 result";
-  if (!isI32M1Vector(getLhs().getType()) ||
-      !isI32M1Vector(getRhs().getType()) ||
-      !isI32M1Vector(getProduct().getType()))
+           << "requires lhs/rhs bounded RVV i32 vector operands, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+  if (!isSupportedI32Vector(getLhs().getType()) ||
+      !isSupportedI32Vector(getRhs().getType()) ||
+      !isSupportedI32Vector(getProduct().getType()))
     return emitOpError()
-           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1";
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1 "
+              "or !tcrv_rvv.i32m2";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getProduct().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same bounded RVV "
+              "i32 vector type";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  return verifyNestedI32DataflowOp(op, I32MicrokernelArithmetic::Mul);
+  if (mlir::failed(verifyNestedI32DataflowOp(
+          op, I32MicrokernelArithmetic::Mul)))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyI32VectorTypeForWithVL(op, getProduct(), "result");
 }
 
 mlir::LogicalResult I32StoreOp::verify() {
@@ -852,14 +936,14 @@ mlir::LogicalResult I32StoreOp::verify() {
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 0)
     return emitOpError()
-           << "requires one !tcrv_rvv.i32m1 value operand, one !tcrv_rvv.vl "
-              "operand, and no results";
-  if (!isI32M1Vector(getValue().getType()))
-    return emitOpError() << "requires stored value type to be !tcrv_rvv.i32m1";
+           << "requires one bounded RVV i32 vector value operand, one "
+              "!tcrv_rvv.vl operand, and no results";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
   if (mlir::failed(verifyNestedI32DataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyI32VectorTypeForWithVL(op, getValue(), "stored value")))
     return mlir::failure();
 
   llvm::StringSet<> seenRoles;

@@ -52,14 +52,24 @@ required capability ids:
   rvv.i32_m1.lmul_m1
   rvv.i32_m1.tail_policy.agnostic
   rvv.i32_m1.mask_policy.agnostic
+finite i32m2 capability ids:
+  rvv.i32_m2.sew32
+  rvv.i32_m2.lmul_m2
+  rvv.i32_m2.tail_policy.agnostic
+  rvv.i32_m2.mask_policy.agnostic
 preferred first-slice config symbols:
   @rvv_i32_m1_sew32
   @rvv_i32_m1_lmul_m1
   @rvv_i32_m1_tail_agnostic
   @rvv_i32_m1_mask_agnostic
+  @rvv_i32_m2_sew32
+  @rvv_i32_m2_lmul_m2
+  @rvv_i32_m2_tail_agnostic
+  @rvv_i32_m2_mask_agnostic
 materialized requires form: requires may be [@rvv] only when @rvv is a
-  relation-provider for all five required ids above; otherwise the variant must
-  require the exact provider symbols for each first-slice config/policy id
+  relation-provider for rvv plus exactly one finite config shape above
+  (i32m1 or i32m2); otherwise the variant must require the exact provider
+  symbols for rvv plus each selected config/policy id
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
@@ -89,20 +99,30 @@ The current minimal proposal gate is:
   properties, and `isa_vector_hints` contains RVV vector evidence;
 - capability id `rvv.hart_count` is available and has a positive integer
   `count` property;
-- capability id `rvv.i32_m1.sew32` is available and has integer property
+- exactly one finite i32 config shape is selected by available capability ids:
+  either the m1 shape
+  (`rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
+  `rvv.i32_m1.tail_policy.agnostic`,
+  `rvv.i32_m1.mask_policy.agnostic`) or the m2 shape
+  (`rvv.i32_m2.sew32`, `rvv.i32_m2.lmul_m2`,
+  `rvv.i32_m2.tail_policy.agnostic`,
+  `rvv.i32_m2.mask_policy.agnostic`);
+- the selected shape's SEW capability is available and has integer property
   `sew_bits = 32`;
-- capability id `rvv.i32_m1.lmul_m1` is available and has string property
-  `lmul = "m1"`;
-- capability id `rvv.i32_m1.tail_policy.agnostic` is available and has string
+- the selected shape's LMUL capability is available and has string property
+  `lmul = "m1"` or `lmul = "m2"` according to the selected shape;
+- the selected shape's tail-policy capability is available and has string
   property `tail_policy = "agnostic"`;
-- capability id `rvv.i32_m1.mask_policy.agnostic` is available and has string
+- the selected shape's mask-policy capability is available and has string
   property `mask_policy = "agnostic"`;
 - when capability ids `rvv.vlenb_bytes` and `rvv.i32_m1_lane_count` are
   available, either as exact capability providers or through the explicit
   kernel capability-provider relation scope such as a module-level
   `target = @profile`, they must appear as a pair, preserve positive integer
   `bytes`/`lanes` properties, and satisfy `lanes = bytes / 4` for the current
-  i32 m1 first slice;
+  i32 m1 baseline capacity fact; an m2 selected config still preserves this
+  target/profile fact as m1 lanes and derives m2 intrinsic spelling from
+  selected LMUL metadata, not from a new runtime shape claim;
 - capability id `rvv.probe.compile_run` is available, either as an exact
   capability provider or through the explicit kernel capability-provider
   relation scope such as a module-level `target = @profile`, and has a bounded
@@ -476,8 +496,8 @@ the finite `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`,
 the current i32 add/sub/mul export routes, and the pre-executable
 `tcrv_rvv.lowering_boundary` operation. The setvl op
 consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
-only bounded first-slice compile-time config metadata: SEW 32, LMUL m1, and the
-finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
+only bounded first-slice compile-time config metadata: SEW 32, LMUL m1 or m2,
+and the finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
 owns one single-block region for bounded RVV control/body work. Optional
 duplicated SEW/LMUL/policy metadata is limited to the same bounded first-slice
 config and must agree with the visible defining setvl when present. The bounded
@@ -504,6 +524,10 @@ rvv.i32_m1.sew32
 rvv.i32_m1.lmul_m1
 rvv.i32_m1.tail_policy.agnostic
 rvv.i32_m1.mask_policy.agnostic
+rvv.i32_m2.sew32
+rvv.i32_m2.lmul_m2
+rvv.i32_m2.tail_policy.agnostic
+rvv.i32_m2.mask_policy.agnostic
 vlen
 elen
 supported SEW
@@ -546,6 +570,8 @@ Current first-slice type:
 
 ```text
 !tcrv_rvv.vl
+!tcrv_rvv.i32m1
+!tcrv_rvv.i32m2
 ```
 
 Current first-slice policy attribute:
@@ -558,7 +584,7 @@ Current first-slice runtime VL control-plane op:
 
 ```mlir
 %vl = tcrv_rvv.setvl %avl {
-  lmul = "m1",
+  lmul = "m1",  // or "m2" for the finite i32m2 slice
   policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
   sew = 32 : i64
 } : index -> !tcrv_rvv.vl
@@ -568,7 +594,7 @@ Current first-slice VL scope control-plane op:
 
 ```mlir
 tcrv_rvv.with_vl %vl attributes {
-  lmul = "m1",
+  lmul = "m1",  // or "m2" for the finite i32m2 slice
   policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
   sew = 32 : i64
 } {
@@ -631,12 +657,18 @@ RVV work must keep these parameter layers distinct:
   VL, runtime `n`, or performance evidence.
 - SEW, LMUL, tail policy, and mask policy are compile-time variant config
   selected or proposed by the RVV plugin and checked against target
-  capabilities. The current executable first slice is only SEW 32, LMUL m1,
-  tail agnostic, and mask agnostic, backed by the four stable capability ids
+  capabilities. The current executable first slice admits only SEW 32 with
+  LMUL m1 or m2, tail agnostic, and mask agnostic. The m1 shape is backed by
   `rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
   `rvv.i32_m1.tail_policy.agnostic`, and
-  `rvv.i32_m1.mask_policy.agnostic`. They are not sufficient as standalone
-  hardware facts without the surrounding RVV/profile/toolchain evidence.
+  `rvv.i32_m1.mask_policy.agnostic`; the m2 shape is backed by
+  `rvv.i32_m2.sew32`, `rvv.i32_m2.lmul_m2`,
+  `rvv.i32_m2.tail_policy.agnostic`, and
+  `rvv.i32_m2.mask_policy.agnostic`. A selected variant must require exactly
+  one shape, and the target exporter must reject selected capability/body LMUL
+  mismatches before artifact bytes are emitted. These config ids are not
+  sufficient as standalone hardware facts without the surrounding
+  RVV/profile/toolchain evidence.
 - AVL and vl are runtime SSA values / runtime control values. The current
   bounded `tcrv_rvv.setvl` surface models AVL as a real runtime SSA operand and
   vl as a real `!tcrv_rvv.vl` result. The bounded `tcrv_rvv.with_vl` surface

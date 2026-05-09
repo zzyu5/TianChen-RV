@@ -43,6 +43,22 @@ constexpr llvm::StringLiteral kRVVI32M1MaskAgnosticCapabilityID(
     "rvv.i32_m1.mask_policy.agnostic");
 constexpr llvm::StringLiteral kRVVI32M1MaskAgnosticCapabilitySymbol(
     "rvv_i32_m1_mask_agnostic");
+constexpr llvm::StringLiteral kRVVI32M2SEW32CapabilityID(
+    "rvv.i32_m2.sew32");
+constexpr llvm::StringLiteral kRVVI32M2SEW32CapabilitySymbol(
+    "rvv_i32_m2_sew32");
+constexpr llvm::StringLiteral kRVVI32M2LMULM2CapabilityID(
+    "rvv.i32_m2.lmul_m2");
+constexpr llvm::StringLiteral kRVVI32M2LMULM2CapabilitySymbol(
+    "rvv_i32_m2_lmul_m2");
+constexpr llvm::StringLiteral kRVVI32M2TailAgnosticCapabilityID(
+    "rvv.i32_m2.tail_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M2TailAgnosticCapabilitySymbol(
+    "rvv_i32_m2_tail_agnostic");
+constexpr llvm::StringLiteral kRVVI32M2MaskAgnosticCapabilityID(
+    "rvv.i32_m2.mask_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M2MaskAgnosticCapabilitySymbol(
+    "rvv_i32_m2_mask_agnostic");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilityID(
     "rvv.toolchain.clang");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilitySymbol(
@@ -223,6 +239,38 @@ llvm::StringRef getRVVI32M1MaskAgnosticCapabilityID() {
 
 llvm::StringRef getRVVI32M1MaskAgnosticCapabilitySymbol() {
   return kRVVI32M1MaskAgnosticCapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M2SEW32CapabilityID() {
+  return kRVVI32M2SEW32CapabilityID;
+}
+
+llvm::StringRef getRVVI32M2SEW32CapabilitySymbol() {
+  return kRVVI32M2SEW32CapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M2LMULM2CapabilityID() {
+  return kRVVI32M2LMULM2CapabilityID;
+}
+
+llvm::StringRef getRVVI32M2LMULM2CapabilitySymbol() {
+  return kRVVI32M2LMULM2CapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M2TailAgnosticCapabilityID() {
+  return kRVVI32M2TailAgnosticCapabilityID;
+}
+
+llvm::StringRef getRVVI32M2TailAgnosticCapabilitySymbol() {
+  return kRVVI32M2TailAgnosticCapabilitySymbol;
+}
+
+llvm::StringRef getRVVI32M2MaskAgnosticCapabilityID() {
+  return kRVVI32M2MaskAgnosticCapabilityID;
+}
+
+llvm::StringRef getRVVI32M2MaskAgnosticCapabilitySymbol() {
+  return kRVVI32M2MaskAgnosticCapabilitySymbol;
 }
 
 llvm::StringRef getRVVClangToolchainCapabilityID() {

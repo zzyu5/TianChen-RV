@@ -52,9 +52,9 @@ module {
 module {
   tcrv.exec.kernel @rvv_setvl_reject_lmul {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    // expected-error@+1 {{requires LMUL compile-time config 'lmul' to be "m1"}}
+    // expected-error@+1 {{requires LMUL compile-time config 'lmul' to be "m1" or "m2"}}
     %vl = tcrv_rvv.setvl %avl {
-      lmul = "m2",
+      lmul = "m4",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } : index -> !tcrv_rvv.vl

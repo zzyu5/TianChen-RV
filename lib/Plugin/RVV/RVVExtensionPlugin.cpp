@@ -118,6 +118,40 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+using RVVI32MicrokernelKind =
+    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+using RVVI32FamilyDescriptor =
+    tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using RVVI32RegistryMicrokernelDescriptor =
+    tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
+
+struct RVVI32LMULConfigSpec {
+  llvm::StringRef configName;
+  llvm::StringRef lmul;
+  llvm::StringRef sewCapabilityID;
+  llvm::StringRef lmulCapabilityID;
+  llvm::StringRef tailPolicyCapabilityID;
+  llvm::StringRef maskPolicyCapabilityID;
+};
+
+const RVVI32LMULConfigSpec &getI32M1ConfigSpec() {
+  static const RVVI32LMULConfigSpec spec{
+      "i32m1", "m1", rvv::getRVVI32M1SEW32CapabilityID(),
+      rvv::getRVVI32M1LMULM1CapabilityID(),
+      rvv::getRVVI32M1TailAgnosticCapabilityID(),
+      rvv::getRVVI32M1MaskAgnosticCapabilityID()};
+  return spec;
+}
+
+const RVVI32LMULConfigSpec &getI32M2ConfigSpec() {
+  static const RVVI32LMULConfigSpec spec{
+      "i32m2", "m2", rvv::getRVVI32M2SEW32CapabilityID(),
+      rvv::getRVVI32M2LMULM2CapabilityID(),
+      rvv::getRVVI32M2TailAgnosticCapabilityID(),
+      rvv::getRVVI32M2MaskAgnosticCapabilityID()};
+  return spec;
+}
+
 struct RVVCapabilityPropertyView {
   std::string architecture;
   std::string isaVectorHints;
@@ -125,14 +159,8 @@ struct RVVCapabilityPropertyView {
   std::uint64_t hartCount = 0;
   std::optional<std::uint64_t> vlenbBytes;
   std::optional<std::uint64_t> i32M1LaneCount;
+  const RVVI32LMULConfigSpec *i32Config = nullptr;
 };
-
-using RVVI32MicrokernelKind =
-    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
-using RVVI32FamilyDescriptor =
-    tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
-using RVVI32RegistryMicrokernelDescriptor =
-    tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
 
 struct RVVI32MicrokernelFamilySpec {
   const RVVI32FamilyDescriptor *family;
@@ -221,6 +249,7 @@ getI32MicrokernelFamilyByDescriptor(
 
 struct RVVI32MicrokernelMaterializationPlan {
   const RVVI32MicrokernelFamilySpec *family = nullptr;
+  const RVVI32LMULConfigSpec *i32Config = nullptr;
   std::int64_t elementCount = 0;
   std::string requiredMarch;
   std::optional<std::string> selectedMABI;
@@ -381,10 +410,11 @@ llvm::Error requireAvailableCapability(
 }
 
 llvm::Error requireFirstSliceSEW32Capability(
-    const support::TargetCapabilitySet &capabilities) {
+    const support::TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec &config) {
   const support::CapabilityDescriptor *capability = nullptr;
   if (llvm::Error error = requireAvailableCapability(
-          capabilities, rvv::getRVVI32M1SEW32CapabilityID(), capability))
+          capabilities, config.sewCapabilityID, capability))
     return std::move(error);
 
   llvm::Expected<std::uint64_t> sew =
@@ -392,9 +422,10 @@ llvm::Error requireFirstSliceSEW32Capability(
   if (!sew)
     return sew.takeError();
   if (*sew != 32)
-    return makeRVVPluginError(
-        "RVV first-slice config capability id 'rvv.i32_m1.sew32' property "
-        "'sew_bits' must be 32");
+    return makeRVVPluginError(llvm::Twine("RVV first-slice config capability "
+                                          "id '") +
+                              config.sewCapabilityID +
+                              "' property 'sew_bits' must be 32");
   return llvm::Error::success();
 }
 
@@ -419,27 +450,54 @@ llvm::Error requireFirstSliceStringCapability(
 }
 
 llvm::Error verifyFirstSliceConfigCapabilities(
-    const support::TargetCapabilitySet &capabilities) {
-  if (llvm::Error error = requireFirstSliceSEW32Capability(capabilities))
+    const support::TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec &config) {
+  if (llvm::Error error =
+          requireFirstSliceSEW32Capability(capabilities, config))
     return error;
   if (llvm::Error error = requireFirstSliceStringCapability(
-          capabilities, rvv::getRVVI32M1LMULM1CapabilityID(),
-          kLMULPropertyName, "m1"))
+          capabilities, config.lmulCapabilityID, kLMULPropertyName,
+          config.lmul))
     return error;
   if (llvm::Error error = requireFirstSliceStringCapability(
-          capabilities, rvv::getRVVI32M1TailAgnosticCapabilityID(),
+          capabilities, config.tailPolicyCapabilityID,
           kTailPolicyPropertyName, "agnostic"))
     return error;
   if (llvm::Error error = requireFirstSliceStringCapability(
-          capabilities, rvv::getRVVI32M1MaskAgnosticCapabilityID(),
+          capabilities, config.maskPolicyCapabilityID,
           kMaskPolicyPropertyName, "agnostic"))
     return error;
   return llvm::Error::success();
 }
 
+llvm::Expected<const RVVI32LMULConfigSpec *>
+selectAvailableFirstSliceConfigCapabilities(
+    const support::TargetCapabilitySet &capabilities) {
+  if (llvm::Error error =
+          verifyFirstSliceConfigCapabilities(capabilities,
+                                             getI32M1ConfigSpec())) {
+    llvm::consumeError(std::move(error));
+  } else {
+    return &getI32M1ConfigSpec();
+  }
+
+  if (llvm::Error error =
+          verifyFirstSliceConfigCapabilities(capabilities,
+                                             getI32M2ConfigSpec())) {
+    llvm::consumeError(std::move(error));
+  } else {
+    return &getI32M2ConfigSpec();
+  }
+
+  return makeRVVPluginError(
+      "RVV property decision requires either the finite i32m1 config "
+      "capability ids or the finite i32m2 config capability ids");
+}
+
 llvm::Expected<RVVCapabilityPropertyView>
 buildRVVCapabilityPropertyView(
-    const support::TargetCapabilitySet &capabilities) {
+    const support::TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec *requiredConfig = nullptr) {
   const support::CapabilityDescriptor *rvvCapability = nullptr;
   if (llvm::Error error =
           requireAvailableCapability(capabilities, kRVVCapabilityID,
@@ -539,8 +597,18 @@ buildRVVCapabilityPropertyView(
     }
   }
 
-  if (llvm::Error error = verifyFirstSliceConfigCapabilities(capabilities))
-    return std::move(error);
+  const RVVI32LMULConfigSpec *selectedConfig = requiredConfig;
+  if (selectedConfig) {
+    if (llvm::Error error =
+            verifyFirstSliceConfigCapabilities(capabilities, *selectedConfig))
+      return std::move(error);
+  } else {
+    llvm::Expected<const RVVI32LMULConfigSpec *> config =
+        selectAvailableFirstSliceConfigCapabilities(capabilities);
+    if (!config)
+      return config.takeError();
+    selectedConfig = *config;
+  }
 
   RVVCapabilityPropertyView view;
   view.architecture = std::move(*architecture);
@@ -549,6 +617,7 @@ buildRVVCapabilityPropertyView(
   view.hartCount = *hartCount;
   view.vlenbBytes = vlenbBytes;
   view.i32M1LaneCount = i32M1LaneCount;
+  view.i32Config = selectedConfig;
   return view;
 }
 
@@ -595,22 +664,107 @@ llvm::Error verifyVariantRequiresCapabilityID(
   return llvm::Error::success();
 }
 
-llvm::Error verifyVariantRequiresFirstSliceConfigCapabilities(
+llvm::Expected<bool> variantRequiresConfig(
     tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities) {
+    const support::TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec &config) {
+  llvm::Expected<bool> requiresSEW =
+      variantRequiresCapabilityID(variant, capabilities, config.sewCapabilityID);
+  if (!requiresSEW)
+    return requiresSEW.takeError();
+  llvm::Expected<bool> requiresLMUL =
+      variantRequiresCapabilityID(variant, capabilities, config.lmulCapabilityID);
+  if (!requiresLMUL)
+    return requiresLMUL.takeError();
+  llvm::Expected<bool> requiresTail = variantRequiresCapabilityID(
+      variant, capabilities, config.tailPolicyCapabilityID);
+  if (!requiresTail)
+    return requiresTail.takeError();
+  llvm::Expected<bool> requiresMask = variantRequiresCapabilityID(
+      variant, capabilities, config.maskPolicyCapabilityID);
+  if (!requiresMask)
+    return requiresMask.takeError();
+  return *requiresSEW && *requiresLMUL && *requiresTail && *requiresMask;
+}
+
+llvm::Expected<bool> variantRequiresAnyConfigID(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec &config) {
+  for (llvm::StringRef id :
+       {config.sewCapabilityID, config.lmulCapabilityID,
+        config.tailPolicyCapabilityID, config.maskPolicyCapabilityID}) {
+    llvm::Expected<bool> requiresID =
+        variantRequiresCapabilityID(variant, capabilities, id);
+    if (!requiresID)
+      return requiresID.takeError();
+    if (*requiresID)
+      return true;
+  }
+  return false;
+}
+
+llvm::Error verifyVariantRequiresConfigIDs(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec &config) {
   if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, rvv::getRVVI32M1SEW32CapabilityID()))
+          variant, capabilities, config.sewCapabilityID))
     return error;
   if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, rvv::getRVVI32M1LMULM1CapabilityID()))
+          variant, capabilities, config.lmulCapabilityID))
     return error;
   if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, rvv::getRVVI32M1TailAgnosticCapabilityID()))
+          variant, capabilities, config.tailPolicyCapabilityID))
     return error;
   if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, rvv::getRVVI32M1MaskAgnosticCapabilityID()))
+          variant, capabilities, config.maskPolicyCapabilityID))
     return error;
   return llvm::Error::success();
+}
+
+llvm::Expected<const RVVI32LMULConfigSpec *>
+getVariantRequiredFirstSliceConfig(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities) {
+  llvm::Expected<bool> requiresM1 =
+      variantRequiresConfig(variant, capabilities, getI32M1ConfigSpec());
+  if (!requiresM1)
+    return requiresM1.takeError();
+  llvm::Expected<bool> requiresM2 =
+      variantRequiresConfig(variant, capabilities, getI32M2ConfigSpec());
+  if (!requiresM2)
+    return requiresM2.takeError();
+
+  if (*requiresM1 && *requiresM2)
+    return makeRVVPluginError(
+        "materialized RVV variant must require exactly one finite RVV i32 "
+        "LMUL config shape, not both i32m1 and i32m2");
+  if (*requiresM1)
+    return &getI32M1ConfigSpec();
+  if (*requiresM2)
+    return &getI32M2ConfigSpec();
+
+  llvm::Expected<bool> requiresAnyM1 =
+      variantRequiresAnyConfigID(variant, capabilities, getI32M1ConfigSpec());
+  if (!requiresAnyM1)
+    return requiresAnyM1.takeError();
+  llvm::Expected<bool> requiresAnyM2 =
+      variantRequiresAnyConfigID(variant, capabilities, getI32M2ConfigSpec());
+  if (!requiresAnyM2)
+    return requiresAnyM2.takeError();
+  if (*requiresAnyM1 && !*requiresAnyM2)
+    if (llvm::Error error = verifyVariantRequiresConfigIDs(
+            variant, capabilities, getI32M1ConfigSpec()))
+      return std::move(error);
+  if (*requiresAnyM2 && !*requiresAnyM1)
+    if (llvm::Error error = verifyVariantRequiresConfigIDs(
+            variant, capabilities, getI32M2ConfigSpec()))
+      return std::move(error);
+
+  return makeRVVPluginError(
+      "materialized RVV variant must require either the finite i32m1 config "
+      "capability ids or the finite i32m2 config capability ids");
 }
 
 mlir::StringAttr getRVVPolicyAttrNameAttr(mlir::MLIRContext *context) {
@@ -1044,6 +1198,7 @@ buildI32MicrokernelMaterializationPlan(
 
   RVVI32MicrokernelMaterializationPlan plan;
   plan.family = family;
+  plan.i32Config = view.i32Config;
   plan.elementCount = elementCount;
   plan.requiredMarch = requiredMarch.getValue().trim().str();
   plan.selectedMABI = std::move(*selectedMABI);
@@ -1155,7 +1310,8 @@ llvm::Error validateMicrokernelDataflowRoleAttr(
 
 llvm::Error validateMicrokernelStructuredControlPlane(
     tcrv::exec::VariantOp variant, mlir::Operation *microkernel,
-    const RVVI32MicrokernelFamilySpec &family) {
+    const RVVI32MicrokernelFamilySpec &family,
+    const RVVI32LMULConfigSpec &config) {
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
 
@@ -1211,7 +1367,7 @@ llvm::Error validateMicrokernelStructuredControlPlane(
     return makeRVVPluginError(
         "explicit RVV microkernel emission plan requires tcrv_rvv.with_vl to "
         "consume the !tcrv_rvv.vl token produced by tcrv_rvv.setvl");
-  if (setvl.getSew() != 32 || setvl.getLmul() != "m1" ||
+  if (setvl.getSew() != 32 || setvl.getLmul() != config.lmul ||
       setvl.getPolicy() != expectedPolicy)
     return makeRVVPluginError(
         "explicit RVV microkernel emission plan requires setvl "
@@ -1223,7 +1379,7 @@ llvm::Error validateMicrokernelStructuredControlPlane(
   auto withVLPolicy =
       withVL->getAttrOfType<tcrv::rvv::PolicyAttr>(kPolicyAttrName);
   if (!withVLSew || withVLSew.getInt() != 32 || !withVLLMUL ||
-      withVLLMUL.getValue() != "m1" || !withVLPolicy ||
+      withVLLMUL.getValue() != config.lmul || !withVLPolicy ||
       withVLPolicy != expectedPolicy)
     return makeRVVPluginError(
         "explicit RVV microkernel emission plan requires with_vl "
@@ -1330,8 +1486,14 @@ buildDescriptorPlanForEmission(const VariantEmissionRequest &request) {
   if (!variant || !variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName))
     return std::optional<RVVI32MicrokernelMaterializationPlan>();
 
+  llvm::Expected<const RVVI32LMULConfigSpec *> requiredConfig =
+      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+  if (!requiredConfig)
+    return requiredConfig.takeError();
+
   llvm::Expected<RVVCapabilityPropertyView> propertyView =
-      buildRVVCapabilityPropertyView(request.getCapabilities());
+      buildRVVCapabilityPropertyView(request.getCapabilities(),
+                                     *requiredConfig);
   if (!propertyView)
     return propertyView.takeError();
 
@@ -1357,7 +1519,6 @@ findMatchingExplicitMicrokernelFamily(
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   auto variantRequiredMarch =
       variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
-
   unsigned matches = 0;
   const RVVI32MicrokernelFamilySpec *matchedFamily = nullptr;
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -1444,8 +1605,13 @@ findMatchingExplicitMicrokernelFamily(
           " element_count to match selected variant finite descriptor "
           "metadata 'tcrv_rvv.element_count'");
 
-    if (llvm::Error error =
-            validateMicrokernelStructuredControlPlane(variant, &op, *family))
+    llvm::Expected<const RVVI32LMULConfigSpec *> requiredConfig =
+        getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+    if (!requiredConfig)
+      return requiredConfig.takeError();
+
+    if (llvm::Error error = validateMicrokernelStructuredControlPlane(
+            variant, &op, *family, **requiredConfig))
       return std::move(error);
   }
 
@@ -1520,12 +1686,12 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
 
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
-  proposal.addRequiredCapabilityID(rvv::getRVVI32M1SEW32CapabilityID());
-  proposal.addRequiredCapabilityID(rvv::getRVVI32M1LMULM1CapabilityID());
+  proposal.addRequiredCapabilityID(propertyView->i32Config->sewCapabilityID);
+  proposal.addRequiredCapabilityID(propertyView->i32Config->lmulCapabilityID);
   proposal.addRequiredCapabilityID(
-      rvv::getRVVI32M1TailAgnosticCapabilityID());
+      propertyView->i32Config->tailPolicyCapabilityID);
   proposal.addRequiredCapabilityID(
-      rvv::getRVVI32M1MaskAgnosticCapabilityID());
+      propertyView->i32Config->maskPolicyCapabilityID);
   proposal.setCondition("rvv_capability_properties_available");
   proposal.setGuard("plugin_local_rvv_property_evidence");
   proposal.setPolicy("metadata_only_first_slice");
@@ -1651,7 +1817,8 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
   setvlState.addOperands(runtimeN);
   setvlState.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
   setvlState.addAttribute(kSEWAttrName, builder.getI64IntegerAttr(32));
-  setvlState.addAttribute(kLMULAttrName, builder.getStringAttr("m1"));
+  setvlState.addAttribute(kLMULAttrName,
+                          builder.getStringAttr(plan.i32Config->lmul));
   setvlState.addAttribute(kPolicyAttrName, policy);
   auto setvl =
       llvm::cast<tcrv::rvv::SetVLOp>(bodyBuilder.create(setvlState));
@@ -1660,7 +1827,8 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
                                    tcrv::rvv::WithVLOp::getOperationName());
   withVLState.addOperands(setvl.getVl());
   withVLState.addAttribute(kSEWAttrName, builder.getI64IntegerAttr(32));
-  withVLState.addAttribute(kLMULAttrName, builder.getStringAttr("m1"));
+  withVLState.addAttribute(kLMULAttrName,
+                           builder.getStringAttr(plan.i32Config->lmul));
   withVLState.addAttribute(kPolicyAttrName, policy);
   mlir::Region *withVLBody = withVLState.addRegion();
   auto *withVLBlock = new mlir::Block();
@@ -1668,12 +1836,15 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
 
   mlir::OpBuilder withVLBodyBuilder(builder.getContext());
   withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
-  mlir::Type i32m1 = tcrv::rvv::I32M1VectorType::get(builder.getContext());
+  mlir::Type i32Vector =
+      plan.i32Config->lmul == "m2"
+          ? mlir::Type(tcrv::rvv::I32M2VectorType::get(builder.getContext()))
+          : mlir::Type(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
 
   mlir::OperationState lhsLoadState(variant.getLoc(),
                                     tcrv::rvv::I32LoadOp::getOperationName());
   lhsLoadState.addOperands(setvl.getVl());
-  lhsLoadState.addTypes(i32m1);
+  lhsLoadState.addTypes(i32Vector);
   lhsLoadState.addAttribute(
       kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
@@ -1684,7 +1855,7 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
   mlir::OperationState rhsLoadState(variant.getLoc(),
                                     tcrv::rvv::I32LoadOp::getOperationName());
   rhsLoadState.addOperands(setvl.getVl());
-  rhsLoadState.addTypes(i32m1);
+  rhsLoadState.addTypes(i32Vector);
   rhsLoadState.addAttribute(
       kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
@@ -1696,7 +1867,7 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
                                        plan.family->getRVV().arithmeticOpName);
   arithmeticState.addOperands(
       {lhsLoad.getLoaded(), rhsLoad.getLoaded(), setvl.getVl()});
-  arithmeticState.addTypes(i32m1);
+  arithmeticState.addTypes(i32Vector);
   mlir::Operation *arithmetic = withVLBodyBuilder.create(arithmeticState);
   mlir::Value arithmeticResult = arithmetic->getResult(0);
 
@@ -1758,6 +1929,18 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       rvv::getRVVI32M1MaskAgnosticCapabilityID(), "isa-vector-config",
       "RVV first-slice mask agnostic policy capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M2SEW32CapabilityID(), "isa-vector-config",
+      "RVV finite i32m2 SEW=32 compile-time config capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M2LMULM2CapabilityID(), "isa-vector-config",
+      "RVV finite i32m2 LMUL=m2 compile-time config capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M2TailAgnosticCapabilityID(), "isa-vector-config",
+      "RVV finite i32m2 tail agnostic policy capability"));
+  capabilities.push_back(PluginCapability(
+      rvv::getRVVI32M2MaskAgnosticCapabilityID(), "isa-vector-config",
+      "RVV finite i32m2 mask agnostic policy capability"));
 }
 
 llvm::StringRef RVVExtensionPlugin::getName() const {
@@ -1843,9 +2026,10 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
   if (llvm::Error error = verifyVariantRequiresCapabilityID(
           variant, request.getCapabilities(), kRVVCapabilityID))
     return error;
-  if (llvm::Error error = verifyVariantRequiresFirstSliceConfigCapabilities(
-          variant, request.getCapabilities()))
-    return error;
+  llvm::Expected<const RVVI32LMULConfigSpec *> requiredConfig =
+      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+  if (!requiredConfig)
+    return requiredConfig.takeError();
 
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
@@ -1856,7 +2040,8 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
       variant->hasAttr(kRVVVLenBBytesAttrName) ||
       variant->hasAttr(kRVVI32M1LanesAttrName)) {
     llvm::Expected<RVVCapabilityPropertyView> propertyView =
-        buildRVVCapabilityPropertyView(request.getCapabilities());
+        buildRVVCapabilityPropertyView(request.getCapabilities(),
+                                       *requiredConfig);
     if (!propertyView)
       return propertyView.takeError();
 
@@ -2089,8 +2274,14 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 
   std::optional<RVVI32MicrokernelMaterializationPlan> microkernelPlan;
   if (variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName)) {
+    llvm::Expected<const RVVI32LMULConfigSpec *> requiredConfig =
+        getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+    if (!requiredConfig)
+      return requiredConfig.takeError();
+
     llvm::Expected<RVVCapabilityPropertyView> propertyView =
-        buildRVVCapabilityPropertyView(request.getCapabilities());
+        buildRVVCapabilityPropertyView(request.getCapabilities(),
+                                       *requiredConfig);
     if (!propertyView)
       return propertyView.takeError();
 

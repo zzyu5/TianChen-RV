@@ -50,6 +50,8 @@ using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32AddOp;
+using tianchenrv::tcrv::rvv::I32M1VectorType;
+using tianchenrv::tcrv::rvv::I32M2VectorType;
 using tianchenrv::tcrv::rvv::I32LoadOp;
 using tianchenrv::tcrv::rvv::I32MulOp;
 using tianchenrv::tcrv::rvv::I32StoreOp;
@@ -66,11 +68,31 @@ using tianchenrv::tcrv::rvv::WithVLOp;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
+constexpr llvm::StringLiteral kRVVI32M1SEW32CapabilityID(
+    "rvv.i32_m1.sew32");
+constexpr llvm::StringLiteral kRVVI32M1LMULM1CapabilityID(
+    "rvv.i32_m1.lmul_m1");
+constexpr llvm::StringLiteral kRVVI32M1TailAgnosticCapabilityID(
+    "rvv.i32_m1.tail_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M1MaskAgnosticCapabilityID(
+    "rvv.i32_m1.mask_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M2SEW32CapabilityID(
+    "rvv.i32_m2.sew32");
+constexpr llvm::StringLiteral kRVVI32M2LMULM2CapabilityID(
+    "rvv.i32_m2.lmul_m2");
+constexpr llvm::StringLiteral kRVVI32M2TailAgnosticCapabilityID(
+    "rvv.i32_m2.tail_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI32M2MaskAgnosticCapabilityID(
+    "rvv.i32_m2.mask_policy.agnostic");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
+constexpr llvm::StringLiteral kSEWBitsPropertyName("sew_bits");
+constexpr llvm::StringLiteral kLMULPropertyName("lmul");
+constexpr llvm::StringLiteral kTailPolicyPropertyName("tail_policy");
+constexpr llvm::StringLiteral kMaskPolicyPropertyName("mask_policy");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
@@ -150,6 +172,18 @@ using RVVI32MicrokernelKind =
 using RVVI32MicrokernelFamilySpec =
     tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
 
+struct RVVI32LMULConfigSpec {
+  llvm::StringRef configName;
+  llvm::StringRef lmul;
+  llvm::StringRef sewCapabilityID;
+  llvm::StringRef lmulCapabilityID;
+  llvm::StringRef tailPolicyCapabilityID;
+  llvm::StringRef maskPolicyCapabilityID;
+  llvm::StringRef vectorType;
+  llvm::StringRef vectorSuffix;
+  llvm::StringRef setvlSuffix;
+};
+
 struct SelectedPath {
   VariantOp variant;
   mlir::Operation *selector = nullptr;
@@ -210,6 +244,34 @@ getI32MicrokernelFamilySpec(RVVI32MicrokernelKind kind) {
     return getI32VMulFamilySpec();
   }
   llvm_unreachable("unknown RVV i32 microkernel family");
+}
+
+const RVVI32LMULConfigSpec &getI32M1ConfigSpec() {
+  static const RVVI32LMULConfigSpec spec{
+      "i32m1",
+      "m1",
+      kRVVI32M1SEW32CapabilityID,
+      kRVVI32M1LMULM1CapabilityID,
+      kRVVI32M1TailAgnosticCapabilityID,
+      kRVVI32M1MaskAgnosticCapabilityID,
+      "vint32m1_t",
+      "i32m1",
+      "e32m1"};
+  return spec;
+}
+
+const RVVI32LMULConfigSpec &getI32M2ConfigSpec() {
+  static const RVVI32LMULConfigSpec spec{
+      "i32m2",
+      "m2",
+      kRVVI32M2SEW32CapabilityID,
+      kRVVI32M2LMULM2CapabilityID,
+      kRVVI32M2TailAgnosticCapabilityID,
+      kRVVI32M2MaskAgnosticCapabilityID,
+      "vint32m2_t",
+      "i32m2",
+      "e32m2"};
+  return spec;
 }
 
 const RVVI32MicrokernelFamilySpec *
@@ -578,7 +640,7 @@ llvm::Error makeIntrinsicConfigError(
 llvm::Expected<RVVIntrinsicConfig> buildRVVIntrinsicConfig(
     KernelOp kernel, llvm::StringRef activeRouteID,
     const RVVI32MicrokernelFamilySpec &family, SetVLOp setvl, WithVLOp withVL,
-    PolicyAttr selectedPolicy) {
+    PolicyAttr selectedPolicy, const RVVI32LMULConfigSpec &selectedConfig) {
   if (!selectedPolicy)
     return makeIntrinsicConfigError(
         kernel, activeRouteID, family,
@@ -617,23 +679,48 @@ llvm::Expected<RVVIntrinsicConfig> buildRVVIntrinsicConfig(
             "; supported i32 C intrinsic emission requires tail=agnostic, "
             "mask=agnostic");
 
-  if (setvl.getSew() != 32 || setvl.getLmul() != "m1")
+  if (setvl.getSew() != 32 || setvl.getLmul() != selectedConfig.lmul)
     return makeIntrinsicConfigError(
         kernel, activeRouteID, family,
         llvm::Twine("unsupported SEW/LMUL sew=") +
             llvm::Twine(setvl.getSew()) + ", lmul=" + setvl.getLmul() +
-            "; supported i32 C intrinsic emission currently requires "
-            "sew=32,lmul=m1");
+            "; selected capability config requires sew=32,lmul=" +
+            selectedConfig.lmul);
 
   RVVIntrinsicConfig config;
   config.sew = static_cast<std::int64_t>(setvl.getSew());
   config.lmul = setvl.getLmul().str();
-  config.vectorType = "vint32m1_t";
-  config.vectorSuffix = "i32m1";
-  config.setvlSuffix = "e32m1";
+  config.vectorType = selectedConfig.vectorType.str();
+  config.vectorSuffix = selectedConfig.vectorSuffix.str();
+  config.setvlSuffix = selectedConfig.setvlSuffix.str();
   config.tailPolicy = tail.str();
   config.maskPolicy = mask.str();
   return config;
+}
+
+llvm::StringRef getI32VectorLMUL(mlir::Type type) {
+  if (llvm::isa<I32M1VectorType>(type))
+    return "m1";
+  if (llvm::isa<I32M2VectorType>(type))
+    return "m2";
+  return {};
+}
+
+llvm::Error requireDataflowValueLMUL(KernelOp kernel, mlir::Value value,
+                                     const RVVIntrinsicConfig &config,
+                                     llvm::StringRef context) {
+  llvm::StringRef valueLMUL = getI32VectorLMUL(value.getType());
+  if (valueLMUL.empty())
+    return makeMicrokernelError(
+        kernel, llvm::Twine(context) +
+                    " must use !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2 typed "
+                    "dataflow values before C intrinsic emission");
+  if (valueLMUL != config.lmul)
+    return makeMicrokernelError(
+        kernel, llvm::Twine(context) +
+                    " type LMUL must match validated setvl/with_vl LMUL '" +
+                    config.lmul + "' before C intrinsic emission");
+  return llvm::Error::success();
 }
 
 using DataflowValueBinding =
@@ -684,6 +771,7 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
     KernelOp kernel, WithVLOp withVL,
     llvm::ArrayRef<mlir::Operation *> dataflowOps,
     const RVVI32MicrokernelFamilySpec &family,
+    const RVVIntrinsicConfig &intrinsicConfig,
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   dataflowPlan.steps.clear();
   llvm::SmallVector<DataflowValueBinding, 3> bindings;
@@ -694,6 +782,10 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_load must consume the !tcrv_rvv.vl token "
                     "owned by the surrounding tcrv_rvv.with_vl");
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, load.getLoaded(), intrinsicConfig,
+              "tcrv_rvv.i32_load result"))
+        return error;
 
       llvm::Expected<support::RuntimeABIParameterRole> role =
           getDataflowRoleAttr(kernel, load.getOperation(), kBufferRoleAttrName,
@@ -724,6 +816,16 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_add must consume the !tcrv_rvv.vl token "
                     "owned by the surrounding tcrv_rvv.with_vl");
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, add.getLhs(), intrinsicConfig, "tcrv_rvv.i32_add lhs"))
+        return error;
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, add.getRhs(), intrinsicConfig, "tcrv_rvv.i32_add rhs"))
+        return error;
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, add.getSum(), intrinsicConfig,
+              "tcrv_rvv.i32_add result"))
+        return error;
 
       llvm::Expected<RVVI32VAddDataflowValue> lhs =
           lookupTypedDataflowValue(kernel, bindings, add.getLhs(),
@@ -762,6 +864,16 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_sub must consume the !tcrv_rvv.vl token "
                     "owned by the surrounding tcrv_rvv.with_vl");
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, sub.getLhs(), intrinsicConfig, "tcrv_rvv.i32_sub lhs"))
+        return error;
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, sub.getRhs(), intrinsicConfig, "tcrv_rvv.i32_sub rhs"))
+        return error;
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, sub.getDifference(), intrinsicConfig,
+              "tcrv_rvv.i32_sub result"))
+        return error;
 
       llvm::Expected<RVVI32VAddDataflowValue> lhs =
           lookupTypedDataflowValue(kernel, bindings, sub.getLhs(),
@@ -801,6 +913,16 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_mul must consume the !tcrv_rvv.vl token "
                     "owned by the surrounding tcrv_rvv.with_vl");
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, mul.getLhs(), intrinsicConfig, "tcrv_rvv.i32_mul lhs"))
+        return error;
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, mul.getRhs(), intrinsicConfig, "tcrv_rvv.i32_mul rhs"))
+        return error;
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, mul.getProduct(), intrinsicConfig,
+              "tcrv_rvv.i32_mul result"))
+        return error;
 
       llvm::Expected<RVVI32VAddDataflowValue> lhs =
           lookupTypedDataflowValue(kernel, bindings, mul.getLhs(),
@@ -836,6 +958,10 @@ llvm::Error buildDataflowEmissionPlanFromTypedBody(
         return makeMicrokernelError(
             kernel, "tcrv_rvv.i32_store must consume the !tcrv_rvv.vl token "
                     "owned by the surrounding tcrv_rvv.with_vl");
+      if (llvm::Error error = requireDataflowValueLMUL(
+              kernel, store.getValue(), intrinsicConfig,
+              "tcrv_rvv.i32_store value"))
+        return error;
 
       llvm::Expected<support::RuntimeABIParameterRole> role =
           getDataflowRoleAttr(kernel, store.getOperation(), kBufferRoleAttrName,
@@ -1232,6 +1358,133 @@ llvm::Error validateRequiredCapabilities(
   return llvm::Error::success();
 }
 
+llvm::Expected<bool>
+variantRequiresCapabilityID(KernelOp kernel, VariantOp variant,
+                            const TargetCapabilitySet &capabilities,
+                            llvm::StringRef id) {
+  auto requiresAttr =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requiresAttr || requiresAttr.empty())
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") + variant.getSymName() +
+                    " requires non-empty structured 'requires' metadata");
+
+  for (mlir::Attribute attr : requiresAttr) {
+    auto symbol = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attr);
+    if (!symbol || symbol.getValue().trim().empty())
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected RVV variant @") + variant.getSymName() +
+                      " requires only non-empty capability symbol references");
+
+    const CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbol.getValue());
+    if (!capability)
+      continue;
+
+    if (capability->satisfiesID(id))
+      return true;
+  }
+
+  return false;
+}
+
+llvm::Expected<bool> variantRequiresConfig(
+    KernelOp kernel, VariantOp variant, const TargetCapabilitySet &capabilities,
+    const RVVI32LMULConfigSpec &config) {
+  llvm::Expected<bool> requiresSEW =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.sewCapabilityID);
+  if (!requiresSEW)
+    return requiresSEW.takeError();
+  llvm::Expected<bool> requiresLMUL =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.lmulCapabilityID);
+  if (!requiresLMUL)
+    return requiresLMUL.takeError();
+  llvm::Expected<bool> requiresTail =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.tailPolicyCapabilityID);
+  if (!requiresTail)
+    return requiresTail.takeError();
+  llvm::Expected<bool> requiresMask =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.maskPolicyCapabilityID);
+  if (!requiresMask)
+    return requiresMask.takeError();
+  return *requiresSEW && *requiresLMUL && *requiresTail && *requiresMask;
+}
+
+llvm::Error requireConfigCapabilityProperty(
+    KernelOp kernel, const TargetCapabilitySet &capabilities,
+    llvm::StringRef id, llvm::StringRef propertyName,
+    llvm::StringRef expectedValue) {
+  const CapabilityDescriptor *capability = capabilities.lookupProviderByID(id);
+  if (!capability || !capability->isAvailable())
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV path requires available capability "
+                            "id '") +
+                    id + "'");
+
+  llvm::StringRef value = capability->getProperty(propertyName).trim();
+  if (llvm::Error error = validateBoundedText(kernel, propertyName, value))
+    return error;
+  if (value != expectedValue)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV path capability id '") + id +
+                    "' property '" + propertyName + "' must be '" +
+                    expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Expected<const RVVI32LMULConfigSpec *>
+getSelectedRVVI32Config(KernelOp kernel, VariantOp variant,
+                        const TargetCapabilitySet &capabilities) {
+  llvm::Expected<bool> requiresM1 =
+      variantRequiresConfig(kernel, variant, capabilities, getI32M1ConfigSpec());
+  if (!requiresM1)
+    return requiresM1.takeError();
+  llvm::Expected<bool> requiresM2 =
+      variantRequiresConfig(kernel, variant, capabilities, getI32M2ConfigSpec());
+  if (!requiresM2)
+    return requiresM2.takeError();
+
+  if (*requiresM1 && *requiresM2)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") + variant.getSymName() +
+                    " must require exactly one finite RVV i32 LMUL config "
+                    "shape, not both i32m1 and i32m2");
+
+  const RVVI32LMULConfigSpec *selectedConfig = nullptr;
+  if (*requiresM1)
+    selectedConfig = &getI32M1ConfigSpec();
+  else if (*requiresM2)
+    selectedConfig = &getI32M2ConfigSpec();
+  else
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") + variant.getSymName() +
+                    " must require either the finite i32m1 config capability "
+                    "ids or the finite i32m2 config capability ids");
+
+  if (llvm::Error error = requireConfigCapabilityProperty(
+          kernel, capabilities, selectedConfig->sewCapabilityID,
+          kSEWBitsPropertyName, "32"))
+    return std::move(error);
+  if (llvm::Error error = requireConfigCapabilityProperty(
+          kernel, capabilities, selectedConfig->lmulCapabilityID,
+          kLMULPropertyName, selectedConfig->lmul))
+    return std::move(error);
+  if (llvm::Error error = requireConfigCapabilityProperty(
+          kernel, capabilities, selectedConfig->tailPolicyCapabilityID,
+          kTailPolicyPropertyName, "agnostic"))
+    return std::move(error);
+  if (llvm::Error error = requireConfigCapabilityProperty(
+          kernel, capabilities, selectedConfig->maskPolicyCapabilityID,
+          kMaskPolicyPropertyName, "agnostic"))
+    return std::move(error);
+
+  return selectedConfig;
+}
+
 llvm::Expected<std::string>
 getRequiredTargetTriple(KernelOp kernel,
                         const TargetCapabilitySet &capabilities) {
@@ -1489,6 +1742,7 @@ llvm::Error validateMicrokernelForPath(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *microkernel,
     const RVVI32MicrokernelFamilySpec &family,
+    const RVVI32LMULConfigSpec &selectedConfig,
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
@@ -1647,7 +1901,8 @@ llvm::Error validateMicrokernelForPath(
                     "!tcrv_rvv.vl token produced by setvl");
 
   llvm::Expected<RVVIntrinsicConfig> config = buildRVVIntrinsicConfig(
-      kernel, activeRouteID, family, setvl, withVL, expectedPolicy);
+      kernel, activeRouteID, family, setvl, withVL, expectedPolicy,
+      selectedConfig);
   if (!config)
     return config.takeError();
 
@@ -1736,7 +1991,8 @@ llvm::Error validateMicrokernelForPath(
 
   if (llvm::Error error =
           buildDataflowEmissionPlanFromTypedBody(kernel, withVL, dataflowOps,
-                                                 family, dataflowPlan))
+                                                 family, *config,
+                                                 dataflowPlan))
     return error;
 
   intrinsicConfig = std::move(*config);
@@ -1751,6 +2007,7 @@ llvm::Error findAndValidateMicrokernel(
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *&matchedMicrokernel,
     const RVVI32MicrokernelFamilySpec *&matchedFamily,
+    const RVVI32LMULConfigSpec &selectedConfig,
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
@@ -1800,7 +2057,8 @@ llvm::Error findAndValidateMicrokernel(
 
   return validateMicrokernelForPath(kernel, path, selectedMarch, selectedMABI,
                                     expectedPolicy, matchedMicrokernel,
-                                    *matchedFamily, activeRouteID,
+                                    *matchedFamily, selectedConfig,
+                                    activeRouteID,
                                     elementCount, controlPlaneSEW,
                                     controlPlaneLMUL, intrinsicConfig,
                                     dataflowPlan);
@@ -2010,6 +2268,10 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error = validateRequiredCapabilities(
           kernel, getPathVariant(path), capabilities, requiredCapabilities))
     return std::move(error);
+  llvm::Expected<const RVVI32LMULConfigSpec *> selectedConfig =
+      getSelectedRVVI32Config(kernel, getPathVariant(path), capabilities);
+  if (!selectedConfig)
+    return selectedConfig.takeError();
 
   llvm::Expected<std::string> targetTriple =
       getRequiredTargetTriple(kernel, capabilities);
@@ -2051,8 +2313,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   RVVI32VAddDataflowEmissionPlan dataflowPlan;
   if (llvm::Error error = findAndValidateMicrokernel(
           kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
-          policy, microkernel, microkernelFamily, activeRouteID, elementCount,
-          controlPlaneSEW, controlPlaneLMUL, intrinsicConfig, dataflowPlan))
+          policy, microkernel, microkernelFamily, **selectedConfig,
+          activeRouteID, elementCount, controlPlaneSEW, controlPlaneLMUL,
+          intrinsicConfig, dataflowPlan))
     return std::move(error);
 
   support::I32BinaryCallableABIPlan callablePlan;

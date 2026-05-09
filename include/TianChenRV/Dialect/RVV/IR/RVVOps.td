@@ -111,14 +111,27 @@ def TCRVRVV_I32M1VectorType : TCRVRVV_Type<"I32M1Vector", "i32m1"> {
   }];
 }
 
+def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
+  let summary = "finite RVV i32 m2 vector dataflow token type";
+  let description = [{
+    A bounded plugin-local vector dataflow token for the finite RVV i32 binary
+    microkernel family slice when the selected compile-time config is SEW 32
+    and LMUL m2. It is a sibling of !tcrv_rvv.i32m1, not a generic RVV vector
+    type. The enclosing tcrv_rvv.setvl / tcrv_rvv.with_vl control-plane
+    metadata remains the source of SEW/LMUL/policy truth, and verifiers require
+    i32m2 dataflow values to agree with that finite m2 scope before target
+    emission.
+  }];
+}
+
 def SetVLOp : TCRVRVV_Op<"setvl", []> {
   let summary = "bounded RVV runtime AVL to VL control-plane op";
   let description = [{
     Models the first plugin-local RVV runtime vector-length control-plane
     surface. The operation consumes one runtime AVL SSA value, produces one
     !tcrv_rvv.vl token, and carries bounded compile-time first-slice
-    configuration metadata: SEW 32, LMUL m1, and a finite #tcrv_rvv.policy
-    attribute.
+    configuration metadata: SEW 32, LMUL m1 or m2, and a finite
+    #tcrv_rvv.policy attribute.
 
     This op does not model VLEN/vlenb hardware facts, descriptor-local element
     counts, required march metadata, required capability metadata, pointer or
@@ -179,7 +192,8 @@ def I32LoadOp : TCRVRVV_Op<"i32_load", []> {
     microkernel body. The op is nested directly under tcrv_rvv.with_vl,
     consumes the same runtime !tcrv_rvv.vl control token as the surrounding
     scope, carries exactly one input buffer ABI role, and produces one bounded
-    !tcrv_rvv.i32m1 dataflow token.
+    !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2 dataflow token matching the enclosing
+    LMUL scope.
 
     Pointer operands remain target/export ABI-owned parameters, not IR-modeled
     buffers. Runtime n/AVL/VL remains represented by the enclosing
@@ -203,9 +217,9 @@ def I32AddOp : TCRVRVV_Op<"i32_add", []> {
   let description = [{
     Records the finite plugin-local RVV i32 vector add in the current i32-vadd
     microkernel body. The op is nested directly under tcrv_rvv.with_vl,
-    consumes two !tcrv_rvv.i32m1 dataflow tokens and the same runtime
+    consumes two same-LMUL i32 dataflow tokens and the same runtime
     !tcrv_rvv.vl control token as the surrounding scope, and produces one
-    bounded !tcrv_rvv.i32m1 dataflow token.
+    bounded i32 dataflow token matching the enclosing LMUL scope.
 
     This is not a generic arithmetic IR. It is admitted only as part of the
     finite i32-vadd microkernel slice validated by the RVV plugin/exporter.
@@ -228,9 +242,9 @@ def I32SubOp : TCRVRVV_Op<"i32_sub", []> {
   let description = [{
     Records the finite plugin-local RVV i32 vector subtract in the current
     i32-vsub microkernel body. The op is nested directly under
-    tcrv_rvv.with_vl, consumes two !tcrv_rvv.i32m1 dataflow tokens and the
+    tcrv_rvv.with_vl, consumes two same-LMUL i32 dataflow tokens and the
     same runtime !tcrv_rvv.vl control token as the surrounding scope, and
-    produces one bounded !tcrv_rvv.i32m1 dataflow token.
+    produces one bounded i32 dataflow token matching the enclosing LMUL scope.
 
     This is not a generic arithmetic IR. It is admitted only as part of the
     finite i32-vsub microkernel slice validated by the RVV plugin/exporter.
@@ -253,9 +267,9 @@ def I32MulOp : TCRVRVV_Op<"i32_mul", []> {
   let description = [{
     Records the finite plugin-local RVV i32 vector multiply in the current
     i32-vmul microkernel body. The op is nested directly under
-    tcrv_rvv.with_vl, consumes two !tcrv_rvv.i32m1 dataflow tokens and the
+    tcrv_rvv.with_vl, consumes two same-LMUL i32 dataflow tokens and the
     same runtime !tcrv_rvv.vl control token as the surrounding scope, and
-    produces one bounded !tcrv_rvv.i32m1 dataflow token.
+    produces one bounded i32 dataflow token matching the enclosing LMUL scope.
 
     This is not a generic arithmetic IR. It is admitted only as part of the
     finite i32-vmul microkernel slice validated by the RVV plugin/exporter.
@@ -278,7 +292,8 @@ def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
   let description = [{
     Records one finite plugin-local RVV i32 store in the current i32 binary
     microkernel body. The op is nested directly under tcrv_rvv.with_vl,
-    consumes one !tcrv_rvv.i32m1 dataflow token and the same runtime
+    consumes one bounded i32 dataflow token matching the enclosing LMUL scope
+    and the same runtime
     !tcrv_rvv.vl control token as the surrounding scope, and carries exactly
     one output buffer ABI role.
 
