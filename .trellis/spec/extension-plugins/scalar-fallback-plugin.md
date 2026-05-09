@@ -58,6 +58,11 @@ The descriptor is a compiler decision handle for one tiny plugin-owned
 microkernel attachment. `tcrv_scalar.element_count` is descriptor-local bounded
 metadata only; it is not high-level shape, problem size, AVL, vl, runtime loop
 trip count, or performance evidence.
+If a bounded frontend lowering explicitly preserves
+`tcrv_frontend_lowering = "i32-vsub"` on the generated kernel, this first
+scalar slice must decline instead of proposing the vadd descriptor as a stale
+subtract fallback. Scalar subtract fallback support requires a separate
+plugin-local descriptor, microkernel, exporter, and tests.
 
 ## Capability And Legality
 

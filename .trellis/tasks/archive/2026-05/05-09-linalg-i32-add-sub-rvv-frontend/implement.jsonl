@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants and implementation-stack boundary"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin/core boundary and valid bounded frontend input contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV add/sub microkernel descriptor, materialization, and export contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback vadd-only boundary and unsupported vsub fallback decision"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "selected-boundary, emission-plan, and target artifact layering"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/FileCheck coverage and evidence wording"}

@@ -308,7 +308,7 @@ mlir::LogicalResult lowerBoundedLinalgFrontendForPlanning(
     return mlir::success();
 
   module.emitError() << "TianChen-RV " << frontDoorName
-                     << " failed during bounded linalg i32-vadd frontend "
+                     << " failed during bounded linalg i32 add/sub frontend "
                         "lowering";
   return mlir::failure();
 }

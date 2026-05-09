@@ -37,6 +37,10 @@ constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kFrontendLoweringAttrName(
+    "tcrv_frontend_lowering");
+constexpr llvm::StringLiteral kFrontendLoweringI32VAddValue("i32-vadd");
+constexpr llvm::StringLiteral kFrontendLoweringI32VSubValue("i32-vsub");
 constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorValue(
@@ -1390,6 +1394,29 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
   if (!propertyView)
     return propertyView.takeError();
 
+  const RVVI32MicrokernelFamilySpec *requestedFamily =
+      &getI32VAddFamilySpec();
+  if (auto frontendLowering =
+          request.getKernel()->getAttrOfType<mlir::StringAttr>(
+              kFrontendLoweringAttrName)) {
+    llvm::StringRef value = frontendLowering.getValue().trim();
+    if (llvm::Error error = validateRVVPropertyText(
+            (llvm::Twine("kernel @") + request.getKernel().getSymName() +
+             " frontend lowering family")
+                .str(),
+            kFrontendLoweringAttrName, value))
+      return std::move(error);
+
+    if (value == kFrontendLoweringI32VAddValue)
+      requestedFamily = &getI32VAddFamilySpec();
+    else if (value == kFrontendLoweringI32VSubValue)
+      requestedFamily = &getI32VSubFamilySpec();
+    else
+      return makeRVVPluginError(
+          llvm::Twine("kernel @") + request.getKernel().getSymName() +
+          " frontend lowering family must be 'i32-vadd' or 'i32-vsub'");
+  }
+
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
   proposal.setCondition("rvv_capability_properties_available");
@@ -1415,7 +1442,7 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddLoweringDescriptorAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kRVVI32VAddLoweringDescriptorValue));
+                            requestedFamily->descriptor));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddElementCountAttrName),

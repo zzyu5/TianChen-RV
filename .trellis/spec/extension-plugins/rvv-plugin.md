@@ -118,9 +118,13 @@ the bounded i32 RVV C-intrinsic microkernel family. The current supported
 family members are `i32-vadd-microkernel.v1` and `i32-vsub-microkernel.v1`,
 both using the same explicit i32/m1 runtime ABI shape and bounded
 descriptor-local integer `tcrv_rvv.element_count`. The default automatic
-first-slice proposal still selects `i32-vadd-microkernel.v1`; hand-authored
-or test TianChen-RV MLIR may select `i32-vsub-microkernel.v1` to exercise the
-same plugin-owned materialization and export contract. When structured
+first-slice proposal still selects `i32-vadd-microkernel.v1`; bounded frontend
+lowering may preserve `tcrv_frontend_lowering = "i32-vsub"` on the generated
+`tcrv.exec.kernel`, in which case the RVV plugin selects
+`i32-vsub-microkernel.v1` through the same plugin-owned proposal,
+materialization, and export contract. Hand-authored or test TianChen-RV MLIR
+may also select `i32-vsub-microkernel.v1` explicitly to exercise the same
+contract. When structured
 `rvv.i32_m1_lane_count` capacity evidence is present through an exact
 capability provider or a relation-provider target profile, the RVV plugin
 chooses that descriptor-local sample size as four M1 i32 vectors, capped at 64

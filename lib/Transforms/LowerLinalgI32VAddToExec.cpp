@@ -36,6 +36,7 @@ using tianchenrv::tcrv::exec::TargetOp;
 
 constexpr llvm::StringLiteral kLinalgGenericOpName("linalg.generic");
 constexpr llvm::StringLiteral kArithAddIOpName("arith.addi");
+constexpr llvm::StringLiteral kArithSubIOpName("arith.subi");
 constexpr llvm::StringLiteral kFuncFuncOpName("func.func");
 constexpr llvm::StringLiteral kFuncReturnOpName("func.return");
 constexpr llvm::StringLiteral kLinalgYieldOpName("linalg.yield");
@@ -47,6 +48,32 @@ constexpr llvm::StringLiteral kFrontendKernelAttrName("tcrv_frontend_kernel");
 constexpr llvm::StringLiteral kFrontendTargetAttrName("tcrv_frontend_target");
 constexpr llvm::StringLiteral kFrontendCapabilityProvidersAttrName(
     "tcrv_frontend_capability_providers");
+
+struct FrontendI32BinarySpec {
+  llvm::StringRef attrValue;
+  llvm::StringRef arithmeticOpName;
+  llvm::StringRef diagnosticName;
+};
+
+const FrontendI32BinarySpec &getI32VAddFrontendSpec() {
+  static const FrontendI32BinarySpec spec{kFrontendLoweringI32VAddValue,
+                                          kArithAddIOpName, "i32-vadd"};
+  return spec;
+}
+
+const FrontendI32BinarySpec &getI32VSubFrontendSpec() {
+  static const FrontendI32BinarySpec spec{"i32-vsub", kArithSubIOpName,
+                                          "i32-vsub"};
+  return spec;
+}
+
+const FrontendI32BinarySpec *lookupFrontendI32BinarySpec(llvm::StringRef name) {
+  if (name == getI32VAddFrontendSpec().attrValue)
+    return &getI32VAddFrontendSpec();
+  if (name == getI32VSubFrontendSpec().attrValue)
+    return &getI32VSubFrontendSpec();
+  return nullptr;
+}
 
 bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
   return op && op->getName().getStringRef() == name;
@@ -65,7 +92,7 @@ mlir::FlatSymbolRefAttr getTargetAttr(mlir::Operation *op) {
 bool isMarkedI32VAddLinalg(mlir::Operation *op) {
   auto attr = getStringAttr(op, kFrontendLoweringAttrName);
   return isOperationNamed(op, kLinalgGenericOpName) && attr &&
-         attr.getValue() == kFrontendLoweringI32VAddValue;
+         lookupFrontendI32BinarySpec(attr.getValue());
 }
 
 bool isBareSymbolName(llvm::StringRef value) {
@@ -96,53 +123,62 @@ bool hasOneBlock(mlir::Region &region) {
   return !region.empty() && llvm::hasSingleElement(region);
 }
 
-mlir::LogicalResult requireMarkedLinalgBodyShape(mlir::Operation *linalgOp) {
+mlir::LogicalResult
+requireMarkedLinalgBodyShape(mlir::Operation *linalgOp,
+                             const FrontendI32BinarySpec &spec) {
   if (linalgOp->getNumOperands() != 3)
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects exactly "
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects exactly "
               "two input buffers and one output buffer";
   if (linalgOp->getNumRegions() != 1 || !hasOneBlock(linalgOp->getRegion(0)))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects one "
-              "single-block region";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects one single-block region";
 
   mlir::Block &body = linalgOp->getRegion(0).front();
   if (body.getNumArguments() != 3)
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects three "
-              "scalar region arguments";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects three scalar region arguments";
   if (!llvm::all_of(body.getArguments(), [](mlir::BlockArgument arg) {
         return isI32Scalar(arg.getType());
       }))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects i32 "
-              "scalar region arguments";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects i32 scalar region arguments";
 
   if (!llvm::hasNItems(body.getOperations(), 2))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects exactly "
-              "one arith.addi and one linalg.yield";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects exactly one " << spec.arithmeticOpName
+           << " and one linalg.yield";
 
-  mlir::Operation &add = body.front();
+  mlir::Operation &arithmetic = body.front();
   mlir::Operation &yield = body.back();
-  if (!isOperationNamed(&add, kArithAddIOpName) ||
+  if (!isOperationNamed(&arithmetic, spec.arithmeticOpName) ||
       !isOperationNamed(&yield, kLinalgYieldOpName))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects one "
-              "arith.addi feeding linalg.yield";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects one " << spec.arithmeticOpName
+           << " feeding linalg.yield";
 
-  if (add.getNumOperands() != 2 || add.getNumResults() != 1 ||
-      add.getOperand(0) != body.getArgument(0) ||
-      add.getOperand(1) != body.getArgument(1) ||
-      !isI32Scalar(add.getResult(0).getType()))
+  if (arithmetic.getNumOperands() != 2 ||
+      arithmetic.getNumResults() != 1 ||
+      arithmetic.getOperand(0) != body.getArgument(0) ||
+      arithmetic.getOperand(1) != body.getArgument(1) ||
+      !isI32Scalar(arithmetic.getResult(0).getType()))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects "
-              "arith.addi of the first two i32 region arguments";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects " << spec.arithmeticOpName
+           << " of the first two i32 region arguments";
 
-  if (yield.getNumOperands() != 1 || yield.getOperand(0) != add.getResult(0))
+  if (yield.getNumOperands() != 1 ||
+      yield.getOperand(0) != arithmetic.getResult(0))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd expects "
-              "linalg.yield to return the arith.addi result";
+           << "marked linalg.generic for TianChen-RV " << spec.diagnosticName
+           << " expects linalg.yield to return the "
+           << spec.arithmeticOpName << " result";
 
   return mlir::success();
 }
@@ -151,26 +187,26 @@ mlir::LogicalResult requireSourceWrapperShape(mlir::Operation *funcOp,
                                               mlir::Operation *linalgOp) {
   if (!isOperationNamed(funcOp, kFuncFuncOpName))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd must be nested "
-              "directly in a func.func wrapper";
+           << "marked linalg.generic for TianChen-RV i32 add/sub must be "
+              "nested directly in a func.func wrapper";
   if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
     return funcOp->emitError()
-           << "TianChen-RV linalg i32-vadd frontend wrapper expects one "
+           << "TianChen-RV linalg i32 add/sub frontend wrapper expects one "
               "single-block func.func body";
 
   mlir::Block &body = funcOp->getRegion(0).front();
   if (!llvm::hasNItems(body.getOperations(), 2))
     return funcOp->emitError()
-           << "TianChen-RV linalg i32-vadd frontend wrapper expects exactly "
-              "one linalg.generic and one func.return";
+           << "TianChen-RV linalg i32 add/sub frontend wrapper expects "
+              "exactly one linalg.generic and one func.return";
   if (&body.front() != linalgOp || !isOperationNamed(&body.back(),
                                                      kFuncReturnOpName))
     return funcOp->emitError()
-           << "TianChen-RV linalg i32-vadd frontend wrapper expects the "
+           << "TianChen-RV linalg i32 add/sub frontend wrapper expects the "
               "marked linalg.generic followed by func.return";
   if (body.back().getNumOperands() != 0)
     return funcOp->emitError()
-           << "TianChen-RV linalg i32-vadd frontend wrapper expects "
+           << "TianChen-RV linalg i32 add/sub frontend wrapper expects "
               "func.return without operands";
   return mlir::success();
 }
@@ -386,7 +422,8 @@ mlir::LogicalResult requireNoDuplicateKernelSymbol(mlir::ModuleOp module,
 
 KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
                           llvm::StringRef kernelName,
-                          mlir::FlatSymbolRefAttr targetRef) {
+                          mlir::FlatSymbolRefAttr targetRef,
+                          const FrontendI32BinarySpec &spec) {
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPoint(sourceFunc);
 
@@ -394,6 +431,8 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
   state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
                      builder.getStringAttr(kernelName));
   state.addAttribute("target", targetRef);
+  state.addAttribute(kFrontendLoweringAttrName,
+                     builder.getStringAttr(spec.attrValue));
   state.addRegion();
 
   auto kernel = llvm::cast<KernelOp>(builder.create(state));
@@ -409,7 +448,7 @@ void materializeCapabilityProviderImports(
     builder.clone(*provider);
 }
 
-mlir::LogicalResult materializeI32VAddABI(KernelOp kernel) {
+mlir::LogicalResult materializeI32BinaryABI(KernelOp kernel) {
   mlir::OpBuilder builder(kernel.getContext());
   builder.setInsertionPointToEnd(&kernel.getBody().front());
 
@@ -432,23 +471,33 @@ mlir::LogicalResult materializeI32VAddABI(KernelOp kernel) {
 
 mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
                                          mlir::Operation *linalgOp) {
+  auto frontendAttr = getStringAttr(linalgOp, kFrontendLoweringAttrName);
+  const FrontendI32BinarySpec *spec =
+      frontendAttr ? lookupFrontendI32BinarySpec(frontendAttr.getValue())
+                   : nullptr;
+  if (!spec)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV expects '"
+           << kFrontendLoweringAttrName
+           << "' to be 'i32-vadd' or 'i32-vsub'";
+
   mlir::Operation *funcOp = linalgOp->getParentOp();
   if (mlir::failed(requireSourceWrapperShape(funcOp, linalgOp)))
     return mlir::failure();
-  if (mlir::failed(requireMarkedLinalgBodyShape(linalgOp)))
+  if (mlir::failed(requireMarkedLinalgBodyShape(linalgOp, *spec)))
     return mlir::failure();
 
   mlir::StringAttr kernelAttr = getKernelName(linalgOp, funcOp);
   if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd requires "
+           << "marked linalg.generic for TianChen-RV i32 add/sub requires "
               "non-empty bare-symbol string attribute '"
            << kFrontendKernelAttrName << "'";
 
   mlir::FlatSymbolRefAttr targetRef = getTargetRef(linalgOp, funcOp);
   if (!targetRef || targetRef.getValue().empty())
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV i32-vadd requires "
+           << "marked linalg.generic for TianChen-RV i32 add/sub requires "
               "module target symbol attribute '"
            << kFrontendTargetAttrName << "'";
 
@@ -477,9 +526,9 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   }
 
   KernelOp kernel =
-      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef);
+      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef, *spec);
   materializeCapabilityProviderImports(kernel, providerImports);
-  if (mlir::failed(materializeI32VAddABI(kernel))) {
+  if (mlir::failed(materializeI32BinaryABI(kernel))) {
     kernel.erase();
     return mlir::failure();
   }
@@ -502,8 +551,8 @@ struct LowerLinalgI32VAddToExecPass
       mlir::Operation *wrapper = op->getParentOp();
       if (!sourceWrappers.insert(wrapper).second) {
         op->emitError()
-            << "TianChen-RV linalg i32-vadd frontend wrapper may contain only "
-               "one marked linalg.generic";
+            << "TianChen-RV linalg i32 add/sub frontend wrapper may contain "
+               "only one marked linalg.generic";
         return mlir::WalkResult::interrupt();
       }
       markedLinalgOps.push_back(op);

@@ -29,6 +29,10 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
+constexpr llvm::StringLiteral kFrontendLoweringAttrName(
+    "tcrv_frontend_lowering");
+constexpr llvm::StringLiteral kFrontendLoweringI32VAddValue("i32-vadd");
+constexpr llvm::StringLiteral kFrontendLoweringI32VSubValue("i32-vsub");
 constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorAttrName(
     "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorValue(
@@ -66,6 +70,21 @@ bool hasAvailableScalarFallbackCapability(
   const support::CapabilityDescriptor *capability =
       request.getCapabilities().lookupProviderByID(kScalarFallbackCapabilityID);
   return capability && capability->isAvailable();
+}
+
+bool supportsFrontendLoweringFamily(const VariantProposalRequest &request) {
+  auto frontendLowering =
+      request.getKernel()->getAttrOfType<mlir::StringAttr>(
+          kFrontendLoweringAttrName);
+  if (!frontendLowering)
+    return true;
+
+  llvm::StringRef value = frontendLowering.getValue().trim();
+  if (value == kFrontendLoweringI32VAddValue)
+    return true;
+  if (value == kFrontendLoweringI32VSubValue)
+    return false;
+  return false;
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
@@ -577,7 +596,8 @@ void ScalarExtensionPlugin::registerDialects(
 bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() &&
-         hasAvailableScalarFallbackCapability(request);
+         hasAvailableScalarFallbackCapability(request) &&
+         supportsFrontendLoweringFamily(request);
 }
 
 llvm::Error ScalarExtensionPlugin::proposeVariants(

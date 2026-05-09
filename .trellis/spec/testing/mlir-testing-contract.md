@@ -149,20 +149,23 @@ Use lit/FileCheck for:
   component_group/component_role/external_abi_name metadata, and ordered
   runtime_abi_parameter signature fields plus bounded selected-plan metadata
   self-description when RVV capacity facts are present; focused bounded linalg
-  i32-vadd frontend input coverage proving the same front door first lowers the
-  marked source into the exec ABI boundary and then exports a registry-derived
-  bundle without hand-authored selected-path or emission metadata; and a focused
-  fail-closed negative case proving planning failure does not print bundle
-  completion or emit a complete bundle index.
+  i32 add/sub frontend input coverage proving the same front door first lowers
+  the marked source into the exec ABI boundary and then exports a
+  registry-derived bundle without hand-authored selected-path or emission
+  metadata; and a focused fail-closed negative case proving planning failure
+  does not print bundle completion or emit a complete bundle index.
 - bounded linalg frontend lowering coverage, including a hand-written/test
-  `linalg.generic` i32 vector-add wrapper that lowers through
+  `linalg.generic` i32 vector add/sub wrapper that lowers through
   `--tcrv-lower-linalg-i32-vadd-to-exec` to a parseable `tcrv.exec.kernel`
   with a module target profile reference plus lhs/rhs/out `mem_window` roles
   and runtime `n` `runtime_param`; pipeline coverage proving the generated
   kernel can feed existing RVV/scalar proposal, selection, selected-boundary,
-  and supported emission-plan materialization; and fail-closed negative
-  coverage proving unsupported marked linalg bodies do not create an exec
-  kernel. These tests must not claim generic linalg lowering, LLVM/RISC-V
+  and supported emission-plan materialization; RVV subtract coverage proving
+  `tcrv_frontend_lowering = "i32-vsub"` selects the bounded
+  `i32-vsub-microkernel.v1` descriptor and target-owned source export emits
+  `__riscv_vsub_vv_i32m1` instead of stale vadd metadata; and fail-closed
+  negative coverage proving unsupported marked linalg bodies do not create an
+  exec kernel. These tests must not claim generic linalg lowering, LLVM/RISC-V
   lowering, runtime success, correctness, or performance.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;

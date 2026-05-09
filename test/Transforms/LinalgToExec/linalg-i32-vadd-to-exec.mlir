@@ -1,5 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -42,6 +43,7 @@ module {
 
 // LOWER-LABEL: tcrv.exec.kernel @frontend_i32_vadd
 // LOWER-SAME: target = @frontend_rvv_scalar_profile
+// LOWER-SAME: tcrv_frontend_lowering = "i32-vadd"
 // LOWER: tcrv.exec.mem_window @abi_lhs_input_buffer
 // LOWER-SAME: abi_role = "lhs-input-buffer"
 // LOWER-SAME: access = "read"
@@ -65,6 +67,7 @@ module {
 
 // PIPE-LABEL: tcrv.exec.kernel @frontend_i32_vadd
 // PIPE-SAME: target = @frontend_rvv_scalar_profile
+// PIPE-SAME: tcrv_frontend_lowering = "i32-vadd"
 // PIPE: tcrv.exec.mem_window @abi_lhs_input_buffer
 // PIPE: tcrv.exec.runtime_param @abi_runtime_element_count
 // PIPE: tcrv.exec.variant @rvv_first_slice
@@ -102,3 +105,8 @@ module {
 // PIPE-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
+
+// SOURCE: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
+// SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_i32_vadd_rvv_first_slice
+// SOURCE: __riscv_vadd_vv_i32m1
