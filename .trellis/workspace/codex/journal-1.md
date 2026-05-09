@@ -55,6 +55,62 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 10: Descriptor-backed i32 binary linalg frontend lowering contract
+
+**Date**: 2026-05-09
+**Task**: Descriptor-backed i32 binary linalg frontend lowering contract
+**Branch**: `main`
+
+### Summary
+
+Replaced the active bounded linalg frontend lowering owner with the i32 binary
+family-named pass surface. The public pass is now
+`--tcrv-lower-linalg-i32-binary-to-exec`, with
+`createLowerLinalgI32BinaryToExecPass` as the active factory. The old
+vadd-named pass remains only as a deprecated compatibility alias that delegates
+to the same implementation.
+
+### Main Changes
+
+- Renamed the transform source owner to `LowerLinalgI32BinaryToExec.cpp` and
+  added the family-named TableGen pass/factory while preserving the finite
+  accepted frontend family markers `i32-vadd`, `i32-vsub`, and `i32-vmul`.
+- Updated `tcrv-opt`, `tcrv-translate` plan-and-export, and
+  `scripts/rvv_scalar_dispatch_e2e.py` to use the family-named frontend
+  lowering surface.
+- Migrated active frontend lowering tests to
+  `--tcrv-lower-linalg-i32-binary-to-exec` and added one focused compatibility
+  alias test for the old vadd-named option.
+- Updated README and Trellis specs to describe the bounded i32 binary
+  add/sub/mul frontend contract and compatibility boundary.
+- Archived the Trellis task with completed PRD/context notes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | feat(transforms): add i32 binary linalg lowering pass |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake -S . -B artifacts/tmp/tianchenrv-build -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (162/162 tests passed)
+- [OK] focused lit from `artifacts/tmp/tianchenrv-build/test` over
+  `Transforms/LinalgToExec`, `Target/RVVScalarDispatch`,
+  `Target/TargetArtifactBundleExport`, and the two
+  `Scripts/rvv-scalar-dispatch*` tests (26/26 tests passed)
+- [OK] archived task context validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 9: Capability-backed RVV i32m1 policy legality
 
 **Date**: 2026-05-09

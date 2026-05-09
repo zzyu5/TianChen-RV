@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV invariants and compiler stack boundary."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check no generic high-level IR or RVV runtime evidence claims were introduced."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check plan-and-export and target artifact contract remains coherent after pass rename."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check bounded linalg frontend contract is now family-named without widening semantics."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check frontend family metadata continues to drive RVV add/sub/mul descriptors."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check frontend family metadata continues to drive scalar add/sub/mul descriptors."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/script/bundle/full CMake validation coverage."}

@@ -3,9 +3,9 @@
 
 include "mlir/Pass/PassBase.td"
 
-def LowerLinalgI32VAddToExec
-    : Pass<"tcrv-lower-linalg-i32-vadd-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Lower bounded marked linalg i32 vector add/sub/mul wrappers to tcrv.exec";
+def LowerLinalgI32BinaryToExec
+    : Pass<"tcrv-lower-linalg-i32-binary-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Lower bounded marked linalg i32 binary add/sub/mul wrappers to tcrv.exec";
   let description = [{
     Consumes explicitly marked hand-written/test linalg.generic i32 vector
     add/sub/mul wrappers and materializes the TianChen-RV execution boundary
@@ -22,6 +22,24 @@ def LowerLinalgI32VAddToExec
     compute ops, infer arbitrary linalg semantics, select variants, branch on
     RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
     runtime correctness/performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createLowerLinalgI32BinaryToExecPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
+def LowerLinalgI32VAddToExec
+    : Pass<"tcrv-lower-linalg-i32-vadd-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Deprecated compatibility alias for bounded marked linalg i32 binary lowering";
+  let description = [{
+    Deprecated compatibility alias for
+    --tcrv-lower-linalg-i32-binary-to-exec. New tests, scripts, documentation,
+    and tool front doors should use the family-named i32 binary pass. The alias
+    delegates to the same bounded add/sub/mul frontend lowering implementation
+    and is retained only so older command lines fail less abruptly while the
+    public surface migrates.
   }];
   let constructor =
       "::tianchenrv::transforms::createLowerLinalgI32VAddToExecPass()";

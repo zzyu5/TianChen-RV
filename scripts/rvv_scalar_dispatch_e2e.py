@@ -1667,7 +1667,7 @@ def selected_input_path(args: argparse.Namespace) -> Path:
 def execution_planning_command_args(args: argparse.Namespace) -> list[str]:
     command_args: list[str] = []
     if args.lower_linalg_frontend:
-        command_args.append("--tcrv-lower-linalg-i32-vadd-to-exec")
+        command_args.append("--tcrv-lower-linalg-i32-binary-to-exec")
     command_args.append("--tcrv-execution-planning-pipeline")
     return command_args
 

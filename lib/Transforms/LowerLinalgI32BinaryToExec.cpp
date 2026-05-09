@@ -26,6 +26,7 @@
 
 namespace tianchenrv::transforms {
 
+#define GEN_PASS_DEF_LOWERLINALGI32BINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32VADDTOEXEC
 #include "TianChenRV/Transforms/Passes.h.inc"
 
@@ -98,7 +99,7 @@ mlir::FlatSymbolRefAttr getTargetAttr(mlir::Operation *op) {
             : mlir::FlatSymbolRefAttr();
 }
 
-bool isMarkedI32VAddLinalg(mlir::Operation *op) {
+bool isMarkedI32BinaryLinalg(mlir::Operation *op) {
   auto attr = getStringAttr(op, kFrontendLoweringAttrName);
   return isOperationNamed(op, kLinalgGenericOpName) && attr &&
          lookupFrontendI32BinarySpec(attr.getValue());
@@ -546,42 +547,54 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult lowerMarkedI32BinaryLinalgInModule(mlir::ModuleOp module) {
+  llvm::SmallVector<mlir::Operation *, 4> markedLinalgOps;
+  llvm::SmallPtrSet<mlir::Operation *, 4> sourceWrappers;
+  mlir::WalkResult walkResult = module.walk([&](mlir::Operation *op) {
+    if (!isMarkedI32BinaryLinalg(op))
+      return mlir::WalkResult::advance();
+
+    mlir::Operation *wrapper = op->getParentOp();
+    if (!sourceWrappers.insert(wrapper).second) {
+      op->emitError()
+          << "TianChen-RV linalg i32 add/sub/mul frontend wrapper may contain "
+             "only one marked linalg.generic";
+      return mlir::WalkResult::interrupt();
+    }
+    markedLinalgOps.push_back(op);
+    return mlir::WalkResult::advance();
+  });
+  if (walkResult.wasInterrupted())
+    return mlir::failure();
+
+  for (mlir::Operation *linalgOp : markedLinalgOps)
+    if (mlir::failed(lowerOneMarkedLinalg(module, linalgOp)))
+      return mlir::failure();
+
+  return mlir::success();
+}
+
+struct LowerLinalgI32BinaryToExecPass
+    : impl::LowerLinalgI32BinaryToExecBase<LowerLinalgI32BinaryToExecPass> {
+  void runOnOperation() override {
+    if (mlir::failed(lowerMarkedI32BinaryLinalgInModule(getOperation())))
+      signalPassFailure();
+  }
+};
+
 struct LowerLinalgI32VAddToExecPass
     : impl::LowerLinalgI32VAddToExecBase<LowerLinalgI32VAddToExecPass> {
   void runOnOperation() override {
-    mlir::ModuleOp module = getOperation();
-
-    llvm::SmallVector<mlir::Operation *, 4> markedLinalgOps;
-    llvm::SmallPtrSet<mlir::Operation *, 4> sourceWrappers;
-    mlir::WalkResult walkResult = module.walk([&](mlir::Operation *op) {
-      if (!isMarkedI32VAddLinalg(op))
-        return mlir::WalkResult::advance();
-
-      mlir::Operation *wrapper = op->getParentOp();
-      if (!sourceWrappers.insert(wrapper).second) {
-        op->emitError()
-            << "TianChen-RV linalg i32 add/sub/mul frontend wrapper may contain "
-               "only one marked linalg.generic";
-        return mlir::WalkResult::interrupt();
-      }
-      markedLinalgOps.push_back(op);
-      return mlir::WalkResult::advance();
-    });
-    if (walkResult.wasInterrupted()) {
+    if (mlir::failed(lowerMarkedI32BinaryLinalgInModule(getOperation())))
       signalPassFailure();
-      return;
-    }
-
-    for (mlir::Operation *linalgOp : markedLinalgOps) {
-      if (mlir::failed(lowerOneMarkedLinalg(module, linalgOp))) {
-        signalPassFailure();
-        return;
-      }
-    }
   }
 };
 
 } // namespace
+
+std::unique_ptr<mlir::Pass> createLowerLinalgI32BinaryToExecPass() {
+  return std::make_unique<LowerLinalgI32BinaryToExecPass>();
+}
 
 std::unique_ptr<mlir::Pass> createLowerLinalgI32VAddToExecPass() {
   return std::make_unique<LowerLinalgI32VAddToExecPass>();

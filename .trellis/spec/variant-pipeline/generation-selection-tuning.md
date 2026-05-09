@@ -57,14 +57,14 @@ plugin integration may proceed from hand-written TianChen-RV MLIR while a
 frontend owner later introduces `linalg` tests that feed those same backend
 surfaces.
 
-## Bounded Linalg I32 Vector-Add Frontend Slice
+## Bounded Linalg I32 Binary Frontend Slice
 
 ### 1. Scope / Trigger
 
 The first high-level MLIR frontend slice is intentionally narrow:
 
 ```text
-marked hand-written/test linalg.generic i32 vector-add wrapper
+marked hand-written/test linalg.generic i32 vector add/sub/mul wrapper
   -> tcrv.exec.kernel with target profile reference
   -> target-profile capability provider composition for planning scope
   -> optional supplemental imported capability providers for transition/testing
@@ -72,22 +72,24 @@ marked hand-written/test linalg.generic i32 vector-add wrapper
   -> existing execution-planning pipeline
 ```
 
-Trigger this contract only for the bounded i32 vector-add frontend owner. Do
-not reuse it as a generic linalg, tensor, reduction, matmul, shape-analysis, or
-bufferization lowering contract.
+Trigger this contract only for the bounded i32 binary add/sub/mul frontend
+owner. Do not reuse it as a generic linalg, tensor, reduction, matmul,
+shape-analysis, or bufferization lowering contract.
 
 ### 2. Signatures
 
 The public pass is:
 
 ```text
---tcrv-lower-linalg-i32-vadd-to-exec
+--tcrv-lower-linalg-i32-binary-to-exec
 ```
 
 Input marker attributes:
 
 ```text
 tcrv_frontend_lowering = "i32-vadd"
+tcrv_frontend_lowering = "i32-vsub"
+tcrv_frontend_lowering = "i32-vmul"
 tcrv_frontend_kernel = "<new-kernel-symbol>"
 tcrv_frontend_target = @<module-level-tcrv.exec.target-profile>
 tcrv_frontend_capability_providers = [@<module-level-provider>, ...]  // optional supplemental override
@@ -114,8 +116,8 @@ tcrv.exec.kernel @<new-kernel-symbol> attributes {target = @<profile>} {
 ### 3. Contracts
 
 It accepts only an explicitly marked `linalg.generic` operation with
-`tcrv_frontend_lowering = "i32-vadd"` inside a bounded `func.func` wrapper. The
-wrapper or marked op must carry:
+`tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, or `"i32-vmul"` inside a
+bounded `func.func` wrapper. The wrapper or marked op must carry:
 
 ```text
 tcrv_frontend_kernel = "<new-kernel-symbol>"
@@ -140,12 +142,14 @@ target-composed provider symbols/ids, or another supplemental import.
 
 The pass must semantically check the bounded source body before materializing
 TianChen-RV IR: exactly two i32 scalar input region arguments, one i32 output
-region argument, one `arith.addi` of the first two arguments, and one
-`linalg.yield` of that result. It then creates one `tcrv.exec.kernel`, copies
-only the selected target profile reference as `target = @...`, relies on the
-target profile's generic composition for normal provider scope, clones only
-any explicit supplemental provider imports into the kernel capability scope,
-and materializes the existing i32-vadd callable ABI boundary:
+region argument, one family-selected `arith.addi`, `arith.subi`, or
+`arith.muli` of the first two arguments, and one `linalg.yield` of that result.
+It then creates one `tcrv.exec.kernel`, copies only the selected target profile
+reference as `target = @...`, preserves the bounded frontend family marker,
+relies on the target profile's generic composition for normal provider scope,
+clones only any explicit supplemental provider imports into the kernel
+capability scope, and materializes the existing i32 binary callable ABI
+boundary:
 
 ```text
 tcrv.exec.mem_window @abi_lhs_input_buffer
@@ -164,7 +168,9 @@ or incorrectly marked linalg bodies must fail before creating a
 
 ### 4. Validation & Error Matrix
 
-- Missing or non-`i32-vadd` marker -> pass ignores the linalg op.
+- Missing marker -> pass ignores the linalg op.
+- Marked linalg with a frontend marker other than `i32-vadd`, `i32-vsub`, or
+  `i32-vmul` -> pass failure before creating the kernel.
 - Marked op outside the bounded `func.func` wrapper -> pass failure.
 - Wrapper with anything other than one marked `linalg.generic` followed by
   operand-free `func.return` -> pass failure.
@@ -182,31 +188,38 @@ or incorrectly marked linalg bodies must fail before creating a
   symbol/id, duplicates target-composed provider symbols/ids, or duplicates
   another supplemental import provider symbol/id -> pass failure before
   creating the kernel.
-- Region body that is not exactly the checked i32 `arith.addi` /
-  `linalg.yield` shape -> pass failure before creating the kernel.
+- Region body that is not exactly the checked family-selected i32
+  `arith.addi`, `arith.subi`, or `arith.muli` / `linalg.yield` shape -> pass
+  failure before creating the kernel.
 - Runtime ABI mem_window/runtime_param helper validation failure -> erase the
   partial kernel and fail the pass.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: a marked i32 vector-add linalg wrapper lowers to an exec kernel, then
+- Good: a marked i32 add/sub/mul linalg wrapper lowers to an exec kernel with
+  the matching frontend family marker, then
   `--tcrv-execution-planning-pipeline` materializes plugin proposals and the
   selected RVV/scalar-supported emission handoff according to the target
   profile.
 - Base: an unmarked linalg op is left untouched by this pass.
-- Bad: a marked `linalg.generic` with `arith.subi`, extra body ops, missing
-  target profile, or reused kernel symbol must not create a `tcrv.exec.kernel`.
+- Bad: a marked `i32-vadd` `linalg.generic` with `arith.subi`, a marked
+  `i32-vsub` linalg with `arith.addi`, extra body ops, missing target profile,
+  or reused kernel symbol must not create a `tcrv.exec.kernel`.
 
 ### 6. Tests Required
 
 - lit/FileCheck positive lowering test: source linalg disappears and the
   output contains the exec kernel, target reference, three ABI mem windows, and
-  runtime `n` param.
+  runtime `n` param for the family-named pass surface.
 - lit/FileCheck pipeline test: the lowered exec kernel feeds the existing
   execution-planning pipeline and reaches selected-boundary plus supported
-  bounded emission-plan metadata.
-- lit/FileCheck negative test: a marked but unsupported linalg body fails
-  before any exec kernel appears.
+  bounded emission-plan metadata for add/sub/mul where those routes are
+  covered.
+- lit/FileCheck negative test: a marked but unsupported or mismatched linalg
+  body fails before any exec kernel appears.
+- lit/FileCheck compatibility test: the old
+  `--tcrv-lower-linalg-i32-vadd-to-exec` option remains only as a deprecated
+  alias that delegates to the family-named implementation.
 
 ### 7. Wrong vs Correct
 
@@ -264,15 +277,15 @@ as:
 ```
 
 The `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` front door
-may also invoke the bounded marked-linalg i32-vadd frontend lowering slice and
+may also invoke the bounded marked-linalg i32 binary frontend lowering slice and
 then this same planning pipeline in-process before target artifact bundle
 export. That translate entry is a tool-boundary convenience for a parsed module
-that either already has kernel/capability anchors or has the explicitly marked
-bounded linalg i32-vadd input that lowers to those anchors, but does not have
-hand-authored selected-path, lowering-boundary, or emission-plan metadata. It
-must reuse the bounded frontend pass, this pipeline builder, and the existing
-bundle exporter rather than duplicating frontend lowering, planning, or target
-route logic.
+that either already has kernel/capability anchors or has explicitly marked
+bounded linalg i32 add/sub/mul input that lowers to those anchors, but does not
+have hand-authored selected-path, lowering-boundary, or emission-plan metadata.
+It must reuse the bounded frontend pass, this pipeline builder, and the
+existing bundle exporter rather than duplicating frontend lowering, planning,
+or target route logic.
 
 This pipeline is a named MLIR pass pipeline, not a monolithic pass. It composes
 existing pass factories in this order:

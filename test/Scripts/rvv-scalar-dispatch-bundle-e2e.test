@@ -11,7 +11,7 @@
 # RUN: FileCheck %s --check-prefix=CALLER < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/rvv_bundle_dispatch_external_caller.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/evidence.json
-# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --run-id lit-rvv-scalar-dispatch-bundle-plan-and-export --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=PLAN-DRY
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --run-id lit-rvv-scalar-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/bundle_export_stdout.txt
 # RUN: not test -e %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/post_planning.mlir
 # RUN: FileCheck %s --check-prefix=PLAN-SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/command_summary.json

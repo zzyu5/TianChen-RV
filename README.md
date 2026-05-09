@@ -102,28 +102,30 @@ to consume the generic handoff contract. It does not emit LLVM/RISC-V/RVV IR,
 generate objects, link runtime libraries, run hardware, prove correctness, or
 measure performance.
 
-The public `tcrv-opt --tcrv-lower-linalg-i32-vadd-to-exec` pass is the first
+The public `tcrv-opt --tcrv-lower-linalg-i32-binary-to-exec` pass is the first
 bounded frontend lowering slice from high-level MLIR into TianChen-RV execution
 surfaces. It accepts only explicitly marked hand-written/test `linalg.generic`
-i32 vector add/sub wrappers whose region body is exactly the current two-input
-`arith.addi` or `arith.subi` / `linalg.yield` shape selected by
-`tcrv_frontend_lowering = "i32-vadd"` or `"i32-vsub"`. The pass materializes
-one `tcrv.exec.kernel` with a source-selected `target = @profile` module target
-reference, preserves the bounded frontend family marker for plugin proposal,
-validates the selected target profile's generic capability-provider
-composition, and creates the IR-backed i32 binary callable ABI boundary:
+i32 vector add/sub/mul wrappers whose region body is exactly the current
+two-input `arith.addi`, `arith.subi`, or `arith.muli` / `linalg.yield` shape
+selected by `tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, or
+`"i32-vmul"`. The pass materializes one `tcrv.exec.kernel` with a
+source-selected `target = @profile` module target reference, preserves the
+bounded frontend family marker for plugin proposal, validates the selected
+target profile's generic capability-provider composition, and creates the
+IR-backed i32 binary callable ABI boundary:
 `tcrv.exec.mem_window` for lhs/rhs/out buffers and
 `tcrv.exec.runtime_param` for runtime `n`. The resulting kernel is directly
 consumable by `--tcrv-execution-planning-pipeline`, so existing RVV/scalar
 plugin proposal, legality, selection, selected-boundary, emission-plan, and
 target-artifact routes remain reused. The RVV plugin consumes the family marker
-to select the bounded i32-vadd or i32-vsub microkernel descriptor; scalar
-fallback consumes the same marker to select its bounded i32-vadd or i32-vsub
-descriptor without reusing stale vadd identity for subtract. This pass is not
-generic linalg lowering, does not add a `tcrv` compute op, does
-not infer arbitrary tensor semantics, does not invent target capabilities, does
-not lower to LLVM/RISC-V, and does not create runtime correctness or
-performance evidence.
+to select the bounded i32-vadd, i32-vsub, or i32-vmul microkernel descriptor;
+scalar fallback consumes the same marker to select its matching bounded
+descriptor without reusing stale vadd identity for subtract or multiply. The
+old `--tcrv-lower-linalg-i32-vadd-to-exec` option remains only as a deprecated
+compatibility alias for this family-named pass. This pass is not generic linalg
+lowering, does not add a `tcrv` compute op, does not infer arbitrary tensor
+semantics, does not invent target capabilities, does not lower to LLVM/RISC-V,
+and does not create runtime correctness or performance evidence.
 
 The `tcrv-translate --tcrv-export-rvv-smoke-probe-c` tool exports a
 deterministic standalone C RVV hardware/toolchain smoke probe from post-planning
@@ -331,14 +333,14 @@ TianChen-RV lowered a selected kernel, generated an object for that kernel,
 linked runtime glue, produced a correctness result, or measured performance.
 
 For the first frontend slice, start from a hand-written/test `linalg.generic`
-i32 vector add/sub wrapper with `tcrv_frontend_lowering = "i32-vadd"` or
-`"i32-vsub"`,
+i32 vector add/sub/mul wrapper with `tcrv_frontend_lowering = "i32-vadd"`,
+`"i32-vsub"`, or `"i32-vmul"`,
 `tcrv_frontend_kernel = "<kernel-symbol>"`, and
 `tcrv_frontend_target = @<module-target-profile>`, then run:
 
 ```bash
 tcrv-opt input_linalg.mlir \
-  --tcrv-lower-linalg-i32-vadd-to-exec \
+  --tcrv-lower-linalg-i32-binary-to-exec \
   --tcrv-execution-planning-pipeline
 ```
 

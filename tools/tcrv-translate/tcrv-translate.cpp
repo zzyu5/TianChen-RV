@@ -281,7 +281,7 @@ mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
 mlir::LogicalResult lowerBoundedLinalgFrontendForPlanning(
     mlir::ModuleOp module, llvm::StringRef frontDoorName) {
   mlir::PassManager pm(module.getContext());
-  pm.addPass(tianchenrv::transforms::createLowerLinalgI32VAddToExecPass());
+  pm.addPass(tianchenrv::transforms::createLowerLinalgI32BinaryToExecPass());
   if (mlir::succeeded(pm.run(module)))
     return mlir::success();
 

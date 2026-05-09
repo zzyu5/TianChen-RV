@@ -156,7 +156,7 @@ Use lit/FileCheck for:
   does not print bundle completion or emit a complete bundle index.
 - bounded linalg frontend lowering coverage, including a hand-written/test
   `linalg.generic` i32 vector add/sub/mul wrapper that lowers through
-  `--tcrv-lower-linalg-i32-vadd-to-exec` to a parseable `tcrv.exec.kernel`
+  `--tcrv-lower-linalg-i32-binary-to-exec` to a parseable `tcrv.exec.kernel`
   with a module target profile reference plus lhs/rhs/out `mem_window` roles
   and runtime `n` `runtime_param`; pipeline coverage proving the generated
   kernel can feed existing RVV/scalar proposal, selection, selected-boundary,
@@ -167,8 +167,10 @@ Use lit/FileCheck for:
   selects `i32-vmul-microkernel.v1` and emits `__riscv_vmul_vv_i32m1` instead
   of stale vadd metadata; and fail-closed
   negative coverage proving unsupported marked linalg bodies do not create an
-  exec kernel. These tests must not claim generic linalg lowering, LLVM/RISC-V
-  lowering, runtime success, correctness, or performance.
+  exec kernel. If the old vadd-named pass option remains, it must have only
+  focused compatibility coverage proving delegation to the family-named
+  implementation. These tests must not claim generic linalg lowering,
+  LLVM/RISC-V lowering, runtime success, correctness, or performance.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;
   existing execution-planning pipeline output followed by the preflight pass;
