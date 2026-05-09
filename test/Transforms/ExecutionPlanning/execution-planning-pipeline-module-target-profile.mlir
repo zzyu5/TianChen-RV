@@ -80,7 +80,9 @@ module {
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: selected_variant = @rvv_first_slice
     // CHECK-SAME: source_kernel = "module_profile_pipeline"
-    // CHECK: tcrv_rvv.i32_vadd_dataflow
+    // CHECK: tcrv_rvv.i32_load
+    // CHECK: tcrv_rvv.i32_add
+    // CHECK: tcrv_rvv.i32_store
 
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: artifact_kind = "runtime-callable-c-source"

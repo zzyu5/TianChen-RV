@@ -81,10 +81,7 @@ constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
-constexpr llvm::StringLiteral kLHSRoleAttrName("lhs_role");
-constexpr llvm::StringLiteral kRHSRoleAttrName("rhs_role");
-constexpr llvm::StringLiteral kOutRoleAttrName("out_role");
-constexpr llvm::StringLiteral kRuntimeNRoleAttrName("runtime_n_role");
+constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 constexpr llvm::StringLiteral kTargetAttrName("target");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "rvv-explicit-i32-vadd-microkernel-c-source-export");
@@ -1036,41 +1033,49 @@ llvm::Error validateMicrokernelStructuredControlPlane(
         "explicit RVV microkernel emission plan requires the bounded "
         "tcrv_rvv.with_vl body to have no block arguments");
 
-  tcrv::rvv::I32VAddDataflowOp dataflow;
-  unsigned dataflowCount = 0;
-  for (mlir::Operation &withVLOp : withVLBody.front()) {
-    if (auto candidate =
-            llvm::dyn_cast<tcrv::rvv::I32VAddDataflowOp>(withVLOp)) {
-      dataflow = candidate;
-      ++dataflowCount;
-      continue;
-    }
+  llvm::SmallVector<mlir::Operation *, 4> dataflowOps;
+  for (mlir::Operation &withVLOp : withVLBody.front())
+    dataflowOps.push_back(&withVLOp);
+  if (dataflowOps.size() != 4)
     return makeRVVPluginError(
-        llvm::Twine("explicit RVV microkernel emission plan does not consume "
-                    "unexpected with_vl dataflow operation '") +
-        withVLOp.getName().getStringRef() + "'");
-  }
+        "explicit RVV microkernel emission plan requires the finite "
+        "tcrv_rvv.i32_load, tcrv_rvv.i32_load, tcrv_rvv.i32_add, "
+        "tcrv_rvv.i32_store sequence in the tcrv_rvv.with_vl body");
 
-  if (dataflowCount != 1)
+  auto lhsLoad = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(dataflowOps[0]);
+  auto rhsLoad = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(dataflowOps[1]);
+  auto add = llvm::dyn_cast<tcrv::rvv::I32AddOp>(dataflowOps[2]);
+  auto store = llvm::dyn_cast<tcrv::rvv::I32StoreOp>(dataflowOps[3]);
+  if (!lhsLoad || !rhsLoad || !add || !store)
     return makeRVVPluginError(
-        "explicit RVV microkernel emission plan requires exactly one "
-        "tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body");
+        "explicit RVV microkernel emission plan requires the finite "
+        "tcrv_rvv.i32_load, tcrv_rvv.i32_load, tcrv_rvv.i32_add, "
+        "tcrv_rvv.i32_store sequence in the tcrv_rvv.with_vl body");
+
+  if (lhsLoad.getVl() != withVL.getVl() ||
+      rhsLoad.getVl() != withVL.getVl() || add.getVl() != withVL.getVl() ||
+      store.getVl() != withVL.getVl())
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires every finite RVV i32 "
+        "dataflow op to consume the !tcrv_rvv.vl token owned by with_vl");
+  if (add.getLhs() != lhsLoad.getLoaded() ||
+      add.getRhs() != rhsLoad.getLoaded() ||
+      store.getValue() != add.getSum())
+    return makeRVVPluginError(
+        "explicit RVV microkernel emission plan requires finite RVV i32 "
+        "dataflow SSA chain lhs-load,rhs-load -> add -> store");
 
   if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
-          dataflow.getOperation(), kLHSRoleAttrName,
+          lhsLoad.getOperation(), kBufferRoleAttrName,
           support::RuntimeABIParameterRole::LHSInputBuffer))
     return error;
   if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
-          dataflow.getOperation(), kRHSRoleAttrName,
+          rhsLoad.getOperation(), kBufferRoleAttrName,
           support::RuntimeABIParameterRole::RHSInputBuffer))
     return error;
   if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
-          dataflow.getOperation(), kOutRoleAttrName,
+          store.getOperation(), kBufferRoleAttrName,
           support::RuntimeABIParameterRole::OutputBuffer))
-    return error;
-  if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
-          dataflow.getOperation(), kRuntimeNRoleAttrName,
-          support::RuntimeABIParameterRole::RuntimeElementCount))
     return error;
 
   return llvm::Error::success();
@@ -1367,25 +1372,46 @@ tcrv::rvv::I32VAddMicrokernelOp materializeRVVI32VAddMicrokernelOp(
 
   mlir::OpBuilder withVLBodyBuilder(builder.getContext());
   withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
-  mlir::OperationState dataflowState(
-      variant.getLoc(), tcrv::rvv::I32VAddDataflowOp::getOperationName());
-  dataflowState.addAttribute(
-      kLHSRoleAttrName,
+  mlir::Type i32m1 = tcrv::rvv::I32M1VectorType::get(builder.getContext());
+
+  mlir::OperationState lhsLoadState(variant.getLoc(),
+                                    tcrv::rvv::I32LoadOp::getOperationName());
+  lhsLoadState.addOperands(setvl.getVl());
+  lhsLoadState.addTypes(i32m1);
+  lhsLoadState.addAttribute(
+      kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
           support::RuntimeABIParameterRole::LHSInputBuffer)));
-  dataflowState.addAttribute(
-      kRHSRoleAttrName,
+  auto lhsLoad =
+      llvm::cast<tcrv::rvv::I32LoadOp>(withVLBodyBuilder.create(lhsLoadState));
+
+  mlir::OperationState rhsLoadState(variant.getLoc(),
+                                    tcrv::rvv::I32LoadOp::getOperationName());
+  rhsLoadState.addOperands(setvl.getVl());
+  rhsLoadState.addTypes(i32m1);
+  rhsLoadState.addAttribute(
+      kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
           support::RuntimeABIParameterRole::RHSInputBuffer)));
-  dataflowState.addAttribute(
-      kOutRoleAttrName,
+  auto rhsLoad =
+      llvm::cast<tcrv::rvv::I32LoadOp>(withVLBodyBuilder.create(rhsLoadState));
+
+  mlir::OperationState addState(variant.getLoc(),
+                                tcrv::rvv::I32AddOp::getOperationName());
+  addState.addOperands({lhsLoad.getLoaded(), rhsLoad.getLoaded(),
+                        setvl.getVl()});
+  addState.addTypes(i32m1);
+  auto add =
+      llvm::cast<tcrv::rvv::I32AddOp>(withVLBodyBuilder.create(addState));
+
+  mlir::OperationState storeState(variant.getLoc(),
+                                  tcrv::rvv::I32StoreOp::getOperationName());
+  storeState.addOperands({add.getSum(), setvl.getVl()});
+  storeState.addAttribute(
+      kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
           support::RuntimeABIParameterRole::OutputBuffer)));
-  dataflowState.addAttribute(
-      kRuntimeNRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::RuntimeElementCount)));
-  withVLBodyBuilder.create(dataflowState);
+  withVLBodyBuilder.create(storeState);
 
   bodyBuilder.create(withVLState);
 

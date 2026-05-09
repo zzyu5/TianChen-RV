@@ -122,11 +122,11 @@ module {
     // PIPE-SAME: role = "dispatch case"
     // PIPE-SAME: selected_variant = @rvv_first_slice
     // PIPE-SAME: source_kernel = "pipeline_rvv_plus_scalar"
-    // PIPE: tcrv_rvv.i32_vadd_dataflow
-    // PIPE-SAME: lhs_role = "lhs-input-buffer"
-    // PIPE-SAME: out_role = "output-buffer"
-    // PIPE-SAME: rhs_role = "rhs-input-buffer"
-    // PIPE-SAME: runtime_n_role = "runtime-element-count"
+    // PIPE: tcrv_rvv.i32_load
+    // PIPE-SAME: buffer_role = "lhs-input-buffer"
+    // PIPE: tcrv_rvv.i32_add
+    // PIPE: tcrv_rvv.i32_store
+    // PIPE-SAME: buffer_role = "output-buffer"
     // PIPE: tcrv_scalar.lowering_boundary
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: required_capabilities = [@scalar_fallback]
@@ -181,7 +181,9 @@ module {
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
     // ROUNDTRIP: tcrv_rvv.i32_vadd_microkernel
     // ROUNDTRIP-SAME: selected_variant = @rvv_first_slice
-    // ROUNDTRIP: tcrv_rvv.i32_vadd_dataflow
+    // ROUNDTRIP: tcrv_rvv.i32_load
+    // ROUNDTRIP: tcrv_rvv.i32_add
+    // ROUNDTRIP: tcrv_rvv.i32_store
     // ROUNDTRIP: tcrv_scalar.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @scalar_fallback_first_slice
     // ROUNDTRIP: tcrv_scalar.i32_vadd_microkernel

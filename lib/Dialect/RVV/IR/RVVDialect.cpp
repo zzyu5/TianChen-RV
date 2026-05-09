@@ -11,6 +11,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
 #include <optional>
@@ -53,10 +54,7 @@ constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
-constexpr llvm::StringLiteral kLHSRoleAttrName("lhs_role");
-constexpr llvm::StringLiteral kRHSRoleAttrName("rhs_role");
-constexpr llvm::StringLiteral kOutRoleAttrName("out_role");
-constexpr llvm::StringLiteral kRuntimeNRoleAttrName("runtime_n_role");
+constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -203,9 +201,16 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
-bool isAllowedI32VAddDataflowAttr(llvm::StringRef name) {
-  return name == kLHSRoleAttrName || name == kRHSRoleAttrName ||
-         name == kOutRoleAttrName || name == kRuntimeNRoleAttrName;
+bool isAllowedI32LoadAttr(llvm::StringRef name) {
+  return name == kBufferRoleAttrName;
+}
+
+bool isAllowedI32AddAttr(llvm::StringRef name) {
+  return false;
+}
+
+bool isAllowedI32StoreAttr(llvm::StringRef name) {
+  return name == kBufferRoleAttrName;
 }
 
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
@@ -233,39 +238,65 @@ bool isForbiddenDataflowParameterAttr(llvm::StringRef name) {
 }
 
 mlir::LogicalResult verifyBoundedDataflowRoleAttr(
-    I32VAddDataflowOp op, llvm::StringRef attrName,
-    tianchenrv::support::RuntimeABIParameterRole expectedRole,
-    llvm::StringSet<> &seenRoles) {
+    mlir::Operation *op, llvm::StringRef attrName,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole> expectedRoles,
+    llvm::StringSet<> *seenRoles = nullptr) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   if (!attr || attr.getValue().trim().empty())
-    return op.emitOpError()
+    return op->emitOpError()
            << "requires non-empty runtime ABI role string attribute '"
            << attrName << "'";
 
   llvm::StringRef value = attr.getValue().trim();
-  if (mlir::failed(verifyBoundedMetadata(op.getOperation(), attrName, value)))
+  if (mlir::failed(verifyBoundedMetadata(op, attrName, value)))
     return mlir::failure();
 
   std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
       tianchenrv::support::symbolizeRuntimeABIParameterRole(value);
   if (!parsedRole)
-    return op.emitOpError()
+    return op->emitOpError()
            << "attribute '" << attrName
            << "' must reference a supported runtime ABI parameter role";
 
-  if (!seenRoles.insert(value).second)
-    return op.emitOpError()
+  if (seenRoles && !seenRoles->insert(value).second)
+    return op->emitOpError()
            << "requires each dataflow runtime ABI role reference to be unique; "
-              "duplicate role '"
-           << value << "'";
+              "duplicate role '" << value << "'";
 
-  if (*parsedRole != expectedRole)
-    return op.emitOpError()
-           << "attribute '" << attrName
-           << "' must reference runtime ABI role '"
-           << tianchenrv::support::stringifyRuntimeABIParameterRole(
-                  expectedRole)
-           << "'";
+  if (llvm::is_contained(expectedRoles, *parsedRole))
+    return mlir::success();
+
+  std::string expected;
+  llvm::raw_string_ostream stream(expected);
+  llvm::interleave(
+      expectedRoles,
+      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+        stream << "'"
+               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << "'";
+      },
+      [&] { stream << " or "; });
+  stream.flush();
+  return op->emitOpError()
+         << "attribute '" << attrName
+         << "' must reference runtime ABI role " << expected;
+}
+
+bool isI32M1Vector(mlir::Type type) {
+  return llvm::isa<I32M1VectorType>(type);
+}
+
+mlir::LogicalResult verifyNestedI32VAddDataflowOp(mlir::Operation *op) {
+  if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
+    return op->emitOpError()
+           << "must be nested directly in a tcrv_rvv.with_vl body";
+  if (!op->getParentOfType<I32VAddMicrokernelOp>())
+    return op->emitOpError()
+           << "must be nested under tcrv_rvv.i32_vadd_microkernel; it is a "
+              "finite microkernel dataflow op, not a standalone RVV compute op";
+
+  if (op->getNumRegions() != 0)
+    return op->emitOpError() << "does not own regions";
 
   return mlir::success();
 }
@@ -346,22 +377,61 @@ verifyMicrokernelStructuredControlPlane(I32VAddMicrokernelOp microkernel) {
               "runtime n/AVL/VL is carried by the enclosing control-plane "
               "surface";
 
-  unsigned dataflowCount = 0;
-  for (mlir::Operation &withVLOp : withVLBody.front()) {
-    if (llvm::isa<I32VAddDataflowOp>(withVLOp)) {
-      ++dataflowCount;
-      continue;
-    }
+  llvm::SmallVector<mlir::Operation *, 4> ops;
+  for (mlir::Operation &withVLOp : withVLBody.front())
+    ops.push_back(&withVLOp);
+  if (ops.size() != 4)
     return microkernel.emitOpError()
-           << "requires tcrv_rvv.with_vl body to contain only the bounded "
-              "tcrv_rvv.i32_vadd_dataflow operation; unexpected operation '"
-           << withVLOp.getName().getStringRef() << "'";
-  }
+           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
+              "tcrv_rvv.i32_load, tcrv_rvv.i32_load, tcrv_rvv.i32_add, "
+              "tcrv_rvv.i32_store dataflow sequence";
 
-  if (dataflowCount != 1)
+  auto lhsLoad = llvm::dyn_cast<I32LoadOp>(ops[0]);
+  auto rhsLoad = llvm::dyn_cast<I32LoadOp>(ops[1]);
+  auto add = llvm::dyn_cast<I32AddOp>(ops[2]);
+  auto store = llvm::dyn_cast<I32StoreOp>(ops[3]);
+  if (!lhsLoad || !rhsLoad || !add || !store)
     return microkernel.emitOpError()
-           << "requires exactly one tcrv_rvv.i32_vadd_dataflow in the "
-              "tcrv_rvv.with_vl body";
+           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
+              "tcrv_rvv.i32_load, tcrv_rvv.i32_load, tcrv_rvv.i32_add, "
+              "tcrv_rvv.i32_store dataflow sequence";
+
+  if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
+      add.getVl() != withVL.getVl() || store.getVl() != withVL.getVl())
+    return microkernel.emitOpError()
+           << "requires every finite RVV i32 dataflow op to consume the "
+              "!tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl";
+
+  auto lhsRole = lhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  auto rhsRole = rhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  auto outRole = store->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  if (!lhsRole || lhsRole.getValue() !=
+                      tianchenrv::support::stringifyRuntimeABIParameterRole(
+                          tianchenrv::support::RuntimeABIParameterRole::
+                              LHSInputBuffer))
+    return microkernel.emitOpError()
+           << "requires first tcrv_rvv.i32_load to reference runtime ABI role "
+              "'lhs-input-buffer'";
+  if (!rhsRole || rhsRole.getValue() !=
+                      tianchenrv::support::stringifyRuntimeABIParameterRole(
+                          tianchenrv::support::RuntimeABIParameterRole::
+                              RHSInputBuffer))
+    return microkernel.emitOpError()
+           << "requires second tcrv_rvv.i32_load to reference runtime ABI role "
+              "'rhs-input-buffer'";
+  if (!outRole || outRole.getValue() !=
+                      tianchenrv::support::stringifyRuntimeABIParameterRole(
+                          tianchenrv::support::RuntimeABIParameterRole::
+                              OutputBuffer))
+    return microkernel.emitOpError()
+           << "requires tcrv_rvv.i32_store to reference runtime ABI role "
+              "'output-buffer'";
+
+  if (add.getLhs() != lhsLoad.getLoaded() || add.getRhs() != rhsLoad.getLoaded() ||
+      store.getValue() != add.getSum())
+    return microkernel.emitOpError()
+           << "requires finite RVV i32 dataflow SSA chain "
+              "lhs-load,rhs-load -> add -> store";
 
   return mlir::success();
 }
@@ -499,7 +569,7 @@ mlir::LogicalResult WithVLOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult I32VAddDataflowOp::verify() {
+mlir::LogicalResult I32LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -507,55 +577,111 @@ mlir::LogicalResult I32VAddDataflowOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i32_vadd_dataflow keeps SEW/LMUL/policy on "
+             << "'; tcrv_rvv.i32_load keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and element_count as descriptor-local "
                 "microkernel metadata";
 
-    if (!isAllowedI32VAddDataflowAttr(attrName))
+    if (!isAllowedI32LoadAttr(attrName))
       return emitOpError()
-             << "only accepts finite runtime ABI role attributes '"
-             << kLHSRoleAttrName << "', '" << kRHSRoleAttrName << "', '"
-             << kOutRoleAttrName << "', and '" << kRuntimeNRoleAttrName
+             << "only accepts finite input buffer runtime ABI role attribute '"
+             << kBufferRoleAttrName
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
-  if (op->getNumOperands() != 0 || op->getNumResults() != 0)
+  if (op->getNumOperands() != 1 || op->getNumResults() != 1)
     return emitOpError()
-           << "is a bounded finite dataflow marker with no SSA operands or "
-              "results; pointer buffers and runtime n are target/export ABI "
-              "parameters";
-  if (op->getNumRegions() != 0)
-    return emitOpError()
-           << "does not own regions; it must be nested directly under "
-              "tcrv_rvv.with_vl";
-
-  if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
-    return emitOpError()
-           << "must be nested directly in a tcrv_rvv.with_vl body";
-  if (!op->getParentOfType<I32VAddMicrokernelOp>())
-    return emitOpError()
-           << "must be nested under tcrv_rvv.i32_vadd_microkernel; it is a "
-              "finite microkernel dataflow marker, not a standalone RVV "
-              "compute op";
+           << "requires exactly one !tcrv_rvv.vl operand and one "
+              "!tcrv_rvv.i32m1 result";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!isI32M1Vector(getLoaded().getType()))
+    return emitOpError() << "requires result type to be !tcrv_rvv.i32m1";
+  if (mlir::failed(verifyNestedI32VAddDataflowOp(op)))
+    return mlir::failure();
 
   llvm::StringSet<> seenRoles;
   if (mlir::failed(verifyBoundedDataflowRoleAttr(
-          *this, kLHSRoleAttrName,
-          tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-          seenRoles)) ||
-      mlir::failed(verifyBoundedDataflowRoleAttr(
-          *this, kRHSRoleAttrName,
-          tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
-          seenRoles)) ||
-      mlir::failed(verifyBoundedDataflowRoleAttr(
-          *this, kOutRoleAttrName,
-          tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
-          seenRoles)) ||
-      mlir::failed(verifyBoundedDataflowRoleAttr(
-          *this, kRuntimeNRoleAttrName,
-          tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount,
-          seenRoles)))
+          op, kBufferRoleAttrName,
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer},
+          &seenRoles)))
+    return mlir::failure();
+
+  return mlir::success();
+}
+
+mlir::LogicalResult I32AddOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i32_add keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "element_count as descriptor-local microkernel metadata";
+
+    if (!isAllowedI32AddAttr(attrName))
+      return emitOpError()
+             << "does not accept dataflow attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs !tcrv_rvv.i32m1 operands, one "
+              "!tcrv_rvv.vl operand, and one !tcrv_rvv.i32m1 result";
+  if (!isI32M1Vector(getLhs().getType()) ||
+      !isI32M1Vector(getRhs().getType()) ||
+      !isI32M1Vector(getSum().getType()))
+    return emitOpError()
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  return verifyNestedI32VAddDataflowOp(op);
+}
+
+mlir::LogicalResult I32StoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i32_store keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and element_count as descriptor-local "
+                "microkernel metadata";
+
+    if (!isAllowedI32StoreAttr(attrName))
+      return emitOpError()
+             << "only accepts finite output buffer runtime ABI role attribute '"
+             << kBufferRoleAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one !tcrv_rvv.i32m1 value operand, one !tcrv_rvv.vl "
+              "operand, and no results";
+  if (!isI32M1Vector(getValue().getType()))
+    return emitOpError() << "requires stored value type to be !tcrv_rvv.i32m1";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedI32VAddDataflowOp(op)))
+    return mlir::failure();
+
+  llvm::StringSet<> seenRoles;
+  if (mlir::failed(verifyBoundedDataflowRoleAttr(
+          op, kBufferRoleAttrName,
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer},
+          &seenRoles)))
     return mlir::failure();
 
   return mlir::success();

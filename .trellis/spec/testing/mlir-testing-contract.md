@@ -85,7 +85,8 @@ Use lit/FileCheck for:
   dialect parse/verify for `tcrv_rvv.i32_vadd_microkernel`, execution-planning
   coverage proving the RVV plugin materializes the op and its structured
   `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` /
-  `tcrv_rvv.i32_vadd_dataflow` body from the finite selected descriptor without
+  `tcrv_rvv.i32_load` / `tcrv_rvv.i32_add` / `tcrv_rvv.i32_store` body from
+  the finite selected descriptor without
   a hand-authored input microkernel, pipeline-to-export
   coverage, selected kernel/variant/march comments, control/dataflow body
   consumption comments, `riscv_vector.h` use, a

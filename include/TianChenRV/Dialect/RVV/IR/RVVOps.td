@@ -17,12 +17,13 @@ def TCRV_RVV_Dialect : Dialect {
 
     The initial control-plane slice exposes the bounded tcrv_rvv.setvl runtime
     AVL-to-VL surface and the matching tcrv_rvv.with_vl VL scope region. The
-    first executable microkernel exception adds one finite
-    tcrv_rvv.i32_vadd_dataflow marker under that scope so the RVV exporter can
-    consume plugin-local i32 vector-add dataflow without turning tcrv.exec into
-    a compute IR. Generic RVV lowering, arbitrary vector memory modeling,
-    runtime ABI implementation, correctness claims, and performance evidence
-    remain out of scope for the dialect skeleton.
+    first executable microkernel exception adds finite plugin-local
+    tcrv_rvv.i32_load, tcrv_rvv.i32_add, and tcrv_rvv.i32_store dataflow
+    operations under that scope so the RVV exporter can consume structured i32
+    vector-add dataflow without turning tcrv.exec into a compute IR. Generic
+    RVV lowering, arbitrary vector memory modeling, runtime ABI implementation,
+    correctness claims, and performance evidence remain out of scope for the
+    dialect skeleton.
   }];
 
   let useDefaultTypePrinterParser = 1;
@@ -94,6 +95,18 @@ def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {
   }];
 }
 
+def TCRVRVV_I32M1VectorType : TCRVRVV_Type<"I32M1Vector", "i32m1"> {
+  let summary = "finite RVV i32 m1 vector dataflow token type";
+  let description = [{
+    A bounded plugin-local vector dataflow token for the current RVV i32-vadd
+    microkernel slice. It represents the compiler-visible result of the finite
+    tcrv_rvv.i32_load / tcrv_rvv.i32_add dataflow chain under an existing
+    tcrv_rvv.with_vl scope. It does not model arbitrary vector registers,
+    generic memory, masks, layouts, runtime ABI parameters, hardware facts,
+    correctness evidence, or performance evidence.
+  }];
+}
+
 def SetVLOp : TCRVRVV_Op<"setvl", []> {
   let summary = "bounded RVV runtime AVL to VL control-plane op";
   let description = [{
@@ -155,30 +168,81 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
   let hasVerifier = 1;
 }
 
-def I32VAddDataflowOp : TCRVRVV_Op<"i32_vadd_dataflow", []> {
-  let summary = "bounded RVV i32 vector-add dataflow marker";
+def I32LoadOp : TCRVRVV_Op<"i32_load", []> {
+  let summary = "bounded RVV i32 load dataflow op";
   let description = [{
-    Records the finite RVV i32 vector-add dataflow surface consumed by the
-    current microkernel C exporter. The op is nested under
-    tcrv_rvv.with_vl, carries only finite runtime ABI role references for the
-    lhs input buffer, rhs input buffer, output buffer, and runtime element
-    count, and has no SSA operands or results.
+    Records one finite plugin-local RVV i32 load in the current i32-vadd
+    microkernel body. The op is nested directly under tcrv_rvv.with_vl,
+    consumes the same runtime !tcrv_rvv.vl control token as the surrounding
+    scope, carries exactly one input buffer ABI role, and produces one bounded
+    !tcrv_rvv.i32m1 dataflow token.
 
     Pointer operands remain target/export ABI-owned parameters, not IR-modeled
-    buffers. Runtime n/AVL/VL remains represented by the surrounding
-    tcrv_rvv.i32_vadd_microkernel region argument, tcrv_rvv.setvl, and
-    tcrv_rvv.with_vl control surface. Descriptor-local element_count remains
-    metadata on the enclosing microkernel and is not accepted here.
+    buffers. Runtime n/AVL/VL remains represented by the enclosing
+    microkernel region argument, tcrv_rvv.setvl, and tcrv_rvv.with_vl control
+    surface. Descriptor-local element_count remains metadata on the enclosing
+    microkernel and is not accepted here.
   }];
 
   let arguments = (ins
-    StrAttr:$lhs_role,
-    StrAttr:$rhs_role,
-    StrAttr:$out_role,
-    StrAttr:$runtime_n_role
+    AnyType:$vl,
+    StrAttr:$buffer_role
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat = "$vl attr-dict `:` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def I32AddOp : TCRVRVV_Op<"i32_add", []> {
+  let summary = "bounded RVV i32 add dataflow op";
+  let description = [{
+    Records the finite plugin-local RVV i32 vector add in the current i32-vadd
+    microkernel body. The op is nested directly under tcrv_rvv.with_vl,
+    consumes two !tcrv_rvv.i32m1 dataflow tokens and the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope, and produces one
+    bounded !tcrv_rvv.i32m1 dataflow token.
+
+    This is not a generic arithmetic IR. It is admitted only as part of the
+    finite i32-vadd microkernel slice validated by the RVV plugin/exporter.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$sum);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($sum)";
+  let hasVerifier = 1;
+}
+
+def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
+  let summary = "bounded RVV i32 store dataflow op";
+  let description = [{
+    Records one finite plugin-local RVV i32 store in the current i32-vadd
+    microkernel body. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one !tcrv_rvv.i32m1 dataflow token and the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope, and carries exactly
+    one output buffer ABI role.
+
+    Pointer operands remain target/export ABI-owned parameters, not IR-modeled
+    buffers. Runtime n/AVL/VL remains represented by the enclosing
+    microkernel region argument, tcrv_rvv.setvl, and tcrv_rvv.with_vl control
+    surface. Descriptor-local element_count remains metadata on the enclosing
+    microkernel and is not accepted here.
+  }];
+
+  let arguments = (ins
+    AnyType:$value,
+    AnyType:$vl,
+    StrAttr:$buffer_role
   );
 
-  let assemblyFormat = "attr-dict";
+  let assemblyFormat =
+    "$value `,` $vl attr-dict `:` type($value) `,` type($vl)";
   let hasVerifier = 1;
 }
 
@@ -226,7 +290,7 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
     runtime index block argument representing the target/export-owned runtime
     element count/AVL control value, then a bounded tcrv_rvv.setvl to
     tcrv_rvv.with_vl chain whose nested body contains exactly one finite
-    tcrv_rvv.i32_vadd_dataflow marker.
+    lhs-load, rhs-load, add, output-store sequence.
 
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary vector math IR. It represents exactly the first

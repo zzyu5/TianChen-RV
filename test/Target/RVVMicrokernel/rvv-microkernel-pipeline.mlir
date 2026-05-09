@@ -82,7 +82,13 @@ module @rvv_microkernel_input {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -103,8 +109,8 @@ module @rvv_microkernel_input {
 // LIB: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
 // LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
-// LIB: /* dataflow_body: tcrv_rvv.i32_vadd_dataflow runtime ABI role references */
-// LIB: /* dataflow_abi_roles: lhs_role=lhs-input-buffer, rhs_role=rhs-input-buffer, out_role=output-buffer, runtime_n_role=runtime-element-count */
+// LIB: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
+// LIB: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 // LIB: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // LIB: /* artifact_kind: runtime-callable-c-source */
 // LIB: /* element_count: 16 */

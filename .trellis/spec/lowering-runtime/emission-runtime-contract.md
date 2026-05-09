@@ -907,10 +907,13 @@ RVV-plugin materialization from the finite selected-variant descriptor
 op must carry the structured RVV control/dataflow body for this bounded slice:
 one runtime index body argument for target/export-owned `n`/AVL, one
 `tcrv_rvv.setvl`, one matching `tcrv_rvv.with_vl`, and one nested finite
-`tcrv_rvv.i32_vadd_dataflow` marker for the target/export-owned lhs input,
-rhs input, output, and runtime element-count ABI roles consumed by this
-exporter. Concrete C parameter names are resolved from structured runtime ABI
-parameter metadata by role when a supported emission plan is present.
+`tcrv_rvv.i32_load`, `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`,
+`tcrv_rvv.i32_store` sequence. The load/store ops reference the
+target/export-owned lhs input, rhs input, and output buffer ABI roles consumed
+by this exporter. Runtime element count remains a direct
+`tcrv.exec.runtime_param` ABI boundary, not an RVV dataflow operand. Concrete C
+parameter names are resolved from structured runtime ABI parameter metadata by
+role when a supported emission plan is present.
 
 This export is the first bounded RVV executable microkernel slice. It emits a
 deterministic library-style C source file whose primary behavior is a stable
@@ -970,7 +973,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 - A matching direct child `tcrv_rvv.i32_vadd_microkernel` must identify the same
   selected path, required capability refs, required march, optional selected
   mabi, bounded element count, and structured `setvl` / `with_vl` /
-  `i32_vadd_dataflow` body. The body runtime index argument is
+  explicit load/add/store body. The body runtime index argument is
   runtime/control-plane/ABI state; `element_count` remains descriptor-local
   metadata.
 - If a supported matching emission-plan diagnostic is present, the exporter
@@ -998,7 +1001,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 - Missing, duplicate, stale, selected-variant-mismatched,
   required-capability-mismatched, invalid-element-count, malformed-march,
   malformed structured control/dataflow body, setvl/with_vl policy mismatch,
-  missing or mismatched `tcrv_rvv.i32_vadd_dataflow`, or secret-like
+  missing or mismatched finite RVV i32 load/add/store sequence, or secret-like
   `tcrv_rvv.i32_vadd_microkernel` -> export fails.
 - Missing, unavailable, non-symbol, non-RVV, or unknown selected variant
   requirements -> export fails.

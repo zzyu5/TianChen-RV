@@ -52,16 +52,18 @@ The built-in RVV first slice registers the concrete MLIR namespace
 `tcrv_rvv` through the RVV plugin path. It includes metadata/control-plane
 surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, `tcrv_rvv.setvl` for
 bounded runtime AVL-to-VL control, and `tcrv_rvv.with_vl` for the matching
-bounded VL scope region, plus the finite `tcrv_rvv.i32_vadd_dataflow` marker
-for the current i32-vadd microkernel export route and
+bounded VL scope region, plus finite `tcrv_rvv.i32_load`,
+`tcrv_rvv.i32_add`, and `tcrv_rvv.i32_store` dataflow ops for the current
+i32-vadd microkernel export route and
 `tcrv_rvv.lowering_boundary` for selected RVV variants. The setvl surface is
 control-plane IR only: it consumes a runtime AVL
 SSA value, returns a `!tcrv_rvv.vl` token, and carries bounded first-slice
 SEW/LMUL/policy metadata. The with_vl surface consumes that runtime VL token and
 creates a single-block plugin-local region. Its first bounded dataflow payload
-is exactly the i32-vadd marker consumed by the RVV exporter; this is not a
-generic RVV memory model, arbitrary vector lowering, full runtime ABI, or
-evidence. The lowering boundary is pre-executable compiler metadata only: these
+is exactly the i32-vadd lhs-load, rhs-load, add, output-store sequence consumed
+by the RVV exporter; this is not a generic RVV memory model, arbitrary vector
+lowering, full runtime ABI, or evidence. The lowering boundary is
+pre-executable compiler metadata only: these
 RVV surfaces do not by themselves lower to LLVM/RISC-V, create runtime ABI glue,
 generate objects, run hardware, prove correctness, or measure performance.
 
@@ -121,9 +123,12 @@ finite `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` selected
 variant descriptor during the execution-planning pipeline. The microkernel op
 now carries a structured RVV body with one runtime index body argument for
 target/export-owned `n`/AVL, one `tcrv_rvv.setvl`, one matching
-`tcrv_rvv.with_vl`, and one nested finite `tcrv_rvv.i32_vadd_dataflow` marker
-for the target/export-owned lhs input, rhs input, output, and runtime element
-count ABI roles consumed by the exporter. Descriptor-local `element_count`
+`tcrv_rvv.with_vl`, and a nested finite `tcrv_rvv.i32_load`,
+`tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_store` body. The load
+and store ops reference the target/export-owned lhs input, rhs input, and
+output buffer ABI roles; the runtime element-count role remains a
+`tcrv.exec.runtime_param` ABI boundary consumed by the callable plan rather
+than an RVV dataflow operand. Descriptor-local `element_count`
 is selected from structured RVV i32 M1 lane capacity when available, capped as
 a bounded sample, and otherwise falls back to the first-slice sample size 16;
 it remains metadata and is not promoted to shape, runtime `n`, AVL, VL,
@@ -136,7 +141,7 @@ and deterministic lhs/rhs/out/runtime-count order are derived from direct
 metadata must mirror that IR-backed plan exactly:
 `void <generated_name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`.
 The exporter validates and consumes that `setvl` / `with_vl` /
-`i32_vadd_dataflow` role body before emitting the runtime-callable loop and
+explicit load/add/store dataflow body before emitting the runtime-callable loop and
 validates any supported emission-plan parameter metadata as an exact mirror of
 the IR-backed callable plan, so mismatched or stale control/dataflow/ABI
 metadata fails before source output. The default artifact has no embedded

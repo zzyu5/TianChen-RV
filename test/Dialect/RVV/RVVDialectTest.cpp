@@ -284,12 +284,10 @@ module {
         policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
         sew = 32 : i64
       } {
-        tcrv_rvv.i32_vadd_dataflow {
-          lhs_role = "lhs-input-buffer",
-          out_role = "output-buffer",
-          rhs_role = "rhs-input-buffer",
-          runtime_n_role = "runtime-element-count"
-        }
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -329,7 +327,11 @@ module {
                      llvm::StringRef(printedStorage)
                          .contains("tcrv_rvv.with_vl") &&
                      llvm::StringRef(printedStorage)
-                         .contains("tcrv_rvv.i32_vadd_dataflow"),
+                         .contains("tcrv_rvv.i32_load") &&
+                     llvm::StringRef(printedStorage)
+                         .contains("tcrv_rvv.i32_add") &&
+                     llvm::StringRef(printedStorage)
+                         .contains("tcrv_rvv.i32_store"),
                  "printed module preserves structured RVV dataflow body"))
     return result;
 

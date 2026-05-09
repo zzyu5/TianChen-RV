@@ -33,11 +33,13 @@ module {
     // CHECK-SAME: lmul = "m1"
     // CHECK-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     // CHECK-SAME: sew = 32 : i64
-    // CHECK: tcrv_rvv.i32_vadd_dataflow
-    // CHECK-SAME: lhs_role = "lhs-input-buffer"
-    // CHECK-SAME: out_role = "output-buffer"
-    // CHECK-SAME: rhs_role = "rhs-input-buffer"
-    // CHECK-SAME: runtime_n_role = "runtime-element-count"
+    // CHECK: %[[LHS:.*]] = tcrv_rvv.i32_load %[[VL]]
+    // CHECK-SAME: buffer_role = "lhs-input-buffer"
+    // CHECK: %[[RHS:.*]] = tcrv_rvv.i32_load %[[VL]]
+    // CHECK-SAME: buffer_role = "rhs-input-buffer"
+    // CHECK: %[[SUM:.*]] = tcrv_rvv.i32_add %[[LHS]], %[[RHS]], %[[VL]]
+    // CHECK: tcrv_rvv.i32_store %[[SUM]], %[[VL]]
+    // CHECK-SAME: buffer_role = "output-buffer"
     tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
@@ -51,7 +53,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -95,7 +103,7 @@ module {
       tcrv_rvv.required_march = "rv64gcv"
     } {
     }
-    // expected-error@+1 {{requires exactly one tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body}}
+    // expected-error@+1 {{requires tcrv_rvv.with_vl body to contain exactly the finite tcrv_rvv.i32_load, tcrv_rvv.i32_load, tcrv_rvv.i32_add, tcrv_rvv.i32_store dataflow sequence}}
     tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
@@ -124,7 +132,7 @@ module {
       tcrv_rvv.required_march = "rv64gcv"
     } {
     }
-    // expected-error@+1 {{requires exactly one tcrv_rvv.i32_vadd_dataflow in the tcrv_rvv.with_vl body}}
+    // expected-error@+1 {{requires tcrv_rvv.with_vl body to contain exactly the finite tcrv_rvv.i32_load, tcrv_rvv.i32_load, tcrv_rvv.i32_add, tcrv_rvv.i32_store dataflow sequence}}
     tcrv_rvv.i32_vadd_microkernel attributes {
       element_count = 16 : i64,
       origin = "rvv-plugin",
@@ -137,8 +145,14 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %extra = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       } : !tcrv_rvv.vl
     }
   }
@@ -168,7 +182,10 @@ module {
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         // expected-error@+1 {{does not accept attribute '"element_count"'}}
-        tcrv_rvv.i32_vadd_dataflow {element_count = 16 : i64, lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer", element_count = 16 : i64} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -198,7 +215,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -228,7 +251,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -258,7 +287,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -288,7 +323,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -318,7 +359,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -348,7 +395,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -379,7 +432,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "runtime-element-count"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }

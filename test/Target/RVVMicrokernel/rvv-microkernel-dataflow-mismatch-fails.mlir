@@ -52,10 +52,13 @@ module {
     ^bb0(%runtime_n: index):
       %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        tcrv_rvv.i32_vadd_dataflow {lhs_role = "lhs-input-buffer", out_role = "output-buffer", rhs_role = "rhs-input-buffer", runtime_n_role = "dispatch-availability-guard"}
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "dispatch-availability-guard"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK: 'tcrv_rvv.i32_vadd_dataflow' op attribute 'runtime_n_role' must reference runtime ABI role 'runtime-element-count'
+// CHECK: requires tcrv_rvv.i32_store to reference runtime ABI role 'output-buffer'
