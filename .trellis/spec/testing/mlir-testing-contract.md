@@ -437,10 +437,12 @@ evidence.
 If the repository exports a generated RVV+scalar dispatch self-check C harness,
 local lit tests must cover the harness structure without requiring `ssh rvv`.
 Any remote compile/run of that generated harness must be reported separately as
-bounded correctness/runtime-invocation evidence for the explicit i32-vadd
-dispatcher only. It must not be reported as generic high-level lowering
-correctness, arbitrary RVV emission support, object generation, dynamic runtime
-integration, or performance evidence.
+bounded correctness/runtime-invocation evidence for the explicit finite i32
+add/sub dispatcher family only. Vsub tests must prove subtract semantics and
+must reject stale vadd intrinsic, route, ABI-name, callable-stem, success
+marker, or `lhs + rhs` expectations. It must not be reported as generic
+high-level lowering correctness, arbitrary RVV emission support, object
+generation, dynamic runtime integration, or performance evidence.
 
 If the repository exports a generated RVV+scalar dispatch self-check object
 artifact, local object-byte tests may be conditional on a detected local/native
@@ -457,13 +459,17 @@ the bridge without contacting `ssh rvv`, including self-test coverage,
 execution-planning pipeline use, generic library dispatch source export,
 explicit self-check source export, deterministic artifact layout below
 `artifacts/tmp`, command-summary redaction, and failure on secret-like evidence
-metadata. Passing dry-run proves only planned dispatch handoff and source
+metadata. If the bridge supports more than one arithmetic family, local lit
+coverage must include the CLI family selector and any frontend-lowering flag
+needed to feed bounded linalg add/sub input into the same execution-planning
+pipeline. Passing dry-run proves only planned dispatch handoff and source
 export. Any runtime/correctness claim must use real `ssh rvv` evidence where
 the generated self-check dispatch source is compiled to an object, linked to an
 executable, and run with the bounded success marker observed. That claim must
-remain limited to the finite RVV+scalar i32-vadd dispatcher executable path and
-must not be reported as generic RVV lowering, arbitrary kernel support, dynamic
-runtime integration, broad correctness, or performance evidence.
+remain limited to the finite family-selected RVV+scalar i32 add/sub dispatcher
+executable path and must not be reported as generic RVV lowering, arbitrary
+kernel support, dynamic runtime integration, broad correctness, or performance
+evidence.
 
 If that bridge also exposes a target-artifact-bundle mode, local lit coverage
 must exercise the mode without contacting `ssh rvv`, including bundle export
@@ -475,9 +481,12 @@ compiler-emitted `component_group`, `component_role`, `external_abi_name`, and
 signature heuristics, malformed or incomplete index rejection, external caller
 generation from the emitted header prototype plus the emitted ordered ABI
 signature, command-summary redaction, and absence of any dry-run
-runtime/correctness claim. Passing bundle dry-run proves only compiler bundle
-export, typed index parsing, file discovery, and caller construction. Any
-bundle external ABI runtime/correctness claim must use real `ssh rvv` evidence
+runtime/correctness claim. Family-specific bundle dry-runs must verify the
+selected route/component group and generated external caller arithmetic; for
+vsub the caller must check `lhs - rhs`, not stale vadd semantics. Passing
+bundle dry-run proves only compiler bundle export, typed index parsing, file
+discovery, and caller construction. Any bundle external ABI runtime/correctness
+claim must use real `ssh rvv` evidence
 where only the generated source, generated header, generated object, and
 generated caller are copied to the RVV host, the generated source and caller are
 compiled there, the caller is linked and run against the source-built object and

@@ -3,7 +3,7 @@
 
 This helper is runner/evidence tooling only. It orchestrates existing
 TianChen-RV MLIR tools and optional ``ssh rvv`` compile/link/run evidence for
-the planned RVV+scalar i32-vadd dispatch self-check slice. It does not
+the planned RVV+scalar i32 add/sub dispatch slice. It does not
 implement compiler IR, plugin decisions, target selection, capability modeling,
 lowering, emission, runtime ABI, correctness logic, or performance measurement.
 """
@@ -37,17 +37,7 @@ DEFAULT_BUNDLE_ARTIFACT_ROOT = Path(
 )
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
-SUCCESS_MARKER = "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok"
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
-BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER = (
-    "tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok"
-)
-DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP = (
-    "rvv-scalar-i32-vadd-dispatch-external-abi.v1"
-)
-DISPATCH_EXTERNAL_ABI_NAME = (
-    "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"
-)
 DISPATCH_RUNTIME_ABI_SIGNATURE = [
     {
         "c_name": "lhs",
@@ -81,41 +71,124 @@ DISPATCH_RUNTIME_ABI_SIGNATURE = [
     },
 ]
 
-DISPATCH_BUNDLE_ROUTES = {
-    "source": {
-        "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
-        "artifact_kind": "runtime-callable-c-source",
-        "component_group": DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
-        "component_role": "source",
-        "external_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
-        "owner": "rvv-scalar-dispatch-target",
-        "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
-        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
-        "evidence_role": "compiler-artifact",
+ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
+    "i32-vadd": {
+        "diagnostic_name": "i32-vadd",
+        "function_stem": "i32_vadd",
+        "intrinsic": "__riscv_vadd_vv_i32m1",
+        "c_operator": "+",
+        "success_marker": "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok",
+        "bundle_success_marker": "tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok",
+        "component_group": "rvv-scalar-i32-vadd-dispatch-external-abi.v1",
+        "external_abi_name": "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+        "source_route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+        "header_route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
+        "object_route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
+        "rvv_callable_route": "tcrv-export-rvv-microkernel-c",
+        "scalar_callable_route": "tcrv-export-scalar-microkernel-c",
+        "self_check_route": "--tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c",
+        "default_input": DEFAULT_INPUT,
+        "default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vadd-and-export-target-artifact-bundle.mlir"
+        ),
     },
-    "header": {
-        "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-header",
-        "artifact_kind": "runtime-callable-c-header",
-        "component_group": DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
-        "component_role": "header",
-        "external_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
-        "owner": "rvv-scalar-dispatch-target",
-        "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
-        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
-        "evidence_role": "header-declaration",
-    },
-    "object": {
-        "route": "tcrv-export-rvv-scalar-i32-vadd-dispatch-object",
-        "artifact_kind": "riscv-elf-relocatable-object",
-        "component_group": DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP,
-        "component_role": "object",
-        "external_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
-        "owner": "rvv-scalar-dispatch-target",
-        "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
-        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
-        "evidence_role": "relocatable-object",
+    "i32-vsub": {
+        "diagnostic_name": "i32-vsub",
+        "function_stem": "i32_vsub",
+        "intrinsic": "__riscv_vsub_vv_i32m1",
+        "c_operator": "-",
+        "success_marker": "tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok",
+        "bundle_success_marker": "tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok",
+        "component_group": "rvv-scalar-i32-vsub-dispatch-external-abi.v1",
+        "external_abi_name": "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
+        "source_route": "tcrv-export-rvv-scalar-i32-vsub-dispatch-c",
+        "header_route": "tcrv-export-rvv-scalar-i32-vsub-dispatch-header",
+        "object_route": "tcrv-export-rvv-scalar-i32-vsub-dispatch-object",
+        "rvv_callable_route": "tcrv-export-rvv-i32-vsub-microkernel-c",
+        "scalar_callable_route": "tcrv-export-scalar-i32-vsub-microkernel-c",
+        "self_check_route": "--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c",
+        "default_input": Path(
+            "test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir"
+        ),
+        "default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir"
+        ),
     },
 }
+
+ACTIVE_ARITHMETIC_FAMILY = ARITHMETIC_FAMILY_SPECS["i32-vadd"]
+SUCCESS_MARKER = str(ACTIVE_ARITHMETIC_FAMILY["success_marker"])
+BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER = str(
+    ACTIVE_ARITHMETIC_FAMILY["bundle_success_marker"]
+)
+DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP = str(
+    ACTIVE_ARITHMETIC_FAMILY["component_group"]
+)
+DISPATCH_EXTERNAL_ABI_NAME = str(ACTIVE_ARITHMETIC_FAMILY["external_abi_name"])
+
+
+def make_dispatch_bundle_routes(
+    family: dict[str, str | Path],
+) -> dict[str, dict[str, str]]:
+    component_group = str(family["component_group"])
+    external_abi_name = str(family["external_abi_name"])
+    return {
+        "source": {
+            "route": str(family["source_route"]),
+            "artifact_kind": "runtime-callable-c-source",
+            "component_group": component_group,
+            "component_role": "source",
+            "external_abi_name": external_abi_name,
+            "owner": "rvv-scalar-dispatch-target",
+            "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
+            "runtime_abi_name": external_abi_name,
+            "evidence_role": "compiler-artifact",
+        },
+        "header": {
+            "route": str(family["header_route"]),
+            "artifact_kind": "runtime-callable-c-header",
+            "component_group": component_group,
+            "component_role": "header",
+            "external_abi_name": external_abi_name,
+            "owner": "rvv-scalar-dispatch-target",
+            "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
+            "runtime_abi_name": external_abi_name,
+            "evidence_role": "header-declaration",
+        },
+        "object": {
+            "route": str(family["object_route"]),
+            "artifact_kind": "riscv-elf-relocatable-object",
+            "component_group": component_group,
+            "component_role": "object",
+            "external_abi_name": external_abi_name,
+            "owner": "rvv-scalar-dispatch-target",
+            "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi",
+            "runtime_abi_name": external_abi_name,
+            "evidence_role": "relocatable-object",
+        },
+    }
+
+
+DISPATCH_BUNDLE_ROUTES = make_dispatch_bundle_routes(ACTIVE_ARITHMETIC_FAMILY)
+
+
+def configure_arithmetic_family(family_name: str) -> None:
+    global ACTIVE_ARITHMETIC_FAMILY
+    global SUCCESS_MARKER
+    global BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER
+    global DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP
+    global DISPATCH_EXTERNAL_ABI_NAME
+    global DISPATCH_BUNDLE_ROUTES
+
+    family = ARITHMETIC_FAMILY_SPECS.get(family_name)
+    if family is None:
+        raise BridgeError(f"unsupported arithmetic family: {family_name}")
+    ACTIVE_ARITHMETIC_FAMILY = family
+    SUCCESS_MARKER = str(family["success_marker"])
+    BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER = str(family["bundle_success_marker"])
+    DISPATCH_EXTERNAL_ABI_COMPONENT_GROUP = str(family["component_group"])
+    DISPATCH_EXTERNAL_ABI_NAME = str(family["external_abi_name"])
+    DISPATCH_BUNDLE_ROUTES = make_dispatch_bundle_routes(family)
 
 SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -449,11 +522,15 @@ def validate_dispatch_manifest(manifest_text: str) -> None:
         'selected_surface: dispatch',
         'origin: "rvv-plugin"',
         'role: "dispatch case"',
-        'lowering_pipeline: "tcrv-export-rvv-microkernel-c"',
+        'lowering_pipeline: "'
+        + str(ACTIVE_ARITHMETIC_FAMILY["rvv_callable_route"])
+        + '"',
         'runtime_abi_kind: "rvv-runtime-callable-c-abi"',
         'origin: "scalar-plugin"',
         'role: "dispatch fallback"',
-        'lowering_pipeline: "tcrv-export-scalar-microkernel-c"',
+        'lowering_pipeline: "'
+        + str(ACTIVE_ARITHMETIC_FAMILY["scalar_callable_route"])
+        + '"',
         'runtime_abi_kind: "scalar-runtime-callable-c-abi"',
     ]
     missing = [snippet for snippet in required if snippet not in manifest_text]
@@ -476,9 +553,13 @@ def validate_library_dispatch_source(source: str) -> None:
     required = [
         "/* TianChen-RV RVV+scalar host runtime dispatch C export. */",
         "/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */",
-        "__riscv_vadd_vv_i32m1",
-        "out[index] = lhs[index] + rhs[index];",
-        "void tcrv_dispatch_i32_vadd_",
+        str(ACTIVE_ARITHMETIC_FAMILY["intrinsic"]),
+        "out[index] = lhs[index] "
+        + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+        + " rhs[index];",
+        "void tcrv_dispatch_"
+        + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
+        + "_",
         "if (rvv_available)",
     ]
     missing = [snippet for snippet in required if snippet not in source]
@@ -501,9 +582,13 @@ def validate_self_check_dispatch_source(source: str) -> dict[str, str]:
         "runtime_counts=7,16",
         "int main(void)",
         SUCCESS_MARKER,
-        "__riscv_vadd_vv_i32m1",
-        "out[index] = lhs[index] + rhs[index];",
-        "tcrv_dispatch_i32_vadd_",
+        str(ACTIVE_ARITHMETIC_FAMILY["intrinsic"]),
+        "out[index] = lhs[index] "
+        + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+        + " rhs[index];",
+        "tcrv_dispatch_"
+        + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
+        + "_",
     ]
     missing = [snippet for snippet in required if snippet not in source]
     if missing:
@@ -931,6 +1016,8 @@ def build_dispatch_external_caller_source(
             raise BridgeError(f"unsupported runtime ABI parameter role in bundle index: {role}")
     rendered_call_arguments = ", ".join(call_arguments)
     escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
+    c_operator = str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
+    family_name = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
     return f"""\
 #include <stddef.h>
 #include <stdint.h>
@@ -952,9 +1039,9 @@ static int run_dispatch_case(size_t runtime_n, int rvv_available) {{
 
   {function_name}({rendered_call_arguments});
   for (size_t index = 0; index < runtime_n; ++index) {{
-    if (out[index] != lhs[index] + rhs[index]) {{
+    if (out[index] != lhs[index] {c_operator} rhs[index]) {{
       fprintf(stderr,
-              "rvv scalar dispatch bundle external ABI mismatch n=%zu guard=%d index=%zu\\n",
+              "rvv scalar {family_name} dispatch bundle external ABI mismatch n=%zu guard=%d index=%zu\\n",
               runtime_n, rvv_available, index);
       return rvv_available ? 11 : 10;
     }}
@@ -962,7 +1049,7 @@ static int run_dispatch_case(size_t runtime_n, int rvv_available) {{
   for (size_t index = runtime_n; index < (size_t)kCapacity; ++index) {{
     if (out[index] != -12345) {{
       fprintf(stderr,
-              "rvv scalar dispatch bundle external ABI overrun n=%zu guard=%d index=%zu\\n",
+              "rvv scalar {family_name} dispatch bundle external ABI overrun n=%zu guard=%d index=%zu\\n",
               runtime_n, rvv_available, index);
       return rvv_available ? 13 : 12;
     }}
@@ -1547,6 +1634,22 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
     return Path(args.artifact_root)
 
 
+def selected_input_path(args: argparse.Namespace) -> Path:
+    if args.input:
+        return Path(args.input)
+    if args.use_target_artifact_bundle and args.use_plan_and_export_bundle_front_door:
+        return Path(ACTIVE_ARITHMETIC_FAMILY["default_plan_and_export_input"])
+    return Path(ACTIVE_ARITHMETIC_FAMILY["default_input"])
+
+
+def execution_planning_command_args(args: argparse.Namespace) -> list[str]:
+    command_args: list[str] = []
+    if args.lower_linalg_frontend:
+        command_args.append("--tcrv-lower-linalg-i32-vadd-to-exec")
+    command_args.append("--tcrv-execution-planning-pipeline")
+    return command_args
+
+
 def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root()
     if args.evidence_note:
@@ -1558,10 +1661,10 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     )
     commands: list[dict[str, Any]] = []
 
-    input_path = resolve_repo_path(Path(args.input), root)
+    input_path = resolve_repo_path(selected_input_path(args), root)
     if not input_path.exists():
-        raise BridgeError(f"input MLIR does not exist: {args.input}")
-    reject_secret_like_text("input MLIR path", str(args.input))
+        raise BridgeError(f"input MLIR does not exist: {selected_input_path(args)}")
+    reject_secret_like_text("input MLIR path", str(selected_input_path(args)))
 
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
     local_clang = ensure_local_clang_on_path()
@@ -1592,7 +1695,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             [
                 tcrv_opt,
                 relative_to_repo(input_path, root),
-                "--tcrv-execution-planning-pipeline",
+                *execution_planning_command_args(args),
             ],
             cwd=root,
             artifact_dir=artifact_dir,
@@ -1703,6 +1806,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "git_sha": git_sha(root),
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
+        "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": planned_dispatch_pipeline,
@@ -1739,7 +1843,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "claim_scope": (
             "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
             if args.dry_run
-            else "bounded RVV+scalar i32-vadd target-artifact bundle external caller correctness only"
+            else "bounded RVV+scalar "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+            + " target-artifact bundle external caller correctness only"
         ),
     }
 
@@ -1796,10 +1902,10 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     )
     commands: list[dict[str, Any]] = []
 
-    input_path = resolve_repo_path(Path(args.input), root)
+    input_path = resolve_repo_path(selected_input_path(args), root)
     if not input_path.exists():
-        raise BridgeError(f"input MLIR does not exist: {args.input}")
-    reject_secret_like_text("input MLIR path", str(args.input))
+        raise BridgeError(f"input MLIR does not exist: {selected_input_path(args)}")
+    reject_secret_like_text("input MLIR path", str(selected_input_path(args)))
 
     tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
@@ -1809,7 +1915,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         [
             tcrv_opt,
             str(input_path),
-            "--tcrv-execution-planning-pipeline",
+            *execution_planning_command_args(args),
         ],
         cwd=root,
         artifact_dir=artifact_dir,
@@ -1859,7 +1965,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "export_dispatch_self_check_source",
         [
             tcrv_translate,
-            "--tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c",
+            str(ACTIVE_ARITHMETIC_FAMILY["self_check_route"]),
             str(post_planning_path),
         ],
         cwd=root,
@@ -1888,6 +1994,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "run_id": run_id,
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
+        "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
@@ -1912,7 +2019,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "claim_scope": (
             "local dry-run verifies planned dispatch, manifest handoff, and source export only"
             if args.dry_run
-            else "bounded RVV+scalar i32-vadd dispatch self-check executable runtime only"
+            else "bounded RVV+scalar "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+            + " dispatch self-check executable runtime only"
         ),
     }
 
@@ -2003,6 +2112,39 @@ int main(void) { puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_c
     )
     assert_self_test("rvv_scalar_dispatch_self_check.o" in link_command, "link command missing object input")
     assert_self_test(" -o rvv_scalar_dispatch_self_check" in link_command, "link command missing executable output")
+
+    configure_arithmetic_family("i32-vsub")
+    sample_vsub_source = """
+/* TianChen-RV RVV+scalar host runtime dispatch C export. */
+/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+#include <riscv_vector.h>
+void tcrv_dispatch_i32_vsub_self_test(void) {}
+void f(void) { __riscv_vsub_vv_i32m1; out[index] = lhs[index] - rhs[index]; }
+/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+/* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+int main(void) { puts("tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }
+""".strip()
+    vsub_flags = validate_self_check_dispatch_source(sample_vsub_source)
+    assert_self_test(
+        vsub_flags["selected_march"] == "rv64gcv",
+        "vsub selected march parser failed",
+    )
+    vsub_caller = build_dispatch_external_caller_source(
+        "tcrv_dispatch_i32_vsub_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h",
+        DISPATCH_RUNTIME_ABI_SIGNATURE,
+    )
+    assert_self_test(
+        "lhs[index] - rhs[index]" in vsub_caller,
+        "vsub bundle caller did not check subtract semantics",
+    )
+    assert_self_test(
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in vsub_caller,
+        "vsub bundle caller success marker missing",
+    )
+    configure_arithmetic_family("i32-vadd")
 
     sample_bundle_index = """
 tianchenrv.target_artifact_bundle.version: 1
@@ -2326,7 +2468,13 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", default=str(DEFAULT_INPUT))
+    parser.add_argument("--input", default="")
+    parser.add_argument(
+        "--arithmetic-family",
+        choices=sorted(ARITHMETIC_FAMILY_SPECS),
+        default="i32-vadd",
+        help="Bounded dispatch arithmetic family to validate",
+    )
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))
     parser.add_argument("--run-id", default="")
     parser.add_argument("--overwrite", action="store_true")
@@ -2334,6 +2482,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--tcrv-translate", default="")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--dry-run", action="store_true", help="Do not contact ssh rvv")
+    parser.add_argument(
+        "--lower-linalg-frontend",
+        action="store_true",
+        help=(
+            "Run the bounded linalg i32 add/sub frontend lowering pass before "
+            "the execution-planning pipeline"
+        ),
+    )
     parser.add_argument("--ssh-target", default=DEFAULT_SSH_TARGET)
     parser.add_argument("--connect-timeout", type=int, default=10)
     parser.add_argument("--ssh-option", action="append", default=[])
@@ -2358,6 +2514,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    configure_arithmetic_family(args.arithmetic_family)
     if args.self_test:
         run_self_test()
         return 0
@@ -2382,6 +2539,7 @@ def main(argv: list[str]) -> int:
         json.dumps(
             {
                 "artifact_dir": evidence["artifact_dir"],
+                "arithmetic_family": evidence.get("arithmetic_family", ""),
                 "bundle_export_mode": evidence.get("bundle_export_mode", ""),
                 "mode": evidence["mode"],
                 "status": evidence["status"],

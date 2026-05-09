@@ -15,6 +15,12 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/bundle_export_stdout.txt
 # RUN: not test -e %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/post_planning.mlir
 # RUN: FileCheck %s --check-prefix=PLAN-SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/command_summary.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --run-id lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=VSUB-PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=VSUB-CALLER --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --run-id lit-rvv-scalar-dispatch-bundle-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -87,6 +93,32 @@
 
 # PLAN-SUMMARY: "name": "plan_and_export_target_artifact_bundle"
 # PLAN-SUMMARY-NOT: "name": "tcrv_opt_execution_planning_pipeline"
+
+# VSUB-PLAN-DRY: "arithmetic_family": "i32-vsub"
+# VSUB-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VSUB-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VSUB-PLAN-DRY: "ssh_evidence": false
+# VSUB-PLAN-DRY: "status": "success"
+
+# VSUB-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
+# VSUB-CALLER: tcrv_dispatch_i32_vsub_frontend_bundle_i32_vsub(lhs, rhs, out, runtime_n, rvv_available);
+# VSUB-CALLER: out[index] != lhs[index] - rhs[index]
+# VSUB-CALLER: run_dispatch_case(7, 0)
+# VSUB-CALLER: run_dispatch_case(16, 1)
+# VSUB-CALLER: tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok
+
+# VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
+# VSUB-EVIDENCE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VSUB-EVIDENCE: "component_group": "rvv-scalar-i32-vsub-dispatch-external-abi.v1"
+# VSUB-EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vsub-dispatch-c"
+# VSUB-EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vsub-dispatch-header"
+# VSUB-EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vsub-dispatch-object"
+# VSUB-EVIDENCE: "branches_exercised": [
+# VSUB-EVIDENCE: "rvv_available=0"
+# VSUB-EVIDENCE: "rvv_available=1"
+# VSUB-EVIDENCE: "pass_fail_result": "pass"
+# VSUB-EVIDENCE: "ssh_evidence": null
+# VSUB-EVIDENCE: "status": "success"
 
 # EVIDENCE: "bundle_export_mode": "target-artifact-bundle"
 # EVIDENCE: "bundle_index": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index"

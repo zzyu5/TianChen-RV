@@ -1862,11 +1862,18 @@ llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
-llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
-                                                     llvm::raw_ostream &os) {
+llvm::Error exportRVVScalarDispatchSelfCheckCForFamily(
+    mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
+    llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
   if (!pair)
     return pair.takeError();
+  if (pair->family != &expectedFamily)
+    return makeDispatchError(
+        pair->rvv.kernel,
+        llvm::Twine("self-check export route expected ") +
+            expectedFamily.diagnosticName + " dispatch artifacts, got " +
+            pair->family->diagnosticName);
 
   std::string rvvSource;
   std::string scalarSource;
@@ -1883,6 +1890,18 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
   stream.flush();
   os << source;
   return llvm::Error::success();
+}
+
+llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportRVVScalarDispatchSelfCheckCForFamily(
+      module, getI32VAddDispatchFamilySpec(), os);
+}
+
+llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportRVVScalarDispatchSelfCheckCForFamily(
+      module, getI32VSubDispatchFamilySpec(), os);
 }
 
 llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
@@ -1915,14 +1934,20 @@ llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
                                                 *compileConfig, os);
 }
 
-llvm::Error
-exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
-                                              llvm::raw_ostream &os) {
+llvm::Error exportRVVScalarDispatchSelfCheckObjectForFamily(
+    mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
+    llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
   if (!pair) {
     std::string message = llvm::toString(pair.takeError());
     return makeModuleDispatchObjectError(message);
   }
+  if (pair->family != &expectedFamily)
+    return makeDispatchObjectError(
+        pair->rvv.kernel,
+        llvm::Twine("self-check object export route expected ") +
+            expectedFamily.diagnosticName + " dispatch artifacts, got " +
+            pair->family->diagnosticName);
 
   llvm::Expected<DispatchObjectCompileConfig> compileConfig =
       buildDispatchObjectCompileConfig(*pair);
@@ -1932,7 +1957,8 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
   std::string source;
   llvm::raw_string_ostream stream(source);
   if (llvm::Error error =
-          exportRVVScalarI32VAddDispatchSelfCheckC(module, stream)) {
+          exportRVVScalarDispatchSelfCheckCForFamily(module, expectedFamily,
+                                                     stream)) {
     std::string message = llvm::toString(std::move(error));
     return makeModuleDispatchObjectError(message);
   }
@@ -1944,6 +1970,20 @@ exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
 
   return compileGeneratedDispatchSourceToObject(pair->rvv.kernel, source,
                                                 *compileConfig, os);
+}
+
+llvm::Error
+exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportRVVScalarDispatchSelfCheckObjectForFamily(
+      module, getI32VAddDispatchFamilySpec(), os);
+}
+
+llvm::Error
+exportRVVScalarI32VSubDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportRVVScalarDispatchSelfCheckObjectForFamily(
+      module, getI32VSubDispatchFamilySpec(), os);
 }
 
 llvm::Error registerRVVScalarDispatchFamilyTargetExporters(

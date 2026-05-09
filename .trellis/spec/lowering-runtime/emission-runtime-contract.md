@@ -1283,28 +1283,32 @@ explicit runtime element-count ABI inputs:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
+tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c
 ```
 
-That harness is target-owned runtime invocation evidence tooling for this
-finite i32-vadd dispatcher only. It may emit one bounded success marker after
-both scalar fallback and RVV branch checks pass. It must not replace the default
-library-style dispatch artifact, broaden selected-path validation, perform
-automatic hardware probing, generate objects, link a runtime library, report
-benchmarks, or claim generic RVV lowering correctness. Real correctness claims
-for the RVV branch still require separate `ssh rvv` compile/run evidence for
-the generated harness source and selected flags.
+That harness is target-owned runtime invocation evidence tooling for the
+finite i32 add/sub dispatch family only. The command route must match the
+selected callable family: the vadd self-check route must reject vsub artifacts,
+and the vsub self-check route must reject vadd artifacts. It may emit one
+bounded family-specific success marker after both scalar fallback and RVV
+branch checks pass. It must not replace the default library-style dispatch
+artifact, broaden selected-path validation, perform automatic hardware probing,
+generate objects, link a runtime library, report benchmarks, or claim generic
+RVV lowering correctness. Real correctness claims for the RVV branch still
+require separate `ssh rvv` compile/run evidence for the generated harness
+source and selected flags.
 
 ### Dispatch Self-Check Harness Export
 
 #### 1. Scope / Trigger
 
-Trigger: a post-planning module already satisfies the host RVV+scalar i32-vadd
-dispatch C export boundary, and the caller wants explicit runtime invocation
-evidence for the generated dispatcher rather than the default library-style
-source artifact.
+Trigger: a post-planning module already satisfies the host RVV+scalar finite
+i32 add/sub dispatch C export boundary, and the caller wants explicit runtime
+invocation evidence for the generated dispatcher rather than the default
+library-style source artifact.
 
-This is a target-owned evidence export mode for the finite i32-vadd dispatcher.
-It must not become a generic object/link/runtime pipeline.
+This is a target-owned evidence export mode for the finite i32 add/sub
+dispatcher family. It must not become a generic object/link/runtime pipeline.
 
 #### 2. Signatures
 
@@ -1312,12 +1316,15 @@ Public command:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
+tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c
 ```
 
 C++ entry point:
 
 ```cpp
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+llvm::Error exportRVVScalarI32VSubDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 ```
 
@@ -1333,6 +1340,10 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
 - The harness calls the dispatcher with `rvv_available = 0` to exercise the
   scalar fallback branch and with `rvv_available = 1` to exercise the RVV
   branch.
+- The harness expected arithmetic must come from the selected family: vadd
+  checks `lhs + rhs`, and vsub checks `lhs - rhs`. A stale route, ABI name,
+  intrinsic, callable symbol stem, or success marker from the other family is
+  invalid.
 - The harness must exercise more than one target/export-owned runtime `n` ABI
   value. The current bounded slice uses `n = 7` and `n = 16` for each branch.
 - The harness uses bounded local arrays and a target/export-owned runtime `n`
@@ -1355,6 +1366,9 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
   on either callable route -> fail before source output.
 - Route spoofing, wrong origin, wrong role, or unsupported artifact kind ->
   fail before source output.
+- Self-check route family mismatch, such as vsub artifacts routed through the
+  vadd self-check command or vadd artifacts routed through the vsub self-check
+  command -> fail before source output.
 - Remote compile/run failure of generated harness -> evidence collection
   failure only; it must not be converted into a compiler-side success claim.
 
@@ -1379,7 +1393,9 @@ llvm::Error exportRVVScalarI32VAddDispatchSelfCheckC(mlir::ModuleOp module,
   `element_count` as the runtime loop bound.
 - Pipeline-to-self-check coverage must use
   `tcrv-opt --tcrv-execution-planning-pipeline | tcrv-translate
-  --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c`.
+  --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c` for vadd and the
+  matching `--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c` route for
+  vsub.
 - Any RVV runtime/correctness claim for the self-check source must include
   separate `ssh rvv` compile/run evidence and must name the selected compile
   flags.
@@ -1396,10 +1412,10 @@ and runtime integration.
 Correct:
 
 ```text
-The generated bounded RVV+scalar i32-vadd dispatch self-check source compiled
-and ran on ssh rvv with selected flags; this proves only that the finite
-dispatcher harness invoked both callable branches correctly for the explicit
-runtime element-count ABI values in the harness.
+The generated bounded RVV+scalar i32 add/sub dispatch self-check source
+compiled and ran on ssh rvv with selected flags; this proves only that the
+finite family-selected dispatcher harness invoked both callable branches
+correctly for the explicit runtime element-count ABI values in the harness.
 ```
 
 ### Dispatch Library Object Export
@@ -1435,12 +1451,15 @@ Explicit evidence-helper command:
 
 ```text
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
+tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-object
 ```
 
 C++ entry point:
 
 ```cpp
 llvm::Error exportRVVScalarI32VAddDispatchSelfCheckObject(
+    mlir::ModuleOp module, llvm::raw_ostream &os);
+llvm::Error exportRVVScalarI32VSubDispatchSelfCheckObject(
     mlir::ModuleOp module, llvm::raw_ostream &os);
 ```
 
@@ -1538,14 +1557,33 @@ tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c \
   post_planning.mlir
 ```
 
+For a bounded linalg frontend input, the bridge may run the existing add/sub
+frontend lowering pass before execution planning:
+
+```bash
+scripts/rvv_scalar_dispatch_e2e.py \
+  --arithmetic-family i32-vsub \
+  --lower-linalg-frontend \
+  --input test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir
+```
+
 When invoked with `--use-target-artifact-bundle`, the same bridge consumes the
 registry-derived target artifact bundle instead of the direct self-check source
 route:
 
 ```bash
-tcrv-opt input.mlir --tcrv-execution-planning-pipeline
+scripts/rvv_scalar_dispatch_e2e.py \
+  --use-target-artifact-bundle \
+  --use-plan-and-export-bundle-front-door \
+  --arithmetic-family i32-vsub \
+  --input test/Target/TargetArtifactBundleExport/plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir
+```
+
+The underlying compiler command for the bundle front door is:
+
+```bash
 tcrv-translate --tcrv-export-target-artifact-bundle \
-  --tcrv-target-artifact-bundle-output-dir=<fresh-dir> post_planning.mlir
+  --tcrv-target-artifact-bundle-output-dir=<fresh-dir> input.mlir
 ```
 
 Bundle mode must parse only `tianchenrv-target-artifact-bundle.index` as the
@@ -1565,12 +1603,13 @@ host, link and run the caller against the source-built object, then also link
 and run the same caller against the generated bundle object. It must require
 the bounded bundle external ABI success marker and record sanitized
 host/toolchain facts such as `uname`, architecture, and clang path/version.
-Successful ssh bundle evidence proves only that the finite RVV+scalar i32-vadd
-compiler-generated bundle source/header/object external ABI caller executed
-both `rvv_available = 0` and `rvv_available = 1` branches on that host for the
-explicit runtime `n = 7` and `n = 16` caller inputs. It is not generic lowering,
-arbitrary RVV support, dynamic runtime integration, performance evidence, or
-broad correctness coverage.
+Successful ssh bundle evidence proves only that the finite family-selected
+RVV+scalar i32 add/sub compiler-generated bundle source/header/object external
+ABI caller executed both `rvv_available = 0` and `rvv_available = 1` branches
+on that host for the explicit runtime `n = 7` and `n = 16` caller inputs. For
+vsub, the generated external caller must check `lhs - rhs`, not stale vadd
+semantics. It is not generic lowering, arbitrary RVV support, dynamic runtime
+integration, performance evidence, or broad correctness coverage.
 
 Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
 library dispatch source, generated self-check dispatch source, hashes, command
@@ -1587,13 +1626,13 @@ C. The bridge must fail closed on ssh, scp, compiler, header, object, link,
 run, timeout, or success-marker failure and must record sanitized command logs
 rather than synthesizing runtime evidence.
 
-Successful ssh evidence proves only that the finite generated RVV+scalar
-i32-vadd dispatcher self-check executable compiled, linked, and ran both the
-scalar fallback and RVV dispatch branches on the selected RVV host flags for
-the explicit runtime `n = 7` and `n = 16` ABI inputs. It is not generic
-high-level lowering correctness, arbitrary RVV emission support, object-route
-proof for unrelated kernels, dynamic runtime integration, performance evidence,
-or broad correctness coverage.
+Successful ssh evidence proves only that the finite generated family-selected
+RVV+scalar i32 add/sub dispatcher self-check executable compiled, linked, and
+ran both the scalar fallback and RVV dispatch branches on the selected RVV host
+flags for the explicit runtime `n = 7` and `n = 16` ABI inputs. It is not
+generic high-level lowering correctness, arbitrary RVV emission support,
+object-route proof for unrelated kernels, dynamic runtime integration,
+performance evidence, or broad correctness coverage.
 
 ### Dispatch ABI Header Export
 
