@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify exec remains compute-free"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify extension locality"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV plugin-owned computation and C intrinsic export scope"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify target artifact/runtime evidence contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify evidence and test command reporting"}
