@@ -462,7 +462,7 @@ mlir::LogicalResult materializeI32BinaryABI(KernelOp kernel) {
   builder.setInsertionPointToEnd(&kernel.getBody().front());
 
   if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
-          kernel, builder, support::getI32VAddBufferMemWindowSpecs())) {
+          kernel, builder, support::getI32BinaryBufferMemWindowSpecs())) {
     kernel.emitError() << llvm::toString(std::move(error));
     return mlir::failure();
   }
@@ -470,7 +470,7 @@ mlir::LogicalResult materializeI32BinaryABI(KernelOp kernel) {
   if (llvm::Error error =
           support::ensureRuntimeABIParamsAllowingExistingCNames(
               kernel, builder,
-              support::getI32VAddRuntimeElementCountParamSpecs())) {
+              support::getI32BinaryRuntimeElementCountParamSpecs())) {
     kernel.emitError() << llvm::toString(std::move(error));
     return mlir::failure();
   }

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and source-of-truth rules for the ABI refactor."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI ownership, emission-plan metadata, target artifact, dispatch, and manifest contracts touched by this task."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation/selection/runtime guard layering relevant to descriptor-backed add/sub/mul paths."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV i32 add/sub/mul descriptor and runtime ABI boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback add/sub/mul descriptor and callable ABI boundaries."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Offload descriptor role metadata must mirror the shared i32 binary callable ABI plan."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Parameter layering and capability-driven boundary constraints."}

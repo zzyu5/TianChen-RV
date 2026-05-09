@@ -4,6 +4,7 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -23,11 +24,19 @@ struct RuntimeABIDispatchIdentity {
   llvm::StringRef runtimeABIName;
 };
 
-// Single support-layer owner for the current bounded i32-vadd callable ABI.
-// It centralizes ABI metadata only; route ids, artifact kinds, hardware facts,
-// descriptor metadata, bundle records, and evidence data stay with their owners.
-class I32VAddRuntimeABIContract {
+// Single support-layer owner for the current bounded i32 binary callable ABI.
+// It centralizes shared ABI parameter shape and descriptor-derived ABI
+// identities only; route ids, artifact kinds, hardware facts, descriptor
+// metadata, bundle records, and evidence data stay with their owners.
+class I32BinaryRuntimeABIContract {
 public:
+  const target::i32_binary::I32BinaryFamilyDescriptor &
+  getFamilyDescriptor() const {
+    return *family;
+  }
+
+  llvm::StringRef getFamilyID() const { return family->familyID; }
+
   llvm::ArrayRef<RuntimeABIParameter> getCallableParameters() const {
     return callableParameters;
   }
@@ -77,10 +86,13 @@ public:
   }
 
 private:
-  friend const I32VAddRuntimeABIContract &getI32VAddRuntimeABIContract();
+  friend const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
+      const target::i32_binary::I32BinaryFamilyDescriptor &family);
 
-  I32VAddRuntimeABIContract();
+  explicit I32BinaryRuntimeABIContract(
+      const target::i32_binary::I32BinaryFamilyDescriptor &family);
 
+  const target::i32_binary::I32BinaryFamilyDescriptor *family = nullptr;
   llvm::SmallVector<RuntimeABIParameter, 4> callableParameters;
   llvm::SmallVector<RuntimeABIParameter, 4> callableRoleRequirements;
   llvm::SmallVector<RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
@@ -89,6 +101,15 @@ private:
   RuntimeABIDispatchIdentity dispatchIdentity;
 };
 
+const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
+    const target::i32_binary::I32BinaryFamilyDescriptor &family);
+
+const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
+    target::i32_binary::I32BinaryFamilyKind kind);
+
+using I32VAddRuntimeABIContract = I32BinaryRuntimeABIContract;
+
+// Temporary compatibility wrapper for the add descriptor.
 const I32VAddRuntimeABIContract &getI32VAddRuntimeABIContract();
 
 } // namespace tianchenrv::support

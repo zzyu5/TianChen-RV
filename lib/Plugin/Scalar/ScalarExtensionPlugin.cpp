@@ -870,8 +870,9 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind(family.getScalar().runtimeABIKind);
     out.setRuntimeABIName(family.getScalar().runtimeABIName);
     out.setRuntimeGlueRole(family.getScalar().runtimeGlueRole);
-    llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
-        support::buildI32VAddCallableABIPlan(request.getKernel());
+    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+        support::buildI32BinaryCallableABIPlan(request.getKernel(),
+                                              *family.family);
     if (!callablePlan)
       return callablePlan.takeError();
     out.addRuntimeABIParameters(callablePlan->parameters);
@@ -954,12 +955,12 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   if (selectedPathHasCallableMicrokernel)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
             request.getKernel(), request.getBuilder(),
-            support::getI32VAddBufferMemWindowSpecs()))
+            support::getI32BinaryBufferMemWindowSpecs()))
       return error;
 
   if (selectedPathHasCallableMicrokernel) {
     llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
-    auto countSpecs = support::getI32VAddRuntimeElementCountParamSpecs();
+    auto countSpecs = support::getI32BinaryRuntimeElementCountParamSpecs();
     runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     if (llvm::Error error =
             support::ensureRuntimeABIParamsAllowingExistingCNames(

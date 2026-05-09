@@ -89,7 +89,8 @@ claim vendor runtime execution.
 The same supported descriptor plan must expose deterministic runtime ABI role
 metadata derived from typed `tcrv.exec.mem_window` host-buffer declarations and
 typed `tcrv.exec.runtime_param` scalar/control declarations. For the current
-bounded i32-vadd callable ABI, the descriptor route requires the
+bounded descriptor-backed i32 binary callable ABI shape, the descriptor route
+requires the
 `lhs-input-buffer`, `rhs-input-buffer`, `output-buffer`, and
 `runtime-element-count` roles
 to be mirrored as `runtime_abi_parameters` with stable C names, C types, roles,

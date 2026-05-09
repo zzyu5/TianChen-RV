@@ -54,9 +54,11 @@ Rules:
   `runtime_abi_parameters` metadata for every exported C ABI parameter. Each
   entry records the C parameter name, C type spelling, semantic role, and
   ownership (`ir-modeled` or `target-export-abi-owned`). For the bounded
-  i32-vadd RVV/scalar callable source routes, these entries must be derived from
-  and validated against direct `tcrv.exec.mem_window` / `tcrv.exec.runtime_param`
-  IR boundaries rather than acting as an independent parameter truth source;
+  i32 binary RVV/scalar callable source routes, these entries must be derived
+  from and validated against direct `tcrv.exec.mem_window` /
+  `tcrv.exec.runtime_param` IR boundaries rather than acting as an independent
+  parameter truth source. Add/sub/mul ABI identity fields must be derived from
+  the selected `I32BinaryFamilyDescriptor`;
 - carry required capability symbol refs that are a safe subset of the selected
   variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -145,7 +147,7 @@ performance evidence.
 
 The artifact-kind-aware generic route may also select target-owned bounded
 RISC-V ELF relocatable object exporters for the same validated direct RVV
-i32-vadd microkernel path or RVV+scalar i32-vadd dispatch path. These
+i32 binary microkernel path or RVV+scalar i32 binary dispatch path. These
 library-object routes reuse the selected callable or dispatch source
 validation, emit the default library-style source internally, and then use
 structured RVV architecture capability metadata, selected RVV compile
@@ -166,7 +168,7 @@ header routes are still bounded target artifacts; they do not link, run
 hardware, perform automatic probing, prove correctness, or measure performance.
 The self-check object route remains an explicit target-owned helper command for
 evidence collection, not the generic artifact front door.
-For the direct RVV i32-vadd microkernel path, the runtime-callable C header
+For the direct RVV i32 add/sub/mul microkernel paths, the runtime-callable C header
 route is matched from the same validated callable source candidate as the
 object route. It derives its single prototype from the same selected path,
 microkernel body, callable ABI plan, mem_window/runtime_param boundaries, and
@@ -176,8 +178,11 @@ logs, credentials, artifact paths, or performance text.
 
 The artifact-kind-aware generic route may also select scalar fallback
 runtime-callable C header and RISC-V ELF relocatable object helpers for the same
-validated scalar i32-vadd callable source candidate. These scalar helpers are
-registered by scalar target/export code, not by core orchestration. The header
+validated scalar i32 binary callable source candidate. These scalar helpers are
+registered by scalar target/export code, not by core orchestration. When a
+single scalar header/object helper route is shared by add/sub/mul, its runtime
+ABI kind/name must be derived from the matched source candidate rather than a
+vadd-only route default. The header
 route is a declaration-only external C surface for the same IR-backed
 `tcrv.exec.mem_window` plus `tcrv.exec.runtime_param` callable ABI plan. The
 object route emits the validated scalar library-style C source internally and
@@ -220,13 +225,14 @@ preserve parameter layering:
   arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
   only as real IR/control fields or generated ABI parameters;
 - generated ABI parameters must state whether they are actually IR-modeled or
-  target/export ABI-owned. The current bounded i32-vadd RVV and scalar source
+  target/export ABI-owned. The current bounded i32 binary RVV and scalar source
   exports pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters, but the
   callable parameter plan must be built from real `tcrv.exec.mem_window` IR for
   lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR for
   runtime-element-count. Candidate/emission-plan parameter metadata may only
-  mirror that IR-backed plan. Runtime `n` remains a runtime ABI/control value,
-  not descriptor-local element count;
+  mirror that IR-backed plan, while runtime ABI strings and glue roles come
+  from the selected add/sub/mul family descriptor. Runtime `n` remains a
+  runtime ABI/control value, not descriptor-local element count;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters from the same IR-backed callable ABI plan for both the selected RVV
   candidate and the selected scalar fallback candidate. The bounded dispatch
@@ -1346,18 +1352,20 @@ missing or stale scalar microkernel, unavailable fallback capability, unknown
 route id, unsupported artifact kind, route spoofing, offload-only paths, and
 ambiguous multiple supported artifacts must fail before source output.
 
-## Support-Layer I32 VAdd Runtime ABI Contract
+## Support-Layer I32 Binary Runtime ABI Contract
 
-The current bounded i32-vadd executable slice must have one compiler-owned C++
-runtime ABI contract in the support layer. The stable entry point is:
+The current bounded i32 binary executable slice must have one compiler-owned
+C++ runtime ABI contract in the support layer. The family-aware stable entry
+point is:
 
 ```cpp
-const tianchenrv::support::I32VAddRuntimeABIContract &
-tianchenrv::support::getI32VAddRuntimeABIContract();
+const tianchenrv::support::I32BinaryRuntimeABIContract &
+tianchenrv::support::getI32BinaryRuntimeABIContract(
+    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor &family);
 ```
 
-The contract owns only reusable runtime ABI metadata for this bounded callable
-shape:
+The contract owns only reusable runtime ABI metadata for the bounded i32 binary
+callable shape and descriptor-derived identity fields:
 
 - ordered callable C parameters:
   `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, `size_t n`;
@@ -1365,19 +1373,23 @@ shape:
 - `tcrv.exec.mem_window` specs for lhs/rhs/out buffer roles;
 - `tcrv.exec.runtime_param` specs for runtime element count and the optional
   dispatch availability guard;
-- stable runtime ABI identity strings for the RVV callable, scalar callable,
-  and RVV+scalar dispatch callable surfaces.
+- stable runtime ABI identity strings for the selected add/sub/mul RVV
+  callable, scalar callable, and RVV+scalar dispatch callable surfaces, derived
+  from `I32BinaryFamilyDescriptor` or its RVV/scalar/dispatch subdescriptors.
 
-Existing wrapper APIs such as `getI32VAddRuntimeABIParameters`,
+Existing wrapper APIs such as `getI32VAddRuntimeABIContract`,
+`getI32VAddRuntimeABIParameters`,
 `getI32VAddRuntimeABIRoleRequirements`,
 `getI32VAddDispatchRuntimeABIParameters`,
 `getI32VAddBufferMemWindowSpecs`,
 `getI32VAddRuntimeElementCountParamSpec`,
 `getI32VAddDispatchAvailabilityGuardParamSpec`, and
-`buildI32VAddCallableABIPlan` remain valid compatibility entry points, but they
-must delegate to the support-layer contract instead of rebuilding separate
-literal lists. Active RVV, scalar, dispatch, and target artifact exporter code
-should consume the contract directly when it needs ABI shape or ABI identity.
+`buildI32VAddCallableABIPlan` may remain as temporary compatibility entry
+points for the add descriptor, but they must delegate to the support-layer
+i32 binary contract instead of rebuilding separate literal lists. Active RVV,
+scalar, dispatch, offload descriptor, and target artifact exporter code that
+handles add/sub/mul must consume the `I32Binary*` APIs directly when it needs
+ABI shape, ABI identity, or callable-plan validation.
 
 The contract must not own target artifact route ids, artifact kinds, source vs
 header vs object selection policy, bundle metadata, descriptor-local metadata,
@@ -1402,7 +1414,9 @@ plugin-local side effect.
 Required tests for changes to this contract:
 
 - C++ tests must prove the callable parameter order, roles, C spellings, and
-  ownership match the contract;
+  ownership match the contract for add/sub/mul;
+- C++ tests must prove add/sub/mul expose distinct descriptor-derived RVV,
+  scalar, and dispatch runtime ABI identities;
 - at least one active target exporter or validation path must reject metadata
   that disagrees with the contract;
 - existing lit/FileCheck coverage must continue proving that RVV, scalar, and

@@ -3,6 +3,7 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/DialectRegistry.h"
@@ -18,11 +19,32 @@ using namespace tianchenrv::target;
 
 namespace {
 
-using tianchenrv::support::I32VAddRuntimeABIContract;
-using tianchenrv::support::I32VAddCallableRuntimeABIParameterBindings;
+using tianchenrv::support::I32BinaryRuntimeABIContract;
+using tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
+using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+
+const I32BinaryRuntimeABIContract &
+getRuntimeABIContract(const I32BinaryFamilyDescriptor &family) {
+  return tianchenrv::support::getI32BinaryRuntimeABIContract(family);
+}
+
+const I32BinaryRuntimeABIContract &getAddRuntimeABIContract() {
+  return getRuntimeABIContract(
+      tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor());
+}
+
+const I32BinaryRuntimeABIContract &getSubRuntimeABIContract() {
+  return getRuntimeABIContract(
+      tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor());
+}
+
+const I32BinaryRuntimeABIContract &getMulRuntimeABIContract() {
+  return getRuntimeABIContract(
+      tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor());
+}
 
 llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
   return llvm::Error::success();
@@ -152,13 +174,39 @@ bool expectParameter(const RuntimeABIParameter &parameter,
   return false;
 }
 
-bool expectI32VAddRuntimeABIContractShape() {
-  const I32VAddRuntimeABIContract &contract =
-      tianchenrv::support::getI32VAddRuntimeABIContract();
+bool expectRuntimeABICallableIdentity(
+    const tianchenrv::support::RuntimeABICallableIdentity &identity,
+    llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole,
+    llvm::StringRef context) {
+  if (identity.runtimeABI == runtimeABI &&
+      identity.runtimeABIKind == runtimeABIKind &&
+      identity.runtimeABIName == runtimeABIName &&
+      identity.runtimeGlueRole == runtimeGlueRole)
+    return true;
+  llvm::errs() << context
+               << ": descriptor-backed callable ABI identity mismatch\n";
+  return false;
+}
+
+bool expectRuntimeABIDispatchIdentity(
+    const tianchenrv::support::RuntimeABIDispatchIdentity &identity,
+    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
+    llvm::StringRef context) {
+  if (identity.runtimeABIKind == runtimeABIKind &&
+      identity.runtimeABIName == runtimeABIName)
+    return true;
+  llvm::errs() << context
+               << ": descriptor-backed dispatch ABI identity mismatch\n";
+  return false;
+}
+
+bool expectI32BinaryRuntimeABIContractShape() {
+  const I32BinaryRuntimeABIContract &contract = getAddRuntimeABIContract();
   llvm::ArrayRef<RuntimeABIParameter> callable =
       contract.getCallableParameters();
   if (callable.size() != 4) {
-    llvm::errs() << "i32-vadd ABI contract expected 4 callable parameters\n";
+    llvm::errs() << "i32 binary ABI contract expected 4 callable parameters\n";
     return false;
   }
 
@@ -198,7 +246,7 @@ bool expectI32VAddRuntimeABIContractShape() {
       windows[0].role != RuntimeABIParameterRole::LHSInputBuffer ||
       windows[1].role != RuntimeABIParameterRole::RHSInputBuffer ||
       windows[2].role != RuntimeABIParameterRole::OutputBuffer) {
-    llvm::errs() << "i32-vadd ABI contract buffer mem-window order changed\n";
+    llvm::errs() << "i32 binary ABI contract buffer mem-window order changed\n";
     return false;
   }
 
@@ -206,7 +254,7 @@ bool expectI32VAddRuntimeABIContractShape() {
       contract.getRuntimeElementCountParamSpec();
   if (count.role != RuntimeABIParameterRole::RuntimeElementCount ||
       count.cName != "n" || count.cType != "size_t") {
-    llvm::errs() << "i32-vadd ABI contract runtime count spec malformed\n";
+    llvm::errs() << "i32 binary ABI contract runtime count spec malformed\n";
     return false;
   }
 
@@ -219,6 +267,64 @@ bool expectI32VAddRuntimeABIContractShape() {
       !expectParameter(dispatch[4], "rvv_available", "int",
                        RuntimeABIParameterRole::DispatchAvailabilityGuard,
                        owned, "dispatch availability guard"))
+    return false;
+
+  const I32BinaryRuntimeABIContract &subContract = getSubRuntimeABIContract();
+  const I32BinaryRuntimeABIContract &mulContract = getMulRuntimeABIContract();
+  if (!expectRuntimeABICallableIdentity(
+          contract.getRVVCallableIdentity(),
+          "rvv-i32-vadd-runtime-callable-c-abi.v1",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vadd-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vadd-function", "RVV i32-vadd ABI") ||
+      !expectRuntimeABICallableIdentity(
+          subContract.getRVVCallableIdentity(),
+          "rvv-i32-vsub-runtime-callable-c-abi.v1",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vsub-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vsub-function", "RVV i32-vsub ABI") ||
+      !expectRuntimeABICallableIdentity(
+          mulContract.getRVVCallableIdentity(),
+          "rvv-i32-vmul-runtime-callable-c-abi.v1",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vmul-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vmul-function", "RVV i32-vmul ABI") ||
+      !expectRuntimeABICallableIdentity(
+          contract.getScalarCallableIdentity(),
+          "scalar-i32-vadd-runtime-callable-c-abi.v1",
+          "scalar-runtime-callable-c-abi",
+          "scalar-i32-vadd-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vadd-fallback-function",
+          "scalar i32-vadd ABI") ||
+      !expectRuntimeABICallableIdentity(
+          subContract.getScalarCallableIdentity(),
+          "scalar-i32-vsub-runtime-callable-c-abi.v1",
+          "scalar-runtime-callable-c-abi",
+          "scalar-i32-vsub-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vsub-fallback-function",
+          "scalar i32-vsub ABI") ||
+      !expectRuntimeABICallableIdentity(
+          mulContract.getScalarCallableIdentity(),
+          "scalar-i32-vmul-runtime-callable-c-abi.v1",
+          "scalar-runtime-callable-c-abi",
+          "scalar-i32-vmul-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vmul-fallback-function",
+          "scalar i32-vmul ABI") ||
+      !expectRuntimeABIDispatchIdentity(
+          contract.getDispatchIdentity(),
+          "rvv-scalar-dispatch-runtime-callable-c-abi",
+          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+          "dispatch i32-vadd ABI") ||
+      !expectRuntimeABIDispatchIdentity(
+          subContract.getDispatchIdentity(),
+          "rvv-scalar-dispatch-runtime-callable-c-abi",
+          "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
+          "dispatch i32-vsub ABI") ||
+      !expectRuntimeABIDispatchIdentity(
+          mulContract.getDispatchIdentity(),
+          "rvv-scalar-dispatch-runtime-callable-c-abi",
+          "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1",
+          "dispatch i32-vmul ABI"))
     return false;
 
   return true;
@@ -304,7 +410,7 @@ bool expectRuntimeABIParameterRoleLookup() {
 }
 
 bool expectDirectCallableRuntimeABIBindingFailure(
-    llvm::Expected<I32VAddCallableRuntimeABIParameterBindings> bindings,
+    llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings> bindings,
     llvm::StringRef context,
     std::initializer_list<llvm::StringRef> fragments) {
   if (bindings) {
@@ -330,8 +436,8 @@ bool expectDirectCallableRuntimeABIBinding() {
       "right", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer,
       owned));
 
-  llvm::Expected<I32VAddCallableRuntimeABIParameterBindings> bindings =
-      tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+  llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings> bindings =
+      tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
           reordered, "reordered direct callable ABI parameter test");
   if (!bindings) {
     llvm::errs() << llvm::toString(bindings.takeError()) << "\n";
@@ -349,7 +455,7 @@ bool expectDirectCallableRuntimeABIBinding() {
   emptyName.append(reordered.begin(), reordered.end());
   emptyName[2].cName.clear();
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
               emptyName, "empty direct callable C name test"),
           "empty direct callable C name rejected",
           {"runtime ABI callable parameter role binding failed",
@@ -361,7 +467,7 @@ bool expectDirectCallableRuntimeABIBinding() {
   wrongType.append(reordered.begin(), reordered.end());
   wrongType[0].cType = "uint64_t";
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
               wrongType, "wrong direct callable runtime count type test"),
           "wrong direct callable runtime count type rejected",
           {"runtime ABI callable parameter role binding failed",
@@ -373,7 +479,7 @@ bool expectDirectCallableRuntimeABIBinding() {
   wrongOwnership.append(reordered.begin(), reordered.end());
   wrongOwnership[1].ownership = RuntimeABIParameterOwnership::IRModeled;
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
               wrongOwnership, "wrong direct callable output ownership test"),
           "wrong direct callable output ownership rejected",
           {"runtime ABI callable parameter role binding failed",
@@ -384,7 +490,7 @@ bool expectDirectCallableRuntimeABIBinding() {
   llvm::SmallVector<RuntimeABIParameter, 3> missingRHS;
   missingRHS.append(reordered.begin(), reordered.end() - 1);
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
               missingRHS, "missing direct callable rhs role test"),
           "missing direct callable rhs role rejected",
           {"runtime ABI callable parameter role binding failed",
@@ -398,7 +504,7 @@ bool expectDirectCallableRuntimeABIBinding() {
       "also_left", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
       owned));
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
               duplicateLHS, "duplicate direct callable lhs role test"),
           "duplicate direct callable lhs role rejected",
           {"runtime ABI callable parameter role binding failed",
@@ -412,7 +518,7 @@ bool expectDirectCallableRuntimeABIBinding() {
       "rvv_available", "int",
       RuntimeABIParameterRole::DispatchAvailabilityGuard, owned));
   return expectDirectCallableRuntimeABIBindingFailure(
-      tianchenrv::support::bindI32VAddCallableRuntimeABIParametersByRole(
+      tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
           directWithDispatchGuard,
           "direct callable rejects dispatch guard role test"),
       "direct callable dispatch guard role rejected",
@@ -496,8 +602,7 @@ tianchenrv::tcrv::exec::KernelOp findKernel(mlir::ModuleOp module,
 TargetArtifactCandidate makeRVVDispatchCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
   const tianchenrv::support::RuntimeABICallableIdentity &abi =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getRVVCallableIdentity();
+      getAddRuntimeABIContract().getRVVCallableIdentity();
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
@@ -512,47 +617,51 @@ TargetArtifactCandidate makeRVVDispatchCandidate(
   candidate.runtimeABIName = abi.runtimeABIName.str();
   candidate.runtimeGlueRole = abi.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32VAddRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters();
   return candidate;
 }
 
 TargetArtifactCandidate makeRVVSubDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  const auto &family =
+      tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().rvv;
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
   candidate.role = "direct variant";
   candidate.origin = "rvv-plugin";
-  candidate.routeID = "tcrv-export-rvv-i32-vsub-microkernel-c";
-  candidate.emissionKind = "rvv-explicit-i32-vsub-microkernel-c-source";
+  candidate.routeID = family.routeID.str();
+  candidate.emissionKind = family.emissionKind.str();
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_rvv.lowering_boundary";
-  candidate.runtimeABI = "rvv-i32-vsub-runtime-callable-c-abi.v1";
-  candidate.runtimeABIKind = "rvv-runtime-callable-c-abi";
-  candidate.runtimeABIName = "rvv-i32-vsub-runtime-callable-c-function.v1";
-  candidate.runtimeGlueRole = "runtime-callable-i32-vsub-function";
+  candidate.runtimeABI = family.runtimeABI.str();
+  candidate.runtimeABIKind = family.runtimeABIKind.str();
+  candidate.runtimeABIName = family.runtimeABIName.str();
+  candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32VAddRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters();
   return candidate;
 }
 
 TargetArtifactCandidate makeRVVMulDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  const auto &family =
+      tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().rvv;
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
   candidate.role = "direct variant";
   candidate.origin = "rvv-plugin";
-  candidate.routeID = "tcrv-export-rvv-i32-vmul-microkernel-c";
-  candidate.emissionKind = "rvv-explicit-i32-vmul-microkernel-c-source";
+  candidate.routeID = family.routeID.str();
+  candidate.emissionKind = family.emissionKind.str();
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_rvv.lowering_boundary";
-  candidate.runtimeABI = "rvv-i32-vmul-runtime-callable-c-abi.v1";
-  candidate.runtimeABIKind = "rvv-runtime-callable-c-abi";
-  candidate.runtimeABIName = "rvv-i32-vmul-runtime-callable-c-function.v1";
-  candidate.runtimeGlueRole = "runtime-callable-i32-vmul-function";
+  candidate.runtimeABI = family.runtimeABI.str();
+  candidate.runtimeABIKind = family.runtimeABIKind.str();
+  candidate.runtimeABIName = family.runtimeABIName.str();
+  candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32VAddRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters();
   return candidate;
 }
 
@@ -575,8 +684,7 @@ TargetArtifactCandidate makeRVVMulDispatchCandidate(
 TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
   const tianchenrv::support::RuntimeABICallableIdentity &abi =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getScalarCallableIdentity();
+      getAddRuntimeABIContract().getScalarCallableIdentity();
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
@@ -591,27 +699,29 @@ TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
   candidate.runtimeABIName = abi.runtimeABIName.str();
   candidate.runtimeGlueRole = abi.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32VAddRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters();
   return candidate;
 }
 
 TargetArtifactCandidate makeScalarSubDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  const auto &family =
+      tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().scalar;
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
   candidate.role = "direct variant";
   candidate.origin = "scalar-plugin";
-  candidate.routeID = "tcrv-export-scalar-i32-vsub-microkernel-c";
-  candidate.emissionKind = "scalar-explicit-i32-vsub-microkernel-c-source";
+  candidate.routeID = family.routeID.str();
+  candidate.emissionKind = family.emissionKind.str();
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_scalar.lowering_boundary";
-  candidate.runtimeABI = "scalar-i32-vsub-runtime-callable-c-abi.v1";
-  candidate.runtimeABIKind = "scalar-runtime-callable-c-abi";
-  candidate.runtimeABIName = "scalar-i32-vsub-runtime-callable-c-function.v1";
-  candidate.runtimeGlueRole = "runtime-callable-i32-vsub-fallback-function";
+  candidate.runtimeABI = family.runtimeABI.str();
+  candidate.runtimeABIKind = family.runtimeABIKind.str();
+  candidate.runtimeABIName = family.runtimeABIName.str();
+  candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32VAddRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters();
   return candidate;
 }
 
@@ -625,21 +735,23 @@ TargetArtifactCandidate makeScalarSubDispatchFallbackCandidate(
 
 TargetArtifactCandidate makeScalarMulDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  const auto &family =
+      tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().scalar;
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
   candidate.role = "direct variant";
   candidate.origin = "scalar-plugin";
-  candidate.routeID = "tcrv-export-scalar-i32-vmul-microkernel-c";
-  candidate.emissionKind = "scalar-explicit-i32-vmul-microkernel-c-source";
+  candidate.routeID = family.routeID.str();
+  candidate.emissionKind = family.emissionKind.str();
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_scalar.lowering_boundary";
-  candidate.runtimeABI = "scalar-i32-vmul-runtime-callable-c-abi.v1";
-  candidate.runtimeABIKind = "scalar-runtime-callable-c-abi";
-  candidate.runtimeABIName = "scalar-i32-vmul-runtime-callable-c-function.v1";
-  candidate.runtimeGlueRole = "runtime-callable-i32-vmul-fallback-function";
+  candidate.runtimeABI = family.runtimeABI.str();
+  candidate.runtimeABIKind = family.runtimeABIKind.str();
+  candidate.runtimeABIName = family.runtimeABIName.str();
+  candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32VAddRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters();
   return candidate;
 }
 
@@ -1298,8 +1410,7 @@ TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
   record.runtimeABIName =
       "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1";
   llvm::SmallVector<RuntimeABIParameter, 5> parameters =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getDispatchRuntimeABIParameters();
+      getAddRuntimeABIContract().getDispatchRuntimeABIParameters();
   record.runtimeABIParameters.append(parameters.begin(), parameters.end());
   return record;
 }
@@ -1584,7 +1695,7 @@ int main() {
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "register built-in target artifact exporters"))
     return 1;
-  if (!expectI32VAddRuntimeABIContractShape())
+  if (!expectI32BinaryRuntimeABIContractShape())
     return 1;
   if (!expectRuntimeABIParameterRoleLookup())
     return 1;
@@ -1607,8 +1718,7 @@ int main() {
                    /*expectedDirectHelperRoute=*/true))
     return 1;
   const tianchenrv::support::RuntimeABICallableIdentity &rvvABI =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getRVVCallableIdentity();
+      getAddRuntimeABIContract().getRVVCallableIdentity();
   constexpr llvm::StringLiteral rvvExternalABIComponentGroup(
       "rvv-i32-vadd-microkernel-external-abi.v1");
   constexpr llvm::StringLiteral rvvSubExternalABIComponentGroup(
@@ -1628,8 +1738,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-microkernel-c",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getAddRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
@@ -1641,8 +1750,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getSubRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
@@ -1654,8 +1762,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getMulRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
@@ -1663,8 +1770,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-scalar-microkernel-c",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getAddRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-scalar-i32-vmul-microkernel-c",
@@ -1673,8 +1779,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-scalar-i32-vmul-microkernel-c",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getMulRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-scalar-i32-vsub-microkernel-c",
@@ -1683,8 +1788,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-scalar-i32-vsub-microkernel-c",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getSubRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-offload-runtime-descriptor",
@@ -1694,8 +1798,7 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-offload-runtime-descriptor",
-          tianchenrv::support::getI32VAddRuntimeABIContract()
-              .getCallableRoleRequirements()))
+          getAddRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   const TargetArtifactExporter *offloadDescriptorExporter =
       builtinRegistry.lookup("tcrv-export-offload-runtime-descriptor");
@@ -1706,8 +1809,7 @@ int main() {
     return 1;
   }
   const tianchenrv::support::RuntimeABIDispatchIdentity &dispatchABI =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getDispatchIdentity();
+      getAddRuntimeABIContract().getDispatchIdentity();
   constexpr llvm::StringLiteral dispatchExternalABIComponentGroup(
       "rvv-scalar-i32-vadd-dispatch-external-abi.v1");
   constexpr llvm::StringLiteral dispatchSubExternalABIComponentGroup(
@@ -1796,13 +1898,10 @@ int main() {
                     "runtime ABI parameters through route-local C++ callbacks\n";
     return 1;
   }
-  const tianchenrv::support::RuntimeABICallableIdentity &scalarABI =
-      tianchenrv::support::getI32VAddRuntimeABIContract()
-          .getScalarCallableIdentity();
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-scalar-microkernel-header",
           "runtime-callable-c-header", "scalar-plugin",
-          scalarABI.runtimeABIKind, scalarABI.runtimeABIName,
+          /*expectedRuntimeABIKind=*/{}, /*expectedRuntimeABIName=*/{},
           /*expectedDirectHelperRoute=*/false, /*expectedComponentGroup=*/{},
           /*expectedExternalABIName=*/{},
           /*expectedCandidateValidation=*/true))
@@ -1810,7 +1909,7 @@ int main() {
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-scalar-microkernel-object",
           "riscv-elf-relocatable-object", "scalar-plugin",
-          scalarABI.runtimeABIKind, scalarABI.runtimeABIName,
+          /*expectedRuntimeABIKind=*/{}, /*expectedRuntimeABIName=*/{},
           /*expectedDirectHelperRoute=*/false, /*expectedComponentGroup=*/{},
           /*expectedExternalABIName=*/{},
           /*expectedCandidateValidation=*/true))

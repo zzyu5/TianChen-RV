@@ -19,10 +19,14 @@ using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 
-llvm::Error makeCallablePlanError(KernelOp kernel, llvm::Twine message) {
+llvm::Error makeCallablePlanError(
+    KernelOp kernel, const I32BinaryRuntimeABIContract *contract,
+    llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "runtime ABI callable plan validation failed";
+  stream << "i32 binary runtime ABI callable plan validation failed";
+  if (contract)
+    stream << " for family '" << contract->getFamilyID() << "'";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -43,16 +47,18 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
 
 llvm::Expected<RuntimeABIParameter>
 makeParameterFromMemWindow(KernelOp kernel, MemWindowOp window,
-                           RuntimeABIParameterRole expectedRole) {
+                           RuntimeABIParameterRole expectedRole,
+                           const I32BinaryRuntimeABIContract &contract) {
   llvm::StringRef role =
       getStringAttr(window.getOperation(), kMemWindowABIRoleAttrName);
   std::optional<RuntimeABIParameterRole> parsedRole =
       symbolizeRuntimeABIParameterRole(role);
   if (!parsedRole || *parsedRole != expectedRole)
     return makeCallablePlanError(
-        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
-                    " must carry ABI role '" +
-                    stringifyRuntimeABIParameterRole(expectedRole) + "'");
+        kernel, &contract,
+        llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+            " must carry ABI role '" +
+            stringifyRuntimeABIParameterRole(expectedRole) + "'");
 
   llvm::StringRef cType =
       getStringAttr(window.getOperation(), kMemWindowCTypeAttrName);
@@ -62,32 +68,36 @@ makeParameterFromMemWindow(KernelOp kernel, MemWindowOp window,
       symbolizeRuntimeABIParameterOwnership(ownership);
   if (!parsedOwnership)
     return makeCallablePlanError(
-        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
-                    " has unsupported ownership '" + ownership + "'");
+        kernel, &contract,
+        llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+            " has unsupported ownership '" + ownership + "'");
 
   llvm::StringRef cName =
-      getI32VAddRuntimeABIContract().getCallableBufferCName(expectedRole);
+      contract.getCallableBufferCName(expectedRole);
   if (cName.empty())
     return makeCallablePlanError(
-        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
-                    " has no callable ABI C parameter name for role '" +
-                    stringifyRuntimeABIParameterRole(expectedRole) + "'");
+        kernel, &contract,
+        llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+            " has no callable ABI C parameter name for role '" +
+            stringifyRuntimeABIParameterRole(expectedRole) + "'");
 
   return RuntimeABIParameter(cName, cType, expectedRole, *parsedOwnership);
 }
 
 llvm::Expected<RuntimeABIParameter>
 makeParameterFromRuntimeParam(KernelOp kernel, RuntimeParamOp param,
-                              RuntimeABIParameterRole expectedRole) {
+                              RuntimeABIParameterRole expectedRole,
+                              const I32BinaryRuntimeABIContract &contract) {
   llvm::StringRef role =
       getStringAttr(param.getOperation(), kRuntimeParamABIRoleAttrName);
   std::optional<RuntimeABIParameterRole> parsedRole =
       symbolizeRuntimeABIParameterRole(role);
   if (!parsedRole || *parsedRole != expectedRole)
     return makeCallablePlanError(
-        kernel, llvm::Twine("tcrv.exec.runtime_param @") + param.getSymName() +
-                    " must carry ABI role '" +
-                    stringifyRuntimeABIParameterRole(expectedRole) + "'");
+        kernel, &contract,
+        llvm::Twine("tcrv.exec.runtime_param @") + param.getSymName() +
+            " must carry ABI role '" +
+            stringifyRuntimeABIParameterRole(expectedRole) + "'");
 
   llvm::StringRef cName =
       getStringAttr(param.getOperation(), kRuntimeParamCNameAttrName);
@@ -99,8 +109,9 @@ makeParameterFromRuntimeParam(KernelOp kernel, RuntimeParamOp param,
       symbolizeRuntimeABIParameterOwnership(ownership);
   if (!parsedOwnership)
     return makeCallablePlanError(
-        kernel, llvm::Twine("tcrv.exec.runtime_param @") + param.getSymName() +
-                    " has unsupported ownership '" + ownership + "'");
+        kernel, &contract,
+        llvm::Twine("tcrv.exec.runtime_param @") + param.getSymName() +
+            " has unsupported ownership '" + ownership + "'");
 
   return RuntimeABIParameter(cName, cType, expectedRole, *parsedOwnership);
 }
@@ -108,34 +119,32 @@ makeParameterFromRuntimeParam(KernelOp kernel, RuntimeParamOp param,
 llvm::Error requireSameParameter(KernelOp kernel,
                                  const RuntimeABIParameter &metadata,
                                  const RuntimeABIParameter &irBacked,
-                                 llvm::StringRef metadataSource) {
+                                 llvm::StringRef metadataSource,
+                                 const I32BinaryRuntimeABIContract &contract) {
   if (metadata.cName == irBacked.cName && metadata.cType == irBacked.cType &&
       metadata.role == irBacked.role && metadata.ownership == irBacked.ownership)
     return llvm::Error::success();
 
   return makeCallablePlanError(
-      kernel, llvm::Twine(metadataSource) +
-                  " runtime ABI parameter role '" +
-                  stringifyRuntimeABIParameterRole(irBacked.role) +
-                  "' must mirror IR-backed callable ABI parameter "
-                  "c_name='" +
-                  irBacked.cName + "', c_type='" + irBacked.cType +
-                  "', ownership='" +
-                  stringifyRuntimeABIParameterOwnership(irBacked.ownership) +
-                  "'");
+      kernel, &contract,
+      llvm::Twine(metadataSource) + " runtime ABI parameter role '" +
+          stringifyRuntimeABIParameterRole(irBacked.role) +
+          "' must mirror IR-backed callable ABI parameter c_name='" +
+          irBacked.cName + "', c_type='" + irBacked.cType + "', ownership='" +
+          stringifyRuntimeABIParameterOwnership(irBacked.ownership) + "'");
 }
 
 } // namespace
 
-llvm::Expected<I32VAddCallableABIPlan>
-buildI32VAddCallableABIPlan(KernelOp kernel) {
+llvm::Expected<I32BinaryCallableABIPlan>
+buildI32BinaryCallableABIPlan(KernelOp kernel,
+                              const I32BinaryRuntimeABIContract &contract) {
   if (!kernel || kernel.getBody().empty())
-    return makeCallablePlanError(kernel,
-                                 "requires a materialized tcrv.exec.kernel "
-                                 "body");
+    return makeCallablePlanError(
+        kernel, &contract,
+        "requires a materialized tcrv.exec.kernel body");
 
-  I32VAddCallableABIPlan plan;
-  const I32VAddRuntimeABIContract &contract = getI32VAddRuntimeABIContract();
+  I32BinaryCallableABIPlan plan;
   llvm::ArrayRef<RuntimeABIMemWindowSpec> windowSpecs =
       contract.getBufferMemWindowSpecs();
   if (llvm::Error error = collectRuntimeABIBufferMemWindows(
@@ -149,11 +158,12 @@ buildI32VAddCallableABIPlan(KernelOp kernel) {
         symbolizeRuntimeABIParameterRole(role);
     if (!parsedRole)
       return makeCallablePlanError(
-          kernel, llvm::Twine("unsupported tcrv.exec.mem_window ABI role '") +
-                      role + "'");
+          kernel, &contract,
+          llvm::Twine("unsupported tcrv.exec.mem_window ABI role '") + role +
+              "'");
 
     llvm::Expected<RuntimeABIParameter> parameter =
-        makeParameterFromMemWindow(kernel, window, *parsedRole);
+        makeParameterFromMemWindow(kernel, window, *parsedRole, contract);
     if (!parameter)
       return parameter.takeError();
     plan.parameters.push_back(std::move(*parameter));
@@ -172,7 +182,7 @@ buildI32VAddCallableABIPlan(KernelOp kernel) {
   llvm::Expected<RuntimeABIParameter> runtimeCount =
       makeParameterFromRuntimeParam(
           kernel, plan.runtimeElementCountParam,
-          RuntimeABIParameterRole::RuntimeElementCount);
+          RuntimeABIParameterRole::RuntimeElementCount, contract);
   if (!runtimeCount)
     return runtimeCount.takeError();
   plan.parameters.push_back(std::move(*runtimeCount));
@@ -180,24 +190,35 @@ buildI32VAddCallableABIPlan(KernelOp kernel) {
   return plan;
 }
 
-llvm::Error validateI32VAddCallableABIParameterMirror(
+llvm::Expected<I32BinaryCallableABIPlan>
+buildI32BinaryCallableABIPlan(
+    KernelOp kernel,
+    const target::i32_binary::I32BinaryFamilyDescriptor &family) {
+  return buildI32BinaryCallableABIPlan(
+      kernel, getI32BinaryRuntimeABIContract(family));
+}
+
+llvm::Error validateI32BinaryCallableABIParameterMirror(
     KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource) {
+    llvm::StringRef metadataSource,
+    const I32BinaryRuntimeABIContract &contract) {
   if (metadataParameters.empty())
     return makeCallablePlanError(
-        kernel, llvm::Twine(metadataSource) +
-                    " requires runtime_abi_parameters metadata mirroring the "
-                    "IR-backed callable ABI plan");
+        kernel, &contract,
+        llvm::Twine(metadataSource) +
+            " requires runtime_abi_parameters metadata mirroring the "
+            "IR-backed callable ABI plan");
 
   std::size_t expectedParameterCount =
-      getI32VAddRuntimeABIContract().getCallableParameters().size();
+      contract.getCallableParameters().size();
   if (irBackedParameters.size() != expectedParameterCount)
     return makeCallablePlanError(
-        kernel,
-        llvm::Twine("IR-backed i32-vadd callable ABI plan must contain "
+        kernel, &contract,
+        llvm::Twine("IR-backed i32 binary callable ABI plan must contain "
                     "exactly ") +
-            llvm::Twine(expectedParameterCount) + " parameters");
+            llvm::Twine(expectedParameterCount) + " parameters for family '" +
+            contract.getFamilyID() + "'");
 
   for (const RuntimeABIParameter &expected : irBackedParameters) {
     const RuntimeABIParameter *actual = nullptr;
@@ -211,18 +232,21 @@ llvm::Error validateI32VAddCallableABIParameterMirror(
 
     if (count == 0)
       return makeCallablePlanError(
-          kernel, llvm::Twine(metadataSource) +
-                      " requires runtime ABI parameter role '" +
-                      stringifyRuntimeABIParameterRole(expected.role) +
-                      "' to mirror the IR-backed callable ABI plan");
+          kernel, &contract,
+          llvm::Twine(metadataSource) +
+              " requires runtime ABI parameter role '" +
+              stringifyRuntimeABIParameterRole(expected.role) +
+              "' to mirror the IR-backed callable ABI plan");
     if (count > 1)
       return makeCallablePlanError(
-          kernel, llvm::Twine(metadataSource) +
-                      " contains duplicate runtime ABI parameter role '" +
-                      stringifyRuntimeABIParameterRole(expected.role) + "'");
+          kernel, &contract,
+          llvm::Twine(metadataSource) +
+              " contains duplicate runtime ABI parameter role '" +
+              stringifyRuntimeABIParameterRole(expected.role) + "'");
 
     if (llvm::Error error =
-            requireSameParameter(kernel, *actual, expected, metadataSource))
+            requireSameParameter(kernel, *actual, expected, metadataSource,
+                                 contract))
       return error;
   }
 
@@ -233,12 +257,40 @@ llvm::Error validateI32VAddCallableABIParameterMirror(
         });
     if (!expectedRole)
       return makeCallablePlanError(
-          kernel, llvm::Twine(metadataSource) +
-                      " contains unsupported runtime ABI parameter role '" +
-                      stringifyRuntimeABIParameterRole(actual.role) + "'");
+          kernel, &contract,
+          llvm::Twine(metadataSource) +
+              " contains unsupported runtime ABI parameter role '" +
+              stringifyRuntimeABIParameterRole(actual.role) + "'");
   }
 
   return llvm::Error::success();
+}
+
+llvm::Error validateI32BinaryCallableABIParameterMirror(
+    KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
+    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
+    llvm::StringRef metadataSource,
+    const target::i32_binary::I32BinaryFamilyDescriptor &family) {
+  return validateI32BinaryCallableABIParameterMirror(
+      kernel, metadataParameters, irBackedParameters, metadataSource,
+      getI32BinaryRuntimeABIContract(family));
+}
+
+llvm::Expected<I32VAddCallableABIPlan>
+buildI32VAddCallableABIPlan(KernelOp kernel) {
+  return buildI32BinaryCallableABIPlan(
+      kernel, getI32BinaryRuntimeABIContract(
+                  target::i32_binary::I32BinaryFamilyKind::Add));
+}
+
+llvm::Error validateI32VAddCallableABIParameterMirror(
+    KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
+    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
+    llvm::StringRef metadataSource) {
+  return validateI32BinaryCallableABIParameterMirror(
+      kernel, metadataParameters, irBackedParameters, metadataSource,
+      getI32BinaryRuntimeABIContract(
+          target::i32_binary::I32BinaryFamilyKind::Add));
 }
 
 } // namespace tianchenrv::support

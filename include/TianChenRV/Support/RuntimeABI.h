@@ -49,12 +49,15 @@ struct RuntimeABIParameter {
       RuntimeABIParameterOwnership::TargetExportABIOwned;
 };
 
-struct I32VAddCallableRuntimeABIParameterBindings {
+struct I32BinaryCallableRuntimeABIParameterBindings {
   const RuntimeABIParameter *lhs = nullptr;
   const RuntimeABIParameter *rhs = nullptr;
   const RuntimeABIParameter *out = nullptr;
   const RuntimeABIParameter *runtimeElementCount = nullptr;
 };
+
+using I32VAddCallableRuntimeABIParameterBindings =
+    I32BinaryCallableRuntimeABIParameterBindings;
 
 inline llvm::StringRef stringifyRuntimeABIParameterRole(
     RuntimeABIParameterRole role) {
@@ -121,6 +124,34 @@ inline RuntimeABIParameter makeTargetExportABIRoleRequirement(
                              RuntimeABIParameterOwnership::TargetExportABIOwned);
 }
 
+void appendI32BinaryRuntimeABIParameters(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out);
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32BinaryRuntimeABIParameters();
+
+void appendI32BinaryRuntimeABIRoleRequirements(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out);
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32BinaryRuntimeABIRoleRequirements();
+
+RuntimeABIParameter makeI32BinaryDispatchAvailabilityGuard(
+    llvm::StringRef cName = "rvv_available");
+
+inline void appendI32BinaryDispatchRuntimeABIParameters(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
+    llvm::ArrayRef<RuntimeABIParameter> callableParameters,
+    const RuntimeABIParameter &guardParameter) {
+  out.append(callableParameters.begin(), callableParameters.end());
+  out.push_back(guardParameter);
+}
+
+llvm::SmallVector<RuntimeABIParameter, 5>
+getI32BinaryDispatchRuntimeABIParameters();
+
+// Temporary compatibility wrappers around the descriptor-backed i32 binary ABI
+// API. New add/sub/mul owners must use the I32Binary-named entry points.
 void appendI32VAddRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out);
 
@@ -140,8 +171,8 @@ inline void appendI32VAddDispatchRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out,
     llvm::ArrayRef<RuntimeABIParameter> callableParameters,
     const RuntimeABIParameter &guardParameter) {
-  out.append(callableParameters.begin(), callableParameters.end());
-  out.push_back(guardParameter);
+  appendI32BinaryDispatchRuntimeABIParameters(out, callableParameters,
+                                             guardParameter);
 }
 
 llvm::SmallVector<RuntimeABIParameter, 5>
@@ -164,6 +195,12 @@ llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters,
     RuntimeABIParameterRole role, llvm::StringRef context);
 
+llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
+bindI32BinaryCallableRuntimeABIParametersByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context);
+
+// Temporary compatibility wrapper around
+// bindI32BinaryCallableRuntimeABIParametersByRole.
 llvm::Expected<I32VAddCallableRuntimeABIParameterBindings>
 bindI32VAddCallableRuntimeABIParametersByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context);

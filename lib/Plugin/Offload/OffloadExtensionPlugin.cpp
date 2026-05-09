@@ -597,8 +597,10 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeABIKind("runtime-offload-c-abi-handoff");
   out.setRuntimeABIName(kExpectedRuntimeABI);
   out.setRuntimeGlueRole(kOffloadDescriptorRuntimeGlueRole);
-  llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
-      support::buildI32VAddCallableABIPlan(request.getKernel());
+  llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+      support::buildI32BinaryCallableABIPlan(
+          request.getKernel(),
+          tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor());
   if (!callablePlan) {
     std::string message = llvm::toString(callablePlan.takeError());
     return makeOffloadPluginError(

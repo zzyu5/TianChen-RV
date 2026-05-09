@@ -39,11 +39,26 @@ struct RuntimeABIParamSpec {
   std::string ownership;
 };
 
-RuntimeABIParamSpec getI32VAddRuntimeElementCountParamSpec(
+RuntimeABIParamSpec getI32BinaryRuntimeElementCountParamSpec(
     llvm::StringRef cName = "n");
 
 RuntimeABIParamSpec getDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName = "rvv_available");
+
+RuntimeABIParamSpec getI32BinaryDispatchAvailabilityGuardParamSpec(
+    llvm::StringRef cName = "rvv_available");
+
+llvm::SmallVector<RuntimeABIParamSpec, 1>
+getI32BinaryRuntimeElementCountParamSpecs(llvm::StringRef cName = "n");
+
+llvm::SmallVector<RuntimeABIParamSpec, 2>
+getI32BinaryDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName = "n",
+                                      llvm::StringRef guardCName =
+                                          "rvv_available");
+
+// Temporary compatibility wrappers around the i32 binary ABI param helpers.
+RuntimeABIParamSpec getI32VAddRuntimeElementCountParamSpec(
+    llvm::StringRef cName = "n");
 
 RuntimeABIParamSpec getI32VAddDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName = "rvv_available");

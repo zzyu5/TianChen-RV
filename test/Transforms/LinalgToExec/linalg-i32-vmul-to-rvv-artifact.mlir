@@ -84,6 +84,9 @@ module {
 // PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-i32-vmul-microkernel-c"
 // PIPE-SAME: reason = "emission_plan"
 // PIPE-SAME: runtime_abi = "rvv-i32-vmul-runtime-callable-c-abi.v1"
+// PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
+// PIPE-SAME: runtime_abi_name = "rvv-i32-vmul-runtime-callable-c-function.v1"
+// PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vmul-function"
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 

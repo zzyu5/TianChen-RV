@@ -427,3 +427,56 @@ Completed the RVV+scalar i32 add/sub/mul dispatch route manifest, migrated targe
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Descriptor-backed i32 binary runtime ABI contract
+
+**Date**: 2026-05-09
+**Task**: Descriptor-backed i32 binary runtime ABI contract
+**Branch**: `main`
+
+### Summary
+
+Completed the descriptor-backed i32 binary runtime ABI boundary. The support
+layer now exposes family-aware `I32BinaryRuntimeABIContract` and
+`I32BinaryCallableABIPlan` APIs, with descriptor-derived RVV, scalar, and
+RVV+scalar dispatch ABI identities for add/sub/mul. Active RVV, scalar,
+offload descriptor, dispatch, frontend/runtime-boundary, and target artifact
+paths were migrated off vadd-named ABI ownership.
+
+### Main Changes
+
+- Added descriptor-backed i32 binary support APIs for callable parameters,
+  role requirements, mem_window/runtime_param specs, dispatch guard parameters,
+  callable-plan building, and ABI metadata mirror validation.
+- Kept the old `I32VAdd*` support symbols only as explicit temporary wrappers
+  around the new i32 binary API.
+- Migrated RVV/scalar emission planning and target export preflight,
+  RVV+scalar dispatch ABI planning, offload descriptor ABI validation, and
+  frontend ABI boundary materialization to `I32Binary*` entry points.
+- Updated C++ and lit/FileCheck coverage so add/sub/mul expose distinct
+  descriptor-derived ABI identities, stale family/runtime ABI names fail
+  closed, and vsub/vmul paths carry family-correct ABI metadata without
+  vadd-only sed substitutions.
+- Updated durable lowering-runtime/offload specs for descriptor-backed i32
+  binary ABI ownership.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake -S . -B artifacts/tmp/tianchenrv-build -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (161/161 tests passed)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

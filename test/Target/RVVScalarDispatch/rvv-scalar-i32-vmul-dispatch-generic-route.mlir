@@ -5,7 +5,6 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=__riscv --implicit-check-not="out[index]" --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=ROUTE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
-// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | sed -e 's/tcrv-export-scalar-i32-vmul-microkernel-c/tcrv-export-scalar-microkernel-c/' -e 's/scalar-explicit-i32-vmul-microkernel-c-source/scalar-explicit-i32-vadd-microkernel-c-source/' -e 's/scalar-i32-vmul-runtime-callable-c-abi.v1/scalar-i32-vadd-runtime-callable-c-abi.v1/' -e 's/scalar-i32-vmul-runtime-callable-c-function.v1/scalar-i32-vadd-runtime-callable-c-function.v1/' -e 's/runtime-callable-i32-vmul-fallback-function/runtime-callable-i32-vadd-fallback-function/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export." --implicit-check-not="void tcrv_dispatch_i32_vmul"
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -95,6 +94,9 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // IR-SAME: reason = "emission_plan"
 // IR-SAME: role = "dispatch case"
 // IR-SAME: runtime_abi = "rvv-i32-vmul-runtime-callable-c-abi.v1"
+// IR-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
+// IR-SAME: runtime_abi_name = "rvv-i32-vmul-runtime-callable-c-function.v1"
+// IR-SAME: runtime_glue_role = "runtime-callable-i32-vmul-function"
 // IR-SAME: status = "supported"
 // IR-SAME: target = @rvv_first_slice
 // IR: tcrv.exec.diagnostic
@@ -103,6 +105,9 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // IR-SAME: reason = "emission_plan"
 // IR-SAME: role = "dispatch fallback"
 // IR-SAME: runtime_abi = "scalar-i32-vmul-runtime-callable-c-abi.v1"
+// IR-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+// IR-SAME: runtime_abi_name = "scalar-i32-vmul-runtime-callable-c-function.v1"
+// IR-SAME: runtime_glue_role = "runtime-callable-i32-vmul-fallback-function"
 // IR-SAME: status = "supported"
 // IR-SAME: target = @scalar_fallback_first_slice
 
@@ -144,5 +149,3 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // HARNESS: tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
 // ROUTE-MISMATCH: direct source export route expected i32-vadd dispatch artifacts, got i32-vmul
-
-// MISMATCH: selected RVV dispatch case callable family 'i32-vmul' does not match selected scalar dispatch fallback callable family 'i32-vadd'

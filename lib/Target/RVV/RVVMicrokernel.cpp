@@ -1697,9 +1697,11 @@ llvm::Error findAndValidateMicrokernel(
 llvm::Error resolveRuntimeABIParametersForPath(
     KernelOp kernel, const SelectedPath &path,
     const RVVI32MicrokernelFamilySpec &family,
-    support::I32VAddCallableABIPlan &callablePlan) {
-  llvm::Expected<support::I32VAddCallableABIPlan> irBackedPlan =
-      support::buildI32VAddCallableABIPlan(kernel);
+    support::I32BinaryCallableABIPlan &callablePlan) {
+  const support::I32BinaryRuntimeABIContract &contract =
+      support::getI32BinaryRuntimeABIContract(family.kind);
+  llvm::Expected<support::I32BinaryCallableABIPlan> irBackedPlan =
+      support::buildI32BinaryCallableABIPlan(kernel, contract);
   if (!irBackedPlan)
     return irBackedPlan.takeError();
 
@@ -1854,9 +1856,9 @@ llvm::Error resolveRuntimeABIParametersForPath(
           collectRuntimeABIParameters(kernel, diagnostic, planParameters))
     return error;
 
-  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+  if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
           kernel, planParameters, irBackedPlan->parameters,
-          "supported RVV microkernel emission-plan"))
+          "supported RVV microkernel emission-plan", contract))
     return error;
 
   callablePlan = std::move(*irBackedPlan);
@@ -1947,7 +1949,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           controlPlaneSEW, controlPlaneLMUL, dataflowPlan))
     return std::move(error);
 
-  support::I32VAddCallableABIPlan callablePlan;
+  support::I32BinaryCallableABIPlan callablePlan;
   if (llvm::Error error =
           resolveRuntimeABIParametersForPath(kernel, path, *microkernelFamily,
                                              callablePlan))
@@ -2144,7 +2146,7 @@ getDataflowValueCName(RVVI32VAddDataflowValue value,
 }
 
 const support::RuntimeABIParameter *lookupBoundBufferParameter(
-    const support::I32VAddCallableRuntimeABIParameterBindings &bindings,
+    const support::I32BinaryCallableRuntimeABIParameterBindings &bindings,
     support::RuntimeABIParameterRole role) {
   switch (role) {
   case support::RuntimeABIParameterRole::LHSInputBuffer:
@@ -2297,8 +2299,8 @@ llvm::Error printMicrokernelFunction(
         "validated RVV dataflow emission plan requires exactly four "
         "load/load/arithmetic/store steps");
 
-  llvm::Expected<support::I32VAddCallableRuntimeABIParameterBindings> bindings =
-      support::bindI32VAddCallableRuntimeABIParametersByRole(
+  llvm::Expected<support::I32BinaryCallableRuntimeABIParameterBindings>
+      bindings = support::bindI32BinaryCallableRuntimeABIParametersByRole(
           parameters, "RVV direct microkernel C emission");
   if (!bindings)
     return bindings.takeError();
@@ -2523,7 +2525,8 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
   TargetArtifactExporter sourceExporter(
       family->routeID, kMicrokernelArtifactKind, kRVVPluginName,
       family->emissionKind, exportRVVMicrokernelC,
-      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+      support::getI32BinaryRuntimeABIContract(family->kind)
+          .getCallableRoleRequirements(),
       family->kind == RVVI32MicrokernelKind::Add,
       /*handoffKind=*/{}, /*candidateValidationFn=*/nullptr,
       family->externalABIComponentGroup, family->runtimeABIName);
@@ -2838,7 +2841,8 @@ llvm::Error registerRVVMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           addFamily.routeID, kMicrokernelArtifactKind, kRVVPluginName,
           addFamily.emissionKind, exportRVVMicrokernelC,
-          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          support::getI32BinaryRuntimeABIContract(addFamily.kind)
+              .getCallableRoleRequirements(),
           /*directHelperRoute=*/true, /*handoffKind=*/{},
           validateRVVMicrokernelSourceCandidate,
           addFamily.externalABIComponentGroup, addFamily.runtimeABIName)))
@@ -2848,7 +2852,8 @@ llvm::Error registerRVVMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           subFamily.routeID, kMicrokernelArtifactKind, kRVVPluginName,
           subFamily.emissionKind, exportRVVMicrokernelC,
-          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          support::getI32BinaryRuntimeABIContract(subFamily.kind)
+              .getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateRVVMicrokernelSourceCandidate,
           subFamily.externalABIComponentGroup, subFamily.runtimeABIName)))
@@ -2858,7 +2863,8 @@ llvm::Error registerRVVMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           mulFamily.routeID, kMicrokernelArtifactKind, kRVVPluginName,
           mulFamily.emissionKind, exportRVVMicrokernelC,
-          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          support::getI32BinaryRuntimeABIContract(mulFamily.kind)
+              .getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateRVVMicrokernelSourceCandidate,
           mulFamily.externalABIComponentGroup, mulFamily.runtimeABIName)))

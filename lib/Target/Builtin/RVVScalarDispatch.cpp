@@ -705,7 +705,8 @@ resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
                     "'dispatch-availability-guard'");
 
   support::RuntimeABIParamSpec guardSpec =
-      support::getI32VAddDispatchAvailabilityGuardParamSpec(/*cName=*/"");
+      support::getI32BinaryRuntimeABIContract(pair.family->kind)
+          .getDispatchAvailabilityGuardParamSpec(/*cName=*/"");
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> guardSpecs;
   guardSpecs.push_back(guardSpec);
   llvm::SmallVector<RuntimeParamOp, 1> guardParamsByRole;
@@ -727,23 +728,26 @@ resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
 }
 
 llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
-  llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
-      support::buildI32VAddCallableABIPlan(pair.rvv.kernel);
+  const support::I32BinaryRuntimeABIContract &contract =
+      support::getI32BinaryRuntimeABIContract(pair.family->kind);
+  llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+      support::buildI32BinaryCallableABIPlan(pair.rvv.kernel, contract);
   if (!callablePlan) {
     std::string message = llvm::toString(callablePlan.takeError());
     return makeDispatchError(pair.rvv.kernel, message);
   }
 
-  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+  if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
           pair.rvv.kernel, pair.rvv.runtimeABIParameters,
-          callablePlan->parameters, "selected RVV callable artifact route")) {
+          callablePlan->parameters, "selected RVV callable artifact route",
+          contract)) {
     std::string message = llvm::toString(std::move(error));
     return makeDispatchError(pair.rvv.kernel, message);
   }
-  if (llvm::Error error = support::validateI32VAddCallableABIParameterMirror(
+  if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
           pair.scalar.kernel, pair.scalar.runtimeABIParameters,
           callablePlan->parameters,
-          "selected scalar callable artifact route")) {
+          "selected scalar callable artifact route", contract)) {
     std::string message = llvm::toString(std::move(error));
     return makeDispatchError(pair.scalar.kernel, message);
   }
@@ -774,7 +778,7 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
   DispatchABIPlan plan;
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
   runtimeParamSpecs.push_back(
-      support::getI32VAddRuntimeElementCountParamSpec((*runtimeCount)->cName));
+      contract.getRuntimeElementCountParamSpec((*runtimeCount)->cName));
   if (llvm::Error error = support::collectRuntimeABIParams(
           pair.rvv.kernel, runtimeParamSpecs, plan.runtimeParams)) {
     std::string message = llvm::toString(std::move(error));
@@ -807,7 +811,7 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
   if (!guard)
     return guard.takeError();
   support::RuntimeABIParameter expectedGuard =
-      support::makeI32VAddDispatchAvailabilityGuard(guard->cName);
+      contract.getDispatchAvailabilityGuardParameter(guard->cName);
   if (guard->cType != expectedGuard.cType)
     return makeDispatchError(
         pair.rvv.kernel,
@@ -822,7 +826,7 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
                 expectedGuard.ownership) +
             "'");
 
-  support::appendI32VAddDispatchRuntimeABIParameters(
+  support::appendI32BinaryDispatchRuntimeABIParameters(
       plan.parameters, callablePlan->parameters, *guard);
   plan.bufferWindows = std::move(callablePlan->bufferWindows);
   return plan;

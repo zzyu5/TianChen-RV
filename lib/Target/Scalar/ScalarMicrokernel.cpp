@@ -546,9 +546,10 @@ llvm::Error validateEmissionPlanParameterMirror(
           collectRuntimeABIParameters(kernel, diagnostic, planParameters))
     return error;
 
-  return support::validateI32VAddCallableABIParameterMirror(
+  return support::validateI32BinaryCallableABIParameterMirror(
       kernel, planParameters, irBackedParameters,
-      "supported scalar microkernel emission-plan");
+      "supported scalar microkernel emission-plan",
+      support::getI32BinaryRuntimeABIContract(family.kind));
 }
 
 llvm::Error requireSafeStringAttr(KernelOp kernel, mlir::Operation *op,
@@ -1354,8 +1355,10 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           kernel, getPathVariant(path), *microkernelFamily, elementCount))
     return std::move(error);
 
-  llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
-      support::buildI32VAddCallableABIPlan(kernel);
+  llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+      support::buildI32BinaryCallableABIPlan(
+          kernel, support::getI32BinaryRuntimeABIContract(
+                      microkernelFamily->kind));
   if (!callablePlan)
     return callablePlan.takeError();
   if (llvm::Error error = validateEmissionPlanParameterMirror(
@@ -1610,8 +1613,8 @@ llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     const ScalarI32MicrokernelFamilySpec &family) {
-  llvm::Expected<support::I32VAddCallableRuntimeABIParameterBindings> bindings =
-      support::bindI32VAddCallableRuntimeABIParametersByRole(
+  llvm::Expected<support::I32BinaryCallableRuntimeABIParameterBindings>
+      bindings = support::bindI32BinaryCallableRuntimeABIParametersByRole(
           parameters, "scalar direct microkernel C emission");
   if (!bindings)
     return bindings.takeError();
@@ -1684,10 +1687,12 @@ bool isScalarMicrokernelSourceCandidateForFamily(
   return candidateMatchesScalarMicrokernelFamily(candidate, family);
 }
 
-bool isScalarVAddMicrokernelSourceCandidate(
+bool isScalarI32MicrokernelSourceCandidate(
     const tianchenrv::target::TargetArtifactCandidate &candidate) {
-  return isScalarMicrokernelSourceCandidateForFamily(candidate,
-                                                    getI32VAddFamilySpec());
+  const ScalarI32MicrokernelFamilySpec *family =
+      getScalarI32MicrokernelFamilyForSourceRoute(candidate.routeID);
+  return family && isScalarMicrokernelSourceCandidateForFamily(candidate,
+                                                              *family);
 }
 
 llvm::Error validateScalarMicrokernelSourceCandidate(
@@ -1713,7 +1718,8 @@ llvm::Error validateScalarMicrokernelSourceCandidate(
   TargetArtifactExporter sourceExporter(
       family->routeID, kMicrokernelArtifactKind, kScalarPluginName,
       family->emissionKind, exportScalarMicrokernelC,
-      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+      support::getI32BinaryRuntimeABIContract(family->kind)
+          .getCallableRoleRequirements(),
       /*directHelperRoute=*/false, /*handoffKind=*/{},
       /*candidateValidationFn=*/nullptr);
   return validateTargetArtifactCandidateAgainstExporter(candidate,
@@ -1727,27 +1733,21 @@ llvm::Error validateScalarMicrokernelCallableCandidatePreflight(
         "scalar microkernel helper routes require exactly one callable "
         "artifact candidate for preflight");
 
-  const ScalarI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
-  TargetArtifactExporter sourceExporter(
-      addFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
-      addFamily.emissionKind, exportScalarMicrokernelC,
-      support::getI32VAddRuntimeABIContract().getCallableRoleRequirements());
-  return validateTargetArtifactCandidateAgainstExporter(candidates.front(),
-                                                        sourceExporter);
+  return validateScalarMicrokernelSourceCandidate(candidates.front());
 }
 
 llvm::Expected<bool> matchScalarMicrokernelObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
     return false;
-  return isScalarVAddMicrokernelSourceCandidate(candidates.front());
+  return isScalarI32MicrokernelSourceCandidate(candidates.front());
 }
 
 llvm::Expected<bool> matchScalarMicrokernelHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   if (candidates.size() != 1)
     return false;
-  return isScalarVAddMicrokernelSourceCandidate(candidates.front());
+  return isScalarI32MicrokernelSourceCandidate(candidates.front());
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
@@ -2012,12 +2012,11 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   const ScalarI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
   const ScalarI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
   const ScalarI32MicrokernelFamilySpec &mulFamily = getI32VMulFamilySpec();
-  const support::RuntimeABICallableIdentity &abi =
-      support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           addFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           addFamily.emissionKind, exportScalarMicrokernelC,
-          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          support::getI32BinaryRuntimeABIContract(addFamily.kind)
+              .getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;
@@ -2025,7 +2024,8 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           subFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           subFamily.emissionKind, exportScalarMicrokernelC,
-          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          support::getI32BinaryRuntimeABIContract(subFamily.kind)
+              .getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;
@@ -2033,7 +2033,8 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           mulFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           mulFamily.emissionKind, exportScalarMicrokernelC,
-          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          support::getI32BinaryRuntimeABIContract(mulFamily.kind)
+              .getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;
@@ -2043,7 +2044,7 @@ llvm::Error registerScalarMicrokernelTargetExporters(
               addFamily.headerRouteID, kMicrokernelHeaderArtifactKind,
               matchScalarMicrokernelHeaderCandidate,
               exportScalarMicrokernelHeader, kScalarPluginName,
-              abi.runtimeABIKind, abi.runtimeABIName,
+              /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
               /*directHelperRoute=*/false, /*componentGroup=*/{},
               /*externalABIName=*/{},
               validateScalarMicrokernelCallableCandidatePreflight)))
@@ -2052,7 +2053,7 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       addFamily.objectRouteID, kMicrokernelObjectArtifactKind,
       matchScalarMicrokernelObjectCandidate, exportScalarMicrokernelObject,
-      kScalarPluginName, abi.runtimeABIKind, abi.runtimeABIName,
+      kScalarPluginName, /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
       /*directHelperRoute=*/false, /*componentGroup=*/{},
       /*externalABIName=*/{},
       validateScalarMicrokernelCallableCandidatePreflight));
