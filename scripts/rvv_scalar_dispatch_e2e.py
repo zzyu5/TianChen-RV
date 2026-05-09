@@ -1732,6 +1732,7 @@ def run_remote_bundle_external_abi_evidence(
         "source_run_exit_code": 0,
         "bundle_object_link_exit_code": 0,
         "bundle_object_run_exit_code": 0,
+        "runtime_success": True,
         "expected_stdout_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
         "source_stdout_marker_observed": True,
         "bundle_object_stdout_marker_observed": True,
@@ -1877,6 +1878,7 @@ def run_remote_evidence(
         "object_compile_exit_code": 0,
         "link_exit_code": 0,
         "run_exit_code": 0,
+        "runtime_success": True,
         "expected_stdout_marker": SUCCESS_MARKER,
         "stdout_marker_observed": True,
         "object_sha256": sanitize_text(object_hash_stdout).strip().splitlines()[0]
@@ -2154,6 +2156,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 flags=source_flags,
                 run_id=run_id,
             )
+            evidence["runtime_success"] = True
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
@@ -2328,6 +2331,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 flags=source_flags,
                 run_id=run_id,
             )
+            evidence["runtime_success"] = True
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"

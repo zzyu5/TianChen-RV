@@ -1180,3 +1180,51 @@ Moved finite RVV i32 selected-shape truth into C++ target-owned descriptor/API, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Linalg i32m2 vsub ssh external ABI evidence
+
+**Date**: 2026-05-10
+**Task**: Linalg i32m2 vsub ssh external ABI evidence
+**Branch**: `main`
+
+### Summary
+
+Collected bounded ssh rvv source/object external ABI evidence for the compiler-produced linalg i32-vsub i32m2 RVV+scalar dispatch bundle and added explicit runtime_success fields to real ssh evidence JSON.
+
+### Main Changes
+
+- Created and archived Trellis task `05-10-linalg-i32m2-vsub-rvv-scalar-ssh-external-abi-evidence` for internal case `switch module`.
+- Drove the compiler-produced linalg/front-door route through `scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2`.
+- Produced bounded untracked evidence under `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i32m2-vsub-ssh-20260510T0001/`.
+- Confirmed the generated external caller compiles/links/runs on `ssh rvv` against both the generated dispatch source path and generated bundle object path.
+- Added explicit `runtime_success: true` to real ssh evidence JSON after successful remote compile/link/run; dry-run evidence remains claim-free.
+- No `.trellis/spec/` update was needed because the existing specs already require bounded real RVV evidence and sanitized evidence fields.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-05-10-linalg-i32m2-vsub-rvv-scalar-ssh-external-abi-evidence`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] focused dry-run for `i32-vsub --vector-shape=i32m2`
+- [OK] focused lit filter `rvv-scalar-dispatch-bundle-e2e` passed 1/1 selected test
+- [OK] real ssh evidence command passed:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id codex-i32m2-vsub-ssh-20260510T0001 --overwrite --timeout 120`
+- [OK] read-only `evidence.json` assertion for runtime success, branch/count coverage, selected family/shape, remote arch, and secret-like text absence
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 172/172
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
