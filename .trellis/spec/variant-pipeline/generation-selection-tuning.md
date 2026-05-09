@@ -9,7 +9,10 @@ already materialized `tcrv.exec.variant`, selected-boundary IR,
 `tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or a bounded
 plugin-specific descriptor. High-level MLIR op analysis is a future extension
 point for `linalg`, `stablehlo`, `tosa`, and similar inputs; it is not a
-precondition for integrating a new extension plugin today.
+precondition for integrating a new extension plugin today. When the frontend
+lowering owner is selected, the first high-level path may start from
+hand-written or test `linalg` inputs and lower them into TianChen-RV surfaces
+that the backend/plugin pipeline can consume.
 
 Correct:
 
@@ -49,6 +52,10 @@ expresses computation semantics. It does not recover or reinvent algorithm
 semantics. When the input is already TianChen-RV MLIR, plugin work should focus
 on capability, variant, selected-boundary, lowering, emission, runtime ABI, and
 artifact routes rather than inventing a high-level lowering layer.
+The backend-first path and the `linalg` frontend path are compatible: backend
+plugin integration may proceed from hand-written TianChen-RV MLIR while a
+frontend owner later introduces `linalg` tests that feed those same backend
+surfaces.
 
 ## Pipeline
 

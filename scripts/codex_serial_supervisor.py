@@ -1270,6 +1270,16 @@ High-level MLIR op
   -> RVV / IME / offload / fallback executable path
 ```
 
+Current plugin work may also start from hand-written or test TianChen-RV MLIR,
+existing `tcrv.exec.kernel` or `tcrv.exec.variant`, selected-boundary IR,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or bounded plugin-specific
+descriptors. High-level `linalg`/`stablehlo`/`tosa` lowering is a future
+frontend integration surface, not a precondition for integrating an extension
+plugin from existing TianChen-RV MLIR today. This does not forbid frontend
+lowering work: if the selected owner is frontend lowering, prefer starting from
+hand-written or test `linalg` inputs and lower them into TianChen-RV surfaces
+that the backend/plugin pipeline can consume.
+
 Primary engineering stack:
 
 ```text
@@ -1324,6 +1334,7 @@ CMake / MLIR / LLVM integration
 TableGen / ODS definitions
 C++ dialect, type, attribute, interface, or pass code
 plugin registry or extension interface
+extension plugin integration contract or template
 capability model
 tcrv.exec dialect contract
 RVV extension dialect or lowering path
@@ -1351,6 +1362,7 @@ concrete computation belongs in extension dialects or extension op families.
 capability objects participate in compiler decisions.
 RVV hardware facts, compile-time variant config, runtime SSA/control values, and descriptor-local bounded parameters are explicitly separated.
 extension-specific logic stays plugin-local through registries and interfaces.
+new extension plugins can be validated from TianChen-RV MLIR, selected-boundary IR, runtime parameters, mem windows, or bounded descriptors before high-level lowering exists.
 RVV claims are backed by ssh rvv evidence.
 Sophgo/offload is runtime-offload capability.
 IME is a later extension plugin path unless hardware is available.
@@ -1363,6 +1375,9 @@ Redirect the next worker if the run:
 implemented compiler internals in Python;
 created generic compute ops inside tcrv.exec;
 hard-coded RVV / IME / Sophgo / AME logic into core passes;
+required high-level op analysis before a plugin can be integrated from existing TianChen-RV MLIR;
+added extension-specific semantic branches to core passes instead of using plugin registry/interface delegation;
+treated a direct helper command as the main extension path instead of a bounded helper or evidence surface;
 claimed RVV runtime, correctness, or performance without ssh rvv evidence;
 confused VLEN/vlenb as runtime values, SEW/LMUL as hardware-fact-only, AVL/vl as capability facts, setvl/with_vl as modeled without real IR/ABI surfaces, element_count as tensor shape/AVL, or expanded required_march string-comparison dependence unnecessarily;
 treated Sophgo/offload as a custom RISC-V ISA extension;
@@ -1382,6 +1397,8 @@ The next prompt should:
 name one coherent engineering owner for the next round;
 list files or directories Codex must inspect first;
 state the implementation area to modify;
+for plugin-related work, state whether the round changes core, plugin, dialect, target/exporter, tool, or test surfaces;
+if core passes change, explain whether the change is a public interface evolution or an extension-specific special case;
 state the tests or evidence required;
 state invalid work patterns for that round;
 state final reporting requirements.

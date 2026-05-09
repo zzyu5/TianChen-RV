@@ -8,6 +8,7 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - [ ] Does the plugin register capabilities, dialects, variant builders, legality, tuning, cost, and emission?
 - [ ] Does core code call registry/interface APIs rather than `hasRVV`/`hasIME`/`hasSophgo` branches?
 - [ ] If core interface changes are needed, are they justified by a genuinely new execution semantic?
+- [ ] Can current plugin work start from TianChen-RV MLIR, selected-boundary IR, or bounded descriptors without requiring high-level op lowering first?
 - [ ] Does documentation state that pluginization is local work, not zero work?
 - [ ] Are plugin interfaces, registries, dialect registrations, and lowering hooks implemented in C++/MLIR rather than Python?
 
@@ -17,6 +18,7 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 |---|---|
 | [Interfaces And Registry](./interfaces-and-registry.md) | Required provider interfaces and core pass usage |
 | [Locality Contract](./locality-contract.md) | Plugin/core boundaries and extension-locality evaluation |
+| [Extension Plugin Integration Contract](./extension-plugin-integration.md) | Template for adding future extension plugins without rewriting core passes |
 
 ## Quality Check
 
@@ -24,3 +26,4 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - Core pass diffs should show generic orchestration, not extension-specific lowering logic.
 - Any new core branch mentioning a concrete extension must be reviewed as a likely violation.
 - Plugin protocol behavior should be covered by lit/FileCheck for IR behavior and C++ tests for registry/interface APIs where useful.
+- A new plugin should be testable from hand-written or test TianChen-RV MLIR before high-level `linalg`/`stablehlo`/`tosa` lowering exists.

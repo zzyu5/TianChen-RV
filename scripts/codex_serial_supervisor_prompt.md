@@ -31,6 +31,15 @@ High-level MLIR op
   -> RVV / IME / offload / fallback executable path
 ```
 
+Current plugin-related work may start from hand-written or test TianChen-RV
+MLIR, existing `tcrv.exec.kernel` or `tcrv.exec.variant`, selected-boundary IR,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or a bounded
+plugin-specific descriptor. Do not require high-level `linalg`/`stablehlo`/`tosa`
+lowering before a plugin can be integrated from existing TianChen-RV MLIR.
+This does not forbid frontend lowering work: when the chosen owner is frontend
+lowering, prefer starting from hand-written or test `linalg` inputs and lower
+them into TianChen-RV surfaces that the backend/plugin pipeline can consume.
+
 ## Required Technology Stack
 
 Primary implementation stack:
@@ -222,6 +231,37 @@ Scalar fallback: correctness and fallback path.
 
 The set of future extensions is open. New extensions should integrate through the same core plugin protocol when expressible by the existing interfaces.
 
+A plugin is an extension realization provider inside TianChen-RV, not an
+independent backend and not a reason to rewrite core passes. For plugin work,
+prefer plugin/dialect/target-owned changes:
+
+```text
+capability provider
+dialect / op / type / attr registration
+variant proposal or selected-boundary materialization
+legality / cost / preference hook
+plugin-owned lowering / emission route
+optional target artifact route
+focused tests that prove the new compiler behavior
+```
+
+Do not add extension-specific semantic branches to core passes. If a core pass
+must change, explain whether the change extends a public interface or adds a
+generic orchestration capability; do not hide a one-off extension special case
+inside core. Direct helper commands may exist as bounded compatibility or
+evidence surfaces, but they must not become the main path for a new extension.
+
+For every plugin-related round, report which layer was changed:
+
+```text
+core
+plugin
+dialect
+target/exporter
+tool
+test
+```
+
 ## Hardware Reality
 
 Current real hardware:
@@ -285,6 +325,26 @@ Attrs.td
 Interfaces.td
 Passes.td
 ```
+
+Recommended layout for a new extension plugin:
+
+```text
+include/TianChenRV/Plugin/<Ext>/
+lib/Plugin/<Ext>/
+include/TianChenRV/Dialect/<Ext>/IR/
+lib/Dialect/<Ext>/IR/
+include/TianChenRV/Target/<Ext>/        optional
+lib/Target/<Ext>/                       optional
+test/Plugin/<Ext>/
+test/Dialect/<Ext>/
+test/Target/<Ext>/
+```
+
+Recommended plugin integration tests should cover capability present/absent,
+dialect and capability registration, variant or selected-boundary production
+only when legal, fail-closed illegal config, plugin-owned lowering or emission
+route, fallback/dispatch reuse when applicable, and absence of new
+extension-specific semantic branches in core passes.
 
 ## Work Selection
 

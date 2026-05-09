@@ -60,9 +60,10 @@ public:
 
 Responsibilities:
 
-- decide whether a high-level op can be implemented by the plugin;
-- receive the high-level `Operation *`, the relevant `tcrv.exec.kernel`
-  anchor, and the generic `TargetCapabilitySet`;
+- decide whether the current planning anchor can be implemented by the plugin;
+- receive the relevant `tcrv.exec.kernel`, materialized variant,
+  selected-boundary surface, bounded descriptor, or future high-level
+  `Operation *`, together with the generic `TargetCapabilitySet`;
 - propose compiler-visible variant metadata before IR materialization;
 - declare variant name, `origin`, required capability ids or symbol
   references, optional generic guard/policy metadata, and optional abstract
@@ -319,7 +320,7 @@ Core pass flow:
 ```text
 1. Read target capability.
 2. Load and register extension plugins.
-3. For each high-level op, iterate plugin registry.
+3. For each current planning anchor, iterate plugin registry.
 4. Each plugin checks support under target capability.
 5. Plugins propose one or more tcrv.exec.variant values.
 6. Core verifier orchestrates plugin verifier calls.
@@ -328,6 +329,14 @@ Core pass flow:
    variants to their origin plugin and rejects missing or unsupported paths.
 9. Emission stage calls each selected plugin emission provider.
 ```
+
+Current planning anchors may be hand-written or test `tcrv.exec.kernel`
+regions, materialized `tcrv.exec.variant` operations, selected-boundary IR,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or bounded
+plugin-specific descriptors. Future high-level `Operation *` analysis is an
+additional frontend integration surface, not a precondition for plugin
+integration today. When that frontend surface is selected as the owner,
+`linalg` is the preferred first high-level input family for handwritten tests.
 
 Correct core shape:
 
@@ -540,7 +549,7 @@ Each plugin registers:
 - required external toolchain/runtime;
 - extension dialects;
 - types, attributes, and operations;
-- supported high-level op classes;
+- supported current planning anchors and future high-level op classes;
 - variant generation hooks;
 - legality rules;
 - tuning parameters;
