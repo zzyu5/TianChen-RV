@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global implementation stack and project boundary invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin locality, microkernel descriptor, dataflow body, and remote evidence contracts"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target-owned emission/runtime artifact and parameter layering contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and RVV evidence testing requirements"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "ssh rvv evidence interpretation and forbidden claims"}

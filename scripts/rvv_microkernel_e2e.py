@@ -35,6 +35,36 @@ DEFAULT_TIMEOUT_SECONDS = 60
 SUCCESS_MARKER = "tcrv_rvv_microkernel_ok"
 EXTERNAL_ABI_SUCCESS_MARKER = "tcrv_rvv_microkernel_external_abi_ok"
 
+EXPECTED_DATAFLOW_PROVENANCE = {
+    "dataflow_abi_roles": [
+        "lhs_load.buffer_role=lhs-input-buffer",
+        "rhs_load.buffer_role=rhs-input-buffer",
+        "store.buffer_role=output-buffer",
+        "runtime n remains the target/export-owned runtime element-count ABI parameter",
+    ],
+    "dataflow_emission_step[0]": [
+        "op=tcrv_rvv.i32_load",
+        "role=lhs-input-buffer",
+        "result=lhs_vec",
+    ],
+    "dataflow_emission_step[1]": [
+        "op=tcrv_rvv.i32_load",
+        "role=rhs-input-buffer",
+        "result=rhs_vec",
+    ],
+    "dataflow_emission_step[2]": [
+        "op=tcrv_rvv.i32_add",
+        "lhs=lhs_vec",
+        "rhs=rhs_vec",
+        "result=sum_vec",
+    ],
+    "dataflow_emission_step[3]": [
+        "op=tcrv_rvv.i32_store",
+        "role=output-buffer",
+        "value=sum_vec",
+    ],
+}
+
 REQUIRED_HANDOFF = {
     "origin": "rvv-plugin",
     "emission_status": "supported",
@@ -502,7 +532,27 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     selected_mabi = parse_source_comment(source, "selected_mabi", required=False)
     if "v" not in selected_march.lower():
         raise BridgeError("selected_march from generated source must contain RVV vector evidence")
-    return {"selected_march": selected_march, "selected_mabi": selected_mabi}
+    provenance = validate_dataflow_provenance(source)
+    return {
+        "selected_march": selected_march,
+        "selected_mabi": selected_mabi,
+        "dataflow_provenance": provenance,
+    }
+
+
+def validate_dataflow_provenance(source: str) -> dict[str, str]:
+    provenance: dict[str, str] = {}
+    for field, required_fragments in EXPECTED_DATAFLOW_PROVENANCE.items():
+        value = parse_source_comment(source, field, required=True)
+        missing = [fragment for fragment in required_fragments if fragment not in value]
+        if missing:
+            raise BridgeError(
+                "generated RVV microkernel C source field "
+                f"{field} is not the expected dataflow-driven exporter provenance; "
+                "missing fragments: " + ", ".join(missing)
+            )
+        provenance[field] = value
+    return provenance
 
 
 def validate_generated_header(header: str) -> str:
@@ -620,11 +670,15 @@ def remote_shell_command(args: argparse.Namespace, remote_command: str) -> list[
     ]
 
 
-def build_remote_compile_command(remote_dir: str, flags: dict[str, str]) -> str:
-    flag_parts = ["-O2", f"-march={flags['selected_march']}"]
+def remote_compile_flags(flags: dict[str, str]) -> list[str]:
+    result = ["-O2", f"-march={flags['selected_march']}"]
     if flags.get("selected_mabi"):
-        flag_parts.append(f"-mabi={flags['selected_mabi']}")
-    quoted_flags = " ".join(shlex.quote(part) for part in flag_parts)
+        result.append(f"-mabi={flags['selected_mabi']}")
+    return result
+
+
+def build_remote_compile_command(remote_dir: str, flags: dict[str, str]) -> str:
+    quoted_flags = " ".join(shlex.quote(part) for part in remote_compile_flags(flags))
     return (
         f"cd {quote_remote_path(remote_dir)} && "
         f"clang {quoted_flags} rvv_microkernel.c -o rvv_microkernel"
@@ -632,15 +686,125 @@ def build_remote_compile_command(remote_dir: str, flags: dict[str, str]) -> str:
 
 
 def build_remote_external_link_command(remote_dir: str, flags: dict[str, str]) -> str:
-    flag_parts = ["-O2", f"-march={flags['selected_march']}"]
-    if flags.get("selected_mabi"):
-        flag_parts.append(f"-mabi={flags['selected_mabi']}")
-    quoted_flags = " ".join(shlex.quote(part) for part in flag_parts)
+    quoted_flags = " ".join(shlex.quote(part) for part in remote_compile_flags(flags))
     return (
         f"cd {quote_remote_path(remote_dir)} && "
         f"clang {quoted_flags} rvv_microkernel_external_caller.c "
         "rvv_microkernel.o -o rvv_microkernel_external_caller"
     )
+
+
+def remote_sha256_command(remote_dir: str, filename: str) -> str:
+    return (
+        f"cd {quote_remote_path(remote_dir)} && "
+        "if command -v sha256sum >/dev/null 2>&1; then "
+        f"set -- $(sha256sum {shlex.quote(filename)}); printf '%s\\n' \"$1\"; "
+        "else printf '\\n'; fi"
+    )
+
+
+def first_sanitized_line(text: str) -> str:
+    for line in sanitize_text(text).splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def run_remote_self_check_source_evidence(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    artifact_dir: Path,
+    commands: list[dict[str, Any]],
+    source_path: Path,
+    flags: dict[str, str],
+    run_id: str,
+) -> dict[str, Any]:
+    reject_secret_like_text("ssh target", args.ssh_target)
+    remote_dir = f"/tmp/tianchenrv_rvv_microkernel_e2e_{safe_run_id(run_id)}"
+    remote_source = f"{remote_dir}/rvv_microkernel.c"
+
+    setup_command = f"rm -rf {quote_remote_path(remote_dir)} && mkdir -p {quote_remote_path(remote_dir)}"
+    run_command(
+        "ssh_setup_remote_dir",
+        remote_shell_command(args, setup_command),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "scp_generated_microkernel_self_check_source",
+        [
+            *scp_base_command(args),
+            str(source_path),
+            f"{args.ssh_target}:{remote_source}",
+        ],
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_compile_microkernel_self_check",
+        remote_shell_command(args, build_remote_compile_command(remote_dir, flags)),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    executable_hash_stdout, _, _ = run_command(
+        "ssh_executable_sha256",
+        remote_shell_command(args, remote_sha256_command(remote_dir, "rvv_microkernel")),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_stdout, _, _ = run_command(
+        "ssh_run_microkernel_self_check",
+        remote_shell_command(args, f"cd {quote_remote_path(remote_dir)} && ./rvv_microkernel"),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if SUCCESS_MARKER not in run_stdout:
+        raise BridgeError(
+            f"remote microkernel self-check stdout missing expected marker: {SUCCESS_MARKER}"
+        )
+
+    cleanup_status = "success"
+    try:
+        run_command(
+            "ssh_cleanup_remote_dir",
+            remote_shell_command(args, f"rm -rf {quote_remote_path(remote_dir)}"),
+            cwd=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    except BridgeError:
+        cleanup_status = "failure"
+
+    return {
+        "ssh_target": args.ssh_target,
+        "remote_dir": remote_dir,
+        "remote_source": "rvv_microkernel.c",
+        "remote_executable": "rvv_microkernel",
+        "compile_flags": remote_compile_flags(flags),
+        "compile_exit_code": 0,
+        "run_exit_code": 0,
+        "expected_stdout_marker": SUCCESS_MARKER,
+        "stdout_marker_observed": True,
+        "executable_sha256": first_sanitized_line(executable_hash_stdout),
+        "cleanup_status": cleanup_status,
+    }
 
 
 def run_remote_external_abi_evidence(
@@ -740,18 +904,12 @@ def run_remote_external_abi_evidence(
     return {
         "ssh_target": args.ssh_target,
         "remote_dir": remote_dir,
-        "compile_flags": [
-            "-O2",
-            f"-march={flags['selected_march']}",
-            *( [f"-mabi={flags['selected_mabi']}"] if flags.get("selected_mabi") else [] ),
-        ],
+        "compile_flags": remote_compile_flags(flags),
         "compile_exit_code": 0,
         "run_exit_code": 0,
         "expected_stdout_marker": EXTERNAL_ABI_SUCCESS_MARKER,
         "stdout_marker_observed": True,
-        "binary_sha256": sanitize_text(binary_hash_stdout).strip().splitlines()[0]
-        if sanitize_text(binary_hash_stdout).strip()
-        else "",
+        "binary_sha256": first_sanitized_line(binary_hash_stdout),
         "cleanup_status": cleanup_status,
     }
 
@@ -766,15 +924,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root()
     if args.evidence_note:
         reject_secret_like_text("evidence note", args.evidence_note)
+    use_harness = args.self_check_harness
     if args.generic_route and args.self_check_harness:
         raise BridgeError(
             "--self-check-harness is explicit direct-export evidence mode and "
             "cannot be combined with --generic-route"
-        )
-    if args.self_check_harness and not args.dry_run:
-        raise BridgeError(
-            "--self-check-harness is dry-run-only in this bridge; ssh evidence "
-            "uses the generated header plus generated object external caller"
         )
     if args.generic_route and not args.dry_run:
         raise BridgeError(
@@ -796,7 +950,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
 
     tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
-    local_clang = ensure_local_clang_on_path() if not args.dry_run else ""
+    local_clang = (
+        ensure_local_clang_on_path()
+        if not args.dry_run and not use_harness
+        else ""
+    )
 
     post_planning_mlir, _, _ = run_command(
         "tcrv_opt_materialize_plans",
@@ -832,7 +990,6 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     write_generated_text(manifest_path, "emission manifest", manifest_text)
     manifest_handoff = find_supported_handoff(manifest_text)
 
-    use_harness = args.self_check_harness
     if args.generic_route:
         source_export_flag = "--tcrv-export-target-source-artifact"
         source_export_name = "export_target_source_artifact"
@@ -867,7 +1024,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     object_sha256 = ""
     header_sha256 = ""
     caller_sha256 = ""
-    if not args.dry_run:
+    if not args.dry_run and not use_harness:
         header_text, _, _ = run_command(
             "export_target_header_artifact",
             [
@@ -915,7 +1072,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "emission_manifest_sha256": sha256_text(manifest_text),
         "rvv_microkernel_c_sha256": sha256_text(source_text),
     }
-    if not args.dry_run:
+    if not args.dry_run and not use_harness:
         hashes.update(
             {
                 "rvv_microkernel_h_sha256": header_sha256,
@@ -953,6 +1110,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 else []
             ),
         ],
+        "source_dataflow_provenance": source_flags["dataflow_provenance"],
         "hashes": hashes,
         "artifacts": {
             "post_planning_mlir": relative_to_repo(post_planning_path, root),
@@ -964,35 +1122,54 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "claim_scope": (
             "local dry-run verifies compiler-tool handoff and source export only"
             if args.dry_run
+            else "bounded generated RVV i32-vadd self-check executable correctness only"
+            if use_harness
             else "bounded generated RVV i32-vadd header plus object external caller correctness only"
         ),
     }
     if not args.dry_run:
-        evidence["artifacts"].update(
-            {
-                "rvv_microkernel_h": relative_to_repo(header_path, root),
-                "rvv_microkernel_o": relative_to_repo(object_path, root),
-                "rvv_microkernel_external_caller_c": relative_to_repo(
-                    caller_path, root
-                ),
+        if use_harness:
+            evidence["self_check"] = {
+                "kind": "generated-c-self-check-main",
+                "success_marker": SUCCESS_MARKER,
             }
-        )
-        evidence["header_function_name"] = header_function_name
-        evidence["local_object_export_clang"] = sanitize_text(local_clang)
+        else:
+            evidence["artifacts"].update(
+                {
+                    "rvv_microkernel_h": relative_to_repo(header_path, root),
+                    "rvv_microkernel_o": relative_to_repo(object_path, root),
+                    "rvv_microkernel_external_caller_c": relative_to_repo(
+                        caller_path, root
+                    ),
+                }
+            )
+            evidence["header_function_name"] = header_function_name
+            evidence["local_object_export_clang"] = sanitize_text(local_clang)
 
     if not args.dry_run:
         try:
-            evidence["ssh_evidence"] = run_remote_external_abi_evidence(
-                args,
-                root=root,
-                artifact_dir=artifact_dir,
-                commands=commands,
-                header_path=header_path,
-                object_path=object_path,
-                caller_path=caller_path,
-                flags=source_flags,
-                run_id=run_id,
-            )
+            if use_harness:
+                evidence["ssh_evidence"] = run_remote_self_check_source_evidence(
+                    args,
+                    root=root,
+                    artifact_dir=artifact_dir,
+                    commands=commands,
+                    source_path=source_path,
+                    flags=source_flags,
+                    run_id=run_id,
+                )
+            else:
+                evidence["ssh_evidence"] = run_remote_external_abi_evidence(
+                    args,
+                    root=root,
+                    artifact_dir=artifact_dir,
+                    commands=commands,
+                    header_path=header_path,
+                    object_path=object_path,
+                    caller_path=caller_path,
+                    flags=source_flags,
+                    run_id=run_id,
+                )
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
@@ -1106,6 +1283,42 @@ kernel @rvv_microkernel_manifest
         log_text = (artifact_dir / commands[0]["log_path"]).read_text(encoding="utf-8")
         assert_self_test("live-token" not in log_text, "command log leaked token")
         assert_self_test("visible=ok" in log_text, "command log lost non-secret text")
+
+    sample_source = """\
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
+/* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
+/* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
+/* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
+/* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
+#include <riscv_vector.h>
+void f(void) {
+  __riscv_vsetvl_e32m1;
+  __riscv_vle32_v_i32m1;
+  __riscv_vadd_vv_i32m1;
+  __riscv_vse32_v_i32m1;
+}
+int main(void) { puts("tcrv_rvv_microkernel_ok elements=16"); }
+"""
+    source_flags = validate_generated_source(sample_source, require_harness=True)
+    assert_self_test(
+        source_flags["dataflow_provenance"]["dataflow_emission_step[2]"]
+        == "op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec",
+        "dataflow provenance parser lost add step",
+    )
+    try:
+        validate_generated_source(
+            sample_source.replace("dataflow_emission_step[3]", "stale_step[3]"),
+            require_harness=True,
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "dataflow_emission_step[3]" in str(error),
+            "missing dataflow provenance error changed",
+        )
+    else:
+        raise AssertionError("source without complete dataflow provenance was accepted")
 
     remote_command = build_remote_compile_command(
         "/tmp/tianchenrv_rvv_microkernel_e2e_self_test",
