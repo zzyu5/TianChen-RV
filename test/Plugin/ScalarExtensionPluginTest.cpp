@@ -3,6 +3,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"
 
@@ -33,6 +34,8 @@ using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VSubMicrokernelOp;
@@ -317,7 +320,10 @@ module {
     if (name == "tcrv_scalar.lowering_descriptor") {
       auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
       hasDescriptor = value &&
-                      value.getValue() == "i32-vadd-microkernel.v1";
+                      value.getValue() ==
+                          tianchenrv::target::i32_binary::
+                              getI32VAddFamilyDescriptor()
+                                  .loweringDescriptor;
     }
     if (name == "tcrv_scalar.element_count") {
       auto value = llvm::dyn_cast<mlir::IntegerAttr>(attr.getValue());
@@ -364,11 +370,15 @@ module {
   };
 
   if (int result = expectScalarDescriptorForKernel(
-          availableVAdd, "i32-vadd-microkernel.v1",
+          availableVAdd,
+          tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor()
+              .loweringDescriptor,
           "frontend-lowered i32-vadd"))
     return result;
   if (int result = expectScalarDescriptorForKernel(
-          availableVSub, "i32-vsub-microkernel.v1",
+          availableVSub,
+          tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor()
+              .loweringDescriptor,
           "frontend-lowered i32-vsub"))
     return result;
 
@@ -735,6 +745,151 @@ module {
   return 0;
 }
 
+int runDescriptorBackedScalarSubMaterializationTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @scalar_vsub attributes {
+    tcrv_frontend_lowering = "i32-vsub"
+  } {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  const I32BinaryFamilyDescriptor &family =
+      tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor();
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse scalar descriptor-backed vsub module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "scalar_vsub");
+  if (int result =
+          expect(highLevelOp && kernel,
+                 "scalar descriptor-backed vsub test has anchors"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+                            registry),
+                        "register scalar plugin for descriptor-backed vsub"))
+    return result;
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
+                                 capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result =
+          expectSuccess(registry.collectVariantProposals(request, proposals),
+                        "collect scalar vsub proposal"))
+    return result;
+  if (int result = expect(proposals.size() == 1,
+                          "scalar vsub collects one proposal"))
+    return result;
+  bool hasDescriptor = false;
+  for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
+    if (attr.getName().getValue() == "tcrv_scalar.lowering_descriptor") {
+      auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
+      hasDescriptor = value && value.getValue() == family.loweringDescriptor;
+    }
+  }
+  if (int result =
+          expect(hasDescriptor,
+                 "scalar vsub proposal consumes registry lowering descriptor"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize scalar vsub proposal"))
+    return result;
+  if (int result = expect(materializedVariants.size() == 1,
+                          "one scalar vsub variant is materialized"))
+    return result;
+  VariantOp variant = materializedVariants.front();
+
+  VariantLoweringBoundaryResult boundaryResult;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                boundaryResult),
+            "materialize descriptor-backed scalar vsub boundary"))
+      return result;
+  }
+  if (int result =
+          expect(boundaryResult.isMaterialized(),
+                 "descriptor-backed scalar vsub boundary materializes"))
+    return result;
+  if (int result =
+          expect(findScalarSubMicrokernel(kernel, variant.getSymName()),
+                 "registry-backed scalar vsub descriptor materializes vsub op"))
+    return result;
+
+  VariantEmissionPlan emissionPlan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              emissionPlan),
+          "build scalar vsub emission plan"))
+    return result;
+  if (int result =
+          expect(emissionPlan.isSupported() &&
+                     emissionPlan.getEmissionKind() ==
+                         family.scalar.emissionKind &&
+                     emissionPlan.getLoweringPipeline() ==
+                         family.scalar.routeID &&
+                     emissionPlan.getRuntimeABI() ==
+                         family.scalar.runtimeABI &&
+                     emissionPlan.getRuntimeABIKind() ==
+                         family.scalar.runtimeABIKind &&
+                     emissionPlan.getRuntimeABIName() ==
+                         family.scalar.runtimeABIName &&
+                     emissionPlan.getRuntimeGlueRole() ==
+                         family.scalar.runtimeGlueRole,
+                 "scalar vsub emission plan consumes registry facts"))
+    return result;
+
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+    mlir::OperationState staleState(
+        variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
+    staleState.addAttribute(
+        "selected_variant",
+        mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                     variant.getSymName()));
+    staleState.addAttribute("role", builder.getStringAttr("direct variant"));
+    builder.create(staleState);
+  }
+
+  VariantEmissionStatus staleStatus;
+  return expectErrorContains(
+      registry.checkVariantEmissionReadiness(
+          VariantEmissionRequest(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant),
+          staleStatus),
+      {"descriptor requires", family.scalar.microkernelOpName});
+}
+
 int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -995,6 +1150,8 @@ int main() {
   if (int result = runProposalGatingTest(context))
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
+    return result;
+  if (int result = runDescriptorBackedScalarSubMaterializationTest(context))
     return result;
   if (int result = runBoundaryMaterializationRejectionTest(context))
     return result;

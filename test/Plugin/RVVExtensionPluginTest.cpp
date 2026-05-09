@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Transforms/Passes.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"
@@ -13,6 +14,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
@@ -33,14 +35,20 @@ using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
+using tianchenrv::plugin::VariantLoweringBoundaryRequest;
+using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
+using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::TailPolicy;
@@ -209,6 +217,40 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef name) {
       kernel = candidate;
   });
   return kernel;
+}
+
+I32VAddMicrokernelOp findRVVAddMicrokernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  I32VAddMicrokernelOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = microkernel;
+  }
+  return result;
+}
+
+I32VSubMicrokernelOp findRVVSubMicrokernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  I32VSubMicrokernelOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<I32VSubMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = microkernel;
+  }
+  return result;
 }
 
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
@@ -1340,6 +1382,232 @@ module {
   return 0;
 }
 
+int runRVVDescriptorBackedI32FamilyTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @registry_rvv_vadd attributes {
+    tcrv_frontend_lowering = "i32-vadd"
+  } {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+  }
+
+  tcrv.exec.kernel @registry_rvv_vsub attributes {
+    tcrv_frontend_lowering = "i32-vsub"
+  } {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV descriptor-backed family module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  if (int result =
+          expect(highLevelOp,
+                 "RVV descriptor-backed family test has high-level op"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for descriptor-backed test"))
+    return result;
+
+  auto expectFamily =
+      [&](llvm::StringRef kernelName,
+          const I32BinaryFamilyDescriptor &family) -> int {
+    KernelOp kernel = findKernel(*module, kernelName);
+    if (int result =
+            expect(kernel, llvm::Twine("kernel is present: ") + kernelName))
+      return result;
+
+    TargetCapabilitySet capabilities =
+        TargetCapabilitySet::buildFromKernel(kernel);
+    VariantProposalRequest request =
+        makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+    llvm::SmallVector<VariantProposal, 1> proposals;
+    if (int result =
+            expectSuccess(registry.collectVariantProposals(request, proposals),
+                          llvm::Twine("collect RVV proposal for ") +
+                              kernelName))
+      return result;
+    if (int result =
+            expect(proposals.size() == 1,
+                   llvm::Twine("one RVV proposal for ") + kernelName))
+      return result;
+    if (int result = expectProposalStringAttr(
+            proposals[0], "tcrv_rvv.lowering_descriptor",
+            family.loweringDescriptor))
+      return result;
+
+    mlir::OpBuilder builder(&context);
+    llvm::SmallVector<VariantOp, 1> materializedVariants;
+    if (int result = expectSuccess(
+            tianchenrv::transforms::collectAndMaterializeVariantProposals(
+                builder, registry, request, &materializedVariants),
+            llvm::Twine("materialize RVV proposal for ") + kernelName))
+      return result;
+    if (int result =
+            expect(materializedVariants.size() == 1,
+                   llvm::Twine("one materialized RVV variant for ") +
+                       kernelName))
+      return result;
+    VariantOp variant = materializedVariants.front();
+    if (int result =
+            expectStringAttr(variant.getOperation(),
+                             "tcrv_rvv.lowering_descriptor",
+                             family.loweringDescriptor))
+      return result;
+
+    VariantLoweringBoundaryResult boundaryResult;
+    {
+      mlir::OpBuilder::InsertionGuard guard(builder);
+      builder.setInsertionPointToEnd(&kernel.getBody().front());
+      if (int result = expectSuccess(
+              registry.materializeSelectedLoweringBoundary(
+                  VariantLoweringBoundaryRequest(
+                      variant, kernel, capabilities,
+                      VariantEmissionRole::DirectVariant, builder),
+                  boundaryResult),
+              llvm::Twine("materialize RVV boundary for ") + kernelName))
+        return result;
+    }
+    if (int result =
+            expect(boundaryResult.isMaterialized(),
+                   llvm::Twine("RVV boundary materialized for ") + kernelName))
+      return result;
+
+    if (family.kind == I32BinaryFamilyKind::Add) {
+      if (int result = expect(
+              findRVVAddMicrokernel(kernel, variant.getSymName()),
+              "registry-backed RVV vadd descriptor materializes vadd op"))
+        return result;
+    } else {
+      if (int result = expect(
+              findRVVSubMicrokernel(kernel, variant.getSymName()),
+              "registry-backed RVV vsub descriptor materializes vsub op"))
+        return result;
+    }
+
+    VariantEmissionPlan emissionPlan;
+    if (int result = expectSuccess(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                emissionPlan),
+            llvm::Twine("build RVV emission plan for ") + kernelName))
+      return result;
+    if (int result =
+            expect(emissionPlan.isSupported() &&
+                       emissionPlan.getEmissionKind() ==
+                           family.rvv.emissionKind &&
+                       emissionPlan.getLoweringPipeline() ==
+                           family.rvv.routeID &&
+                       emissionPlan.getRuntimeABI() ==
+                           family.rvv.runtimeABI &&
+                       emissionPlan.getRuntimeABIKind() ==
+                           family.rvv.runtimeABIKind &&
+                       emissionPlan.getRuntimeABIName() ==
+                           family.rvv.runtimeABIName &&
+                       emissionPlan.getRuntimeGlueRole() ==
+                           family.rvv.runtimeGlueRole,
+                   llvm::Twine("RVV emission plan consumes registry facts for ") +
+                       kernelName))
+      return result;
+
+    if (family.kind == I32BinaryFamilyKind::Sub) {
+      mlir::OpBuilder::InsertionGuard guard(builder);
+      builder.setInsertionPointToEnd(&kernel.getBody().front());
+      mlir::OperationState staleState(
+          variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
+      staleState.addAttribute(
+          "selected_variant",
+          mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                       variant.getSymName()));
+      staleState.addAttribute("role", builder.getStringAttr("direct variant"));
+      builder.create(staleState);
+
+      VariantEmissionStatus staleStatus;
+      if (int result = expectErrorContains(
+              registry.checkVariantEmissionReadiness(
+                  VariantEmissionRequest(variant, kernel, capabilities,
+                                         VariantEmissionRole::DirectVariant),
+                  staleStatus),
+              {"descriptor requires", family.rvv.microkernelOpName}))
+        return result;
+    }
+
+    return 0;
+  };
+
+  if (int result = expectFamily(
+          "registry_rvv_vadd",
+          tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor()))
+    return result;
+  if (int result = expectFamily(
+          "registry_rvv_vsub",
+          tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor()))
+    return result;
+
+  return 0;
+}
+
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1736,6 +2004,8 @@ int main() {
   if (int result = runRVVCapabilityPropertyDecisionTest(context))
     return result;
   if (int result = runRVVModuleTargetProfileCapacityDecisionTest(context))
+    return result;
+  if (int result = runRVVDescriptorBackedI32FamilyTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

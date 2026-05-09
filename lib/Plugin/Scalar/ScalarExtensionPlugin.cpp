@@ -5,6 +5,7 @@
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -31,14 +32,8 @@ constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
-constexpr llvm::StringLiteral kFrontendLoweringI32VAddValue("i32-vadd");
-constexpr llvm::StringLiteral kFrontendLoweringI32VSubValue("i32-vsub");
 constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorAttrName(
     "tcrv_scalar.lowering_descriptor");
-constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorValue(
-    "i32-vadd-microkernel.v1");
-constexpr llvm::StringLiteral kScalarI32VSubLoweringDescriptorValue(
-    "i32-vsub-microkernel.v1");
 constexpr llvm::StringLiteral kScalarI32VAddElementCountAttrName(
     "tcrv_scalar.element_count");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
@@ -52,69 +47,38 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kFallbackReasonAttrName("fallback_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
-constexpr llvm::StringLiteral kMicrokernelEmissionPath(
-    "scalar-explicit-i32-vadd-microkernel-c-source-export");
-constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionPath(
-    "scalar-explicit-i32-vsub-microkernel-c-source-export");
-constexpr llvm::StringLiteral kI32VAddMicrokernelEmissionKind(
-    "scalar-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionKind(
-    "scalar-explicit-i32-vsub-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VAddMicrokernelRouteID(
-    "tcrv-export-scalar-microkernel-c");
-constexpr llvm::StringLiteral kI32VSubMicrokernelRouteID(
-    "tcrv-export-scalar-i32-vsub-microkernel-c");
-constexpr llvm::StringLiteral kI32VAddRuntimeABI(
-    "scalar-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABI(
-    "scalar-i32-vsub-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kScalarRuntimeCallableABIKind(
-    "scalar-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddRuntimeABIName(
-    "scalar-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABIName(
-    "scalar-i32-vsub-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VAddRuntimeGlueRole(
-    "runtime-callable-i32-vadd-fallback-function");
-constexpr llvm::StringLiteral kI32VSubRuntimeGlueRole(
-    "runtime-callable-i32-vsub-fallback-function");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
 
-enum class ScalarI32MicrokernelKind {
-  Add,
-  Sub,
-};
+using ScalarI32MicrokernelKind =
+    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+using ScalarI32FamilyDescriptor =
+    tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using ScalarI32RegistryMicrokernelDescriptor =
+    tianchenrv::target::i32_binary::ScalarI32MicrokernelFamilyDescriptor;
 
 struct ScalarI32MicrokernelFamilySpec {
-  ScalarI32MicrokernelKind kind;
-  llvm::StringRef frontendLowering;
-  llvm::StringRef descriptor;
+  const ScalarI32FamilyDescriptor *family;
   llvm::StringRef descriptorNoun;
-  llvm::StringRef microkernelOpName;
   llvm::StringRef emissionPath;
-  llvm::StringRef emissionKind;
-  llvm::StringRef routeID;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
   llvm::StringRef supportedMessage;
+
+  ScalarI32MicrokernelKind getKind() const { return family->kind; }
+  llvm::StringRef getFrontendLowering() const {
+    return family->frontendLowering;
+  }
+  llvm::StringRef getLoweringDescriptor() const {
+    return family->loweringDescriptor;
+  }
+  const ScalarI32RegistryMicrokernelDescriptor &getScalar() const {
+    return family->scalar;
+  }
 };
 
 const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
   static const ScalarI32MicrokernelFamilySpec spec{
-      ScalarI32MicrokernelKind::Add,
-      kFrontendLoweringI32VAddValue,
-      kScalarI32VAddLoweringDescriptorValue,
+      &tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor(),
       "finite scalar i32-vadd lowering descriptor",
-      "tcrv_scalar.i32_vadd_microkernel",
-      kMicrokernelEmissionPath,
-      kI32VAddMicrokernelEmissionKind,
-      kI32VAddMicrokernelRouteID,
-      kI32VAddRuntimeABI,
-      kScalarRuntimeCallableABIKind,
-      kI32VAddRuntimeABIName,
-      kI32VAddRuntimeGlueRole,
+      "scalar-explicit-i32-vadd-microkernel-c-source-export",
       "explicit scalar i32 vector-add microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
       "this selected fallback path; no self-check main is part of the "
@@ -126,18 +90,9 @@ const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
 
 const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
   static const ScalarI32MicrokernelFamilySpec spec{
-      ScalarI32MicrokernelKind::Sub,
-      kFrontendLoweringI32VSubValue,
-      kScalarI32VSubLoweringDescriptorValue,
+      &tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor(),
       "finite scalar i32-vsub lowering descriptor",
-      "tcrv_scalar.i32_vsub_microkernel",
-      kI32VSubMicrokernelEmissionPath,
-      kI32VSubMicrokernelEmissionKind,
-      kI32VSubMicrokernelRouteID,
-      kI32VSubRuntimeABI,
-      kScalarRuntimeCallableABIKind,
-      kI32VSubRuntimeABIName,
-      kI32VSubRuntimeGlueRole,
+      "scalar-explicit-i32-vsub-microkernel-c-source-export",
       "explicit scalar i32 vector-subtract microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
       "this selected fallback path; no self-check main is part of the "
@@ -149,20 +104,28 @@ const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
 
 const ScalarI32MicrokernelFamilySpec *
 lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
-  descriptor = descriptor.trim();
-  if (descriptor == getI32VAddFamilySpec().descriptor)
+  const ScalarI32FamilyDescriptor *family =
+      tianchenrv::target::i32_binary::lookupI32BinaryFamilyByLoweringDescriptor(
+          descriptor);
+  if (!family)
+    return nullptr;
+  if (family->kind == ScalarI32MicrokernelKind::Add)
     return &getI32VAddFamilySpec();
-  if (descriptor == getI32VSubFamilySpec().descriptor)
+  if (family->kind == ScalarI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
   return nullptr;
 }
 
 const ScalarI32MicrokernelFamilySpec *
 lookupI32MicrokernelFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
-  frontendLowering = frontendLowering.trim();
-  if (frontendLowering == getI32VAddFamilySpec().frontendLowering)
+  const ScalarI32FamilyDescriptor *family =
+      tianchenrv::target::i32_binary::lookupI32BinaryFamilyByFrontendLowering(
+          frontendLowering);
+  if (!family)
+    return nullptr;
+  if (family->kind == ScalarI32MicrokernelKind::Add)
     return &getI32VAddFamilySpec();
-  if (frontendLowering == getI32VSubFamilySpec().frontendLowering)
+  if (family->kind == ScalarI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
   return nullptr;
 }
@@ -279,8 +242,8 @@ buildI32MicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
     return makeScalarPluginError(
         llvm::Twine("finite scalar i32 lowering descriptor on variant @") +
         variant.getSymName() + " must be '" +
-        getI32VAddFamilySpec().descriptor + "' or '" +
-        getI32VSubFamilySpec().descriptor + "'");
+        getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
+        getI32VSubFamilySpec().getLoweringDescriptor() + "'");
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
@@ -491,7 +454,8 @@ findMatchingExplicitMicrokernelFamily(
     if (selectedVariant.getValue() != variant.getSymName() ||
         role.getValue() != expectedRole) {
       return makeScalarPluginError(
-          llvm::Twine("stale ") + family->microkernelOpName + " for @" +
+          llvm::Twine("stale ") + family->getScalar().microkernelOpName +
+          " for @" +
           selectedVariant.getValue() + " as " + role.getValue() +
           " is not the selected scalar emission plan path @" +
           variant.getSymName() + " as " + expectedRole);
@@ -501,8 +465,9 @@ findMatchingExplicitMicrokernelFamily(
       return makeScalarPluginError(
           llvm::Twine("selected scalar emission plan path @") +
           variant.getSymName() + " as " + expectedRole + " has " +
-          family->microkernelOpName + " but selected variant descriptor "
-          "requires " + (*descriptorPlan)->family->microkernelOpName);
+          family->getScalar().microkernelOpName +
+          " but selected variant descriptor requires " +
+          (*descriptorPlan)->family->getScalar().microkernelOpName);
 
     ++matches;
     matchedFamily = family;
@@ -526,8 +491,8 @@ findMatchingExplicitMicrokernelFamily(
             variantRequires)) {
       return makeScalarPluginError(
           llvm::Twine("explicit scalar microkernel emission plan requires ") +
-          family->microkernelOpName + " required_capabilities to match "
-          "selected variant requires metadata");
+          family->getScalar().microkernelOpName +
+          " required_capabilities to match selected variant requires metadata");
     }
 
     auto elementCount =
@@ -542,7 +507,7 @@ findMatchingExplicitMicrokernelFamily(
         elementCount.getInt() != (*descriptorPlan)->elementCount)
       return makeScalarPluginError(
           llvm::Twine("explicit scalar microkernel emission plan requires ") +
-          family->microkernelOpName +
+          family->getScalar().microkernelOpName +
           " element_count to match selected variant finite descriptor "
           "tcrv_scalar.element_count");
   }
@@ -605,7 +570,7 @@ mlir::Operation *materializeScalarI32MicrokernelOp(
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
   llvm::StringRef opName =
-      plan.family->kind == ScalarI32MicrokernelKind::Sub
+      plan.family->getKind() == ScalarI32MicrokernelKind::Sub
           ? tcrv::scalar::I32VSubMicrokernelOp::getOperationName()
           : tcrv::scalar::I32VAddMicrokernelOp::getOperationName();
   mlir::OperationState state(variant.getLoc(), opName);
@@ -675,8 +640,8 @@ llvm::Error rejectExistingScalarMicrokernelForSelectedPath(
       continue;
 
     return makeScalarPluginError(
-        llvm::Twine("requires no pre-existing ") + family->microkernelOpName +
-        " for target @" +
+        llvm::Twine("requires no pre-existing ") +
+        family->getScalar().microkernelOpName + " for target @" +
         targetSymbol + " as " + expectedRole);
   }
 
@@ -768,7 +733,7 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kScalarI32VAddLoweringDescriptorAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            family->descriptor));
+                            family->getLoweringDescriptor()));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kScalarI32VAddElementCountAttrName),
@@ -881,11 +846,12 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     out = VariantEmissionPlan::getSupported(
         kScalarPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
-        family.emissionKind, family.routeID, family.runtimeABI,
+        family.getScalar().emissionKind, family.getScalar().routeID,
+        family.getScalar().runtimeABI,
         "runtime-callable-c-source", family.supportedMessage);
-    out.setRuntimeABIKind(family.runtimeABIKind);
-    out.setRuntimeABIName(family.runtimeABIName);
-    out.setRuntimeGlueRole(family.runtimeGlueRole);
+    out.setRuntimeABIKind(family.getScalar().runtimeABIKind);
+    out.setRuntimeABIName(family.getScalar().runtimeABIName);
+    out.setRuntimeGlueRole(family.getScalar().runtimeGlueRole);
     llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
         support::buildI32VAddCallableABIPlan(request.getKernel());
     if (!callablePlan)

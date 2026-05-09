@@ -7,6 +7,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -39,14 +40,8 @@ constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
-constexpr llvm::StringLiteral kFrontendLoweringI32VAddValue("i32-vadd");
-constexpr llvm::StringLiteral kFrontendLoweringI32VSubValue("i32-vsub");
 constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorAttrName(
     "tcrv_rvv.lowering_descriptor");
-constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorValue(
-    "i32-vadd-microkernel.v1");
-constexpr llvm::StringLiteral kRVVI32VSubLoweringDescriptorValue(
-    "i32-vsub-microkernel.v1");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
     "tcrv_rvv.smoke_probe_descriptor");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorValue(
@@ -89,32 +84,6 @@ constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 constexpr llvm::StringLiteral kTargetAttrName("target");
-constexpr llvm::StringLiteral kMicrokernelEmissionPath(
-    "rvv-explicit-i32-vadd-microkernel-c-source-export");
-constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionPath(
-    "rvv-explicit-i32-vsub-microkernel-c-source-export");
-constexpr llvm::StringLiteral kI32VAddMicrokernelEmissionKind(
-    "rvv-explicit-i32-vadd-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionKind(
-    "rvv-explicit-i32-vsub-microkernel-c-source");
-constexpr llvm::StringLiteral kI32VAddMicrokernelRouteID(
-    "tcrv-export-rvv-microkernel-c");
-constexpr llvm::StringLiteral kI32VSubMicrokernelRouteID(
-    "tcrv-export-rvv-i32-vsub-microkernel-c");
-constexpr llvm::StringLiteral kI32VAddRuntimeABI(
-    "rvv-i32-vadd-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABI(
-    "rvv-i32-vsub-runtime-callable-c-abi.v1");
-constexpr llvm::StringLiteral kI32VAddRuntimeABIName(
-    "rvv-i32-vadd-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kI32VSubRuntimeABIName(
-    "rvv-i32-vsub-runtime-callable-c-function.v1");
-constexpr llvm::StringLiteral kRVVRuntimeCallableABIKind(
-    "rvv-runtime-callable-c-abi");
-constexpr llvm::StringLiteral kI32VAddRuntimeGlueRole(
-    "runtime-callable-i32-vadd-function");
-constexpr llvm::StringLiteral kI32VSubRuntimeGlueRole(
-    "runtime-callable-i32-vsub-function");
 constexpr llvm::StringLiteral kRVVSmokeProbeCapabilityID("rvv.smoke_probe");
 constexpr llvm::StringLiteral kSmokeProbeEmissionPath(
     "rvv-smoke-probe-standalone-c-source-export");
@@ -154,43 +123,33 @@ struct RVVCapabilityPropertyView {
   std::optional<std::uint64_t> i32M1LaneCount;
 };
 
-enum class RVVI32MicrokernelKind {
-  Add,
-  Sub,
-};
+using RVVI32MicrokernelKind =
+    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+using RVVI32FamilyDescriptor =
+    tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using RVVI32RegistryMicrokernelDescriptor =
+    tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
 
 struct RVVI32MicrokernelFamilySpec {
-  RVVI32MicrokernelKind kind;
-  llvm::StringRef descriptor;
+  const RVVI32FamilyDescriptor *family;
   llvm::StringRef descriptorNoun;
-  llvm::StringRef microkernelOpName;
-  llvm::StringRef arithmeticOpName;
-  llvm::StringRef arithmeticVerb;
   llvm::StringRef emissionPath;
-  llvm::StringRef emissionKind;
-  llvm::StringRef routeID;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
   llvm::StringRef supportedMessage;
+
+  RVVI32MicrokernelKind getKind() const { return family->kind; }
+  llvm::StringRef getLoweringDescriptor() const {
+    return family->loweringDescriptor;
+  }
+  const RVVI32RegistryMicrokernelDescriptor &getRVV() const {
+    return family->rvv;
+  }
 };
 
 const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
   static const RVVI32MicrokernelFamilySpec spec{
-      RVVI32MicrokernelKind::Add,
-      kRVVI32VAddLoweringDescriptorValue,
+      &tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor(),
       "finite RVV i32-vadd lowering descriptor",
-      "tcrv_rvv.i32_vadd_microkernel",
-      "tcrv_rvv.i32_add",
-      "add",
-      kMicrokernelEmissionPath,
-      kI32VAddMicrokernelEmissionKind,
-      kI32VAddMicrokernelRouteID,
-      kI32VAddRuntimeABI,
-      kRVVRuntimeCallableABIKind,
-      kI32VAddRuntimeABIName,
-      kI32VAddRuntimeGlueRole,
+      "rvv-explicit-i32-vadd-microkernel-c-source-export",
       "explicit RVV i32 vector-add microkernel C source export provides a "
       "library-style runtime-callable C ABI function for this selected path; "
       "any self-check main is an explicit harness export and is not the "
@@ -202,19 +161,9 @@ const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
 
 const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
   static const RVVI32MicrokernelFamilySpec spec{
-      RVVI32MicrokernelKind::Sub,
-      kRVVI32VSubLoweringDescriptorValue,
+      &tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor(),
       "finite RVV i32-vsub lowering descriptor",
-      "tcrv_rvv.i32_vsub_microkernel",
-      "tcrv_rvv.i32_sub",
-      "subtract",
-      kI32VSubMicrokernelEmissionPath,
-      kI32VSubMicrokernelEmissionKind,
-      kI32VSubMicrokernelRouteID,
-      kI32VSubRuntimeABI,
-      kRVVRuntimeCallableABIKind,
-      kI32VSubRuntimeABIName,
-      kI32VSubRuntimeGlueRole,
+      "rvv-explicit-i32-vsub-microkernel-c-source-export",
       "explicit RVV i32 vector-subtract microkernel C source export provides "
       "a library-style runtime-callable C ABI function for this selected "
       "path; any self-check main is an explicit harness export and is not the "
@@ -226,10 +175,24 @@ const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
 
 const RVVI32MicrokernelFamilySpec *
 lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
-  descriptor = descriptor.trim();
-  if (descriptor == getI32VAddFamilySpec().descriptor)
+  const RVVI32FamilyDescriptor *family =
+      tianchenrv::target::i32_binary::lookupI32BinaryFamilyByLoweringDescriptor(
+          descriptor);
+  if (!family)
+    return nullptr;
+  if (family->kind == RVVI32MicrokernelKind::Add)
     return &getI32VAddFamilySpec();
-  if (descriptor == getI32VSubFamilySpec().descriptor)
+  if (family->kind == RVVI32MicrokernelKind::Sub)
+    return &getI32VSubFamilySpec();
+  return nullptr;
+}
+
+const RVVI32MicrokernelFamilySpec *
+getI32MicrokernelFamilyByDescriptor(
+    const RVVI32FamilyDescriptor &family) {
+  if (family.kind == RVVI32MicrokernelKind::Add)
+    return &getI32VAddFamilySpec();
+  if (family.kind == RVVI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
   return nullptr;
 }
@@ -920,8 +883,8 @@ buildI32MicrokernelMaterializationPlan(
         llvm::Twine("finite RVV i32 microkernel lowering descriptor on "
                     "variant @") +
         variant.getSymName() + " must be '" +
-        getI32VAddFamilySpec().descriptor + "' or '" +
-        getI32VSubFamilySpec().descriptor + "'");
+        getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
+        getI32VSubFamilySpec().getLoweringDescriptor() + "'");
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
@@ -1037,7 +1000,7 @@ llvm::Error rejectExistingRVVMicrokernelForSelectedPath(
 
     return makeRVVPluginError(
         llvm::Twine("requires no pre-existing ") +
-        family->microkernelOpName + " for target @" +
+        family->getRVV().microkernelOpName + " for target @" +
         targetSymbol + " as " + expectedRole);
   }
 
@@ -1167,8 +1130,8 @@ llvm::Error validateMicrokernelStructuredControlPlane(
     return makeRVVPluginError(
         llvm::Twine("explicit RVV microkernel emission plan requires the "
                     "finite tcrv_rvv.i32_load, tcrv_rvv.i32_load, ") +
-        family.arithmeticOpName + ", tcrv_rvv.i32_store sequence in the "
-                                  "tcrv_rvv.with_vl body");
+        family.getRVV().arithmeticOpName +
+        ", tcrv_rvv.i32_store sequence in the tcrv_rvv.with_vl body");
 
   auto lhsLoad = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(dataflowOps[0]);
   auto rhsLoad = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(dataflowOps[1]);
@@ -1178,7 +1141,7 @@ llvm::Error validateMicrokernelStructuredControlPlane(
   mlir::Value arithmeticVL;
   mlir::Value arithmeticResult;
   if (auto add = llvm::dyn_cast<tcrv::rvv::I32AddOp>(dataflowOps[2])) {
-    if (family.kind != RVVI32MicrokernelKind::Add)
+    if (family.getKind() != RVVI32MicrokernelKind::Add)
       return makeRVVPluginError(
           "explicit RVV microkernel emission plan arithmetic op does not "
           "match the selected microkernel family");
@@ -1188,7 +1151,7 @@ llvm::Error validateMicrokernelStructuredControlPlane(
     arithmeticResult = add.getSum();
   } else if (auto sub =
                  llvm::dyn_cast<tcrv::rvv::I32SubOp>(dataflowOps[2])) {
-    if (family.kind != RVVI32MicrokernelKind::Sub)
+    if (family.getKind() != RVVI32MicrokernelKind::Sub)
       return makeRVVPluginError(
           "explicit RVV microkernel emission plan arithmetic op does not "
           "match the selected microkernel family");
@@ -1201,8 +1164,8 @@ llvm::Error validateMicrokernelStructuredControlPlane(
     return makeRVVPluginError(
         llvm::Twine("explicit RVV microkernel emission plan requires the "
                     "finite tcrv_rvv.i32_load, tcrv_rvv.i32_load, ") +
-        family.arithmeticOpName + ", tcrv_rvv.i32_store sequence in the "
-                                  "tcrv_rvv.with_vl body");
+        family.getRVV().arithmeticOpName +
+        ", tcrv_rvv.i32_store sequence in the tcrv_rvv.with_vl body");
 
   if (lhsLoad.getVl() != withVL.getVl() ||
       rhsLoad.getVl() != withVL.getVl() || arithmeticVL != withVL.getVl() ||
@@ -1216,7 +1179,7 @@ llvm::Error validateMicrokernelStructuredControlPlane(
     return makeRVVPluginError(
         llvm::Twine("explicit RVV microkernel emission plan requires finite "
                     "RVV i32 dataflow SSA chain lhs-load,rhs-load -> ") +
-        family.arithmeticVerb + " -> store");
+        family.getRVV().arithmeticVerb + " -> store");
 
   if (llvm::Error error = validateMicrokernelDataflowRoleAttr(
           lhsLoad.getOperation(), kBufferRoleAttrName,
@@ -1286,7 +1249,8 @@ findMatchingExplicitMicrokernelFamily(
     if (selectedVariant.getValue() != variant.getSymName() ||
         role.getValue() != expectedRole) {
       return makeRVVPluginError(
-          llvm::Twine("stale ") + family->microkernelOpName + " for @" +
+          llvm::Twine("stale ") + family->getRVV().microkernelOpName +
+          " for @" +
           selectedVariant.getValue() + " as " + role.getValue() +
           " is not the selected RVV emission plan path @" +
           variant.getSymName() + " as " + expectedRole);
@@ -1297,9 +1261,9 @@ findMatchingExplicitMicrokernelFamily(
     if (*descriptorPlan && (*descriptorPlan)->family != family)
       return makeRVVPluginError(
           llvm::Twine("explicit RVV microkernel emission plan uses ") +
-          family->microkernelOpName +
+          family->getRVV().microkernelOpName +
           " but selected variant descriptor requires " +
-          (*descriptorPlan)->family->microkernelOpName);
+          (*descriptorPlan)->family->getRVV().microkernelOpName);
 
     if (llvm::Error error =
             validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
@@ -1318,7 +1282,7 @@ findMatchingExplicitMicrokernelFamily(
             variantRequires) {
       return makeRVVPluginError(
           llvm::Twine("explicit RVV microkernel emission plan requires ") +
-          family->microkernelOpName +
+          family->getRVV().microkernelOpName +
           " required_capabilities to match selected variant requires metadata");
     }
 
@@ -1349,7 +1313,7 @@ findMatchingExplicitMicrokernelFamily(
         elementCount.getInt() != (*descriptorPlan)->elementCount)
       return makeRVVPluginError(
           llvm::Twine("explicit RVV microkernel emission plan requires ") +
-          family->microkernelOpName +
+          family->getRVV().microkernelOpName +
           " element_count to match selected variant finite descriptor "
           "metadata 'tcrv_rvv.element_count'");
 
@@ -1407,14 +1371,23 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
             kFrontendLoweringAttrName, value))
       return std::move(error);
 
-    if (value == kFrontendLoweringI32VAddValue)
-      requestedFamily = &getI32VAddFamilySpec();
-    else if (value == kFrontendLoweringI32VSubValue)
-      requestedFamily = &getI32VSubFamilySpec();
-    else
+    const RVVI32FamilyDescriptor *requestedDescriptor =
+        tianchenrv::target::i32_binary::lookupI32BinaryFamilyByFrontendLowering(
+            value);
+    if (requestedDescriptor) {
+      requestedFamily = getI32MicrokernelFamilyByDescriptor(
+          *requestedDescriptor);
+      if (!requestedFamily)
+        return makeRVVPluginError(
+            llvm::Twine("kernel @") + request.getKernel().getSymName() +
+            " frontend lowering family is not an RVV i32 microkernel family");
+    } else {
       return makeRVVPluginError(
           llvm::Twine("kernel @") + request.getKernel().getSymName() +
-          " frontend lowering family must be 'i32-vadd' or 'i32-vsub'");
+          " frontend lowering family must be '" +
+          getI32VAddFamilySpec().family->frontendLowering + "' or '" +
+          getI32VSubFamilySpec().family->frontendLowering + "'");
+    }
   }
 
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
@@ -1442,7 +1415,7 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddLoweringDescriptorAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            requestedFamily->descriptor));
+                            requestedFamily->getLoweringDescriptor()));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddElementCountAttrName),
@@ -1509,7 +1482,7 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
   mlir::OperationState state(
-      variant.getLoc(), plan.family->microkernelOpName);
+      variant.getLoc(), plan.family->getRVV().microkernelOpName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
@@ -1586,7 +1559,7 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
       llvm::cast<tcrv::rvv::I32LoadOp>(withVLBodyBuilder.create(rhsLoadState));
 
   mlir::OperationState arithmeticState(variant.getLoc(),
-                                       plan.family->arithmeticOpName);
+                                       plan.family->getRVV().arithmeticOpName);
   arithmeticState.addOperands(
       {lhsLoad.getLoaded(), rhsLoad.getLoaded(), setvl.getVl()});
   arithmeticState.addTypes(i32m1);
@@ -1854,11 +1827,12 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     out = VariantEmissionPlan::getSupported(
         kRVVPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
-        family.emissionKind, family.routeID, family.runtimeABI,
+        family.getRVV().emissionKind, family.getRVV().routeID,
+        family.getRVV().runtimeABI,
         "runtime-callable-c-source", family.supportedMessage);
-    out.setRuntimeABIKind(family.runtimeABIKind);
-    out.setRuntimeABIName(family.runtimeABIName);
-    out.setRuntimeGlueRole(family.runtimeGlueRole);
+    out.setRuntimeABIKind(family.getRVV().runtimeABIKind);
+    out.setRuntimeABIName(family.getRVV().runtimeABIName);
+    out.setRuntimeGlueRole(family.getRVV().runtimeGlueRole);
     llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
         support::buildI32VAddCallableABIPlan(request.getKernel());
     if (!callablePlan)

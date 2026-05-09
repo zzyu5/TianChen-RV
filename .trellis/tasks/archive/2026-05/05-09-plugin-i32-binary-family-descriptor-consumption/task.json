@@ -1,0 +1,33 @@
+{
+  "id": "plugin-i32-binary-family-descriptor-consumption",
+  "name": "plugin-i32-binary-family-descriptor-consumption",
+  "title": "Plugin i32 binary family descriptor consumption",
+  "description": "Migrate RVV and scalar plugin-local i32 add/sub proposal/materialization consumers to use the bounded C++ i32 binary family descriptor registry for shared family facts while preserving plugin-owned semantics.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "plugin",
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-09",
+  "completedAt": "2026-05-09",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Target/I32BinaryFamilyRegistry.h",
+    "lib/Plugin/RVV/RVVExtensionPlugin.cpp",
+    "lib/Plugin/Scalar/ScalarExtensionPlugin.cpp",
+    "test/Plugin/RVVExtensionPluginTest.cpp",
+    "test/Plugin/ScalarExtensionPluginTest.cpp",
+    "test/Target/I32BinaryFamilyRegistryTest.cpp"
+  ],
+  "notes": "Completed module behavior: RVV and scalar plugin i32 add/sub consumers now use registry-backed family facts for frontend lowering lookup, descriptor identity, microkernel op identity, emission kind, route id, runtime ABI id/kind/name, and runtime glue role. Plugin-local supported text, diagnostics, legality, RVV policy/capability/capacity decisions, scalar fallback role, materialization decisions, and smoke/metadata-only wording stayed local. Focused and full local checks passed; no ssh rvv runtime evidence was needed because no new runtime correctness claim was made.",
+  "meta": {}
+}

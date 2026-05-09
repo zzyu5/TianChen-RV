@@ -217,3 +217,36 @@ Added i32-vsub support to the RVV/scalar dispatch evidence runner and direct sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Plugin i32 binary family descriptor consumption
+
+**Date**: 2026-05-09
+**Task**: Plugin i32 binary family descriptor consumption
+**Branch**: `main`
+
+### Summary
+
+Migrated RVV and scalar plugin-local i32 add/sub proposal, materialization, readiness, and emission-plan consumers to use the bounded i32 binary family descriptor registry for shared family facts while preserving plugin-local wording, legality, RVV policy/capacity decisions, scalar fallback semantics, and generated behavior.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
