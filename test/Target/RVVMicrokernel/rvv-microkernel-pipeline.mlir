@@ -1,5 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-c | FileCheck %s --check-prefix=LIB --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: sed '/%lhs = tcrv_rvv.i32_load/s/buffer_role = "lhs-input-buffer"/buffer_role = "output-buffer"/' %s | not tcrv-opt - --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=BAD-DATAFLOW-ROLE --implicit-check-not="__riscv_vle32_v_i32m1"
 
 module @rvv_microkernel_input {
   tcrv.exec.kernel @micro_a {
@@ -110,6 +111,7 @@ module @rvv_microkernel_input {
 // LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
 // LIB: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
+// LIB: /* dataflow_emission_source: derived from verified tcrv_rvv.with_vl body order, SSA chain, and buffer_role attributes */
 // LIB: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 // LIB: /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
 // LIB: /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
@@ -146,3 +148,6 @@ module @rvv_microkernel_input {
 // HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one((size_t)kTCRVMicrokernelShortRuntimeN);
 // HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one((size_t)kTCRVMicrokernelCapacity);
 // HARNESS: printf("tcrv_rvv_microkernel_ok runtime_counts=%zu,%zu\n", (size_t)kTCRVMicrokernelShortRuntimeN, (size_t)kTCRVMicrokernelCapacity);
+
+// BAD-DATAFLOW-ROLE: tcrv_rvv.i32_vadd_microkernel
+// BAD-DATAFLOW-ROLE-SAME: requires first tcrv_rvv.i32_load to reference runtime ABI role 'lhs-input-buffer'

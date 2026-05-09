@@ -13,6 +13,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -30,6 +31,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 
 namespace tianchenrv::target::rvv {
 namespace {
@@ -385,9 +387,9 @@ llvm::Error validateCParameterName(KernelOp kernel, llvm::StringRef value) {
   return llvm::Error::success();
 }
 
-llvm::Expected<support::RuntimeABIParameterRole> getRequiredDataflowRoleAttr(
+llvm::Expected<support::RuntimeABIParameterRole> getDataflowRoleAttr(
     KernelOp kernel, mlir::Operation *op, llvm::StringRef attrName,
-    llvm::StringRef context, support::RuntimeABIParameterRole expectedRole) {
+    llvm::StringRef context) {
   std::string value;
   if (llvm::Error error =
           requireSafeStringAttr(kernel, op, attrName, context, value))
@@ -401,12 +403,6 @@ llvm::Expected<support::RuntimeABIParameterRole> getRequiredDataflowRoleAttr(
                     attrName +
                     "' must reference a supported runtime ABI parameter role");
 
-  if (*parsedRole != expectedRole)
-    return makeMicrokernelError(
-        kernel, llvm::Twine(context) + " attribute '" +
-                    attrName + "' must reference runtime ABI role '" +
-                    support::stringifyRuntimeABIParameterRole(expectedRole) +
-                    "' for this bounded export route");
   return *parsedRole;
 }
 
@@ -437,6 +433,172 @@ RVVI32VAddDataflowStep makeStoreStep(support::RuntimeABIParameterRole role,
   step.bufferRole = role;
   step.value = value;
   return step;
+}
+
+using DataflowValueBinding =
+    std::pair<mlir::Value, RVVI32VAddDataflowValue>;
+
+llvm::Expected<RVVI32VAddDataflowValue>
+getLoadResultForBufferRole(KernelOp kernel,
+                           support::RuntimeABIParameterRole role) {
+  switch (role) {
+  case support::RuntimeABIParameterRole::LHSInputBuffer:
+    return RVVI32VAddDataflowValue::LHSVector;
+  case support::RuntimeABIParameterRole::RHSInputBuffer:
+    return RVVI32VAddDataflowValue::RHSVector;
+  case support::RuntimeABIParameterRole::OutputBuffer:
+  case support::RuntimeABIParameterRole::RuntimeElementCount:
+  case support::RuntimeABIParameterRole::DispatchAvailabilityGuard:
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_load buffer_role must reference "
+                "'lhs-input-buffer' or 'rhs-input-buffer' for this bounded "
+                "RVV i32-vadd export route");
+  }
+  return makeMicrokernelError(kernel,
+                              "unsupported tcrv_rvv.i32_load buffer_role");
+}
+
+bool dataflowPlanAlreadyDefines(
+    const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+    RVVI32VAddDataflowValue value) {
+  return llvm::any_of(dataflowPlan.steps, [&](const auto &step) {
+    return step.result == value;
+  });
+}
+
+llvm::Expected<RVVI32VAddDataflowValue>
+lookupTypedDataflowValue(KernelOp kernel,
+                         llvm::ArrayRef<DataflowValueBinding> bindings,
+                         mlir::Value value, llvm::StringRef context) {
+  for (const auto &[candidate, symbolicValue] : bindings)
+    if (candidate == value)
+      return symbolicValue;
+  return makeMicrokernelError(
+      kernel, llvm::Twine(context) +
+                  " must consume a value produced by a preceding verified "
+                  "tcrv_rvv typed dataflow op");
+}
+
+llvm::Error buildDataflowEmissionPlanFromTypedBody(
+    KernelOp kernel, WithVLOp withVL,
+    llvm::ArrayRef<mlir::Operation *> dataflowOps,
+    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+  dataflowPlan.steps.clear();
+  llvm::SmallVector<DataflowValueBinding, 3> bindings;
+
+  for (mlir::Operation *op : dataflowOps) {
+    if (auto load = llvm::dyn_cast<I32LoadOp>(op)) {
+      if (load.getVl() != withVL.getVl())
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_load must consume the !tcrv_rvv.vl token "
+                    "owned by the surrounding tcrv_rvv.with_vl");
+
+      llvm::Expected<support::RuntimeABIParameterRole> role =
+          getDataflowRoleAttr(kernel, load.getOperation(), kBufferRoleAttrName,
+                              "tcrv_rvv.i32_load");
+      if (!role)
+        return role.takeError();
+
+      llvm::Expected<RVVI32VAddDataflowValue> result =
+          getLoadResultForBufferRole(kernel, *role);
+      if (!result)
+        return result.takeError();
+      if (dataflowPlanAlreadyDefines(dataflowPlan, *result))
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_vadd_microkernel dataflow body has a "
+                    "duplicate load role before C emission");
+
+      dataflowPlan.steps.push_back(makeLoadStep(*role, *result));
+      bindings.push_back({load.getLoaded(), *result});
+      continue;
+    }
+
+    if (auto add = llvm::dyn_cast<I32AddOp>(op)) {
+      if (add.getVl() != withVL.getVl())
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_add must consume the !tcrv_rvv.vl token "
+                    "owned by the surrounding tcrv_rvv.with_vl");
+
+      llvm::Expected<RVVI32VAddDataflowValue> lhs =
+          lookupTypedDataflowValue(kernel, bindings, add.getLhs(),
+                                   "tcrv_rvv.i32_add lhs");
+      if (!lhs)
+        return lhs.takeError();
+      llvm::Expected<RVVI32VAddDataflowValue> rhs =
+          lookupTypedDataflowValue(kernel, bindings, add.getRhs(),
+                                   "tcrv_rvv.i32_add rhs");
+      if (!rhs)
+        return rhs.takeError();
+      if (*lhs != RVVI32VAddDataflowValue::LHSVector ||
+          *rhs != RVVI32VAddDataflowValue::RHSVector)
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_add operands must be derived from the "
+                    "preceding lhs-input-buffer and rhs-input-buffer "
+                    "tcrv_rvv.i32_load ops before C emission");
+      if (dataflowPlanAlreadyDefines(dataflowPlan,
+                                     RVVI32VAddDataflowValue::SumVector))
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_vadd_microkernel dataflow body has a "
+                    "duplicate add result before C emission");
+
+      dataflowPlan.steps.push_back(
+          makeAddStep(*lhs, *rhs, RVVI32VAddDataflowValue::SumVector));
+      bindings.push_back({add.getSum(), RVVI32VAddDataflowValue::SumVector});
+      continue;
+    }
+
+    if (auto store = llvm::dyn_cast<I32StoreOp>(op)) {
+      if (store.getVl() != withVL.getVl())
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_store must consume the !tcrv_rvv.vl token "
+                    "owned by the surrounding tcrv_rvv.with_vl");
+
+      llvm::Expected<support::RuntimeABIParameterRole> role =
+          getDataflowRoleAttr(kernel, store.getOperation(), kBufferRoleAttrName,
+                              "tcrv_rvv.i32_store");
+      if (!role)
+        return role.takeError();
+      if (*role != support::RuntimeABIParameterRole::OutputBuffer)
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_store buffer_role must reference "
+                    "'output-buffer' for this bounded RVV i32-vadd export "
+                    "route");
+
+      llvm::Expected<RVVI32VAddDataflowValue> value =
+          lookupTypedDataflowValue(kernel, bindings, store.getValue(),
+                                   "tcrv_rvv.i32_store value");
+      if (!value)
+        return value.takeError();
+      if (*value != RVVI32VAddDataflowValue::SumVector)
+        return makeMicrokernelError(
+            kernel, "tcrv_rvv.i32_store value must be derived from the "
+                    "preceding tcrv_rvv.i32_add result before C emission");
+
+      dataflowPlan.steps.push_back(makeStoreStep(*role, *value));
+      continue;
+    }
+
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("tcrv_rvv.i32_vadd_microkernel dataflow body has "
+                    "unexpected operation '") +
+            op->getName().getStringRef() +
+            "'; C emission consumes only tcrv_rvv.i32_load, "
+            "tcrv_rvv.i32_add, and tcrv_rvv.i32_store");
+  }
+
+  if (dataflowPlan.steps.size() != 4 ||
+      dataflowPlan.steps[0].kind != RVVI32VAddDataflowStepKind::Load ||
+      dataflowPlan.steps[1].kind != RVVI32VAddDataflowStepKind::Load ||
+      dataflowPlan.steps[2].kind != RVVI32VAddDataflowStepKind::Add ||
+      dataflowPlan.steps[3].kind != RVVI32VAddDataflowStepKind::Store) {
+    return makeMicrokernelError(
+        kernel, "tcrv_rvv.i32_vadd_microkernel dataflow emission plan must "
+                "come from exactly the verified load/load/add/store "
+                "tcrv_rvv body order");
+  }
+
+  return llvm::Error::success();
 }
 
 llvm::Error collectRuntimeABIParameters(
@@ -1250,39 +1412,10 @@ llvm::Error validateMicrokernelForPath(
         kernel, "tcrv_rvv.i32_vadd_microkernel requires finite RVV i32 "
                 "dataflow SSA chain lhs-load,rhs-load -> add -> store");
 
-  llvm::Expected<support::RuntimeABIParameterRole> lhsRole =
-      getRequiredDataflowRoleAttr(
-          kernel, lhsLoad.getOperation(), kBufferRoleAttrName,
-          "tcrv_rvv.i32_load",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
-  if (!lhsRole)
-    return lhsRole.takeError();
-  llvm::Expected<support::RuntimeABIParameterRole> rhsRole =
-      getRequiredDataflowRoleAttr(
-          kernel, rhsLoad.getOperation(), kBufferRoleAttrName,
-          "tcrv_rvv.i32_load",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
-  if (!rhsRole)
-    return rhsRole.takeError();
-  llvm::Expected<support::RuntimeABIParameterRole> outputRole =
-      getRequiredDataflowRoleAttr(
-          kernel, store.getOperation(), kBufferRoleAttrName,
-          "tcrv_rvv.i32_store",
-          support::RuntimeABIParameterRole::OutputBuffer);
-  if (!outputRole)
-    return outputRole.takeError();
-
-  dataflowPlan.steps.clear();
-  dataflowPlan.steps.push_back(
-      makeLoadStep(*lhsRole, RVVI32VAddDataflowValue::LHSVector));
-  dataflowPlan.steps.push_back(
-      makeLoadStep(*rhsRole, RVVI32VAddDataflowValue::RHSVector));
-  dataflowPlan.steps.push_back(
-      makeAddStep(RVVI32VAddDataflowValue::LHSVector,
-                  RVVI32VAddDataflowValue::RHSVector,
-                  RVVI32VAddDataflowValue::SumVector));
-  dataflowPlan.steps.push_back(
-      makeStoreStep(*outputRole, RVVI32VAddDataflowValue::SumVector));
+  if (llvm::Error error =
+          buildDataflowEmissionPlanFromTypedBody(kernel, withVL, dataflowOps,
+                                                 dataflowPlan))
+    return error;
 
   controlPlaneSEW = 32;
   controlPlaneLMUL = "m1";
@@ -1828,6 +1961,9 @@ void printRecordComment(llvm::raw_ostream &os,
         "tcrv_rvv.with_vl */\n";
   os << "/* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> "
         "tcrv_rvv.i32_add -> tcrv_rvv.i32_store */\n";
+  os << "/* dataflow_emission_source: derived from verified "
+        "tcrv_rvv.with_vl body order, SSA chain, and buffer_role "
+        "attributes */\n";
   os << "/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, "
         "rhs_load.buffer_role=rhs-input-buffer, "
         "store.buffer_role=output-buffer; runtime n remains the "
