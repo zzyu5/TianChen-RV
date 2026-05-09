@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants and layer routing"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "primary C++/MLIR/TableGen/CMake implementation stack boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "bounded linalg frontend slice and public execution planning pipeline contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export and bundle export route contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck coverage requirements for frontend lowering and bundle export"}

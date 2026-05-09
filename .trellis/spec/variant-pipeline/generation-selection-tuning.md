@@ -226,12 +226,15 @@ as:
 ```
 
 The `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` front door
-may also invoke this same pipeline in-process before target artifact bundle
+may also invoke the bounded marked-linalg i32-vadd frontend lowering slice and
+then this same planning pipeline in-process before target artifact bundle
 export. That translate entry is a tool-boundary convenience for a parsed module
-that has kernel/capability anchors but not hand-authored selected-path,
-lowering-boundary, or emission-plan metadata; it must reuse this pipeline
-builder and the existing bundle exporter rather than duplicating planning or
-target route logic.
+that either already has kernel/capability anchors or has the explicitly marked
+bounded linalg i32-vadd input that lowers to those anchors, but does not have
+hand-authored selected-path, lowering-boundary, or emission-plan metadata. It
+must reuse the bounded frontend pass, this pipeline builder, and the existing
+bundle exporter rather than duplicating frontend lowering, planning, or target
+route logic.
 
 This pipeline is a named MLIR pass pipeline, not a monolithic pass. It composes
 existing pass factories in this order:

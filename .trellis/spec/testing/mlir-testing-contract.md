@@ -148,7 +148,10 @@ Use lit/FileCheck for:
   RVV+scalar dispatch bundle index checks for selected dispatch surface,
   component_group/component_role/external_abi_name metadata, and ordered
   runtime_abi_parameter signature fields plus bounded selected-plan metadata
-  self-description when RVV capacity facts are present; and a focused
+  self-description when RVV capacity facts are present; focused bounded linalg
+  i32-vadd frontend input coverage proving the same front door first lowers the
+  marked source into the exec ABI boundary and then exports a registry-derived
+  bundle without hand-authored selected-path or emission metadata; and a focused
   fail-closed negative case proving planning failure does not print bundle
   completion or emit a complete bundle index.
 - bounded linalg frontend lowering coverage, including a hand-written/test

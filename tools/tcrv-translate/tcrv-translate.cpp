@@ -300,8 +300,25 @@ mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult lowerBoundedLinalgFrontendForPlanning(
+    mlir::ModuleOp module, llvm::StringRef frontDoorName) {
+  mlir::PassManager pm(module.getContext());
+  pm.addPass(tianchenrv::transforms::createLowerLinalgI32VAddToExecPass());
+  if (mlir::succeeded(pm.run(module)))
+    return mlir::success();
+
+  module.emitError() << "TianChen-RV " << frontDoorName
+                     << " failed during bounded linalg i32-vadd frontend "
+                        "lowering";
+  return mlir::failure();
+}
+
 mlir::LogicalResult planAndExportTargetArtifactBundle(mlir::ModuleOp module,
                                                       llvm::raw_ostream &os) {
+  if (mlir::failed(lowerBoundedLinalgFrontendForPlanning(
+          module, "plan-and-export target artifact bundle")))
+    return mlir::failure();
+
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (mlir::failed(

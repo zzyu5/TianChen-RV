@@ -568,11 +568,16 @@ tcrv-translate --tcrv-plan-and-export-target-artifact-bundle \
   input.mlir
 ```
 
-That command runs the existing built-in execution planning pipeline in-process
-and then calls the same target artifact bundle exporter used by
-`--tcrv-export-target-artifact-bundle`. The existing bundle export command
-remains the coherence-gated exporter for already planned input. Neither command
-claims linking, runtime success, RVV correctness, or performance by itself.
+That command first runs the bounded marked-linalg i32-vadd frontend lowering
+slice, then runs the existing built-in execution planning pipeline in-process,
+and finally calls the same target artifact bundle exporter used by
+`--tcrv-export-target-artifact-bundle`. Inputs that already contain
+`tcrv.exec.kernel` anchors are unchanged by the frontend lowering pass; marked
+`linalg.generic` i32-vadd inputs become the same `tcrv.exec.kernel` +
+`mem_window` / `runtime_param` ABI boundary consumed by the plugin pipeline.
+The existing bundle export command remains the coherence-gated exporter for
+already planned input. Neither command claims generic linalg lowering, linking,
+runtime success, RVV correctness, or performance by itself.
 
 Together, the explicit dispatch header and the library-object route form the
 bounded runtime-caller handoff for this finite i32-vadd dispatcher: an external
