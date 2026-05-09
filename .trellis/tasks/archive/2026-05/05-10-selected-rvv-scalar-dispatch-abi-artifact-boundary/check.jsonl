@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final review."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify dispatch/fallback/runtime ABI surfaces remain in core dialect scope."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selection, dispatch, and planning pipeline behavior remains target-neutral."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact/export and RVV+scalar dispatch ABI contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected-shape and microkernel metadata remains plugin/target-owned."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback selected route metadata remains plugin/target-owned."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify no generic core pass gained extension-specific branches."}

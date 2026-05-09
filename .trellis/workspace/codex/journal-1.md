@@ -55,6 +55,58 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 13: Selected RVV plus scalar dispatch ABI artifact boundary
+
+**Date**: 2026-05-10
+**Task**: Selected RVV plus scalar dispatch ABI artifact boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded `i32-vsub` RVV-preferred plus scalar-fallback dispatch
+artifact boundary. The target-owned dispatch exporter now preserves structured
+selected-plan metadata from the RVV callable candidate and scalar fallback
+metadata from the selected `tcrv.exec.fallback` op at the outer dispatch C
+artifact surface.
+
+### Main Changes
+
+- Created Trellis task
+  `.trellis/tasks/05-10-selected-rvv-scalar-dispatch-abi-artifact-boundary/`
+  with PRD and curated implement/check spec context.
+- Extended `lib/Target/Builtin/RVVScalarDispatch.cpp` so dispatch source
+  comments include each callable candidate's `selectedPlanMetadata`.
+- Captured scalar fallback `origin` and `fallback_role` from the resolved
+  dispatch IR link and emitted them as dispatch fallback metadata.
+- Strengthened the `i32-vsub` focused route fixture to check RVV selected
+  vector-shape metadata, base RVV capacity metadata, scalar fallback metadata,
+  callable symbols, and a malformed selected-shape fail-closed case before
+  source banner emission.
+
+### Validation
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate tcrv-opt -j2`
+- [OK] focused lit filter
+  `rvv-scalar-i32-vsub-dispatch-generic-route` passed 1/1
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-10-selected-rvv-scalar-dispatch-abi-artifact-boundary`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+  passed 169/169
+
+No new `ssh rvv` evidence was required or run; this round changed compiler
+artifact metadata/export validation coverage, not generated runtime dispatch
+object behavior or runtime correctness claims.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 11: RVV i32 family intrinsic prefix contract
 
 **Date**: 2026-05-10

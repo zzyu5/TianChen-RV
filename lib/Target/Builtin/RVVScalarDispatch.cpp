@@ -106,6 +106,8 @@ struct DispatchIRLink {
   FallbackOp fallback;
   VariantOp fallbackVariant;
   std::string fallbackTarget;
+  std::string fallbackOrigin;
+  std::string fallbackRole;
 };
 
 using DispatchI32FamilyKind =
@@ -582,6 +584,11 @@ resolveDispatchIRLinkForPair(const DispatchPair &pair) {
 
     if (auto fallback = llvm::dyn_cast<FallbackOp>(op)) {
       link.fallback = fallback;
+      if (auto origin = fallback->getAttrOfType<mlir::StringAttr>("origin"))
+        link.fallbackOrigin = origin.getValue().str();
+      if (auto role =
+              fallback->getAttrOfType<mlir::StringAttr>("fallback_role"))
+        link.fallbackRole = role.getValue().str();
       ++fallbackCount;
     }
   }
@@ -1276,6 +1283,13 @@ void printCandidateMetadata(llvm::raw_ostream &os, llvm::StringRef label,
        << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
        << " */\n";
   }
+  for (auto [index, metadata] :
+       llvm::enumerate(candidate.selectedPlanMetadata)) {
+    os << "/* " << label << "_selected_plan_metadata[" << index
+       << "]: name=" << metadata.name << ", value=" << metadata.value
+       << ", role=" << metadata.role << ", note=" << metadata.note
+       << " */\n";
+  }
   printRequiredCapabilitiesComment(os, label, candidate.kernel,
                                    candidate.selectedVariant);
 }
@@ -1510,6 +1524,10 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   os << "/* dispatch_fallback_link: target=@"
      << pair.irLink.fallbackTarget << ", selected_scalar_callable=@"
      << pair.scalar.selectedVariant << " */\n";
+  os << "/* dispatch_fallback_metadata: target=@"
+     << pair.irLink.fallbackTarget
+     << ", origin=" << pair.irLink.fallbackOrigin
+     << ", fallback_role=" << pair.irLink.fallbackRole << " */\n";
   os << "/* rvv_callable_symbol: " << rvvFunctionName << " */\n";
   os << "/* scalar_callable_symbol: " << scalarFunctionName << " */\n";
   for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {

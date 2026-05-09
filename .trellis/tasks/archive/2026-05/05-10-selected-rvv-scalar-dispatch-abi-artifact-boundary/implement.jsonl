@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and source-of-truth boundaries for this implementation task."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines allowed tcrv.exec dispatch, fallback, mem_window, runtime_param, and diagnostic surfaces."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines selection, dispatch synthesis, runtime guard materialization, and execution planning pipeline contracts."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines selected lowering-boundary, emission-plan, target artifact, runtime ABI, and RVV+scalar dispatch route contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin selected vector-shape, microkernel, and lowering-boundary ownership."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback plugin selected-boundary and i32 add/sub/mul source-export ownership."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Defines plugin locality and core-pass non-branching requirements for extension semantics."}

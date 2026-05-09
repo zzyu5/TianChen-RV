@@ -5,6 +5,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=__riscv --implicit-check-not="out[index]" --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-c 2>&1 | FileCheck %s --check-prefix=ROUTE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_shape = "i32m1"/s//tcrv_rvv.selected_vector_shape = "i32m2"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=SHAPE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -117,10 +118,15 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // SOURCE: /* rvv_runtime_abi: rvv-i32-vsub-runtime-callable-c-abi.v1 */
 // SOURCE: /* rvv_runtime_abi_name: rvv-i32-vsub-runtime-callable-c-function.v1 */
 // SOURCE: /* rvv_runtime_glue_role: runtime-callable-i32-vsub-function */
+// SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m1, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m1, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.vlenb_bytes, value=16, role=rvv-base-capacity-fact
+// SOURCE: /* rvv_selected_plan_metadata[9]: name=tcrv_rvv.base_i32_m1_lanes, value=4, role=rvv-base-capacity-fact
 // SOURCE: /* scalar_artifact_route_id: tcrv-export-scalar-i32-vsub-microkernel-c */
 // SOURCE: /* scalar_runtime_abi: scalar-i32-vsub-runtime-callable-c-abi.v1 */
 // SOURCE: /* scalar_runtime_abi_name: scalar-i32-vsub-runtime-callable-c-function.v1 */
 // SOURCE: /* scalar_runtime_glue_role: runtime-callable-i32-vsub-fallback-function */
+// SOURCE: /* dispatch_fallback_metadata: target=@scalar_fallback_first_slice, origin=scalar-plugin, fallback_role=conservative */
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_dispatch_i32_vsub_scalar_fallback_first_slice */
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice
@@ -149,3 +155,4 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // HARNESS: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
 // ROUTE-MISMATCH: direct source export route expected i32-vmul dispatch artifacts, got i32-vsub
+// SHAPE-MISMATCH: selected vector-shape shape must be 'i32m1'
