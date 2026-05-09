@@ -1,5 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=i32-vadd-microkernel.v1 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
-// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not=__riscv --implicit-check-not=riscv_vector --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.linalg-i32m2-vsub.o
+// RUN: llvm-readobj --file-headers --symbols %t.linalg-i32m2-vsub.o | FileCheck %s --check-prefix=OBJECT --implicit-check-not="Name: main"
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -10,11 +13,11 @@ module {
     id = "rvv.profile.frontend",
     isa_vector_hints = "rv64gcv_zvl128b",
     kind = "profile",
-    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic", "rvv.probe.compile_run", "rvv.toolchain.march", "scalar.fallback"],
+    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.i32_m2.sew32", "rvv.i32_m2.lmul_m2", "rvv.i32_m2.tail_policy.agnostic", "rvv.i32_m2.mask_policy.agnostic", "rvv.probe.compile_run", "rvv.toolchain.march", "scalar.fallback"],
     bytes = 16 : i64,
     lanes = 4 : i64,
     sew_bits = 32 : i64,
-    lmul = "m1",
+    lmul = "m2",
     tail_policy = "agnostic",
     mask_policy = "agnostic",
     selected_march = "rv64gcv",
@@ -42,6 +45,10 @@ module {
   }
 }
 
+// PIPE: tcrv.exec.target @frontend_rvv_scalar_profile
+// PIPE-SAME: lmul = "m2"
+// PIPE-SAME: rvv.i32_m2.sew32
+// PIPE-SAME: rvv.i32_m2.lmul_m2
 // PIPE-LABEL: tcrv.exec.kernel @frontend_i32_vsub
 // PIPE-SAME: target = @frontend_rvv_scalar_profile
 // PIPE-SAME: tcrv_frontend_lowering = "i32-vsub"
@@ -78,7 +85,16 @@ module {
 // PIPE-SAME: required_capabilities = [@frontend_rvv_scalar_profile]
 // PIPE-SAME: selected_variant = @rvv_first_slice
 // PIPE-SAME: source_kernel = "frontend_i32_vsub"
+// PIPE: tcrv_rvv.setvl
+// PIPE-SAME: lmul = "m2"
+// PIPE: tcrv_rvv.with_vl
+// PIPE-SAME: lmul = "m2"
+// PIPE: tcrv_rvv.i32_load
+// PIPE-SAME: !tcrv_rvv.vl -> !tcrv_rvv.i32m2
 // PIPE: tcrv_rvv.i32_sub
+// PIPE-SAME: !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+// PIPE: tcrv_rvv.i32_store
+// PIPE-SAME: !tcrv_rvv.i32m2, !tcrv_rvv.vl
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: artifact_kind = "runtime-callable-c-source"
 // PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-i32-vsub-microkernel-c"
@@ -93,5 +109,21 @@ module {
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec */
+// SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
+// SOURCE: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice
-// SOURCE: __riscv_vsub_vv_i32m1
+// SOURCE: __riscv_vsetvl_e32m2
+// SOURCE: __riscv_vle32_v_i32m2
+// SOURCE: __riscv_vsub_vv_i32m2
+// SOURCE: __riscv_vse32_v_i32m2
+
+// HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_FRONTEND_I32_VSUB_RVV_FIRST_SLICE_H
+// HEADER: #include <stddef.h>
+// HEADER: #include <stdint.h>
+// HEADER: void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+// HEADER: #endif /* TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_FRONTEND_I32_VSUB_RVV_FIRST_SLICE_H */
+
+// OBJECT: Format: elf64-littleriscv
+// OBJECT: Type: Relocatable
+// OBJECT: Machine: EM_RISCV
+// OBJECT: Name: tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice

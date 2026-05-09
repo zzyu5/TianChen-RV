@@ -55,6 +55,60 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 11: Linalg i32-vsub to RVV i32m2 artifact handoff
+
+**Date**: 2026-05-10
+**Task**: Linalg i32-vsub to RVV i32m2 execution-planning artifact handoff
+**Branch**: `main`
+
+### Summary
+
+Completed the linalg-origin i32-vsub RVV i32m2 artifact handoff by upgrading the
+focused frontend fixture to consume finite i32m2 target capability metadata
+through the normal lower-linalg plus execution-planning pipeline, and by adding
+fail-closed coverage for an incomplete m2 capability provider.
+
+### Main Changes
+
+- Created Trellis task
+  `.trellis/tasks/05-10-linalg-i32-vsub-rvv-i32m2-artifact-handoff/` with PRD
+  and curated implement/check context.
+- Updated `test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir`
+  so the linalg-origin target profile provides the finite i32m2 config shape.
+- Extended that fixture to check selected m2 profile metadata, `setvl` /
+  `with_vl` LMUL m2, `!tcrv_rvv.i32m2` dataflow, i32m2 source intrinsics,
+  declaration-only header export, and RISC-V relocatable object export.
+- Added
+  `test/Transforms/LinalgToExec/linalg-i32-vsub-rvv-i32m2-missing-config-fails.mlir`
+  to prove missing finite m2 config providers fail before microkernel or
+  emission-plan materialization.
+
+### Validation
+
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-10-linalg-i32-vsub-rvv-i32m2-artifact-handoff`
+- [OK] focused lit filter
+  `linalg-i32-vsub-(to-rvv-artifact|rvv-i32m2-missing-config-fails)` passed 2/2
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `git diff --check`
+- [OK] focused lit filter `LinalgToExec` passed 8/8
+- [OK] focused lit filter
+  `rvv-microkernel-i32m2-(family-sub|object|body-mismatch-fails)` passed 3/3
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 169/169
+
+No new `ssh rvv` evidence was collected, so this session makes no new runtime,
+correctness, or performance claim.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional continuation: collect real `ssh rvv` evidence for the linalg-origin
+  generated i32-vsub i32m2 source/header/object artifacts, tying hashes and
+  marker observations to this frontend-generated path.
+
+
 ## Session 11: RVV i32m2 typed microkernel SSH evidence handoff
 
 **Date**: 2026-05-10

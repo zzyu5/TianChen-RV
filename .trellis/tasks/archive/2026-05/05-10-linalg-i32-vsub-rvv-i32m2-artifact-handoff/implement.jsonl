@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, capability, plugin, tcrv.exec, and evidence invariants for this linalg-to-RVV slice."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned finite i32m1/i32m2 capability ids, proposal gates, materialization metadata, and locality boundaries."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg i32 binary frontend contract and execution-planning pipeline semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering-boundary, emission-plan, parameter layering, and target artifact export contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and focused validation expectations for linalg frontend, RVV plugin, and artifact export behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-09-rvv-i32m2-typed-intrinsic-emission-slice/prd.md", "reason": "Prior compiler m2 type/plugin/export slice and preserved m1/m2 behavior constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-10-rvv-i32m2-typed-microkernel-ssh-evidence-handoff/prd.md", "reason": "Prior explicit typed m2 SSH evidence handoff and no-reopen/no-broad-claim boundary."}
