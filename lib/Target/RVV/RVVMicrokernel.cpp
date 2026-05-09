@@ -10,6 +10,7 @@
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Attributes.h"
@@ -180,6 +181,10 @@ struct RVVIntrinsicConfig {
   std::string vectorType;
   std::string vectorSuffix;
   std::string setvlSuffix;
+  std::string setvlIntrinsicName;
+  std::string loadIntrinsicName;
+  std::string arithmeticIntrinsicName;
+  std::string storeIntrinsicName;
   std::string tailPolicy;
   std::string maskPolicy;
 };
@@ -675,12 +680,18 @@ llvm::Expected<RVVIntrinsicConfig> buildRVVIntrinsicConfig(
             llvm::Twine(selectedConfig.sewBits) + ",lmul=" +
             selectedConfig.lmul);
 
+  RVVI32BinaryIntrinsicDescriptor descriptor =
+      getRVVI32BinaryIntrinsicDescriptor(family, selectedConfig);
   RVVIntrinsicConfig config;
-  config.sew = selectedConfig.sewBits;
+  config.sew = descriptor.getSEWBits();
   config.lmul = setvl.getLmul().str();
-  config.vectorType = selectedConfig.vectorType.str();
-  config.vectorSuffix = selectedConfig.vectorSuffix.str();
-  config.setvlSuffix = selectedConfig.setvlSuffix.str();
+  config.vectorType = descriptor.getVectorType().str();
+  config.vectorSuffix = descriptor.getVectorSuffix().str();
+  config.setvlSuffix = descriptor.getSetVLSuffix().str();
+  config.setvlIntrinsicName = descriptor.getSetVLIntrinsicName();
+  config.loadIntrinsicName = descriptor.getLoadIntrinsicName();
+  config.arithmeticIntrinsicName = descriptor.getArithmeticIntrinsicName();
+  config.storeIntrinsicName = descriptor.getStoreIntrinsicName();
   config.tailPolicy = tail.str();
   config.maskPolicy = mask.str();
   return config;
@@ -2773,21 +2784,14 @@ void printRecordComment(llvm::raw_ostream &os,
         "target/export-owned runtime element-count ABI parameter */\n";
   printDataflowPlanMetadata(os, record.dataflowPlan, *record.family);
   if (record.selectedShape) {
-    os << "/* selected_vector_shape_config: shape="
-       << record.selectedShape->shapeID
-       << ", sew=" << record.selectedShape->sewBits
-       << ", lmul=" << record.selectedShape->lmul
-       << ", tail_policy=" << record.selectedShape->tailPolicy
-       << ", mask_policy=" << record.selectedShape->maskPolicy
-       << ", vector_type=" << record.selectedShape->vectorType
-       << ", vector_suffix=" << record.selectedShape->vectorSuffix
-       << ", setvl_suffix=" << record.selectedShape->setvlSuffix
+    RVVI32BinaryIntrinsicDescriptor descriptor =
+        getRVVI32BinaryIntrinsicDescriptor(*record.family,
+                                           *record.selectedShape);
+    os << "/* " << descriptor.formatSelectedVectorShapeConfigCommentBody()
        << " */\n";
-    os << "/* selected_vector_shape_capabilities:"
-       << " " << record.selectedShape->sewCapabilityID
-       << " " << record.selectedShape->lmulCapabilityID
-       << " " << record.selectedShape->tailPolicyCapabilityID
-       << " " << record.selectedShape->maskPolicyCapabilityID << " */\n";
+    os << "/* "
+       << descriptor.formatSelectedVectorShapeCapabilitiesCommentBody()
+       << " */\n";
   }
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
@@ -2859,9 +2863,8 @@ llvm::Error printMicrokernelFunction(
   os << ") {\n";
   os << "  size_t offset = 0;\n";
   os << "  while (offset < " << runtimeN.cName << ") {\n";
-  os << "    size_t vl = __riscv_vsetvl_" << intrinsicConfig.setvlSuffix
-     << "(" << runtimeN.cName
-     << " - offset);\n";
+  os << "    size_t vl = " << intrinsicConfig.setvlIntrinsicName << "("
+     << runtimeN.cName << " - offset);\n";
   for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
     switch (step.kind) {
     case RVVI32VAddDataflowStepKind::Load: {
@@ -2872,9 +2875,8 @@ llvm::Error printMicrokernelFunction(
             "RVV dataflow load step references a non-buffer ABI role");
       os << "    " << intrinsicConfig.vectorType << " "
          << getDataflowValueCName(step.result, family)
-         << " = __riscv_vle" << intrinsicConfig.sew << "_v_"
-         << intrinsicConfig.vectorSuffix << "(&" << parameter->cName
-         << "[offset], vl);\n";
+         << " = " << intrinsicConfig.loadIntrinsicName << "(&"
+         << parameter->cName << "[offset], vl);\n";
       break;
     }
     case RVVI32VAddDataflowStepKind::Add:
@@ -2882,8 +2884,7 @@ llvm::Error printMicrokernelFunction(
     case RVVI32VAddDataflowStepKind::Mul:
       os << "    " << intrinsicConfig.vectorType << " "
          << getDataflowValueCName(step.result, family)
-         << " = " << family.arithmeticIntrinsicPrefix
-         << intrinsicConfig.vectorSuffix << "("
+         << " = " << intrinsicConfig.arithmeticIntrinsicName << "("
          << getDataflowValueCName(step.lhs, family) << ", "
          << getDataflowValueCName(step.rhs, family) << ", vl);\n";
       break;
@@ -2893,10 +2894,9 @@ llvm::Error printMicrokernelFunction(
       if (!parameter)
         return makeModuleMicrokernelError(
             "RVV dataflow store step references a non-buffer ABI role");
-      os << "    __riscv_vse" << intrinsicConfig.sew << "_v_"
-         << intrinsicConfig.vectorSuffix << "(&" << parameter->cName
-         << "[offset], " << getDataflowValueCName(step.value, family)
-         << ", vl);\n";
+      os << "    " << intrinsicConfig.storeIntrinsicName << "(&"
+         << parameter->cName << "[offset], "
+         << getDataflowValueCName(step.value, family) << ", vl);\n";
       break;
     }
     }
@@ -2922,7 +2922,8 @@ void printMicrokernelPrototype(llvm::raw_ostream &os,
 
 void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
-                                      const RVVI32MicrokernelFamilySpec &family,
+                                      const RVVI32BinaryIntrinsicDescriptor
+                                          &descriptor,
                                       const RVVIntrinsicConfig &intrinsicConfig,
                                       std::int64_t elementCount) {
   os << "/* Harness capacity comes from descriptor-local element_count; each "
@@ -2945,20 +2946,17 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "    rhs[index] = 100 - index;\n";
   os << "    out[index] = -12345;\n";
   os << "  }\n\n";
-  os << "  size_t first_vl = __riscv_vsetvl_"
-     << intrinsicConfig.setvlSuffix << "(runtime_n);\n";
+  os << "  size_t first_vl = " << intrinsicConfig.setvlIntrinsicName
+     << "(runtime_n);\n";
   os << "  if (first_vl == 0 || first_vl > runtime_n) {\n";
   os << "    fprintf(stderr, \"invalid rvv microkernel vl=%zu\\n\", first_vl);\n";
   os << "    return 2;\n";
   os << "  }\n\n";
   os << "  " << functionName << "(lhs, rhs, out, runtime_n);\n\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
-  if (family.kind == RVVI32MicrokernelKind::Add)
-    os << "    int32_t expected = lhs[index] + rhs[index];\n";
-  else if (family.kind == RVVI32MicrokernelKind::Sub)
-    os << "    int32_t expected = lhs[index] - rhs[index];\n";
-  else
-    os << "    int32_t expected = lhs[index] * rhs[index];\n";
+  os << "    int32_t expected = "
+     << descriptor.getCArithmeticCheckExpression("lhs[index]", "rhs[index]")
+     << ";\n";
   os << "    if (out[index] != expected) {\n";
   os << "      fprintf(stderr, \"rvv microkernel mismatch at %zu\\n\", index);\n";
   os << "      return 3;\n";
@@ -3046,10 +3044,14 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
                                    *record.family, record.intrinsicConfig,
                                    record.dataflowPlan))
     return error;
-  if (includeHarness)
-    printMicrokernelSelfCheckHarness(os, functionName, *record.family,
+  if (includeHarness) {
+    RVVI32BinaryIntrinsicDescriptor descriptor =
+        getRVVI32BinaryIntrinsicDescriptor(*record.family,
+                                           *record.selectedShape);
+    printMicrokernelSelfCheckHarness(os, functionName, descriptor,
                                      record.intrinsicConfig,
                                      record.elementCount);
+  }
   return llvm::Error::success();
 }
 

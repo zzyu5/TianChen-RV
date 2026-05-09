@@ -34,6 +34,13 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vmul-dispatch-object.o
 # RUN: FileCheck %s --check-prefix=VMUL-CALLER --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=rvv-scalar-i32-vsub-dispatch < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --vector-shape=i32m2 --run-id lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=VMUL-M2-PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vmul-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vmul-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=VMUL-M2-SOURCE --implicit-check-not=__riscv_vmul_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m2 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m2 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
+# RUN: FileCheck %s --check-prefix=VMUL-M2-CALLER --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=VMUL-M2-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=rvv-scalar-i32-vsub-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --run-id lit-rvv-scalar-dispatch-bundle-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -197,6 +204,47 @@
 # VMUL-EVIDENCE: "pass_fail_result": "pass"
 # VMUL-EVIDENCE: "ssh_evidence": null
 # VMUL-EVIDENCE: "status": "success"
+
+# VMUL-M2-PLAN-DRY: "arithmetic_family": "i32-vmul"
+# VMUL-M2-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VMUL-M2-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VMUL-M2-PLAN-DRY: "ssh_evidence": false
+# VMUL-M2-PLAN-DRY: "status": "success"
+# VMUL-M2-PLAN-DRY: "vector_shape": "i32m2"
+
+# VMUL-M2-SOURCE: /* selected_kernel: @frontend_bundle_i32m2_vmul */
+# VMUL-M2-SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
+# VMUL-M2-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32m2_vmul_rvv_first_slice */
+# VMUL-M2-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32m2_vmul_scalar_fallback_first_slice */
+# VMUL-M2-SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
+# VMUL-M2-SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
+# VMUL-M2-SOURCE: __riscv_vsetvl_e32m2
+# VMUL-M2-SOURCE: __riscv_vle32_v_i32m2
+# VMUL-M2-SOURCE: __riscv_vmul_vv_i32m2
+# VMUL-M2-SOURCE: __riscv_vse32_v_i32m2
+# VMUL-M2-SOURCE: out[index] = lhs[index] * rhs[index];
+# VMUL-M2-SOURCE: void tcrv_dispatch_i32_vmul_frontend_bundle_i32m2_vmul
+
+# VMUL-M2-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
+# VMUL-M2-CALLER: tcrv_dispatch_i32_vmul_frontend_bundle_i32m2_vmul(lhs, rhs, out, runtime_n, rvv_available);
+# VMUL-M2-CALLER: out[index] != lhs[index] * rhs[index]
+# VMUL-M2-CALLER: run_dispatch_case(7, 0)
+# VMUL-M2-CALLER: run_dispatch_case(16, 1)
+# VMUL-M2-CALLER: tcrv_rvv_scalar_i32_vmul_bundle_external_abi_ok
+
+# VMUL-M2-EVIDENCE: "arithmetic_family": "i32-vmul"
+# VMUL-M2-EVIDENCE-DAG: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VMUL-M2-EVIDENCE-DAG: "input": "test/Target/TargetArtifactBundleExport/plan-linalg-i32m2-vmul-and-export-target-artifact-bundle.mlir"
+# VMUL-M2-EVIDENCE-DAG: "rvv_config": {
+# VMUL-M2-EVIDENCE-DAG: "shape": "i32m2"
+# VMUL-M2-EVIDENCE-DAG: "lmul": "m2"
+# VMUL-M2-EVIDENCE-DAG: "vector_suffix": "i32m2"
+# VMUL-M2-EVIDENCE-DAG: "selected_plan_metadata": [
+# VMUL-M2-EVIDENCE-DAG: "value": "i32m2"
+# VMUL-M2-EVIDENCE-DAG: "pass_fail_result": "pass"
+# VMUL-M2-EVIDENCE-DAG: "ssh_evidence": null
+# VMUL-M2-EVIDENCE-DAG: "status": "success"
+# VMUL-M2-EVIDENCE-DAG: "vector_shape": "i32m2"
 
 # EVIDENCE: "bundle_export_mode": "target-artifact-bundle"
 # EVIDENCE: "bundle_index": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-e2e/target_artifact_bundle/tianchenrv-target-artifact-bundle.index"

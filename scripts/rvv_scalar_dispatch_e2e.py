@@ -143,6 +143,9 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "default_plan_and_export_input": Path(
             "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir"
         ),
+        "i32m2_default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i32m2-vmul-and-export-target-artifact-bundle.mlir"
+        ),
     },
 }
 

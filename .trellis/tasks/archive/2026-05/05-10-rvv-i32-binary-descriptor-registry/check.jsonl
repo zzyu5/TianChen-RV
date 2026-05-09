@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final compliance review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV plugin locality and descriptor ownership."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Review scalar fallback and dispatch bundle boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review generated artifact and runtime handoff contracts."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review route/capability/selection metadata consistency."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused tests and evidence claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-10-05-10-linalg-i32m2-vsub-rvv-scalar-ssh-external-abi-evidence/prd.md", "reason": "Review preserved vsub i32m2 regression expectations."}

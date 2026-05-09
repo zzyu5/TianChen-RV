@@ -7,6 +7,7 @@
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
@@ -121,6 +122,8 @@ using DispatchI32FamilySpec =
     tianchenrv::target::i32_binary::DispatchI32FamilyDescriptor;
 using DispatchRVVVectorShapeConfig =
     tianchenrv::target::rvv::RVVI32VectorShapeConfig;
+using RVVI32BinaryIntrinsicDescriptor =
+    tianchenrv::target::rvv::RVVI32BinaryIntrinsicDescriptor;
 
 struct DispatchPair {
   const DispatchI32FamilySpec *family = nullptr;
@@ -1359,19 +1362,6 @@ resolveDispatchPairSelectedVectorShape(const DispatchPair &pair) {
   return selectedConfig;
 }
 
-const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor &
-getI32BinaryFamilyDescriptorForDispatch(DispatchI32FamilyKind kind) {
-  switch (kind) {
-  case DispatchI32FamilyKind::Add:
-    return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor();
-  case DispatchI32FamilyKind::Sub:
-    return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor();
-  case DispatchI32FamilyKind::Mul:
-    return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor();
-  }
-  llvm_unreachable("unknown RVV+scalar dispatch i32 family");
-}
-
 llvm::Error requireEmbeddedRVVSourceSnippet(const DispatchPair &pair,
                                             llvm::StringRef rvvSource,
                                             llvm::StringRef snippet,
@@ -1395,34 +1385,18 @@ llvm::Error validateEmbeddedRVVSourceSelectedShape(
         "vector-shape descriptor before embedded RVV source validation");
 
   const DispatchRVVVectorShapeConfig &shape = *pair.selectedShape;
-  const auto &family =
-      getI32BinaryFamilyDescriptorForDispatch(pair.family->kind).rvv;
+  RVVI32BinaryIntrinsicDescriptor descriptor =
+      tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor(
+          *pair.family, shape);
 
-  std::string shapeComment;
-  llvm::raw_string_ostream shapeStream(shapeComment);
-  shapeStream << "selected_vector_shape_config: shape=" << shape.shapeID
-              << ", sew=" << shape.sewBits << ", lmul=" << shape.lmul
-              << ", tail_policy=" << shape.tailPolicy
-              << ", mask_policy=" << shape.maskPolicy
-              << ", vector_type=" << shape.vectorType
-              << ", vector_suffix=" << shape.vectorSuffix
-              << ", setvl_suffix=" << shape.setvlSuffix;
-  shapeStream.flush();
-
-  std::string intrinsicConfig;
-  llvm::raw_string_ostream intrinsicStream(intrinsicConfig);
-  intrinsicStream << "intrinsic_config: vector_type=" << shape.vectorType
-                  << ", vector_suffix=" << shape.vectorSuffix
-                  << ", setvl_suffix=" << shape.setvlSuffix
-                  << ", tail_policy=" << shape.tailPolicy
-                  << ", mask_policy=" << shape.maskPolicy;
-  intrinsicStream.flush();
-
-  std::string setvlIntrinsic = "__riscv_vsetvl_" + shape.setvlSuffix.str();
-  std::string loadIntrinsic = "__riscv_vle32_v_" + shape.vectorSuffix.str();
-  std::string arithmeticIntrinsic =
-      family.arithmeticIntrinsicPrefix.str() + shape.vectorSuffix.str();
-  std::string storeIntrinsic = "__riscv_vse32_v_" + shape.vectorSuffix.str();
+  std::string shapeComment =
+      descriptor.formatSelectedVectorShapeConfigCommentBody();
+  std::string intrinsicConfig =
+      descriptor.formatIntrinsicConfigCommentBody();
+  std::string setvlIntrinsic = descriptor.getSetVLIntrinsicName();
+  std::string loadIntrinsic = descriptor.getLoadIntrinsicName();
+  std::string arithmeticIntrinsic = descriptor.getArithmeticIntrinsicName();
+  std::string storeIntrinsic = descriptor.getStoreIntrinsicName();
 
   if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
           pair, rvvSource, shapeComment, "selected shape config comment"))
@@ -1813,7 +1787,8 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
 }
 
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
-                                   const DispatchI32FamilySpec &family,
+                                   const RVVI32BinaryIntrinsicDescriptor
+                                       &descriptor,
                                    llvm::StringRef dispatcherFunctionName,
                                    llvm::StringRef runtimeElementCountName,
                                    llvm::StringRef guardParameterName) {
@@ -1842,8 +1817,9 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "  " << dispatcherFunctionName
      << "(lhs, rhs, out, runtime_n, " << guardParameterName << ");\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
-  os << "    if (out[index] != lhs[index] " << family.cOperator
-     << " rhs[index])\n";
+  os << "    if (out[index] != "
+     << descriptor.getCArithmeticCheckExpression("lhs[index]", "rhs[index]")
+     << ")\n";
   os << "      return 1;\n";
   os << "  }\n";
   os << "  for (size_t index = runtime_n; index < (size_t)kCapacity; "
@@ -1862,7 +1838,7 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "    return 3;\n";
   os << "  if (" << dispatcherFunctionName << "_self_check_one(16, 1))\n";
   os << "    return 4;\n";
-  os << "  puts(\"" << family.selfCheckSuccessMarker
+  os << "  puts(\"" << descriptor.getDispatchSuccessMarker()
      << " runtime_counts=7,16 branches=scalar_and_rvv\");\n";
   os << "  return 0;\n";
   os << "}\n";
@@ -1939,10 +1915,14 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   os << "\n/* Host dispatcher over the two validated callable artifacts. */\n";
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
                           scalarFunctionName, dispatchParameters, *bindings);
-  if (includeSelfCheck)
-    printDispatchSelfCheckHarness(os, *pair.family, dispatcherFunctionName,
+  if (includeSelfCheck) {
+    RVVI32BinaryIntrinsicDescriptor descriptor =
+        tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor(
+            *pair.family, *pair.selectedShape);
+    printDispatchSelfCheckHarness(os, descriptor, dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
                                   bindings->dispatchAvailabilityGuard->cName);
+  }
   return llvm::Error::success();
 }
 

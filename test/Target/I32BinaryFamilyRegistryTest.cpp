@@ -1,4 +1,5 @@
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
@@ -11,6 +12,7 @@
 
 #include <initializer_list>
 #include <optional>
+#include <string>
 
 using namespace tianchenrv::target;
 using namespace tianchenrv::target::i32_binary;
@@ -538,6 +540,152 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
       "finite RVV descriptor rejects unsupported shape ids");
 }
 
+int expectRVVI32BinaryIntrinsicDescriptorShape() {
+  using tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor;
+
+  for (const I32BinaryFamilyDescriptor *family :
+       getI32BinaryFamilyDescriptors()) {
+    for (const tianchenrv::target::rvv::RVVI32VectorShapeConfig *shape :
+         tianchenrv::target::rvv::getFiniteI32VectorShapeConfigs()) {
+      tianchenrv::target::rvv::RVVI32BinaryIntrinsicDescriptor descriptor =
+          getRVVI32BinaryIntrinsicDescriptor(*family, *shape);
+
+      if (int result = expect(descriptor.family == family &&
+                                  descriptor.shape == shape,
+                              "RVV i32 binary descriptor composes existing "
+                              "family and shape descriptors"))
+        return result;
+      if (int result = expect(descriptor.getArithmeticFamilyID() ==
+                                  family->familyID,
+                              "RVV i32 binary descriptor reports family id"))
+        return result;
+      if (int result = expect(descriptor.getLoweringDescriptor() ==
+                                  family->loweringDescriptor,
+                              "RVV i32 binary descriptor reports lowering "
+                              "descriptor"))
+        return result;
+      if (int result = expect(descriptor.getRVVOperationName() ==
+                                  family->rvv.arithmeticOpName,
+                              "RVV i32 binary descriptor reports typed RVV "
+                              "operation label"))
+        return result;
+      if (int result = expect(descriptor.getVectorType() == shape->vectorType &&
+                                  descriptor.getVectorSuffix() ==
+                                      shape->vectorSuffix &&
+                                  descriptor.getSetVLSuffix() ==
+                                      shape->setvlSuffix,
+                              "RVV i32 binary descriptor reports selected "
+                              "vector shape spellings"))
+        return result;
+
+      std::string expectedIntrinsic =
+          (llvm::Twine(family->rvv.arithmeticIntrinsicPrefix) +
+           shape->vectorSuffix)
+              .str();
+      if (int result = expect(descriptor.getArithmeticIntrinsicName() ==
+                                  expectedIntrinsic,
+                              "RVV i32 binary descriptor derives full "
+                              "arithmetic intrinsic from family and shape"))
+        return result;
+      if (int result = expect(descriptor.getSetVLIntrinsicName() ==
+                                  (llvm::Twine("__riscv_vsetvl_") +
+                                   shape->setvlSuffix)
+                                      .str(),
+                              "RVV i32 binary descriptor derives vsetvl "
+                              "intrinsic from shape"))
+        return result;
+      if (int result = expect(descriptor.getLoadIntrinsicName() ==
+                                  (llvm::Twine("__riscv_vle32_v_") +
+                                   shape->vectorSuffix)
+                                      .str(),
+                              "RVV i32 binary descriptor derives load "
+                              "intrinsic from shape"))
+        return result;
+      if (int result = expect(descriptor.getStoreIntrinsicName() ==
+                                  (llvm::Twine("__riscv_vse32_v_") +
+                                   shape->vectorSuffix)
+                                      .str(),
+                              "RVV i32 binary descriptor derives store "
+                              "intrinsic from shape"))
+        return result;
+
+      std::string expectedCheck =
+          (llvm::Twine("lhs[index] ") + family->dispatch.cOperator +
+           " rhs[index]")
+              .str();
+      if (int result = expect(descriptor.getCArithmeticCheckExpression(
+                                  "lhs[index]", "rhs[index]") ==
+                                  expectedCheck,
+                              "RVV i32 binary descriptor derives C arithmetic "
+                              "check expression"))
+        return result;
+
+      llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
+          descriptor.getSelectedShapeCapabilityIDs();
+      if (int result =
+              expect(capabilityIDs.size() == 4 &&
+                         capabilityIDs[0] == shape->sewCapabilityID &&
+                         capabilityIDs[1] == shape->lmulCapabilityID &&
+                         capabilityIDs[2] == shape->tailPolicyCapabilityID &&
+                         capabilityIDs[3] == shape->maskPolicyCapabilityID,
+                     "RVV i32 binary descriptor reports selected shape "
+                     "capability ids"))
+        return result;
+
+      if (int result = expect(descriptor.getRVVRouteID() ==
+                                      family->rvv.routeID &&
+                                  descriptor.getRVVRuntimeABIName() ==
+                                      family->rvv.runtimeABIName &&
+                                  descriptor.getDispatchSourceRouteID() ==
+                                      family->dispatch.dispatchSourceRouteID &&
+                                  descriptor
+                                          .getDispatchExternalABIComponentGroup() ==
+                                      family->dispatch
+                                          .dispatchExternalABIComponentGroup &&
+                                  descriptor.getDispatchRuntimeABIName() ==
+                                      family->dispatch.dispatchRuntimeABIName,
+                              "RVV i32 binary descriptor reports route, "
+                              "component group, and ABI names"))
+        return result;
+
+      std::string shapeComment =
+          descriptor.formatSelectedVectorShapeConfigCommentBody();
+      std::string intrinsicComment =
+          descriptor.formatIntrinsicConfigCommentBody();
+      if (int result =
+              expect(llvm::StringRef(shapeComment).contains(shape->shapeID) &&
+                         llvm::StringRef(shapeComment)
+                             .contains(shape->vectorType) &&
+                         llvm::StringRef(intrinsicComment)
+                             .contains(shape->vectorSuffix),
+                     "RVV i32 binary descriptor formats selected shape and "
+                     "intrinsic metadata comments"))
+        return result;
+
+      if (family->kind == I32BinaryFamilyKind::Mul &&
+          shape->shapeID == "i32m2") {
+        if (int result = expect(descriptor.getArithmeticIntrinsicName() ==
+                                    "__riscv_vmul_vv_i32m2",
+                                "RVV descriptor derives vmul i32m2 "
+                                "intrinsic"))
+          return result;
+        if (int result = expect(descriptor.getCArithmeticCheckExpression(
+                                    "lhs[index]", "rhs[index]") ==
+                                    "lhs[index] * rhs[index]",
+                                "RVV descriptor derives vmul caller check"))
+          return result;
+        if (int result = expect(descriptor.getDispatchSourceRouteID() ==
+                                    "tcrv-export-rvv-scalar-i32-vmul-"
+                                    "dispatch-c",
+                                "RVV descriptor derives vmul dispatch route"))
+          return result;
+      }
+    }
+  }
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -575,6 +723,8 @@ int main() {
   if (int result = expectStaleFamilyMismatchGuards())
     return result;
   if (int result = expectFiniteRVVVectorShapeDescriptorShape())
+    return result;
+  if (int result = expectRVVI32BinaryIntrinsicDescriptorShape())
     return result;
 
   TargetArtifactExporterRegistry registry;

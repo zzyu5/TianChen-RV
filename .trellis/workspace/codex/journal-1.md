@@ -55,6 +55,72 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 13: RVV i32 binary descriptor registry across family and shape
+
+**Date**: 2026-05-10
+**Task**: RVV i32 binary intrinsic descriptor registry across family and vector shape
+**Branch**: `main`
+
+### Summary
+
+Completed the descriptor-structured RVV i32 add/sub/mul family x vector-shape
+path. The compiler/exporter now has a target/RVV-owned
+`RVVI32BinaryIntrinsicDescriptor` that composes the existing
+`I32BinaryFamilyRegistry` and `RVVVectorShape` truth instead of letting the
+microkernel and dispatch exporters independently rebuild full intrinsic names,
+shape comments, or self-check arithmetic.
+
+### Main Changes
+
+- Added `include/TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h`.
+- Routed RVV microkernel source/self-check emission through descriptor-derived
+  `__riscv_vsetvl_*`, load/store, full arithmetic intrinsic, selected-shape
+  comments, and arithmetic check expressions.
+- Routed RVV+scalar dispatch embedded RVV source validation and self-check
+  arithmetic through the same descriptor projection.
+- Extended C++ descriptor coverage to prove all add/sub/mul x i32m1/i32m2
+  combinations and the specific `i32-vmul` + `i32m2` full intrinsic
+  `__riscv_vmul_vv_i32m2`.
+- Added `plan-linalg-i32m2-vmul-and-export-target-artifact-bundle.mlir` as the
+  non-vsub selected-shape front-door proof.
+- Extended `scripts/rvv_scalar_dispatch_e2e.py` default fixture routing for
+  `--arithmetic-family=i32-vmul --vector-shape=i32m2`.
+- Produced bounded real `ssh rvv` source/object external ABI evidence under
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i32m2-vmul-ssh-20260510T0001/`.
+- No `.trellis/spec/` update was needed; the existing specs already describe
+  descriptor-derived i32 binary ABI identity, selected vector-shape metadata,
+  focused plan-and-export coverage, and bounded RVV evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-i32-binary-family-registry-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] focused lit filter `I32BinaryFamilyRegistry|plan-linalg-i32m2-vmul|plan-linalg-i32m2-vsub|rvv-scalar-dispatch-bundle-e2e` passed 4/4 selected tests
+- [OK] focused lit filter `rvv-microkernel-family-mul|rvv-microkernel-i32m2-family-sub|rvv-microkernel-i32m2-object|rvv-scalar-i32-vmul-dispatch-generic-route|rvv-scalar-i32-vsub-dispatch-i32m2-generic-route` passed 6/6 selected tests
+- [OK] real ssh evidence command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --vector-shape=i32m2 --run-id codex-i32m2-vmul-ssh-20260510T0001 --overwrite --timeout 120`
+- [OK] read-only evidence JSON assertion for runtime success, source/object
+  external ABI success markers, branch/count coverage, selected family/shape,
+  required intrinsic, and obvious secret-like text absence
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 173/173
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 12: Bounded linalg i32-vsub i32m2 frontend bundle proof
 
 **Date**: 2026-05-10
