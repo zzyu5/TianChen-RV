@@ -1,5 +1,7 @@
 #include "TianChenRV/Support/CapabilityModel.h"
 
+#include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -21,6 +23,8 @@ namespace {
 constexpr llvm::StringLiteral kProvidesAttrName("provides");
 constexpr llvm::StringLiteral kImpliesAttrName("implies");
 constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
+constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
+    "capability_providers");
 constexpr llvm::StringLiteral kTargetHartCountCapabilityID(
     "target.hart_count");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
@@ -43,7 +47,8 @@ llvm::StringRef getCapabilityStatus(mlir::Operation *op) {
 
 bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
   return attrName == "sym_name" || attrName == "id" || attrName == "kind" ||
-         attrName == "status" || attrName == "availability";
+         attrName == "status" || attrName == "availability" ||
+         attrName == kCapabilityProvidersAttrName;
 }
 
 bool isCapabilityRelationAttribute(llvm::StringRef attrName) {
@@ -115,11 +120,6 @@ collectCapabilityIDRelation(mlir::Operation *op,
   return ids;
 }
 
-bool hasCapabilityProviderIdentity(tcrv::exec::TargetOp target) {
-  return !getStringAttr(target.getOperation(), "id").trim().empty() &&
-         !getStringAttr(target.getOperation(), "kind").trim().empty();
-}
-
 mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
                                        llvm::StringRef symbolName) {
   auto module = kernel ? kernel->getParentOfType<mlir::ModuleOp>()
@@ -170,7 +170,7 @@ getReferencedModuleTargetProvider(tcrv::exec::KernelOp kernel) {
         " because it resolves to a module-level symbol that is not a "
         "tcrv.exec.target");
 
-  if (!hasCapabilityProviderIdentity(target))
+  if (!tcrv::exec::isCapabilityProviderTarget(target))
     return makeCapabilitySetError(
         llvm::Twine("TianChen-RV TargetCapabilitySet ") +
         makeKernelExtractionContext(kernel) + " rejected target @" +
@@ -284,6 +284,21 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
                            getStringAttr(target.getOperation(), "kind")),
             constructionContext))
       return std::move(error);
+
+    llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> composedProviders =
+        tcrv::exec::collectComposedModuleCapabilityProviders(target);
+    if (!composedProviders)
+      return composedProviders.takeError();
+    for (mlir::Operation *provider : *composedProviders) {
+      if (llvm::Error error = capabilitySet.tryAddCapability(
+              makeDescriptor(provider,
+                             tcrv::exec::getCapabilityProviderSymbolName(
+                                 provider),
+                             tcrv::exec::getCapabilityProviderID(provider),
+                             tcrv::exec::getCapabilityProviderKind(provider)),
+              constructionContext))
+        return std::move(error);
+    }
   }
 
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -298,7 +313,7 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
     }
 
     if (auto target = llvm::dyn_cast<tcrv::exec::TargetOp>(op)) {
-      if (!hasCapabilityProviderIdentity(target))
+      if (!tcrv::exec::isCapabilityProviderTarget(target))
         continue;
 
       if (llvm::Error error = capabilitySet.tryAddCapability(
@@ -307,6 +322,22 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
                              getStringAttr(target.getOperation(), "kind")),
               constructionContext))
         return std::move(error);
+
+      llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>>
+          composedProviders =
+              tcrv::exec::collectComposedModuleCapabilityProviders(target);
+      if (!composedProviders)
+        return composedProviders.takeError();
+      for (mlir::Operation *provider : *composedProviders) {
+        if (llvm::Error error = capabilitySet.tryAddCapability(
+                makeDescriptor(provider,
+                               tcrv::exec::getCapabilityProviderSymbolName(
+                                   provider),
+                               tcrv::exec::getCapabilityProviderID(provider),
+                               tcrv::exec::getCapabilityProviderKind(provider)),
+                constructionContext))
+          return std::move(error);
+      }
     }
   }
 

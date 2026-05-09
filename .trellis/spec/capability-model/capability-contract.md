@@ -224,26 +224,32 @@ In that slice, `requires` is an `ArrayAttr` whose entries must be
 `FlatSymbolRefAttr` references to symbols in the kernel capability scope.
 Capability providers are direct `tcrv.exec.capability` ops, kernel-local
 `tcrv.exec.target` profile anchors that carry both non-empty `id` and `kind`
-attributes, or one explicit module-level `tcrv.exec.target` profile referenced
-by `tcrv.exec.kernel target = @profile`. A `tcrv.exec.target` with no
-capability identity remains a parse-only profile anchor and must not satisfy
-`requires`.
+attributes, one explicit module-level `tcrv.exec.target` profile referenced by
+`tcrv.exec.kernel target = @profile`, or module-level providers explicitly
+named by that profile's generic `capability_providers = [@provider, ...]`
+composition. A `tcrv.exec.target` with no capability identity remains a
+parse-only profile anchor and must not satisfy `requires`.
 
 Module-level target profiles are opt-in per kernel. A kernel receives only the
-single profile named by `target = @profile`; unrelated module-level targets do
-not enter `TargetCapabilitySet` and cannot affect plugin availability,
-proposal, legality, selection, dispatch, lowering, or artifact routing. The
-referenced target profile must be a direct module-level `tcrv.exec.target` with
-non-empty `id` and `kind`, and it must not be shadowed by a direct symbol with
-the same name inside the kernel.
+single profile named by `target = @profile` plus only the providers explicitly
+named by that profile's `capability_providers` composition; unrelated
+module-level targets do not enter `TargetCapabilitySet` and cannot affect
+plugin availability, proposal, legality, selection, dispatch, lowering, or
+artifact routing. The referenced target profile must be a direct module-level
+`tcrv.exec.target` with non-empty `id` and `kind`, and it must not be shadowed
+by a direct symbol with the same name inside the kernel. Provider composition
+refs must resolve to module-level `tcrv.exec.capability` or
+capability-provider `tcrv.exec.target` symbols, carry non-empty capability
+identity, reject duplicate symbols/ids, reject self references, and reject
+obvious nested target cycles.
 
 Provider `id` and `kind` are non-empty `StringAttr` fields. Provider `id`
 values are unique within one kernel capability scope, including the referenced
-module-level target profile plus direct kernel-local providers. Duplicate ids
-are invalid because C++ capability queries use id lookup for plugin proposal,
-legality, selection, and conflict decisions. Core verification checks
-structure, identity uniqueness, and symbol resolution; concrete extension
-legality stays plugin-owned.
+module-level target profile, its composed providers, and direct kernel-local
+providers. Duplicate ids are invalid because C++ capability queries use id
+lookup for plugin proposal, legality, selection, and conflict decisions. Core
+verification checks structure, identity uniqueness, provider composition, and
+symbol resolution; concrete extension legality stays plugin-owned.
 
 Capability query passes may also consume a generic string `status` attribute
 or, equivalently, a generic string `availability` attribute on
@@ -285,10 +291,10 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
 - Each query descriptor records capability symbol name, `id`, `kind`, generic
   status, and available/unavailable state.
 - Direct `tcrv.exec.capability` ids, kernel-local capability-provider
-  `tcrv.exec.target` ids, and the explicit module-level profile named by
-  `tcrv.exec.kernel target = @profile` are unique within one kernel capability
-  scope before a `TargetCapabilitySet` is treated as a compiler decision
-  object.
+  `tcrv.exec.target` ids, the explicit module-level profile named by
+  `tcrv.exec.kernel target = @profile`, and that profile's composed providers
+  are unique within one kernel capability scope before a `TargetCapabilitySet`
+  is treated as a compiler decision object.
 - `TargetCapabilitySet` construction itself is fail-closed for duplicate
   owning capability ids and duplicate capability symbol names. Parsed IR should
   be rejected first by the `tcrv.exec.kernel` verifier; synthetic C++
@@ -386,6 +392,11 @@ availability from `tcrv.exec.kernel` without invoking plugin-specific legality.
   `tcrv.exec.target` referenced by `tcrv.exec.kernel target = @profile` enters
   `TargetCapabilitySet` and can satisfy plugin proposal/materialization through
   relation-aware provider lookup.
+- lit/FileCheck coverage that a module-level target profile's
+  `capability_providers` composition makes additional providers visible to
+  planning without a frontend-specific provider list, plus focused negative
+  coverage for malformed composition such as unresolved provider refs or
+  duplicate provider identity.
 - lit/FileCheck coverage for static conflict rejection, guarded dispatch-case
   conflict allowance, unguarded dispatch-case conflict rejection, and fallback
   conflict rejection.

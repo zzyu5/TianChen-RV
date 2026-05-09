@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariant check"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "core dialect verification and compute-free boundary check"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "capability composition and query behavior check"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin locality regression check"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "pipeline and linalg frontend acceptance check"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact/export boundary check"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "test coverage check"}

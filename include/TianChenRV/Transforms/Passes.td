@@ -10,9 +10,10 @@ def LowerLinalgI32VAddToExec
     Consumes explicitly marked hand-written/test linalg.generic i32 vector-add
     wrappers and materializes the TianChen-RV execution boundary consumed by
     the existing plugin planning pipeline. The pass creates a tcrv.exec.kernel
-    with a selected module target profile reference, optionally clones explicitly
-    referenced module-level capability providers into the kernel capability
-    scope, and materializes the bounded i32-vadd runtime ABI
+    with a selected module target profile reference, validates that target
+    profile's generic capability provider composition, optionally clones
+    explicitly referenced supplemental module-level capability providers into
+    the kernel capability scope, and materializes the bounded i32-vadd runtime ABI
     mem_window/runtime_param surface, then removes the source wrapper.
 
     This is a narrow frontend lowering slice. It does not add generic tcrv

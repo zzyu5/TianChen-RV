@@ -66,7 +66,8 @@ The first high-level MLIR frontend slice is intentionally narrow:
 ```text
 marked hand-written/test linalg.generic i32 vector-add wrapper
   -> tcrv.exec.kernel with target profile reference
-  -> optional explicitly imported capability providers for planning scope
+  -> target-profile capability provider composition for planning scope
+  -> optional supplemental imported capability providers for transition/testing
   -> tcrv.exec.mem_window / tcrv.exec.runtime_param callable ABI boundary
   -> existing execution-planning pipeline
 ```
@@ -89,14 +90,20 @@ Input marker attributes:
 tcrv_frontend_lowering = "i32-vadd"
 tcrv_frontend_kernel = "<new-kernel-symbol>"
 tcrv_frontend_target = @<module-level-tcrv.exec.target-profile>
-tcrv_frontend_capability_providers = [@<module-level-provider>, ...]  // optional
+tcrv_frontend_capability_providers = [@<module-level-provider>, ...]  // optional supplemental override
 ```
 
 Output surface:
 
 ```text
+tcrv.exec.target @<profile> attributes {
+  id = "...",
+  kind = "profile",
+  capability_providers = [@<provider>, ...]
+}
+
 tcrv.exec.kernel @<new-kernel-symbol> attributes {target = @<profile>} {
-  // optional cloned tcrv.exec.capability / capability-provider tcrv.exec.target ops
+  // optional cloned supplemental tcrv.exec.capability / capability-provider target ops
   tcrv.exec.mem_window @abi_lhs_input_buffer ...
   tcrv.exec.mem_window @abi_rhs_input_buffer ...
   tcrv.exec.mem_window @abi_output_buffer ...
@@ -121,21 +128,24 @@ The wrapper or marked op may additionally carry:
 tcrv_frontend_capability_providers = [@<module-level-provider>, ...]
 ```
 
-This optional array is a generic capability-scope import contract. Each entry
+The durable planning-provider path is the selected target profile's generic
+`capability_providers = [@provider, ...]` composition. Each composed provider
 must be a module-level `tcrv.exec.capability` or a capability-provider
-`tcrv.exec.target` with non-empty `id` and `kind`; the lowering clones those
-providers into the generated kernel before the planning pipeline runs. This is
-how a bounded frontend input can expose independent policy, fallback, probe, or
-other structured providers to the existing generic selection/dispatch logic
-without making the frontend pass invent target-specific semantics.
+`tcrv.exec.target` with non-empty `id` and `kind`; the existing capability set
+construction consumes that composition before plugin proposal/selection. The
+frontend-specific `tcrv_frontend_capability_providers` array remains only a
+validated supplemental import path for transition/testing. Its entries use the
+same generic provider validation and must not duplicate the selected target,
+target-composed provider symbols/ids, or another supplemental import.
 
 The pass must semantically check the bounded source body before materializing
 TianChen-RV IR: exactly two i32 scalar input region arguments, one i32 output
 region argument, one `arith.addi` of the first two arguments, and one
 `linalg.yield` of that result. It then creates one `tcrv.exec.kernel`, copies
-only the selected target profile reference as `target = @...`, clones any
-explicit capability-provider imports into the kernel capability scope, and
-materializes the existing i32-vadd callable ABI boundary:
+only the selected target profile reference as `target = @...`, relies on the
+target profile's generic composition for normal provider scope, clones only
+any explicit supplemental provider imports into the kernel capability scope,
+and materializes the existing i32-vadd callable ABI boundary:
 
 ```text
 tcrv.exec.mem_window @abi_lhs_input_buffer
@@ -162,11 +172,16 @@ or incorrectly marked linalg bodies must fail before creating a
   failure before creating the kernel.
 - Missing or unresolved `tcrv_frontend_target` module-level
   `tcrv.exec.target` -> pass failure before creating the kernel.
-- `tcrv_frontend_capability_providers` that is not an array of non-empty module
-  symbol references, resolves to a non-provider op, resolves to a provider with
-  missing identity, duplicates the selected target symbol/id, or duplicates
-  another imported provider symbol/id -> pass failure before creating the
-  kernel.
+- selected target `capability_providers` that contains malformed refs, missing
+  providers, non-provider symbols, missing identity, duplicate symbols/ids,
+  self references, or obvious nested target cycles -> pass failure before
+  creating the kernel.
+- supplemental `tcrv_frontend_capability_providers` that is not an array of
+  non-empty module symbol references, resolves to a non-provider op, resolves
+  to a provider with missing identity, duplicates the selected target
+  symbol/id, duplicates target-composed provider symbols/ids, or duplicates
+  another supplemental import provider symbol/id -> pass failure before
+  creating the kernel.
 - Region body that is not exactly the checked i32 `arith.addi` /
   `linalg.yield` shape -> pass failure before creating the kernel.
 - Runtime ABI mem_window/runtime_param helper validation failure -> erase the
@@ -278,7 +293,8 @@ The pipeline consumes existing `tcrv.exec.kernel` anchors and each kernel's
 explicit capability-provider scope: direct `tcrv.exec.capability` providers,
 kernel-local capability-provider `tcrv.exec.target` anchors, and the one
 module-level capability-provider `tcrv.exec.target` explicitly referenced by
-`target = @profile`. It routes proposal/cost/lowering/emission-plan queries
+`target = @profile` plus that target profile's explicit
+`capability_providers` composition. It routes proposal/cost/lowering/emission-plan queries
 through an injected `ExtensionPluginRegistry`, checks final selected
 artifact-route metadata through an injected `TargetArtifactExporterRegistry`,
 and materializes only compiler-visible planning metadata, including
@@ -422,7 +438,8 @@ The public compiler pass surface for this slice is
 `--tcrv-materialize-plugin-variants`. It scans existing `tcrv.exec.kernel`
 anchors, builds each kernel's generic `TargetCapabilitySet` from direct
 kernel-local capability providers plus the explicitly referenced module-level
-`tcrv.exec.target` profile named by `target = @profile`, routes proposal
+`tcrv.exec.target` profile named by `target = @profile` and that profile's
+explicit `capability_providers` composition, routes proposal
 collection through an injected `ExtensionPluginRegistry`, and materializes the
 validated proposal set through the shared helper above. Public tools may inject
 the deterministic built-in registry at the tool boundary; the default factory

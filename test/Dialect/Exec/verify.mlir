@@ -171,6 +171,11 @@ tcrv.exec.kernel @module_target_profile_requires_ok attributes {target = @module
 
 // -----
 
+// expected-error @+1 {{TianChen-RV target capability provider composition failed: for target @target_composition_missing_provider provider @missing_provider must resolve to a module-level symbol}}
+tcrv.exec.target @target_composition_missing_provider {id = "rvv.profile.composed", kind = "profile", capability_providers = [@missing_provider], provides = ["rvv"]}
+
+// -----
+
 // expected-error @+1 {{target references unknown module-level tcrv.exec.target @missing_module_profile}}
 tcrv.exec.kernel @missing_module_target_profile attributes {target = @missing_module_profile} {
 }

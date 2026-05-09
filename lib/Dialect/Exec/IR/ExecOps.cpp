@@ -1,5 +1,6 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 
+#include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -15,6 +16,7 @@
 #include <cctype>
 
 using namespace tianchenrv::tcrv::exec;
+namespace exec = tianchenrv::tcrv::exec;
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
 
@@ -54,6 +56,8 @@ constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
 constexpr llvm::StringLiteral kProvidesAttrName("provides");
 constexpr llvm::StringLiteral kImpliesAttrName("implies");
 constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
+constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
+    "capability_providers");
 
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
@@ -86,13 +90,6 @@ bool isPresentButEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   return attr && attr.getValue().trim().empty();
-}
-
-llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
-  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-  if (!attr)
-    return {};
-  return attr.getValue();
 }
 
 mlir::LogicalResult requireNonEmptyWhenPresent(mlir::Operation *op,
@@ -226,10 +223,47 @@ KernelOp getEnclosingKernel(mlir::Operation *op) {
   return op->getParentOfType<KernelOp>();
 }
 
-bool isCapabilityProviderTarget(TargetOp target) {
-  return target &&
-         !getStringAttr(target.getOperation(), kIdAttrName).trim().empty() &&
-         !getStringAttr(target.getOperation(), kKindAttrName).trim().empty();
+mlir::LogicalResult addCapabilityProviderToKernelScope(
+    KernelOp kernel, mlir::Operation *provider,
+    llvm::StringSet<> &capabilityIDs,
+    llvm::StringSet<> &capabilityProviderSymbols) {
+  llvm::StringRef symbolName =
+      exec::getCapabilityProviderSymbolName(provider);
+  if (symbolName.empty())
+    return kernel.emitOpError()
+           << "capability-provider scope contains a provider without a "
+              "symbol name";
+
+  if (!capabilityProviderSymbols.insert(symbolName).second)
+    return provider->emitOpError()
+           << "duplicates capability-provider symbol @" << symbolName
+           << " in enclosing tcrv.exec.kernel capability scope";
+
+  llvm::StringRef id = exec::getCapabilityProviderID(provider);
+  if (!id.trim().empty() && !capabilityIDs.insert(id).second)
+    return provider->emitOpError()
+           << "duplicates capability-provider id '" << id
+           << "' in enclosing tcrv.exec.kernel";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult addComposedProvidersToKernelScope(
+    KernelOp kernel, TargetOp target, llvm::StringSet<> &capabilityIDs,
+    llvm::StringSet<> &capabilityProviderSymbols) {
+  llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+      exec::collectComposedModuleCapabilityProviders(target);
+  if (!providers) {
+    std::string message = llvm::toString(providers.takeError());
+    return kernel.emitOpError() << message;
+  }
+
+  for (mlir::Operation *provider : *providers)
+    if (mlir::failed(addCapabilityProviderToKernelScope(
+            kernel, provider, capabilityIDs, capabilityProviderSymbols)))
+      return mlir::failure();
+
+  return mlir::success();
 }
 
 mlir::Operation *findModuleLevelSymbol(KernelOp kernel,
@@ -265,17 +299,46 @@ bool kernelContainsCapability(KernelOp kernel, llvm::StringRef symbolName) {
       return true;
 
     auto target = llvm::dyn_cast<TargetOp>(op);
-    if (target && target.getSymName() == symbolName &&
+    if (target &&
         !isMissingOrEmptyStringAttr(target.getOperation(), kIdAttrName) &&
-        !isMissingOrEmptyStringAttr(target.getOperation(), kKindAttrName))
-      return true;
+        !isMissingOrEmptyStringAttr(target.getOperation(), kKindAttrName)) {
+      if (target.getSymName() == symbolName)
+        return true;
+
+      llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+          exec::collectComposedModuleCapabilityProviders(target);
+      if (providers &&
+          llvm::any_of(*providers, [&](mlir::Operation *provider) {
+            return exec::getCapabilityProviderSymbolName(provider) ==
+                   symbolName;
+          }))
+        return true;
+      if (!providers)
+        llvm::consumeError(providers.takeError());
+    }
   }
 
   auto targetAttr =
       kernel->getAttrOfType<mlir::FlatSymbolRefAttr>(kTargetAttrName);
-  if (targetAttr && targetAttr.getValue() == symbolName)
-    return isCapabilityProviderTarget(
-        findReferencedModuleTarget(kernel, symbolName));
+  if (targetAttr) {
+    TargetOp target =
+        findReferencedModuleTarget(kernel, targetAttr.getValue());
+    if (targetAttr.getValue() == symbolName)
+      return exec::isCapabilityProviderTarget(target);
+
+    if (exec::isCapabilityProviderTarget(target)) {
+      llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+          exec::collectComposedModuleCapabilityProviders(target);
+      if (providers &&
+          llvm::any_of(*providers, [&](mlir::Operation *provider) {
+            return exec::getCapabilityProviderSymbolName(provider) ==
+                   symbolName;
+          }))
+        return true;
+      if (!providers)
+        llvm::consumeError(providers.takeError());
+    }
+  }
 
   return false;
 }
@@ -509,6 +572,20 @@ mlir::LogicalResult TargetOp::verify() {
           verifyCapabilityIDRelationAttr(getOperation(), kConflictsAttrName)))
     return mlir::failure();
 
+  if (getOperation()->hasAttr(kCapabilityProvidersAttrName)) {
+    if (!exec::isCapabilityProviderTarget(*this))
+      return emitOpError()
+             << "declares capability_providers but does not carry non-empty "
+                "id and kind capability identity";
+
+    llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+        exec::collectComposedModuleCapabilityProviders(*this);
+    if (!providers) {
+      std::string message = llvm::toString(providers.takeError());
+      return emitOpError() << message;
+    }
+  }
+
   return mlir::success();
 }
 
@@ -566,7 +643,7 @@ mlir::LogicalResult KernelOp::verify() {
              << " resolves to a module-level symbol that is not a "
                 "tcrv.exec.target";
 
-    if (!isCapabilityProviderTarget(target))
+    if (!exec::isCapabilityProviderTarget(target))
       return emitOpError()
              << "target @" << targetAttr.getValue()
              << " must reference a capability-provider tcrv.exec.target with "
@@ -578,9 +655,14 @@ mlir::LogicalResult KernelOp::verify() {
              << " is shadowed by a direct symbol in the same "
                 "tcrv.exec.kernel";
 
-    directCapabilityIDs.insert(
-        getStringAttr(target.getOperation(), kIdAttrName));
-    capabilityProviderSymbols.insert(target.getSymName());
+    if (mlir::failed(addCapabilityProviderToKernelScope(
+            *this, target.getOperation(), directCapabilityIDs,
+            capabilityProviderSymbols)))
+      return mlir::failure();
+
+    if (mlir::failed(addComposedProvidersToKernelScope(
+            *this, target, directCapabilityIDs, capabilityProviderSymbols)))
+      return mlir::failure();
   }
 
   auto checkDiagnostic = [&](DiagnosticOp diagnostic) -> mlir::LogicalResult {
@@ -621,19 +703,16 @@ mlir::LogicalResult KernelOp::verify() {
       auto idAttr = target->getAttrOfType<mlir::StringAttr>(kIdAttrName);
       auto kindAttr = target->getAttrOfType<mlir::StringAttr>(kKindAttrName);
       if (idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
-          !kindAttr.getValue().trim().empty() &&
-          !capabilityProviderSymbols.insert(target.getSymName()).second)
-        return target.emitOpError()
-               << "duplicates capability-provider symbol @"
-               << target.getSymName()
-               << " in enclosing tcrv.exec.kernel capability scope";
+          !kindAttr.getValue().trim().empty()) {
+        if (mlir::failed(addCapabilityProviderToKernelScope(
+                *this, target.getOperation(), directCapabilityIDs,
+                capabilityProviderSymbols)))
+          return mlir::failure();
 
-      if (idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
-          !kindAttr.getValue().trim().empty() &&
-          !directCapabilityIDs.insert(idAttr.getValue()).second)
-        return target.emitOpError()
-               << "duplicates capability-provider id '" << idAttr.getValue()
-               << "' in enclosing tcrv.exec.kernel";
+        if (mlir::failed(addComposedProvidersToKernelScope(
+                *this, target, directCapabilityIDs, capabilityProviderSymbols)))
+          return mlir::failure();
+      }
       continue;
     }
 

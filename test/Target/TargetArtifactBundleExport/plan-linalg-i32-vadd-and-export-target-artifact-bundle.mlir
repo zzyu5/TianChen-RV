@@ -15,22 +15,6 @@
 #map = affine_map<(d0) -> (d0)>
 
 module @plan_linalg_i32_vadd_bundle_input {
-  tcrv.exec.target @frontend_bundle_profile {
-    architecture = "riscv64",
-    count = 64 : i64,
-    id = "rvv.profile.frontend.bundle",
-    isa_vector_hints = "rv64gcv_zvl128b",
-    kind = "profile",
-    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run", "rvv.toolchain.march"],
-    conflicts = ["build.policy.no_rvv"],
-    bytes = 16 : i64,
-    lanes = 4 : i64,
-    selected_mabi = "lp64d",
-    selected_march = "rv64gcv",
-    status = "available",
-    value = "rv64gcv"
-  }
-
   tcrv.exec.capability @no_rvv_policy {
     id = "generic.build.profile",
     kind = "build-policy",
@@ -44,11 +28,27 @@ module @plan_linalg_i32_vadd_bundle_input {
     status = "available"
   }
 
+  tcrv.exec.target @frontend_bundle_profile {
+    architecture = "riscv64",
+    count = 64 : i64,
+    capability_providers = [@no_rvv_policy, @scalar_fallback],
+    id = "rvv.profile.frontend.bundle",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    kind = "profile",
+    provides = ["rvv", "rvv.hart_count", "rvv.vlenb_bytes", "rvv.i32_m1_lane_count", "rvv.probe.compile_run", "rvv.toolchain.march"],
+    conflicts = ["build.policy.no_rvv"],
+    bytes = 16 : i64,
+    lanes = 4 : i64,
+    selected_mabi = "lp64d",
+    selected_march = "rv64gcv",
+    status = "available",
+    value = "rv64gcv"
+  }
+
   func.func @source_frontend_bundle_vadd(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>)
       attributes {
         tcrv_frontend_kernel = "frontend_bundle_i32_vadd",
-        tcrv_frontend_target = @frontend_bundle_profile,
-        tcrv_frontend_capability_providers = [@no_rvv_policy, @scalar_fallback]
+        tcrv_frontend_target = @frontend_bundle_profile
       } {
     linalg.generic {
         indexing_maps = [#map, #map, #map],
@@ -65,12 +65,14 @@ module @plan_linalg_i32_vadd_bundle_input {
   }
 }
 
-// IR: tcrv.exec.kernel @frontend_bundle_i32_vadd
-// IR-SAME: target = @frontend_bundle_profile
 // IR: tcrv.exec.capability @no_rvv_policy
 // IR-SAME: provides = ["build.policy.no_rvv"]
 // IR: tcrv.exec.capability @scalar_fallback
 // IR-SAME: id = "scalar.fallback"
+// IR: tcrv.exec.target @frontend_bundle_profile
+// IR-SAME: capability_providers = [@no_rvv_policy, @scalar_fallback]
+// IR: tcrv.exec.kernel @frontend_bundle_i32_vadd
+// IR-SAME: target = @frontend_bundle_profile
 // IR: tcrv.exec.mem_window @abi_lhs_input_buffer
 // IR-SAME: abi_role = "lhs-input-buffer"
 // IR-SAME: access = "read"

@@ -34,11 +34,17 @@ The C++ capability model consumes direct `tcrv.exec.capability` anchors and
 preserves structured properties plus first-slice capability relations:
 `provides`, `implies`, and `conflicts`. A kernel may also reference one
 module-level capability-provider `tcrv.exec.target` profile with
-`target = @profile`; only that explicitly attached profile enters the kernel's
-`TargetCapabilitySet`. Relation-aware provider lookup lets a profile capability
-such as `id = "rvv.profile.rv64gcv", provides = ["rvv"]` satisfy plugin
-proposals that require capability id `rvv`, while an exact capability id
-remains authoritative when present. These relations participate in compiler
+`target = @profile`; that attached profile may declare additional module-level
+providers through the generic
+`capability_providers = [@provider, ...]` composition contract. Only the
+explicitly attached profile, its validated composed providers, and direct
+kernel-local providers enter the kernel's `TargetCapabilitySet`.
+Relation-aware provider lookup lets a profile capability such as
+`id = "rvv.profile.rv64gcv", provides = ["rvv"]` satisfy plugin proposals that
+require capability id `rvv`, while composed providers can make fallback policy,
+scalar fallback, toolchain, or build-policy capability objects visible to
+planning without a frontend-specific provider list. Exact capability ids remain
+authoritative when present. These relations participate in compiler
 decisions such as RVV plugin proposal, variant materialization, and RVV
 legality. The generic `--tcrv-check-capability-requires` pass also uses a
 bounded conflict query: unprotected static variants and dispatch fallbacks fail
@@ -102,7 +108,8 @@ surfaces. It accepts only explicitly marked hand-written/test `linalg.generic`
 i32 vector-add wrappers whose region body is exactly the current two-input
 `arith.addi` / `linalg.yield` shape. The pass materializes one
 `tcrv.exec.kernel` with a source-selected `target = @profile` module target
-reference plus the IR-backed i32-vadd callable ABI boundary:
+reference, validates the selected target profile's generic capability-provider
+composition, and creates the IR-backed i32-vadd callable ABI boundary:
 `tcrv.exec.mem_window` for lhs/rhs/out buffers and
 `tcrv.exec.runtime_param` for runtime `n`. The resulting kernel is directly
 consumable by `--tcrv-execution-planning-pipeline`, so existing RVV/scalar

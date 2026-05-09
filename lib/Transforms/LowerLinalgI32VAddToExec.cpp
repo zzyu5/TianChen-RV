@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/Passes.h"
 
+#include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 
@@ -30,7 +31,6 @@ namespace tianchenrv::transforms {
 
 namespace {
 
-using tianchenrv::tcrv::exec::CapabilityOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::TargetOp;
 
@@ -47,8 +47,6 @@ constexpr llvm::StringLiteral kFrontendKernelAttrName("tcrv_frontend_kernel");
 constexpr llvm::StringLiteral kFrontendTargetAttrName("tcrv_frontend_target");
 constexpr llvm::StringLiteral kFrontendCapabilityProvidersAttrName(
     "tcrv_frontend_capability_providers");
-constexpr llvm::StringLiteral kIdAttrName("id");
-constexpr llvm::StringLiteral kKindAttrName("kind");
 
 bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
   return op && op->getName().getStringRef() == name;
@@ -56,12 +54,6 @@ bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-llvm::StringRef getStringAttrValue(mlir::Operation *op, llvm::StringRef name) {
-  if (auto attr = getStringAttr(op, name))
-    return attr.getValue();
-  return "";
 }
 
 mlir::FlatSymbolRefAttr getTargetAttr(mlir::Operation *op) {
@@ -220,26 +212,9 @@ mlir::Operation *findTopLevelSymbol(mlir::ModuleOp module,
   return nullptr;
 }
 
-bool isCapabilityProviderTarget(TargetOp target) {
-  return !getStringAttrValue(target.getOperation(), kIdAttrName)
-              .trim()
-              .empty() &&
-         !getStringAttrValue(target.getOperation(), kKindAttrName)
-              .trim()
-              .empty();
-}
-
-llvm::StringRef getCapabilityProviderID(mlir::Operation *op) {
-  if (auto capability = llvm::dyn_cast_or_null<CapabilityOp>(op))
-    return capability.getId().value_or("");
-  if (auto target = llvm::dyn_cast_or_null<TargetOp>(op))
-    return getStringAttrValue(target.getOperation(), kIdAttrName);
-  return "";
-}
-
-mlir::LogicalResult requireTopLevelTargetProfile(mlir::ModuleOp module,
-                                                 mlir::Operation *sourceOp,
-                                                 llvm::StringRef targetName) {
+mlir::LogicalResult requireTopLevelTargetProfile(
+    mlir::ModuleOp module, mlir::Operation *sourceOp,
+    llvm::StringRef targetName, TargetOp &out) {
   mlir::Operation *target = findTopLevelSymbol(module, targetName);
   if (!target)
     return sourceOp->emitError()
@@ -249,22 +224,88 @@ mlir::LogicalResult requireTopLevelTargetProfile(mlir::ModuleOp module,
     return sourceOp->emitError()
            << "TianChen-RV linalg frontend target @" << targetName
            << " resolves to a top-level symbol that is not tcrv.exec.target";
+  out = llvm::cast<TargetOp>(target);
+  if (!tcrv::exec::isCapabilityProviderTarget(out))
+    return sourceOp->emitError()
+           << "TianChen-RV linalg frontend target @" << targetName
+           << " must be a capability-provider tcrv.exec.target with "
+              "non-empty id/kind";
+
+  llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+      tcrv::exec::collectComposedModuleCapabilityProviders(out);
+  if (!providers) {
+    std::string message = llvm::toString(providers.takeError());
+    return sourceOp->emitError() << message;
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult recordProviderIdentityForImportValidation(
+    mlir::Operation *sourceOp, llvm::StringRef context,
+    mlir::Operation *provider, llvm::StringSet<> &seenSymbols,
+    llvm::StringSet<> &seenIDs) {
+  llvm::StringRef symbol = tcrv::exec::getCapabilityProviderSymbolName(provider);
+  if (symbol.empty())
+    return sourceOp->emitError()
+           << "TianChen-RV linalg frontend " << context
+           << " provider must carry a symbol name";
+
+  if (!seenSymbols.insert(symbol).second)
+    return sourceOp->emitError()
+           << "TianChen-RV linalg frontend " << context << " provider @"
+           << symbol
+           << " duplicates the selected target profile, target-composed "
+              "provider, or another supplemental import";
+
+  llvm::StringRef id = tcrv::exec::getCapabilityProviderID(provider);
+  if (id.trim().empty())
+    return sourceOp->emitError()
+           << "TianChen-RV linalg frontend " << context << " provider @"
+           << symbol << " must carry a non-empty capability id";
+
+  if (!seenIDs.insert(id).second)
+    return sourceOp->emitError()
+           << "TianChen-RV linalg frontend " << context << " provider @"
+           << symbol << " duplicates capability id '" << id
+           << "' with the selected target profile, target-composed provider, "
+              "or another supplemental import";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult seedSelectedTargetProviderScope(
+    mlir::Operation *sourceOp, TargetOp selectedTarget,
+    llvm::StringSet<> &seenSymbols, llvm::StringSet<> &seenIDs) {
+  if (mlir::failed(recordProviderIdentityForImportValidation(
+          sourceOp, "selected target", selectedTarget.getOperation(),
+          seenSymbols, seenIDs)))
+    return mlir::failure();
+
+  llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+      tcrv::exec::collectComposedModuleCapabilityProviders(selectedTarget);
+  if (!providers) {
+    std::string message = llvm::toString(providers.takeError());
+    return sourceOp->emitError() << message;
+  }
+
+  for (mlir::Operation *provider : *providers)
+    if (mlir::failed(recordProviderIdentityForImportValidation(
+            sourceOp, "target-composed", provider, seenSymbols, seenIDs)))
+      return mlir::failure();
+
   return mlir::success();
 }
 
 mlir::LogicalResult collectCapabilityProviderImports(
     mlir::ModuleOp module, mlir::Operation *sourceOp,
-    mlir::FlatSymbolRefAttr targetRef, mlir::ArrayAttr providerRefs,
+    TargetOp selectedTarget, mlir::ArrayAttr providerRefs,
     llvm::SmallVectorImpl<mlir::Operation *> &imports) {
   llvm::StringSet<> seenSymbols;
   llvm::StringSet<> seenIDs;
 
-  seenSymbols.insert(targetRef.getValue());
-  if (mlir::Operation *target =
-          findTopLevelSymbol(module, targetRef.getValue())) {
-    if (llvm::StringRef id = getCapabilityProviderID(target); !id.empty())
-      seenIDs.insert(id);
-  }
+  if (mlir::failed(seedSelectedTargetProviderScope(sourceOp, selectedTarget,
+                                                   seenSymbols, seenIDs)))
+    return mlir::failure();
 
   for (mlir::Attribute attr : providerRefs) {
     auto ref = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attr);
@@ -277,40 +318,55 @@ mlir::LogicalResult collectCapabilityProviderImports(
     llvm::StringRef symbolName = ref.getValue();
     if (!seenSymbols.insert(symbolName).second)
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend capability-provider import @"
+             << "TianChen-RV linalg frontend supplemental "
+                "capability-provider import @"
              << symbolName
-             << " duplicates the selected target profile or another import";
+             << " duplicates the selected target profile, target-composed "
+                "provider, or another supplemental import";
 
     mlir::Operation *provider = findTopLevelSymbol(module, symbolName);
     if (!provider)
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend capability-provider import @"
+             << "TianChen-RV linalg frontend supplemental "
+                "capability-provider import @"
              << symbolName << " must resolve to a module-level symbol";
 
-    if (auto target = llvm::dyn_cast<TargetOp>(provider)) {
-      if (!isCapabilityProviderTarget(target))
-        return sourceOp->emitError()
-               << "TianChen-RV linalg frontend capability-provider import @"
-               << symbolName
-               << " resolves to tcrv.exec.target without non-empty id/kind";
-    } else if (!llvm::isa<CapabilityOp>(provider)) {
+    if (!tcrv::exec::isCapabilityProviderOperation(provider))
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend capability-provider import @"
+             << "TianChen-RV linalg frontend supplemental "
+                "capability-provider import @"
              << symbolName
              << " must resolve to a module-level tcrv.exec.capability or "
                 "capability-provider tcrv.exec.target";
-    }
 
-    llvm::StringRef id = getCapabilityProviderID(provider);
+    llvm::StringRef id = tcrv::exec::getCapabilityProviderID(provider);
     if (id.empty())
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend capability-provider import @"
+             << "TianChen-RV linalg frontend supplemental "
+                "capability-provider import @"
              << symbolName << " must carry a non-empty capability id";
     if (!seenIDs.insert(id).second)
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend capability-provider import @"
+             << "TianChen-RV linalg frontend supplemental "
+                "capability-provider import @"
              << symbolName << " duplicates capability id '" << id
-             << "' with the selected target profile or another import";
+             << "' with the selected target profile, target-composed provider, "
+                "or another supplemental import";
+
+    if (auto target = llvm::dyn_cast<TargetOp>(provider)) {
+      llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
+          tcrv::exec::collectComposedModuleCapabilityProviders(target);
+      if (!providers) {
+        std::string message = llvm::toString(providers.takeError());
+        return sourceOp->emitError() << message;
+      }
+
+      for (mlir::Operation *composedProvider : *providers)
+        if (mlir::failed(recordProviderIdentityForImportValidation(
+                sourceOp, "supplemental target-composed", composedProvider,
+                seenSymbols, seenIDs)))
+          return mlir::failure();
+    }
 
     imports.push_back(provider);
   }
@@ -396,8 +452,10 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
               "module target symbol attribute '"
            << kFrontendTargetAttrName << "'";
 
+  TargetOp selectedTarget;
   if (mlir::failed(requireTopLevelTargetProfile(module, linalgOp,
-                                                targetRef.getValue())))
+                                                targetRef.getValue(),
+                                                selectedTarget)))
     return mlir::failure();
   if (mlir::failed(requireNoDuplicateKernelSymbol(module, linalgOp,
                                                   kernelAttr.getValue())))
@@ -414,7 +472,7 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
              << "' to be an array of module symbol references";
 
     if (mlir::failed(collectCapabilityProviderImports(
-            module, linalgOp, targetRef, providerRefs, providerImports)))
+            module, linalgOp, selectedTarget, providerRefs, providerImports)))
       return mlir::failure();
   }
 

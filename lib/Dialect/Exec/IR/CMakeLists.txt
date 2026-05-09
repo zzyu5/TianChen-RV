@@ -1,4 +1,5 @@
 add_mlir_dialect_library(TianChenRVExecDialect
+  CapabilityProviderComposition.cpp
   ExecOps.cpp
 
   DEPENDS

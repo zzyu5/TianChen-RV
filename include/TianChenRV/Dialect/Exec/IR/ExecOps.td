@@ -30,7 +30,8 @@ def TargetOp : TCRVExec_Op<"exec.target", [Symbol]> {
     carried as MLIR attributes and are consumed by capability-aware passes.
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name);
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                   OptionalAttr<ArrayAttr>:$capability_providers);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }
