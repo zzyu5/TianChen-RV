@@ -4,6 +4,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=__riscv --implicit-check-not="out[index]" --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_shape = "i32m2"/s//tcrv_rvv.selected_vector_shape = "i32m1"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=SHAPE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text = sys.stdin.read(); pattern = r"\{name = \"tcrv_rvv\.selected_vector_suffix\"([^}]*)value = \"i32m2\"\}"; text, count = re.subn(pattern, lambda m: "{name = \"tcrv_rvv.selected_vector_suffix\"" + m.group(1) + "value = \"i32m1\"}", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=PLAN-METADATA-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -124,3 +125,4 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 // HARNESS: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
 // SHAPE-MISMATCH: selected vector-shape shape must be 'i32m2'
+// PLAN-METADATA-MISMATCH: selected_plan_metadata 'tcrv_rvv.selected_vector_suffix' vector suffix must be 'i32m2'

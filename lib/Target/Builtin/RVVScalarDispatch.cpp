@@ -8,6 +8,7 @@
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -78,6 +79,10 @@ constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kValuePropertyName("value");
+constexpr llvm::StringLiteral kSEWBitsPropertyName("sew_bits");
+constexpr llvm::StringLiteral kLMULPropertyName("lmul");
+constexpr llvm::StringLiteral kTailPolicyPropertyName("tail_policy");
+constexpr llvm::StringLiteral kMaskPolicyPropertyName("mask_policy");
 
 struct DispatchObjectCompileConfig {
   std::string targetTriple;
@@ -114,14 +119,23 @@ using DispatchI32FamilyKind =
     tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using DispatchI32FamilySpec =
     tianchenrv::target::i32_binary::DispatchI32FamilyDescriptor;
+using DispatchRVVVectorShapeConfig =
+    tianchenrv::target::rvv::RVVI32VectorShapeConfig;
 
 struct DispatchPair {
   const DispatchI32FamilySpec *family = nullptr;
+  const DispatchRVVVectorShapeConfig *selectedShape = nullptr;
   TargetArtifactCandidate rvv;
   TargetArtifactCandidate scalar;
   DispatchIRLink irLink;
   DispatchABIPlan abiPlan;
 };
+
+llvm::Expected<const DispatchRVVVectorShapeConfig *>
+resolveDispatchPairSelectedVectorShape(const DispatchPair &pair);
+
+llvm::Error validateEmbeddedRVVSourceSelectedShape(
+    const DispatchPair &pair, llvm::StringRef rvvSource);
 
 struct TemporaryFile {
   llvm::SmallString<128> path;
@@ -918,6 +932,11 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
   if (!abiPlan)
     return abiPlan.takeError();
   pair.abiPlan = std::move(*abiPlan);
+  llvm::Expected<const DispatchRVVVectorShapeConfig *> selectedShape =
+      resolveDispatchPairSelectedVectorShape(pair);
+  if (!selectedShape)
+    return selectedShape.takeError();
+  pair.selectedShape = *selectedShape;
   return pair;
 }
 
@@ -1084,6 +1103,362 @@ VariantOp findDirectVariant(KernelOp kernel, llvm::StringRef symbol) {
       return variant;
   }
   return VariantOp();
+}
+
+llvm::Expected<bool> variantRequiresCapabilityID(
+    KernelOp kernel, VariantOp variant, const TargetCapabilitySet &capabilities,
+    llvm::StringRef id) {
+  auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!requiresAttr)
+    return makeDispatchError(kernel, llvm::Twine("selected RVV dispatch case "
+                                                 "variant @") +
+                                         variant.getSymName() +
+                                         " requires a 'requires' capability "
+                                         "symbol list");
+
+  for (mlir::Attribute attr : requiresAttr) {
+    auto symbol = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attr);
+    if (!symbol || symbol.getValue().trim().empty())
+      return makeDispatchError(
+          kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                      variant.getSymName() +
+                      " requires only non-empty capability symbol references");
+
+    const CapabilityDescriptor *capability =
+        capabilities.lookupBySymbolName(symbol.getValue());
+    if (!capability)
+      continue;
+    if (capability->satisfiesID(id))
+      return true;
+  }
+
+  return false;
+}
+
+llvm::Expected<bool> variantRequiresVectorShapeConfig(
+    KernelOp kernel, VariantOp variant, const TargetCapabilitySet &capabilities,
+    const DispatchRVVVectorShapeConfig &config) {
+  llvm::Expected<bool> requiresSEW =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.sewCapabilityID);
+  if (!requiresSEW)
+    return requiresSEW.takeError();
+  llvm::Expected<bool> requiresLMUL =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.lmulCapabilityID);
+  if (!requiresLMUL)
+    return requiresLMUL.takeError();
+  llvm::Expected<bool> requiresTail =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.tailPolicyCapabilityID);
+  if (!requiresTail)
+    return requiresTail.takeError();
+  llvm::Expected<bool> requiresMask =
+      variantRequiresCapabilityID(kernel, variant, capabilities,
+                                  config.maskPolicyCapabilityID);
+  if (!requiresMask)
+    return requiresMask.takeError();
+  return *requiresSEW && *requiresLMUL && *requiresTail && *requiresMask;
+}
+
+llvm::Error requireDispatchConfigCapabilityProperty(
+    KernelOp kernel, const TargetCapabilitySet &capabilities,
+    llvm::StringRef id, llvm::StringRef propertyName,
+    llvm::StringRef expectedValue,
+    const DispatchRVVVectorShapeConfig &config) {
+  const CapabilityDescriptor *capability = capabilities.lookupProviderByID(id);
+  if (!capability || !capability->isAvailable())
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch shape '") +
+                    config.diagnosticSpelling +
+                    "' requires available capability id '" + id + "'");
+
+  llvm::StringRef value = capability->getProperty(propertyName).trim();
+  if (llvm::Error error =
+          validateDispatchRuntimeABIText(kernel, propertyName, value))
+    return error;
+  if (value != expectedValue)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch shape '") +
+                    config.diagnosticSpelling + "' capability id '" + id +
+                    "' property '" + propertyName + "' must be '" +
+                    expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateDispatchConfigCapabilityProperties(
+    KernelOp kernel, const TargetCapabilitySet &capabilities,
+    const DispatchRVVVectorShapeConfig &config) {
+  if (llvm::Error error = requireDispatchConfigCapabilityProperty(
+          kernel, capabilities, config.sewCapabilityID, kSEWBitsPropertyName,
+          tianchenrv::target::rvv::getRVVI32VectorShapeSEWMetadataValue(config),
+          config))
+    return error;
+  if (llvm::Error error = requireDispatchConfigCapabilityProperty(
+          kernel, capabilities, config.lmulCapabilityID, kLMULPropertyName,
+          config.lmul, config))
+    return error;
+  if (llvm::Error error = requireDispatchConfigCapabilityProperty(
+          kernel, capabilities, config.tailPolicyCapabilityID,
+          kTailPolicyPropertyName, config.tailPolicy, config))
+    return error;
+  if (llvm::Error error = requireDispatchConfigCapabilityProperty(
+          kernel, capabilities, config.maskPolicyCapabilityID,
+          kMaskPolicyPropertyName, config.maskPolicy, config))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Expected<const SelectedPlanMetadataEntry *>
+findUniqueSelectedPlanMetadataEntry(const TargetArtifactCandidate &candidate,
+                                    llvm::StringRef name) {
+  const SelectedPlanMetadataEntry *match = nullptr;
+  unsigned count = 0;
+  for (const SelectedPlanMetadataEntry &metadata :
+       candidate.selectedPlanMetadata) {
+    if (metadata.name == name) {
+      match = &metadata;
+      ++count;
+    }
+  }
+
+  if (count == 0)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " requires selected_plan_metadata '" +
+            name + "'");
+  if (count > 1)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant +
+            " has duplicate selected_plan_metadata '" + name + "'");
+  return match;
+}
+
+llvm::Error validateDispatchSelectedPlanMetadataEntry(
+    const TargetArtifactCandidate &candidate,
+    const tianchenrv::target::rvv::
+        RVVI32VectorShapeSelectedPlanMetadataDescriptor &expected) {
+  llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
+      findUniqueSelectedPlanMetadataEntry(candidate, expected.name);
+  if (!metadata)
+    return metadata.takeError();
+
+  if ((*metadata)->value != expected.value)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            expected.name + "' " + expected.diagnosticSpelling +
+            " must be '" + expected.value + "'");
+  if ((*metadata)->role != expected.role)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            expected.name + "' role must be '" + expected.role + "'");
+  if ((*metadata)->note != expected.note)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            expected.name + "' note must be '" + expected.note + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateDispatchSelectedPlanMetadata(
+    const TargetArtifactCandidate &candidate,
+    const DispatchRVVVectorShapeConfig &config) {
+  llvm::SmallVector<tianchenrv::target::rvv::
+                        RVVI32VectorShapeSelectedPlanMetadataDescriptor,
+                    8>
+      expected;
+  tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(
+      config, expected);
+  for (const auto &entry : expected)
+    if (llvm::Error error =
+            validateDispatchSelectedPlanMetadataEntry(candidate, entry))
+      return error;
+  return llvm::Error::success();
+}
+
+llvm::Expected<const DispatchRVVVectorShapeConfig *>
+resolveDispatchPairSelectedVectorShape(const DispatchPair &pair) {
+  KernelOp kernel = pair.rvv.kernel;
+  VariantOp rvvVariant = findDirectVariant(kernel, pair.rvv.selectedVariant);
+  if (!rvvVariant)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                    pair.rvv.selectedVariant +
+                    " must resolve before selected vector-shape validation");
+
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  llvm::SmallVector<const DispatchRVVVectorShapeConfig *, 2> requiredConfigs;
+  for (const DispatchRVVVectorShapeConfig *config :
+       tianchenrv::target::rvv::getFiniteI32VectorShapeConfigs()) {
+    llvm::Expected<bool> required =
+        variantRequiresVectorShapeConfig(kernel, rvvVariant, *capabilities,
+                                         *config);
+    if (!required)
+      return required.takeError();
+    if (*required)
+      requiredConfigs.push_back(config);
+  }
+
+  if (requiredConfigs.empty())
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                    pair.rvv.selectedVariant +
+                    " must require either the finite i32m1 config capability "
+                    "ids or the finite i32m2 config capability ids");
+  if (requiredConfigs.size() > 1)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch case variant @") +
+                    pair.rvv.selectedVariant +
+                    " must require exactly one finite RVV i32 vector-shape "
+                    "config, not both i32m1 and i32m2");
+
+  const DispatchRVVVectorShapeConfig *selectedConfig = requiredConfigs.front();
+  if (llvm::Error error = validateDispatchConfigCapabilityProperties(
+          kernel, *capabilities, *selectedConfig))
+    return std::move(error);
+
+  llvm::Expected<const SelectedPlanMetadataEntry *> shapeMetadata =
+      findUniqueSelectedPlanMetadataEntry(
+          pair.rvv, tianchenrv::target::rvv::getRVVSelectedVectorShapeAttrName());
+  if (!shapeMetadata)
+    return shapeMetadata.takeError();
+  const DispatchRVVVectorShapeConfig *metadataConfig =
+      tianchenrv::target::rvv::lookupFiniteI32VectorShapeConfigByShapeID(
+          (*shapeMetadata)->value);
+  if (!metadataConfig)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch candidate @") +
+                    pair.rvv.selectedVariant +
+                    " selected_plan_metadata 'tcrv_rvv.selected_vector_shape' "
+                    "has unsupported finite shape '" +
+                    (*shapeMetadata)->value + "'");
+  if (metadataConfig != selectedConfig)
+    return makeDispatchError(
+        kernel, llvm::Twine("selected RVV dispatch candidate @") +
+                    pair.rvv.selectedVariant +
+                    " selected_plan_metadata shape '" +
+                    (*shapeMetadata)->value +
+                    "' does not match selected variant capability shape '" +
+                    selectedConfig->diagnosticSpelling + "'");
+
+  if (llvm::Error error =
+          validateDispatchSelectedPlanMetadata(pair.rvv, *selectedConfig))
+    return std::move(error);
+  return selectedConfig;
+}
+
+const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor &
+getI32BinaryFamilyDescriptorForDispatch(DispatchI32FamilyKind kind) {
+  switch (kind) {
+  case DispatchI32FamilyKind::Add:
+    return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor();
+  case DispatchI32FamilyKind::Sub:
+    return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor();
+  case DispatchI32FamilyKind::Mul:
+    return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor();
+  }
+  llvm_unreachable("unknown RVV+scalar dispatch i32 family");
+}
+
+llvm::Error requireEmbeddedRVVSourceSnippet(const DispatchPair &pair,
+                                            llvm::StringRef rvvSource,
+                                            llvm::StringRef snippet,
+                                            llvm::StringRef context) {
+  if (rvvSource.contains(snippet))
+    return llvm::Error::success();
+  return makeDispatchError(
+      pair.rvv.kernel,
+      llvm::Twine("embedded selected RVV source for dispatch candidate @") +
+          pair.rvv.selectedVariant + " is inconsistent with target-owned " +
+          "selected vector-shape descriptor: missing " + context + " '" +
+          snippet + "'");
+}
+
+llvm::Error validateEmbeddedRVVSourceSelectedShape(
+    const DispatchPair &pair, llvm::StringRef rvvSource) {
+  if (!pair.selectedShape)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "selected RVV dispatch pair must resolve a target-owned selected "
+        "vector-shape descriptor before embedded RVV source validation");
+
+  const DispatchRVVVectorShapeConfig &shape = *pair.selectedShape;
+  const auto &family =
+      getI32BinaryFamilyDescriptorForDispatch(pair.family->kind).rvv;
+
+  std::string shapeComment;
+  llvm::raw_string_ostream shapeStream(shapeComment);
+  shapeStream << "selected_vector_shape_config: shape=" << shape.shapeID
+              << ", sew=" << shape.sewBits << ", lmul=" << shape.lmul
+              << ", tail_policy=" << shape.tailPolicy
+              << ", mask_policy=" << shape.maskPolicy
+              << ", vector_type=" << shape.vectorType
+              << ", vector_suffix=" << shape.vectorSuffix
+              << ", setvl_suffix=" << shape.setvlSuffix;
+  shapeStream.flush();
+
+  std::string intrinsicConfig;
+  llvm::raw_string_ostream intrinsicStream(intrinsicConfig);
+  intrinsicStream << "intrinsic_config: vector_type=" << shape.vectorType
+                  << ", vector_suffix=" << shape.vectorSuffix
+                  << ", setvl_suffix=" << shape.setvlSuffix
+                  << ", tail_policy=" << shape.tailPolicy
+                  << ", mask_policy=" << shape.maskPolicy;
+  intrinsicStream.flush();
+
+  std::string setvlIntrinsic = "__riscv_vsetvl_" + shape.setvlSuffix.str();
+  std::string loadIntrinsic = "__riscv_vle32_v_" + shape.vectorSuffix.str();
+  std::string arithmeticIntrinsic =
+      family.arithmeticIntrinsicPrefix.str() + shape.vectorSuffix.str();
+  std::string storeIntrinsic = "__riscv_vse32_v_" + shape.vectorSuffix.str();
+
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, shapeComment, "selected shape config comment"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, shape.sewCapabilityID,
+          "selected shape SEW capability id"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, shape.lmulCapabilityID,
+          "selected shape LMUL capability id"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, shape.tailPolicyCapabilityID,
+          "selected shape tail-policy capability id"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, shape.maskPolicyCapabilityID,
+          "selected shape mask-policy capability id"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, intrinsicConfig, "intrinsic config comment"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, setvlIntrinsic, "vsetvl intrinsic"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, loadIntrinsic, "load intrinsic"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, arithmeticIntrinsic, "arithmetic intrinsic"))
+    return error;
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, storeIntrinsic, "store intrinsic"))
+    return error;
+  return llvm::Error::success();
 }
 
 llvm::Error requireSafeCompileStringAttr(KernelOp kernel, mlir::Operation *op,
@@ -1346,13 +1721,17 @@ void printDispatchRuntimeParamMetadata(
   }
 }
 
-llvm::Error buildEmbeddedCallableSources(mlir::ModuleOp module,
+llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
                                          std::string &rvvSource,
                                          std::string &scalarSource) {
+  mlir::ModuleOp module = pair.rvv.kernel->getParentOfType<mlir::ModuleOp>();
   llvm::raw_string_ostream rvvStream(rvvSource);
   if (llvm::Error error = rvv::exportRVVMicrokernelC(module, rvvStream))
     return error;
   rvvStream.flush();
+  if (llvm::Error error =
+          validateEmbeddedRVVSourceSelectedShape(pair, rvvSource))
+    return error;
 
   llvm::raw_string_ostream scalarStream(scalarSource);
   if (llvm::Error error = scalar::exportScalarMicrokernelC(module, scalarStream))
@@ -1733,9 +2112,7 @@ llvm::Error exportDispatchSourceFromPair(const DispatchPair &pair,
   std::string rvvSource;
   std::string scalarSource;
   if (llvm::Error error =
-          buildEmbeddedCallableSources(pair.rvv.kernel->getParentOfType<
-                                           mlir::ModuleOp>(),
-                                       rvvSource, scalarSource))
+          buildEmbeddedCallableSources(pair, rvvSource, scalarSource))
     return error;
 
   std::string source;
@@ -1771,9 +2148,7 @@ llvm::Error exportDispatchHeaderFromPair(const DispatchPair &pair,
   std::string rvvSource;
   std::string scalarSource;
   if (llvm::Error error =
-          buildEmbeddedCallableSources(pair.rvv.kernel->getParentOfType<
-                                           mlir::ModuleOp>(),
-                                       rvvSource, scalarSource)) {
+          buildEmbeddedCallableSources(pair, rvvSource, scalarSource)) {
     std::string message = llvm::toString(std::move(error));
     return makeModuleDispatchHeaderError(message);
   }

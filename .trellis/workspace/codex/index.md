@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
-- **Last Active**: 2026-05-09
+- **Total Sessions**: 11
+- **Last Active**: 2026-05-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~731 | Active |
+| `journal-1.md` | ~1140 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-05-10 | RVV selected-shape descriptor ownership | this commit | `main` |
 | 10 | 2026-05-09 | RVV i32 LMUL policy intrinsic emission contract | this commit | `main` |
 | 9 | 2026-05-09 | RVV i32 family direct microkernel route helpers | this commit | `main` |
 | 8 | 2026-05-09 | Descriptor-driven i32 binary dispatch route manifest | this commit | `main` |

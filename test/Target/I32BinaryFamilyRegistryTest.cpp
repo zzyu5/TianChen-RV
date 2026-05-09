@@ -1,9 +1,11 @@
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -440,6 +442,102 @@ int expectStaleFamilyMismatchGuards() {
   return 0;
 }
 
+int expectFiniteRVVVectorShapeDescriptorShape() {
+  using tianchenrv::target::rvv::RVVI32VectorShapeConfig;
+  using tianchenrv::target::rvv::
+      RVVI32VectorShapeSelectedPlanMetadataDescriptor;
+
+  llvm::ArrayRef<const RVVI32VectorShapeConfig *> configs =
+      tianchenrv::target::rvv::getFiniteI32VectorShapeConfigs();
+  if (int result =
+          expect(configs.size() == 2,
+                 "finite RVV i32 vector shape descriptor has two shapes"))
+    return result;
+  if (int result = expect(configs[0] ==
+                              &tianchenrv::target::rvv::
+                                  getI32M1VectorShapeConfig(),
+                          "finite RVV descriptor preserves i32m1 order"))
+    return result;
+  if (int result = expect(configs[1] ==
+                              &tianchenrv::target::rvv::
+                                  getI32M2VectorShapeConfig(),
+                          "finite RVV descriptor preserves i32m2 order"))
+    return result;
+
+  for (const RVVI32VectorShapeConfig *config : configs) {
+    if (int result = expect(
+            tianchenrv::target::rvv::lookupFiniteI32VectorShapeConfigByShapeID(
+                config->shapeID) == config,
+            "finite RVV descriptor lookup by shape id succeeds"))
+      return result;
+    if (int result =
+            expect(config->sewBits == 32, "finite RVV descriptor SEW is 32"))
+      return result;
+    if (int result = expect(!config->lmul.empty() &&
+                                !config->tailPolicy.empty() &&
+                                !config->maskPolicy.empty() &&
+                                !config->vectorType.empty() &&
+                                !config->vectorSuffix.empty() &&
+                                !config->setvlSuffix.empty(),
+                            "finite RVV descriptor carries shape spellings"))
+      return result;
+    if (int result = expect(config->sewCapabilityID.starts_with("rvv.i32_") &&
+                                config->lmulCapabilityID.starts_with(
+                                    "rvv.i32_") &&
+                                config->tailPolicyCapabilityID.starts_with(
+                                    "rvv.i32_") &&
+                                config->maskPolicyCapabilityID.starts_with(
+                                    "rvv.i32_"),
+                            "finite RVV descriptor carries capability ids"))
+      return result;
+
+    llvm::SmallVector<RVVI32VectorShapeSelectedPlanMetadataDescriptor, 8>
+        metadata;
+    tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(
+        *config, metadata);
+    if (int result = expect(metadata.size() == 8,
+                            "finite RVV descriptor owns selected-plan "
+                            "metadata field count"))
+      return result;
+    if (int result = expect(
+            metadata.front().name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedVectorShapeAttrName() &&
+                metadata.front().value == config->shapeID &&
+                metadata.front().role ==
+                    tianchenrv::target::rvv::
+                        getSelectedRVVI32VectorShapeMetadataRole(),
+            "finite RVV descriptor owns selected shape metadata"))
+      return result;
+    if (int result = expect(
+            metadata[5].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedVectorTypeAttrName() &&
+                metadata[5].value == config->vectorType,
+            "finite RVV descriptor owns vector type metadata"))
+      return result;
+    if (int result = expect(
+            metadata[6].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedVectorSuffixAttrName() &&
+                metadata[6].value == config->vectorSuffix,
+            "finite RVV descriptor owns vector suffix metadata"))
+      return result;
+    if (int result = expect(
+            metadata[7].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedSetVLSuffixAttrName() &&
+                metadata[7].value == config->setvlSuffix,
+            "finite RVV descriptor owns setvl suffix metadata"))
+      return result;
+  }
+
+  return expect(
+      !tianchenrv::target::rvv::lookupFiniteI32VectorShapeConfigByShapeID(
+          "i32m4"),
+      "finite RVV descriptor rejects unsupported shape ids");
+}
+
 } // namespace
 
 int main() {
@@ -475,6 +573,8 @@ int main() {
   if (int result = expectDispatchRouteManifest())
     return result;
   if (int result = expectStaleFamilyMismatchGuards())
+    return result;
+  if (int result = expectFiniteRVVVectorShapeDescriptorShape())
     return result;
 
   TargetArtifactExporterRegistry registry;

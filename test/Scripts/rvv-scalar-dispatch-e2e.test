@@ -111,8 +111,7 @@
 # VSUB-M2-EVIDENCE: "ssh_evidence": null
 # VSUB-M2-EVIDENCE: "status": "success"
 
-# VSUB-M2-REJECT-M1: generated library dispatch C source missing required snippets:
-# VSUB-M2-REJECT-M1: __riscv_vsetvl_e32m2
+# VSUB-M2-REJECT-M1: selected_vector_shape_config has shape i32m1, requested vector shape i32m2
 
 # VSUB-SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 # VSUB-SOURCE: __riscv_vsub_vv_i32m1

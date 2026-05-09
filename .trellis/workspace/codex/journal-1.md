@@ -1098,3 +1098,52 @@ Validation:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: RVV selected-shape descriptor ownership
+
+**Date**: 2026-05-10
+**Task**: RVV selected-shape descriptor ownership
+**Branch**: `main`
+
+### Summary
+
+Moved finite RVV i32 selected-shape truth into C++ target-owned descriptor/API, added dispatch exporter fail-closed validation, reduced Python evidence script to generated-artifact consumption, and passed focused plus full TianChen-RV checks.
+
+### Main Changes
+
+- Created and archived Trellis task `rvv-selected-shape-descriptor-ownership-cxx-target-backend` for internal case `switch module`.
+- Extended `RVVVectorShape.h` with bounded selected-plan metadata descriptor helpers for `i32m1` and `i32m2`.
+- Routed RVV plugin selected-plan metadata generation and RVV+scalar dispatch source/header validation through the C++ descriptor.
+- Added fail-closed checks for selected variant capability IDs, selected-plan metadata values/roles/notes, emitted shape comments, vector type, vsetvl suffix, and RVV intrinsic spelling.
+- Reduced `scripts/rvv_scalar_dispatch_e2e.py` shape ownership to CLI/default-fixture routing plus generated artifact parsing; parser self-test fixtures remain local parser inputs only.
+- Validation: `git diff --check`; `tcrv-translate tcrv-opt`; descriptor/exporter C++ tests; script py_compile/self-test; focused direct and bundle dry-runs for `i32-vsub i32m2`; selected-plan mismatch negative probe; `check-tianchenrv` 171/171.
+- No new `ssh rvv` evidence was produced; commit `5db3128` remains the latest runtime evidence for the affected path.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate tcrv-opt -j2`
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] Focused direct dry-run for `i32-vsub --vector-shape=i32m2`
+- [OK] Focused bundle dry-run for `i32-vsub --vector-shape=i32m2`
+- [OK] Manual selected-plan metadata mismatch probe rejected stale vector suffix before artifact emission
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 171/171
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

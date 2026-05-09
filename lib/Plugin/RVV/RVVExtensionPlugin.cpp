@@ -141,12 +141,6 @@ constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataRole(
 constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
     "base i32 M1 capacity fact from target/profile evidence; not selected "
     "vector shape, runtime input, VL/AVL, or performance evidence");
-constexpr llvm::StringLiteral kSelectedRVVVectorShapeMetadataRole(
-    "selected-rvv-vector-shape-config");
-constexpr llvm::StringLiteral kSelectedRVVVectorShapeMetadataNote(
-    "compile-time RVV i32 vector-shape config selected by the RVV plugin and "
-    "validated against capabilities; not base lane capacity, runtime AVL/VL, "
-    "or descriptor element_count");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
 constexpr std::uint64_t kI32VAddCapacitySampleVectors = 4;
 constexpr std::int64_t kMaxI32VAddElementCount = 64;
@@ -635,30 +629,15 @@ llvm::Error addSelectedVectorShapeMetadataToPlan(
               kRVVSelectedSetVLSuffixAttrName))
     return error;
 
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedVectorShapeAttrName, config.shapeID.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedVectorSEWAttrName, std::to_string(config.sewBits),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedVectorLMULAttrName, config.lmul.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedTailPolicyAttrName, config.tailPolicy.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedMaskPolicyAttrName, config.maskPolicy.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedVectorTypeAttrName, config.vectorType.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedVectorSuffixAttrName, config.vectorSuffix.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
-  plan.addSelectedPlanMetadata(
-      kRVVSelectedSetVLSuffixAttrName, config.setvlSuffix.str(),
-      kSelectedRVVVectorShapeMetadataRole, kSelectedRVVVectorShapeMetadataNote);
+  llvm::SmallVector<
+      tianchenrv::target::rvv::RVVI32VectorShapeSelectedPlanMetadataDescriptor,
+      8>
+      metadata;
+  tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(config,
+                                                                       metadata);
+  for (const auto &entry : metadata)
+    plan.addSelectedPlanMetadata(entry.name.str(), entry.value.str(),
+                                 entry.role.str(), entry.note.str());
   return llvm::Error::success();
 }
 
