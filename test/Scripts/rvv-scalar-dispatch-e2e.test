@@ -9,6 +9,11 @@
 # RUN: FileCheck %s --check-prefix=LIBRARY --implicit-check-not="int main(void)" --implicit-check-not="tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_library.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=EVIDENCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --lower-linalg-frontend --run-id lit-rvv-scalar-vsub-i32m2-dispatch-e2e --overwrite | FileCheck %s --check-prefix=VSUB-M2-DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-i32m2-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-i32m2-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-i32m2-dispatch-e2e/evidence.json
+# RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --lower-linalg-frontend --run-id lit-rvv-scalar-vsub-i32m2-reject-m1 --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir 2>&1 | FileCheck %s --check-prefix=VSUB-M2-REJECT-M1
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vsub --lower-linalg-frontend --run-id lit-rvv-scalar-vsub-dispatch-e2e --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir | FileCheck %s --check-prefix=VSUB-DRY
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VSUB-SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-dispatch-e2e/rvv_scalar_dispatch_self_check.c
@@ -76,6 +81,38 @@
 # VSUB-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
 # VSUB-DRY: "ssh_evidence": false
 # VSUB-DRY: "status": "success"
+
+# VSUB-M2-DRY: "arithmetic_family": "i32-vsub"
+# VSUB-M2-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-i32m2-dispatch-e2e"
+# VSUB-M2-DRY: "mode": "dry-run"
+# VSUB-M2-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VSUB-M2-DRY: "ssh_evidence": false
+# VSUB-M2-DRY: "status": "success"
+# VSUB-M2-DRY: "vector_shape": "i32m2"
+
+# VSUB-M2-SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
+# VSUB-M2-SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
+# VSUB-M2-SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
+# VSUB-M2-SOURCE: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
+# VSUB-M2-SOURCE: __riscv_vsetvl_e32m2
+# VSUB-M2-SOURCE: __riscv_vle32_v_i32m2
+# VSUB-M2-SOURCE: __riscv_vsub_vv_i32m2
+# VSUB-M2-SOURCE: __riscv_vse32_v_i32m2
+# VSUB-M2-SOURCE: out[index] = lhs[index] - rhs[index];
+# VSUB-M2-SOURCE: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
+
+# VSUB-M2-EVIDENCE: "arithmetic_family": "i32-vsub"
+# VSUB-M2-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-i32m2-generic-route.mlir"
+# VSUB-M2-EVIDENCE: "rvv_config": {
+# VSUB-M2-EVIDENCE-DAG: "shape": "i32m2"
+# VSUB-M2-EVIDENCE-DAG: "lmul": "m2"
+# VSUB-M2-EVIDENCE-DAG: "vector_suffix": "i32m2"
+# VSUB-M2-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VSUB-M2-EVIDENCE: "ssh_evidence": null
+# VSUB-M2-EVIDENCE: "status": "success"
+
+# VSUB-M2-REJECT-M1: generated library dispatch C source missing required snippets:
+# VSUB-M2-REJECT-M1: __riscv_vsetvl_e32m2
 
 # VSUB-SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 # VSUB-SOURCE: __riscv_vsub_vv_i32m1

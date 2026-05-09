@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector-shape and i32m2 plugin boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "RVV+scalar dispatch artifact, bundle, and evidence bridge contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, bundle, and ssh evidence scope requirements"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Dispatch selection and runtime guard materialization rules"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Parameter layering and dispatch guard capability rules"}

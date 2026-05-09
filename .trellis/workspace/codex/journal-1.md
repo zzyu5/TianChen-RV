@@ -55,6 +55,56 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 14: RVV i32m2 vsub dispatch artifact path
+
+**Date**: 2026-05-10
+**Task**: RVV i32m2 vsub dispatch artifact path
+**Branch**: `main`
+
+### Summary
+
+Extended the RVV+scalar dispatch evidence bridge so frontend-generated
+`i32-vsub` dispatch can be validated and executed with the selected RVV
+`i32m2` shape through both direct self-check and target-artifact bundle paths.
+
+### Main Changes
+
+- Added explicit `--vector-shape={i32m1,i32m2}` support to
+  `scripts/rvv_scalar_dispatch_e2e.py`, including shape-aware intrinsic
+  validation, selected-shape metadata validation, and evidence-level
+  `rvv_config`.
+- Added checked-in `i32m2` linalg-origin dispatch and plan-and-export bundle
+  fixtures for `i32-vsub`.
+- Extended script lit coverage for positive `i32m2` dry-runs, negative
+  `i32m2` over `i32m1` rejection, and bundle front-door evidence.
+- Archived Trellis task
+  `.trellis/tasks/archive/2026-05/05-10-rvv-i32m2-vsub-dispatch-artifact-path/`.
+
+### Validation
+
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] direct local dry-run for `--arithmetic-family=i32-vsub --vector-shape=i32m2`
+- [OK] negative local dry-run rejected `--vector-shape=i32m2` over the `i32m1` input
+- [OK] bundle front-door local dry-run for `i32-vsub i32m2`
+- [OK] focused lit filter `rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e|rvv-scalar-i32-vsub-dispatch-i32m2|plan-linalg-i32m2-vsub` passed 4/4
+- [OK] real `ssh rvv` direct dispatch self-check:
+  `artifacts/tmp/rvv_scalar_dispatch_e2e/20260510-rvv-scalar-vsub-i32m2-dispatch-ssh/evidence.json`
+- [OK] real `ssh rvv` bundle external caller:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/20260510-rvv-scalar-vsub-i32m2-dispatch-bundle-ssh/evidence.json`
+- [OK] `python3 .trellis/scripts/task.py validate 05-10-rvv-i32m2-vsub-dispatch-artifact-path`
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 171/171
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: Selected RVV plus scalar dispatch ABI artifact boundary
 
 **Date**: 2026-05-10

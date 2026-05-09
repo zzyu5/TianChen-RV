@@ -21,6 +21,13 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o
 # RUN: FileCheck %s --check-prefix=VSUB-CALLER --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
 # RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=VSUB-M2-PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
+# RUN: FileCheck %s --check-prefix=VSUB-M2-CALLER --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/evidence.json
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=VMUL-PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vmul-dispatch-header.h
@@ -125,6 +132,45 @@
 # VSUB-EVIDENCE: "pass_fail_result": "pass"
 # VSUB-EVIDENCE: "ssh_evidence": null
 # VSUB-EVIDENCE: "status": "success"
+
+# VSUB-M2-PLAN-DRY: "arithmetic_family": "i32-vsub"
+# VSUB-M2-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VSUB-M2-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VSUB-M2-PLAN-DRY: "ssh_evidence": false
+# VSUB-M2-PLAN-DRY: "status": "success"
+# VSUB-M2-PLAN-DRY: "vector_shape": "i32m2"
+
+# VSUB-M2-SOURCE: /* selected_kernel: @frontend_bundle_i32m2_vsub */
+# VSUB-M2-SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
+# VSUB-M2-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_rvv_first_slice */
+# VSUB-M2-SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
+# VSUB-M2-SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
+# VSUB-M2-SOURCE: __riscv_vsetvl_e32m2
+# VSUB-M2-SOURCE: __riscv_vle32_v_i32m2
+# VSUB-M2-SOURCE: __riscv_vsub_vv_i32m2
+# VSUB-M2-SOURCE: __riscv_vse32_v_i32m2
+# VSUB-M2-SOURCE: void tcrv_dispatch_i32_vsub_frontend_bundle_i32m2_vsub
+
+# VSUB-M2-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
+# VSUB-M2-CALLER: tcrv_dispatch_i32_vsub_frontend_bundle_i32m2_vsub(lhs, rhs, out, runtime_n, rvv_available);
+# VSUB-M2-CALLER: out[index] != lhs[index] - rhs[index]
+# VSUB-M2-CALLER: run_dispatch_case(7, 0)
+# VSUB-M2-CALLER: run_dispatch_case(16, 1)
+# VSUB-M2-CALLER: tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok
+
+# VSUB-M2-EVIDENCE: "arithmetic_family": "i32-vsub"
+# VSUB-M2-EVIDENCE-DAG: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VSUB-M2-EVIDENCE-DAG: "input": "test/Target/TargetArtifactBundleExport/plan-linalg-i32m2-vsub-and-export-target-artifact-bundle.mlir"
+# VSUB-M2-EVIDENCE-DAG: "rvv_config": {
+# VSUB-M2-EVIDENCE-DAG: "shape": "i32m2"
+# VSUB-M2-EVIDENCE-DAG: "lmul": "m2"
+# VSUB-M2-EVIDENCE-DAG: "vector_suffix": "i32m2"
+# VSUB-M2-EVIDENCE-DAG: "selected_plan_metadata": [
+# VSUB-M2-EVIDENCE-DAG: "value": "i32m2"
+# VSUB-M2-EVIDENCE-DAG: "pass_fail_result": "pass"
+# VSUB-M2-EVIDENCE-DAG: "ssh_evidence": null
+# VSUB-M2-EVIDENCE-DAG: "status": "success"
+# VSUB-M2-EVIDENCE-DAG: "vector_shape": "i32m2"
 
 # VMUL-PLAN-DRY: "arithmetic_family": "i32-vmul"
 # VMUL-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
