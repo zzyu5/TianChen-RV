@@ -49,6 +49,7 @@ using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
+using tianchenrv::tcrv::scalar::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 
@@ -105,12 +106,18 @@ const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
   return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().scalar;
 }
 
+const ScalarI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
+  return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().scalar;
+}
+
 const ScalarI32MicrokernelFamilySpec *
 getScalarI32MicrokernelFamilyForOp(mlir::Operation *op) {
   if (llvm::isa_and_nonnull<I32VAddMicrokernelOp>(op))
     return &getI32VAddFamilySpec();
   if (llvm::isa_and_nonnull<I32VSubMicrokernelOp>(op))
     return &getI32VSubFamilySpec();
+  if (llvm::isa_and_nonnull<I32VMulMicrokernelOp>(op))
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -120,6 +127,8 @@ getScalarI32MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
     return &getI32VAddFamilySpec();
   if (routeID == getI32VSubFamilySpec().routeID)
     return &getI32VSubFamilySpec();
+  if (routeID == getI32VMulFamilySpec().routeID)
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -1256,14 +1265,15 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
                       "' must be a non-empty string when present");
 
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
-    if (descriptorValue != getI32VAddFamilySpec().descriptor &&
-        descriptorValue != getI32VSubFamilySpec().descriptor)
+    if (!tianchenrv::target::i32_binary::
+            lookupI32BinaryFamilyByLoweringDescriptor(descriptorValue))
       return makeMicrokernelError(
           kernel, llvm::Twine("selected scalar variant @") +
                       variant.getSymName() + " attribute '" +
                       kScalarLoweringDescriptorAttrName + "' must be '" +
                       getI32VAddFamilySpec().descriptor + "' or '" +
-                      getI32VSubFamilySpec().descriptor + "'");
+                      getI32VSubFamilySpec().descriptor + "' or '" +
+                      getI32VMulFamilySpec().descriptor + "'");
 
     if (descriptorValue != family.descriptor)
       return makeMicrokernelError(
@@ -2001,6 +2011,7 @@ llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   const ScalarI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
   const ScalarI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
+  const ScalarI32MicrokernelFamilySpec &mulFamily = getI32VMulFamilySpec();
   const support::RuntimeABICallableIdentity &abi =
       support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
@@ -2014,6 +2025,14 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           subFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           subFamily.emissionKind, exportScalarMicrokernelC,
+          support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
+          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          validateScalarMicrokernelSourceCandidate)))
+    return error;
+
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          mulFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+          mulFamily.emissionKind, exportScalarMicrokernelC,
           support::getI32VAddRuntimeABIContract().getCallableRoleRequirements(),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))

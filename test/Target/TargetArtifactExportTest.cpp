@@ -536,6 +536,26 @@ TargetArtifactCandidate makeRVVSubDirectCandidate(
   return candidate;
 }
 
+TargetArtifactCandidate makeRVVMulDirectCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  TargetArtifactCandidate candidate;
+  candidate.kernel = kernel;
+  candidate.selectedVariant = selectedVariant.str();
+  candidate.role = "direct variant";
+  candidate.origin = "rvv-plugin";
+  candidate.routeID = "tcrv-export-rvv-i32-vmul-microkernel-c";
+  candidate.emissionKind = "rvv-explicit-i32-vmul-microkernel-c-source";
+  candidate.artifactKind = "runtime-callable-c-source";
+  candidate.loweringBoundary = "tcrv_rvv.lowering_boundary";
+  candidate.runtimeABI = "rvv-i32-vmul-runtime-callable-c-abi.v1";
+  candidate.runtimeABIKind = "rvv-runtime-callable-c-abi";
+  candidate.runtimeABIName = "rvv-i32-vmul-runtime-callable-c-function.v1";
+  candidate.runtimeGlueRole = "runtime-callable-i32-vmul-function";
+  candidate.runtimeABIParameters =
+      tianchenrv::support::getI32VAddRuntimeABIParameters();
+  return candidate;
+}
+
 TargetArtifactCandidate makeRVVSubDispatchCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
   TargetArtifactCandidate candidate =
@@ -941,12 +961,16 @@ bool expectCompositeCandidateValidationRejects(
 
 bool expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
-  TargetArtifactCandidate candidate =
-      routeID.contains("i32-vsub")
-          ? makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
-                                      "rvv_sub_slice")
-          : makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
-                                     "rvv_first_slice");
+  TargetArtifactCandidate candidate;
+  if (routeID.contains("i32-vmul"))
+    candidate = makeRVVMulDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                          "rvv_mul_slice");
+  else if (routeID.contains("i32-vsub"))
+    candidate = makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                          "rvv_sub_slice");
+  else
+    candidate = makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                         "rvv_first_slice");
   candidate.role = "direct variant";
   candidate.runtimeABIParameters[3].cType = "long";
   llvm::SmallVector<TargetArtifactCandidate, 1> candidates;
@@ -1507,13 +1531,13 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 6) {
-    llvm::errs() << "expected exactly 6 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 8) {
+    llvm::errs() << "expected exactly 8 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 12) {
-    llvm::errs() << "expected exactly 12 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 14) {
+    llvm::errs() << "expected exactly 14 built-in composite target artifact "
                     "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -1532,6 +1556,10 @@ int main() {
       "rvv-i32-vsub-microkernel-external-abi.v1");
   constexpr llvm::StringLiteral rvvSubRuntimeABIName(
       "rvv-i32-vsub-runtime-callable-c-function.v1");
+  constexpr llvm::StringLiteral rvvMulExternalABIComponentGroup(
+      "rvv-i32-vmul-microkernel-external-abi.v1");
+  constexpr llvm::StringLiteral rvvMulRuntimeABIName(
+      "rvv-i32-vmul-runtime-callable-c-function.v1");
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",
                    "rvv-explicit-i32-vadd-microkernel-c-source", 4,
@@ -1557,12 +1585,35 @@ int main() {
           tianchenrv::support::getI32VAddRuntimeABIContract()
               .getCallableRoleRequirements()))
     return 1;
+  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
+                   "runtime-callable-c-source", "rvv-plugin",
+                   "rvv-explicit-i32-vmul-microkernel-c-source", 4,
+                   /*expectedDirectHelperRoute=*/false,
+                   /*expectedHandoffKind=*/{},
+                   "rvv-i32-vmul-microkernel-external-abi.v1",
+                   "rvv-i32-vmul-runtime-callable-c-function.v1"))
+    return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
+    return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
                    "scalar-explicit-i32-vadd-microkernel-c-source", 4))
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-scalar-microkernel-c",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
+    return 1;
+  if (!expectRoute(builtinRegistry,
+                   "tcrv-export-scalar-i32-vmul-microkernel-c",
+                   "runtime-callable-c-source", "scalar-plugin",
+                   "scalar-explicit-i32-vmul-microkernel-c-source", 4))
+    return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-scalar-i32-vmul-microkernel-c",
           tianchenrv::support::getI32VAddRuntimeABIContract()
               .getCallableRoleRequirements()))
     return 1;
@@ -1636,6 +1687,22 @@ int main() {
           rvvSubExternalABIComponentGroup, rvvSubRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-header",
+          "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
+          rvvMulRuntimeABIName,
+          /*expectedDirectHelperRoute=*/false,
+          rvvMulExternalABIComponentGroup, rvvMulRuntimeABIName,
+          /*expectedCandidateValidation=*/true))
+    return 1;
+  if (!expectCompositeRoute(
+          builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-object",
+          "riscv-elf-relocatable-object", "rvv-plugin",
+          rvvABI.runtimeABIKind, rvvMulRuntimeABIName,
+          /*expectedDirectHelperRoute=*/false,
+          rvvMulExternalABIComponentGroup, rvvMulRuntimeABIName,
+          /*expectedCandidateValidation=*/true))
+    return 1;
   const TargetArtifactCompositeExporter *rvvHeaderComposite =
       builtinRegistry.lookupComposite("tcrv-export-rvv-microkernel-header");
   const TargetArtifactCompositeExporter *rvvObjectComposite =
@@ -1646,12 +1713,22 @@ int main() {
   const TargetArtifactCompositeExporter *rvvSubObjectComposite =
       builtinRegistry.lookupComposite(
           "tcrv-export-rvv-i32-vsub-microkernel-object");
+  const TargetArtifactCompositeExporter *rvvMulHeaderComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-i32-vmul-microkernel-header");
+  const TargetArtifactCompositeExporter *rvvMulObjectComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-i32-vmul-microkernel-object");
   if (!rvvHeaderComposite || !rvvHeaderComposite->getRuntimeABIParametersFn() ||
       !rvvObjectComposite || !rvvObjectComposite->getRuntimeABIParametersFn() ||
       !rvvSubHeaderComposite ||
       !rvvSubHeaderComposite->getRuntimeABIParametersFn() ||
       !rvvSubObjectComposite ||
-      !rvvSubObjectComposite->getRuntimeABIParametersFn()) {
+      !rvvSubObjectComposite->getRuntimeABIParametersFn() ||
+      !rvvMulHeaderComposite ||
+      !rvvMulHeaderComposite->getRuntimeABIParametersFn() ||
+      !rvvMulObjectComposite ||
+      !rvvMulObjectComposite->getRuntimeABIParametersFn()) {
     llvm::errs() << "RVV microkernel header/object composites must publish "
                     "runtime ABI parameters through route-local C++ callbacks\n";
     return 1;
@@ -1769,6 +1846,12 @@ int main() {
     return 1;
   if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-object"))
+    return 1;
+  if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-header"))
+    return 1;
+  if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
+          builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-object"))
     return 1;
   if (!expectScalarMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
           builtinRegistry, "tcrv-export-scalar-microkernel-header"))

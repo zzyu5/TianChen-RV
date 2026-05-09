@@ -5,10 +5,10 @@ include "mlir/Pass/PassBase.td"
 
 def LowerLinalgI32VAddToExec
     : Pass<"tcrv-lower-linalg-i32-vadd-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Lower bounded marked linalg i32 vector add/sub wrappers to tcrv.exec";
+  let summary = "Lower bounded marked linalg i32 vector add/sub/mul wrappers to tcrv.exec";
   let description = [{
     Consumes explicitly marked hand-written/test linalg.generic i32 vector
-    add/sub wrappers and materializes the TianChen-RV execution boundary
+    add/sub/mul wrappers and materializes the TianChen-RV execution boundary
     consumed by the existing plugin planning pipeline. The pass creates a
     tcrv.exec.kernel with a selected module target profile reference, preserves
     the bounded frontend lowering family marker, validates that target

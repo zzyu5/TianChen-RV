@@ -214,6 +214,10 @@ bool isAllowedI32SubAttr(llvm::StringRef name) {
   return false;
 }
 
+bool isAllowedI32MulAttr(llvm::StringRef name) {
+  return false;
+}
+
 bool isAllowedI32StoreAttr(llvm::StringRef name) {
   return name == kBufferRoleAttrName;
 }
@@ -294,6 +298,7 @@ bool isI32M1Vector(mlir::Type type) {
 enum class I32MicrokernelArithmetic {
   Add,
   Sub,
+  Mul,
 };
 
 struct I32MicrokernelFamilySpec {
@@ -312,11 +317,16 @@ getI32MicrokernelFamilySpec(I32MicrokernelArithmetic arithmetic) {
   static const I32MicrokernelFamilySpec subSpec{
       I32MicrokernelArithmetic::Sub, "tcrv_rvv.i32_vsub_microkernel",
       "tcrv_rvv.i32_sub", "subtract", "difference"};
+  static const I32MicrokernelFamilySpec mulSpec{
+      I32MicrokernelArithmetic::Mul, "tcrv_rvv.i32_vmul_microkernel",
+      "tcrv_rvv.i32_mul", "multiply", "product"};
   switch (arithmetic) {
   case I32MicrokernelArithmetic::Add:
     return addSpec;
   case I32MicrokernelArithmetic::Sub:
     return subSpec;
+  case I32MicrokernelArithmetic::Mul:
+    return mulSpec;
   }
   llvm_unreachable("unknown RVV i32 microkernel arithmetic");
 }
@@ -327,6 +337,8 @@ getEnclosingI32MicrokernelArithmetic(mlir::Operation *op) {
     return I32MicrokernelArithmetic::Add;
   if (op->getParentOfType<I32VSubMicrokernelOp>())
     return I32MicrokernelArithmetic::Sub;
+  if (op->getParentOfType<I32VMulMicrokernelOp>())
+    return I32MicrokernelArithmetic::Mul;
   return std::nullopt;
 }
 
@@ -341,8 +353,9 @@ mlir::LogicalResult verifyNestedI32DataflowOp(
       getEnclosingI32MicrokernelArithmetic(op);
   if (!enclosingArithmetic)
     return op->emitOpError()
-           << "must be nested under tcrv_rvv.i32_vadd_microkernel or "
-              "tcrv_rvv.i32_vsub_microkernel; it is a finite microkernel "
+           << "must be nested under tcrv_rvv.i32_vadd_microkernel, "
+              "tcrv_rvv.i32_vsub_microkernel, or "
+              "tcrv_rvv.i32_vmul_microkernel; it is a finite microkernel "
               "dataflow op, not a standalone RVV compute op";
   if (requiredArithmetic && *requiredArithmetic != *enclosingArithmetic) {
     const I32MicrokernelFamilySpec &requiredSpec =
@@ -379,6 +392,15 @@ bool matchArithmeticOp(mlir::Operation *op,
       rhs = sub.getRhs();
       vl = sub.getVl();
       result = sub.getDifference();
+      return true;
+    }
+    return false;
+  case I32MicrokernelArithmetic::Mul:
+    if (auto mul = llvm::dyn_cast<I32MulOp>(op)) {
+      lhs = mul.getLhs();
+      rhs = mul.getRhs();
+      vl = mul.getVl();
+      result = mul.getProduct();
       return true;
     }
     return false;
@@ -773,6 +795,39 @@ mlir::LogicalResult I32SubOp::verify() {
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
   return verifyNestedI32DataflowOp(op, I32MicrokernelArithmetic::Sub);
+}
+
+mlir::LogicalResult I32MulOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i32_mul keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "element_count as descriptor-local microkernel metadata";
+
+    if (!isAllowedI32MulAttr(attrName))
+      return emitOpError()
+             << "does not accept dataflow attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs !tcrv_rvv.i32m1 operands, one "
+              "!tcrv_rvv.vl operand, and one !tcrv_rvv.i32m1 result";
+  if (!isI32M1Vector(getLhs().getType()) ||
+      !isI32M1Vector(getRhs().getType()) ||
+      !isI32M1Vector(getProduct().getType()))
+    return emitOpError()
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i32m1";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  return verifyNestedI32DataflowOp(op, I32MicrokernelArithmetic::Mul);
 }
 
 mlir::LogicalResult I32StoreOp::verify() {
@@ -1179,6 +1234,12 @@ mlir::LogicalResult I32VSubMicrokernelOp::verify() {
   return verifyI32MicrokernelOp(
       getOperation(),
       getI32MicrokernelFamilySpec(I32MicrokernelArithmetic::Sub));
+}
+
+mlir::LogicalResult I32VMulMicrokernelOp::verify() {
+  return verifyI32MicrokernelOp(
+      getOperation(),
+      getI32MicrokernelFamilySpec(I32MicrokernelArithmetic::Mul));
 }
 
 void TCRVRVVDialect::initialize() {

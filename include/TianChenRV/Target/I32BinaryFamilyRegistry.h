@@ -9,6 +9,7 @@ namespace tianchenrv::target::i32_binary {
 enum class I32BinaryFamilyKind {
   Add,
   Sub,
+  Mul,
 };
 
 struct RVVI32MicrokernelFamilyDescriptor {
@@ -222,10 +223,78 @@ inline const I32BinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
   return descriptor;
 }
 
+inline const I32BinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
+  static const I32BinaryFamilyDescriptor descriptor{
+      I32BinaryFamilyKind::Mul,
+      "i32-vmul",
+      "i32-vmul",
+      "i32-vmul-microkernel.v1",
+      "finite i32-vmul lowering descriptor",
+      {I32BinaryFamilyKind::Mul,
+       "tcrv_rvv.i32_vmul_microkernel",
+       "tcrv_rvv.i32_mul",
+       "multiply",
+       "i32_vmul",
+       "I32_VMUL",
+       "__riscv_vmul_vv_i32m1",
+       "product_vec",
+       "rvv-explicit-i32-vmul-microkernel-c-source",
+       "tcrv-export-rvv-i32-vmul-microkernel-c",
+       "tcrv-export-rvv-i32-vmul-microkernel-header",
+       "tcrv-export-rvv-i32-vmul-microkernel-object",
+       "rvv-i32-vmul-runtime-callable-c-abi.v1",
+       "rvv-runtime-callable-c-abi",
+       "rvv-i32-vmul-runtime-callable-c-function.v1",
+       "runtime-callable-i32-vmul-function",
+       "rvv-i32-vmul-microkernel-external-abi.v1"},
+      {I32BinaryFamilyKind::Mul,
+       "tcrv_scalar.i32_vmul_microkernel",
+       "i32 vector-multiply",
+       "i32_vmul",
+       "I32_VMUL",
+       "i32-vmul-microkernel.v1",
+       "scalar-explicit-i32-vmul-microkernel-c-source",
+       "tcrv-export-scalar-i32-vmul-microkernel-c",
+       "tcrv-export-scalar-microkernel-header",
+       "tcrv-export-scalar-microkernel-object",
+       "scalar-i32-vmul-runtime-callable-c-abi.v1",
+       "scalar-runtime-callable-c-abi",
+       "scalar-i32-vmul-runtime-callable-c-function.v1",
+       "runtime-callable-i32-vmul-fallback-function",
+       "*"},
+      {I32BinaryFamilyKind::Mul,
+       "i32-vmul",
+       "i32 vector-multiply",
+       "i32_vmul",
+       "I32_VMUL",
+       "*",
+       "tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok",
+       "tcrv-export-rvv-i32-vmul-microkernel-c",
+       "rvv-explicit-i32-vmul-microkernel-c-source",
+       "rvv-i32-vmul-runtime-callable-c-abi.v1",
+       "rvv-runtime-callable-c-abi",
+       "rvv-i32-vmul-runtime-callable-c-function.v1",
+       "runtime-callable-i32-vmul-function",
+       "tcrv-export-scalar-i32-vmul-microkernel-c",
+       "scalar-explicit-i32-vmul-microkernel-c-source",
+       "scalar-i32-vmul-runtime-callable-c-abi.v1",
+       "scalar-runtime-callable-c-abi",
+       "scalar-i32-vmul-runtime-callable-c-function.v1",
+       "runtime-callable-i32-vmul-fallback-function",
+       "tcrv-export-rvv-scalar-i32-vmul-dispatch-c",
+       "tcrv-export-rvv-scalar-i32-vmul-dispatch-header",
+       "tcrv-export-rvv-scalar-i32-vmul-dispatch-object",
+       "rvv-scalar-dispatch-runtime-callable-c-abi",
+       "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1",
+       "rvv-scalar-i32-vmul-dispatch-external-abi.v1"}};
+  return descriptor;
+}
+
 inline llvm::ArrayRef<const I32BinaryFamilyDescriptor *>
 getI32BinaryFamilyDescriptors() {
   static const I32BinaryFamilyDescriptor *families[] = {
-      &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor()};
+      &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor(),
+      &getI32VMulFamilyDescriptor()};
   return llvm::ArrayRef(families);
 }
 

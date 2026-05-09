@@ -341,8 +341,8 @@ mlir::LogicalResult lowerBoundedLinalgFrontendForPlanning(
     return mlir::success();
 
   module.emitError() << "TianChen-RV " << frontDoorName
-                     << " failed during bounded linalg i32 add/sub frontend "
-                        "lowering";
+                     << " failed during bounded linalg i32 add/sub/mul "
+                        "frontend lowering";
   return mlir::failure();
 }
 
@@ -395,26 +395,26 @@ void registerTianChenRVTranslations() {
 
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelC(
       "tcrv-export-rvv-microkernel-c",
-      "export one runtime-callable RVV i32 add/sub microkernel C source",
+      "export one runtime-callable RVV i32 add/sub/mul microkernel C source",
       exportRVVMicrokernelC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelC;
 
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelSelfCheckC(
       "tcrv-export-rvv-microkernel-self-check-c",
-      "export one RVV i32 add/sub microkernel C source with self-check "
+      "export one RVV i32 add/sub/mul microkernel C source with self-check "
       "harness",
       exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelSelfCheckC;
 
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelHeader(
       "tcrv-export-rvv-microkernel-header",
-      "export one RVV i32 add/sub microkernel runtime-callable C ABI header",
+      "export one RVV i32 add/sub/mul microkernel runtime-callable C ABI header",
       exportRVVMicrokernelHeader, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelHeader;
 
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelObject(
       "tcrv-export-rvv-microkernel-object",
-      "export one RVV i32 add/sub microkernel library object file",
+      "export one RVV i32 add/sub/mul microkernel library object file",
       exportRVVMicrokernelObject, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelObject;
 

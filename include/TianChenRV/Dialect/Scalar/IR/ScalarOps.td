@@ -17,7 +17,7 @@ def TCRV_Scalar_Dialect : Dialect {
     metadata. It does not model scalar arithmetic, memory loops, LLVM lowering,
     runtime ABI glue, generated artifacts, correctness, or performance.
 
-    The explicit i32 vector-add/subtract microkernel ops are later bounded
+    The explicit i32 vector-add/subtract/multiply microkernel ops are later bounded
     exceptions: they are still plugin-local, finite, and source-export-only.
     They do not make this dialect a generic scalar compute IR.
   }];
@@ -97,6 +97,35 @@ def I32VSubMicrokernelOp : TCRVScalar_Op<"i32_vsub_microkernel", []> {
     runtime ABI, or arbitrary scalar compute IR. It represents exactly the
     bounded scalar fallback executable source-export library slice for i32
     vector subtract.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    I64Attr:$element_count,
+    ArrayAttr:$required_capabilities
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
+def I32VMulMicrokernelOp : TCRVScalar_Op<"i32_vmul_microkernel", []> {
+  let summary = "explicit bounded scalar i32 vector-multiply source-export microkernel";
+  let description = [{
+    Records one plugin-local scalar i32 vector-multiply microkernel body for a
+    selected scalar fallback variant. This is intentionally a finite source
+    export surface: it carries selected-path metadata, required scalar
+    fallback capability references, and a tiny element count that a
+    target-local exporter can turn into deterministic portable
+    runtime-callable C.
+
+    This op is not a generic tensor, tile, benchmark, bufferization, lowering,
+    runtime ABI, or arbitrary scalar compute IR. It represents exactly the
+    bounded scalar fallback executable source-export library slice for i32
+    vector multiply.
   }];
 
   let arguments = (ins

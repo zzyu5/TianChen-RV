@@ -250,3 +250,46 @@ Migrated RVV and scalar plugin-local i32 add/sub proposal, materialization, read
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Descriptor-backed i32-vmul standalone artifacts
+
+**Date**: 2026-05-09
+**Task**: Descriptor-backed i32-vmul standalone artifacts
+**Branch**: `main`
+
+### Summary
+
+Implemented descriptor-backed i32-vmul through registry, RVV/scalar plugin materialization, frontend lowering, and standalone RVV/scalar source artifact export; focused checks and check-tianchenrv pass.
+
+### Main Changes
+
+- Added descriptor-backed `i32-vmul` registry facts with distinct RVV/scalar
+  op, route, ABI, intrinsic, and scalar operator identities.
+- Added RVV `i32_mul` / `i32_vmul_microkernel`, scalar
+  `i32_vmul_microkernel`, frontend `arith.muli` lowering, plugin
+  proposal/materialization/readiness, and RVV/scalar standalone source exports.
+- Added focused C++ and lit coverage for registry, plugins, dialects,
+  frontend lowering, target artifact export, and add/sub regression surfaces.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] CMake configure with `/usr/lib/llvm-20`
+- [OK] focused registry/RVV plugin/scalar plugin/target exporter C++ binaries
+- [OK] focused lit filter for vmul plus touched add/sub artifact tests
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

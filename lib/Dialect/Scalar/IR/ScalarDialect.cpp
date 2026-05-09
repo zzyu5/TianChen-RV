@@ -451,6 +451,11 @@ mlir::LogicalResult I32VSubMicrokernelOp::verify() {
       getOperation(), "bounded scalar i32 vector-subtract microkernel");
 }
 
+mlir::LogicalResult I32VMulMicrokernelOp::verify() {
+  return verifyScalarI32MicrokernelOp(
+      getOperation(), "bounded scalar i32 vector-multiply microkernel");
+}
+
 void TCRVScalarDialect::initialize() {
   addOperations<
 #define GET_OP_LIST

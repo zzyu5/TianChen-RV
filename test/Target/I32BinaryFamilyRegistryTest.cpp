@@ -7,6 +7,8 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <initializer_list>
+
 using namespace tianchenrv::target;
 using namespace tianchenrv::target::i32_binary;
 
@@ -153,8 +155,9 @@ int expectFamilyDescriptorShape(const I32BinaryFamilyDescriptor &family) {
                 "dispatch self-check marker is present");
 }
 
-int expectFamilyExporterRoutes(const TargetArtifactExporterRegistry &registry,
-                               const I32BinaryFamilyDescriptor &family) {
+int expectStandaloneFamilyExporterRoutes(
+    const TargetArtifactExporterRegistry &registry,
+    const I32BinaryFamilyDescriptor &family) {
   if (int result = expectRoute(
           registry, family.rvv.routeID, kRuntimeCallableCSourceArtifactKind,
           kRVVPluginName, family.rvv.emissionKind,
@@ -166,6 +169,12 @@ int expectFamilyExporterRoutes(const TargetArtifactExporterRegistry &registry,
           kScalarPluginName, family.scalar.emissionKind))
     return result;
 
+  return 0;
+}
+
+int expectDispatchFamilyExporterRoutes(
+    const TargetArtifactExporterRegistry &registry,
+    const I32BinaryFamilyDescriptor &family) {
   if (int result = expectCompositeRoute(
           registry, family.dispatch.dispatchSourceRouteID,
           kRuntimeCallableCSourceArtifactKind, kDispatchTargetOwner,
@@ -196,34 +205,42 @@ int expectFamilyExporterRoutes(const TargetArtifactExporterRegistry &registry,
 int expectStaleFamilyMismatchGuards() {
   const I32BinaryFamilyDescriptor &add = getI32VAddFamilyDescriptor();
   const I32BinaryFamilyDescriptor &sub = getI32VSubFamilyDescriptor();
-  if (int result = expect(add.familyID != sub.familyID,
-                          "add/sub family ids are distinct"))
-    return result;
-  if (int result = expect(add.rvv.routeID != sub.rvv.routeID,
-                          "add/sub RVV routes are distinct"))
-    return result;
-  if (int result = expect(add.rvv.intrinsicName != sub.rvv.intrinsicName,
-                          "add/sub RVV intrinsics are distinct"))
-    return result;
-  if (int result = expect(add.scalar.routeID != sub.scalar.routeID,
-                          "add/sub scalar source routes are distinct"))
-    return result;
-  if (int result = expect(add.scalar.cOperator != sub.scalar.cOperator,
-                          "add/sub scalar operators are distinct"))
-    return result;
-  if (int result =
-          expect(add.dispatch.selfCheckSuccessMarker !=
-                     sub.dispatch.selfCheckSuccessMarker,
-                 "add/sub dispatch self-check markers are distinct"))
-    return result;
-  if (int result =
-          expect(add.dispatch.dispatchSourceRouteID !=
-                     sub.dispatch.dispatchSourceRouteID,
-                 "add/sub dispatch source routes are distinct"))
-    return result;
-  return expect(add.dispatch.dispatchRuntimeABIName !=
-                    sub.dispatch.dispatchRuntimeABIName,
-                "add/sub dispatch ABI names are distinct");
+  const I32BinaryFamilyDescriptor &mul = getI32VMulFamilyDescriptor();
+  for (const I32BinaryFamilyDescriptor *lhs : {&add, &sub, &mul}) {
+    for (const I32BinaryFamilyDescriptor *rhs : {&add, &sub, &mul}) {
+      if (lhs == rhs)
+        continue;
+      if (int result = expect(lhs->familyID != rhs->familyID,
+                              "family ids are pairwise distinct"))
+        return result;
+      if (int result = expect(lhs->rvv.routeID != rhs->rvv.routeID,
+                              "RVV source routes are pairwise distinct"))
+        return result;
+      if (int result = expect(lhs->rvv.intrinsicName != rhs->rvv.intrinsicName,
+                              "RVV intrinsics are pairwise distinct"))
+        return result;
+      if (int result = expect(lhs->scalar.routeID != rhs->scalar.routeID,
+                              "scalar source routes are pairwise distinct"))
+        return result;
+      if (int result = expect(lhs->scalar.cOperator != rhs->scalar.cOperator,
+                              "scalar operators are pairwise distinct"))
+        return result;
+      if (int result = expect(lhs->dispatch.selfCheckSuccessMarker !=
+                                  rhs->dispatch.selfCheckSuccessMarker,
+                              "dispatch self-check markers are pairwise "
+                              "distinct"))
+        return result;
+      if (int result = expect(lhs->dispatch.dispatchSourceRouteID !=
+                                  rhs->dispatch.dispatchSourceRouteID,
+                              "dispatch source routes are pairwise distinct"))
+        return result;
+      if (int result = expect(lhs->dispatch.dispatchRuntimeABIName !=
+                                  rhs->dispatch.dispatchRuntimeABIName,
+                              "dispatch ABI names are pairwise distinct"))
+        return result;
+    }
+  }
+  return 0;
 }
 
 } // namespace
@@ -231,8 +248,9 @@ int expectStaleFamilyMismatchGuards() {
 int main() {
   llvm::ArrayRef<const I32BinaryFamilyDescriptor *> families =
       getI32BinaryFamilyDescriptors();
-  if (int result = expect(families.size() == 2,
-                          "registry contains exactly two i32 binary families"))
+  if (int result =
+          expect(families.size() == 3,
+                 "registry contains exactly three i32 binary families"))
     return result;
   if (int result =
           expect(families[0] == &getI32VAddFamilyDescriptor(),
@@ -242,7 +260,15 @@ int main() {
           expect(families[1] == &getI32VSubFamilyDescriptor(),
                  "registry preserves vsub descriptor order"))
     return result;
-  if (int result = expect(!lookupI32BinaryFamilyByID("i32-vmul"),
+  if (int result =
+          expect(families[2] == &getI32VMulFamilyDescriptor(),
+                 "registry preserves vmul descriptor order"))
+    return result;
+  if (int result = expect(lookupI32BinaryFamilyByID("i32-vmul") ==
+                              &getI32VMulFamilyDescriptor(),
+                          "registry accepts vmul family descriptor"))
+    return result;
+  if (int result = expect(!lookupI32BinaryFamilyByID("i32-vdiv"),
                           "registry rejects unsupported families"))
     return result;
 
@@ -267,7 +293,11 @@ int main() {
     return result;
 
   for (const I32BinaryFamilyDescriptor *family : families)
-    if (int result = expectFamilyExporterRoutes(registry, *family))
+    if (int result = expectStandaloneFamilyExporterRoutes(registry, *family))
+      return result;
+  for (const I32BinaryFamilyDescriptor *family :
+       {&getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor()})
+    if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
       return result;
 
   llvm::outs() << "i32 binary family descriptor registry test passed\n";

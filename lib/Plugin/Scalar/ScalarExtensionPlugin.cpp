@@ -102,6 +102,20 @@ const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
   return spec;
 }
 
+const ScalarI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
+  static const ScalarI32MicrokernelFamilySpec spec{
+      &tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor(),
+      "finite scalar i32-vmul lowering descriptor",
+      "scalar-explicit-i32-vmul-microkernel-c-source-export",
+      "explicit scalar i32 vector-multiply microkernel C source export is "
+      "available as a library-style runtime-callable C ABI function for "
+      "this selected fallback path; no self-check main is part of the "
+      "default artifact contract; this is not generic scalar lowering, "
+      "runtime integration, arbitrary kernel emission, correctness, or "
+      "performance evidence"};
+  return spec;
+}
+
 const ScalarI32MicrokernelFamilySpec *
 lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
   const ScalarI32FamilyDescriptor *family =
@@ -113,6 +127,8 @@ lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
     return &getI32VAddFamilySpec();
   if (family->kind == ScalarI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
+  if (family->kind == ScalarI32MicrokernelKind::Mul)
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -127,6 +143,8 @@ lookupI32MicrokernelFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
     return &getI32VAddFamilySpec();
   if (family->kind == ScalarI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
+  if (family->kind == ScalarI32MicrokernelKind::Mul)
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -243,7 +261,8 @@ buildI32MicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
         llvm::Twine("finite scalar i32 lowering descriptor on variant @") +
         variant.getSymName() + " must be '" +
         getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI32VSubFamilySpec().getLoweringDescriptor() + "'");
+        getI32VSubFamilySpec().getLoweringDescriptor() + "' or '" +
+        getI32VMulFamilySpec().getLoweringDescriptor() + "'");
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
@@ -314,6 +333,8 @@ getI32MicrokernelFamilyForOp(mlir::Operation *op) {
     return &getI32VAddFamilySpec();
   if (llvm::isa_and_nonnull<tcrv::scalar::I32VSubMicrokernelOp>(op))
     return &getI32VSubFamilySpec();
+  if (llvm::isa_and_nonnull<tcrv::scalar::I32VMulMicrokernelOp>(op))
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -569,10 +590,7 @@ mlir::Operation *materializeScalarI32MicrokernelOp(
   auto requiredCapabilities =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
-  llvm::StringRef opName =
-      plan.family->getKind() == ScalarI32MicrokernelKind::Sub
-          ? tcrv::scalar::I32VSubMicrokernelOp::getOperationName()
-          : tcrv::scalar::I32VAddMicrokernelOp::getOperationName();
+  llvm::StringRef opName = plan.family->getScalar().microkernelOpName;
   mlir::OperationState state(variant.getLoc(), opName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));

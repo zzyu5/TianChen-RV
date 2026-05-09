@@ -48,6 +48,7 @@ using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
+using tianchenrv::tcrv::rvv::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
@@ -243,6 +244,23 @@ I32VSubMicrokernelOp findRVVSubMicrokernel(
     return result;
   for (mlir::Operation &op : kernel.getBody().front()) {
     auto microkernel = llvm::dyn_cast<I32VSubMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = microkernel;
+  }
+  return result;
+}
+
+I32VMulMicrokernelOp findRVVMulMicrokernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  I32VMulMicrokernelOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<I32VMulMicrokernelOp>(op);
     if (!microkernel)
       continue;
     auto selectedVariant =
@@ -1450,6 +1468,37 @@ module {
       value = "rv64gcv"
     }
   }
+
+  tcrv.exec.kernel @registry_rvv_vmul attributes {
+    tcrv_frontend_lowering = "i32-vmul"
+  } {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+  }
 }
 )mlir";
 
@@ -1538,10 +1587,15 @@ module {
               findRVVAddMicrokernel(kernel, variant.getSymName()),
               "registry-backed RVV vadd descriptor materializes vadd op"))
         return result;
-    } else {
+    } else if (family.kind == I32BinaryFamilyKind::Sub) {
       if (int result = expect(
               findRVVSubMicrokernel(kernel, variant.getSymName()),
               "registry-backed RVV vsub descriptor materializes vsub op"))
+        return result;
+    } else {
+      if (int result = expect(
+              findRVVMulMicrokernel(kernel, variant.getSymName()),
+              "registry-backed RVV vmul descriptor materializes vmul op"))
         return result;
     }
 
@@ -1571,7 +1625,7 @@ module {
                        kernelName))
       return result;
 
-    if (family.kind == I32BinaryFamilyKind::Sub) {
+    if (family.kind != I32BinaryFamilyKind::Add) {
       mlir::OpBuilder::InsertionGuard guard(builder);
       builder.setInsertionPointToEnd(&kernel.getBody().front());
       mlir::OperationState staleState(
@@ -1603,6 +1657,10 @@ module {
   if (int result = expectFamily(
           "registry_rvv_vsub",
           tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor()))
+    return result;
+  if (int result = expectFamily(
+          "registry_rvv_vmul",
+          tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor()))
     return result;
 
   return 0;

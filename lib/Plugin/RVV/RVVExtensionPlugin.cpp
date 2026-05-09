@@ -173,6 +173,20 @@ const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
   return spec;
 }
 
+const RVVI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
+  static const RVVI32MicrokernelFamilySpec spec{
+      &tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor(),
+      "finite RVV i32-vmul lowering descriptor",
+      "rvv-explicit-i32-vmul-microkernel-c-source-export",
+      "explicit RVV i32 vector-multiply microkernel C source export provides "
+      "a library-style runtime-callable C ABI function for this selected "
+      "path; any self-check main is an explicit harness export and is not the "
+      "default artifact contract; this is not generic RVV lowering, runtime "
+      "integration, arbitrary kernel emission, correctness, or performance "
+      "evidence"};
+  return spec;
+}
+
 const RVVI32MicrokernelFamilySpec *
 lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
   const RVVI32FamilyDescriptor *family =
@@ -184,6 +198,8 @@ lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
     return &getI32VAddFamilySpec();
   if (family->kind == RVVI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
+  if (family->kind == RVVI32MicrokernelKind::Mul)
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -194,6 +210,8 @@ getI32MicrokernelFamilyByDescriptor(
     return &getI32VAddFamilySpec();
   if (family.kind == RVVI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
+  if (family.kind == RVVI32MicrokernelKind::Mul)
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -884,7 +902,8 @@ buildI32MicrokernelMaterializationPlan(
                     "variant @") +
         variant.getSymName() + " must be '" +
         getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI32VSubFamilySpec().getLoweringDescriptor() + "'");
+        getI32VSubFamilySpec().getLoweringDescriptor() + "' or '" +
+        getI32VMulFamilySpec().getLoweringDescriptor() + "'");
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
@@ -945,6 +964,8 @@ getI32MicrokernelFamilyForOp(mlir::Operation *op) {
     return &getI32VAddFamilySpec();
   if (llvm::isa_and_nonnull<tcrv::rvv::I32VSubMicrokernelOp>(op))
     return &getI32VSubFamilySpec();
+  if (llvm::isa_and_nonnull<tcrv::rvv::I32VMulMicrokernelOp>(op))
+    return &getI32VMulFamilySpec();
   return nullptr;
 }
 
@@ -1159,6 +1180,16 @@ llvm::Error validateMicrokernelStructuredControlPlane(
     arithmeticRHS = sub.getRhs();
     arithmeticVL = sub.getVl();
     arithmeticResult = sub.getDifference();
+  } else if (auto mul =
+                 llvm::dyn_cast<tcrv::rvv::I32MulOp>(dataflowOps[2])) {
+    if (family.getKind() != RVVI32MicrokernelKind::Mul)
+      return makeRVVPluginError(
+          "explicit RVV microkernel emission plan arithmetic op does not "
+          "match the selected microkernel family");
+    arithmeticLHS = mul.getLhs();
+    arithmeticRHS = mul.getRhs();
+    arithmeticVL = mul.getVl();
+    arithmeticResult = mul.getProduct();
   }
   if (!lhsLoad || !rhsLoad || !arithmeticResult || !store)
     return makeRVVPluginError(
@@ -1386,7 +1417,8 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
           llvm::Twine("kernel @") + request.getKernel().getSymName() +
           " frontend lowering family must be '" +
           getI32VAddFamilySpec().family->frontendLowering + "' or '" +
-          getI32VSubFamilySpec().family->frontendLowering + "'");
+          getI32VSubFamilySpec().family->frontendLowering + "' or '" +
+          getI32VMulFamilySpec().family->frontendLowering + "'");
     }
   }
 

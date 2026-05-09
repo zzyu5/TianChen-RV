@@ -1,0 +1,31 @@
+# RUN: tcrv-opt %S/Inputs/scalar-vmul-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-vmul-post-planning.mlir
+# RUN: tcrv-translate --tcrv-export-target-source-artifact %t.scalar-vmul-post-planning.mlir > %t.scalar-vmul.c
+# RUN: FileCheck %s --check-prefix=SCALAR-VMUL --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not=tcrv-export --implicit-check-not="#include <stdio.h>" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar-vmul.c
+
+# SCALAR-VMUL: /* TianChen-RV scalar runtime-callable microkernel C export. */
+# SCALAR-VMUL: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vmul_microkernel. */
+# SCALAR-VMUL: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
+# SCALAR-VMUL: #include <stddef.h>
+# SCALAR-VMUL: #include <stdint.h>
+# SCALAR-VMUL: /* selected_kernel: @scalar_vmul_microkernel_export */
+# SCALAR-VMUL: /* selected_variant: @scalar_fallback_first_slice */
+# SCALAR-VMUL: /* selected_role: direct variant */
+# SCALAR-VMUL: /* executable_microkernel: tcrv_scalar.i32_vmul_microkernel */
+# SCALAR-VMUL: /* artifact_kind: runtime-callable-c-source */
+# SCALAR-VMUL: /* runtime_abi_kind: scalar-runtime-callable-c-abi */
+# SCALAR-VMUL: /* runtime_abi_name: scalar-i32-vmul-runtime-callable-c-function.v1 */
+# SCALAR-VMUL: /* runtime_glue_role: runtime-callable-i32-vmul-fallback-function */
+# SCALAR-VMUL: void tcrv_scalar_i32_vmul_microkernel_scalar_vmul_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+# SCALAR-VMUL: for (size_t index = 0; index < n; ++index)
+# SCALAR-VMUL: out[index] = lhs[index] * rhs[index];
+
+# RUN: tcrv-opt %S/Inputs/scalar-vmul-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=SCALAR-PLAN
+# SCALAR-PLAN: artifact_kind = "runtime-callable-c-source"
+# SCALAR-PLAN: emission_kind = "scalar-explicit-i32-vmul-microkernel-c-source"
+# SCALAR-PLAN-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+# SCALAR-PLAN-SAME: lowering_pipeline = "tcrv-export-scalar-i32-vmul-microkernel-c"
+# SCALAR-PLAN-SAME: runtime_abi = "scalar-i32-vmul-runtime-callable-c-abi.v1"
+# SCALAR-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+# SCALAR-PLAN-SAME: runtime_abi_name = "scalar-i32-vmul-runtime-callable-c-function.v1"
+# SCALAR-PLAN-SAME: runtime_glue_role = "runtime-callable-i32-vmul-fallback-function"
+# SCALAR-PLAN-SAME: status = "supported"
