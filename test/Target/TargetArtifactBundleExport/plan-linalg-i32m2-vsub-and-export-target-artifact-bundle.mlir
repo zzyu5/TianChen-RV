@@ -91,14 +91,36 @@ module @plan_linalg_i32m2_vsub_bundle_input {
 // INDEX: owner: "rvv-scalar-dispatch-target"
 // INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
 // INDEX: runtime_abi_name: "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"
+// INDEX: runtime_abi_parameter[0]:
+// INDEX: c_name: "lhs"
+// INDEX: role: "lhs-input-buffer"
+// INDEX: runtime_abi_parameter[1]:
+// INDEX: c_name: "rhs"
+// INDEX: role: "rhs-input-buffer"
+// INDEX: runtime_abi_parameter[2]:
+// INDEX: c_name: "out"
+// INDEX: role: "output-buffer"
+// INDEX: runtime_abi_parameter[3]:
+// INDEX: c_name: "n"
+// INDEX: role: "runtime-element-count"
 // INDEX: runtime_abi_parameter[4]:
+// INDEX: c_name: "rvv_available"
 // INDEX: role: "dispatch-availability-guard"
 // INDEX: selected_plan_metadata[0]:
 // INDEX: name: "tcrv_rvv.selected_vector_shape"
 // INDEX: value: "i32m2"
+// INDEX: selected_plan_metadata[1]:
+// INDEX: name: "tcrv_rvv.selected_vector_sew"
+// INDEX: value: "32"
+// INDEX: selected_plan_metadata[2]:
+// INDEX: name: "tcrv_rvv.selected_vector_lmul"
+// INDEX: value: "m2"
 // INDEX: selected_plan_metadata[6]:
 // INDEX: name: "tcrv_rvv.selected_vector_suffix"
 // INDEX: value: "i32m2"
+// INDEX: selected_plan_metadata[7]:
+// INDEX: name: "tcrv_rvv.selected_setvl_suffix"
+// INDEX: value: "e32m2"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h"
@@ -120,10 +142,36 @@ module @plan_linalg_i32m2_vsub_bundle_input {
 
 // SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 // SOURCE: /* selected_kernel: @frontend_bundle_i32m2_vsub */
+// SOURCE: /* rvv_selected_variant: @rvv_first_slice */
+// SOURCE: /* rvv_selected_role: dispatch case */
+// SOURCE: /* rvv_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* rvv_runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* rvv_runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* rvv_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[1]: name=tcrv_rvv.selected_vector_sew, value=32, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[2]: name=tcrv_rvv.selected_vector_lmul, value=m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m2, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[7]: name=tcrv_rvv.selected_setvl_suffix, value=e32m2, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_required_capabilities: @frontend_vsub_i32m2_bundle_profile */
+// SOURCE: /* scalar_selected_variant: @scalar_fallback_first_slice */
+// SOURCE: /* scalar_selected_role: dispatch fallback */
+// SOURCE: /* scalar_lowering_boundary: tcrv_scalar.lowering_boundary */
+// SOURCE: /* scalar_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* scalar_runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* scalar_runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* scalar_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// SOURCE: /* scalar_required_capabilities: @scalar_fallback */
+// SOURCE: /* dispatch_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
+// SOURCE: /* dispatch_mem_window[1]: symbol=@abi_rhs_input_buffer, abi_role=rhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
+// SOURCE: /* dispatch_mem_window[2]: symbol=@abi_output_buffer, abi_role=output-buffer, access=write, ownership=target-export-abi-owned, c_type=int32_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
+// SOURCE: /* dispatch_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
+// SOURCE: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
+// SOURCE: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+// SOURCE: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_scalar_fallback_first_slice */
+// SOURCE: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
 // SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 // SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */

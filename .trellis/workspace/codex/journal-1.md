@@ -55,6 +55,39 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 12: Bounded linalg i32-vsub i32m2 frontend bundle proof
+
+**Date**: 2026-05-10
+**Task**: Bounded linalg i32 binary frontend to selected RVV scalar artifact pipeline
+**Branch**: `main`
+
+### Summary
+
+Created and completed Trellis task `bounded-linalg-i32-binary-rvv-scalar-artifact-pipeline` for internal case `switch module`. The full one-command `tcrv-plan-and-export-target-artifact-bundle` route already lowered bounded linalg, ran execution planning, selected RVV+scalar dispatch, and exported the bundle, so this round tightened the lit proof around the existing compiler-owned path instead of adding duplicate plumbing.
+
+### Main Changes
+
+- Strengthened `plan-linalg-i32m2-vsub-and-export-target-artifact-bundle.mlir` so the positive bundle test now checks selected RVV `i32m2` shape metadata, selected-plan metadata, runtime ABI parameter roles, dispatch mem-window roles, dispatch guard linkage, RVV capability continuity, scalar fallback selected boundary, and source/header/object bundle records.
+- Added `plan-linalg-i32-vsub-marker-mismatch-no-bundle.mlir` to prove the one-command front door rejects an `i32-vsub` marker with an `arith.addi` body during bounded linalg lowering, before bundle index or selected RVV+scalar artifact output is produced.
+- No new runtime-visible generated source/object/ABI behavior was introduced, so no new `ssh rvv` claim was made; `5db3128` remains the latest runtime evidence for the affected `i32-vsub i32m2` dispatch path.
+
+### Validation
+
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-10-bounded-linalg-i32-binary-rvv-scalar-artifact-pipeline`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit filter `plan-linalg-i32m2-vsub-and-export-target-artifact-bundle|plan-linalg-i32-vsub-marker-mismatch-no-bundle` passed 2/2 from `artifacts/tmp/tianchenrv-build/test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 172/172
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 14: RVV i32m2 vsub dispatch artifact path
 
 **Date**: 2026-05-10

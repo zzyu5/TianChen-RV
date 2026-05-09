@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines the bounded linalg i32 binary frontend trigger, output surface, ABI boundary, and pipeline contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission-plan, target artifact export, runtime ABI mirror, and selected-shape metadata boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV first-slice i32m1/i32m2 selected-shape and descriptor ownership requirements."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback proposal, selected boundary, and i32 add/sub/mul callable export contract."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Defines plugin locality and forbids RVV/scalar-specific logic in core orchestration."}
