@@ -559,6 +559,26 @@ TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
   return candidate;
 }
 
+TargetArtifactCandidate makeScalarSubDirectCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
+  TargetArtifactCandidate candidate;
+  candidate.kernel = kernel;
+  candidate.selectedVariant = selectedVariant.str();
+  candidate.role = "direct variant";
+  candidate.origin = "scalar-plugin";
+  candidate.routeID = "tcrv-export-scalar-i32-vsub-microkernel-c";
+  candidate.emissionKind = "scalar-explicit-i32-vsub-microkernel-c-source";
+  candidate.artifactKind = "runtime-callable-c-source";
+  candidate.loweringBoundary = "tcrv_scalar.lowering_boundary";
+  candidate.runtimeABI = "scalar-i32-vsub-runtime-callable-c-abi.v1";
+  candidate.runtimeABIKind = "scalar-runtime-callable-c-abi";
+  candidate.runtimeABIName = "scalar-i32-vsub-runtime-callable-c-function.v1";
+  candidate.runtimeGlueRole = "runtime-callable-i32-vsub-fallback-function";
+  candidate.runtimeABIParameters =
+      tianchenrv::support::getI32VAddRuntimeABIParameters();
+  return candidate;
+}
+
 bool expectDispatchCompositeRejectsFallbackMismatchForRoute(
     mlir::MLIRContext &context, const TargetArtifactExporterRegistry &registry,
     llvm::StringRef routeID) {
@@ -823,6 +843,35 @@ bool expectRVVSubSourceRejectsStaleAddMetadata(
        "target artifact candidate validation failed",
        "supported RVV i32 microkernel family ABI metadata",
        "runtime_abi_name 'rvv-i32-vsub-runtime-callable-c-function.v1'"});
+}
+
+bool expectScalarSubSourceRejectsStaleAddMetadata(
+    const TargetArtifactExporterRegistry &registry) {
+  const TargetArtifactExporter *exporter =
+      registry.lookup("tcrv-export-scalar-i32-vsub-microkernel-c");
+  if (!exporter) {
+    llvm::errs() << "missing scalar vsub microkernel route for stale metadata "
+                    "test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeScalarSubDirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "scalar_sub_slice");
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *exporter),
+                     "family-shaped scalar vsub runtime ABI candidate accepted"))
+    return false;
+
+  candidate.runtimeABI = "scalar-i32-vadd-runtime-callable-c-abi.v1";
+  candidate.runtimeABIName = "scalar-i32-vadd-runtime-callable-c-function.v1";
+  candidate.runtimeGlueRole = "runtime-callable-i32-vadd-fallback-function";
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale add ABI metadata rejected by scalar vsub source route",
+      {"route id 'tcrv-export-scalar-i32-vsub-microkernel-c'",
+       "target artifact candidate validation failed",
+       "supported scalar i32 microkernel family ABI metadata",
+       "runtime_abi_name 'scalar-i32-vsub-runtime-callable-c-function.v1'"});
 }
 
 bool expectCompositeCandidateValidationRejects(
@@ -1416,8 +1465,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 5) {
-    llvm::errs() << "expected exactly 5 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 6) {
+    llvm::errs() << "expected exactly 6 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -1472,6 +1521,16 @@ int main() {
     return 1;
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-scalar-microkernel-c",
+          tianchenrv::support::getI32VAddRuntimeABIContract()
+              .getCallableRoleRequirements()))
+    return 1;
+  if (!expectRoute(builtinRegistry,
+                   "tcrv-export-scalar-i32-vsub-microkernel-c",
+                   "runtime-callable-c-source", "scalar-plugin",
+                   "scalar-explicit-i32-vsub-microkernel-c-source", 4))
+    return 1;
+  if (!expectRouteRuntimeABIParameters(
+          builtinRegistry, "tcrv-export-scalar-i32-vsub-microkernel-c",
           tianchenrv::support::getI32VAddRuntimeABIContract()
               .getCallableRoleRequirements()))
     return 1;
@@ -1613,6 +1672,8 @@ int main() {
   if (!expectExporterRejectsRuntimeABIContractMismatch(builtinRegistry))
     return 1;
   if (!expectRVVSubSourceRejectsStaleAddMetadata(builtinRegistry))
+    return 1;
+  if (!expectScalarSubSourceRejectsStaleAddMetadata(builtinRegistry))
     return 1;
   if (!expectRVVMicrokernelCompositePreflightRejectsRuntimeABIMismatch(
           builtinRegistry, "tcrv-export-rvv-microkernel-header"))

@@ -37,6 +37,8 @@ constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorAttrName(
     "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarI32VAddLoweringDescriptorValue(
     "i32-vadd-microkernel.v1");
+constexpr llvm::StringLiteral kScalarI32VSubLoweringDescriptorValue(
+    "i32-vsub-microkernel.v1");
 constexpr llvm::StringLiteral kScalarI32VAddElementCountAttrName(
     "tcrv_scalar.element_count");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
@@ -52,7 +54,118 @@ constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kMicrokernelEmissionPath(
     "scalar-explicit-i32-vadd-microkernel-c-source-export");
+constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionPath(
+    "scalar-explicit-i32-vsub-microkernel-c-source-export");
+constexpr llvm::StringLiteral kI32VAddMicrokernelEmissionKind(
+    "scalar-explicit-i32-vadd-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VSubMicrokernelEmissionKind(
+    "scalar-explicit-i32-vsub-microkernel-c-source");
+constexpr llvm::StringLiteral kI32VAddMicrokernelRouteID(
+    "tcrv-export-scalar-microkernel-c");
+constexpr llvm::StringLiteral kI32VSubMicrokernelRouteID(
+    "tcrv-export-scalar-i32-vsub-microkernel-c");
+constexpr llvm::StringLiteral kI32VAddRuntimeABI(
+    "scalar-i32-vadd-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kI32VSubRuntimeABI(
+    "scalar-i32-vsub-runtime-callable-c-abi.v1");
+constexpr llvm::StringLiteral kScalarRuntimeCallableABIKind(
+    "scalar-runtime-callable-c-abi");
+constexpr llvm::StringLiteral kI32VAddRuntimeABIName(
+    "scalar-i32-vadd-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VSubRuntimeABIName(
+    "scalar-i32-vsub-runtime-callable-c-function.v1");
+constexpr llvm::StringLiteral kI32VAddRuntimeGlueRole(
+    "runtime-callable-i32-vadd-fallback-function");
+constexpr llvm::StringLiteral kI32VSubRuntimeGlueRole(
+    "runtime-callable-i32-vsub-fallback-function");
 constexpr std::int64_t kDefaultI32VAddElementCount = 16;
+
+enum class ScalarI32MicrokernelKind {
+  Add,
+  Sub,
+};
+
+struct ScalarI32MicrokernelFamilySpec {
+  ScalarI32MicrokernelKind kind;
+  llvm::StringRef frontendLowering;
+  llvm::StringRef descriptor;
+  llvm::StringRef descriptorNoun;
+  llvm::StringRef microkernelOpName;
+  llvm::StringRef emissionPath;
+  llvm::StringRef emissionKind;
+  llvm::StringRef routeID;
+  llvm::StringRef runtimeABI;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeGlueRole;
+  llvm::StringRef supportedMessage;
+};
+
+const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
+  static const ScalarI32MicrokernelFamilySpec spec{
+      ScalarI32MicrokernelKind::Add,
+      kFrontendLoweringI32VAddValue,
+      kScalarI32VAddLoweringDescriptorValue,
+      "finite scalar i32-vadd lowering descriptor",
+      "tcrv_scalar.i32_vadd_microkernel",
+      kMicrokernelEmissionPath,
+      kI32VAddMicrokernelEmissionKind,
+      kI32VAddMicrokernelRouteID,
+      kI32VAddRuntimeABI,
+      kScalarRuntimeCallableABIKind,
+      kI32VAddRuntimeABIName,
+      kI32VAddRuntimeGlueRole,
+      "explicit scalar i32 vector-add microkernel C source export is "
+      "available as a library-style runtime-callable C ABI function for "
+      "this selected fallback path; no self-check main is part of the "
+      "default artifact contract; this is not generic scalar lowering, "
+      "runtime integration, arbitrary kernel emission, correctness, or "
+      "performance evidence"};
+  return spec;
+}
+
+const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
+  static const ScalarI32MicrokernelFamilySpec spec{
+      ScalarI32MicrokernelKind::Sub,
+      kFrontendLoweringI32VSubValue,
+      kScalarI32VSubLoweringDescriptorValue,
+      "finite scalar i32-vsub lowering descriptor",
+      "tcrv_scalar.i32_vsub_microkernel",
+      kI32VSubMicrokernelEmissionPath,
+      kI32VSubMicrokernelEmissionKind,
+      kI32VSubMicrokernelRouteID,
+      kI32VSubRuntimeABI,
+      kScalarRuntimeCallableABIKind,
+      kI32VSubRuntimeABIName,
+      kI32VSubRuntimeGlueRole,
+      "explicit scalar i32 vector-subtract microkernel C source export is "
+      "available as a library-style runtime-callable C ABI function for "
+      "this selected fallback path; no self-check main is part of the "
+      "default artifact contract; this is not generic scalar lowering, "
+      "runtime integration, arbitrary kernel emission, correctness, or "
+      "performance evidence"};
+  return spec;
+}
+
+const ScalarI32MicrokernelFamilySpec *
+lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
+  descriptor = descriptor.trim();
+  if (descriptor == getI32VAddFamilySpec().descriptor)
+    return &getI32VAddFamilySpec();
+  if (descriptor == getI32VSubFamilySpec().descriptor)
+    return &getI32VSubFamilySpec();
+  return nullptr;
+}
+
+const ScalarI32MicrokernelFamilySpec *
+lookupI32MicrokernelFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
+  frontendLowering = frontendLowering.trim();
+  if (frontendLowering == getI32VAddFamilySpec().frontendLowering)
+    return &getI32VAddFamilySpec();
+  if (frontendLowering == getI32VSubFamilySpec().frontendLowering)
+    return &getI32VSubFamilySpec();
+  return nullptr;
+}
 
 llvm::Error makeScalarPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -72,19 +185,16 @@ bool hasAvailableScalarFallbackCapability(
   return capability && capability->isAvailable();
 }
 
-bool supportsFrontendLoweringFamily(const VariantProposalRequest &request) {
+const ScalarI32MicrokernelFamilySpec *
+getRequestedScalarI32Family(const VariantProposalRequest &request) {
   auto frontendLowering =
       request.getKernel()->getAttrOfType<mlir::StringAttr>(
           kFrontendLoweringAttrName);
   if (!frontendLowering)
-    return true;
+    return &getI32VAddFamilySpec();
 
   llvm::StringRef value = frontendLowering.getValue().trim();
-  if (value == kFrontendLoweringI32VAddValue)
-    return true;
-  if (value == kFrontendLoweringI32VSubValue)
-    return false;
-  return false;
+  return lookupI32MicrokernelFamilyByFrontendLowering(value);
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
@@ -138,63 +248,68 @@ llvm::Error validateScalarMetadataText(llvm::StringRef context,
   return llvm::Error::success();
 }
 
-struct ScalarI32VAddMaterializationPlan {
+struct ScalarI32MicrokernelMaterializationPlan {
+  const ScalarI32MicrokernelFamilySpec *family = nullptr;
   std::int64_t elementCount = 0;
 };
 
-llvm::Expected<std::optional<ScalarI32VAddMaterializationPlan>>
-buildI32VAddMaterializationPlan(tcrv::exec::VariantOp variant) {
+llvm::Expected<std::optional<ScalarI32MicrokernelMaterializationPlan>>
+buildI32MicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
   mlir::Attribute rawDescriptor =
       variant->getAttr(kScalarI32VAddLoweringDescriptorAttrName);
   if (!rawDescriptor) {
     if (variant->hasAttr(kScalarI32VAddElementCountAttrName))
       return makeScalarPluginError(
-          llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+          llvm::Twine("finite scalar i32 lowering descriptor on variant @") +
           variant.getSymName() + " requires string attribute '" +
           kScalarI32VAddLoweringDescriptorAttrName + "'");
-    return std::optional<ScalarI32VAddMaterializationPlan>();
+    return std::optional<ScalarI32MicrokernelMaterializationPlan>();
   }
 
   auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
   if (!descriptor || descriptor.getValue().trim().empty())
     return makeScalarPluginError(
-        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        llvm::Twine("finite scalar i32 lowering descriptor on variant @") +
         variant.getSymName() + " requires string attribute '" +
         kScalarI32VAddLoweringDescriptorAttrName + "'");
 
+  const ScalarI32MicrokernelFamilySpec *family =
+      lookupI32MicrokernelFamilyByDescriptor(descriptor.getValue());
+  if (!family)
+    return makeScalarPluginError(
+        llvm::Twine("finite scalar i32 lowering descriptor on variant @") +
+        variant.getSymName() + " must be '" +
+        getI32VAddFamilySpec().descriptor + "' or '" +
+        getI32VSubFamilySpec().descriptor + "'");
+
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
-       " finite scalar i32-vadd lowering descriptor")
+       " " + family->descriptorNoun)
           .str();
   if (llvm::Error error = validateScalarMetadataText(
           descriptorContext, kScalarI32VAddLoweringDescriptorAttrName,
           descriptor.getValue().trim()))
     return std::move(error);
 
-  if (descriptor.getValue().trim() != kScalarI32VAddLoweringDescriptorValue)
-    return makeScalarPluginError(
-        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
-        variant.getSymName() + " must be '" +
-        kScalarI32VAddLoweringDescriptorValue + "'");
-
   auto elementCountAttr =
       variant->getAttrOfType<mlir::IntegerAttr>(
           kScalarI32VAddElementCountAttrName);
   if (!elementCountAttr)
     return makeScalarPluginError(
-        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        llvm::Twine(family->descriptorNoun) + " on variant @" +
         variant.getSymName() + " requires integer attribute '" +
         kScalarI32VAddElementCountAttrName + "'");
 
   std::int64_t elementCount = elementCountAttr.getInt();
   if (elementCount <= 0 || elementCount > 64)
     return makeScalarPluginError(
-        llvm::Twine("finite scalar i32-vadd lowering descriptor on variant @") +
+        llvm::Twine(family->descriptorNoun) + " on variant @" +
         variant.getSymName() +
         " requires tcrv_scalar.element_count in the bounded smoke range "
         "[1, 64]");
 
-  ScalarI32VAddMaterializationPlan plan;
+  ScalarI32MicrokernelMaterializationPlan plan;
+  plan.family = family;
   plan.elementCount = elementCount;
   return plan;
 }
@@ -228,6 +343,15 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
     if (lhsAttr != rhsAttr)
       return false;
   return true;
+}
+
+const ScalarI32MicrokernelFamilySpec *
+getI32MicrokernelFamilyForOp(mlir::Operation *op) {
+  if (llvm::isa_and_nonnull<tcrv::scalar::I32VAddMicrokernelOp>(op))
+    return &getI32VAddFamilySpec();
+  if (llvm::isa_and_nonnull<tcrv::scalar::I32VSubMicrokernelOp>(op))
+    return &getI32VSubFamilySpec();
+  return nullptr;
 }
 
 llvm::Expected<bool> variantRequiresScalarFallback(
@@ -331,22 +455,29 @@ llvm::Error requireMatchingScalarBoundary(
   return llvm::Error::success();
 }
 
-llvm::Expected<bool> hasMatchingExplicitMicrokernel(
+llvm::Expected<const ScalarI32MicrokernelFamilySpec *>
+findMatchingExplicitMicrokernelFamily(
     const VariantEmissionRequest &request, bool requireBoundary = true) {
   tcrv::exec::KernelOp kernel = request.getKernel();
   tcrv::exec::VariantOp variant = request.getVariant();
   if (!kernel || !variant || kernel.getBody().empty())
-    return false;
+    return static_cast<const ScalarI32MicrokernelFamilySpec *>(nullptr);
 
   llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
+  llvm::Expected<std::optional<ScalarI32MicrokernelMaterializationPlan>>
+      descriptorPlan = buildI32MicrokernelMaterializationPlan(variant);
+  if (!descriptorPlan)
+    return descriptorPlan.takeError();
+
   unsigned matches = 0;
+  const ScalarI32MicrokernelFamilySpec *matchedFamily = nullptr;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel =
-        llvm::dyn_cast<tcrv::scalar::I32VAddMicrokernelOp>(op);
-    if (!microkernel)
+    const ScalarI32MicrokernelFamilySpec *family =
+        getI32MicrokernelFamilyForOp(&op);
+    if (!family)
       continue;
 
     auto selectedVariant =
@@ -360,13 +491,21 @@ llvm::Expected<bool> hasMatchingExplicitMicrokernel(
     if (selectedVariant.getValue() != variant.getSymName() ||
         role.getValue() != expectedRole) {
       return makeScalarPluginError(
-          llvm::Twine("stale tcrv_scalar.i32_vadd_microkernel for @") +
+          llvm::Twine("stale ") + family->microkernelOpName + " for @" +
           selectedVariant.getValue() + " as " + role.getValue() +
           " is not the selected scalar emission plan path @" +
           variant.getSymName() + " as " + expectedRole);
     }
 
+    if (*descriptorPlan && (*descriptorPlan)->family != family)
+      return makeScalarPluginError(
+          llvm::Twine("selected scalar emission plan path @") +
+          variant.getSymName() + " as " + expectedRole + " has " +
+          family->microkernelOpName + " but selected variant descriptor "
+          "requires " + (*descriptorPlan)->family->microkernelOpName);
+
     ++matches;
+    matchedFamily = family;
 
     if (llvm::Error error =
             validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
@@ -382,12 +521,12 @@ llvm::Expected<bool> hasMatchingExplicitMicrokernel(
 
     if (!variantRequires ||
         !arrayAttrsEqual(
-            microkernel->getAttrOfType<mlir::ArrayAttr>(
+            op.getAttrOfType<mlir::ArrayAttr>(
                 kRequiredCapabilitiesAttrName),
             variantRequires)) {
       return makeScalarPluginError(
-          "explicit scalar microkernel emission plan requires "
-          "tcrv_scalar.i32_vadd_microkernel required_capabilities to match "
+          llvm::Twine("explicit scalar microkernel emission plan requires ") +
+          family->microkernelOpName + " required_capabilities to match "
           "selected variant requires metadata");
     }
 
@@ -398,25 +537,33 @@ llvm::Expected<bool> hasMatchingExplicitMicrokernel(
       return makeScalarPluginError(
           "explicit scalar microkernel emission plan requires element_count in "
           "the bounded smoke range [1, 64]");
+
+    if (*descriptorPlan &&
+        elementCount.getInt() != (*descriptorPlan)->elementCount)
+      return makeScalarPluginError(
+          llvm::Twine("explicit scalar microkernel emission plan requires ") +
+          family->microkernelOpName +
+          " element_count to match selected variant finite descriptor "
+          "tcrv_scalar.element_count");
   }
 
   if (matches > 1)
     return makeScalarPluginError(
         llvm::Twine("selected scalar emission plan path @") +
         variant.getSymName() + " as " + expectedRole +
-        " has duplicate tcrv_scalar.i32_vadd_microkernel metadata");
+        " has duplicate scalar i32 microkernel metadata");
 
   if (matches == 0)
-    return false;
+    return static_cast<const ScalarI32MicrokernelFamilySpec *>(nullptr);
 
   if (!requireBoundary)
-    return true;
+    return matchedFamily;
 
   if (llvm::Error error =
           requireMatchingScalarBoundary(request, variantRequires))
     return std::move(error);
 
-  return true;
+  return matchedFamily;
 }
 
 tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
@@ -450,16 +597,18 @@ tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
   return llvm::cast<tcrv::scalar::LoweringBoundaryOp>(builder.create(state));
 }
 
-tcrv::scalar::I32VAddMicrokernelOp materializeScalarI32VAddMicrokernelOp(
+mlir::Operation *materializeScalarI32MicrokernelOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
-    const ScalarI32VAddMaterializationPlan &plan) {
+    const ScalarI32MicrokernelMaterializationPlan &plan) {
   auto requiredCapabilities =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
-  mlir::OperationState state(
-      variant.getLoc(),
-      tcrv::scalar::I32VAddMicrokernelOp::getOperationName());
+  llvm::StringRef opName =
+      plan.family->kind == ScalarI32MicrokernelKind::Sub
+          ? tcrv::scalar::I32VSubMicrokernelOp::getOperationName()
+          : tcrv::scalar::I32VAddMicrokernelOp::getOperationName();
+  mlir::OperationState state(variant.getLoc(), opName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
@@ -472,8 +621,7 @@ tcrv::scalar::I32VAddMicrokernelOp materializeScalarI32VAddMicrokernelOp(
   state.addAttribute(kElementCountAttrName,
                      builder.getI64IntegerAttr(plan.elementCount));
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  return llvm::cast<tcrv::scalar::I32VAddMicrokernelOp>(
-      builder.create(state));
+  return builder.create(state);
 }
 
 llvm::Error rejectExistingScalarBoundaryForVariant(
@@ -510,9 +658,9 @@ llvm::Error rejectExistingScalarMicrokernelForSelectedPath(
 
   llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel =
-        llvm::dyn_cast<tcrv::scalar::I32VAddMicrokernelOp>(op);
-    if (!microkernel)
+    const ScalarI32MicrokernelFamilySpec *family =
+        getI32MicrokernelFamilyForOp(&op);
+    if (!family)
       continue;
 
     auto target =
@@ -527,8 +675,8 @@ llvm::Error rejectExistingScalarMicrokernelForSelectedPath(
       continue;
 
     return makeScalarPluginError(
-        llvm::Twine("requires no pre-existing "
-                    "tcrv_scalar.i32_vadd_microkernel for target @") +
+        llvm::Twine("requires no pre-existing ") + family->microkernelOpName +
+        " for target @" +
         targetSymbol + " as " + expectedRole);
   }
 
@@ -597,13 +745,18 @@ bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() &&
          hasAvailableScalarFallbackCapability(request) &&
-         supportsFrontendLoweringFamily(request);
+         getRequestedScalarI32Family(request);
 }
 
 llvm::Error ScalarExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
   if (!supportsOperation(request))
+    return llvm::Error::success();
+
+  const ScalarI32MicrokernelFamilySpec *family =
+      getRequestedScalarI32Family(request);
+  if (!family)
     return llvm::Error::success();
 
   VariantProposal proposal(kScalarFallbackFirstSliceVariantName,
@@ -615,7 +768,7 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kScalarI32VAddLoweringDescriptorAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kScalarI32VAddLoweringDescriptorValue));
+                            family->descriptor));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kScalarI32VAddElementCountAttrName),
@@ -658,8 +811,8 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
 
   if (variant->hasAttr(kScalarI32VAddLoweringDescriptorAttrName) ||
       variant->hasAttr(kScalarI32VAddElementCountAttrName)) {
-    llvm::Expected<std::optional<ScalarI32VAddMaterializationPlan>>
-        microkernelPlan = buildI32VAddMaterializationPlan(variant);
+    llvm::Expected<std::optional<ScalarI32MicrokernelMaterializationPlan>>
+        microkernelPlan = buildI32MicrokernelMaterializationPlan(variant);
     if (!microkernelPlan)
       return microkernelPlan.takeError();
   }
@@ -692,14 +845,14 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
     return makeScalarPluginError(
         "emission readiness requires a materialized tcrv.exec.variant");
 
-  llvm::Expected<bool> hasMicrokernel =
-      hasMatchingExplicitMicrokernel(request);
-  if (!hasMicrokernel)
-    return hasMicrokernel.takeError();
-  if (*hasMicrokernel) {
+  llvm::Expected<const ScalarI32MicrokernelFamilySpec *> microkernelFamily =
+      findMatchingExplicitMicrokernelFamily(request);
+  if (!microkernelFamily)
+    return microkernelFamily.takeError();
+  if (*microkernelFamily) {
     out = VariantEmissionStatus::getSupported(
         kScalarPluginName, request.getVariant().getSymName(),
-        kMicrokernelEmissionPath);
+        (*microkernelFamily)->emissionPath);
     return llvm::Error::success();
   }
 
@@ -719,28 +872,20 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     return makeScalarPluginError(
         "emission planning requires an enclosing tcrv.exec.kernel");
 
-  llvm::Expected<bool> hasMicrokernel =
-      hasMatchingExplicitMicrokernel(request);
-  if (!hasMicrokernel)
-    return hasMicrokernel.takeError();
-  if (*hasMicrokernel) {
-    const support::RuntimeABICallableIdentity &abi =
-        support::getI32VAddRuntimeABIContract().getScalarCallableIdentity();
+  llvm::Expected<const ScalarI32MicrokernelFamilySpec *> microkernelFamily =
+      findMatchingExplicitMicrokernelFamily(request);
+  if (!microkernelFamily)
+    return microkernelFamily.takeError();
+  if (*microkernelFamily) {
+    const ScalarI32MicrokernelFamilySpec &family = **microkernelFamily;
     out = VariantEmissionPlan::getSupported(
         kScalarPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
-        "scalar-explicit-i32-vadd-microkernel-c-source",
-        "tcrv-export-scalar-microkernel-c", abi.runtimeABI,
-        "runtime-callable-c-source",
-        "explicit scalar i32 vector-add microkernel C source export is "
-        "available as a library-style runtime-callable C ABI function for "
-        "this selected fallback path; no self-check main is part of the "
-        "default artifact contract; this is not generic scalar lowering, "
-        "runtime integration, arbitrary kernel emission, correctness, or "
-        "performance evidence");
-    out.setRuntimeABIKind(abi.runtimeABIKind);
-    out.setRuntimeABIName(abi.runtimeABIName);
-    out.setRuntimeGlueRole(abi.runtimeGlueRole);
+        family.emissionKind, family.routeID, family.runtimeABI,
+        "runtime-callable-c-source", family.supportedMessage);
+    out.setRuntimeABIKind(family.runtimeABIKind);
+    out.setRuntimeABIName(family.runtimeABIName);
+    out.setRuntimeGlueRole(family.runtimeGlueRole);
     llvm::Expected<support::I32VAddCallableABIPlan> callablePlan =
         support::buildI32VAddCallableABIPlan(request.getKernel());
     if (!callablePlan)
@@ -797,8 +942,9 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
           request.getKernel(), request.getVariant()))
     return error;
 
-  llvm::Expected<std::optional<ScalarI32VAddMaterializationPlan>>
-      microkernelPlan = buildI32VAddMaterializationPlan(request.getVariant());
+  llvm::Expected<std::optional<ScalarI32MicrokernelMaterializationPlan>>
+      microkernelPlan =
+          buildI32MicrokernelMaterializationPlan(request.getVariant());
   if (!microkernelPlan)
     return microkernelPlan.takeError();
 
@@ -808,12 +954,12 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
                                            request.getKernel(),
                                            request.getCapabilities(),
                                            request.getRole());
-    llvm::Expected<bool> explicitMicrokernel =
-        hasMatchingExplicitMicrokernel(emissionRequest,
-                                       /*requireBoundary=*/false);
+    llvm::Expected<const ScalarI32MicrokernelFamilySpec *> explicitMicrokernel =
+        findMatchingExplicitMicrokernelFamily(emissionRequest,
+                                              /*requireBoundary=*/false);
     if (!explicitMicrokernel)
       return explicitMicrokernel.takeError();
-    selectedPathHasCallableMicrokernel = *explicitMicrokernel;
+    selectedPathHasCallableMicrokernel = *explicitMicrokernel != nullptr;
   }
 
   if (*microkernelPlan)
@@ -841,7 +987,7 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
       request.getBuilder(), request.getKernel(), request.getVariant(),
       request.getRole());
   if (*microkernelPlan)
-    materializeScalarI32VAddMicrokernelOp(
+    materializeScalarI32MicrokernelOp(
         request.getBuilder(), request.getKernel(), request.getVariant(),
         request.getRole(), **microkernelPlan);
 

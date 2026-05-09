@@ -118,8 +118,9 @@ consumable by `--tcrv-execution-planning-pipeline`, so existing RVV/scalar
 plugin proposal, legality, selection, selected-boundary, emission-plan, and
 target-artifact routes remain reused. The RVV plugin consumes the family marker
 to select the bounded i32-vadd or i32-vsub microkernel descriptor; scalar
-fallback remains vadd-only and does not silently become a vsub fallback. This
-pass is not generic linalg lowering, does not add a `tcrv` compute op, does
+fallback consumes the same marker to select its bounded i32-vadd or i32-vsub
+descriptor without reusing stale vadd identity for subtract. This pass is not
+generic linalg lowering, does not add a `tcrv` compute op, does
 not infer arbitrary tensor semantics, does not invent target capabilities, does
 not lower to LLVM/RISC-V, and does not create runtime correctness or
 performance evidence.
@@ -220,7 +221,7 @@ path, including the structured ABI parameter roles required by the target-owned
 source exporter. Registered source routes are bounded to target-owned explicit
 artifacts: the RVV standalone smoke-probe C source exporter above, the RVV i32
 vector-add microkernel C exporter above, the scalar fallback explicit i32
-vector-add portable runtime-callable C exporter below, and the RVV+scalar
+vector add/sub portable runtime-callable C source exporters below, and the RVV+scalar
 i32-vadd host dispatch C composite exporter when the selected plan contains
 both supported callable sides.
 Unsupported
@@ -403,13 +404,14 @@ metadata-only readiness/plan diagnostics by default. It does not add a new
 high-level compute op, generic scalar lowering, runtime ABI integration, object
 generation, correctness evidence, or performance evidence.
 
-For the bounded i32 vector-add slice, the scalar proposal also carries the
+For the bounded i32 vector add/sub slice, the scalar proposal also carries the
 finite plugin-owned descriptor
-`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` with
-descriptor-local `tcrv_scalar.element_count = 16`. When that selected path is
-materialized, the scalar plugin creates both the selected
-`tcrv_scalar.lowering_boundary` and one matching
-`tcrv_scalar.i32_vadd_microkernel`; the element count is descriptor metadata,
+`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
+`"i32-vsub-microkernel.v1"` with descriptor-local
+`tcrv_scalar.element_count = 16`. When that selected path is materialized, the
+scalar plugin creates both the selected `tcrv_scalar.lowering_boundary` and
+one matching `tcrv_scalar.i32_vadd_microkernel` or
+`tcrv_scalar.i32_vsub_microkernel`; the element count is descriptor metadata,
 not tensor shape, AVL, vl, runtime loop trip count, correctness coverage, or
 performance evidence.
 
@@ -421,19 +423,22 @@ It is a plugin-local attachment point for future scalar lowering work, not
 scalar computation, LLVM lowering, runtime ABI glue, object generation,
 correctness evidence, or performance evidence.
 
-The scalar dialect now also has one bounded explicit microkernel attachment:
-`tcrv_scalar.i32_vadd_microkernel`. It is valid only for a selected
+The scalar dialect now also has two bounded explicit microkernel attachments:
+`tcrv_scalar.i32_vadd_microkernel` and
+`tcrv_scalar.i32_vsub_microkernel`. They are valid only for a selected
 `scalar-plugin` fallback path with a matching `tcrv_scalar.lowering_boundary`
-and preserved `scalar.fallback` capability metadata, and it may be generated
-directly from the descriptor above. When present, the scalar plugin reports a
+and preserved `scalar.fallback` capability metadata, and they may be generated
+directly from the descriptors above. When present, the scalar plugin reports a
 supported runtime-callable C source-export emission plan routed through
 `tcrv-translate --tcrv-export-target-source-artifact`. The generated C is a
-library-style portable scalar i32 vector-add function with the same structural
-pointer-plus-length callable ABI shape used by the bounded RVV microkernel
-route; the default artifact has no embedded `main` or self-check harness and
-uses no RVV headers or intrinsics.
+library-style portable scalar i32 vector add or subtract function with the same
+structural pointer-plus-length callable ABI shape used by the bounded RVV
+microkernel route; the default artifact has no embedded `main` or self-check
+harness and uses no RVV headers or intrinsics. The subtract route uses distinct
+scalar vsub descriptor, route id, runtime ABI name, runtime glue role,
+operation label, and `lhs - rhs` arithmetic.
 
-The same validated scalar callable candidate can now feed
+The same validated scalar i32-vadd callable candidate can now feed
 `--tcrv-export-target-header-artifact` and
 `--tcrv-export-target-artifact`. The header route emits only the external C
 prototype. The object route emits the scalar library source internally and

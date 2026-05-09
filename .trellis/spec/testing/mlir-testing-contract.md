@@ -183,10 +183,12 @@ Use lit/FileCheck for:
   must fail before artifact or bundle output.
 - scalar explicit microkernel C target export through the generic artifact
   route, including dialect parse/verify for
-  `tcrv_scalar.i32_vadd_microkernel`, selected scalar fallback plus matching
+  `tcrv_scalar.i32_vadd_microkernel` and
+  `tcrv_scalar.i32_vsub_microkernel`, selected scalar fallback plus matching
   `tcrv_scalar.lowering_boundary`, deterministic portable runtime-callable C
   output with `const int32_t *` inputs, `int32_t *` output, and `size_t`
-  length, scalar i32 addition inside that callable function, absence of RVV
+  length, scalar i32 addition or subtraction inside that callable function
+  according to the selected scalar family, absence of RVV
   headers/intrinsics/route claims, absence of an embedded `main` or self-check
   success marker in the default artifact, scalar runtime-callable header export
   with a declaration-only C prototype, scalar RISC-V relocatable object export
@@ -194,8 +196,9 @@ Use lit/FileCheck for:
   clang, scalar source/header/object bundle index coverage, runtime ABI
   kind/name and runtime glue role metadata, execution-planning coverage proving
   the scalar plugin materializes the microkernel from
-  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` without a
-  hand-authored input microkernel, and fail-closed diagnostics for
+  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
+  `"i32-vsub-microkernel.v1"` without a hand-authored input microkernel, and
+  fail-closed diagnostics for
   missing/stale scalar boundaries, missing/stale scalar microkernels, malformed
   finite scalar descriptors, route spoofing, unsupported metadata-only scalar
   fallback paths, offload-only paths, and ambiguous supported artifacts.

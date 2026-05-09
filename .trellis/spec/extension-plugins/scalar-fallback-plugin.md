@@ -33,7 +33,9 @@ materialized requires form: requires = [@scalar_fallback] for an exact scalar
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
 lowering descriptor attr: tcrv_scalar.lowering_descriptor
-lowering descriptor value: i32-vadd-microkernel.v1
+lowering descriptor values:
+  i32-vadd-microkernel.v1
+  i32-vsub-microkernel.v1
 descriptor-local element attr: tcrv_scalar.element_count
 default descriptor-local element count: 16
 ```
@@ -47,10 +49,11 @@ list satisfies id `scalar.fallback`. Missing or unavailable fallback capability
 must produce no proposal rather than an implicit always-available variant.
 
 The proposal also carries a finite plugin-owned lowering descriptor for the
-bounded i32 vector-add fallback source slice:
+bounded i32 vector add/sub fallback source slice:
 
 ```text
 tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
 tcrv_scalar.element_count = 16 : i64
 ```
 
@@ -58,11 +61,11 @@ The descriptor is a compiler decision handle for one tiny plugin-owned
 microkernel attachment. `tcrv_scalar.element_count` is descriptor-local bounded
 metadata only; it is not high-level shape, problem size, AVL, vl, runtime loop
 trip count, or performance evidence.
-If a bounded frontend lowering explicitly preserves
-`tcrv_frontend_lowering = "i32-vsub"` on the generated kernel, this first
-scalar slice must decline instead of proposing the vadd descriptor as a stale
-subtract fallback. Scalar subtract fallback support requires a separate
-plugin-local descriptor, microkernel, exporter, and tests.
+Bounded frontend lowering may preserve
+`tcrv_frontend_lowering = "i32-vadd"` or `"i32-vsub"` on the generated
+kernel. The scalar plugin must select the matching descriptor and must not use
+the vadd descriptor, route id, ABI name, runtime glue role, operation label, or
+emitted arithmetic for subtract.
 
 ## Capability And Legality
 
@@ -155,13 +158,15 @@ cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
 When the selected variant carries
-`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` and a valid
+`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
+`"i32-vsub-microkernel.v1"` and a valid
 descriptor-local `tcrv_scalar.element_count`, the same plugin-local
 materialization step must also create exactly one matching direct-child
-`tcrv_scalar.i32_vadd_microkernel`. A pre-existing matching scalar microkernel
-for that selected path is rejected during descriptor materialization so that the
-descriptor has a single owner and stale hand-authored fallback bodies cannot
-silently replace the plugin-owned proposal.
+`tcrv_scalar.i32_vadd_microkernel` or
+`tcrv_scalar.i32_vsub_microkernel`. A pre-existing matching scalar microkernel
+for that selected path is rejected during descriptor materialization so that
+the descriptor has a single owner and stale hand-authored fallback bodies
+cannot silently replace the plugin-owned proposal.
 
 Downstream emission planning may consume this boundary as the validated
 selected-path attachment point before materializing either metadata-only
@@ -170,43 +175,53 @@ source-export plan. The lowering boundary itself still records selected-path
 metadata only. It is not LLVM lowering, object generation, linked runtime glue,
 hardware execution, correctness evidence, or performance evidence.
 
-Real scalar fallback lowering beyond the bounded i32 vector-add C source
+Real scalar fallback lowering beyond the bounded i32 vector add/sub C source
 microkernel must be added by later plugin-local lowering slices and validated
 with compiler-generated artifacts and runtime evidence appropriate to those
 paths.
 
-## Explicit I32 Vector-Add Microkernel Export
+## Explicit I32 Vector Add/Sub Microkernel Export
 
-`tcrv_scalar.i32_vadd_microkernel` is the first scalar extension-dialect
-executable source-export microkernel op. It represents exactly one bounded i32
-vector-add callable body for a selected scalar fallback path. The op is
-plugin-local under the `tcrv_scalar` dialect and must carry only selected-path
-metadata: source kernel, selected variant, origin, selected role, required
-capability refs, and a tiny element count. It must reject generic
-tensor/tile/benchmark attributes, unbounded or secret-like strings, invalid
-element counts, stale selected variants, missing or unavailable scalar fallback
-capability refs, and required-capability mismatches.
+`tcrv_scalar.i32_vadd_microkernel` and
+`tcrv_scalar.i32_vsub_microkernel` are scalar extension-dialect executable
+source-export microkernel ops for the bounded i32 add/sub family. Each
+represents exactly one bounded i32 callable body for a selected scalar fallback
+path. The ops are plugin-local under the `tcrv_scalar` dialect and must carry
+only selected-path metadata: source kernel, selected variant, origin, selected
+role, required capability refs, and a tiny element count. They must reject
+generic tensor/tile/benchmark attributes, unbounded or secret-like strings,
+invalid element counts, stale selected variants, missing or unavailable scalar
+fallback capability refs, and required-capability mismatches.
 
 When the selected scalar fallback path has exactly one matching
 `tcrv_scalar.lowering_boundary` and exactly one matching
-`tcrv_scalar.i32_vadd_microkernel`, including the microkernel materialized from
-the finite descriptor above, the scalar plugin may return a supported
+`tcrv_scalar.i32_vadd_microkernel` or
+`tcrv_scalar.i32_vsub_microkernel`, including the microkernel materialized
+from the finite descriptor above, the scalar plugin may return a supported
 runtime-callable C source export route:
 
 ```text
-status: supported
-emission kind: scalar-explicit-i32-vadd-microkernel-c-source
-lowering pipeline: tcrv-export-scalar-microkernel-c
-runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
+add emission kind: scalar-explicit-i32-vadd-microkernel-c-source
+add lowering pipeline: tcrv-export-scalar-microkernel-c
+add runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
+add runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
+add runtime glue role: runtime-callable-i32-vadd-fallback-function
+sub emission kind: scalar-explicit-i32-vsub-microkernel-c-source
+sub lowering pipeline: tcrv-export-scalar-i32-vsub-microkernel-c
+sub runtime ABI: scalar-i32-vsub-runtime-callable-c-abi.v1
+sub runtime ABI name: scalar-i32-vsub-runtime-callable-c-function.v1
+sub runtime glue role: runtime-callable-i32-vsub-fallback-function
 runtime ABI kind: scalar-runtime-callable-c-abi
-runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
-runtime glue role: runtime-callable-i32-vadd-fallback-function
+status: supported
 artifact kind: runtime-callable-c-source
 ```
 
 The exported source must contain a deterministic callable C function with
 `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, and `size_t n`
-parameters. The callable ABI plan must be built from direct
+parameters. The add route must emit `out[index] = lhs[index] + rhs[index]`;
+the subtract route must emit `out[index] = lhs[index] - rhs[index]` and must
+not inherit stale vadd route or ABI metadata. The callable ABI plan must be
+built from direct
 `tcrv.exec.mem_window` IR for lhs/rhs/out buffer roles plus direct
 `tcrv.exec.runtime_param` IR for runtime `n`; supported emission-plan
 `runtime_abi_parameters` entries are validated mirrors of that IR-backed plan.
@@ -255,4 +270,6 @@ path and runtime ABI metadata. These helpers still do not add generic scalar
 lowering, arbitrary scalar source export, linking, runtime dispatch
 integration, broad correctness coverage, RVV hardware evidence, or performance
 evidence. Scalar fallback selected paths without a valid descriptor or explicit
-matching microkernel remain metadata-only.
+matching microkernel remain metadata-only. Header/object helper routes remain
+bounded to the existing scalar add callable unless a later task adds matching
+subtract helper routes and tests.

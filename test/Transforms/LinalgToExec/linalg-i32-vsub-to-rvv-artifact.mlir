@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=i32-vadd-microkernel.v1 --implicit-check-not=tcrv_scalar.lowering_descriptor --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=i32-vadd-microkernel.v1 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 #map = affine_map<(d0) -> (d0)>
@@ -53,6 +53,12 @@ module {
 // PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1"
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
+// PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+// PIPE-SAME: fallback_role = "conservative"
+// PIPE-SAME: origin = "scalar-plugin"
+// PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
+// PIPE-SAME: tcrv_scalar.element_count = 16 : i64
+// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: reason = "variant-selected"
 // PIPE-SAME: selection_kind = "static-variant"

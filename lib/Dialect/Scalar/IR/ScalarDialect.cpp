@@ -276,29 +276,30 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult I32VAddMicrokernelOp::verify() {
-  mlir::Operation *op = getOperation();
+namespace {
+
+mlir::LogicalResult verifyScalarI32MicrokernelOp(
+    mlir::Operation *op, llvm::StringRef operationNoun) {
 
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     if (!isAllowedMicrokernelAttr(attr.getName().getValue()))
-      return emitOpError()
+      return op->emitOpError()
              << "does not accept generic tensor/tile/benchmark or unknown "
                 "attribute '"
              << attr.getName()
-             << "'; this op is exactly a bounded scalar i32 vector-add "
-                "microkernel";
+             << "'; this op is exactly a " << operationNoun;
   }
 
   if (hasMissingOrEmptyStringAttr(op, kSourceKernelAttrName))
-    return emitOpError()
+    return op->emitOpError()
            << "requires non-empty string attribute '" << kSourceKernelAttrName
            << "'";
   if (hasMissingOrEmptyStringAttr(op, kOriginAttrName))
-    return emitOpError()
+    return op->emitOpError()
            << "requires non-empty string attribute '" << kOriginAttrName
            << "'";
   if (hasMissingOrEmptyStringAttr(op, kRoleAttrName))
-    return emitOpError()
+    return op->emitOpError()
            << "requires non-empty string attribute '" << kRoleAttrName << "'";
 
   for (llvm::StringRef attrName :
@@ -311,13 +312,13 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
 
   auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (origin.getValue() != kScalarPluginName)
-    return emitOpError()
+    return op->emitOpError()
            << "origin must be '" << kScalarPluginName
            << "' because this executable microkernel is scalar plugin-local";
 
   auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
   if (!isAllowedLoweringBoundaryRole(role.getValue()))
-    return emitOpError()
+    return op->emitOpError()
            << "role must be '" << kDirectVariantRoleValue << "', '"
            << kDispatchCaseRoleValue << "', or '"
            << kDispatchFallbackRoleValue << "'";
@@ -325,44 +326,45 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
   auto elementCount =
       op->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
   if (!elementCount)
-    return emitOpError()
+    return op->emitOpError()
            << "requires integer attribute '" << kElementCountAttrName << "'";
   int64_t count = elementCount.getInt();
   if (count <= 0 || count > 64)
-    return emitOpError()
+    return op->emitOpError()
            << "element_count must be in the bounded smoke range [1, 64]";
 
   auto selectedVariant =
       op->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
   if (!selectedVariant || selectedVariant.getValue().trim().empty())
-    return emitOpError()
+    return op->emitOpError()
            << "requires non-empty variant symbol reference attribute '"
            << kSelectedVariantAttrName << "'";
 
   auto requiredCapabilities =
       op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
   if (!requiredCapabilities || requiredCapabilities.empty())
-    return emitOpError()
+    return op->emitOpError()
            << "requires non-empty array attribute '"
            << kRequiredCapabilitiesAttrName
            << "' containing capability symbol references";
 
   auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
   if (!kernel)
-    return emitOpError() << "must be nested directly in a tcrv.exec.kernel";
+    return op->emitOpError()
+           << "must be nested directly in a tcrv.exec.kernel";
   if (op->getParentOp() != kernel.getOperation())
-    return emitOpError()
+    return op->emitOpError()
            << "must be a direct child of the enclosing tcrv.exec.kernel";
 
   auto sourceKernel =
       op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
   if (sourceKernel.getValue() != kernel.getSymName())
-    return emitOpError()
+    return op->emitOpError()
            << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
            << kernel.getSymName();
 
   if (kernel.getBody().empty())
-    return emitOpError()
+    return op->emitOpError()
            << "requires enclosing tcrv.exec.kernel to have a body block";
 
   llvm::Expected<tianchenrv::support::TargetCapabilitySet>
@@ -371,7 +373,7 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
               kernel);
   if (!capabilitiesOrError) {
     std::string message = llvm::toString(capabilitiesOrError.takeError());
-    return emitOpError() << message;
+    return op->emitOpError() << message;
   }
   const tianchenrv::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
@@ -386,7 +388,7 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
     }
   }
   if (!resolvedVariant)
-    return emitOpError()
+    return op->emitOpError()
            << "selected_variant @" << selectedVariant.getValue()
            << " must resolve to a direct sibling tcrv.exec.variant in the "
               "enclosing tcrv.exec.kernel";
@@ -394,14 +396,14 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
   auto variantOrigin =
       resolvedVariant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!variantOrigin || variantOrigin.getValue() != kScalarPluginName)
-    return emitOpError()
+    return op->emitOpError()
            << "selected_variant must be owned by origin '" << kScalarPluginName
            << "'";
 
   auto variantRequires =
       resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!arrayAttrsEqual(requiredCapabilities, variantRequires))
-    return emitOpError()
+    return op->emitOpError()
            << "required_capabilities must match selected variant requires "
               "metadata";
 
@@ -410,19 +412,19 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
     auto symbolRef =
         llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
     if (!symbolRef)
-      return emitOpError()
+      return op->emitOpError()
              << "attribute '" << kRequiredCapabilitiesAttrName
              << "' must contain only capability symbol references";
 
     const tianchenrv::support::CapabilityDescriptor *capability =
         capabilities.lookupBySymbolName(symbolRef.getValue());
     if (!capability)
-      return emitOpError()
+      return op->emitOpError()
              << "requires unknown capability @" << symbolRef.getValue()
              << " in enclosing tcrv.exec.kernel";
 
     if (!capability->isAvailable())
-      return emitOpError()
+      return op->emitOpError()
              << "requires unavailable capability @" << symbolRef.getValue();
 
     if (capability->satisfiesID(kScalarFallbackCapabilityID))
@@ -430,11 +432,23 @@ mlir::LogicalResult I32VAddMicrokernelOp::verify() {
   }
 
   if (!requiresScalarFallback)
-    return emitOpError()
+    return op->emitOpError()
            << "required_capabilities must include capability id '"
            << kScalarFallbackCapabilityID << "'";
 
   return mlir::success();
+}
+
+} // namespace
+
+mlir::LogicalResult I32VAddMicrokernelOp::verify() {
+  return verifyScalarI32MicrokernelOp(
+      getOperation(), "bounded scalar i32 vector-add microkernel");
+}
+
+mlir::LogicalResult I32VSubMicrokernelOp::verify() {
+  return verifyScalarI32MicrokernelOp(
+      getOperation(), "bounded scalar i32 vector-subtract microkernel");
 }
 
 void TCRVScalarDialect::initialize() {

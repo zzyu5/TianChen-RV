@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV implementation boundaries and invariants"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin-local integration and generic core orchestration boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback descriptor, boundary, and export contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "existing add/sub frontend marker and RVV family convention to mirror at scalar boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission plan, selected boundary, runtime ABI, and target artifact routing contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required MLIR/lit/FileCheck coverage and evidence wording"}

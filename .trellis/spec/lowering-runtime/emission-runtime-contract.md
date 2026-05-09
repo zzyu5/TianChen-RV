@@ -132,9 +132,10 @@ currently supported source routes are bounded explicit target/export-owned
 artifacts: the RVV standalone smoke-probe C source exporter registered by RVV
 target/export code for an explicitly planned smoke-probe path, the RVV i32
 vector-add runtime-callable library C exporter registered by RVV target/export
-code, the scalar fallback i32 vector-add portable runtime-callable C exporter
-registered by scalar target/export code, and the RVV+scalar i32 vector-add host
-dispatch C composite exporter registered by RVV+scalar target/export code. The
+code, the scalar fallback i32 vector add/sub portable runtime-callable C
+source exporters registered by scalar target/export code, and the RVV+scalar
+i32 vector-add host dispatch C composite exporter registered by RVV+scalar
+target/export code. The
 composite exporter consumes the selected RVV dispatch-case callable candidate
 plus selected scalar dispatch-fallback callable candidate and validates the
 target-owned dispatch availability guard ABI before source output. This does
@@ -344,7 +345,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     `standalone-c-source`, selected only when a plugin-owned smoke-probe
     emission plan names `tcrv-export-rvv-smoke-probe-c`.
   - RVV explicit i32 vector-add microkernel runtime-callable C source.
-  - Scalar explicit i32 vector-add microkernel runtime-callable C source.
+  - Scalar explicit i32 vector add/sub microkernel runtime-callable C source.
   - Offload runtime handoff descriptor.
 - The current single-candidate composite route set is:
   - RVV explicit i32 vector-add microkernel runtime-callable C header,
@@ -563,10 +564,12 @@ Rules:
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
 - when the selected scalar fallback variant carries the bounded descriptor
-  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` and a valid
-  descriptor-local `tcrv_scalar.element_count`, scalar plugin-local boundary
-  materialization also creates exactly one matching direct-child
-  `tcrv_scalar.i32_vadd_microkernel`; this is an explicit portable C source
+  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
+  `"i32-vsub-microkernel.v1"` and a valid descriptor-local
+  `tcrv_scalar.element_count`, scalar plugin-local boundary materialization
+  also creates exactly one matching direct-child
+  `tcrv_scalar.i32_vadd_microkernel` or
+  `tcrv_scalar.i32_vsub_microkernel`; this is an explicit portable C source
   microkernel attachment, not generic scalar lowering;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
@@ -1112,15 +1115,15 @@ performance.
 
 Trigger: post-planning MLIR contains one selected `scalar-plugin` fallback
 path, a matching plugin-owned `tcrv_scalar.lowering_boundary`, and exactly one
-explicit `tcrv_scalar.i32_vadd_microkernel` op for that selected
-kernel/variant/role.
+explicit `tcrv_scalar.i32_vadd_microkernel` or
+`tcrv_scalar.i32_vsub_microkernel` op for that selected kernel/variant/role.
 
 This export is the first bounded scalar fallback executable source slice. It
 may emit a deterministic portable runtime-callable C library source artifact
-that computes finite scalar i32 vector add through a pointer-plus-length C ABI.
-It is not generic scalar lowering, arbitrary scalar kernel emission, generic
-runtime dispatch glue, object generation, linking, benchmarking, or performance
-evidence.
+that computes finite scalar i32 vector add or subtract through a
+pointer-plus-length C ABI. It is not generic scalar lowering, arbitrary scalar
+kernel emission, generic runtime dispatch glue, object generation, linking,
+benchmarking, or performance evidence.
 
 Public route:
 
@@ -1133,12 +1136,17 @@ Route metadata:
 
 ```text
 status: supported
-emission kind: scalar-explicit-i32-vadd-microkernel-c-source
-lowering pipeline: tcrv-export-scalar-microkernel-c
-runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
+add emission kind: scalar-explicit-i32-vadd-microkernel-c-source
+add lowering pipeline: tcrv-export-scalar-microkernel-c
+add runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
+add runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
+add runtime glue role: runtime-callable-i32-vadd-fallback-function
+sub emission kind: scalar-explicit-i32-vsub-microkernel-c-source
+sub lowering pipeline: tcrv-export-scalar-i32-vsub-microkernel-c
+sub runtime ABI: scalar-i32-vsub-runtime-callable-c-abi.v1
+sub runtime ABI name: scalar-i32-vsub-runtime-callable-c-function.v1
+sub runtime glue role: runtime-callable-i32-vsub-fallback-function
 runtime ABI kind: scalar-runtime-callable-c-abi
-runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
-runtime glue role: runtime-callable-i32-vadd-fallback-function
 artifact kind: runtime-callable-c-source
 ```
 
@@ -1150,11 +1158,13 @@ Contracts:
 - A matching direct child `tcrv_scalar.lowering_boundary` must identify the
   same source kernel, selected variant, origin, role, metadata-only status, and
   required capability refs.
-- A matching direct child `tcrv_scalar.i32_vadd_microkernel` must identify the
-  same selected path and required capability refs with a bounded element count.
+- A matching direct child `tcrv_scalar.i32_vadd_microkernel` or
+  `tcrv_scalar.i32_vsub_microkernel` must identify the same selected path and
+  required capability refs with a bounded element count.
 - Output must be deterministic portable C with a callable function
   `void <name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`
-  that performs scalar i32 add over the provided arrays.
+  that performs scalar i32 add or subtract over the provided arrays according
+  to the selected scalar microkernel family.
 - The default artifact must not include a hidden `main`, stdio-only self-check
   machinery, or a self-check success marker.
 - Output must not include RVV headers, RVV intrinsics, route-spoof claims,

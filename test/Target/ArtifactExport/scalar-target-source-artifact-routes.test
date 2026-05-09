@@ -51,7 +51,7 @@
 # MISSING-SCALAR-BOUNDARY: selected path @scalar_fallback_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-scalar-microkernel.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SCALAR-MICRO --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# MISSING-SCALAR-MICRO: selected scalar path @scalar_fallback_first_slice as direct variant requires exactly one matching tcrv_scalar.i32_vadd_microkernel
+# MISSING-SCALAR-MICRO: selected scalar path @scalar_fallback_first_slice as direct variant requires exactly one matching scalar i32 microkernel
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/stale-scalar-selected-variant.txt 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
 # STALE-SCALAR: stale lowering-boundary 'tcrv_scalar.lowering_boundary' selected_variant @old_scalar as direct variant is not selected by the current dispatch or selected diagnostic surface

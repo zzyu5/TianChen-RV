@@ -35,6 +35,7 @@ using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
+using tianchenrv::tcrv::scalar::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -146,6 +147,25 @@ I32VAddMicrokernelOp findScalarMicrokernel(
   return result;
 }
 
+I32VSubMicrokernelOp findScalarSubMicrokernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  I32VSubMicrokernelOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto microkernel = llvm::dyn_cast<I32VSubMicrokernelOp>(op);
+    if (!microkernel)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = microkernel;
+  }
+  return result;
+}
+
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
@@ -200,6 +220,26 @@ module {
     }
   }
 
+  tcrv.exec.kernel @available_scalar_vadd attributes {
+    tcrv_frontend_lowering = "i32-vadd"
+  } {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+
+  tcrv.exec.kernel @available_scalar_vsub attributes {
+    tcrv_frontend_lowering = "i32-vsub"
+  } {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+
   tcrv.exec.kernel @unavailable_scalar attributes {} {
     tcrv.exec.capability @scalar_fallback {
       id = "scalar.fallback",
@@ -219,10 +259,13 @@ module {
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp available = findKernel(*module, "available_scalar");
+  KernelOp availableVAdd = findKernel(*module, "available_scalar_vadd");
+  KernelOp availableVSub = findKernel(*module, "available_scalar_vsub");
   KernelOp unavailable = findKernel(*module, "unavailable_scalar");
   KernelOp missing = findKernel(*module, "missing_scalar");
   if (int result =
-          expect(highLevelOp && available && unavailable && missing,
+          expect(highLevelOp && available && availableVAdd && availableVSub &&
+                     unavailable && missing,
                  "proposal gating module contains all anchors"))
     return result;
 
@@ -284,6 +327,49 @@ module {
   if (int result =
           expect(hasDescriptor && hasElementCount,
                  "scalar fallback proposal carries finite i32-vadd descriptor"))
+    return result;
+
+  auto expectScalarDescriptorForKernel =
+      [&](KernelOp kernel, llvm::StringRef expectedDescriptor,
+          llvm::StringRef context) -> int {
+    TargetCapabilitySet kernelCapabilities =
+        TargetCapabilitySet::buildFromKernel(kernel);
+    VariantProposalRequest kernelRequest(highLevelOp.getOperation(), kernel,
+                                         kernelCapabilities);
+    proposals.clear();
+    if (int result = expectSuccess(
+            registry.collectVariantProposals(kernelRequest, proposals),
+            llvm::Twine("collect scalar proposal for ") + context))
+      return result;
+    if (int result = expect(proposals.size() == 1,
+                            llvm::Twine("one scalar proposal for ") + context))
+      return result;
+
+    bool descriptorMatches = false;
+    bool elementCountMatches = false;
+    for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
+      llvm::StringRef name = attr.getName().getValue();
+      if (name == "tcrv_scalar.lowering_descriptor") {
+        auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
+        descriptorMatches = value && value.getValue() == expectedDescriptor;
+      }
+      if (name == "tcrv_scalar.element_count") {
+        auto value = llvm::dyn_cast<mlir::IntegerAttr>(attr.getValue());
+        elementCountMatches = value && value.getInt() == 16;
+      }
+    }
+    return expect(descriptorMatches && elementCountMatches,
+                  llvm::Twine("scalar proposal descriptor matches ") +
+                      context);
+  };
+
+  if (int result = expectScalarDescriptorForKernel(
+          availableVAdd, "i32-vadd-microkernel.v1",
+          "frontend-lowered i32-vadd"))
+    return result;
+  if (int result = expectScalarDescriptorForKernel(
+          availableVSub, "i32-vsub-microkernel.v1",
+          "frontend-lowered i32-vsub"))
     return result;
 
   TargetCapabilitySet unavailableCapabilities =
