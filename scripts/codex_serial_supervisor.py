@@ -3,8 +3,8 @@
 
 In loop mode the runner supervises the process while a persistent Hermes chat
 session reviews each finished Codex run and decides whether the next worker
-should receive the canonical base prompt or a transient full prompt rewrite
-derived from that base prompt.
+should receive the canonical base prompt plus a transient module-sized task
+brief derived from repository evidence.
 """
 
 from __future__ import annotations
@@ -450,14 +450,20 @@ def build_prompt(base_prompt: Path, delta: str, prompt_override: str = "") -> st
     if not base:
         raise SystemExit(f"base prompt not found or empty: {base_prompt}")
     if prompt_override.strip():
-        return prompt_override.strip() + "\n"
+        return (
+            base
+            + "\n\n---\n\n"
+            + "## Current Task Brief\n\n"
+            + prompt_override.strip()
+            + "\n"
+        )
     if not delta.strip():
         return base + "\n"
     return (
-        "# Hermes Supervisor Delta\n\n"
-        + delta.strip()
+        base
         + "\n\n---\n\n"
-        + base
+        + "## Legacy Hermes Delta\n\n"
+        + delta.strip()
         + "\n"
     )
 
@@ -939,7 +945,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
         "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and descriptor-local boundaries?",
-        "- If continuing, Hermes must generate a full transient next prompt from the base prompt and current evidence.",
+        "- If continuing, Hermes must generate a module-sized task brief from current evidence; the runner prepends the base prompt.",
     ]
     (run_dir / "review_input.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
@@ -1182,7 +1188,7 @@ def normalize_review(raw_text: str) -> dict[str, Any]:
             "delta": "",
             "next_prompt": "",
             "base_prompt_edits": [],
-            "reason": "Hermes review output was not valid JSON; continuing is blocked until a full next_prompt is available.",
+            "reason": "Hermes review output was not valid JSON; continuing is blocked until a non-empty next_prompt task brief is available.",
             "telegram_note": "",
             "raw": raw_text[:4000],
             "parse_error": True,
@@ -1247,9 +1253,9 @@ def build_review_prompt(
     stderr_tail = tail_text(run_dir / "codex.stderr.log", max_chars=int(max_chars * 0.06))
     return f"""You are Hermes supervisor for the TianChen-RV MLIR repository.
 
-You review the Codex worker run that just finished and produce the next full Codex worker prompt.
-
-You do not implement code and you do not edit the repository. You may inspect the repository with read-only commands if tool access is available.
+You are a read-only planner and reviewer. You review the Codex worker run that
+just finished and produce the next module-sized Trellis task brief. You do not
+edit files and you do not implement code.
 
 Repository root:
 
@@ -1257,36 +1263,9 @@ Repository root:
 /home/kingdom/phdworks/TianchenRV
 ```
 
-Project spine:
-
-```text
-High-level MLIR op
-  -> target capability model
-  -> extension plugin registry
-  -> plugin-proposed execution variants
-  -> legality verification
-  -> capability-aware variant selection / dispatch
-  -> plugin-owned lowering / emission / runtime glue
-  -> RVV / IME / offload / fallback executable path
-```
-
-Current plugin work may also start from hand-written or test TianChen-RV MLIR,
-existing `tcrv.exec.kernel` or `tcrv.exec.variant`, selected-boundary IR,
-`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or bounded plugin-specific
-descriptors. High-level `linalg`/`stablehlo`/`tosa` lowering is a future
-frontend integration surface, not a precondition for integrating an extension
-plugin from existing TianChen-RV MLIR today. This does not forbid frontend
-lowering work: if the selected owner is frontend lowering, prefer starting from
-hand-written or test `linalg` inputs and lower them into TianChen-RV surfaces
-that the backend/plugin pipeline can consume.
-
-Primary engineering stack:
-
-```text
-C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck
-```
-
-Python is valid for runner, supervisor, remote probe, artifact parsing, and helper scripts. Python is not valid as the implementation language for the TianChen-RV core IR, dialects, passes, plugin registry, capability model, variant pipeline, lowering pipeline, or emission pipeline.
+The runner will prepend the canonical Codex base prompt to your `next_prompt`.
+Therefore `next_prompt` should be a focused task brief, not a repeated copy of
+the base prompt and not a long architecture document.
 
 ## Evidence Priority
 
@@ -1297,165 +1276,138 @@ Use evidence in this order:
 3. `review_input.md`, run manifest, stderr, and last Codex message.
 4. Codex final summary.
 
-If Codex says one thing and repository evidence says another, trust the repository evidence.
+If Codex says one thing and repository evidence says another, trust repository
+evidence. You may use read-only inspection commands when tool access exists:
+`pwd`, `git status --short`, `git log`, `git show`, `find`, and text search over
+source, tests, specs, task files, and loop artifacts. Never modify files.
 
 ## Active Human Steering
 
-The following manual user steering is an active control-plane input for choosing the next owner and shaping the next prompt. It may contain durable steering and/or one-shot steering. Treat it as newer than the canonical base prompt. Do not treat it as proof of repository state, and do not follow it when it conflicts with safety, real repository evidence, or the architecture invariants.
+Manual steering is a control-plane input for choosing the next owner. Treat it
+as newer than the base prompt, but not as proof of repository state.
 
 ```text
 {manual_steering or "(none)"}
 ```
 
-## Optional Read-Only Inspection
+## Review Job
 
-If tool access is available, run only read-only inspection commands. Useful commands:
-
-```bash
-pwd
-git status --short
-git log --oneline -8
-git show --name-status --stat --oneline --decorate HEAD
-find . -maxdepth 3 -type f -not -path './.git/*' -not -path './artifacts/tmp/*' | sort | sed -n '1,260p'
-find include lib tools test tests cmake .trellis/spec docs -maxdepth 4 -type f 2>/dev/null | sort | sed -n '1,260p'
-grep -R "tcrv.exec\\|TCRV\\|Dialect\\|TableGen\\|Plugin\\|Capability\\|RVV\\|IME\\|offload\\|AME" -n include lib tools test tests cmake .trellis/spec docs 2>/dev/null | head -240
-```
-
-Do not modify files. Do not run destructive commands.
-
-## Review Criteria
-
-### MLIR engineering progress
-
-A good worker round should improve at least one of these:
+Decide exactly one of these internal cases. Do not ask Codex to choose among
+candidate tasks.
 
 ```text
-CMake / MLIR / LLVM integration
-TableGen / ODS definitions
-C++ dialect, type, attribute, interface, or pass code
-plugin registry or extension interface
-extension plugin integration contract or template
-capability model
-tcrv.exec dialect contract
-RVV extension dialect or lowering path
-variant generation / legality / selection pipeline
-tcrv-opt or other MLIR tool integration
-lit/FileCheck or C++ tests only when they are minimal verification of changed compiler behavior
-ssh rvv evidence only when it is required for a concrete RVV compiler claim
+continue current module: previous task is unfinished but direction is right
+expand current module: previous work was too small and should become one coherent PRD/module
+switch module: current module converged, is stale, or is causing repeated stall
 ```
 
-Documentation is useful when it constrains or explains active design. Documentation alone should not repeatedly replace compiler structure, tests, or hardware evidence.
-
-Smoke tests, tiny guardrails, small harnesses, broad negative fixture matrices, extra evidence packaging, export wrappers, registries, and dashboard-like reports are not default engineering owners. They are allowed only when you can name a concrete necessity: they directly verify a real lowering/runtime semantic change in the same round, prevent a specific observed regression in an already implemented path, or are the single blocker to the next real compiler implementation step. If that standard is not met, skip them and choose the next real compiler implementation owner instead.
-
-Prefer a bounded but meaningful compiler owner over a micro-owner. A good next prompt may span several tightly related surfaces when they form one semantic compiler step: ODS or attributes, C++ verifier/materialization, plugin proposal or lowering, exporter consumption, and one or two minimal tests. Do not split an obvious compiler step into repeated helper-only, one-negative-test, registry-wrapper, or evidence-packaging rounds merely because each small piece can be validated independently.
-
-Before choosing the next owner, state what compiler path or artifact becomes more real after the round. Good outcomes name a concrete IR boundary, plugin-owned lowering path, capability decision, variant selection behavior, runtime ABI boundary, emission path, or hardware-evidence claim. If you cannot state that outcome, choose a larger active compiler owner.
-
-### Architecture invariants
-
-Check these invariants:
+The next owner should be large enough to move a real compiler path or workflow
+path, but still bounded enough for one Codex round to complete a coherent
+submodule. Good owners make one of these more real:
 
 ```text
-tcrv.exec expresses execution organization: kernel, target, capability, variant, requires, region, hart_parallel, mem_window, dispatch, fallback, diagnostics.
-concrete computation belongs in extension dialects or extension op families.
-capability objects participate in compiler decisions.
-RVV hardware facts, compile-time variant config, runtime SSA/control values, and descriptor-local bounded parameters are explicitly separated.
-extension-specific logic stays plugin-local through registries and interfaces.
-new extension plugins can be validated from TianChen-RV MLIR, selected-boundary IR, runtime parameters, mem windows, or bounded descriptors before high-level lowering exists.
-RVV claims are backed by ssh rvv evidence.
-Sophgo/offload is runtime-offload capability.
-IME is a later extension plugin path unless hardware is available.
-AME is not a current target without real hardware/toolchain evidence.
+TianChen-RV MLIR -> selected boundary -> plugin-owned lowering/emission -> artifact/runtime evidence
+an IR boundary modeled and consumed by pass/exporter
+a selected variant materialized to extension ops
+a plugin-owned lowering or emission path completed
+a runtime ABI boundary carried from IR to artifact
+a bounded RVV kernel carried from IR to generated artifact and ssh rvv evidence
+an extension plugin template that makes future plugin integration clearer
 ```
 
-Redirect the next worker if the run:
+Tiny helpers, one-off negative tests, broad smoke matrices, metadata-only
+changes, wrapper-only work, status/report work, and standalone evidence
+packaging are not valid default owners. Use them only when they are the single
+named blocker for the chosen module.
+
+## Anti-Stall Rule
+
+Before writing the next brief, ask:
 
 ```text
-implemented compiler internals in Python;
-created generic compute ops inside tcrv.exec;
-hard-coded RVV / IME / Sophgo / AME logic into core passes;
-required high-level op analysis before a plugin can be integrated from existing TianChen-RV MLIR;
-added extension-specific semantic branches to core passes instead of using plugin registry/interface delegation;
-treated a direct helper command as the main extension path instead of a bounded helper or evidence surface;
-claimed RVV runtime, correctness, or performance without ssh rvv evidence;
-confused VLEN/vlenb as runtime values, SEW/LMUL as hardware-fact-only, AVL/vl as capability facts, setvl/with_vl as modeled without real IR/ABI surfaces, element_count as tensor shape/AVL, or expanded required_march string-comparison dependence unnecessarily;
-treated Sophgo/offload as a custom RISC-V ISA extension;
-treated IME or AME as the current primary hardware path without real evidence;
-added only status files, metadata, dashboards, unused scripts, or report-only progress;
-chose smoke/probe/guardrail/test-harness work without a concrete necessity tied to compiler implementation;
-left Trellis specs inconsistent with the code direction.
+Did the last round move an end-to-end compiler path closer to completion?
+Did it make a module behavior available, or only add helper/test/smoke/report work?
+Is the current Trellis task too small, stale, or missing a clear PRD?
+Would another micro-round repeat the same stall pattern?
 ```
 
-## Next Prompt Rules
+If several recent rounds did not move an end-to-end path closer, stop refining
+the same small surface. Create, repair, or expand a module-level Trellis PRD and
+make Codex execute that module instead.
 
-If continuing, return a complete next Codex prompt. Do not return an empty prompt.
+## Architecture Audit Surface
 
-The next prompt should:
+Keep the audit concise, but block or redirect if the worker:
 
 ```text
-name one coherent engineering owner for the next round;
-list files or directories Codex must inspect first;
-state the implementation area to modify;
-for plugin-related work, state whether the round changes core, plugin, dialect, target/exporter, tool, or test surfaces;
-if core passes change, explain whether the change is a public interface evolution or an extension-specific special case;
-state the tests or evidence required;
-state invalid work patterns for that round;
-state final reporting requirements.
+implements compiler internals in Python;
+bypasses the C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck stack;
+adds compute semantics to tcrv.exec;
+puts extension-specific semantic branches in core passes instead of plugin interfaces;
+confuses hardware facts, compile-time variant config, runtime SSA/control values, or descriptor-local parameters;
+claims RVV runtime/correctness/performance without ssh rvv evidence;
+treats prompt/report/smoke/helper work as the main result.
 ```
 
-Required tests or evidence must be minimal and proportional to the changed compiler behavior. Do not ask Codex for broad negative matrices, duplicate small fixtures, standalone smoke coverage, or helper-only evidence merely to make the round look complete.
+Detailed architecture rules live in `.trellis/spec/`; point Codex to the
+relevant specs instead of restating all rules in the task brief.
 
-Choose the next owner from repository evidence. Prefer work that moves the repo toward a real MLIR system:
+## Required next_prompt Shape
+
+When `continue=true`, `next_prompt` must be a complete module-sized task brief
+to append under the base prompt. Include:
 
 ```text
-capability model
-tcrv.exec ODS contract
-plugin registry interfaces
-RVV extension lowering / plugin-owned computation or emission slice
-variant generation / legality / selection
-CMake + lit/FileCheck integration
-ssh rvv evidence-producing RVV probe
-offload runtime boundary
+Task title and Trellis task handling:
+  existing task to continue, or instruction to create/repair a task and PRD
+Module owner:
+  the single owner for this round
+Why now:
+  evidence-based reason this owner is the next bottleneck
+Read first:
+  specific specs, task files, and code directories
+Module deliverable:
+  functional behavior to complete this round
+Non-goals:
+  what Codex must not do
+Minimal validation:
+  focused checks and evidence only for this module
+If unfinished:
+  how to keep the Trellis task open and record the continuation point
+Final report:
+  task id/title, phase, files changed, checks, self-repair, finish/archive, commit
 ```
 
-If the previous run drifted into Python-only compiler logic, the next prompt must redirect to C++/MLIR/TableGen and require the Python code to be moved to tooling, quarantined, or documented as a risk.
-
-If evidence shows project work is repeatedly too small, metadata-only, test-only, guardrail-only, probe-only, wrapper-only, or status-only, the next prompt must choose a bounded active compiler implementation owner and require only the minimum relevant verification.
+The brief must not contain three candidate tasks for Codex to choose from. If
+the PRD is unclear, tell Codex to repair the PRD first rather than choosing a
+different direction. If the module is too large, tell Codex to finish one
+coherent submodule and keep the task state truthful for the next Hermes round.
 
 ## Stop Conditions
 
-Set `continue=false` only when:
-
-```text
-the user requested stop;
-runner evidence is missing or corrupted enough that useful continuation is unsafe;
-credentials or hardware access require human intervention;
-repeated failures make another automatic round likely harmful.
-```
-
-Otherwise set `continue=true` and provide a complete `next_prompt`.
+Set `continue=false` only when the user requested stop, evidence is missing or
+corrupted enough that continuation is unsafe, credentials or hardware access
+require human intervention, or repeated failures make another automatic round
+harmful.
 
 ## Required Output
 
 Return only one JSON object. No Markdown, no code fence, no text outside JSON.
-
-The JSON must be parseable by Python `json.loads`.
-
-Return exactly these keys:
+The JSON must be parseable by Python `json.loads` and contain exactly:
 
 ```json
 {{
   "continue": true,
-  "next_prompt": "full prompt for the next Codex worker turn; required when continue is true",
+  "next_prompt": "module-sized task brief appended under the base prompt; required when continue is true",
   "base_prompt_edits": [],
   "delta": "",
-  "reason": "brief audit conclusion and why the next prompt is shaped this way",
+  "reason": "brief audit conclusion and why this module owner was chosen",
   "telegram_note": "very short optional user-facing note"
 }}
 ```
 
-`next_prompt` must be a single JSON string. Encode newlines as `\\n`; do not place literal unescaped line breaks inside the JSON string.
+`next_prompt` must be a single JSON string. Encode newlines as `\\n`; do not
+place literal unescaped line breaks inside the JSON string.
 
 ## Loop Context
 
@@ -1504,13 +1456,16 @@ def hermes_review(
     previous_prompt_mode: str,
 ) -> dict[str, Any]:
     if args.review_no_llm:
-        base_prompt_text = read_text(Path(args.base_prompt), max_chars=200000).strip()
         return {
             "continue": True,
             "delta": "",
-            "next_prompt": base_prompt_text,
+            "next_prompt": (
+                "Review LLM is disabled for this round. Inspect repository evidence, "
+                "continue the current Trellis task if one is active, and otherwise "
+                "create or repair a module-sized Trellis task before implementation."
+            ),
             "base_prompt_edits": [],
-            "reason": "review_no_llm was set; using the base prompt as a smoke-test fallback.",
+            "reason": "review_no_llm was set; using a minimal task brief with the canonical base prompt.",
             "telegram_note": "",
             "raw": "",
             "parse_error": False,
@@ -2184,20 +2139,19 @@ def command_loop(args: argparse.Namespace) -> int:
             if review.get("continue", True) and not next_prompt:
                 if review.get("parse_error"):
                     next_prompt = (
-                        base_prompt_text
-                        + "\n\n## Supervisor Review Parse Fallback\n\n"
-                        + "Hermes returned malformed JSON in the previous review, so the runner is continuing with the canonical base prompt instead of stopping. "
+                        "## Supervisor Review Parse Fallback\n\n"
+                        + "Hermes returned malformed JSON in the previous review, so the runner is continuing with the canonical base prompt plus this fallback task brief instead of stopping. "
                         + "Before choosing work, inspect the latest `repo_audit.md`, `review_input.md`, git history, TianchenRV specs, and current code. "
-                        + "Do not redo completed scaffolding. Return to the highest-value capability model, tcrv.exec, plugin registry, variant pipeline, RVV lowering/plugin-owned emission, or lowering/runtime milestone. "
-                        + "Do not choose smoke/probe/guardrail/test-harness work unless it is strictly necessary for the concrete compiler change. "
-                        + "Maintain full-access serial execution, no subagents, focused validation, optional TianchenRV Trellis finish/archive when used, and a clean commit.\n"
+                        + "Continue the current Trellis task if it remains valid; otherwise create or repair a module-sized task. "
+                        + "Do not choose smoke/probe/guardrail/test-harness work unless it is the only blocker for a real compiler path. "
+                        + "Maintain serial execution, focused validation, truthful Trellis task status, and a coherent commit.\n"
                     )
                     review["reason"] = (
-                        "Hermes review output was malformed JSON; runner used canonical base prompt with parse-fallback steering."
+                        "Hermes review output was malformed JSON; runner used canonical base prompt with parse-fallback task brief."
                     )
                 else:
                     review["continue"] = False
-                    review["reason"] = "Hermes review did not provide required full next_prompt."
+                    review["reason"] = "Hermes review did not provide required non-empty next_prompt task brief."
             next_prompt_path = loop_dir / f"round_{next_round:04d}_next_prompt.md"
             next_prompt_path.write_text(next_prompt + ("\n" if next_prompt else ""), encoding="utf-8")
             review["prompt_edit_results"] = prompt_edit_results
@@ -2369,8 +2323,8 @@ def add_prompt_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-prompt", default=str(DEFAULT_BASE_PROMPT))
     parser.add_argument("--delta", default="", help="Legacy short Hermes steering delta for this run.")
     parser.add_argument("--delta-file", default="", help="File containing a legacy steering delta.")
-    parser.add_argument("--prompt-override", default="", help="Full transient prompt override for this run.")
-    parser.add_argument("--prompt-override-file", default="", help="File containing a full transient prompt override.")
+    parser.add_argument("--prompt-override", default="", help="Transient task brief appended below the base prompt for this run.")
+    parser.add_argument("--prompt-override-file", default="", help="File containing a transient task brief appended below the base prompt.")
     parser.add_argument("--run-id", default="", help="Override run id.")
 
 

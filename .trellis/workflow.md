@@ -93,6 +93,27 @@ python3 ./.trellis/scripts/get_context.py --mode packages            # available
 python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed guide for a workflow step
 ```
 
+### Supervisor-Driven Module Rounds
+
+When the Hermes/Codex serial supervisor is used, Hermes owns planning and
+review while Codex owns execution of the current Trellis task.
+
+- Hermes chooses one module-sized owner from repository evidence. It should
+  continue the current module, expand it, or switch modules; it should not ask
+  Codex to pick among several candidate tasks.
+- A good round advances a coherent module such as an IR boundary, plugin-owned
+  lowering/emission path, selected-variant materialization, runtime ABI
+  boundary, artifact evidence path, or extension integration template.
+- Helper-only, guardrail-only, wrapper-only, broad smoke, report-only, and
+  metadata-only work are not default round owners. They are valid only when
+  they are the named blocker for the module being implemented.
+- Codex reads the current Trellis task, repairs or writes `prd.md` when needed,
+  implements the module, runs minimal relevant validation, updates task status,
+  finishes/archives completed tasks, and creates one coherent commit.
+- If a module cannot finish in one round, Codex leaves the task open with the
+  exact continuation point and Hermes should continue that module instead of
+  switching to a new micro-task.
+
 ---
 
 ## Phase Index

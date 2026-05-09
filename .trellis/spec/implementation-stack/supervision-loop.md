@@ -44,14 +44,20 @@ build_review_prompt(run_dir, loop_dir, base_prompt, round_index, previous_delta,
 
 ### 3. Contracts
 
-The Codex worker prompt input is Markdown. It must state repository root, single-worker execution, stack discipline, architecture boundaries, capability model requirements, plugin-locality requirements, RVV evidence requirements, validation requirements, commit expectations, and final report requirements.
+The Codex worker prompt input is Markdown. The canonical Codex base prompt is a
+short execution prompt, not a full architecture manual. It must state the
+repository root, single-worker execution, real-repo inspection, current Trellis
+task handling, the one-round Trellis flow, stack discipline, short red lines,
+validation expectations, commit expectations, and final report requirements.
+Detailed architecture constraints are injected through the current Trellis task,
+Hermes task brief, and relevant `.trellis/spec/` files.
 
 Hermes review output is strict JSON. It must contain exactly these keys:
 
 ```json
 {
   "continue": true,
-  "next_prompt": "full prompt for the next Codex worker turn; required when continue is true",
+  "next_prompt": "module-sized task brief appended under the base prompt; required when continue is true",
   "base_prompt_edits": [],
   "delta": "",
   "reason": "brief audit conclusion and why the next prompt is shaped this way",
@@ -59,7 +65,11 @@ Hermes review output is strict JSON. It must contain exactly these keys:
 }
 ```
 
-When `continue=true`, `next_prompt` must be a complete prompt. The runner may keep legacy `base_prompt_edits` and `delta` handling for fallback compatibility, but the normal path is full-prompt rewrite through `next_prompt`.
+When `continue=true`, `next_prompt` must be a complete module-sized task brief.
+The runner prepends the canonical Codex base prompt to that brief. The runner
+may keep legacy `base_prompt_edits` and `delta` handling for fallback
+compatibility, but the normal path is base prompt plus Hermes-selected task
+brief.
 
 Manual steering is a first-class supervisor input. The runner may read a durable
 manual steering file, defaulting to the supervisor artifact root, and include it
@@ -85,7 +95,7 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 | Condition | Required behavior |
 |---|---|
 | Hermes returns malformed JSON | runner marks parse error and uses the existing safe fallback behavior |
-| Hermes returns `continue=true` with empty `next_prompt` | runner must not silently treat that as a successful full-prompt review |
+| Hermes returns `continue=true` with empty `next_prompt` | runner must not silently treat that as a successful task brief review |
 | Hermes evidence conflicts with Codex final summary | Hermes must trust repository state, then `repo_audit.md`, then `review_input.md`, then Codex summary |
 | Codex claims RVV runtime/correctness/performance without `ssh rvv` evidence | Hermes must redirect or block that claim in the next prompt |
 | Codex implements compiler internals in Python | Hermes must redirect back to C++ / MLIR / LLVM / TableGen / CMake |
@@ -98,9 +108,9 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 
 ### 5. Good / Base / Bad Cases
 
-Good: Hermes audits live file contents, notices a Python-only compiler drift, and returns a complete next prompt assigning one C++/MLIR owner with required checks.
+Good: Hermes audits live file contents, notices a Python-only compiler drift, and returns one module-sized task brief assigning one C++/MLIR owner with required checks.
 
-Base: Hermes sees aligned progress and returns a complete next prompt that remains close to the canonical base prompt while naming the next coherent engineering owner.
+Base: Hermes sees aligned progress and returns a task brief that continues or expands the current Trellis task without repeating the canonical base prompt.
 
 Bad: Hermes returns only `"continue": true` and an empty `next_prompt`, trusts the Codex summary over the checked-out files, or asks the worker to implement `tcrv.exec` as Python dictionaries.
 
@@ -132,7 +142,7 @@ Correct:
 
 ```text
 Use Hermes as a read-only reviewer that emits a strict JSON next-prompt contract.
-Require a complete next_prompt whenever continue is true.
+Require a non-empty module-sized next_prompt task brief whenever continue is true.
 Keep Python limited to supervision, probing, artifact parsing, and support tooling.
 Require real ssh rvv evidence before accepting RVV runtime, correctness, or performance claims.
 ```
@@ -179,7 +189,7 @@ Hermes must return strict JSON with exactly these keys:
 ```json
 {
   "continue": true,
-  "next_prompt": "full prompt for the next Codex worker turn; required when continue is true",
+  "next_prompt": "module-sized task brief appended under the base prompt; required when continue is true",
   "base_prompt_edits": [],
   "delta": "",
   "reason": "brief audit conclusion and why the next prompt is shaped this way",
@@ -187,9 +197,16 @@ Hermes must return strict JSON with exactly these keys:
 }
 ```
 
-When `continue=true`, `next_prompt` must be a complete prompt for the next worker turn. It must not be empty and must not depend on an unstated delta.
+When `continue=true`, `next_prompt` must be a complete module-sized task brief
+for the next worker turn. It must not be empty and must not depend on an
+unstated delta. Hermes must not repeat the whole canonical base prompt inside
+`next_prompt`; the runner composes the short base prompt with the task brief.
 
-The next prompt must choose one coherent engineering owner. Good owners include:
+Hermes is the planner/reviewer. It chooses one coherent engineering owner and
+does not ask Codex to choose among several candidates. Internally Hermes should
+decide whether to continue the current module, expand the current module, or
+switch modules because the current one has converged or stalled. Good owners
+include:
 
 - CMake and MLIR project integration;
 - capability model;
@@ -227,16 +244,33 @@ plugin-owned lowering path, capability decision, variant selection behavior, or
 runtime/emission path will be advanced. If Hermes cannot state that outcome, it
 should choose a different owner.
 
-The next prompt must state the files or directories to inspect first, the implementation area to modify, required tests or evidence, invalid work patterns for the round, final reporting requirements, and whether a clean commit is expected.
+Anti-stall rule: if several recent rounds do not make an end-to-end path closer
+to completion, Hermes must stop refining the same micro-surface and choose a
+larger module owner. It should repair or create a module-level Trellis PRD when
+the current task is too small, stale, or unclear.
+
+The next prompt must state the Trellis task handling, module owner, why that
+owner is now the bottleneck, files or directories to inspect first, the
+implementation area to modify, explicit non-goals, minimal tests or evidence,
+invalid work patterns for the round, unfinished-task continuation rules, final
+reporting requirements, and whether a clean commit is expected.
 
 ## Codex Worker Invariants
 
-Each Codex worker round is a single-owner engineering round. It should move one coherent compiler owner forward rather than split into unrelated micro-tasks.
+Each Codex worker round is a single-owner Trellis engineering round. It should
+execute the current Trellis task brief rather than choose its own direction or
+split into unrelated micro-tasks.
 
 Worker prompts must preserve these rules:
 
 - use the actual `/home/kingdom/phdworks/TianchenRV` checkout as the source of truth;
 - inspect current repository state before editing;
+- read the current Trellis task, PRD, relevant specs, and workspace journal;
+- if no current task exists, create or repair a Trellis task from the Hermes
+  brief before editing source files;
+- follow one Trellis round: brainstorm/research, PRD repair if needed,
+  implementation, check/self-repair, minimal validation, task status update,
+  finish/archive when complete, and coherent commit;
 - keep compiler implementation in C++ / MLIR / LLVM / TableGen / CMake;
 - use Python only for tooling, probes, runners, artifact parsing, and small support scripts;
 - keep `tcrv.exec` compute-free;

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Check prompt/runner updates against supervision-loop contract"}
+{"file": ".trellis/workflow.md", "reason": "Check Trellis flow language remains consistent with task lifecycle"}
