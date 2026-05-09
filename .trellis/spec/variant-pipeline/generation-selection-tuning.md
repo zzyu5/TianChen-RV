@@ -66,6 +66,7 @@ The first high-level MLIR frontend slice is intentionally narrow:
 ```text
 marked hand-written/test linalg.generic i32 vector-add wrapper
   -> tcrv.exec.kernel with target profile reference
+  -> optional explicitly imported capability providers for planning scope
   -> tcrv.exec.mem_window / tcrv.exec.runtime_param callable ABI boundary
   -> existing execution-planning pipeline
 ```
@@ -88,12 +89,14 @@ Input marker attributes:
 tcrv_frontend_lowering = "i32-vadd"
 tcrv_frontend_kernel = "<new-kernel-symbol>"
 tcrv_frontend_target = @<module-level-tcrv.exec.target-profile>
+tcrv_frontend_capability_providers = [@<module-level-provider>, ...]  // optional
 ```
 
 Output surface:
 
 ```text
 tcrv.exec.kernel @<new-kernel-symbol> attributes {target = @<profile>} {
+  // optional cloned tcrv.exec.capability / capability-provider tcrv.exec.target ops
   tcrv.exec.mem_window @abi_lhs_input_buffer ...
   tcrv.exec.mem_window @abi_rhs_input_buffer ...
   tcrv.exec.mem_window @abi_output_buffer ...
@@ -112,12 +115,27 @@ tcrv_frontend_kernel = "<new-kernel-symbol>"
 tcrv_frontend_target = @<module-level-tcrv.exec.target-profile>
 ```
 
+The wrapper or marked op may additionally carry:
+
+```text
+tcrv_frontend_capability_providers = [@<module-level-provider>, ...]
+```
+
+This optional array is a generic capability-scope import contract. Each entry
+must be a module-level `tcrv.exec.capability` or a capability-provider
+`tcrv.exec.target` with non-empty `id` and `kind`; the lowering clones those
+providers into the generated kernel before the planning pipeline runs. This is
+how a bounded frontend input can expose independent policy, fallback, probe, or
+other structured providers to the existing generic selection/dispatch logic
+without making the frontend pass invent target-specific semantics.
+
 The pass must semantically check the bounded source body before materializing
 TianChen-RV IR: exactly two i32 scalar input region arguments, one i32 output
 region argument, one `arith.addi` of the first two arguments, and one
 `linalg.yield` of that result. It then creates one `tcrv.exec.kernel`, copies
-only the selected target profile reference as `target = @...`, and materializes
-the existing i32-vadd callable ABI boundary:
+only the selected target profile reference as `target = @...`, clones any
+explicit capability-provider imports into the kernel capability scope, and
+materializes the existing i32-vadd callable ABI boundary:
 
 ```text
 tcrv.exec.mem_window @abi_lhs_input_buffer
@@ -144,6 +162,11 @@ or incorrectly marked linalg bodies must fail before creating a
   failure before creating the kernel.
 - Missing or unresolved `tcrv_frontend_target` module-level
   `tcrv.exec.target` -> pass failure before creating the kernel.
+- `tcrv_frontend_capability_providers` that is not an array of non-empty module
+  symbol references, resolves to a non-provider op, resolves to a provider with
+  missing identity, duplicates the selected target symbol/id, or duplicates
+  another imported provider symbol/id -> pass failure before creating the
+  kernel.
 - Region body that is not exactly the checked i32 `arith.addi` /
   `linalg.yield` shape -> pass failure before creating the kernel.
 - Runtime ABI mem_window/runtime_param helper validation failure -> erase the

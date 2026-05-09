@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
@@ -29,6 +30,7 @@ namespace tianchenrv::transforms {
 
 namespace {
 
+using tianchenrv::tcrv::exec::CapabilityOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::TargetOp;
 
@@ -43,6 +45,10 @@ constexpr llvm::StringLiteral kFrontendLoweringAttrName(
 constexpr llvm::StringLiteral kFrontendLoweringI32VAddValue("i32-vadd");
 constexpr llvm::StringLiteral kFrontendKernelAttrName("tcrv_frontend_kernel");
 constexpr llvm::StringLiteral kFrontendTargetAttrName("tcrv_frontend_target");
+constexpr llvm::StringLiteral kFrontendCapabilityProvidersAttrName(
+    "tcrv_frontend_capability_providers");
+constexpr llvm::StringLiteral kIdAttrName("id");
+constexpr llvm::StringLiteral kKindAttrName("kind");
 
 bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
   return op && op->getName().getStringRef() == name;
@@ -50,6 +56,12 @@ bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
+}
+
+llvm::StringRef getStringAttrValue(mlir::Operation *op, llvm::StringRef name) {
+  if (auto attr = getStringAttr(op, name))
+    return attr.getValue();
+  return "";
 }
 
 mlir::FlatSymbolRefAttr getTargetAttr(mlir::Operation *op) {
@@ -185,6 +197,15 @@ mlir::FlatSymbolRefAttr getTargetRef(mlir::Operation *linalgOp,
   return getTargetAttr(funcOp);
 }
 
+mlir::Attribute getCapabilityProviderRefsAttr(mlir::Operation *linalgOp,
+                                              mlir::Operation *funcOp) {
+  if (mlir::Attribute attr =
+          linalgOp->getAttr(kFrontendCapabilityProvidersAttrName))
+    return attr;
+  return funcOp ? funcOp->getAttr(kFrontendCapabilityProvidersAttrName)
+                : mlir::Attribute();
+}
+
 mlir::Operation *findTopLevelSymbol(mlir::ModuleOp module,
                                     llvm::StringRef symbolName) {
   if (!module || module.getBodyRegion().empty())
@@ -199,6 +220,23 @@ mlir::Operation *findTopLevelSymbol(mlir::ModuleOp module,
   return nullptr;
 }
 
+bool isCapabilityProviderTarget(TargetOp target) {
+  return !getStringAttrValue(target.getOperation(), kIdAttrName)
+              .trim()
+              .empty() &&
+         !getStringAttrValue(target.getOperation(), kKindAttrName)
+              .trim()
+              .empty();
+}
+
+llvm::StringRef getCapabilityProviderID(mlir::Operation *op) {
+  if (auto capability = llvm::dyn_cast_or_null<CapabilityOp>(op))
+    return capability.getId().value_or("");
+  if (auto target = llvm::dyn_cast_or_null<TargetOp>(op))
+    return getStringAttrValue(target.getOperation(), kIdAttrName);
+  return "";
+}
+
 mlir::LogicalResult requireTopLevelTargetProfile(mlir::ModuleOp module,
                                                  mlir::Operation *sourceOp,
                                                  llvm::StringRef targetName) {
@@ -211,6 +249,72 @@ mlir::LogicalResult requireTopLevelTargetProfile(mlir::ModuleOp module,
     return sourceOp->emitError()
            << "TianChen-RV linalg frontend target @" << targetName
            << " resolves to a top-level symbol that is not tcrv.exec.target";
+  return mlir::success();
+}
+
+mlir::LogicalResult collectCapabilityProviderImports(
+    mlir::ModuleOp module, mlir::Operation *sourceOp,
+    mlir::FlatSymbolRefAttr targetRef, mlir::ArrayAttr providerRefs,
+    llvm::SmallVectorImpl<mlir::Operation *> &imports) {
+  llvm::StringSet<> seenSymbols;
+  llvm::StringSet<> seenIDs;
+
+  seenSymbols.insert(targetRef.getValue());
+  if (mlir::Operation *target =
+          findTopLevelSymbol(module, targetRef.getValue())) {
+    if (llvm::StringRef id = getCapabilityProviderID(target); !id.empty())
+      seenIDs.insert(id);
+  }
+
+  for (mlir::Attribute attr : providerRefs) {
+    auto ref = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attr);
+    if (!ref || ref.getValue().empty())
+      return sourceOp->emitError()
+             << "TianChen-RV linalg frontend capability-provider imports "
+                "expect an array of non-empty module symbol references in '"
+             << kFrontendCapabilityProvidersAttrName << "'";
+
+    llvm::StringRef symbolName = ref.getValue();
+    if (!seenSymbols.insert(symbolName).second)
+      return sourceOp->emitError()
+             << "TianChen-RV linalg frontend capability-provider import @"
+             << symbolName
+             << " duplicates the selected target profile or another import";
+
+    mlir::Operation *provider = findTopLevelSymbol(module, symbolName);
+    if (!provider)
+      return sourceOp->emitError()
+             << "TianChen-RV linalg frontend capability-provider import @"
+             << symbolName << " must resolve to a module-level symbol";
+
+    if (auto target = llvm::dyn_cast<TargetOp>(provider)) {
+      if (!isCapabilityProviderTarget(target))
+        return sourceOp->emitError()
+               << "TianChen-RV linalg frontend capability-provider import @"
+               << symbolName
+               << " resolves to tcrv.exec.target without non-empty id/kind";
+    } else if (!llvm::isa<CapabilityOp>(provider)) {
+      return sourceOp->emitError()
+             << "TianChen-RV linalg frontend capability-provider import @"
+             << symbolName
+             << " must resolve to a module-level tcrv.exec.capability or "
+                "capability-provider tcrv.exec.target";
+    }
+
+    llvm::StringRef id = getCapabilityProviderID(provider);
+    if (id.empty())
+      return sourceOp->emitError()
+             << "TianChen-RV linalg frontend capability-provider import @"
+             << symbolName << " must carry a non-empty capability id";
+    if (!seenIDs.insert(id).second)
+      return sourceOp->emitError()
+             << "TianChen-RV linalg frontend capability-provider import @"
+             << symbolName << " duplicates capability id '" << id
+             << "' with the selected target profile or another import";
+
+    imports.push_back(provider);
+  }
+
   return mlir::success();
 }
 
@@ -239,6 +343,14 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
   auto kernel = llvm::cast<KernelOp>(builder.create(state));
   kernel.getBody().push_back(new mlir::Block());
   return kernel;
+}
+
+void materializeCapabilityProviderImports(
+    KernelOp kernel, llvm::ArrayRef<mlir::Operation *> imports) {
+  mlir::OpBuilder builder(kernel.getContext());
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+  for (mlir::Operation *provider : imports)
+    builder.clone(*provider);
 }
 
 mlir::LogicalResult materializeI32VAddABI(KernelOp kernel) {
@@ -291,8 +403,24 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
                                                   kernelAttr.getValue())))
     return mlir::failure();
 
+  llvm::SmallVector<mlir::Operation *, 4> providerImports;
+  if (mlir::Attribute rawProviderRefs =
+          getCapabilityProviderRefsAttr(linalgOp, funcOp)) {
+    auto providerRefs = llvm::dyn_cast<mlir::ArrayAttr>(rawProviderRefs);
+    if (!providerRefs)
+      return linalgOp->emitError()
+             << "marked linalg.generic for TianChen-RV i32-vadd expects '"
+             << kFrontendCapabilityProvidersAttrName
+             << "' to be an array of module symbol references";
+
+    if (mlir::failed(collectCapabilityProviderImports(
+            module, linalgOp, targetRef, providerRefs, providerImports)))
+      return mlir::failure();
+  }
+
   KernelOp kernel =
       createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef);
+  materializeCapabilityProviderImports(kernel, providerImports);
   if (mlir::failed(materializeI32VAddABI(kernel))) {
     kernel.erase();
     return mlir::failure();

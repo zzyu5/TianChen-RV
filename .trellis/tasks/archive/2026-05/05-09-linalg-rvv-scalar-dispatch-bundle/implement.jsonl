@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin integration boundary for variant proposal, legality, lowering, and target exporter ownership"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry and plugin interface constraints for dispatch/fallback planning"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin locality requirements for RVV/scalar semantics"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation, legality, selection, and dispatch pipeline behavior"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission artifact, runtime ABI, and external caller contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and evidence validation expectations"}
+{"file": ".trellis/spec/index.md", "reason": "Project-wide spec routing and stable architecture boundary"}
