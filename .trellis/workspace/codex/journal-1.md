@@ -55,6 +55,55 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 12: Linalg i32m2 vsub SSH RVV evidence handoff
+
+**Date**: 2026-05-10
+**Task**: Linalg i32m2 vsub SSH RVV evidence handoff
+**Branch**: `main`
+
+### Summary
+
+Extended the RVV microkernel evidence runner so frontend-generated linalg-origin
+bundle runs can fail closed on an expected selected kernel before evidence is
+accepted. Collected real `ssh rvv` external-ABI evidence for the
+`linalg-i32-vsub-to-rvv-artifact.mlir` i32m2 path and recorded bounded
+compiler-path context in evidence JSON.
+
+### Main Changes
+
+- Added `--expect-selected-kernel` to `scripts/rvv_microkernel_e2e.py` and
+  validated the generated source `selected_kernel` comment before accepting
+  evidence.
+- Recorded compiler-path context in evidence JSON:
+  selected kernel, selected variant, selected role, lowering boundary, active
+  route, and callable ABI source.
+- Added focused lit coverage for the linalg-origin i32-vsub i32m2 bundle dry
+  run plus a negative selected-kernel mismatch case.
+- Collected real `ssh rvv` evidence for the frontend-generated
+  `linalg.generic` i32-vsub -> RVV i32m2 bundle path and persisted sanitized
+  artifacts under `artifacts/tmp/rvv_microkernel_bundle_e2e/20260510-linalg-i32m2-vsub-ssh/`.
+
+### Validation
+
+- [OK] `python3 ./.trellis/scripts/task.py validate 05-10-linalg-i32m2-vsub-ssh-rvv-evidence-handoff`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] focused dry-run for linalg-origin i32-vsub i32m2 bundle evidence
+- [OK] negative selected-kernel mismatch dry-run rejected as expected
+- [OK] focused lit filter `rvv-microkernel-bundle-e2e` passed 1/1
+- [OK] real `ssh rvv` bundle external-ABI evidence run
+- [OK] `git diff --check`
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` (169/169 tests passed)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 11: Linalg i32-vsub to RVV i32m2 artifact handoff
 
 **Date**: 2026-05-10

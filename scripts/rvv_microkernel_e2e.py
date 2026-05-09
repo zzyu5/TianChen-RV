@@ -807,6 +807,57 @@ def parse_source_comment(source: str, field: str, *, required: bool) -> str:
     return value
 
 
+def normalize_symbol_name(value: str) -> str:
+    normalized = value.strip()
+    if normalized.startswith("@"):
+        normalized = normalized[1:]
+    return normalized
+
+
+def validate_compiler_path_context(source: str) -> dict[str, str]:
+    selected_kernel = normalize_symbol_name(
+        parse_source_comment(source, "selected_kernel", required=True)
+    )
+    selected_variant = normalize_symbol_name(
+        parse_source_comment(source, "selected_variant", required=True)
+    )
+    context = {
+        "microkernel_function": parse_source_comment(
+            source, "microkernel function", required=True
+        ),
+        "selected_kernel": selected_kernel,
+        "selected_variant": selected_variant,
+        "selected_role": parse_source_comment(source, "selected_role", required=True),
+        "lowering_boundary": parse_source_comment(
+            source, "lowering_boundary", required=True
+        ),
+        "active_route": parse_source_comment(source, "active_route", required=True),
+        "callable_abi_source": parse_source_comment(
+            source, "callable_abi_source", required=True
+        ),
+    }
+    for key, value in context.items():
+        if not value:
+            raise BridgeError(f"generated C source compiler path field {key} is empty")
+    return context
+
+
+def validate_expected_selected_kernel(
+    compiler_path_context: dict[str, str], expected_selected_kernel: str
+) -> str:
+    expected = normalize_symbol_name(expected_selected_kernel)
+    if not expected:
+        return ""
+    reject_secret_like_text("expected selected kernel", expected)
+    observed = compiler_path_context.get("selected_kernel", "")
+    if observed != expected:
+        raise BridgeError(
+            "generated RVV microkernel source selected_kernel "
+            f"@{observed} does not match expected @{expected}"
+        )
+    return expected
+
+
 def validate_generated_source(source: str, *, require_harness: bool) -> dict[str, Any]:
     if not source.strip():
         raise BridgeError("generated RVV microkernel C source is empty")
@@ -899,11 +950,13 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         raise BridgeError("selected_march from generated source must contain RVV vector evidence")
     vector_config = validate_vector_shape_metadata(source)
     provenance = validate_dataflow_provenance(source)
+    compiler_path_context = validate_compiler_path_context(source)
     return {
         "selected_march": selected_march,
         "selected_mabi": selected_mabi,
         "vector_config": vector_config,
         "dataflow_provenance": provenance,
+        "compiler_path_context": compiler_path_context,
     }
 
 
@@ -2105,6 +2158,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_flags = validate_generated_source(source_text, require_harness=False)
+    expected_selected_kernel = validate_expected_selected_kernel(
+        source_flags["compiler_path_context"], args.expect_selected_kernel
+    )
     header_function_name = validate_generated_header(header_text)
     if object_path.stat().st_size < 4 or object_path.read_bytes()[:4] != b"\x7fELF":
         raise BridgeError("bundled RVV microkernel object must be a non-empty ELF relocatable")
@@ -2181,6 +2237,8 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         },
         "source_export_mode": "runtime-callable-library",
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
+        "compiler_path_context": source_flags["compiler_path_context"],
+        "expected_selected_kernel": expected_selected_kernel,
         "external_caller": {
             "kind": "generated-c-caller",
             "function": header_function_name,
@@ -2368,6 +2426,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_flags = validate_generated_source(
         source_text, require_harness=use_harness
     )
+    expected_selected_kernel = validate_expected_selected_kernel(
+        source_flags["compiler_path_context"], args.expect_selected_kernel
+    )
     write_generated_text(source_path, "generated RVV microkernel source", source_text)
 
     header_path = artifact_dir / "rvv_microkernel.h"
@@ -2475,6 +2536,8 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             ),
         ],
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
+        "compiler_path_context": source_flags["compiler_path_context"],
+        "expected_selected_kernel": expected_selected_kernel,
         "expected_stdout_marker": (
             SUCCESS_MARKER if use_harness else EXTERNAL_ABI_SUCCESS_MARKER
         ),
@@ -2707,6 +2770,13 @@ kernel @rvv_microkernel_manifest
     sample_source = """\
 /* selected_march: rv64gcv */
 /* selected_mabi: lp64d */
+/* microkernel function: tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice */
+/* selected_kernel: @rvv_microkernel_manifest */
+/* selected_variant: @rvv_first_slice */
+/* selected_role: direct variant */
+/* lowering_boundary: tcrv_rvv.lowering_boundary */
+/* active_route: tcrv-export-rvv-microkernel-self-check-c */
+/* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -2732,6 +2802,29 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
         == "op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec",
         "dataflow provenance parser lost add step",
     )
+    assert_self_test(
+        source_flags["compiler_path_context"]["selected_kernel"]
+        == "rvv_microkernel_manifest",
+        "compiler path context lost selected kernel",
+    )
+    assert_self_test(
+        validate_expected_selected_kernel(
+            source_flags["compiler_path_context"], "@rvv_microkernel_manifest"
+        )
+        == "rvv_microkernel_manifest",
+        "expected selected-kernel normalization failed",
+    )
+    try:
+        validate_expected_selected_kernel(
+            source_flags["compiler_path_context"], "frontend_i32_vsub"
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "does not match expected @frontend_i32_vsub" in str(error),
+            "selected-kernel mismatch diagnostic changed",
+        )
+    else:
+        raise AssertionError("mismatched selected-kernel expectation was accepted")
     try:
         validate_generated_source(
             sample_source.replace("dataflow_emission_step[3]", "stale_step[3]"),
@@ -2764,6 +2857,13 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
     sample_vsub_source = """\
 /* selected_march: rv64gcv */
 /* selected_mabi: lp64d */
+/* microkernel function: tcrv_rvv_i32_vsub_microkernel_rvv_sub_kernel_rvv_sub_slice */
+/* selected_kernel: @rvv_sub_kernel */
+/* selected_variant: @rvv_sub_slice */
+/* selected_role: direct variant */
+/* lowering_boundary: tcrv_rvv.lowering_boundary */
+/* active_route: tcrv-export-rvv-i32-vsub-microkernel-c */
+/* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -2804,6 +2904,13 @@ void f(void) {
     sample_vsub_m2_source = """\
 /* selected_march: rv64gcv */
 /* selected_mabi: lp64d */
+/* microkernel function: tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice */
+/* selected_kernel: @frontend_i32_vsub */
+/* selected_variant: @rvv_first_slice */
+/* selected_role: direct variant */
+/* lowering_boundary: tcrv_rvv.lowering_boundary */
+/* active_route: tcrv-export-rvv-i32-vsub-microkernel-c */
+/* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -2828,6 +2935,11 @@ void f(void) {
         vsub_m2_flags["vector_config"]["lmul"] == "m2",
         "m2 vector-shape metadata was not preserved",
     )
+    assert_self_test(
+        vsub_m2_flags["compiler_path_context"]["selected_kernel"]
+        == "frontend_i32_vsub",
+        "m2 compiler path context lost frontend selected kernel",
+    )
     try:
         validate_generated_source(sample_vsub_source, require_harness=False)
     except BridgeError as error:
@@ -2843,6 +2955,13 @@ void f(void) {
     sample_vmul_source = """\
 /* selected_march: rv64gcv */
 /* selected_mabi: lp64d */
+/* microkernel function: tcrv_rvv_i32_vmul_microkernel_rvv_mul_kernel_rvv_mul_slice */
+/* selected_kernel: @rvv_mul_kernel */
+/* selected_variant: @rvv_mul_slice */
+/* selected_role: direct variant */
+/* lowering_boundary: tcrv_rvv.lowering_boundary */
+/* active_route: tcrv-export-rvv-i32-vmul-microkernel-c */
+/* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -2954,6 +3073,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ssh-option", action="append", default=[])
     parser.add_argument("--evidence-note", default="")
     parser.add_argument(
+        "--expect-selected-kernel",
+        default="",
+        help=(
+            "Require the compiler-emitted generated source selected_kernel "
+            "comment to match this kernel symbol before accepting evidence"
+        ),
+    )
+    parser.add_argument(
         "--generic-route",
         action="store_true",
         help="Export generated C through the generic target source artifact route",
@@ -3024,6 +3151,12 @@ def main(argv: list[str]) -> int:
                 "status": evidence["status"],
                 "manifest_handoff": evidence.get("manifest_handoff", False),
                 "planned_pipeline": evidence.get("planned_pipeline", ""),
+                "selected_kernel": evidence.get("compiler_path_context", {}).get(
+                    "selected_kernel", ""
+                ),
+                "expected_selected_kernel": evidence.get(
+                    "expected_selected_kernel", ""
+                ),
                 "vector_shape": evidence.get("rvv_config", {}).get("shape", ""),
                 "lmul": evidence.get("rvv_config", {}).get("lmul", ""),
                 "source_sha256": evidence["hashes"].get(

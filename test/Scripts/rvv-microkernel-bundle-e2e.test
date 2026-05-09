@@ -2,10 +2,14 @@
 
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-bundle-vsub --overwrite | FileCheck %s --check-prefix=VSUB-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-plan-bundle-vmul --overwrite | FileCheck %s --check-prefix=VMUL-PLAN-BUNDLE
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=frontend_i32_vsub --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2 --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-VSUB-M2-BUNDLE
+# RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=rvv_sub_kernel --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2-mismatch --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir 2>&1 | FileCheck %s --check-prefix=SELECTED-KERNEL-MISMATCH
 # RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-vsub/evidence.json
 # RUN: FileCheck %s --check-prefix=VSUB-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-vsub/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul/evidence.json
 # RUN: FileCheck %s --check-prefix=VMUL-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul/rvv_microkernel_external_caller.c
+# RUN: FileCheck %s --check-prefix=LINALG-VSUB-M2-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2/evidence.json
+# RUN: FileCheck %s --check-prefix=LINALG-VSUB-M2-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2/rvv_microkernel_external_caller.c
 
 # VSUB-BUNDLE: "arithmetic_family": "i32-vsub"
 # VSUB-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-vsub"
@@ -28,6 +32,20 @@
 # VMUL-PLAN-BUNDLE: "status": "success"
 # VMUL-PLAN-BUNDLE-NOT: live-token
 # VMUL-PLAN-BUNDLE-NOT: hunter2
+
+# LINALG-VSUB-M2-BUNDLE: "arithmetic_family": "i32-vsub"
+# LINALG-VSUB-M2-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2"
+# LINALG-VSUB-M2-BUNDLE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# LINALG-VSUB-M2-BUNDLE: "expected_selected_kernel": "frontend_i32_vsub"
+# LINALG-VSUB-M2-BUNDLE: "lmul": "m2"
+# LINALG-VSUB-M2-BUNDLE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# LINALG-VSUB-M2-BUNDLE: "selected_kernel": "frontend_i32_vsub"
+# LINALG-VSUB-M2-BUNDLE: "ssh_evidence": false
+# LINALG-VSUB-M2-BUNDLE: "status": "success"
+# LINALG-VSUB-M2-BUNDLE: "vector_shape": "i32m2"
+# LINALG-VSUB-M2-BUNDLE-NOT: __riscv_vsub_vv_i32m1
+# LINALG-VSUB-M2-BUNDLE-NOT: throughput
+# LINALG-VSUB-M2-BUNDLE-NOT: latency
 
 # VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
 # VSUB-EVIDENCE: "component_group": "rvv-i32-vsub-microkernel-external-abi.v1"
@@ -75,3 +93,28 @@
 # VMUL-CALLER-NOT: lhs[index] - rhs[index]
 # VMUL-CALLER-NOT: throughput
 # VMUL-CALLER-NOT: latency
+
+# LINALG-VSUB-M2-EVIDENCE: "compiler_path_context"
+# LINALG-VSUB-M2-EVIDENCE: "selected_kernel": "frontend_i32_vsub"
+# LINALG-VSUB-M2-EVIDENCE: "selected_variant": "rvv_first_slice"
+# LINALG-VSUB-M2-EVIDENCE: "expected_selected_kernel": "frontend_i32_vsub"
+# LINALG-VSUB-M2-EVIDENCE: "arithmetic_check": "lhs - rhs"
+# LINALG-VSUB-M2-EVIDENCE: "input": "test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir"
+# LINALG-VSUB-M2-EVIDENCE: "lmul": "m2"
+# LINALG-VSUB-M2-EVIDENCE: "__riscv_vsub_vv_i32m2"
+# LINALG-VSUB-M2-EVIDENCE: "shape": "i32m2"
+# LINALG-VSUB-M2-EVIDENCE: "ssh_evidence": false
+# LINALG-VSUB-M2-EVIDENCE-NOT: __riscv_vsub_vv_i32m1
+# LINALG-VSUB-M2-EVIDENCE-NOT: runtime_success
+# LINALG-VSUB-M2-EVIDENCE-NOT: throughput
+# LINALG-VSUB-M2-EVIDENCE-NOT: latency
+
+# LINALG-VSUB-M2-CALLER: #include "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vsub-microkernel-header.h"
+# LINALG-VSUB-M2-CALLER: if (out[index] != lhs[index] - rhs[index])
+# LINALG-VSUB-M2-CALLER: tcrv_rvv_i32_vsub_microkernel_external_abi_ok
+# LINALG-VSUB-M2-CALLER-NOT: lhs[index] + rhs[index]
+# LINALG-VSUB-M2-CALLER-NOT: throughput
+# LINALG-VSUB-M2-CALLER-NOT: latency
+
+# SELECTED-KERNEL-MISMATCH: rvv_microkernel_e2e:
+# SELECTED-KERNEL-MISMATCH-SAME: selected_kernel @frontend_i32_vsub does not match expected @rvv_sub_kernel
