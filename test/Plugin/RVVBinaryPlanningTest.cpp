@@ -1,5 +1,6 @@
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
+#include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 
 #include "mlir/IR/Attributes.h"
@@ -12,9 +13,14 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <memory>
+#include <map>
 
 using tianchenrv::plugin::rvv::RVVBinarySelectedPlan;
 using tianchenrv::plugin::rvv::RVVBinaryEmissionIdentity;
+using tianchenrv::plugin::rvv::RVVBinaryProposalPlan;
+using tianchenrv::support::CapabilityAvailability;
+using tianchenrv::support::CapabilityDescriptor;
+using tianchenrv::support::TargetCapabilitySet;
 
 namespace {
 
@@ -62,6 +68,65 @@ makeOperation(mlir::OperationState &state) {
             if (op)
               op->destroy();
           }};
+}
+
+CapabilityDescriptor makeAvailableCapability(
+    llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,
+    std::map<std::string, std::string> properties = {}) {
+  return CapabilityDescriptor(symbolName, id, kind, "available",
+                              CapabilityAvailability::Available,
+                              std::move(properties));
+}
+
+void addBaseRVVFacts(TargetCapabilitySet &capabilities) {
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv", "rvv", "isa-vector",
+      {{"architecture", "riscv64"},
+       {"isa_vector_hints", "rv64gcv_zvl128b"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_hart_count", "rvv.hart_count", "uarch", {{"count", "64"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_probe_compile_run", "rvv.probe.compile_run", "toolchain",
+      {{"selected_march", "rv64gcv"}, {"selected_mabi", "lp64d"}}));
+}
+
+void addI32M2Facts(TargetCapabilitySet &capabilities) {
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_binary_selected_shape",
+      "rvv.i32_binary.selected_vector_shape", "isa-vector-config",
+      {{"shape", "i32m2"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m2_sew32", "rvv.i32_m2.sew32", "isa-vector-config",
+      {{"sew_bits", "32"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m2_lmul_m2", "rvv.i32_m2.lmul_m2", "isa-vector-config",
+      {{"lmul", "m2"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m2_tail_agnostic", "rvv.i32_m2.tail_policy.agnostic",
+      "isa-vector-config", {{"tail_policy", "agnostic"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m2_mask_agnostic", "rvv.i32_m2.mask_policy.agnostic",
+      "isa-vector-config", {{"mask_policy", "agnostic"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_vlenb_bytes", "rvv.vlenb_bytes", "uarch", {{"bytes", "16"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m1_lane_count", "rvv.i32_m1_lane_count", "uarch",
+      {{"lanes", "4"}}));
+}
+
+void addI64M1Facts(TargetCapabilitySet &capabilities) {
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i64_m1_sew64", "rvv.i64_m1.sew64", "isa-vector-config",
+      {{"sew_bits", "64"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i64_m1_lmul_m1", "rvv.i64_m1.lmul_m1", "isa-vector-config",
+      {{"lmul", "m1"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i64_m1_tail_agnostic", "rvv.i64_m1.tail_policy.agnostic",
+      "isa-vector-config", {{"tail_policy", "agnostic"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i64_m1_mask_agnostic", "rvv.i64_m1.mask_policy.agnostic",
+      "isa-vector-config", {{"mask_policy", "agnostic"}}));
 }
 
 int runI32SelectedPlanTest() {
@@ -255,6 +320,108 @@ int runEmissionIdentityTest() {
                 "i64-vmul dispatch success marker remains target-owned");
 }
 
+int runProposalPlanRequirementMetadataTest() {
+  TargetCapabilitySet i32Capabilities;
+  addBaseRVVFacts(i32Capabilities);
+  addI32M2Facts(i32Capabilities);
+
+  RVVBinaryProposalPlan i32Plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+              i32Capabilities, "i32-vmul", "unit i32-vmul proposal"),
+          i32Plan, "build i32-vmul proposal plan"))
+    return result;
+
+  if (int result =
+          expect(i32Plan.getFamilyID() == "i32-vmul",
+                 "i32 proposal plan preserves finite family id"))
+    return result;
+  if (int result =
+          expect(i32Plan.getSelectedShape().shapeID == "i32m2",
+                 "i32 proposal plan selects explicit i32m2 shape"))
+    return result;
+  if (int result =
+          expect(i32Plan.getRequiredCapabilityIDs().size() == 5 &&
+                     i32Plan.getRequiredCapabilityIDs()[0] == "rvv" &&
+                     i32Plan.getRequiredCapabilityIDs()[1] ==
+                         "rvv.i32_m2.sew32" &&
+                     i32Plan.getRequiredCapabilityIDs()[2] ==
+                         "rvv.i32_m2.lmul_m2" &&
+                     i32Plan.getRequiredCapabilityIDs()[3] ==
+                         "rvv.i32_m2.tail_policy.agnostic" &&
+                     i32Plan.getRequiredCapabilityIDs()[4] ==
+                         "rvv.i32_m2.mask_policy.agnostic",
+                 "i32 proposal plan owns deterministic requirement ids"))
+    return result;
+  if (int result =
+          expect(i32Plan.selectedPlan.elementCount == 16 &&
+                     i32Plan.hasCapacityMetadata() &&
+                     *i32Plan.capabilityView.vlenbBytes == 16 &&
+                     *i32Plan.capabilityView.i32M1LaneCount == 4,
+                 "i32 proposal plan keeps capacity facts separate from "
+                 "descriptor-local element count"))
+    return result;
+  if (int result =
+          expect(i32Plan.getCondition() ==
+                         "rvv_capability_properties_available" &&
+                     i32Plan.getGuard() ==
+                         "plugin_local_rvv_property_evidence" &&
+                     i32Plan.getPolicy() == "metadata_only_first_slice",
+                 "i32 proposal plan carries generic proposal metadata"))
+    return result;
+
+  TargetCapabilitySet i64Capabilities;
+  addBaseRVVFacts(i64Capabilities);
+  addI64M1Facts(i64Capabilities);
+
+  RVVBinaryProposalPlan i64Plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+              i64Capabilities, "i64-vmul", "unit i64-vmul proposal"),
+          i64Plan, "build i64-vmul proposal plan"))
+    return result;
+  if (int result =
+          expect(i64Plan.getFamilyID() == "i64-vmul" &&
+                     i64Plan.getLoweringDescriptor() ==
+                         "i64-vmul-microkernel.v1" &&
+                     i64Plan.getSelectedShape().shapeID == "i64m1",
+                 "i64 proposal plan preserves finite family and i64m1 shape"))
+    return result;
+  if (int result =
+          expect(i64Plan.getRequiredCapabilityIDs().size() == 5 &&
+                     i64Plan.getRequiredCapabilityIDs()[1] ==
+                         "rvv.i64_m1.sew64" &&
+                     i64Plan.getRequiredCapabilityIDs()[2] ==
+                         "rvv.i64_m1.lmul_m1" &&
+                     i64Plan.getRequiredCapabilityIDs()[3] ==
+                         "rvv.i64_m1.tail_policy.agnostic" &&
+                     i64Plan.getRequiredCapabilityIDs()[4] ==
+                         "rvv.i64_m1.mask_policy.agnostic",
+                 "i64 proposal plan owns i64m1 requirement ids"))
+    return result;
+
+  const auto &dispatchFamily =
+      tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().dispatch;
+  if (int result =
+          expect(llvm::StringRef(dispatchFamily.rvvRouteID) ==
+                     i64Plan.selectedPlan.getRouteID(),
+                 "i64-vmul dispatch representative reuses planner RVV route"))
+    return result;
+  if (int result = expect(
+          llvm::StringRef(dispatchFamily.rvvRuntimeABIName) ==
+              i64Plan.selectedPlan.getRuntimeABIName(),
+          "i64-vmul dispatch representative reuses planner RVV ABI name"))
+    return result;
+
+  llvm::Expected<RVVBinaryProposalPlan> unsupported =
+      tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+          i64Capabilities, "i16-vadd", "unit unsupported proposal");
+  if (unsupported)
+    return fail("expected unsupported finite family proposal error");
+  return expectErrorContains(unsupported.takeError(),
+                             "frontend lowering family must be");
+}
+
 int runNegativeSelectedPlanTest() {
   llvm::Expected<RVVBinarySelectedPlan> plan =
       tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
@@ -320,6 +487,8 @@ int main() {
   if (int result = runI64SelectedPlanTest())
     return result;
   if (int result = runEmissionIdentityTest())
+    return result;
+  if (int result = runProposalPlanRequirementMetadataTest())
     return result;
   if (int result = runNegativeSelectedPlanTest())
     return result;

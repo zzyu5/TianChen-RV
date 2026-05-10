@@ -6,6 +6,59 @@
 ---
 
 
+## Session 26: Plugin-local RVV binary proposal legality planning
+
+**Date**: 2026-05-10
+**Task**: Plugin-local RVV binary proposal legality planning
+**Branch**: `main`
+
+### Summary
+
+Created and completed the Trellis task from the Hermes brief after confirming
+there was no active current task. Extracted finite RVV binary proposal planning
+and required capability metadata from `RVVExtensionPlugin.cpp` into
+`RVVBinaryPlanning`.
+
+### Main Changes
+
+- Added `RVVBinaryProposalPlan` and reusable binary capability/property view
+  helpers to `RVVBinaryPlanning`.
+- Moved frontend family lookup, selected vector-shape requirement id
+  construction, descriptor-local element count derivation, and capacity fact
+  proposal metadata decisions out of `RVVExtensionPlugin.cpp`.
+- Kept route ids, artifact kinds, runtime ABI identity, and dispatch facts
+  derived from target-owned finite family descriptors/manifests.
+- Extended `tianchenrv-rvv-binary-planning-test` with focused structured
+  proposal-plan coverage for `i32-vmul`, `i64-vmul`, capacity layering, finite
+  family rejection, and the `i64-vmul` dispatch representative's selected RVV
+  route/ABI facts.
+- Preserved public diagnostic wording after `check-tianchenrv` exposed five
+  lit expectation failures caused by changed helper error text.
+
+### Evidence
+
+- No RVV runtime/correctness/performance claim was made; no fresh `ssh rvv`
+  run was required.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-planning-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-binary-planning|rvv-extension-plugin|rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e'`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  first run failed 5 lit diagnostics after helper extraction; after restoring
+  public diagnostic wording, rerun passed `194/194`.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-rvv-binary-proposal-legality-planning`
+
+### Status
+
+[OK] **Completed and archived**
+
+
 
 ## Session 16: Target-owned artifact route translation registration
 

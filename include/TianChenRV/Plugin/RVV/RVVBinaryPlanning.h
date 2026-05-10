@@ -8,6 +8,8 @@
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
@@ -45,6 +47,16 @@ struct RVVBinaryEmissionIdentity {
   llvm::StringRef getSupportedMessage() const;
 };
 
+struct RVVBinaryCapabilityPropertyView {
+  std::string architecture;
+  std::string isaVectorHints;
+  std::string selectedMarch;
+  std::uint64_t hartCount = 0;
+  std::optional<std::uint64_t> vlenbBytes;
+  std::optional<std::uint64_t> i32M1LaneCount;
+  const target::rvv::RVVVectorShapeConfig *selectedShape = nullptr;
+};
+
 struct RVVBinarySelectedPlan {
   target::rvv::RVVBinaryIntrinsicDescriptor descriptor;
   const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
@@ -75,6 +87,26 @@ struct RVVBinarySelectedPlan {
   std::string getStoreIntrinsicName() const;
 };
 
+struct RVVBinaryProposalPlan {
+  RVVBinarySelectedPlan selectedPlan;
+  RVVBinaryCapabilityPropertyView capabilityView;
+  llvm::SmallVector<std::string, 5> requiredCapabilityIDs;
+  std::string condition;
+  std::string guard;
+  std::string policy;
+
+  llvm::StringRef getFamilyID() const;
+  llvm::StringRef getDTypeID() const;
+  llvm::StringRef getLoweringDescriptor() const;
+  const target::rvv::RVVBinaryFamilyDescriptor &getFamily() const;
+  const target::rvv::RVVVectorShapeConfig &getSelectedShape() const;
+  llvm::ArrayRef<std::string> getRequiredCapabilityIDs() const;
+  llvm::StringRef getCondition() const;
+  llvm::StringRef getGuard() const;
+  llvm::StringRef getPolicy() const;
+  bool hasCapacityMetadata() const;
+};
+
 const RVVSelectedVectorShapeMetadataNames &
 getRVVVariantSelectedVectorShapeMetadataNames();
 
@@ -86,11 +118,32 @@ llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind();
 llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
     const target::rvv::RVVBinaryFamilyDescriptor &family);
 
+std::string formatRVVBinaryFamilyFrontendLoweringList();
+
+llvm::Expected<RVVBinaryCapabilityPropertyView>
+buildRVVBinaryCapabilityPropertyView(
+    const support::TargetCapabilitySet &capabilities,
+    const target::rvv::RVVVectorShapeConfig *requiredShape = nullptr);
+
+llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
+getRVVBinaryVariantRequiredShapeConfig(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities);
+
+llvm::Error verifyRVVBinaryVariantRequiresCapabilityID(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities, llvm::StringRef id);
+
 llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
     const target::rvv::RVVBinaryFamilyDescriptor &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     std::int64_t elementCount, llvm::StringRef requiredMarch,
     std::optional<std::string> selectedMABI = std::nullopt);
+
+llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
+    const support::TargetCapabilitySet &capabilities,
+    llvm::StringRef frontendLowering = llvm::StringRef(),
+    llvm::StringRef diagnosticContext = "RVV binary proposal");
 
 llvm::Expected<std::optional<RVVBinarySelectedPlan>>
 buildRVVBinarySelectedPlanFromVariant(

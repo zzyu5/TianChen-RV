@@ -22,7 +22,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -56,16 +55,6 @@ constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
 constexpr llvm::StringLiteral kRVVBoundaryVLenBBytesAttrName("vlenb_bytes");
 constexpr llvm::StringLiteral kRVVBoundaryI32M1LanesAttrName(
     "base_i32_m1_lanes");
-constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
-constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
-constexpr llvm::StringLiteral kHartCountPropertyName("count");
-constexpr llvm::StringLiteral kVLenBBytesPropertyName("bytes");
-constexpr llvm::StringLiteral kI32M1LanesPropertyName("lanes");
-constexpr llvm::StringLiteral kSEWBitsPropertyName("sew_bits");
-constexpr llvm::StringLiteral kLMULPropertyName("lmul");
-constexpr llvm::StringLiteral kTailPolicyPropertyName("tail_policy");
-constexpr llvm::StringLiteral kMaskPolicyPropertyName("mask_policy");
-constexpr llvm::StringLiteral kSelectedMarchPropertyName("selected_march");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
@@ -109,9 +98,6 @@ constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataRole(
 constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
     "base i32 M1 capacity fact from target/profile evidence; not selected "
     "vector shape, runtime input, VL/AVL, or performance evidence");
-constexpr std::int64_t kDefaultI32VAddElementCount = 16;
-constexpr std::uint64_t kI32VAddCapacitySampleVectors = 4;
-constexpr std::int64_t kMaxI32VAddElementCount = 64;
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -129,57 +115,10 @@ using RVVBinaryFamilyDescriptor =
 using RVVBinaryIntrinsicDescriptor =
     tianchenrv::target::rvv::RVVBinaryIntrinsicDescriptor;
 
-const RVVI32VectorShapeConfig &getI32M1ConfigSpec() {
-  return tianchenrv::target::rvv::getI32M1VectorShapeConfig();
-}
-
-const RVVI32VectorShapeConfig &getI32M2ConfigSpec() {
-  return tianchenrv::target::rvv::getI32M2VectorShapeConfig();
-}
-
-struct RVVCapabilityPropertyView {
-  std::string architecture;
-  std::string isaVectorHints;
-  std::string selectedMarch;
-  std::uint64_t hartCount = 0;
-  std::optional<std::uint64_t> vlenbBytes;
-  std::optional<std::uint64_t> i32M1LaneCount;
-  const RVVI32VectorShapeConfig *i32Config = nullptr;
-};
-
-std::string formatRVVBinaryFamilyFrontendLoweringList() {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  bool first = true;
-  for (const RVVBinaryFamilyDescriptor *family :
-       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
-    if (!first)
-      stream << " or ";
-    stream << '\'' << family->frontendLowering << '\'';
-    first = false;
-  }
-  stream.flush();
-  return text;
-}
-
 struct RVVCapacityMetadata {
   std::int64_t vlenbBytes = 0;
   std::int64_t i32M1Lanes = 0;
 };
-
-std::int64_t
-deriveI32VAddDescriptorElementCount(const RVVCapabilityPropertyView &view) {
-  if (!view.i32M1LaneCount)
-    return kDefaultI32VAddElementCount;
-
-  if (*view.i32M1LaneCount >=
-      static_cast<std::uint64_t>(kMaxI32VAddElementCount) /
-          kI32VAddCapacitySampleVectors)
-    return kMaxI32VAddElementCount;
-
-  return static_cast<std::int64_t>(*view.i32M1LaneCount *
-                                   kI32VAddCapacitySampleVectors);
-}
 
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
   return request.getKernel() &&
@@ -215,29 +154,6 @@ bool isSingleBoundedRVVPropertyText(llvm::StringRef value) {
   return true;
 }
 
-bool hasRVVVectorHint(llvm::StringRef hints) {
-  std::string lower = hints.lower();
-  llvm::StringRef normalized(lower);
-  if (normalized.contains("zve") || normalized.contains("zvl") ||
-      normalized.contains("zvfh") || normalized.contains("gcv"))
-    return true;
-
-  std::size_t position = lower.find("rv64");
-  while (position != std::string::npos) {
-    std::size_t end = position;
-    while (end < lower.size()) {
-      unsigned char byte = static_cast<unsigned char>(lower[end]);
-      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
-        break;
-      ++end;
-    }
-    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
-      return true;
-    position = lower.find("rv64", position + 4);
-  }
-  return false;
-}
-
 llvm::Error validateRVVPropertyText(llvm::StringRef context,
                                     llvm::StringRef propertyName,
                                     llvm::StringRef value) {
@@ -252,493 +168,6 @@ llvm::Error validateRVVPropertyText(llvm::StringRef context,
                               "' must not contain secret-like or raw-log text");
 
   return llvm::Error::success();
-}
-
-llvm::Expected<std::string>
-getRequiredRVVProperty(const support::CapabilityDescriptor &capability,
-                       llvm::StringRef propertyName) {
-  llvm::StringRef value = capability.getProperty(propertyName).trim();
-  std::string context = (llvm::Twine("capability id '") +
-                         capability.getID() + "'").str();
-  if (value.empty())
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " requires preserved property '" +
-                              propertyName + "'");
-
-  if (llvm::Error error = validateRVVPropertyText(context, propertyName, value))
-    return std::move(error);
-
-  return value.str();
-}
-
-llvm::Expected<std::uint64_t>
-getRequiredPositiveIntegerRVVProperty(
-    const support::CapabilityDescriptor &capability,
-    llvm::StringRef propertyName) {
-  llvm::Expected<std::string> property =
-      getRequiredRVVProperty(capability, propertyName);
-  if (!property)
-    return property.takeError();
-
-  llvm::StringRef value(*property);
-  if (!llvm::all_of(value, [](char character) {
-        unsigned char byte = static_cast<unsigned char>(character);
-        return std::isdigit(byte);
-      })) {
-    return makeRVVPluginError(llvm::Twine("capability id '") +
-                              capability.getID() + "' property '" +
-                              propertyName +
-                              "' must be a positive integer");
-  }
-
-  std::uint64_t parsed = 0;
-  if (value.getAsInteger(10, parsed) || parsed == 0)
-    return makeRVVPluginError(llvm::Twine("capability id '") +
-                              capability.getID() + "' property '" +
-                              propertyName +
-                              "' must be a positive integer");
-
-  return parsed;
-}
-
-llvm::Error requireAvailableCapability(
-    const support::TargetCapabilitySet &capabilities, llvm::StringRef id,
-    const support::CapabilityDescriptor *&out) {
-  out = capabilities.lookupProviderByID(id);
-  if (!out)
-    return makeRVVPluginError(llvm::Twine("RVV property decision requires "
-                                          "capability id '") +
-                              id + "'");
-  if (!out->isAvailable())
-    return makeRVVPluginError(llvm::Twine("RVV property decision requires "
-                                          "available capability id '") +
-                              id + "'");
-  return llvm::Error::success();
-}
-
-llvm::Error requireFirstSliceSEW32Capability(
-    const support::TargetCapabilitySet &capabilities,
-    const RVVI32VectorShapeConfig &config) {
-  const support::CapabilityDescriptor *capability = nullptr;
-  if (llvm::Error error = requireAvailableCapability(
-          capabilities, config.sewCapabilityID, capability))
-    return std::move(error);
-
-  llvm::Expected<std::uint64_t> sew =
-      getRequiredPositiveIntegerRVVProperty(*capability, kSEWBitsPropertyName);
-  if (!sew)
-    return sew.takeError();
-  if (*sew != static_cast<std::uint64_t>(config.sewBits))
-    return makeRVVPluginError(llvm::Twine("RVV first-slice config capability "
-                                          "id '") +
-                              config.sewCapabilityID +
-                              "' property 'sew_bits' must be " +
-                              llvm::Twine(config.sewBits));
-  return llvm::Error::success();
-}
-
-llvm::Error requireFirstSliceStringCapability(
-    const support::TargetCapabilitySet &capabilities, llvm::StringRef id,
-    llvm::StringRef propertyName, llvm::StringRef expectedValue) {
-  const support::CapabilityDescriptor *capability = nullptr;
-  if (llvm::Error error = requireAvailableCapability(capabilities, id,
-                                                     capability))
-    return std::move(error);
-
-  llvm::Expected<std::string> property =
-      getRequiredRVVProperty(*capability, propertyName);
-  if (!property)
-    return property.takeError();
-  if (*property != expectedValue)
-    return makeRVVPluginError(llvm::Twine("RVV first-slice config capability "
-                                          "id '") +
-                              id + "' property '" + propertyName +
-                              "' must be '" + expectedValue + "'");
-  return llvm::Error::success();
-}
-
-llvm::Error verifyFirstSliceConfigCapabilities(
-    const support::TargetCapabilitySet &capabilities,
-    const RVVI32VectorShapeConfig &config) {
-  if (llvm::Error error =
-          requireFirstSliceSEW32Capability(capabilities, config))
-    return error;
-  if (llvm::Error error = requireFirstSliceStringCapability(
-          capabilities, config.lmulCapabilityID, kLMULPropertyName,
-          config.lmul))
-    return error;
-  if (llvm::Error error = requireFirstSliceStringCapability(
-          capabilities, config.tailPolicyCapabilityID,
-          kTailPolicyPropertyName, config.tailPolicy))
-    return error;
-  if (llvm::Error error = requireFirstSliceStringCapability(
-          capabilities, config.maskPolicyCapabilityID,
-          kMaskPolicyPropertyName, config.maskPolicy))
-    return error;
-  return llvm::Error::success();
-}
-
-llvm::Expected<const RVVI32VectorShapeConfig *>
-selectExplicitI32BinaryVectorShapeCapability(
-    const support::TargetCapabilitySet &capabilities) {
-  const support::CapabilityDescriptor *selector =
-      capabilities.lookupProviderByID(
-          tianchenrv::target::rvv::
-              getRVVI32BinarySelectedVectorShapeCapabilityID());
-  if (!selector)
-    return static_cast<const RVVI32VectorShapeConfig *>(nullptr);
-
-  if (!selector->isAvailable())
-    return makeRVVPluginError(
-        llvm::Twine("RVV i32 binary selected vector-shape capability id '") +
-        tianchenrv::target::rvv::
-            getRVVI32BinarySelectedVectorShapeCapabilityID() +
-        "' must be available when present");
-
-  llvm::Expected<std::string> selectedShape = getRequiredRVVProperty(
-      *selector, tianchenrv::target::rvv::
-                     getRVVI32BinarySelectedVectorShapePropertyName());
-  if (!selectedShape)
-    return selectedShape.takeError();
-
-  const RVVI32VectorShapeConfig *config =
-      tianchenrv::target::rvv::lookupFiniteI32VectorShapeConfigByShapeID(
-          *selectedShape);
-  if (!config)
-    return makeRVVPluginError(
-        llvm::Twine("RVV i32 binary selected vector-shape capability property "
-                    "'") +
-        tianchenrv::target::rvv::
-            getRVVI32BinarySelectedVectorShapePropertyName() +
-        "' must be one finite descriptor shape: '" +
-        getI32M1ConfigSpec().shapeID + "' or '" +
-        getI32M2ConfigSpec().shapeID + "'");
-
-  if (llvm::Error error = verifyFirstSliceConfigCapabilities(capabilities,
-                                                            *config))
-    return std::move(error);
-  return config;
-}
-
-llvm::Expected<const RVVI32VectorShapeConfig *>
-selectAvailableFirstSliceConfigCapabilities(
-    const support::TargetCapabilitySet &capabilities) {
-  llvm::Expected<const RVVI32VectorShapeConfig *> explicitSelection =
-      selectExplicitI32BinaryVectorShapeCapability(capabilities);
-  if (!explicitSelection)
-    return explicitSelection.takeError();
-  if (*explicitSelection)
-    return *explicitSelection;
-
-  if (llvm::Error error =
-          verifyFirstSliceConfigCapabilities(capabilities,
-                                             getI32M1ConfigSpec())) {
-    llvm::consumeError(std::move(error));
-  } else {
-    return &getI32M1ConfigSpec();
-  }
-
-  if (llvm::Error error =
-          verifyFirstSliceConfigCapabilities(capabilities,
-                                             getI32M2ConfigSpec())) {
-    llvm::consumeError(std::move(error));
-  } else {
-    return &getI32M2ConfigSpec();
-  }
-
-  return makeRVVPluginError(
-      "RVV property decision requires either the finite i32m1 config "
-      "capability ids or the finite i32m2 config capability ids");
-}
-
-llvm::Expected<RVVCapabilityPropertyView>
-buildRVVCapabilityPropertyView(
-    const support::TargetCapabilitySet &capabilities,
-    const RVVI32VectorShapeConfig *requiredConfig = nullptr) {
-  const support::CapabilityDescriptor *rvvCapability = nullptr;
-  if (llvm::Error error =
-          requireAvailableCapability(capabilities, kRVVCapabilityID,
-                                     rvvCapability))
-    return std::move(error);
-
-  llvm::Expected<std::string> architecture =
-      getRequiredRVVProperty(*rvvCapability, kArchitecturePropertyName);
-  if (!architecture)
-    return architecture.takeError();
-  if (llvm::StringRef(*architecture).lower() != "riscv64")
-    return makeRVVPluginError(
-        "capability id 'rvv' property 'architecture' must be riscv64");
-
-  llvm::Expected<std::string> isaVectorHints =
-      getRequiredRVVProperty(*rvvCapability, kISAVectorHintsPropertyName);
-  if (!isaVectorHints)
-    return isaVectorHints.takeError();
-  if (!hasRVVVectorHint(*isaVectorHints))
-    return makeRVVPluginError(
-        "capability id 'rvv' property 'isa_vector_hints' must contain RVV "
-        "vector evidence");
-
-  const support::CapabilityDescriptor *hartCountCapability = nullptr;
-  if (llvm::Error error = requireAvailableCapability(
-          capabilities, rvv::getRVVHartCountCapabilityID(),
-          hartCountCapability))
-    return std::move(error);
-
-  llvm::Expected<std::uint64_t> hartCount =
-      getRequiredPositiveIntegerRVVProperty(*hartCountCapability,
-                                            kHartCountPropertyName);
-  if (!hartCount)
-    return hartCount.takeError();
-
-  const support::CapabilityDescriptor *vlenbCapability =
-      capabilities.lookupProviderByID(rvv::getRVVVLenBBytesCapabilityID());
-  const support::CapabilityDescriptor *i32LaneCapability =
-      capabilities.lookupProviderByID(rvv::getRVVI32M1LaneCountCapabilityID());
-  bool hasAvailableVLenB = vlenbCapability && vlenbCapability->isAvailable();
-  bool hasAvailableI32Lanes =
-      i32LaneCapability && i32LaneCapability->isAvailable();
-  std::optional<std::uint64_t> vlenbBytes;
-  std::optional<std::uint64_t> i32M1LaneCount;
-  if (hasAvailableVLenB != hasAvailableI32Lanes)
-    return makeRVVPluginError(
-        "RVV vector capacity decision requires both available capability ids "
-        "'rvv.vlenb_bytes' and 'rvv.i32_m1_lane_count'");
-  if (hasAvailableVLenB) {
-    llvm::Expected<std::uint64_t> parsedVLenB =
-        getRequiredPositiveIntegerRVVProperty(*vlenbCapability,
-                                              kVLenBBytesPropertyName);
-    if (!parsedVLenB)
-      return parsedVLenB.takeError();
-    llvm::Expected<std::uint64_t> parsedI32Lanes =
-        getRequiredPositiveIntegerRVVProperty(*i32LaneCapability,
-                                              kI32M1LanesPropertyName);
-    if (!parsedI32Lanes)
-      return parsedI32Lanes.takeError();
-    if (*parsedVLenB < sizeof(std::int32_t) ||
-        *parsedVLenB % sizeof(std::int32_t) != 0 ||
-        *parsedVLenB / sizeof(std::int32_t) != *parsedI32Lanes)
-      return makeRVVPluginError(
-          "RVV vector capacity decision requires i32 m1 lane count to match "
-          "vlenb bytes divided by four");
-    vlenbBytes = *parsedVLenB;
-    i32M1LaneCount = *parsedI32Lanes;
-  }
-
-  const support::CapabilityDescriptor *compileRunCapability = nullptr;
-  if (llvm::Error error = requireAvailableCapability(
-          capabilities, rvv::getRVVProbeCompileRunCapabilityID(),
-          compileRunCapability))
-    return std::move(error);
-
-  llvm::Expected<std::string> selectedMarch =
-      getRequiredRVVProperty(*compileRunCapability, kSelectedMarchPropertyName);
-  if (!selectedMarch)
-    return selectedMarch.takeError();
-  if (!hasRVVVectorHint(*selectedMarch))
-    return makeRVVPluginError(
-        "capability id 'rvv.probe.compile_run' property 'selected_march' must "
-        "contain RVV vector evidence");
-
-  if (const support::CapabilityDescriptor *selectedMarchCapability =
-          capabilities.lookupByID(rvv::getRVVSelectedMarchCapabilityID())) {
-    if (selectedMarchCapability->isAvailable()) {
-      llvm::Expected<std::string> selectedMarchValue = getRequiredRVVProperty(
-          *selectedMarchCapability, kSelectedMarchValuePropertyName);
-      if (!selectedMarchValue)
-        return selectedMarchValue.takeError();
-      if (*selectedMarchValue != *selectedMarch)
-        return makeRVVPluginError(
-            "conflicting RVV property values between capability id "
-            "'rvv.toolchain.march' property 'value' and capability id "
-            "'rvv.probe.compile_run' property 'selected_march'");
-    }
-  }
-
-  const RVVI32VectorShapeConfig *selectedConfig = requiredConfig;
-  if (selectedConfig) {
-    if (llvm::Error error =
-            verifyFirstSliceConfigCapabilities(capabilities, *selectedConfig))
-      return std::move(error);
-  } else {
-    llvm::Expected<const RVVI32VectorShapeConfig *> config =
-        selectAvailableFirstSliceConfigCapabilities(capabilities);
-    if (!config)
-      return config.takeError();
-    selectedConfig = *config;
-  }
-
-  RVVCapabilityPropertyView view;
-  view.architecture = std::move(*architecture);
-  view.isaVectorHints = std::move(*isaVectorHints);
-  view.selectedMarch = std::move(*selectedMarch);
-  view.hartCount = *hartCount;
-  view.vlenbBytes = vlenbBytes;
-  view.i32M1LaneCount = i32M1LaneCount;
-  view.i32Config = selectedConfig;
-  return view;
-}
-
-llvm::Expected<bool> variantRequiresCapabilityID(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities, llvm::StringRef id) {
-  auto requiresAttr =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiresAttr)
-    return makeRVVPluginError("materialized RVV variant requires structured "
-                              "'requires' metadata");
-
-  for (mlir::Attribute requiredCapability : requiresAttr) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return makeRVVPluginError(
-          "materialized RVV variant requires only capability symbol "
-          "references");
-
-    const support::CapabilityDescriptor *capability =
-        capabilities.lookupBySymbolName(symbolRef.getValue());
-    if (!capability)
-      continue;
-
-    if (capability->satisfiesID(id))
-      return true;
-  }
-
-  return false;
-}
-
-llvm::Error verifyVariantRequiresCapabilityID(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities, llvm::StringRef id) {
-  llvm::Expected<bool> requiresID =
-      variantRequiresCapabilityID(variant, capabilities, id);
-  if (!requiresID)
-    return requiresID.takeError();
-  if (!*requiresID)
-    return makeRVVPluginError(llvm::Twine("materialized RVV variant must "
-                                          "require capability id '") +
-                              id + "'");
-  return llvm::Error::success();
-}
-
-llvm::Expected<bool> variantRequiresConfig(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
-    const RVVI32VectorShapeConfig &config) {
-  llvm::Expected<bool> requiresSEW =
-      variantRequiresCapabilityID(variant, capabilities, config.sewCapabilityID);
-  if (!requiresSEW)
-    return requiresSEW.takeError();
-  llvm::Expected<bool> requiresLMUL =
-      variantRequiresCapabilityID(variant, capabilities, config.lmulCapabilityID);
-  if (!requiresLMUL)
-    return requiresLMUL.takeError();
-  llvm::Expected<bool> requiresTail = variantRequiresCapabilityID(
-      variant, capabilities, config.tailPolicyCapabilityID);
-  if (!requiresTail)
-    return requiresTail.takeError();
-  llvm::Expected<bool> requiresMask = variantRequiresCapabilityID(
-      variant, capabilities, config.maskPolicyCapabilityID);
-  if (!requiresMask)
-    return requiresMask.takeError();
-  return *requiresSEW && *requiresLMUL && *requiresTail && *requiresMask;
-}
-
-llvm::Expected<bool> variantRequiresAnyConfigID(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
-    const RVVI32VectorShapeConfig &config) {
-  for (llvm::StringRef id :
-       {config.sewCapabilityID, config.lmulCapabilityID,
-        config.tailPolicyCapabilityID, config.maskPolicyCapabilityID}) {
-    llvm::Expected<bool> requiresID =
-        variantRequiresCapabilityID(variant, capabilities, id);
-    if (!requiresID)
-      return requiresID.takeError();
-    if (*requiresID)
-      return true;
-  }
-  return false;
-}
-
-llvm::Error verifyVariantRequiresConfigIDs(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
-    const RVVI32VectorShapeConfig &config) {
-  if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, config.sewCapabilityID))
-    return error;
-  if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, config.lmulCapabilityID))
-    return error;
-  if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, config.tailPolicyCapabilityID))
-    return error;
-  if (llvm::Error error = verifyVariantRequiresCapabilityID(
-          variant, capabilities, config.maskPolicyCapabilityID))
-    return error;
-  return llvm::Error::success();
-}
-
-llvm::Expected<const RVVI32VectorShapeConfig *>
-getVariantRequiredFirstSliceConfig(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities) {
-  llvm::Expected<bool> requiresM1 =
-      variantRequiresConfig(variant, capabilities, getI32M1ConfigSpec());
-  if (!requiresM1)
-    return requiresM1.takeError();
-  llvm::Expected<bool> requiresM2 =
-      variantRequiresConfig(variant, capabilities, getI32M2ConfigSpec());
-  if (!requiresM2)
-    return requiresM2.takeError();
-  llvm::Expected<bool> requiresI64M1 = variantRequiresConfig(
-      variant, capabilities, tianchenrv::target::rvv::getI64M1VectorShapeConfig());
-  if (!requiresI64M1)
-    return requiresI64M1.takeError();
-
-  unsigned completeConfigCount = (*requiresM1 ? 1 : 0) + (*requiresM2 ? 1 : 0) +
-                                 (*requiresI64M1 ? 1 : 0);
-  if (completeConfigCount > 1)
-    return makeRVVPluginError(
-        "materialized RVV variant must require exactly one finite RVV "
-        "dtype/LMUL config shape");
-  if (*requiresM1)
-    return &getI32M1ConfigSpec();
-  if (*requiresM2)
-    return &getI32M2ConfigSpec();
-  if (*requiresI64M1)
-    return &tianchenrv::target::rvv::getI64M1VectorShapeConfig();
-
-  llvm::Expected<bool> requiresAnyM1 =
-      variantRequiresAnyConfigID(variant, capabilities, getI32M1ConfigSpec());
-  if (!requiresAnyM1)
-    return requiresAnyM1.takeError();
-  llvm::Expected<bool> requiresAnyM2 =
-      variantRequiresAnyConfigID(variant, capabilities, getI32M2ConfigSpec());
-  if (!requiresAnyM2)
-    return requiresAnyM2.takeError();
-  llvm::Expected<bool> requiresAnyI64M1 = variantRequiresAnyConfigID(
-      variant, capabilities, tianchenrv::target::rvv::getI64M1VectorShapeConfig());
-  if (!requiresAnyI64M1)
-    return requiresAnyI64M1.takeError();
-  if (*requiresAnyM1 && !*requiresAnyM2)
-    if (llvm::Error error = verifyVariantRequiresConfigIDs(
-            variant, capabilities, getI32M1ConfigSpec()))
-      return std::move(error);
-  if (*requiresAnyM2 && !*requiresAnyM1)
-    if (llvm::Error error = verifyVariantRequiresConfigIDs(
-            variant, capabilities, getI32M2ConfigSpec()))
-      return std::move(error);
-  if (*requiresAnyI64M1 && !*requiresAnyM1 && !*requiresAnyM2)
-    if (llvm::Error error = verifyVariantRequiresConfigIDs(
-            variant, capabilities,
-            tianchenrv::target::rvv::getI64M1VectorShapeConfig()))
-      return std::move(error);
-
-  return makeRVVPluginError(
-      "materialized RVV variant must require either the finite i32m1, i32m2, "
-      "or i64m1 config capability ids");
 }
 
 mlir::StringAttr getRVVPolicyAttrNameAttr(mlir::MLIRContext *context) {
@@ -804,7 +233,7 @@ buildRVVCapabilitySummary(tcrv::exec::VariantOp variant,
 }
 
 llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
-                                    const RVVCapabilityPropertyView &view) {
+                                    const rvv::RVVBinaryCapabilityPropertyView &view) {
   mlir::Attribute rawRequiredMarch =
       variant->getAttr(kRVVRequiredMarchAttrName);
   if (!rawRequiredMarch)
@@ -843,7 +272,7 @@ llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
 
 llvm::Error
 verifyOptionalCapacityAttrs(tcrv::exec::VariantOp variant,
-                            const RVVCapabilityPropertyView &view) {
+                            const rvv::RVVBinaryCapabilityPropertyView &view) {
   mlir::Attribute rawVLenB = variant->getAttr(kRVVVLenBBytesAttrName);
   mlir::Attribute rawI32Lanes = variant->getAttr(kRVVI32M1LanesAttrName);
   if (!rawVLenB && !rawI32Lanes)
@@ -1104,7 +533,7 @@ llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
 buildI32MicrokernelMaterializationPlan(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
-    const RVVCapabilityPropertyView &view) {
+    const rvv::RVVBinaryCapabilityPropertyView &view) {
   llvm::Expected<std::optional<std::string>> selectedMABI =
       getOptionalSelectedMABI(capabilities);
   if (!selectedMABI)
@@ -1112,7 +541,7 @@ buildI32MicrokernelMaterializationPlan(
 
   llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
       plan = rvv::buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
-          variant, *view.i32Config, "i32", std::move(*selectedMABI));
+          variant, *view.selectedShape, "i32", std::move(*selectedMABI));
   if (!plan)
     return plan.takeError();
   if (!*plan)
@@ -1133,7 +562,7 @@ llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
 buildI64MicrokernelMaterializationPlan(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
-    const RVVCapabilityPropertyView &view) {
+    const rvv::RVVBinaryCapabilityPropertyView &view) {
   llvm::Expected<std::optional<std::string>> selectedMABI =
       getOptionalSelectedMABI(capabilities);
   if (!selectedMABI)
@@ -1141,7 +570,7 @@ buildI64MicrokernelMaterializationPlan(
 
   llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
       plan = rvv::buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
-          variant, *view.i32Config, "i64", std::move(*selectedMABI));
+          variant, *view.selectedShape, "i64", std::move(*selectedMABI));
   if (!plan)
     return plan.takeError();
   if (!*plan)
@@ -1417,12 +846,12 @@ buildDescriptorPlanForEmission(const VariantEmissionRequest &request) {
     return std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>();
 
   llvm::Expected<const RVVI32VectorShapeConfig *> requiredConfig =
-      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+      rvv::getRVVBinaryVariantRequiredShapeConfig(variant, request.getCapabilities());
   if (!requiredConfig)
     return requiredConfig.takeError();
 
-  llvm::Expected<RVVCapabilityPropertyView> propertyView =
-      buildRVVCapabilityPropertyView(request.getCapabilities(),
+  llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+      rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                      *requiredConfig);
   if (!propertyView)
     return propertyView.takeError();
@@ -1534,7 +963,7 @@ findMatchingExplicitMicrokernelFamily(
           "metadata 'tcrv_rvv.element_count'");
 
     llvm::Expected<const RVVI32VectorShapeConfig *> requiredConfig =
-        getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+        rvv::getRVVBinaryVariantRequiredShapeConfig(variant, request.getCapabilities());
     if (!requiredConfig)
       return requiredConfig.takeError();
 
@@ -1571,12 +1000,12 @@ findMatchingExplicitI64MicrokernelDescriptor(
     return std::optional<RVVBinaryIntrinsicDescriptor>();
 
   llvm::Expected<const RVVI32VectorShapeConfig *> requiredConfig =
-      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+      rvv::getRVVBinaryVariantRequiredShapeConfig(variant, request.getCapabilities());
   if (!requiredConfig)
     return requiredConfig.takeError();
 
-  llvm::Expected<RVVCapabilityPropertyView> propertyView =
-      buildRVVCapabilityPropertyView(request.getCapabilities(),
+  llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+      rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                      *requiredConfig);
   if (!propertyView)
     return propertyView.takeError();
@@ -1722,57 +1151,27 @@ std::string sanitizeRVVDeclineReason(llvm::StringRef reason) {
 
 llvm::Expected<VariantProposal>
 buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
-  const RVVBinaryFamilyDescriptor *requestedFamily =
-      &tianchenrv::target::rvv::getI32VAddFamilyDescriptor();
+  llvm::StringRef frontendLoweringValue;
   if (auto frontendLowering =
           request.getKernel()->getAttrOfType<mlir::StringAttr>(
-              kFrontendLoweringAttrName)) {
-    llvm::StringRef value = frontendLowering.getValue().trim();
-    if (llvm::Error error = validateRVVPropertyText(
-            (llvm::Twine("kernel @") + request.getKernel().getSymName() +
-             " frontend lowering family")
-                .str(),
-            kFrontendLoweringAttrName, value))
-      return std::move(error);
+              kFrontendLoweringAttrName))
+    frontendLoweringValue = frontendLowering.getValue();
 
-    const RVVBinaryFamilyDescriptor *lookup =
-        tianchenrv::target::rvv::lookupRVVBinaryFamilyByFrontendLowering(value);
-    if (!lookup)
-      return makeRVVPluginError(
-          llvm::Twine("kernel @") + request.getKernel().getSymName() +
-          " frontend lowering family must be " +
-          formatRVVBinaryFamilyFrontendLoweringList());
-    requestedFamily = lookup;
-  }
-
-  const RVVI32VectorShapeConfig *requiredConfig =
-      requestedFamily->dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64
-          ? &tianchenrv::target::rvv::getI64M1VectorShapeConfig()
-          : nullptr;
-  llvm::Expected<RVVCapabilityPropertyView> propertyView =
-      buildRVVCapabilityPropertyView(request.getCapabilities(),
-                                     requiredConfig);
-  if (!propertyView)
-    return propertyView.takeError();
-
-  std::int64_t descriptorElementCount =
-      deriveI32VAddDescriptorElementCount(*propertyView);
-  llvm::Expected<rvv::RVVBinarySelectedPlan> selectedPlan =
-      rvv::buildRVVBinarySelectedPlan(*requestedFamily,
-                                      *propertyView->i32Config,
-                                      descriptorElementCount,
-                                      propertyView->selectedMarch);
-  if (!selectedPlan)
-    return selectedPlan.takeError();
+  std::string diagnosticContext =
+      (llvm::Twine("kernel @") + request.getKernel().getSymName()).str();
+  llvm::Expected<rvv::RVVBinaryProposalPlan> plan =
+      rvv::buildRVVBinaryProposalPlan(request.getCapabilities(),
+                                      frontendLoweringValue,
+                                      diagnosticContext);
+  if (!plan)
+    return plan.takeError();
 
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
-  proposal.addRequiredCapabilityID(kRVVCapabilityID);
-  for (llvm::StringRef capabilityID :
-       selectedPlan->descriptor.getSelectedShapeCapabilityIDs())
+  for (llvm::StringRef capabilityID : plan->getRequiredCapabilityIDs())
     proposal.addRequiredCapabilityID(capabilityID);
-  proposal.setCondition("rvv_capability_properties_available");
-  proposal.setGuard("plugin_local_rvv_property_evidence");
-  proposal.setPolicy("metadata_only_first_slice");
+  proposal.setCondition(plan->getCondition());
+  proposal.setGuard(plan->getGuard());
+  proposal.setPolicy(plan->getPolicy());
   proposal.addPluginAttribute(
       getRVVPolicyAttrNameAttr(request.getKernel()->getContext()),
       getExpectedRVVPolicyAttr(request.getKernel()->getContext()));
@@ -1780,9 +1179,9 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVRequiredMarchAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            propertyView->selectedMarch));
+                            plan->capabilityView.selectedMarch));
   rvv::addRVVSelectedVectorShapeMetadataToProposal(
-      proposal, request.getKernel()->getContext(), *propertyView->i32Config);
+      proposal, request.getKernel()->getContext(), plan->getSelectedShape());
   if (hasAvailableRVVSmokeProbeCapability(request.getCapabilities())) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
@@ -1795,26 +1194,26 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddLoweringDescriptorAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            selectedPlan->getLoweringDescriptor()));
+                            plan->getLoweringDescriptor()));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddElementCountAttrName),
       mlir::IntegerAttr::get(mlir::IntegerType::get(
                                  request.getKernel()->getContext(), 64),
-                             selectedPlan->elementCount));
-  if (propertyView->vlenbBytes && propertyView->i32M1LaneCount) {
+                             plan->selectedPlan.elementCount));
+  if (plan->hasCapacityMetadata()) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
                               kRVVVLenBBytesAttrName),
         mlir::IntegerAttr::get(mlir::IntegerType::get(
                                    request.getKernel()->getContext(), 64),
-                               *propertyView->vlenbBytes));
+                               *plan->capabilityView.vlenbBytes));
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
                               kRVVI32M1LanesAttrName),
         mlir::IntegerAttr::get(mlir::IntegerType::get(
                                    request.getKernel()->getContext(), 64),
-                               *propertyView->i32M1LaneCount));
+                               *plan->capabilityView.i32M1LaneCount));
   }
   return proposal;
 }
@@ -2017,11 +1416,11 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
     return makeRVVPluginError(
         "materialized RVV variant requires an available capability id 'rvv'");
 
-  if (llvm::Error error = verifyVariantRequiresCapabilityID(
+  if (llvm::Error error = rvv::verifyRVVBinaryVariantRequiresCapabilityID(
           variant, request.getCapabilities(), kRVVCapabilityID))
     return error;
   llvm::Expected<const RVVI32VectorShapeConfig *> requiredConfig =
-      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+      rvv::getRVVBinaryVariantRequiredShapeConfig(variant, request.getCapabilities());
   if (!requiredConfig)
     return requiredConfig.takeError();
 
@@ -2058,8 +1457,8 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVVLenBBytesAttrName) ||
       variant->hasAttr(kRVVI32M1LanesAttrName)) {
-    llvm::Expected<RVVCapabilityPropertyView> propertyView =
-        buildRVVCapabilityPropertyView(request.getCapabilities(),
+    llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+        rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                        *requiredConfig);
     if (!propertyView)
       return propertyView.takeError();
@@ -2099,8 +1498,8 @@ llvm::Error RVVExtensionPlugin::estimateVariantCost(
   out.setExplicitPreference(true);
   out.setOriginPlugin(kRVVPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
-  llvm::Expected<RVVCapabilityPropertyView> propertyView =
-      buildRVVCapabilityPropertyView(request.getCapabilities());
+  llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+      rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities());
   if (!propertyView) {
     llvm::consumeError(propertyView.takeError());
   } else if (propertyView->i32M1LaneCount) {
@@ -2159,8 +1558,8 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
   }
 
   if (request.getVariant()->hasAttr(kRVVSmokeProbeDescriptorAttrName)) {
-    llvm::Expected<RVVCapabilityPropertyView> propertyView =
-        buildRVVCapabilityPropertyView(request.getCapabilities());
+    llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+        rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities());
     if (!propertyView)
       return propertyView.takeError();
     if (llvm::Error error = verifySmokeProbeDescriptorAttr(request.getVariant()))
@@ -2193,7 +1592,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
         "emission planning requires an enclosing tcrv.exec.kernel");
 
   llvm::Expected<const RVVI32VectorShapeConfig *> selectedConfig =
-      getVariantRequiredFirstSliceConfig(request.getVariant(),
+      rvv::getRVVBinaryVariantRequiredShapeConfig(request.getVariant(),
                                          request.getCapabilities());
   if (!selectedConfig)
     return selectedConfig.takeError();
@@ -2277,8 +1676,8 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   }
 
   if (request.getVariant()->hasAttr(kRVVSmokeProbeDescriptorAttrName)) {
-    llvm::Expected<RVVCapabilityPropertyView> propertyView =
-        buildRVVCapabilityPropertyView(request.getCapabilities());
+    llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+        rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities());
     if (!propertyView)
       return propertyView.takeError();
     if (llvm::Error error = verifySmokeProbeDescriptorAttr(request.getVariant()))
@@ -2373,7 +1772,7 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     return error;
 
   llvm::Expected<const RVVI32VectorShapeConfig *> selectedConfig =
-      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+      rvv::getRVVBinaryVariantRequiredShapeConfig(variant, request.getCapabilities());
   if (!selectedConfig)
     return selectedConfig.takeError();
 
@@ -2387,8 +1786,8 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
       i64MicrokernelPlan;
   bool selectedPathHasExistingI32Microkernel = false;
   if (variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName)) {
-    llvm::Expected<RVVCapabilityPropertyView> propertyView =
-        buildRVVCapabilityPropertyView(request.getCapabilities(),
+    llvm::Expected<rvv::RVVBinaryCapabilityPropertyView> propertyView =
+        rvv::buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                        *selectedConfig);
     if (!propertyView)
       return propertyView.takeError();
@@ -2549,7 +1948,7 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
   }
 
   llvm::Expected<const RVVI32VectorShapeConfig *> selectedConfig =
-      getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
+      rvv::getRVVBinaryVariantRequiredShapeConfig(variant, request.getCapabilities());
   if (!selectedConfig)
     return selectedConfig.takeError();
   if (llvm::Error error =
