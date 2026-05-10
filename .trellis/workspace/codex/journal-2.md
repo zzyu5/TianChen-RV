@@ -602,6 +602,76 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 [OK] **Completed**
 
+## Session 35: RVV i64m1 vmul front-door dispatch ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV i64m1 vmul front-door dispatch ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, strengthened the
+focused i64-vmul front-door dispatch bundle regression, and produced current
+HEAD real `ssh rvv` evidence for the bounded `i64-vmul` / `i64m1`
+RVV+scalar dispatch wrapper path.
+
+### Main Changes
+
+- Updated `test/Scripts/rvv-scalar-dispatch-bundle-e2e.test` so the i64-vmul
+  plan-and-export bundle dry-run requires
+  `--expect-selected-kernel=frontend_bundle_i64_vmul`.
+- Added FileCheck coverage for generated i64-vmul dispatch source and bundle
+  index metadata: selected kernel, RVV `rvv_first_slice`, i64m1 vector shape,
+  `__riscv_vmul_vv_i64m1`, scalar `lhs * rhs`, int64 ABI roles, dispatch
+  guard linkage, scalar fallback linkage, source/header/object routes, and the
+  dispatch wrapper symbol.
+- No C++/MLIR/RVV/scalar implementation change was needed; the current
+  compiler stack already routed the shared finite frontend descriptor through
+  plugin-owned planning and target-owned export.
+
+### Evidence
+
+- Real command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --expect-selected-kernel=frontend_bundle_i64_vmul --ssh-target rvv --run-id codex-i64-vmul-frontdoor-dispatch-ssh --overwrite --timeout 120`
+- Evidence JSON:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i64-vmul-frontdoor-dispatch-ssh/evidence.json`
+- Evidence result: `status=success`, `mode=ssh`,
+  `ssh_evidence_verified=true`, `runtime_success=true`,
+  `pass_fail_result=pass`.
+- Remote facts: architecture `riscv64`, clang
+  `Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Dispatch wrapper:
+  `tcrv_dispatch_i64_vmul_frontend_bundle_i64_vmul`.
+- RVV callable:
+  `tcrv_rvv_i64_vmul_microkernel_frontend_bundle_i64_vmul_rvv_first_slice`.
+- Scalar fallback callable:
+  `tcrv_scalar_i64_vmul_microkernel_frontend_bundle_i64_vmul_scalar_fallback_first_slice`.
+- RVV intrinsic: `__riscv_vmul_vv_i64m1`.
+- Runtime coverage: `rvv_available=0` and `rvv_available=1`, runtime counts
+  `7` and `16`, `int64_t` buffers, multiply check `lhs[index] * rhs[index]`,
+  and output overrun preservation. Both source-built and bundle-object linked
+  executables observed
+  `tcrv_rvv_scalar_i64_vmul_bundle_external_abi_ok`.
+
+### Testing
+
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --expect-selected-kernel=frontend_bundle_i64_vmul --run-id codex-i64-vmul-frontdoor-dispatch-dry --overwrite --timeout 120`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-scalar-dispatch-bundle-e2e.test`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-scalar-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+
+No performance or generic RVV backend claim is made.
+
+### Status
+
+[OK] **Completed**
+
 ## Session 34: RVV i64m1 vsub front-door dispatch ssh evidence
 
 **Date**: 2026-05-11

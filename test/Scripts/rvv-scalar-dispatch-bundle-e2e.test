@@ -57,11 +57,13 @@
 # RUN: FileCheck %s --check-prefix=VMUL-M2-SOURCE --implicit-check-not=__riscv_vmul_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m2 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m2 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
 # RUN: FileCheck %s --check-prefix=VMUL-M2-CALLER --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
 # RUN: FileCheck %s --check-prefix=VMUL-M2-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=rvv-scalar-i32-vsub-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-i32m2-dispatch-bundle-plan-and-export/evidence.json
-# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --run-id lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=I64-VMUL-PLAN-DRY
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --expect-selected-kernel=frontend_bundle_i64_vmul --run-id lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=I64-VMUL-PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i64-vmul-dispatch-c.c
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vmul-dispatch-header.h
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i64-vmul-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=I64-VMUL-SOURCE --implicit-check-not=i64-vadd --implicit-check-not=i64-vsub --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=__riscv_vsub_vv_i64 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i64-vmul-dispatch-c.c
 # RUN: FileCheck %s --check-prefix=I64-VMUL-CALLER --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=I64-VMUL-INDEX --implicit-check-not=i64-vadd --implicit-check-not=i64-vsub --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
 # RUN: FileCheck %s --check-prefix=I64-VMUL-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=rvv-scalar-i32-vsub-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --run-id lit-rvv-scalar-dispatch-bundle-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
@@ -399,11 +401,26 @@
 
 # I64-VMUL-PLAN-DRY: "arithmetic_family": "i64-vmul"
 # I64-VMUL-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# I64-VMUL-PLAN-DRY: "expected_selected_kernel": "frontend_bundle_i64_vmul"
 # I64-VMUL-PLAN-DRY: "fixture_free_frontend_pipeline": true
 # I64-VMUL-PLAN-DRY: "fixture_free_pipeline_path": "marked-linalg-rvv-binary-frontend-to-plan-and-export-bundle"
 # I64-VMUL-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# I64-VMUL-PLAN-DRY: "selected_kernel": "frontend_bundle_i64_vmul"
 # I64-VMUL-PLAN-DRY: "ssh_evidence": false
 # I64-VMUL-PLAN-DRY: "status": "success"
+
+# I64-VMUL-SOURCE: /* Scope: one selected RVV i64-vmul dispatch case plus one scalar i64-vmul dispatch fallback. */
+# I64-VMUL-SOURCE: /* selected_kernel: @frontend_bundle_i64_vmul */
+# I64-VMUL-SOURCE: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+# I64-VMUL-SOURCE: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
+# I64-VMUL-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i64_vmul_microkernel_frontend_bundle_i64_vmul_rvv_first_slice */
+# I64-VMUL-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i64_vmul_microkernel_frontend_bundle_i64_vmul_scalar_fallback_first_slice */
+# I64-VMUL-SOURCE: /* dispatch_runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# I64-VMUL-SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
+# I64-VMUL-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
+# I64-VMUL-SOURCE: __riscv_vmul_vv_i64m1
+# I64-VMUL-SOURCE: out[index] = lhs[index] * rhs[index];
+# I64-VMUL-SOURCE: void tcrv_dispatch_i64_vmul_frontend_bundle_i64_vmul
 
 # I64-VMUL-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
 # I64-VMUL-CALLER: tcrv_dispatch_i64_vmul_frontend_bundle_i64_vmul(lhs, rhs, out, runtime_n, rvv_available);
@@ -411,6 +428,31 @@
 # I64-VMUL-CALLER: run_dispatch_case(7, 0)
 # I64-VMUL-CALLER: run_dispatch_case(16, 1)
 # I64-VMUL-CALLER: tcrv_rvv_scalar_i64_vmul_bundle_external_abi_ok
+
+# I64-VMUL-INDEX: component_group: "rvv-scalar-i64-vmul-dispatch-external-abi.v1"
+# I64-VMUL-INDEX: component_role: "source"
+# I64-VMUL-INDEX: external_abi_name: "rvv-scalar-i64-vmul-dispatch-runtime-callable-c-function.v1"
+# I64-VMUL-INDEX: route: "tcrv-export-rvv-scalar-i64-vmul-dispatch-c"
+# I64-VMUL-INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+# I64-VMUL-INDEX: runtime_abi_name: "rvv-scalar-i64-vmul-dispatch-runtime-callable-c-function.v1"
+# I64-VMUL-INDEX: runtime_abi_parameter[0]:
+# I64-VMUL-INDEX: c_name: "lhs"
+# I64-VMUL-INDEX: c_type: "const int64_t *"
+# I64-VMUL-INDEX: role: "lhs-input-buffer"
+# I64-VMUL-INDEX: runtime_abi_parameter[2]:
+# I64-VMUL-INDEX: c_name: "out"
+# I64-VMUL-INDEX: c_type: "int64_t *"
+# I64-VMUL-INDEX: role: "output-buffer"
+# I64-VMUL-INDEX: runtime_abi_parameter[3]:
+# I64-VMUL-INDEX: c_name: "n"
+# I64-VMUL-INDEX: role: "runtime-element-count"
+# I64-VMUL-INDEX: runtime_abi_parameter[4]:
+# I64-VMUL-INDEX: c_name: "rvv_available"
+# I64-VMUL-INDEX: role: "dispatch-availability-guard"
+# I64-VMUL-INDEX: component_role: "header"
+# I64-VMUL-INDEX: route: "tcrv-export-rvv-scalar-i64-vmul-dispatch-header"
+# I64-VMUL-INDEX: component_role: "object"
+# I64-VMUL-INDEX: route: "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
 
 # I64-VMUL-EVIDENCE: "arithmetic_family": "i64-vmul"
 # I64-VMUL-EVIDENCE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
