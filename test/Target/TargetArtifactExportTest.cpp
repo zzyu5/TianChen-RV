@@ -67,6 +67,42 @@ const I32BinaryRuntimeABIContract &getMulRuntimeABIContract() {
       tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor());
 }
 
+void appendRVVSelectedPlanMetadata(TargetArtifactCandidate &candidate,
+                                   const tianchenrv::target::rvv::
+                                       RVVVectorShapeConfig &shape) {
+  llvm::SmallVector<
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
+      metadata;
+  tianchenrv::target::rvv::appendRVVVectorShapeSelectedPlanMetadata(shape,
+                                                                   metadata);
+  tianchenrv::target::rvv::appendRVVRuntimeVLBoundarySelectedPlanMetadata(
+      metadata);
+  for (const auto &entry : metadata) {
+    candidate.selectedPlanMetadata.push_back(
+        {entry.name.str(), entry.value.str(), entry.role.str(),
+         entry.note.str()});
+  }
+}
+
+bool setSelectedPlanMetadataValue(TargetArtifactCandidate &candidate,
+                                  llvm::StringRef name,
+                                  llvm::StringRef value) {
+  for (SelectedPlanMetadataEntry &entry : candidate.selectedPlanMetadata) {
+    if (entry.name == name) {
+      entry.value = value.str();
+      return true;
+    }
+  }
+  return false;
+}
+
+const tianchenrv::target::rvv::RVVVectorShapeConfig &
+getDefaultRVVSelectedShapeForFamily(const RVVBinaryFamilyDescriptor &family) {
+  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
+    return tianchenrv::target::rvv::getI64M1VectorShapeConfig();
+  return tianchenrv::target::rvv::getI32M1VectorShapeConfig();
+}
+
 llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
   return llvm::Error::success();
 }
@@ -2090,6 +2126,8 @@ TargetArtifactCandidate makeRVVDispatchCandidate(
   candidate.runtimeGlueRole = abi.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
+  appendRVVSelectedPlanMetadata(
+      candidate, tianchenrv::target::rvv::getI32M1VectorShapeConfig());
   return candidate;
 }
 
@@ -2112,6 +2150,8 @@ TargetArtifactCandidate makeRVVSubDirectCandidate(
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
+  appendRVVSelectedPlanMetadata(
+      candidate, getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
 }
 
@@ -2134,6 +2174,8 @@ TargetArtifactCandidate makeRVVMulDirectCandidate(
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
+  appendRVVSelectedPlanMetadata(
+      candidate, getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
 }
 
@@ -2158,6 +2200,8 @@ TargetArtifactCandidate makeRVVI64DirectCandidate(
   llvm::ArrayRef<RuntimeABIParameter> callable =
       contract.getCallableParameters();
   candidate.runtimeABIParameters.append(callable.begin(), callable.end());
+  appendRVVSelectedPlanMetadata(
+      candidate, getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
 }
 
@@ -2579,6 +2623,132 @@ bool expectRVVI64SourceRejectsStaleI32AddMetadata(
        "target artifact candidate validation failed",
        "supported RVV i64 microkernel ABI metadata",
        "runtime_abi_name '" + family.runtimeABIName.str() + "'"});
+}
+
+bool expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for selected metadata "
+                    "test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  candidate.selectedPlanMetadata.clear();
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "missing selected RVV config metadata rejected by RVV i64 source route",
+      {"target artifact candidate validation failed",
+       "requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'"});
+}
+
+bool expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for stale selected "
+                    "metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!setSelectedPlanMetadataValue(candidate, "tcrv_rvv.selected_vector_sew",
+                                    "32")) {
+    llvm::errs() << "test candidate is missing selected_vector_sew metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale selected RVV SEW metadata rejected by RVV i64 source route",
+      {"target artifact candidate validation failed",
+       "selected_plan_metadata 'tcrv_rvv.selected_vector_sew' sew must be "
+       "'64'"});
+}
+
+bool expectRVVI64SourceRejectsMismatchedSelectedShapeMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for mismatched selected "
+                    "shape metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!setSelectedPlanMetadataValue(candidate,
+                                    "tcrv_rvv.selected_vector_shape",
+                                    "i32m1")) {
+    llvm::errs() << "test candidate is missing selected_vector_shape metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "mismatched selected RVV shape metadata rejected by RVV i64 source route",
+      {"target artifact candidate validation failed",
+       "selected_plan_metadata 'tcrv_rvv.selected_vector_shape' has "
+       "unsupported finite shape 'i32m1' for family 'i64-vmul'"});
+}
+
+bool expectRVVI64SourceRejectsStaleSelectedLMULMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for stale selected "
+                    "LMUL metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!setSelectedPlanMetadataValue(candidate, "tcrv_rvv.selected_vector_lmul",
+                                    "m2")) {
+    llvm::errs() << "test candidate is missing selected_vector_lmul metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale selected RVV LMUL metadata rejected by RVV i64 source route",
+      {"target artifact candidate validation failed",
+       "selected_plan_metadata 'tcrv_rvv.selected_vector_lmul' lmul must be "
+       "'m1'"});
+}
+
+bool expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for stale runtime AVL "
+                    "metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!setSelectedPlanMetadataValue(candidate, "tcrv_rvv.runtime_avl_role",
+                                    "descriptor-element-count")) {
+    llvm::errs() << "test candidate is missing runtime_avl_role metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale runtime AVL metadata rejected by RVV i64 source route",
+      {"target artifact candidate validation failed",
+       "selected_plan_metadata 'tcrv_rvv.runtime_avl_role' runtime AVL role "
+       "must be 'runtime-element-count'"});
 }
 
 bool expectScalarSubSourceRejectsStaleAddMetadata(
@@ -3760,6 +3930,26 @@ int main() {
           tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
     return 1;
   if (!expectRVVI64SourceRejectsStaleI32AddMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsMismatchedSelectedShapeMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleSelectedLMULMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
     return 1;

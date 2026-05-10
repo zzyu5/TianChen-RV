@@ -52,25 +52,6 @@ constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataRole(
 constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
     "base i32 M1 capacity fact from target/profile evidence; not selected "
     "vector shape, runtime input, VL/AVL, or performance evidence");
-constexpr llvm::StringLiteral kRuntimeVLBoundaryMetadataRole(
-    "rvv-runtime-vl-avl-boundary");
-constexpr llvm::StringLiteral kRuntimeVLBoundaryMetadataNote(
-    "runtime AVL enters through the target/export-owned runtime element-count "
-    "ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by "
-    "tcrv_rvv.with_vl; neither value is a target capability fact or "
-    "descriptor-local element_count");
-constexpr llvm::StringLiteral kRuntimeAVLSourceMetadataName(
-    "tcrv_rvv.runtime_avl_source");
-constexpr llvm::StringLiteral kRuntimeAVLRoleMetadataName(
-    "tcrv_rvv.runtime_avl_role");
-constexpr llvm::StringLiteral kRuntimeVLSourceMetadataName(
-    "tcrv_rvv.runtime_vl_source");
-constexpr llvm::StringLiteral kRuntimeVLScopeMetadataName(
-    "tcrv_rvv.runtime_vl_scope");
-constexpr llvm::StringLiteral kRuntimeAVLSourceMetadataValue(
-    "runtime-element-count-abi-parameter");
-constexpr llvm::StringLiteral kRuntimeVLSourceMetadataValue("tcrv_rvv.setvl");
-constexpr llvm::StringLiteral kRuntimeVLScopeMetadataValue("tcrv_rvv.with_vl");
 
 using target::rvv::RVVBinaryArithmeticKind;
 using target::rvv::RVVBinaryDTypeKind;
@@ -874,25 +855,13 @@ llvm::Error appendSelectedCapacityMetadata(
 
 void appendRuntimeVLBoundaryMetadata(
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
-  metadata.push_back({kRuntimeAVLSourceMetadataName.str(),
-                      kRuntimeAVLSourceMetadataValue.str(),
-                      kRuntimeVLBoundaryMetadataRole.str(),
-                      kRuntimeVLBoundaryMetadataNote.str()});
-  metadata.push_back({kRuntimeAVLRoleMetadataName.str(),
-                      support::stringifyRuntimeABIParameterRole(
-                          support::RuntimeABIParameterRole::
-                              RuntimeElementCount)
-                          .str(),
-                      kRuntimeVLBoundaryMetadataRole.str(),
-                      kRuntimeVLBoundaryMetadataNote.str()});
-  metadata.push_back({kRuntimeVLSourceMetadataName.str(),
-                      kRuntimeVLSourceMetadataValue.str(),
-                      kRuntimeVLBoundaryMetadataRole.str(),
-                      kRuntimeVLBoundaryMetadataNote.str()});
-  metadata.push_back({kRuntimeVLScopeMetadataName.str(),
-                      kRuntimeVLScopeMetadataValue.str(),
-                      kRuntimeVLBoundaryMetadataRole.str(),
-                      kRuntimeVLBoundaryMetadataNote.str()});
+  llvm::SmallVector<
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 4>
+      runtimeMetadata;
+  target::rvv::appendRVVRuntimeVLBoundarySelectedPlanMetadata(runtimeMetadata);
+  for (const auto &entry : runtimeMetadata)
+    metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
+                        entry.note.str()});
 }
 
 } // namespace

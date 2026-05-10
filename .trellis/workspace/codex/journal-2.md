@@ -582,11 +582,21 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 ### Git Commits
 
-(No commits - planning session)
+(Commit created after journal/archive update; see final report.)
 
 ### Testing
 
-- [OK] (Add test results)
+- `git diff --check`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `RVVMicrokernel|target-source-artifact-routes|target-artifact-bundle-guards|linalg-i64-vmul|rvv-scalar-i64-vmul|plan-linalg-i64-vmul`:
+  35/35 selected tests passed.
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-11-05-11-rvv-selected-config-vl-artifact-contract`:
+  passed.
 
 ### Status
 
@@ -1428,3 +1438,40 @@ change was needed.
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 20: RVV selected config AVL/VL artifact contract
+
+**Date**: 2026-05-11
+**Task**: RVV selected config AVL/VL artifact contract
+**Branch**: `main`
+
+### Summary
+
+Enforced RVV selected vector-shape and runtime AVL/VL metadata before plugin-owned artifact export, with focused fail-closed coverage for i64 vmul and existing RVV artifact fixtures.
+
+### Main Changes
+
+- Added RVV target helpers for runtime AVL/VL selected-plan metadata and reused them from RVV plugin emission planning.
+- Tightened RVV microkernel and RVV+scalar dispatch artifact candidate preflight so missing, stale, or mismatched selected RVV config and runtime AVL/VL metadata fails closed before artifact export.
+- Added C++ and lit coverage for valid export plus missing/stale SEW, vector-shape, family, and runtime AVL-role metadata cases on the i64 vmul route.
+- Repaired legacy hand-authored RVV artifact fixtures with explicit selected metadata so their original ambiguity, missing-microkernel, missing-ABI, and stale-ABI diagnostics remain reachable.
+- Validation: git diff --check; focused lit filters for RVV microkernel/artifact/i64 vmul paths; target-artifact-bundle-guards; check-tianchenrv; RVV plugin, scalar plugin, and target artifact export unit tests.
+- SSH RVV evidence was not rerun because this round changed artifact preflight contracts and metadata validation, not emitted runtime source/object semantics, and no runtime correctness or performance claim is made.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

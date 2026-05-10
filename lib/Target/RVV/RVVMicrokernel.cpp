@@ -1676,6 +1676,102 @@ llvm::Error validateSelectedVectorShapeMetadata(
   return llvm::Error::success();
 }
 
+llvm::Expected<const SelectedPlanMetadataEntry *>
+findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
+    const TargetArtifactCandidate &candidate, llvm::StringRef name) {
+  const SelectedPlanMetadataEntry *match = nullptr;
+  unsigned count = 0;
+  for (const SelectedPlanMetadataEntry &metadata :
+       candidate.selectedPlanMetadata) {
+    if (metadata.name == name) {
+      match = &metadata;
+      ++count;
+    }
+  }
+
+  if (count == 0)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " requires selected_plan_metadata '" +
+            name + "'");
+  if (count > 1)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant +
+            " has duplicate selected_plan_metadata '" + name + "'");
+  return match;
+}
+
+llvm::Error validateRVVMicrokernelSelectedPlanMetadataEntry(
+    const TargetArtifactCandidate &candidate,
+    const RVVVectorShapeSelectedPlanMetadataDescriptor &expected) {
+  llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
+      findUniqueRVVMicrokernelSelectedPlanMetadataEntry(candidate,
+                                                       expected.name);
+  if (!metadata)
+    return metadata.takeError();
+
+  if ((*metadata)->value != expected.value)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            expected.name + "' " + expected.diagnosticSpelling +
+            " must be '" + expected.value + "'");
+  if ((*metadata)->role != expected.role)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            expected.name + "' role must be '" + expected.role + "'");
+  if ((*metadata)->note != expected.note)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            expected.name + "' note must be '" + expected.note + "'");
+  return llvm::Error::success();
+}
+
+llvm::Expected<const RVVVectorShapeConfig *>
+resolveRVVMicrokernelCandidateSelectedShape(
+    const TargetArtifactCandidate &candidate,
+    const RVVBinaryFamilyDescriptor &family) {
+  llvm::Expected<const SelectedPlanMetadataEntry *> shapeMetadata =
+      findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
+          candidate, getRVVSelectedVectorShapeAttrName());
+  if (!shapeMetadata)
+    return shapeMetadata.takeError();
+
+  const RVVVectorShapeConfig *metadataConfig =
+      lookupRVVBinaryFamilyShapeConfigByID(family, (*shapeMetadata)->value);
+  if (!metadataConfig)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant +
+            " selected_plan_metadata 'tcrv_rvv.selected_vector_shape' has "
+            "unsupported finite shape '" +
+            (*shapeMetadata)->value + "' for family '" + family.familyID + "'");
+  return metadataConfig;
+}
+
+llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
+    const TargetArtifactCandidate &candidate,
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 12> expected;
+  appendRVVVectorShapeSelectedPlanMetadata(*descriptor.shape, expected);
+  appendRVVRuntimeVLBoundarySelectedPlanMetadata(expected);
+
+  for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
+    if (llvm::Error error =
+            validateRVVMicrokernelSelectedPlanMetadataEntry(candidate, entry))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Expected<const RVVI32VectorShapeConfig *>
 getSelectedRVVConfig(KernelOp kernel, VariantOp variant,
                      const TargetCapabilitySet &capabilities) {
@@ -3820,11 +3916,13 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
         "' is not a manifest-backed RVV microkernel source route");
 
   const RVVBinaryFamilyDescriptor &family = *route->family;
-  const RVVVectorShapeConfig &abiMirrorShape =
-      family.dtype == RVVBinaryDTypeKind::I64 ? getI64M1VectorShapeConfig()
-                                              : getI32M1VectorShapeConfig();
+  llvm::Expected<const RVVVectorShapeConfig *> selectedShape =
+      resolveRVVMicrokernelCandidateSelectedShape(candidate, family);
+  if (!selectedShape)
+    return selectedShape.takeError();
+
   RVVBinaryIntrinsicDescriptor descriptor =
-      getRVVBinaryIntrinsicDescriptor(family, abiMirrorShape);
+      getRVVBinaryIntrinsicDescriptor(family, **selectedShape);
   if (!candidateMatchesRVVBinaryDescriptor(candidate, descriptor)) {
     llvm::StringRef expectedDescription =
         family.dtype == RVVBinaryDTypeKind::I64
@@ -3852,6 +3950,9 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
   if (llvm::Error error =
           validateTargetArtifactCandidateAgainstExporter(candidate,
                                                         sourceExporter))
+    return error;
+  if (llvm::Error error =
+          validateRVVMicrokernelSelectedPlanMetadata(candidate, descriptor))
     return error;
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
 }

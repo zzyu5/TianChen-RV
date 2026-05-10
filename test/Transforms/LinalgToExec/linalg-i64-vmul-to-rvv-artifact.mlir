@@ -1,6 +1,9 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not=tcrv_rvv.i64_vsub_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vsub_vv_i64m1 --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed 's/name = "tcrv_rvv.selected_vector_shape"/name = "tcrv_rvv.missing_selected_vector_shape"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-SELECTED --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "64"/s//value = "32"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SEW --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "runtime-element-count"/s//value = "descriptor-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="#include <riscv_vector.h>"
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -131,3 +134,9 @@ module {
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vmul_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+
+// MISSING-SELECTED: requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'
+// STALE-SEW: selected_plan_metadata 'tcrv_rvv.selected_vector_sew'
+// STALE-SEW-SAME: sew must be '64'
+// STALE-AVL: selected_plan_metadata 'tcrv_rvv.runtime_avl_role'
+// STALE-AVL-SAME: runtime AVL role must be 'runtime-element-count'

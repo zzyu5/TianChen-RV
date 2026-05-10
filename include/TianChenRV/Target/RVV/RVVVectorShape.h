@@ -194,6 +194,49 @@ inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
   return getSelectedRVVVectorShapeMetadataNote();
 }
 
+inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataRole() {
+  return "rvv-runtime-vl-avl-boundary";
+}
+
+inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataNote() {
+  return "runtime AVL enters through the target/export-owned runtime element-count "
+         "ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by "
+         "tcrv_rvv.with_vl; neither value is a target capability fact or "
+         "descriptor-local element_count";
+}
+
+inline llvm::StringRef getRVVRuntimeAVLSourceMetadataName() {
+  return "tcrv_rvv.runtime_avl_source";
+}
+
+inline llvm::StringRef getRVVRuntimeAVLRoleMetadataName() {
+  return "tcrv_rvv.runtime_avl_role";
+}
+
+inline llvm::StringRef getRVVRuntimeVLSourceMetadataName() {
+  return "tcrv_rvv.runtime_vl_source";
+}
+
+inline llvm::StringRef getRVVRuntimeVLScopeMetadataName() {
+  return "tcrv_rvv.runtime_vl_scope";
+}
+
+inline llvm::StringRef getRVVRuntimeAVLSourceMetadataValue() {
+  return "runtime-element-count-abi-parameter";
+}
+
+inline llvm::StringRef getRVVRuntimeAVLRoleMetadataValue() {
+  return "runtime-element-count";
+}
+
+inline llvm::StringRef getRVVRuntimeVLSourceMetadataValue() {
+  return "tcrv_rvv.setvl";
+}
+
+inline llvm::StringRef getRVVRuntimeVLScopeMetadataValue() {
+  return "tcrv_rvv.with_vl";
+}
+
 inline llvm::StringRef
 getRVVVectorShapeSEWMetadataValue(const RVVVectorShapeConfig &config) {
   if (config.sewBits == 32)
@@ -230,6 +273,24 @@ inline void appendRVVVectorShapeSelectedPlanMetadata(
                  role, note, "vector suffix"});
   out.push_back({getRVVSelectedSetVLSuffixAttrName(), config.setvlSuffix, role,
                  note, "setvl suffix"});
+}
+
+inline void appendRVVRuntimeVLBoundarySelectedPlanMetadata(
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef role = getRVVRuntimeVLBoundaryMetadataRole();
+  llvm::StringRef note = getRVVRuntimeVLBoundaryMetadataNote();
+  out.push_back({getRVVRuntimeAVLSourceMetadataName(),
+                 getRVVRuntimeAVLSourceMetadataValue(), role, note,
+                 "runtime AVL source"});
+  out.push_back({getRVVRuntimeAVLRoleMetadataName(),
+                 getRVVRuntimeAVLRoleMetadataValue(), role, note,
+                 "runtime AVL role"});
+  out.push_back({getRVVRuntimeVLSourceMetadataName(),
+                 getRVVRuntimeVLSourceMetadataValue(), role, note,
+                 "runtime VL source"});
+  out.push_back({getRVVRuntimeVLScopeMetadataName(),
+                 getRVVRuntimeVLScopeMetadataValue(), role, note,
+                 "runtime VL scope"});
 }
 
 inline void appendRVVI32VectorShapeSelectedPlanMetadata(

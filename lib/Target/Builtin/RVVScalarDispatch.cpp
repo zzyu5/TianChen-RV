@@ -1668,7 +1668,7 @@ findUniqueSelectedPlanMetadataEntry(const TargetArtifactCandidate &candidate,
 llvm::Error validateDispatchSelectedPlanMetadataEntry(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::
-        RVVI32VectorShapeSelectedPlanMetadataDescriptor &expected) {
+        RVVVectorShapeSelectedPlanMetadataDescriptor &expected) {
   llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
       findUniqueSelectedPlanMetadataEntry(candidate, expected.name);
   if (!metadata)
@@ -1699,12 +1699,13 @@ llvm::Error validateDispatchSelectedPlanMetadataEntry(
 llvm::Error validateDispatchSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
     const DispatchRVVVectorShapeConfig &config) {
-  llvm::SmallVector<tianchenrv::target::rvv::
-                        RVVI32VectorShapeSelectedPlanMetadataDescriptor,
-                    8>
+  llvm::SmallVector<
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
       expected;
-  tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(
-      config, expected);
+  tianchenrv::target::rvv::appendRVVVectorShapeSelectedPlanMetadata(config,
+                                                                   expected);
+  tianchenrv::target::rvv::appendRVVRuntimeVLBoundarySelectedPlanMetadata(
+      expected);
   for (const auto &entry : expected)
     if (llvm::Error error =
             validateDispatchSelectedPlanMetadataEntry(candidate, entry))

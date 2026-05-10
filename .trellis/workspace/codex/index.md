@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-05-10
+- **Total Sessions**: 20
+- **Last Active**: 2026-05-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~609 | Active |
+| `journal-2.md` | ~1467 | Active |
 | `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-05-11 | RVV selected config AVL/VL artifact contract | - | `main` |
 | 19 | 2026-05-10 | Plugin-local RVV binary selected emission planning | this commit | `main` |
 | 18 | 2026-05-10 | Fixture-free RVV frontend dispatch route evidence | this commit | `main` |
 | 17 | 2026-05-10 | Bounded linalg RVV binary frontend pass naming | - | `main` |
