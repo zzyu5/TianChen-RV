@@ -334,34 +334,34 @@ module @rvv_scalar_dispatch_input {
 // SELFCHECK-ROUTE-MISMATCH: self-check export route expected i32-vsub dispatch artifacts, got i32-vadd
 // SELFCHECK-OBJECT-ROUTE-MISMATCH: self-check object export route expected i32-vsub dispatch artifacts, got i32-vadd
 
-// OBJECT-NO-PLAN: RVV+scalar i32 binary dispatch object export failed
+// OBJECT-NO-PLAN: RVV+scalar binary dispatch object export failed
 // OBJECT-NO-PLAN: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before target artifact export
 
 // OBJECT-BAD-ABI: unsupported runtime ABI parameter role 'malformed-runtime-element-count'
 
-// OBJECT-MISSING-ARCH: RVV+scalar i32 binary dispatch object export failed
+// OBJECT-MISSING-ARCH: RVV+scalar binary dispatch object export failed
 // OBJECT-MISSING-ARCH-SAME: architecture must be bounded non-empty compile metadata
 
-// MISSING-MEM-WINDOW: RVV+scalar i32 binary dispatch C export failed
+// MISSING-MEM-WINDOW: RVV+scalar binary dispatch C export failed
 // MISSING-MEM-WINDOW-SAME: runtime ABI mem_window validation failed
 // MISSING-MEM-WINDOW-SAME: requires exactly one tcrv.exec.mem_window with ABI role 'lhs-input-buffer'
 
-// BAD-MEM-WINDOW: RVV+scalar i32 binary dispatch C export failed
+// BAD-MEM-WINDOW: RVV+scalar binary dispatch C export failed
 // BAD-MEM-WINDOW-SAME: runtime ABI mem_window validation failed
 // BAD-MEM-WINDOW-SAME: tcrv.exec.mem_window @abi_lhs_input_buffer requires attribute 'access' = "read"
 
 // DUPLICATE-MEM-WINDOW: duplicates mem_window ABI role 'lhs-input-buffer' in enclosing tcrv.exec.kernel
 
-// MISSING-RUNTIME-N: RVV+scalar i32 binary dispatch C export failed
+// MISSING-RUNTIME-N: RVV+scalar binary dispatch C export failed
 // MISSING-RUNTIME-N-SAME: runtime ABI runtime_param validation failed
 // MISSING-RUNTIME-N-SAME: requires exactly one tcrv.exec.runtime_param with ABI role 'runtime-element-count'
 
 // MISSING-RUNTIME-GUARD: runtime_guard references unknown runtime_param @abi_dispatch_availability_guard
 
-// MISSING-CASE-RUNTIME-GUARD: RVV+scalar i32 binary dispatch C export failed
+// MISSING-CASE-RUNTIME-GUARD: RVV+scalar binary dispatch C export failed
 // MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
 
-// HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar i32 binary dispatch header export failed
+// HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar binary dispatch header export failed
 // HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
 
 // GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD: execution plan coherence check failed
@@ -372,10 +372,10 @@ module @rvv_scalar_dispatch_input {
 
 // DUPLICATE-RUNTIME-GUARD: duplicates runtime_param ABI role 'dispatch-availability-guard' in enclosing tcrv.exec.kernel
 
-// BAD-RUNTIME-GUARD-TYPE: RVV+scalar i32 binary dispatch C export failed
+// BAD-RUNTIME-GUARD-TYPE: RVV+scalar binary dispatch C export failed
 // BAD-RUNTIME-GUARD-TYPE-SAME: runtime ABI runtime_param validation failed
 // BAD-RUNTIME-GUARD-TYPE-SAME: tcrv.exec.runtime_param @abi_dispatch_availability_guard requires attribute 'c_type' = "int"
 
-// BAD-RUNTIME-GUARD-OWNERSHIP: RVV+scalar i32 binary dispatch C export failed
+// BAD-RUNTIME-GUARD-OWNERSHIP: RVV+scalar binary dispatch C export failed
 // BAD-RUNTIME-GUARD-OWNERSHIP-SAME: runtime ABI runtime_param validation failed
 // BAD-RUNTIME-GUARD-OWNERSHIP-SAME: tcrv.exec.runtime_param @abi_dispatch_availability_guard requires attribute 'ownership' = "target-export-abi-owned"

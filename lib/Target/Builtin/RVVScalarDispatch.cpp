@@ -6,10 +6,10 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
-#include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
+#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -44,6 +44,7 @@ using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::FallbackOp;
 using tianchenrv::tcrv::exec::KernelOp;
+using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 
@@ -106,6 +107,12 @@ struct DispatchRuntimeABIParameterBindings {
   const support::RuntimeABIParameter *dispatchAvailabilityGuard = nullptr;
 };
 
+struct CallableABIPlan {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  llvm::SmallVector<MemWindowOp, 3> bufferWindows;
+  RuntimeParamOp runtimeElementCountParam;
+};
+
 struct DispatchIRLink {
   DispatchOp dispatch;
   DispatchCaseOp selectedRVVCase;
@@ -116,14 +123,12 @@ struct DispatchIRLink {
   std::string fallbackRole;
 };
 
-using DispatchI32FamilyKind =
-    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using DispatchI32FamilySpec =
-    tianchenrv::target::i32_binary::DispatchI32FamilyDescriptor;
+    tianchenrv::target::rvv_scalar::DispatchBinaryFamilyDescriptor;
 using DispatchRVVVectorShapeConfig =
-    tianchenrv::target::rvv::RVVI32VectorShapeConfig;
+    tianchenrv::target::rvv::RVVVectorShapeConfig;
 using RVVI32BinaryIntrinsicDescriptor =
-    tianchenrv::target::rvv::RVVI32BinaryIntrinsicDescriptor;
+    tianchenrv::target::rvv::RVVBinaryIntrinsicDescriptor;
 
 struct DispatchPair {
   const DispatchI32FamilySpec *family = nullptr;
@@ -154,7 +159,7 @@ struct TemporaryFile {
 llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32 binary dispatch C export failed";
+  stream << "TianChen-RV RVV+scalar binary dispatch C export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -167,7 +172,7 @@ llvm::Error makeDispatchError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32 binary dispatch C export "
+      llvm::Twine("TianChen-RV RVV+scalar binary dispatch C export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -176,7 +181,7 @@ llvm::Error makeModuleDispatchError(llvm::Twine message) {
 llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV RVV+scalar i32 binary dispatch object export "
+  stream << "TianChen-RV RVV+scalar binary dispatch object export "
             "failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
@@ -190,7 +195,7 @@ llvm::Error makeDispatchObjectError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32 binary dispatch object export "
+      llvm::Twine("TianChen-RV RVV+scalar binary dispatch object export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
@@ -198,22 +203,30 @@ llvm::Error makeModuleDispatchObjectError(llvm::Twine message) {
 
 llvm::Error makeModuleDispatchHeaderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV+scalar i32 binary dispatch header export "
+      llvm::Twine("TianChen-RV RVV+scalar binary dispatch header export "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
 const DispatchI32FamilySpec &getI32VAddDispatchFamilySpec() {
-  return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor().dispatch;
+  return tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
+      .dispatch;
 }
 
 const DispatchI32FamilySpec &getI32VSubDispatchFamilySpec() {
-  return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().dispatch;
+  return tianchenrv::target::rvv_scalar::getI32VSubFamilyDescriptor()
+      .dispatch;
 }
 
 const DispatchI32FamilySpec &getI32VMulDispatchFamilySpec() {
-  return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().dispatch;
+  return tianchenrv::target::rvv_scalar::getI32VMulFamilyDescriptor()
+      .dispatch;
+}
+
+const DispatchI32FamilySpec &getI64VAddDispatchFamilySpec() {
+  return tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor()
+      .dispatch;
 }
 
 using DispatchRouteKind = RVVScalarDispatchRouteKind;
@@ -320,7 +333,7 @@ bool isScalarCallableCandidateForFamily(
 const DispatchI32FamilySpec *
 getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
   for (const auto *descriptor :
-       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
     const DispatchI32FamilySpec &family = descriptor->dispatch;
     if (isRVVCallableCandidateForFamily(candidate, family))
       return &family;
@@ -331,7 +344,7 @@ getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
 const DispatchI32FamilySpec *
 getScalarCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
   for (const auto *descriptor :
-       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
     const DispatchI32FamilySpec &family = descriptor->dispatch;
     if (isScalarCallableCandidateForFamily(candidate, family))
       return &family;
@@ -501,6 +514,179 @@ findDispatchABIParameterByRole(
     return makeDispatchError(kernel, message);
   }
   return *parameter;
+}
+
+llvm::StringRef getDispatchMemWindowStringAttr(MemWindowOp window,
+                                               llvm::StringRef attrName) {
+  auto attr = window->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return {};
+  return attr.getValue();
+}
+
+llvm::Error validateDispatchCallableABIParameterMirror(
+    KernelOp kernel,
+    llvm::ArrayRef<support::RuntimeABIParameter> metadataParameters,
+    llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
+    llvm::StringRef metadataSource, const DispatchI32FamilySpec &family) {
+  if (metadataParameters.empty())
+    return makeDispatchError(
+        kernel, llvm::Twine(metadataSource) +
+                    " requires runtime_abi_parameters metadata mirroring the "
+                    "IR-backed callable ABI plan");
+
+  std::size_t expectedParameterCount =
+      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
+          *family.rvvFamily)
+          .size();
+  if (irBackedParameters.size() != expectedParameterCount)
+    return makeDispatchError(
+        kernel, llvm::Twine("IR-backed callable ABI plan for ") +
+                    family.diagnosticName + " must contain exactly " +
+                    llvm::Twine(expectedParameterCount) + " parameters");
+
+  for (const support::RuntimeABIParameter &expected : irBackedParameters) {
+    const support::RuntimeABIParameter *actual = nullptr;
+    unsigned count = 0;
+    for (const support::RuntimeABIParameter &candidate : metadataParameters) {
+      if (candidate.role != expected.role)
+        continue;
+      actual = &candidate;
+      ++count;
+    }
+
+    if (count == 0)
+      return makeDispatchError(
+          kernel, llvm::Twine(metadataSource) +
+                      " requires runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(expected.role) +
+                      "' to mirror the IR-backed callable ABI plan");
+    if (count > 1)
+      return makeDispatchError(
+          kernel, llvm::Twine(metadataSource) +
+                      " contains duplicate runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(expected.role) +
+                      "'");
+
+    if (actual->cName != expected.cName || actual->cType != expected.cType ||
+        actual->role != expected.role ||
+        actual->ownership != expected.ownership) {
+      return makeDispatchError(
+          kernel, llvm::Twine(metadataSource) +
+                      " runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(
+                          expected.role) +
+                      "' must mirror IR-backed callable ABI parameter "
+                      "c_name='" +
+                      expected.cName + "', c_type='" + expected.cType +
+                      "', ownership='" +
+                      support::stringifyRuntimeABIParameterOwnership(
+                          expected.ownership) +
+                      "'");
+    }
+  }
+
+  for (const support::RuntimeABIParameter &actual : metadataParameters) {
+    bool expectedRole = llvm::any_of(
+        irBackedParameters, [&](const support::RuntimeABIParameter &param) {
+          return param.role == actual.role;
+        });
+    if (!expectedRole)
+      return makeDispatchError(
+          kernel, llvm::Twine(metadataSource) +
+                      " contains unsupported runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(actual.role) +
+                      "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<support::RuntimeABIParameter>
+makeDispatchCallableParameterFromMemWindow(
+    KernelOp kernel, MemWindowOp window,
+    llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters) {
+  llvm::StringRef role =
+      getDispatchMemWindowStringAttr(window, support::kMemWindowABIRoleAttrName);
+  std::optional<support::RuntimeABIParameterRole> parsedRole =
+      support::symbolizeRuntimeABIParameterRole(role);
+  if (!parsedRole)
+    return makeDispatchError(
+        kernel, llvm::Twine("unsupported tcrv.exec.mem_window ABI role '") +
+                    role + "'");
+
+  llvm::Expected<const support::RuntimeABIParameter *> expected =
+      support::findUniqueRuntimeABIParameterByRole(
+          expectedParameters, *parsedRole,
+          "RVV+scalar dispatch callable ABI descriptor");
+  if (!expected) {
+    std::string message = llvm::toString(expected.takeError());
+    return makeDispatchError(kernel, message);
+  }
+
+  llvm::StringRef cType =
+      getDispatchMemWindowStringAttr(window, support::kMemWindowCTypeAttrName);
+  llvm::StringRef ownership = getDispatchMemWindowStringAttr(
+      window, support::kMemWindowOwnershipAttrName);
+  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+      support::symbolizeRuntimeABIParameterOwnership(ownership);
+  if (!parsedOwnership)
+    return makeDispatchError(
+        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+                    " has unsupported ownership '" + ownership + "'");
+
+  return support::RuntimeABIParameter((*expected)->cName, cType, *parsedRole,
+                                      *parsedOwnership);
+}
+
+llvm::Expected<CallableABIPlan>
+buildDispatchCallableABIPlan(KernelOp kernel,
+                             const DispatchI32FamilySpec &family) {
+  if (!kernel || kernel.getBody().empty())
+    return makeDispatchError(
+        kernel, "requires a materialized tcrv.exec.kernel body");
+
+  CallableABIPlan plan;
+  auto windowSpecs =
+      tianchenrv::target::rvv::getRVVBinaryBufferMemWindowSpecs(
+          *family.rvvFamily);
+  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
+          kernel, windowSpecs, plan.bufferWindows))
+    return std::move(error);
+
+  auto expectedParameters =
+      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
+          *family.rvvFamily);
+  for (MemWindowOp window : plan.bufferWindows) {
+    llvm::Expected<support::RuntimeABIParameter> parameter =
+        makeDispatchCallableParameterFromMemWindow(kernel, window,
+                                                   expectedParameters);
+    if (!parameter)
+      return parameter.takeError();
+    plan.parameters.push_back(std::move(*parameter));
+  }
+
+  auto countSpecs =
+      tianchenrv::target::rvv::getRVVBinaryRuntimeElementCountParamSpecs(
+          *family.rvvFamily, /*cName=*/"");
+  llvm::SmallVector<RuntimeParamOp, 1> runtimeParams;
+  if (llvm::Error error =
+          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams))
+    return std::move(error);
+  plan.runtimeElementCountParam = runtimeParams.front();
+
+  llvm::Expected<support::RuntimeABIParameter> runtimeCount =
+      makeRuntimeABIParameterFromRuntimeParam(kernel,
+                                              plan.runtimeElementCountParam);
+  if (!runtimeCount)
+    return runtimeCount.takeError();
+  if (runtimeCount->role !=
+      support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeDispatchError(
+        kernel, "runtime element-count parameter must carry ABI role "
+                "'runtime-element-count'");
+  plan.parameters.push_back(std::move(*runtimeCount));
+  return plan;
 }
 
 llvm::Expected<DispatchRuntimeABIParameterBindings>
@@ -729,8 +915,7 @@ resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
                     "'dispatch-availability-guard'");
 
   support::RuntimeABIParamSpec guardSpec =
-      support::getI32BinaryRuntimeABIContract(pair.family->kind)
-          .getDispatchAvailabilityGuardParamSpec(/*cName=*/"");
+      support::getDispatchAvailabilityGuardParamSpec(/*cName=*/"");
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> guardSpecs;
   guardSpecs.push_back(guardSpec);
   llvm::SmallVector<RuntimeParamOp, 1> guardParamsByRole;
@@ -752,26 +937,24 @@ resolveRuntimeGuardParamFromSelectedCase(const DispatchPair &pair) {
 }
 
 llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
-  const support::I32BinaryRuntimeABIContract &contract =
-      support::getI32BinaryRuntimeABIContract(pair.family->kind);
-  llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-      support::buildI32BinaryCallableABIPlan(pair.rvv.kernel, contract);
+  llvm::Expected<CallableABIPlan> callablePlan =
+      buildDispatchCallableABIPlan(pair.rvv.kernel, *pair.family);
   if (!callablePlan) {
     std::string message = llvm::toString(callablePlan.takeError());
     return makeDispatchError(pair.rvv.kernel, message);
   }
 
-  if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
+  if (llvm::Error error = validateDispatchCallableABIParameterMirror(
           pair.rvv.kernel, pair.rvv.runtimeABIParameters,
           callablePlan->parameters, "selected RVV callable artifact route",
-          contract)) {
+          *pair.family)) {
     std::string message = llvm::toString(std::move(error));
     return makeDispatchError(pair.rvv.kernel, message);
   }
-  if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
+  if (llvm::Error error = validateDispatchCallableABIParameterMirror(
           pair.scalar.kernel, pair.scalar.runtimeABIParameters,
           callablePlan->parameters,
-          "selected scalar callable artifact route", contract)) {
+          "selected scalar callable artifact route", *pair.family)) {
     std::string message = llvm::toString(std::move(error));
     return makeDispatchError(pair.scalar.kernel, message);
   }
@@ -801,8 +984,10 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
 
   DispatchABIPlan plan;
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
-  runtimeParamSpecs.push_back(
-      contract.getRuntimeElementCountParamSpec((*runtimeCount)->cName));
+  auto countSpecs =
+      tianchenrv::target::rvv::getRVVBinaryRuntimeElementCountParamSpecs(
+          *pair.family->rvvFamily, (*runtimeCount)->cName);
+  runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
   if (llvm::Error error = support::collectRuntimeABIParams(
           pair.rvv.kernel, runtimeParamSpecs, plan.runtimeParams)) {
     std::string message = llvm::toString(std::move(error));
@@ -835,7 +1020,8 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
   if (!guard)
     return guard.takeError();
   support::RuntimeABIParameter expectedGuard =
-      contract.getDispatchAvailabilityGuardParameter(guard->cName);
+      tianchenrv::target::rvv_scalar::
+          makeRVVScalarDispatchAvailabilityGuardParameter(guard->cName);
   if (guard->cType != expectedGuard.cType)
     return makeDispatchError(
         pair.rvv.kernel,
@@ -850,8 +1036,8 @@ llvm::Expected<DispatchABIPlan> buildDispatchABIPlan(const DispatchPair &pair) {
                 expectedGuard.ownership) +
             "'");
 
-  support::appendI32BinaryDispatchRuntimeABIParameters(
-      plan.parameters, callablePlan->parameters, *guard);
+  plan.parameters = std::move(callablePlan->parameters);
+  plan.parameters.push_back(*guard);
   plan.bufferWindows = std::move(callablePlan->bufferWindows);
   return plan;
 }
@@ -904,7 +1090,7 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
         candidate.kernel,
         llvm::Twine("unsupported supported artifact candidate route '") +
             candidate.routeID +
-            "' for RVV+scalar i32 binary dispatch export");
+            "' for RVV+scalar binary dispatch export");
   }
 
   if (!rvvCandidate)
@@ -1002,16 +1188,22 @@ llvm::Expected<bool> matchRVVScalarI32VMulDispatchCandidates(
       candidates, getI32VMulDispatchFamilySpec());
 }
 
+llvm::Expected<bool> matchRVVScalarI64VAddDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVScalarDispatchCandidatesForFamily(
+      candidates, getI64VAddDispatchFamilySpec());
+}
+
 TargetArtifactCompositeMatchFn
 getDispatchCompositeMatchFn(const DispatchI32FamilySpec &family) {
-  switch (family.kind) {
-  case DispatchI32FamilyKind::Add:
+  if (&family == &getI32VAddDispatchFamilySpec())
     return matchRVVScalarI32VAddDispatchCandidates;
-  case DispatchI32FamilyKind::Sub:
+  if (&family == &getI32VSubDispatchFamilySpec())
     return matchRVVScalarI32VSubDispatchCandidates;
-  case DispatchI32FamilyKind::Mul:
+  if (&family == &getI32VMulDispatchFamilySpec())
     return matchRVVScalarI32VMulDispatchCandidates;
-  }
+  if (&family == &getI64VAddDispatchFamilySpec())
+    return matchRVVScalarI64VAddDispatchCandidates;
   return nullptr;
 }
 
@@ -1194,7 +1386,7 @@ llvm::Error validateDispatchConfigCapabilityProperties(
     const DispatchRVVVectorShapeConfig &config) {
   if (llvm::Error error = requireDispatchConfigCapabilityProperty(
           kernel, capabilities, config.sewCapabilityID, kSEWBitsPropertyName,
-          tianchenrv::target::rvv::getRVVI32VectorShapeSEWMetadataValue(config),
+          llvm::Twine(config.sewBits).str(),
           config))
     return error;
   if (llvm::Error error = requireDispatchConfigCapabilityProperty(
@@ -1304,7 +1496,8 @@ resolveDispatchPairSelectedVectorShape(const DispatchPair &pair) {
 
   llvm::SmallVector<const DispatchRVVVectorShapeConfig *, 2> requiredConfigs;
   for (const DispatchRVVVectorShapeConfig *config :
-       tianchenrv::target::rvv::getFiniteI32VectorShapeConfigs()) {
+       tianchenrv::target::rvv::getRVVBinaryFamilyShapeConfigs(
+           *pair.family->rvvFamily)) {
     llvm::Expected<bool> required =
         variantRequiresVectorShapeConfig(kernel, rvvVariant, *capabilities,
                                          *config);
@@ -1318,14 +1511,16 @@ resolveDispatchPairSelectedVectorShape(const DispatchPair &pair) {
     return makeDispatchError(
         kernel, llvm::Twine("selected RVV dispatch case variant @") +
                     pair.rvv.selectedVariant +
-                    " must require either the finite i32m1 config capability "
-                    "ids or the finite i32m2 config capability ids");
+                    " must require exactly one finite RVV vector-shape "
+                    "config capability set for family '" +
+                    pair.family->diagnosticName + "'");
   if (requiredConfigs.size() > 1)
     return makeDispatchError(
         kernel, llvm::Twine("selected RVV dispatch case variant @") +
                     pair.rvv.selectedVariant +
-                    " must require exactly one finite RVV i32 vector-shape "
-                    "config, not both i32m1 and i32m2");
+                    " must require exactly one finite RVV vector-shape "
+                    "config for family '" +
+                    pair.family->diagnosticName + "'");
 
   const DispatchRVVVectorShapeConfig *selectedConfig = requiredConfigs.front();
   if (llvm::Error error = validateDispatchConfigCapabilityProperties(
@@ -1338,7 +1533,8 @@ resolveDispatchPairSelectedVectorShape(const DispatchPair &pair) {
   if (!shapeMetadata)
     return shapeMetadata.takeError();
   const DispatchRVVVectorShapeConfig *metadataConfig =
-      tianchenrv::target::rvv::lookupFiniteI32VectorShapeConfigByShapeID(
+      tianchenrv::target::rvv::lookupRVVBinaryFamilyShapeConfigByID(
+          *pair.family->rvvFamily,
           (*shapeMetadata)->value);
   if (!metadataConfig)
     return makeDispatchError(
@@ -1386,8 +1582,8 @@ llvm::Error validateEmbeddedRVVSourceSelectedShape(
 
   const DispatchRVVVectorShapeConfig &shape = *pair.selectedShape;
   RVVI32BinaryIntrinsicDescriptor descriptor =
-      tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor(
-          *pair.family, shape);
+      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+          *pair.family->rvvFamily, shape);
 
   std::string shapeComment =
       descriptor.formatSelectedVectorShapeConfigCommentBody();
@@ -1791,7 +1987,8 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
                                        &descriptor,
                                    llvm::StringRef dispatcherFunctionName,
                                    llvm::StringRef runtimeElementCountName,
-                                   llvm::StringRef guardParameterName) {
+                                   llvm::StringRef guardParameterName,
+                                   llvm::StringRef successMarker) {
   os << "\n/* Explicit bounded self-check harness for RVV+scalar dispatch "
         "runtime invocation evidence. */\n";
   os << "/* Harness scope: calls the generated dispatcher with explicit "
@@ -1806,13 +2003,14 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
      << "_self_check_one(size_t runtime_n, int " << guardParameterName
      << ") {\n";
   os << "  enum { kCapacity = 32 };\n";
-  os << "  int32_t lhs[kCapacity];\n";
-  os << "  int32_t rhs[kCapacity];\n";
-  os << "  int32_t out[kCapacity];\n";
+  os << "  " << descriptor.getScalarCType() << " lhs[kCapacity];\n";
+  os << "  " << descriptor.getScalarCType() << " rhs[kCapacity];\n";
+  os << "  " << descriptor.getScalarCType() << " out[kCapacity];\n";
   os << "  for (size_t index = 0; index < (size_t)kCapacity; ++index) {\n";
-  os << "    lhs[index] = (int32_t)index;\n";
-  os << "    rhs[index] = (int32_t)(31 - (int)index);\n";
-  os << "    out[index] = -12345;\n";
+  os << "    lhs[index] = (" << descriptor.getScalarCType() << ")index;\n";
+  os << "    rhs[index] = (" << descriptor.getScalarCType()
+     << ")(31 - (int)index);\n";
+  os << "    out[index] = (" << descriptor.getScalarCType() << ")-12345;\n";
   os << "  }\n";
   os << "  " << dispatcherFunctionName
      << "(lhs, rhs, out, runtime_n, " << guardParameterName << ");\n";
@@ -1824,7 +2022,8 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n";
   os << "  for (size_t index = runtime_n; index < (size_t)kCapacity; "
         "++index) {\n";
-  os << "    if (out[index] != -12345)\n";
+  os << "    if (out[index] != (" << descriptor.getScalarCType()
+     << ")-12345)\n";
   os << "      return 2;\n";
   os << "  }\n";
   os << "  return 0;\n";
@@ -1838,7 +2037,7 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "    return 3;\n";
   os << "  if (" << dispatcherFunctionName << "_self_check_one(16, 1))\n";
   os << "    return 4;\n";
-  os << "  puts(\"" << descriptor.getDispatchSuccessMarker()
+  os << "  puts(\"" << successMarker
      << " runtime_counts=7,16 branches=scalar_and_rvv\");\n";
   os << "  return 0;\n";
   os << "}\n";
@@ -1917,11 +2116,12 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
                           scalarFunctionName, dispatchParameters, *bindings);
   if (includeSelfCheck) {
     RVVI32BinaryIntrinsicDescriptor descriptor =
-        tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor(
-            *pair.family, *pair.selectedShape);
+        tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+            *pair.family->rvvFamily, *pair.selectedShape);
     printDispatchSelfCheckHarness(os, descriptor, dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
-                                  bindings->dispatchAvailabilityGuard->cName);
+                                  bindings->dispatchAvailabilityGuard->cName,
+                                  pair.family->selfCheckSuccessMarker);
   }
   return llvm::Error::success();
 }
@@ -2246,181 +2446,64 @@ llvm::Error exportDispatchSelfCheckObjectForFamily(
 
 llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
 getRVVScalarDispatchRouteManifest() {
-  static const RVVScalarDispatchRouteManifestEntry routes[] = {
-      {&getI32VAddDispatchFamilySpec(),
-       DispatchRouteKind::Source,
-       getI32VAddDispatchFamilySpec().dispatchSourceRouteID,
-       "export one host RVV+scalar i32 vector-add dispatch C source",
-       kRuntimeCallableCSourceArtifactKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VAddDispatchFamilySpec(),
-       DispatchRouteKind::Header,
-       getI32VAddDispatchFamilySpec().dispatchHeaderRouteID,
-       "export one host RVV+scalar i32 vector-add dispatch C ABI header",
-       kRuntimeCallableCHeaderArtifactKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VAddDispatchFamilySpec(),
-       DispatchRouteKind::Object,
-       getI32VAddDispatchFamilySpec().dispatchObjectRouteID,
-       "export one host RVV+scalar i32 vector-add dispatch library object file",
-       kRiscvELFRelocatableObjectArtifactKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/true},
-      {&getI32VAddDispatchFamilySpec(),
-       DispatchRouteKind::SelfCheckSource,
-       "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c",
-       "export one host RVV+scalar i32 vector-add dispatch C source with "
-       "self-check harness",
-       kSelfCheckCSourceArtifactKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VAddDispatchFamilySpec(),
-       DispatchRouteKind::SelfCheckObject,
-       "tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object",
-       "export one host RVV+scalar i32 vector-add dispatch self-check object "
-       "file",
-       kSelfCheckObjectArtifactKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VAddDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VAddDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/true},
-      {&getI32VSubDispatchFamilySpec(),
-       DispatchRouteKind::Source,
-       getI32VSubDispatchFamilySpec().dispatchSourceRouteID,
-       "export one host RVV+scalar i32 vector-subtract dispatch C source",
-       kRuntimeCallableCSourceArtifactKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VSubDispatchFamilySpec(),
-       DispatchRouteKind::Header,
-       getI32VSubDispatchFamilySpec().dispatchHeaderRouteID,
-       "export one host RVV+scalar i32 vector-subtract dispatch C ABI header",
-       kRuntimeCallableCHeaderArtifactKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VSubDispatchFamilySpec(),
-       DispatchRouteKind::Object,
-       getI32VSubDispatchFamilySpec().dispatchObjectRouteID,
-       "export one host RVV+scalar i32 vector-subtract dispatch library "
-       "object file",
-       kRiscvELFRelocatableObjectArtifactKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/true},
-      {&getI32VSubDispatchFamilySpec(),
-       DispatchRouteKind::SelfCheckSource,
-       "tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c",
-       "export one host RVV+scalar i32 vector-subtract dispatch C source with "
-       "self-check harness",
-       kSelfCheckCSourceArtifactKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VSubDispatchFamilySpec(),
-       DispatchRouteKind::SelfCheckObject,
-       "tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-object",
-       "export one host RVV+scalar i32 vector-subtract dispatch self-check "
-       "object file",
-       kSelfCheckObjectArtifactKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VSubDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VSubDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/true},
-      {&getI32VMulDispatchFamilySpec(),
-       DispatchRouteKind::Source,
-       getI32VMulDispatchFamilySpec().dispatchSourceRouteID,
-       "export one host RVV+scalar i32 vector-multiply dispatch C source",
-       kRuntimeCallableCSourceArtifactKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VMulDispatchFamilySpec(),
-       DispatchRouteKind::Header,
-       getI32VMulDispatchFamilySpec().dispatchHeaderRouteID,
-       "export one host RVV+scalar i32 vector-multiply dispatch C ABI header",
-       kRuntimeCallableCHeaderArtifactKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VMulDispatchFamilySpec(),
-       DispatchRouteKind::Object,
-       getI32VMulDispatchFamilySpec().dispatchObjectRouteID,
-       "export one host RVV+scalar i32 vector-multiply dispatch library "
-       "object file",
-       kRiscvELFRelocatableObjectArtifactKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/true},
-      {&getI32VMulDispatchFamilySpec(),
-       DispatchRouteKind::SelfCheckSource,
-       "tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c",
-       "export one host RVV+scalar i32 vector-multiply dispatch C source with "
-       "self-check harness",
-       kSelfCheckCSourceArtifactKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/false},
-      {&getI32VMulDispatchFamilySpec(),
-       DispatchRouteKind::SelfCheckObject,
-       "tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-object",
-       "export one host RVV+scalar i32 vector-multiply dispatch self-check "
-       "object file",
-       kSelfCheckObjectArtifactKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIKind,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().dispatchExternalABIComponentGroup,
-       getI32VMulDispatchFamilySpec().dispatchRuntimeABIName,
-       getI32VMulDispatchFamilySpec().selfCheckSuccessMarker,
-       /*requiresBinaryStdout=*/true},
-  };
+  static const llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 20>
+      routes = [] {
+        llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 20> result;
+        auto appendFamily = [&](const DispatchI32FamilySpec &family) {
+          result.push_back(
+              {&family, DispatchRouteKind::Source,
+               family.dispatchSourceRouteID,
+               "export one host RVV+scalar binary dispatch C source",
+               kRuntimeCallableCSourceArtifactKind,
+               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
+               family.dispatchExternalABIComponentGroup,
+               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
+               /*requiresBinaryStdout=*/false});
+          result.push_back(
+              {&family, DispatchRouteKind::Header,
+               family.dispatchHeaderRouteID,
+               "export one host RVV+scalar binary dispatch C ABI header",
+               kRuntimeCallableCHeaderArtifactKind,
+               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
+               family.dispatchExternalABIComponentGroup,
+               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
+               /*requiresBinaryStdout=*/false});
+          result.push_back(
+              {&family, DispatchRouteKind::Object,
+               family.dispatchObjectRouteID,
+               "export one host RVV+scalar binary dispatch library object file",
+               kRiscvELFRelocatableObjectArtifactKind,
+               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
+               family.dispatchExternalABIComponentGroup,
+               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
+               /*requiresBinaryStdout=*/true});
+          result.push_back(
+              {&family, DispatchRouteKind::SelfCheckSource,
+               family.dispatchSelfCheckSourceRouteID,
+               "export one host RVV+scalar binary dispatch C source with "
+               "self-check harness",
+               kSelfCheckCSourceArtifactKind,
+               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
+               family.dispatchExternalABIComponentGroup,
+               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
+               /*requiresBinaryStdout=*/false});
+          result.push_back(
+              {&family, DispatchRouteKind::SelfCheckObject,
+               family.dispatchSelfCheckObjectRouteID,
+               "export one host RVV+scalar binary dispatch self-check object "
+               "file",
+               kSelfCheckObjectArtifactKind,
+               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
+               family.dispatchExternalABIComponentGroup,
+               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
+               /*requiresBinaryStdout=*/true});
+        };
+        appendFamily(getI32VAddDispatchFamilySpec());
+        appendFamily(getI32VSubDispatchFamilySpec());
+        appendFamily(getI32VMulDispatchFamilySpec());
+        appendFamily(getI64VAddDispatchFamilySpec());
+        return result;
+      }();
   return llvm::ArrayRef(routes);
 }
 
@@ -2463,6 +2546,12 @@ llvm::Error exportRVVScalarI32VMulDispatchC(mlir::ModuleOp module,
                                        os);
 }
 
+llvm::Error exportRVVScalarI64VAddDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportDispatchSourceForFamily(module, getI64VAddDispatchFamilySpec(),
+                                       os);
+}
+
 llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchHeaderForFamily(module, getI32VAddDispatchFamilySpec(),
@@ -2478,6 +2567,12 @@ llvm::Error exportRVVScalarI32VSubDispatchHeader(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI32VMulDispatchHeader(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchHeaderForFamily(module, getI32VMulDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchHeaderForFamily(module, getI64VAddDispatchFamilySpec(),
                                        os);
 }
 
@@ -2499,6 +2594,12 @@ llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
       module, getI32VMulDispatchFamilySpec(), os);
 }
 
+llvm::Error exportRVVScalarI64VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckSourceForFamily(
+      module, getI64VAddDispatchFamilySpec(), os);
+}
+
 llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchObjectForFamily(module, getI32VAddDispatchFamilySpec(),
@@ -2514,6 +2615,12 @@ llvm::Error exportRVVScalarI32VSubDispatchObject(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI32VMulDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchObjectForFamily(module, getI32VMulDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchObjectForFamily(module, getI64VAddDispatchFamilySpec(),
                                        os);
 }
 
@@ -2538,6 +2645,13 @@ exportRVVScalarI32VMulDispatchSelfCheckObject(mlir::ModuleOp module,
       module, getI32VMulDispatchFamilySpec(), os);
 }
 
+llvm::Error
+exportRVVScalarI64VAddDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckObjectForFamily(
+      module, getI64VAddDispatchFamilySpec(), os);
+}
+
 llvm::Error registerRVVScalarDispatchRouteTargetExporter(
     TargetArtifactExporterRegistry &registry,
     const RVVScalarDispatchRouteManifestEntry &route) {
@@ -2545,7 +2659,7 @@ llvm::Error registerRVVScalarDispatchRouteTargetExporter(
       getDispatchCompositeMatchFn(*route.family);
   if (!matchFn)
     return llvm::make_error<llvm::StringError>(
-        "missing RVV+scalar dispatch composite matcher for i32 binary family",
+        "missing RVV+scalar dispatch composite matcher for binary family",
         llvm::errc::invalid_argument);
 
   TargetArtifactExportFn exportFn = nullptr;

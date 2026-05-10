@@ -1,7 +1,7 @@
 #ifndef TIANCHENRV_TARGET_RVVSCALARDISPATCH_H
 #define TIANCHENRV_TARGET_RVVSCALARDISPATCH_H
 
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -27,7 +27,7 @@ enum class RVVScalarDispatchRouteKind {
 };
 
 struct RVVScalarDispatchRouteManifestEntry {
-  const i32_binary::DispatchI32FamilyDescriptor *family = nullptr;
+  const DispatchBinaryFamilyDescriptor *family = nullptr;
   RVVScalarDispatchRouteKind routeKind;
   llvm::StringRef routeID;
   llvm::StringRef description;
@@ -82,6 +82,22 @@ llvm::Error exportRVVScalarI32VSubDispatchObject(mlir::ModuleOp module,
 
 llvm::Error exportRVVScalarI32VMulDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VAddDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VAddDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error
+exportRVVScalarI64VAddDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os);
 
 llvm::Error
 exportRVVScalarI32VAddDispatchSelfCheckObject(mlir::ModuleOp module,

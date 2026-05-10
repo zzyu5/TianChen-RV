@@ -22,6 +22,10 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VMUL-SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vadd --run-id lit-rvv-scalar-i64-vadd-dispatch-e2e --overwrite | FileCheck %s --check-prefix=I64-DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=I64-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=rvv.i32_ --implicit-check-not=i32-vadd < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=I64-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -147,6 +151,41 @@
 # VMUL-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
 # VMUL-EVIDENCE: "ssh_evidence": null
 # VMUL-EVIDENCE: "status": "success"
+
+# I64-DRY: "arithmetic_family": "i64-vadd"
+# I64-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e"
+# I64-DRY: "mode": "dry-run"
+# I64-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-DRY: "ssh_evidence": false
+# I64-DRY: "status": "success"
+# I64-DRY: "vector_shape": "i64m1"
+
+# I64-SOURCE: /* Scope: one selected RVV i64-vadd dispatch case plus one scalar i64-vadd dispatch fallback. */
+# I64-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
+# I64-SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
+# I64-SOURCE: __riscv_vsetvl_e64m1
+# I64-SOURCE: __riscv_vle64_v_i64m1
+# I64-SOURCE: __riscv_vadd_vv_i64m1
+# I64-SOURCE: __riscv_vse64_v_i64m1
+# I64-SOURCE: int64_t lhs[kCapacity]
+# I64-SOURCE: tcrv_dispatch_i64_vadd_conflict_planned_i64_dispatch_self_check_one(7, 0)
+# I64-SOURCE: tcrv_dispatch_i64_vadd_conflict_planned_i64_dispatch_self_check_one(16, 1)
+# I64-SOURCE: tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok
+# I64-SOURCE-SAME: runtime_counts=7,16
+
+# I64-EVIDENCE: "arithmetic_family": "i64-vadd"
+# I64-EVIDENCE: "generated_symbols": {
+# I64-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i64_vadd_microkernel_conflict_planned_i64_dispatch_rvv_first_slice"
+# I64-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i64_vadd_microkernel_conflict_planned_i64_dispatch_scalar_fallback_first_slice"
+# I64-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i64-vadd-dispatch-generic-route.mlir"
+# I64-EVIDENCE: "rvv_config": {
+# I64-EVIDENCE-DAG: "shape": "i64m1"
+# I64-EVIDENCE-DAG: "sew_bits": 64
+# I64-EVIDENCE-DAG: "vector_suffix": "i64m1"
+# I64-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-EVIDENCE: "ssh_evidence": null
+# I64-EVIDENCE: "ssh_evidence_verified": false
+# I64-EVIDENCE: "status": "success"
 
 # SECRET: rvv_scalar_dispatch_e2e:
 # SECRET-SAME: evidence note contains secret-like, credential, or URL text

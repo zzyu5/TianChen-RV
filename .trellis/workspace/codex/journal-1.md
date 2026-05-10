@@ -55,6 +55,67 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 13: RVV i64-vadd scalar fallback dispatch artifact and ssh evidence
+
+**Date**: 2026-05-10
+**Task**: RVV i64-vadd scalar fallback dispatch artifact and ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Completed the first dtype-aware i64 RVV plus scalar dispatch runtime ABI slice
+for compiler-produced `i64-vadd`, including scalar fallback materialization,
+RVV+scalar dispatch artifact export, and real `ssh rvv` branch evidence.
+
+### Main Changes
+
+- Created Trellis task `05-10-rvv-i64-vadd-scalar-fallback-dispatch-artifact-ssh-evidence`.
+- Added descriptor-owned `RVVScalarBinaryFamily` bridge data for existing i32
+  dispatch families and new `i64-vadd` scalar/dispatch routes.
+- Added `tcrv_scalar.i64_vadd_microkernel` plus scalar plugin proposal,
+  materialization, readiness, and emission-plan support.
+- Generalized scalar source export and RVV+scalar dispatch export to consume
+  descriptor-owned C type, operator, ABI, route, stem, and callable metadata.
+- Extended `scripts/rvv_scalar_dispatch_e2e.py` as runner/evidence tooling for
+  `i64-vadd` dispatch, including generated int64 caller and branch coverage.
+- Produced real evidence at
+  `artifacts/tmp/rvv_scalar_dispatch_e2e/rvv-i64-vadd-dispatch-ssh/evidence.json`
+  with `status=success`, `mode=ssh`, `ssh_evidence_verified=true`,
+  `runtime_success=true`, branches `rvv_available=0` and `rvv_available=1`,
+  runtime counts `[7, 16]`, and generated RVV/scalar callable symbols.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit/FileCheck tests for scalar IR, i64 dispatch route, target
+  artifact export, target artifact bundle, runner dry-run, and i32 dispatch
+  regression.
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_remote_probe.py --run-id rvv-i64-vadd-dispatch-probe --timeout 90`
+- [OK] Real ssh evidence command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --arithmetic-family=i64-vadd --lower-linalg-frontend --input test/Target/TargetArtifactBundleExport/plan-linalg-i64-vadd-and-export-target-artifact-bundle.mlir --run-id rvv-i64-vadd-dispatch-ssh --overwrite --timeout 120`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 187/187
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV i64 binary sub/mul frontend artifact ssh evidence
 
 **Date**: 2026-05-10

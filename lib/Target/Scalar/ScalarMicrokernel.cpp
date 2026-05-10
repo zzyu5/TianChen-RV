@@ -8,7 +8,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
@@ -51,6 +51,7 @@ using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VSubMicrokernelOp;
+using tianchenrv::tcrv::scalar::I64VAddMicrokernelOp;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 
 constexpr llvm::StringLiteral kScalarPluginName("scalar-plugin");
@@ -93,21 +94,23 @@ constexpr llvm::StringLiteral kScalarLoweringDescriptorAttrName(
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
 
-using ScalarI32MicrokernelKind =
-    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using ScalarI32MicrokernelFamilySpec =
-    tianchenrv::target::i32_binary::ScalarI32MicrokernelFamilyDescriptor;
+    tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelDescriptor;
 
 const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
-  return tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
-  return tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI32VSubFamilyDescriptor().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
-  return tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI32VMulFamilyDescriptor().scalar;
+}
+
+const ScalarI32MicrokernelFamilySpec &getI64VAddFamilySpec() {
+  return tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec *
@@ -118,6 +121,8 @@ getScalarI32MicrokernelFamilyForOp(mlir::Operation *op) {
     return &getI32VSubFamilySpec();
   if (llvm::isa_and_nonnull<I32VMulMicrokernelOp>(op))
     return &getI32VMulFamilySpec();
+  if (llvm::isa_and_nonnull<I64VAddMicrokernelOp>(op))
+    return &getI64VAddFamilySpec();
   return nullptr;
 }
 
@@ -129,6 +134,8 @@ getScalarI32MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
     return &getI32VSubFamilySpec();
   if (routeID == getI32VMulFamilySpec().routeID)
     return &getI32VMulFamilySpec();
+  if (routeID == getI64VAddFamilySpec().routeID)
+    return &getI64VAddFamilySpec();
   return nullptr;
 }
 
@@ -161,6 +168,12 @@ struct ScalarMicrokernelRecord {
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   std::int64_t elementCount = 0;
+};
+
+struct ScalarCallableABIPlan {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  llvm::SmallVector<MemWindowOp, 3> bufferWindows;
+  RuntimeParamOp runtimeElementCountParam;
 };
 
 struct ScalarObjectCompileConfig {
@@ -410,6 +423,85 @@ llvm::Error requireSafeStringAttr(KernelOp kernel, mlir::Operation *op,
                                   llvm::StringRef owner,
                                   std::string &out);
 
+llvm::Error validateScalarCallableABIParameterMirror(
+    KernelOp kernel,
+    llvm::ArrayRef<support::RuntimeABIParameter> metadataParameters,
+    llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
+    llvm::StringRef metadataSource,
+    const ScalarI32MicrokernelFamilySpec &family) {
+  if (metadataParameters.empty())
+    return makeMicrokernelError(
+        kernel, llvm::Twine(metadataSource) +
+                    " requires runtime_abi_parameters metadata mirroring the "
+                    "IR-backed scalar callable ABI plan");
+
+  std::size_t expectedParameterCount =
+      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
+          *family.rvvFamily)
+          .size();
+  if (irBackedParameters.size() != expectedParameterCount)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("IR-backed scalar callable ABI plan for ") +
+                    family.microkernelOpName + " must contain exactly " +
+                    llvm::Twine(expectedParameterCount) + " parameters");
+
+  for (const support::RuntimeABIParameter &expected : irBackedParameters) {
+    const support::RuntimeABIParameter *actual = nullptr;
+    unsigned count = 0;
+    for (const support::RuntimeABIParameter &candidate : metadataParameters) {
+      if (candidate.role != expected.role)
+        continue;
+      actual = &candidate;
+      ++count;
+    }
+
+    if (count == 0)
+      return makeMicrokernelError(
+          kernel, llvm::Twine(metadataSource) +
+                      " requires runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(expected.role) +
+                      "' to mirror the IR-backed callable ABI plan");
+    if (count > 1)
+      return makeMicrokernelError(
+          kernel, llvm::Twine(metadataSource) +
+                      " contains duplicate runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(expected.role) +
+                      "'");
+
+    if (actual->cName != expected.cName || actual->cType != expected.cType ||
+        actual->role != expected.role ||
+        actual->ownership != expected.ownership) {
+      return makeMicrokernelError(
+          kernel, llvm::Twine(metadataSource) +
+                      " runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(
+                          expected.role) +
+                      "' must mirror IR-backed scalar callable ABI parameter "
+                      "c_name='" +
+                      expected.cName + "', c_type='" + expected.cType +
+                      "', ownership='" +
+                      support::stringifyRuntimeABIParameterOwnership(
+                          expected.ownership) +
+                      "'");
+    }
+  }
+
+  for (const support::RuntimeABIParameter &actual : metadataParameters) {
+    bool expectedRole = llvm::any_of(
+        irBackedParameters, [&](const support::RuntimeABIParameter &param) {
+          return param.role == actual.role;
+        });
+    if (!expectedRole)
+      return makeMicrokernelError(
+          kernel, llvm::Twine(metadataSource) +
+                      " contains unsupported runtime ABI parameter role '" +
+                      support::stringifyRuntimeABIParameterRole(actual.role) +
+                      "'");
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateEmissionPlanParameterMirror(
     KernelOp kernel, const SelectedPath &path,
     const ScalarI32MicrokernelFamilySpec &family,
@@ -546,10 +638,9 @@ llvm::Error validateEmissionPlanParameterMirror(
           collectRuntimeABIParameters(kernel, diagnostic, planParameters))
     return error;
 
-  return support::validateI32BinaryCallableABIParameterMirror(
+  return validateScalarCallableABIParameterMirror(
       kernel, planParameters, irBackedParameters,
-      "supported scalar microkernel emission-plan",
-      support::getI32BinaryRuntimeABIContract(family.kind));
+      "supported scalar microkernel emission-plan", family);
 }
 
 llvm::Error requireSafeStringAttr(KernelOp kernel, mlir::Operation *op,
@@ -1239,13 +1330,12 @@ llvm::Error findAndValidateMicrokernel(
     return makeMicrokernelError(
         kernel, llvm::Twine("selected scalar path @") +
                     getPathVariantSymbol(path) + " as " + path.role +
-                    " requires exactly one matching "
-                    "scalar i32 microkernel");
+                    " requires exactly one matching scalar microkernel");
   if (matches > 1)
     return makeMicrokernelError(
         kernel, llvm::Twine("selected scalar path @") +
                     getPathVariantSymbol(path) + " as " + path.role +
-                    " has duplicate scalar i32 microkernel metadata");
+                    " has duplicate scalar microkernel metadata");
 
   return validateMicrokernelForPath(kernel, path, matchedMicrokernel,
                                     *matchedFamily, elementCount);
@@ -1266,15 +1356,16 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
                       "' must be a non-empty string when present");
 
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
-    if (!tianchenrv::target::i32_binary::
-            lookupI32BinaryFamilyByLoweringDescriptor(descriptorValue))
+    if (!tianchenrv::target::rvv_scalar::
+            lookupRVVScalarBinaryFamilyByLoweringDescriptor(descriptorValue))
       return makeMicrokernelError(
           kernel, llvm::Twine("selected scalar variant @") +
                       variant.getSymName() + " attribute '" +
                       kScalarLoweringDescriptorAttrName + "' must be '" +
                       getI32VAddFamilySpec().descriptor + "' or '" +
                       getI32VSubFamilySpec().descriptor + "' or '" +
-                      getI32VMulFamilySpec().descriptor + "'");
+                      getI32VMulFamilySpec().descriptor + "' or '" +
+                      getI64VAddFamilySpec().descriptor + "'");
 
     if (descriptorValue != family.descriptor)
       return makeMicrokernelError(
@@ -1296,6 +1387,123 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
                     "element_count");
 
   return llvm::Error::success();
+}
+
+llvm::Expected<support::RuntimeABIParameter>
+makeScalarCallableParameterFromMemWindow(
+    KernelOp kernel, MemWindowOp window,
+    llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters) {
+  llvm::StringRef role =
+      getStringAttr(window.getOperation(), support::kMemWindowABIRoleAttrName);
+  std::optional<support::RuntimeABIParameterRole> parsedRole =
+      support::symbolizeRuntimeABIParameterRole(role);
+  if (!parsedRole)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("unsupported tcrv.exec.mem_window ABI role '") +
+                    role + "'");
+
+  llvm::Expected<const support::RuntimeABIParameter *> expected =
+      support::findUniqueRuntimeABIParameterByRole(
+          expectedParameters, *parsedRole,
+          "scalar binary callable ABI descriptor");
+  if (!expected) {
+    std::string message = llvm::toString(expected.takeError());
+    return makeMicrokernelError(kernel, message);
+  }
+
+  llvm::StringRef cType =
+      getStringAttr(window.getOperation(), support::kMemWindowCTypeAttrName);
+  llvm::StringRef ownership =
+      getStringAttr(window.getOperation(), support::kMemWindowOwnershipAttrName);
+  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+      support::symbolizeRuntimeABIParameterOwnership(ownership);
+  if (!parsedOwnership)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
+                    " has unsupported ownership '" + ownership + "'");
+
+  return support::RuntimeABIParameter((*expected)->cName, cType, *parsedRole,
+                                      *parsedOwnership);
+}
+
+llvm::Expected<support::RuntimeABIParameter>
+makeScalarCallableParameterFromRuntimeParam(
+    KernelOp kernel, RuntimeParamOp param,
+    support::RuntimeABIParameterRole expectedRole) {
+  llvm::StringRef role =
+      getStringAttr(param.getOperation(), support::kRuntimeParamABIRoleAttrName);
+  std::optional<support::RuntimeABIParameterRole> parsedRole =
+      support::symbolizeRuntimeABIParameterRole(role);
+  if (!parsedRole || *parsedRole != expectedRole)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("tcrv.exec.runtime_param @") +
+                    param.getSymName() + " must carry ABI role '" +
+                    support::stringifyRuntimeABIParameterRole(expectedRole) +
+                    "'");
+
+  llvm::StringRef cName =
+      getStringAttr(param.getOperation(), support::kRuntimeParamCNameAttrName);
+  llvm::StringRef cType =
+      getStringAttr(param.getOperation(), support::kRuntimeParamCTypeAttrName);
+  llvm::StringRef ownership =
+      getStringAttr(param.getOperation(),
+                    support::kRuntimeParamOwnershipAttrName);
+  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
+      support::symbolizeRuntimeABIParameterOwnership(ownership);
+  if (!parsedOwnership)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("tcrv.exec.runtime_param @") +
+                    param.getSymName() + " has unsupported ownership '" +
+                    ownership + "'");
+
+  return support::RuntimeABIParameter(cName, cType, expectedRole,
+                                      *parsedOwnership);
+}
+
+llvm::Expected<ScalarCallableABIPlan>
+buildScalarCallableABIPlan(KernelOp kernel,
+                           const ScalarI32MicrokernelFamilySpec &family) {
+  if (!kernel || kernel.getBody().empty())
+    return makeMicrokernelError(
+        kernel, "requires a materialized tcrv.exec.kernel body");
+
+  ScalarCallableABIPlan plan;
+  auto windowSpecs =
+      tianchenrv::target::rvv::getRVVBinaryBufferMemWindowSpecs(
+          *family.rvvFamily);
+  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
+          kernel, windowSpecs, plan.bufferWindows))
+    return std::move(error);
+
+  auto expectedParameters =
+      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
+          *family.rvvFamily);
+  for (MemWindowOp window : plan.bufferWindows) {
+    llvm::Expected<support::RuntimeABIParameter> parameter =
+        makeScalarCallableParameterFromMemWindow(kernel, window,
+                                                 expectedParameters);
+    if (!parameter)
+      return parameter.takeError();
+    plan.parameters.push_back(std::move(*parameter));
+  }
+
+  auto countSpecs =
+      tianchenrv::target::rvv::getRVVBinaryRuntimeElementCountParamSpecs(
+          *family.rvvFamily, /*cName=*/"");
+  llvm::SmallVector<RuntimeParamOp, 1> runtimeParams;
+  if (llvm::Error error =
+          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams))
+    return std::move(error);
+  plan.runtimeElementCountParam = runtimeParams.front();
+
+  llvm::Expected<support::RuntimeABIParameter> runtimeCount =
+      makeScalarCallableParameterFromRuntimeParam(
+          kernel, plan.runtimeElementCountParam,
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!runtimeCount)
+    return runtimeCount.takeError();
+  plan.parameters.push_back(std::move(*runtimeCount));
+  return plan;
 }
 
 llvm::Expected<ScalarMicrokernelRecord>
@@ -1355,10 +1563,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           kernel, getPathVariant(path), *microkernelFamily, elementCount))
     return std::move(error);
 
-  llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-      support::buildI32BinaryCallableABIPlan(
-          kernel, support::getI32BinaryRuntimeABIContract(
-                      microkernelFamily->kind));
+  llvm::Expected<ScalarCallableABIPlan> callablePlan =
+      buildScalarCallableABIPlan(kernel, *microkernelFamily);
   if (!callablePlan)
     return callablePlan.takeError();
   if (llvm::Error error = validateEmissionPlanParameterMirror(
@@ -1463,7 +1669,7 @@ llvm::Expected<ScalarMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module)
 
   if (records.size() != 1)
     return makeModuleMicrokernelError(
-        "requires exactly one valid scalar i32 microkernel record in "
+        "requires exactly one valid scalar microkernel record in "
         "the module");
   return std::move(records.front());
 }
@@ -1613,25 +1819,40 @@ llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     const ScalarI32MicrokernelFamilySpec &family) {
-  llvm::Expected<support::I32BinaryCallableRuntimeABIParameterBindings>
-      bindings = support::bindI32BinaryCallableRuntimeABIParametersByRole(
-          parameters, "scalar direct microkernel C emission");
-  if (!bindings)
-    return bindings.takeError();
-
-  const support::RuntimeABIParameter &lhs = *bindings->lhs;
-  const support::RuntimeABIParameter &rhs = *bindings->rhs;
-  const support::RuntimeABIParameter &out = *bindings->out;
-  const support::RuntimeABIParameter &runtimeN =
-      *bindings->runtimeElementCount;
+  using Role = support::RuntimeABIParameterRole;
+  llvm::Expected<const support::RuntimeABIParameter *> lhs =
+      support::findUniqueRuntimeABIParameterByRole(
+          parameters, Role::LHSInputBuffer,
+          "scalar direct microkernel C emission");
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<const support::RuntimeABIParameter *> rhs =
+      support::findUniqueRuntimeABIParameterByRole(
+          parameters, Role::RHSInputBuffer,
+          "scalar direct microkernel C emission");
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<const support::RuntimeABIParameter *> out =
+      support::findUniqueRuntimeABIParameterByRole(
+          parameters, Role::OutputBuffer,
+          "scalar direct microkernel C emission");
+  if (!out)
+    return out.takeError();
+  llvm::Expected<const support::RuntimeABIParameter *> runtimeN =
+      support::findUniqueRuntimeABIParameterByRole(
+          parameters, Role::RuntimeElementCount,
+          "scalar direct microkernel C emission");
+  if (!runtimeN)
+    return runtimeN.takeError();
 
   printMicrokernelPrototype(os, functionName, parameters);
   os << " {\n";
-  os << "  for (size_t index = 0; index < " << runtimeN.cName
+  os << "  for (size_t index = 0; index < " << (*runtimeN)->cName
      << "; ++index)\n";
-  os << "    " << out.cName << "[index] = " << lhs.cName << "[index] "
+  os << "    " << (*out)->cName << "[index] = " << (*lhs)->cName
+     << "[index] "
      << family.cOperator << " "
-     << rhs.cName << "[index];\n\n";
+     << (*rhs)->cName << "[index];\n\n";
   os << "}\n\n";
   return llvm::Error::success();
 }
@@ -1702,12 +1923,12 @@ llvm::Error validateScalarMicrokernelSourceCandidate(
   if (!family)
     return makeModuleMicrokernelError(
         llvm::Twine("target artifact route '") + candidate.routeID +
-        "' is not a supported scalar i32 microkernel source route");
+        "' is not a supported scalar microkernel source route");
 
   if (!candidateMatchesScalarMicrokernelFamily(candidate, *family))
     return makeModuleMicrokernelError(
         llvm::Twine("target artifact route '") + candidate.routeID +
-        "' does not match supported scalar i32 microkernel family ABI "
+        "' does not match supported scalar microkernel family ABI "
         "metadata; expected emission_kind '" +
         family->emissionKind + "', artifact_kind '" +
         kMicrokernelArtifactKind + "', runtime_abi '" + family->runtimeABI +
@@ -1718,8 +1939,11 @@ llvm::Error validateScalarMicrokernelSourceCandidate(
   TargetArtifactExporter sourceExporter(
       family->routeID, kMicrokernelArtifactKind, kScalarPluginName,
       family->emissionKind, exportScalarMicrokernelC,
-      support::getI32BinaryRuntimeABIContract(family->kind)
-          .getCallableRoleRequirements(),
+      tianchenrv::target::rvv_scalar::
+          getRVVScalarBinaryCallableRuntimeABIRoleRequirements(
+              *tianchenrv::target::rvv_scalar::
+                  lookupRVVScalarBinaryFamilyByScalarRouteID(
+                      family->routeID)),
       /*directHelperRoute=*/false, /*handoffKind=*/{},
       /*candidateValidationFn=*/nullptr);
   return validateTargetArtifactCandidateAgainstExporter(candidate,
@@ -2012,11 +2236,13 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   const ScalarI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
   const ScalarI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
   const ScalarI32MicrokernelFamilySpec &mulFamily = getI32VMulFamilySpec();
+  const ScalarI32MicrokernelFamilySpec &i64AddFamily =
+      getI64VAddFamilySpec();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           addFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           addFamily.emissionKind, exportScalarMicrokernelC,
-          support::getI32BinaryRuntimeABIContract(addFamily.kind)
-              .getCallableRoleRequirements(),
+          tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+              *addFamily.rvvFamily),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;
@@ -2024,8 +2250,8 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           subFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           subFamily.emissionKind, exportScalarMicrokernelC,
-          support::getI32BinaryRuntimeABIContract(subFamily.kind)
-              .getCallableRoleRequirements(),
+          tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+              *subFamily.rvvFamily),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;
@@ -2033,8 +2259,17 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           mulFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           mulFamily.emissionKind, exportScalarMicrokernelC,
-          support::getI32BinaryRuntimeABIContract(mulFamily.kind)
-              .getCallableRoleRequirements(),
+          tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+              *mulFamily.rvvFamily),
+          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          validateScalarMicrokernelSourceCandidate)))
+    return error;
+
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          i64AddFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+          i64AddFamily.emissionKind, exportScalarMicrokernelC,
+          tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+              *i64AddFamily.rvvFamily),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;

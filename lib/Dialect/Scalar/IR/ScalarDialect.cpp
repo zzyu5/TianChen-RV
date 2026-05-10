@@ -278,7 +278,7 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
 
 namespace {
 
-mlir::LogicalResult verifyScalarI32MicrokernelOp(
+mlir::LogicalResult verifyScalarBinaryMicrokernelOp(
     mlir::Operation *op, llvm::StringRef operationNoun) {
 
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -442,18 +442,23 @@ mlir::LogicalResult verifyScalarI32MicrokernelOp(
 } // namespace
 
 mlir::LogicalResult I32VAddMicrokernelOp::verify() {
-  return verifyScalarI32MicrokernelOp(
+  return verifyScalarBinaryMicrokernelOp(
       getOperation(), "bounded scalar i32 vector-add microkernel");
 }
 
 mlir::LogicalResult I32VSubMicrokernelOp::verify() {
-  return verifyScalarI32MicrokernelOp(
+  return verifyScalarBinaryMicrokernelOp(
       getOperation(), "bounded scalar i32 vector-subtract microkernel");
 }
 
 mlir::LogicalResult I32VMulMicrokernelOp::verify() {
-  return verifyScalarI32MicrokernelOp(
+  return verifyScalarBinaryMicrokernelOp(
       getOperation(), "bounded scalar i32 vector-multiply microkernel");
+}
+
+mlir::LogicalResult I64VAddMicrokernelOp::verify() {
+  return verifyScalarBinaryMicrokernelOp(
+      getOperation(), "bounded scalar i64 vector-add microkernel");
 }
 
 void TCRVScalarDialect::initialize() {

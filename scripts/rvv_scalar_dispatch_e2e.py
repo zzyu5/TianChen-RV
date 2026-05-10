@@ -38,47 +38,74 @@ DEFAULT_BUNDLE_ARTIFACT_ROOT = Path(
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
-DISPATCH_RUNTIME_ABI_SIGNATURE = [
-    {
-        "c_name": "lhs",
-        "c_type": "const int32_t *",
-        "role": "lhs-input-buffer",
-        "ownership": "target-export-abi-owned",
+RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
+    "i32m1": {
+        "shape": "i32m1",
+        "dtype": "i32",
+        "sew_bits": 32,
+        "lmul": "m1",
+        "tail_policy": "agnostic",
+        "mask_policy": "agnostic",
+        "vector_type": "vint32m1_t",
+        "vector_suffix": "i32m1",
+        "setvl_suffix": "e32m1",
+        "capability_ids": [
+            "rvv.i32_m1.sew32",
+            "rvv.i32_m1.lmul_m1",
+            "rvv.i32_m1.tail_policy.agnostic",
+            "rvv.i32_m1.mask_policy.agnostic",
+        ],
     },
-    {
-        "c_name": "rhs",
-        "c_type": "const int32_t *",
-        "role": "rhs-input-buffer",
-        "ownership": "target-export-abi-owned",
+    "i32m2": {
+        "shape": "i32m2",
+        "dtype": "i32",
+        "sew_bits": 32,
+        "lmul": "m2",
+        "tail_policy": "agnostic",
+        "mask_policy": "agnostic",
+        "vector_type": "vint32m2_t",
+        "vector_suffix": "i32m2",
+        "setvl_suffix": "e32m2",
+        "capability_ids": [
+            "rvv.i32_m2.sew32",
+            "rvv.i32_m2.lmul_m2",
+            "rvv.i32_m2.tail_policy.agnostic",
+            "rvv.i32_m2.mask_policy.agnostic",
+        ],
     },
-    {
-        "c_name": "out",
-        "c_type": "int32_t *",
-        "role": "output-buffer",
-        "ownership": "target-export-abi-owned",
+    "i64m1": {
+        "shape": "i64m1",
+        "dtype": "i64",
+        "sew_bits": 64,
+        "lmul": "m1",
+        "tail_policy": "agnostic",
+        "mask_policy": "agnostic",
+        "vector_type": "vint64m1_t",
+        "vector_suffix": "i64m1",
+        "setvl_suffix": "e64m1",
+        "capability_ids": [
+            "rvv.i64_m1.sew64",
+            "rvv.i64_m1.lmul_m1",
+            "rvv.i64_m1.tail_policy.agnostic",
+            "rvv.i64_m1.mask_policy.agnostic",
+        ],
     },
-    {
-        "c_name": "n",
-        "c_type": "size_t",
-        "role": "runtime-element-count",
-        "ownership": "target-export-abi-owned",
-    },
-    {
-        "c_name": "rvv_available",
-        "c_type": "int",
-        "role": "dispatch-availability-guard",
-        "ownership": "target-export-abi-owned",
-    },
-]
+}
 
-SUPPORTED_RVV_VECTOR_SHAPES: tuple[str, ...] = ("i32m1", "i32m2")
+SUPPORTED_RVV_VECTOR_SHAPES: tuple[str, ...] = tuple(RVV_VECTOR_SHAPE_SPECS)
 
 ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     "i32-vadd": {
         "diagnostic_name": "i32-vadd",
+        "dtype": "i32",
+        "element_bit_width": "32",
+        "scalar_c_type": "int32_t",
+        "const_input_pointer_c_type": "const int32_t *",
+        "output_pointer_c_type": "int32_t *",
         "function_stem": "i32_vadd",
-        "intrinsic": "__riscv_vadd_vv_i32m1",
+        "intrinsic_op": "add",
         "c_operator": "+",
+        "default_vector_shape": "i32m1",
         "success_marker": "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok",
         "bundle_success_marker": "tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok",
         "component_group": "rvv-scalar-i32-vadd-dispatch-external-abi.v1",
@@ -96,9 +123,15 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     },
     "i32-vsub": {
         "diagnostic_name": "i32-vsub",
+        "dtype": "i32",
+        "element_bit_width": "32",
+        "scalar_c_type": "int32_t",
+        "const_input_pointer_c_type": "const int32_t *",
+        "output_pointer_c_type": "int32_t *",
         "function_stem": "i32_vsub",
-        "intrinsic": "__riscv_vsub_vv_i32m1",
+        "intrinsic_op": "sub",
         "c_operator": "-",
+        "default_vector_shape": "i32m1",
         "success_marker": "tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok",
         "bundle_success_marker": "tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok",
         "component_group": "rvv-scalar-i32-vsub-dispatch-external-abi.v1",
@@ -124,9 +157,15 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     },
     "i32-vmul": {
         "diagnostic_name": "i32-vmul",
+        "dtype": "i32",
+        "element_bit_width": "32",
+        "scalar_c_type": "int32_t",
+        "const_input_pointer_c_type": "const int32_t *",
+        "output_pointer_c_type": "int32_t *",
         "function_stem": "i32_vmul",
-        "intrinsic": "__riscv_vmul_vv_i32m1",
+        "intrinsic_op": "mul",
         "c_operator": "*",
+        "default_vector_shape": "i32m1",
         "success_marker": "tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok",
         "bundle_success_marker": "tcrv_rvv_scalar_i32_vmul_bundle_external_abi_ok",
         "component_group": "rvv-scalar-i32-vmul-dispatch-external-abi.v1",
@@ -145,6 +184,34 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         ),
         "i32m2_default_plan_and_export_input": Path(
             "test/Target/TargetArtifactBundleExport/plan-linalg-i32m2-vmul-and-export-target-artifact-bundle.mlir"
+        ),
+    },
+    "i64-vadd": {
+        "diagnostic_name": "i64-vadd",
+        "dtype": "i64",
+        "element_bit_width": "64",
+        "scalar_c_type": "int64_t",
+        "const_input_pointer_c_type": "const int64_t *",
+        "output_pointer_c_type": "int64_t *",
+        "function_stem": "i64_vadd",
+        "intrinsic_op": "add",
+        "c_operator": "+",
+        "default_vector_shape": "i64m1",
+        "success_marker": "tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok",
+        "bundle_success_marker": "tcrv_rvv_scalar_i64_vadd_bundle_external_abi_ok",
+        "component_group": "rvv-scalar-i64-vadd-dispatch-external-abi.v1",
+        "external_abi_name": "rvv-scalar-i64-vadd-dispatch-runtime-callable-c-function.v1",
+        "source_route": "tcrv-export-rvv-scalar-i64-vadd-dispatch-c",
+        "header_route": "tcrv-export-rvv-scalar-i64-vadd-dispatch-header",
+        "object_route": "tcrv-export-rvv-scalar-i64-vadd-dispatch-object",
+        "rvv_callable_route": "tcrv-export-rvv-i64-vadd-microkernel-c",
+        "scalar_callable_route": "tcrv-export-scalar-i64-vadd-microkernel-c",
+        "self_check_route": "--tcrv-export-rvv-scalar-i64-vadd-dispatch-self-check-c",
+        "default_input": Path(
+            "test/Target/RVVScalarDispatch/rvv-scalar-i64-vadd-dispatch-generic-route.mlir"
+        ),
+        "default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i64-vadd-and-export-target-artifact-bundle.mlir"
         ),
     },
 }
@@ -230,22 +297,66 @@ def configure_vector_shape(shape_name: str) -> None:
 
     if shape_name not in SUPPORTED_RVV_VECTOR_SHAPES:
         raise BridgeError(f"unsupported RVV vector shape: {shape_name}")
+    shape_dtype = str(RVV_VECTOR_SHAPE_SPECS[shape_name]["dtype"])
+    family_dtype = str(ACTIVE_ARITHMETIC_FAMILY["dtype"])
+    if shape_dtype != family_dtype:
+        raise BridgeError(
+            f"RVV vector shape {shape_name} belongs to {shape_dtype}, "
+            f"but arithmetic family {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} "
+            f"requires {family_dtype}"
+        )
     ACTIVE_VECTOR_SHAPE = shape_name
+
+
+def active_dispatch_runtime_abi_signature() -> list[dict[str, str]]:
+    return [
+        {
+            "c_name": "lhs",
+            "c_type": str(ACTIVE_ARITHMETIC_FAMILY["const_input_pointer_c_type"]),
+            "role": "lhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "rhs",
+            "c_type": str(ACTIVE_ARITHMETIC_FAMILY["const_input_pointer_c_type"]),
+            "role": "rhs-input-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "out",
+            "c_type": str(ACTIVE_ARITHMETIC_FAMILY["output_pointer_c_type"]),
+            "role": "output-buffer",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "n",
+            "c_type": "size_t",
+            "role": "runtime-element-count",
+            "ownership": "target-export-abi-owned",
+        },
+        {
+            "c_name": "rvv_available",
+            "c_type": "int",
+            "role": "dispatch-availability-guard",
+            "ownership": "target-export-abi-owned",
+        },
+    ]
 
 
 def arithmetic_intrinsic_for_family(
     family: dict[str, str | Path], vector_suffix: str
 ) -> str:
-    stem = str(family["function_stem"]).removeprefix("i32_v")
-    return "__riscv_v" + stem + "_vv_" + vector_suffix
+    return "__riscv_v" + str(family["intrinsic_op"]) + "_vv_" + vector_suffix
 
 
 def load_intrinsic_for_suffix(vector_suffix: str) -> str:
-    return "__riscv_vle32_v_" + vector_suffix
+    sew_bits = RVV_VECTOR_SHAPE_SPECS[vector_suffix]["sew_bits"]
+    return "__riscv_vle" + str(sew_bits) + "_v_" + vector_suffix
 
 
 def store_intrinsic_for_suffix(vector_suffix: str) -> str:
-    return "__riscv_vse32_v_" + vector_suffix
+    sew_bits = RVV_VECTOR_SHAPE_SPECS[vector_suffix]["sew_bits"]
+    return "__riscv_vse" + str(sew_bits) + "_v_" + vector_suffix
 
 
 def setvl_intrinsic_for_suffix(setvl_suffix: str) -> str:
@@ -573,7 +684,7 @@ def write_generated_text(path: Path, context: str, text: str) -> None:
 
 
 def parse_source_comment(source: str, field: str, *, required: bool) -> str:
-    match = re.search(rf"/\*\s*{re.escape(field)}:\s*([^*]+?)\s*\*/", source)
+    match = re.search(rf"/\*\s*{re.escape(field)}:\s*([^\n]*?)\s*\*/", source)
     if not match:
         if required:
             raise BridgeError(f"generated dispatch C source missing comment field: {field}")
@@ -740,12 +851,15 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
                 f"{field} does not match selected_vector_shape_config"
             )
 
-    if len(capability_ids) != 4 or not all(
-        capability.startswith("rvv.i32_") for capability in capability_ids
-    ):
+    expected_shape = RVV_VECTOR_SHAPE_SPECS[ACTIVE_VECTOR_SHAPE]
+    expected_capabilities = [
+        str(capability) for capability in expected_shape["capability_ids"]
+    ]
+    if capability_ids != expected_capabilities:
         raise BridgeError(
             "generated dispatch C source selected_vector_shape_capabilities "
-            "must contain exactly four bounded RVV i32 capability ids"
+            "must contain exactly the bounded RVV capability ids for "
+            + ACTIVE_VECTOR_SHAPE
         )
 
     required_intrinsics = [
@@ -800,7 +914,8 @@ def validate_library_dispatch_source(source: str) -> dict[str, Any]:
         + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
         + "_",
         "if (rvv_available)",
-        "/* selected_vector_shape_config: shape=" + ACTIVE_VECTOR_SHAPE,
+        "/* selected_vector_shape_config:",
+        "shape=" + ACTIVE_VECTOR_SHAPE,
         "/* selected_vector_shape_capabilities:",
         "/* control_plane_config: sew=" + str(vector_config["sew_bits"]),
         "/* intrinsic_config: vector_type="
@@ -851,7 +966,8 @@ def validate_self_check_dispatch_source(source: str) -> dict[str, Any]:
         "tcrv_dispatch_"
         + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
         + "_",
-        "/* selected_vector_shape_config: shape=" + ACTIVE_VECTOR_SHAPE,
+        "/* selected_vector_shape_config:",
+        "shape=" + ACTIVE_VECTOR_SHAPE,
         "/* selected_vector_shape_capabilities:",
     ]
     vector_config = validate_vector_shape_metadata(source)
@@ -1077,12 +1193,13 @@ def require_dispatch_runtime_abi_signature(record: dict[str, Any]) -> list[dict[
         seen_roles.add(parameter["role"])
         parameters.append(parameter)
 
-    if len(parameters) != len(DISPATCH_RUNTIME_ABI_SIGNATURE):
+    expected_signature = active_dispatch_runtime_abi_signature()
+    if len(parameters) != len(expected_signature):
         raise BridgeError(
-            f"bundle record route {record.get('route')} runtime ABI signature must contain {len(DISPATCH_RUNTIME_ABI_SIGNATURE)} parameters"
+            f"bundle record route {record.get('route')} runtime ABI signature must contain {len(expected_signature)} parameters"
         )
     for index, (parameter, expected) in enumerate(
-        zip(parameters, DISPATCH_RUNTIME_ABI_SIGNATURE)
+        zip(parameters, expected_signature)
     ):
         if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", parameter["c_name"]):
             raise BridgeError(
@@ -1293,6 +1410,7 @@ def build_dispatch_external_caller_source(
     escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
     c_operator = str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
     family_name = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    scalar_c_type = str(ACTIVE_ARITHMETIC_FAMILY["scalar_c_type"])
     return f"""\
 #include <stddef.h>
 #include <stdint.h>
@@ -1302,14 +1420,14 @@ def build_dispatch_external_caller_source(
 
 static int run_dispatch_case(size_t runtime_n, int rvv_available) {{
   enum {{ kCapacity = 32 }};
-  int32_t lhs[kCapacity];
-  int32_t rhs[kCapacity];
-  int32_t out[kCapacity];
+  {scalar_c_type} lhs[kCapacity];
+  {scalar_c_type} rhs[kCapacity];
+  {scalar_c_type} out[kCapacity];
 
   for (size_t index = 0; index < (size_t)kCapacity; ++index) {{
-    lhs[index] = (int32_t)index;
-    rhs[index] = (int32_t)(31 - (int)index);
-    out[index] = -12345;
+    lhs[index] = ({scalar_c_type})index;
+    rhs[index] = ({scalar_c_type})(31 - (int)index);
+    out[index] = ({scalar_c_type})-12345;
   }}
 
   {function_name}({rendered_call_arguments});
@@ -1322,7 +1440,7 @@ static int run_dispatch_case(size_t runtime_n, int rvv_available) {{
     }}
   }}
   for (size_t index = runtime_n; index < (size_t)kCapacity; ++index) {{
-    if (out[index] != -12345) {{
+    if (out[index] != ({scalar_c_type})-12345) {{
       fprintf(stderr,
               "rvv scalar {family_name} dispatch bundle external ABI overrun n=%zu guard=%d index=%zu\\n",
               runtime_n, rvv_available, index);
@@ -1914,7 +2032,8 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
 def selected_input_path(args: argparse.Namespace) -> Path:
     if args.input:
         return Path(args.input)
-    if ACTIVE_VECTOR_SHAPE != "i32m1":
+    default_shape = str(ACTIVE_ARITHMETIC_FAMILY["default_vector_shape"])
+    if ACTIVE_VECTOR_SHAPE != default_shape:
         if args.use_target_artifact_bundle and args.use_plan_and_export_bundle_front_door:
             key = ACTIVE_VECTOR_SHAPE + "_default_plan_and_export_input"
         else:
@@ -2029,6 +2148,17 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_vector_config = validate_library_dispatch_source(source_text)
+    generated_symbols = {
+        "rvv_callable_symbol": parse_source_comment(
+            source_text, "rvv_callable_symbol", required=True
+        ),
+        "scalar_callable_symbol": parse_source_comment(
+            source_text, "scalar_callable_symbol", required=True
+        ),
+        "dispatch_runtime_callable_abi": parse_source_comment(
+            source_text, "dispatch_runtime_callable_abi", required=True
+        ),
+    }
     source_flags = {
         "selected_march": parse_source_comment(source_text, "selected_march", required=True),
         "selected_mabi": parse_source_comment(source_text, "selected_mabi", required=False),
@@ -2112,6 +2242,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             label: bundle_records_summary([record])[0]
             for label, record in selected_records.items()
         },
+        "generated_symbols": generated_symbols,
         "selected_artifact_paths": {
             "bundle_index": relative_to_repo(index_path, root),
             "source": relative_to_repo(source_path, root),
@@ -2134,6 +2265,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "artifacts": artifacts,
         "commands": commands,
         "ssh_evidence": None,
+        "ssh_evidence_verified": False,
         "claim_scope": (
             "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
             if args.dry_run
@@ -2160,6 +2292,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 run_id=run_id,
             )
             evidence["runtime_success"] = True
+            evidence["ssh_evidence_verified"] = True
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
@@ -2249,6 +2382,17 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         timeout_seconds=args.timeout,
     )
     library_vector_config = validate_library_dispatch_source(library_source_text)
+    generated_symbols = {
+        "rvv_callable_symbol": parse_source_comment(
+            library_source_text, "rvv_callable_symbol", required=True
+        ),
+        "scalar_callable_symbol": parse_source_comment(
+            library_source_text, "scalar_callable_symbol", required=True
+        ),
+        "dispatch_runtime_callable_abi": parse_source_comment(
+            library_source_text, "dispatch_runtime_callable_abi", required=True
+        ),
+    }
     library_source_path = artifact_dir / "rvv_scalar_dispatch_library.c"
     write_generated_text(
         library_source_path,
@@ -2304,6 +2448,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "runtime_element_counts": [7, 16],
             "success_marker": SUCCESS_MARKER,
         },
+        "generated_symbols": generated_symbols,
         "selected_compile_flags": remote_compile_flags(source_flags),
         "hashes": hashes,
         "artifacts": {
@@ -2314,6 +2459,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         },
         "commands": commands,
         "ssh_evidence": None,
+        "ssh_evidence_verified": False,
         "claim_scope": (
             "local dry-run verifies planned dispatch, manifest handoff, and source export only"
             if args.dry_run
@@ -2335,6 +2481,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 run_id=run_id,
             )
             evidence["runtime_success"] = True
+            evidence["ssh_evidence_verified"] = True
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
@@ -2367,47 +2514,22 @@ def run_self_test() -> None:
     configure_vector_shape("i32m1")
 
     def sample_shape_payload(shape_name: str) -> dict[str, Any]:
-        if shape_name == "i32m1":
-            return {
-                "shape": "i32m1",
-                "sew_bits": 32,
-                "lmul": "m1",
-                "tail_policy": "agnostic",
-                "mask_policy": "agnostic",
-                "vector_type": "vint32m1_t",
-                "vector_suffix": "i32m1",
-                "setvl_suffix": "e32m1",
-                "capability_ids": [
-                    "rvv.i32_m1.sew32",
-                    "rvv.i32_m1.lmul_m1",
-                    "rvv.i32_m1.tail_policy.agnostic",
-                    "rvv.i32_m1.mask_policy.agnostic",
-                ],
-            }
-        if shape_name == "i32m2":
-            return {
-                "shape": "i32m2",
-                "sew_bits": 32,
-                "lmul": "m2",
-                "tail_policy": "agnostic",
-                "mask_policy": "agnostic",
-                "vector_type": "vint32m2_t",
-                "vector_suffix": "i32m2",
-                "setvl_suffix": "e32m2",
-                "capability_ids": [
-                    "rvv.i32_m2.sew32",
-                    "rvv.i32_m2.lmul_m2",
-                    "rvv.i32_m2.tail_policy.agnostic",
-                    "rvv.i32_m2.mask_policy.agnostic",
-                ],
-            }
-        raise AssertionError(f"unsupported self-test shape: {shape_name}")
+        shape = RVV_VECTOR_SHAPE_SPECS.get(shape_name)
+        if shape is None:
+            raise AssertionError(f"unsupported self-test shape: {shape_name}")
+        return dict(shape)
 
     def sample_vector_shape_comments(shape_name: str) -> str:
         shape = sample_shape_payload(shape_name)
         return "\n".join(
             [
-                "/* selected_vector_shape_config: shape="
+                "/* selected_vector_shape_config: "
+                + (
+                    "dtype=" + str(shape["dtype"]) + ", "
+                    if str(shape["dtype"]) != "i32"
+                    else ""
+                )
+                + "shape="
                 + str(shape["shape"])
                 + ", sew="
                 + str(shape["sew_bits"])
@@ -2536,7 +2658,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_
     vsub_caller = build_dispatch_external_caller_source(
         "tcrv_dispatch_i32_vsub_self_test",
         "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h",
-        DISPATCH_RUNTIME_ABI_SIGNATURE,
+        active_dispatch_runtime_abi_signature(),
     )
     assert_self_test(
         "lhs[index] - rhs[index]" in vsub_caller,
@@ -2600,7 +2722,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok runtime_
     vmul_caller = build_dispatch_external_caller_source(
         "tcrv_dispatch_i32_vmul_self_test",
         "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vmul-dispatch-header.h",
-        DISPATCH_RUNTIME_ABI_SIGNATURE,
+        active_dispatch_runtime_abi_signature(),
     )
     assert_self_test(
         "lhs[index] * rhs[index]" in vmul_caller,
@@ -2610,7 +2732,44 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok runtime_
         BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in vmul_caller,
         "vmul bundle caller success marker missing",
     )
+
+    configure_arithmetic_family("i64-vadd")
+    configure_vector_shape("i64m1")
+    sample_i64_vadd_source = f"""
+/* TianChen-RV RVV+scalar host runtime dispatch C export. */
+/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
+#include <riscv_vector.h>
+void tcrv_dispatch_i64_vadd_self_test(void) {{}}
+{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "+")}
+/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+/* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+int main(void) {{ puts("tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }}
+""".strip()
+    i64_flags = validate_self_check_dispatch_source(sample_i64_vadd_source)
+    assert_self_test(
+        i64_flags["vector_config"]["shape"] == "i64m1",
+        "i64m1 vector-shape metadata was not preserved",
+    )
+    i64_caller = build_dispatch_external_caller_source(
+        "tcrv_dispatch_i64_vadd_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vadd-dispatch-header.h",
+        active_dispatch_runtime_abi_signature(),
+    )
+    assert_self_test(
+        "int64_t lhs[kCapacity]" in i64_caller
+        and "lhs[index] + rhs[index]" in i64_caller,
+        "i64-vadd bundle caller did not use int64_t add semantics",
+    )
+    assert_self_test(
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in i64_caller,
+        "i64-vadd bundle caller success marker missing",
+    )
+
     configure_arithmetic_family("i32-vadd")
+    configure_vector_shape("i32m1")
 
     sample_bundle_index = """
 tianchenrv.target_artifact_bundle.version: 1
@@ -2786,7 +2945,7 @@ artifact[2]:
         )
         assert_self_test(
             require_dispatch_runtime_abi_signature(selected["header"])
-            == DISPATCH_RUNTIME_ABI_SIGNATURE,
+            == active_dispatch_runtime_abi_signature(),
             "bundle dispatch header record did not use explicit runtime ABI signature",
         )
         try:
@@ -2864,7 +3023,7 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
 #endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_SELF_TEST_H */
 """
     dispatch_function = validate_generated_dispatch_header(
-        dispatch_header, DISPATCH_RUNTIME_ABI_SIGNATURE
+        dispatch_header, active_dispatch_runtime_abi_signature()
     )
     assert_self_test(
         dispatch_function == "tcrv_dispatch_i32_vadd_self_test",
@@ -2873,7 +3032,7 @@ void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, in
     caller = build_dispatch_external_caller_source(
         dispatch_function,
         "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h",
-        DISPATCH_RUNTIME_ABI_SIGNATURE,
+        active_dispatch_runtime_abi_signature(),
     )
     assert_self_test(
         BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in caller,
@@ -2944,10 +3103,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--vector-shape",
         choices=sorted(SUPPORTED_RVV_VECTOR_SHAPES),
-        default="i32m1",
+        default="",
         help=(
-            "Bounded typed RVV i32 vector shape to validate; i32m2 selects "
-            "the existing typed dispatch compiler/export fixture when available"
+            "Bounded typed RVV vector shape to validate; defaults to the "
+            "arithmetic family's descriptor-owned shape"
         ),
     )
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))
@@ -2990,7 +3149,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     configure_arithmetic_family(args.arithmetic_family)
-    configure_vector_shape(args.vector_shape)
+    configure_vector_shape(
+        args.vector_shape or str(ACTIVE_ARITHMETIC_FAMILY["default_vector_shape"])
+    )
     if args.self_test:
         run_self_test()
         return 0
@@ -3030,6 +3191,9 @@ def main(argv: list[str]) -> int:
                     "self_check_source_export_route", ""
                 ),
                 "ssh_evidence": bool(evidence["ssh_evidence"]),
+                "ssh_evidence_verified": bool(
+                    evidence.get("ssh_evidence_verified", False)
+                ),
                 "claim_scope": evidence["claim_scope"],
             },
             indent=2,

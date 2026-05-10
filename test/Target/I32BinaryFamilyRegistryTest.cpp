@@ -4,6 +4,7 @@
 #include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
+#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -237,7 +238,7 @@ int expectStandaloneFamilyExporterRoutes(
 
 int expectDispatchFamilyExporterRoutes(
     const TargetArtifactExporterRegistry &registry,
-    const I32BinaryFamilyDescriptor &family) {
+    const rvv_scalar::RVVScalarBinaryFamilyDescriptor &family) {
   if (int result = expectCompositeRoute(
           registry, family.dispatch.dispatchSourceRouteID,
           kRuntimeCallableCSourceArtifactKind, kDispatchTargetOwner,
@@ -266,7 +267,7 @@ int expectDispatchFamilyExporterRoutes(
 }
 
 const rvv_scalar::RVVScalarDispatchRouteManifestEntry *
-findDispatchManifestRoute(const I32BinaryFamilyDescriptor &family,
+findDispatchManifestRoute(const rvv_scalar::RVVScalarBinaryFamilyDescriptor &family,
                           rvv_scalar::RVVScalarDispatchRouteKind routeKind) {
   for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &route :
        rvv_scalar::getRVVScalarDispatchRouteManifest()) {
@@ -277,7 +278,7 @@ findDispatchManifestRoute(const I32BinaryFamilyDescriptor &family,
 }
 
 int expectDispatchManifestRoute(
-    const I32BinaryFamilyDescriptor &family,
+    const rvv_scalar::RVVScalarBinaryFamilyDescriptor &family,
     rvv_scalar::RVVScalarDispatchRouteKind routeKind,
     llvm::StringRef expectedRouteID, llvm::StringRef expectedArtifactKind,
     bool expectedBinaryStdout) {
@@ -313,16 +314,16 @@ int expectDispatchManifestRoute(
 
 int expectDispatchRouteManifest() {
   using RouteKind = rvv_scalar::RVVScalarDispatchRouteKind;
-  llvm::ArrayRef<const I32BinaryFamilyDescriptor *> families =
-      getI32BinaryFamilyDescriptors();
+  llvm::ArrayRef<const rvv_scalar::RVVScalarBinaryFamilyDescriptor *> families =
+      rvv_scalar::getRVVScalarBinaryFamilyDescriptors();
   llvm::ArrayRef<rvv_scalar::RVVScalarDispatchRouteManifestEntry> routes =
       rvv_scalar::getRVVScalarDispatchRouteManifest();
   if (int result =
           expect(routes.size() == families.size() * 5,
-                 "dispatch route manifest has five routes per i32 family"))
+                 "dispatch route manifest has five routes per RVV+scalar family"))
     return result;
 
-  for (const I32BinaryFamilyDescriptor *family : families) {
+  for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family : families) {
     if (int result = expectDispatchManifestRoute(
             *family, RouteKind::Source,
             family->dispatch.dispatchSourceRouteID,
@@ -921,6 +922,106 @@ int expectRVVBinaryI64DescriptorShape() {
   return 0;
 }
 
+int expectRVVScalarBinaryBridgeShape() {
+  namespace bridge = tianchenrv::target::rvv_scalar;
+
+  llvm::ArrayRef<const bridge::RVVScalarBinaryFamilyDescriptor *> families =
+      bridge::getRVVScalarBinaryFamilyDescriptors();
+  if (int result = expect(families.size() == 4,
+                          "RVV+scalar bridge exposes three i32 families plus i64-vadd"))
+    return result;
+  if (int result = expect(
+          families[0] == &bridge::getI32VAddFamilyDescriptor() &&
+              families[1] == &bridge::getI32VSubFamilyDescriptor() &&
+              families[2] == &bridge::getI32VMulFamilyDescriptor() &&
+              families[3] == &bridge::getI64VAddFamilyDescriptor(),
+          "RVV+scalar bridge preserves bounded family order"))
+    return result;
+
+  for (const bridge::RVVScalarBinaryFamilyDescriptor *family : families) {
+    if (int result =
+            expect(bridge::lookupRVVScalarBinaryFamilyByID(family->familyID) ==
+                       family,
+                   "RVV+scalar bridge lookup by family id returns descriptor"))
+      return result;
+    if (int result = expect(
+            bridge::lookupRVVScalarBinaryFamilyByFrontendLowering(
+                family->frontendLowering) == family,
+            "RVV+scalar bridge lookup by frontend lowering returns descriptor"))
+      return result;
+    if (int result = expect(
+            bridge::lookupRVVScalarBinaryFamilyByLoweringDescriptor(
+                family->loweringDescriptor) == family,
+            "RVV+scalar bridge lookup by lowering descriptor returns descriptor"))
+      return result;
+    if (int result = expect(
+            bridge::lookupRVVScalarBinaryFamilyByScalarRouteID(
+                family->scalar.routeID) == family,
+            "RVV+scalar bridge lookup by scalar route returns descriptor"))
+      return result;
+
+    if (int result = expect(family->rvvFamily &&
+                                family->familyID ==
+                                    family->rvvFamily->familyID &&
+                                family->frontendLowering ==
+                                    family->rvvFamily->frontendLowering &&
+                                family->loweringDescriptor ==
+                                    family->rvvFamily->loweringDescriptor,
+                            "RVV+scalar bridge mirrors RVV family identity"))
+      return result;
+    if (int result = expect(family->scalar.routeID ==
+                                family->dispatch.scalarRouteID &&
+                            family->scalar.runtimeABIName ==
+                                family->dispatch.scalarRuntimeABIName &&
+                            family->dispatch.rvvRouteID ==
+                                family->rvvFamily->routeID,
+                            "RVV+scalar bridge wires scalar/RVV routes into dispatch"))
+      return result;
+  }
+
+  const bridge::RVVScalarBinaryFamilyDescriptor &i64 =
+      bridge::getI64VAddFamilyDescriptor();
+  if (int result = expect(i64.scalar.microkernelOpName ==
+                              "tcrv_scalar.i64_vadd_microkernel" &&
+                              i64.scalar.routeID ==
+                                  "tcrv-export-scalar-i64-vadd-microkernel-c" &&
+                              i64.scalar.runtimeABIName ==
+                                  "scalar-i64-vadd-runtime-callable-c-function.v1" &&
+                              i64.scalar.cOperator == "+",
+                          "RVV+scalar bridge owns i64-vadd scalar fallback names"))
+    return result;
+  if (int result = expect(i64.dispatch.dispatchSourceRouteID ==
+                              "tcrv-export-rvv-scalar-i64-vadd-dispatch-c" &&
+                              i64.dispatch.dispatchHeaderRouteID ==
+                                  "tcrv-export-rvv-scalar-i64-vadd-dispatch-header" &&
+                              i64.dispatch.dispatchObjectRouteID ==
+                                  "tcrv-export-rvv-scalar-i64-vadd-dispatch-object" &&
+                              i64.dispatch.selfCheckSuccessMarker ==
+                                  "tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok",
+                          "RVV+scalar bridge owns i64-vadd dispatch routes"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5> parameters =
+      bridge::getRVVScalarDispatchRuntimeABIParameters(i64);
+  if (int result = expect(parameters.size() == 5 &&
+                              parameters[0].cType == "const int64_t *" &&
+                              parameters[1].cType == "const int64_t *" &&
+                              parameters[2].cType == "int64_t *" &&
+                              parameters[3].cType == "size_t" &&
+                              parameters[4].cName == "rvv_available" &&
+                              parameters[4].cType == "int",
+                          "RVV+scalar bridge derives i64 dispatch runtime ABI"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParamSpec, 2> paramSpecs =
+      bridge::getRVVScalarDispatchRuntimeParamSpecs(i64);
+  return expect(paramSpecs.size() == 2 &&
+                    paramSpecs[0].cType == "size_t" &&
+                    paramSpecs[1].cName == "rvv_available" &&
+                    paramSpecs[1].cType == "int",
+                "RVV+scalar bridge derives runtime count and guard params");
+}
+
 } // namespace
 
 int main() {
@@ -965,6 +1066,8 @@ int main() {
     return result;
   if (int result = expectRVVBinaryI64DescriptorShape())
     return result;
+  if (int result = expectRVVScalarBinaryBridgeShape())
+    return result;
 
   TargetArtifactExporterRegistry registry;
   if (int result = expectSuccess(
@@ -997,7 +1100,17 @@ int main() {
             descriptor.getRVVRuntimeABIName(),
             /*expectedDirectHelperRoute=*/true))
       return result;
-  for (const I32BinaryFamilyDescriptor *family : families)
+  const rvv_scalar::RVVScalarBinaryFamilyDescriptor &i64Bridge =
+      rvv_scalar::getI64VAddFamilyDescriptor();
+  if (int result = expectRoute(
+          registry, i64Bridge.scalar.routeID,
+          kRuntimeCallableCSourceArtifactKind, kScalarPluginName,
+          i64Bridge.scalar.emissionKind,
+          /*componentGroup=*/{}, /*externalABIName=*/{},
+          /*expectedDirectHelperRoute=*/false))
+    return result;
+  for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
+       rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
       return result;
 
