@@ -33,6 +33,7 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vsub-dispatch-header.h
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i64-vsub-dispatch-object.o
 # RUN: FileCheck %s --check-prefix=I64-VSUB-CALLER --implicit-check-not="lhs[index] * rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=I64-VSUB-INDEX --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
 # RUN: FileCheck %s --check-prefix=I64-VSUB-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=rvv-scalar-i32-vsub-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export/evidence.json
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=VMUL-PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
@@ -203,6 +204,31 @@
 # I64-VSUB-CALLER: run_dispatch_case(7, 0)
 # I64-VSUB-CALLER: run_dispatch_case(16, 1)
 # I64-VSUB-CALLER: tcrv_rvv_scalar_i64_vsub_bundle_external_abi_ok
+
+# I64-VSUB-INDEX: component_group: "rvv-scalar-i64-vsub-dispatch-external-abi.v1"
+# I64-VSUB-INDEX: component_role: "source"
+# I64-VSUB-INDEX: external_abi_name: "rvv-scalar-i64-vsub-dispatch-runtime-callable-c-function.v1"
+# I64-VSUB-INDEX: route: "tcrv-export-rvv-scalar-i64-vsub-dispatch-c"
+# I64-VSUB-INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+# I64-VSUB-INDEX: runtime_abi_name: "rvv-scalar-i64-vsub-dispatch-runtime-callable-c-function.v1"
+# I64-VSUB-INDEX: runtime_abi_parameter[0]:
+# I64-VSUB-INDEX: c_name: "lhs"
+# I64-VSUB-INDEX: c_type: "const int64_t *"
+# I64-VSUB-INDEX: role: "lhs-input-buffer"
+# I64-VSUB-INDEX: runtime_abi_parameter[2]:
+# I64-VSUB-INDEX: c_name: "out"
+# I64-VSUB-INDEX: c_type: "int64_t *"
+# I64-VSUB-INDEX: role: "output-buffer"
+# I64-VSUB-INDEX: runtime_abi_parameter[3]:
+# I64-VSUB-INDEX: c_name: "n"
+# I64-VSUB-INDEX: role: "runtime-element-count"
+# I64-VSUB-INDEX: runtime_abi_parameter[4]:
+# I64-VSUB-INDEX: c_name: "rvv_available"
+# I64-VSUB-INDEX: role: "dispatch-availability-guard"
+# I64-VSUB-INDEX: component_role: "header"
+# I64-VSUB-INDEX: route: "tcrv-export-rvv-scalar-i64-vsub-dispatch-header"
+# I64-VSUB-INDEX: component_role: "object"
+# I64-VSUB-INDEX: route: "tcrv-export-rvv-scalar-i64-vsub-dispatch-object"
 
 # I64-VSUB-EVIDENCE: "arithmetic_family": "i64-vsub"
 # I64-VSUB-EVIDENCE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"

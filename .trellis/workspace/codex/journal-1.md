@@ -55,6 +55,44 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 16: RVV scalar dispatch bundle ABI coherence
+
+**Date**: 2026-05-10
+**Task**: RVV scalar dispatch bundle ABI coherence
+**Branch**: `main`
+
+### Summary
+
+Added target-local stale child ABI preflight for selected RVV+scalar dispatch case/fallback routes, preserved standalone RVV artifact routing, extended i64-vsub source/header/object and bundle-index ABI checks, and archived the Trellis task after `check-tianchenrv` passed 192/192.
+
+### Main Changes
+
+- RVV+scalar composite dispatch now fails closed when a selected child route belongs to a supported dispatch family but carries stale origin, role, emission kind, artifact kind, runtime ABI, runtime ABI kind/name, or runtime glue role.
+- Generic target source export no longer silently degrades stale scalar fallback metadata into a standalone RVV artifact.
+- i64-vsub tests now cover child ABI names, dispatch mem-window/runtime-param metadata, dispatch ABI parameters, stale scalar ABI name, stale i64 pointer metadata, and i64 bundle source/header/object records.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] Focused lit: `Target/RVVScalarDispatch`, `Target/ArtifactExport`, `Scripts/rvv-scalar-dispatch-e2e.test`, `Scripts/rvv-scalar-dispatch-bundle-e2e.test`
+- [OK] C++ tests: `tianchenrv-target-artifact-export-test`, `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-scalar-extension-plugin-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 14: Profile-replayed i64 RVV ssh evidence
 
 **Date**: 2026-05-10

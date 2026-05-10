@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Top-level project boundary and stack invariants for TianChen-RV MLIR."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines mem_window, runtime_param, dispatch, fallback, runtime_guard, and diagnostic contracts consumed by this task."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines emission-plan, target artifact export, bundle, and RVV+scalar dispatch route coherence contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-local family descriptors, selected shape, microkernel, ABI, and emission boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Defines scalar fallback plugin-local descriptor, callable ABI, source/header/object, and finite i32/i64 family behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin registry routing and generic versus target/plugin ownership boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/C++ testing obligations and RVV evidence interpretation for dispatch/bundle routes."}

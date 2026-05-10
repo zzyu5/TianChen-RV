@@ -319,6 +319,104 @@ bool hasCandidateShape(const TargetArtifactCandidate &candidate,
          candidate.runtimeGlueRole == runtimeGlueRole;
 }
 
+llvm::Error requireCallableCandidateField(
+    const TargetArtifactCandidate &candidate, const DispatchI32FamilySpec &family,
+    llvm::StringRef componentLabel, llvm::StringRef fieldName,
+    llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeDispatchError(
+      candidate.kernel,
+      llvm::Twine("selected ") + componentLabel + " callable route '" +
+          candidate.routeID + "' for " + family.diagnosticName +
+          " has stale " + fieldName + " '" + actual + "'; expected '" +
+          expected + "'");
+}
+
+llvm::Error validateRVVCallableCandidateShapeForFamily(
+    const TargetArtifactCandidate &candidate,
+    const DispatchI32FamilySpec &family) {
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "origin", candidate.origin,
+          kRVVPluginName))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "role", candidate.role,
+          kDispatchCaseRole))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "route id",
+          candidate.routeID, family.rvvRouteID))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "emission_kind",
+          candidate.emissionKind, family.rvvEmissionKind))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "artifact_kind",
+          candidate.artifactKind, kRuntimeCallableCSourceArtifactKind))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "runtime_abi",
+          candidate.runtimeABI, family.rvvRuntimeABI))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "runtime_abi_kind",
+          candidate.runtimeABIKind, family.rvvRuntimeABIKind))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "runtime_abi_name",
+          candidate.runtimeABIName, family.rvvRuntimeABIName))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "RVV dispatch case", "runtime_glue_role",
+          candidate.runtimeGlueRole, family.rvvRuntimeGlueRole))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateScalarCallableCandidateShapeForFamily(
+    const TargetArtifactCandidate &candidate,
+    const DispatchI32FamilySpec &family) {
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "origin",
+          candidate.origin, kScalarPluginName))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "role",
+          candidate.role, kDispatchFallbackRole))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "route id",
+          candidate.routeID, family.scalarRouteID))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "emission_kind",
+          candidate.emissionKind, family.scalarEmissionKind))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "artifact_kind",
+          candidate.artifactKind, kRuntimeCallableCSourceArtifactKind))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "runtime_abi",
+          candidate.runtimeABI, family.scalarRuntimeABI))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "runtime_abi_kind",
+          candidate.runtimeABIKind, family.scalarRuntimeABIKind))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "runtime_abi_name",
+          candidate.runtimeABIName, family.scalarRuntimeABIName))
+    return error;
+  if (llvm::Error error = requireCallableCandidateField(
+          candidate, family, "scalar dispatch fallback", "runtime_glue_role",
+          candidate.runtimeGlueRole, family.scalarRuntimeGlueRole))
+    return error;
+  return llvm::Error::success();
+}
+
 bool isRVVCallableCandidateForFamily(const TargetArtifactCandidate &candidate,
                                      const DispatchI32FamilySpec &family) {
   return hasCandidateShape(candidate, kRVVPluginName, kDispatchCaseRole,
@@ -338,6 +436,28 @@ bool isScalarCallableCandidateForFamily(
                            family.scalarRuntimeABIKind,
                            family.scalarRuntimeABIName,
                            family.scalarRuntimeGlueRole);
+}
+
+const DispatchI32FamilySpec *
+lookupDispatchFamilyByRVVRouteID(llvm::StringRef routeID) {
+  for (const auto *descriptor :
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+    const DispatchI32FamilySpec &family = descriptor->dispatch;
+    if (family.rvvRouteID == routeID)
+      return &family;
+  }
+  return nullptr;
+}
+
+const DispatchI32FamilySpec *
+lookupDispatchFamilyByScalarRouteID(llvm::StringRef routeID) {
+  for (const auto *descriptor :
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+    const DispatchI32FamilySpec &family = descriptor->dispatch;
+    if (family.scalarRouteID == routeID)
+      return &family;
+  }
+  return nullptr;
 }
 
 const DispatchI32FamilySpec *
@@ -1101,6 +1221,19 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
       continue;
     }
 
+    if (candidate.role == kDispatchCaseRole) {
+      if (const DispatchI32FamilySpec *family =
+              lookupDispatchFamilyByRVVRouteID(candidate.routeID))
+        return validateRVVCallableCandidateShapeForFamily(candidate, *family);
+    }
+
+    if (candidate.role == kDispatchFallbackRole) {
+      if (const DispatchI32FamilySpec *family =
+              lookupDispatchFamilyByScalarRouteID(candidate.routeID))
+        return validateScalarCallableCandidateShapeForFamily(candidate,
+                                                            *family);
+    }
+
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("unsupported supported artifact candidate route '") +
@@ -1162,17 +1295,40 @@ llvm::Expected<bool> matchRVVScalarDispatchCandidatesForFamily(
   const DispatchI32FamilySpec *rvvFamily = nullptr;
   const DispatchI32FamilySpec *scalarFamily = nullptr;
   for (const TargetArtifactCandidate &candidate : candidates) {
-    if (const DispatchI32FamilySpec *family =
-            getRVVCallableCandidateFamily(candidate)) {
-      rvvCandidate = &candidate;
-      rvvFamily = family;
-      continue;
+    if (candidate.role == kDispatchCaseRole) {
+      if (const DispatchI32FamilySpec *routeFamily =
+              lookupDispatchFamilyByRVVRouteID(candidate.routeID)) {
+        if (llvm::Error error =
+                validateRVVCallableCandidateShapeForFamily(candidate,
+                                                           *routeFamily))
+          return std::move(error);
+        if (rvvCandidate)
+          return makeDispatchError(
+              candidate.kernel,
+              "requires exactly one supported RVV dispatch "
+              "case callable route; found duplicate");
+        rvvCandidate = &candidate;
+        rvvFamily = routeFamily;
+        continue;
+      }
     }
-    if (const DispatchI32FamilySpec *family =
-            getScalarCallableCandidateFamily(candidate)) {
-      scalarCandidate = &candidate;
-      scalarFamily = family;
-      continue;
+
+    if (candidate.role == kDispatchFallbackRole) {
+      if (const DispatchI32FamilySpec *routeFamily =
+              lookupDispatchFamilyByScalarRouteID(candidate.routeID)) {
+        if (llvm::Error error =
+                validateScalarCallableCandidateShapeForFamily(candidate,
+                                                              *routeFamily))
+          return std::move(error);
+        if (scalarCandidate)
+          return makeDispatchError(
+              candidate.kernel,
+              "requires exactly one supported scalar dispatch fallback "
+              "callable route; found duplicate");
+        scalarCandidate = &candidate;
+        scalarFamily = routeFamily;
+        continue;
+      }
     }
     return false;
   }
