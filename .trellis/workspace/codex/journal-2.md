@@ -374,3 +374,43 @@ emission-plan route metadata through target-owned manifest routes to real
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 18: Fixture-free RVV frontend dispatch route evidence
+
+**Date**: 2026-05-10
+**Task**: Fixture-free RVV frontend dispatch route evidence
+**Branch**: `main`
+
+### Summary
+
+Proved fixture-free i64-vmul frontend pipeline route metadata reaches manifest-backed RVV scalar dispatch object evidence without a new runtime claim.
+
+Created and completed the Trellis task for the fixture-free `i64-vmul` frontend pipeline dispatch route evidence module. Inventory showed the existing C++/MLIR frontend lowering and execution planning pipeline already produce selected RVV+scalar route metadata, so the round added focused evidence and lit coverage instead of duplicating pipeline code.
+
+### Main Changes
+
+- Extended `scripts/rvv_scalar_dispatch_e2e.py` evidence with `fixture_free_frontend_pipeline`, route provenance, selected route id, manifest route id, artifact kind, path, and hash for direct dispatch/self-check object export and bundle source/header/object export.
+- Added fixture-free frontend direct object/self-check object lit coverage for marked `i64-vmul` linalg input lowered through `--tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline`.
+- Added script lit expectations proving the fixture-free direct path and bundle front-door path record manifest-backed artifact route identity.
+- Preserved RVV semantics in plugin/target-local C++/MLIR surfaces; no generic core pass gained RVV-specific branches.
+
+### Evidence
+
+- No new RVV runtime/correctness claim was made; no fresh `ssh rvv` run was performed.
+- First focused lit run exposed a stale `pass_fail_result` expectation in the new direct dry-run evidence; the expectation was removed because dry-run evidence has no runtime pass/fail result, then the focused lit was rerun successfully.
+- `git diff --check`
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Fixture-free direct dry run for `i64-vmul` with `--lower-linalg-frontend`
+- Fixture-free bundle dry run for `i64-vmul` with `--use-plan-and-export-bundle-front-door`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit filters for RVV scalar dispatch object, script e2e, bundle e2e, target artifact bundle, and plan/export bundle paths all passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: `194/194` passed
+
+### Status
+
+[OK] **Completed and archived**

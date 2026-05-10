@@ -1826,6 +1826,88 @@ def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]
     return summary
 
 
+def build_bundle_route_evidence(
+    selected_records: dict[str, dict[str, Any]],
+    selected_paths: dict[str, Path],
+    hashes: dict[str, str],
+    *,
+    root: Path,
+    fixture_free_frontend_pipeline: bool,
+    pipeline_front_door: str,
+) -> dict[str, dict[str, Any]]:
+    hash_keys = {
+        "source": "bundle_dispatch_source_sha256",
+        "header": "bundle_dispatch_header_sha256",
+        "object": "bundle_dispatch_object_sha256",
+    }
+    evidence: dict[str, dict[str, Any]] = {}
+    for label in ("source", "header", "object"):
+        record = selected_records[label]
+        route = str(record["route"])
+        evidence[label] = {
+            "selected_route_id": route,
+            "manifest_route_id": route,
+            "artifact_kind": str(record["artifact_kind"]),
+            "artifact_path": relative_to_repo(selected_paths[label], root),
+            "artifact_sha256": hashes[hash_keys[label]],
+            "component_role": str(record["component_role"]),
+            "selected_surface": str(record.get("selected_surface", "")),
+            "route_metadata_source": "target-artifact-bundle-index",
+            "pipeline_front_door": pipeline_front_door,
+            "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
+        }
+    return evidence
+
+
+def build_direct_route_evidence(
+    *,
+    root: Path,
+    fixture_free_frontend_pipeline: bool,
+    dispatch_object_path: Path,
+    dispatch_object_sha256: str,
+    self_check_source_path: Path,
+    self_check_source_sha256: str,
+    self_check_source_manifest_route: str,
+    self_check_source_artifact_kind: str,
+    self_check_object_path: Path,
+    self_check_object_sha256: str,
+    dispatch_object_route: str,
+    self_check_object_route: str,
+) -> dict[str, dict[str, Any]]:
+    return {
+        "self_check_source": {
+            "selected_route_id": self_check_source_manifest_route,
+            "manifest_route_id": self_check_source_manifest_route,
+            "artifact_kind": self_check_source_artifact_kind,
+            "artifact_path": relative_to_repo(self_check_source_path, root),
+            "artifact_sha256": self_check_source_sha256,
+            "route_metadata_source": "self-check-source-manifest-comment",
+            "pipeline_front_door": "tcrv-execution-planning-pipeline",
+            "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
+        },
+        "dispatch_object": {
+            "selected_route_id": dispatch_object_route,
+            "manifest_route_id": dispatch_object_route,
+            "artifact_kind": DISPATCH_OBJECT_ARTIFACT_KIND,
+            "artifact_path": relative_to_repo(dispatch_object_path, root),
+            "artifact_sha256": dispatch_object_sha256,
+            "route_metadata_source": "target-translate-route-manifest",
+            "pipeline_front_door": "tcrv-execution-planning-pipeline",
+            "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
+        },
+        "self_check_object": {
+            "selected_route_id": self_check_object_route,
+            "manifest_route_id": self_check_object_route,
+            "artifact_kind": SELF_CHECK_OBJECT_ARTIFACT_KIND,
+            "artifact_path": relative_to_repo(self_check_object_path, root),
+            "artifact_sha256": self_check_object_sha256,
+            "route_metadata_source": "target-translate-route-manifest",
+            "pipeline_front_door": "tcrv-execution-planning-pipeline",
+            "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
+        },
+    }
+
+
 def runtime_abi_parameter_c_declaration(parameter: dict[str, str]) -> str:
     c_type = parameter["c_type"]
     c_name = parameter["c_name"]
@@ -2774,6 +2856,11 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_path = bundle_dir / str(selected_records["source"]["file_name"])
     header_path = bundle_dir / str(selected_records["header"]["file_name"])
     object_path = bundle_dir / str(selected_records["object"]["file_name"])
+    selected_paths = {
+        "source": source_path,
+        "header": header_path,
+        "object": object_path,
+    }
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_vector_config = validate_library_dispatch_source(source_text)
@@ -2842,6 +2929,15 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         if args.use_plan_and_export_bundle_front_door
         else "tcrv-execution-planning-pipeline"
     )
+    fixture_free_frontend_pipeline = bool(args.use_plan_and_export_bundle_front_door)
+    pipeline_artifact_route_evidence = build_bundle_route_evidence(
+        selected_records,
+        selected_paths,
+        hashes,
+        root=root,
+        fixture_free_frontend_pipeline=fixture_free_frontend_pipeline,
+        pipeline_front_door=planned_dispatch_pipeline,
+    )
     artifacts = {
         "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
         "bundle_dir": relative_to_repo(bundle_dir, root),
@@ -2869,6 +2965,12 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": planned_dispatch_pipeline,
         "bundle_export_mode": bundle_export_mode,
+        "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
+        "fixture_free_pipeline_path": (
+            "marked-linalg-rvv-binary-frontend-to-plan-and-export-bundle"
+            if fixture_free_frontend_pipeline
+            else "preplanned-mlir-to-target-artifact-bundle"
+        ),
         "rvv_config": source_vector_config,
         "bundle_index": relative_to_repo(index_path, root),
         "bundle_index_summary": bundle_records_summary(records),
@@ -2890,6 +2992,12 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "header": relative_to_repo(header_path, root),
             "object": relative_to_repo(object_path, root),
             "external_caller": relative_to_repo(caller_path, root),
+        },
+        "pipeline_artifact_route_evidence": pipeline_artifact_route_evidence,
+        "self_check_artifact_export": {
+            "included": False,
+            "reason": "target artifact bundle front door exports dispatch source/header/object records only",
+            "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
         },
         "source_export_mode": "runtime-callable-library",
         "branch_coverage": branch_coverage,
@@ -3153,6 +3261,21 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     }
     dispatch_object_route = active_dispatch_object_route_id()
     self_check_object_route = active_self_check_object_route_id()
+    fixture_free_frontend_pipeline = bool(args.lower_linalg_frontend)
+    pipeline_artifact_route_evidence = build_direct_route_evidence(
+        root=root,
+        fixture_free_frontend_pipeline=fixture_free_frontend_pipeline,
+        dispatch_object_path=dispatch_object_path,
+        dispatch_object_sha256=hashes["dispatch_object_sha256"],
+        self_check_source_path=self_check_source_path,
+        self_check_source_sha256=hashes["dispatch_self_check_c_sha256"],
+        self_check_source_manifest_route=self_check_source_manifest_route,
+        self_check_source_artifact_kind=self_check_source_artifact_kind,
+        self_check_object_path=self_check_object_path,
+        self_check_object_sha256=hashes["dispatch_self_check_object_sha256"],
+        dispatch_object_route=dispatch_object_route,
+        self_check_object_route=self_check_object_route,
+    )
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "runner": SCRIPT_NAME,
@@ -3165,6 +3288,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
+        "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
+        "fixture_free_pipeline_path": (
+            "marked-linalg-rvv-binary-frontend-to-execution-planning"
+            if fixture_free_frontend_pipeline
+            else "preplanned-mlir-to-execution-planning"
+        ),
         "library_source_export_route": "generic-target-source-artifact",
         "self_check_source_export_route": str(
             ACTIVE_ARITHMETIC_FAMILY["self_check_route"]
@@ -3195,6 +3324,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 "artifact_path": relative_to_repo(self_check_object_path, root),
             },
         },
+        "pipeline_artifact_route_evidence": pipeline_artifact_route_evidence,
         "rvv_config": source_flags["vector_config"],
         "library_rvv_config": library_vector_config,
         "self_check": {
@@ -4136,6 +4266,12 @@ def main(argv: list[str]) -> int:
                 "status": evidence["status"],
                 "vector_shape": evidence.get("vector_shape", ""),
                 "planned_dispatch_pipeline": evidence["planned_dispatch_pipeline"],
+                "fixture_free_frontend_pipeline": bool(
+                    evidence.get("fixture_free_frontend_pipeline", False)
+                ),
+                "fixture_free_pipeline_path": evidence.get(
+                    "fixture_free_pipeline_path", ""
+                ),
                 "source_sha256": evidence["hashes"].get(
                     "dispatch_self_check_c_sha256",
                     evidence["hashes"].get("bundle_external_caller_c_sha256", ""),

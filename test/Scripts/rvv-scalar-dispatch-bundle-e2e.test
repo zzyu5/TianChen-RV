@@ -312,6 +312,8 @@
 
 # I64-VMUL-PLAN-DRY: "arithmetic_family": "i64-vmul"
 # I64-VMUL-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# I64-VMUL-PLAN-DRY: "fixture_free_frontend_pipeline": true
+# I64-VMUL-PLAN-DRY: "fixture_free_pipeline_path": "marked-linalg-rvv-binary-frontend-to-plan-and-export-bundle"
 # I64-VMUL-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
 # I64-VMUL-PLAN-DRY: "ssh_evidence": false
 # I64-VMUL-PLAN-DRY: "status": "success"
@@ -350,6 +352,18 @@
 # I64-VMUL-EVIDENCE: "overrun_behavior_checked": true
 # I64-VMUL-EVIDENCE: "source_built_object_path_checked_by_live_run": false
 # I64-VMUL-EVIDENCE: "pass_fail_result": "pass"
+# I64-VMUL-EVIDENCE: "pipeline_artifact_route_evidence": {
+# I64-VMUL-EVIDENCE: "object": {
+# I64-VMUL-EVIDENCE: "artifact_kind": "riscv-elf-relocatable-object"
+# I64-VMUL-EVIDENCE: "artifact_path": "artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vmul-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i64-vmul-dispatch-object.o"
+# I64-VMUL-EVIDENCE: "artifact_sha256": "
+# I64-VMUL-EVIDENCE: "fixture_free_frontend_pipeline": true
+# I64-VMUL-EVIDENCE: "manifest_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
+# I64-VMUL-EVIDENCE: "selected_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
+# I64-VMUL-EVIDENCE: "source": {
+# I64-VMUL-EVIDENCE: "manifest_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-c"
+# I64-VMUL-EVIDENCE: "self_check_artifact_export": {
+# I64-VMUL-EVIDENCE: "included": false
 # I64-VMUL-EVIDENCE: "ssh_evidence": null
 # I64-VMUL-EVIDENCE: "status": "success"
 

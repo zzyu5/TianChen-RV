@@ -36,6 +36,11 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=I64-VMUL-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=__riscv_vsub_vv_i64 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=I64-VMUL-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vmul --lower-linalg-frontend --run-id lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=I64-VMUL-FRONTEND-DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/post_planning.mlir
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/rvv_scalar_dispatch_library.o
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/rvv_scalar_dispatch_self_check.o
+# RUN: FileCheck %s --check-prefix=I64-VMUL-FRONTEND-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -258,6 +263,38 @@
 # I64-VMUL-EVIDENCE: "ssh_evidence": null
 # I64-VMUL-EVIDENCE: "ssh_evidence_verified": false
 # I64-VMUL-EVIDENCE: "status": "success"
+
+# I64-VMUL-FRONTEND-DRY: "arithmetic_family": "i64-vmul"
+# I64-VMUL-FRONTEND-DRY: "fixture_free_frontend_pipeline": true
+# I64-VMUL-FRONTEND-DRY: "fixture_free_pipeline_path": "marked-linalg-rvv-binary-frontend-to-execution-planning"
+# I64-VMUL-FRONTEND-DRY: "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline"
+# I64-VMUL-FRONTEND-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c"
+# I64-VMUL-FRONTEND-DRY: "ssh_evidence": false
+# I64-VMUL-FRONTEND-DRY: "status": "success"
+
+# I64-VMUL-FRONTEND-EVIDENCE: "arithmetic_family": "i64-vmul"
+# I64-VMUL-FRONTEND-EVIDENCE: "fixture_free_frontend_pipeline": true
+# I64-VMUL-FRONTEND-EVIDENCE: "fixture_free_pipeline_path": "marked-linalg-rvv-binary-frontend-to-execution-planning"
+# I64-VMUL-FRONTEND-EVIDENCE: "input": "test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir"
+# I64-VMUL-FRONTEND-EVIDENCE: "pipeline_artifact_route_evidence": {
+# I64-VMUL-FRONTEND-EVIDENCE: "dispatch_object": {
+# I64-VMUL-FRONTEND-EVIDENCE: "artifact_kind": "riscv-elf-relocatable-object"
+# I64-VMUL-FRONTEND-EVIDENCE: "artifact_path": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/rvv_scalar_dispatch_library.o"
+# I64-VMUL-FRONTEND-EVIDENCE: "artifact_sha256": "
+# I64-VMUL-FRONTEND-EVIDENCE: "fixture_free_frontend_pipeline": true
+# I64-VMUL-FRONTEND-EVIDENCE: "manifest_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
+# I64-VMUL-FRONTEND-EVIDENCE: "selected_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
+# I64-VMUL-FRONTEND-EVIDENCE: "self_check_object": {
+# I64-VMUL-FRONTEND-EVIDENCE: "artifact_kind": "self-check-riscv-elf-relocatable-object"
+# I64-VMUL-FRONTEND-EVIDENCE: "artifact_path": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/rvv_scalar_dispatch_self_check.o"
+# I64-VMUL-FRONTEND-EVIDENCE: "artifact_sha256": "
+# I64-VMUL-FRONTEND-EVIDENCE: "fixture_free_frontend_pipeline": true
+# I64-VMUL-FRONTEND-EVIDENCE: "manifest_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-object"
+# I64-VMUL-FRONTEND-EVIDENCE: "selected_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-object"
+# I64-VMUL-FRONTEND-EVIDENCE: "self_check_source": {
+# I64-VMUL-FRONTEND-EVIDENCE: "manifest_route_id": "tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c"
+# I64-VMUL-FRONTEND-EVIDENCE: "ssh_evidence": null
+# I64-VMUL-FRONTEND-EVIDENCE: "status": "success"
 
 # SECRET: rvv_scalar_dispatch_e2e:
 # SECRET-SAME: evidence note contains secret-like, credential, or URL text

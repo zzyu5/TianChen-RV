@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 17
+- **Total Sessions**: 18
 - **Last Active**: 2026-05-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~75 | Active |
+| `journal-2.md` | ~416 | Active |
 | `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-05-10 | Fixture-free RVV frontend dispatch route evidence | this commit | `main` |
 | 17 | 2026-05-10 | Bounded linalg RVV binary frontend pass naming | - | `main` |
 | 16 | 2026-05-10 | Target-owned artifact route translation registration | this commit | `main` |
 | 15 | 2026-05-10 | Descriptor-driven RVV binary runtime ABI boundary | this commit | `main` |
