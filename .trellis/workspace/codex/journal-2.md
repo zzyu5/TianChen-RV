@@ -40,7 +40,6 @@ Moved tcrv-translate RVV direct and RVV+scalar route-family helper command regis
 
 [OK] **Completed and archived**
 
-
 ## Session 21: RVV binary artifact manifests as target-owned family source of truth
 
 **Date**: 2026-05-10
@@ -84,7 +83,6 @@ derive manifest records from the finite binary family registries.
 ### Status
 
 [OK] **Completed and archived**
-
 
 ## Session 17: Bounded linalg RVV binary frontend pass naming
 
@@ -231,7 +229,6 @@ and real `ssh rvv` compile/link/run validation for both dispatch branches.
 
 [OK] **Completed and archived**
 
-
 ## Session 20: Manifest-derived RVV+scalar dispatch route registration
 
 **Date**: 2026-05-10
@@ -266,6 +263,54 @@ translate route registration no longer carries a second six-family append list.
   `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'target-artifact-export|i32-binary-family-registry|rvv-scalar-dispatch'`
 - `git diff --check`
 - `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: `193/193` passed
+
+### Status
+
+[OK] **Completed and archived**
+
+
+## Session 22: Manifest-backed RVV selected-boundary artifact handoff
+
+**Date**: 2026-05-10
+**Task**: Manifest-backed RVV selected-boundary artifact handoff
+**Branch**: `main`
+
+### Summary
+
+Created the new Trellis task from the Hermes brief after confirming there was
+no active `.trellis/.current-task`. Completed the bounded `i64-vmul`
+RVV+scalar dispatch handoff from selected emission-plan route metadata into
+manifest-backed target artifact export validation.
+
+### Main Changes
+
+- Added public C++ manifest lookup APIs for direct RVV microkernel routes and
+  RVV+scalar dispatch routes.
+- Changed RVV callable source preflight so selected emission-plan route ids are
+  accepted only after resolving a source route in the direct RVV manifest.
+- Changed RVV+scalar dispatch export/preflight so source/header/object and
+  self-check routes are resolved through the dispatch manifest before export.
+- Tightened `i64-vmul` dispatch lit coverage to prove the selected emission
+  plans carry the RVV/scalar callable routes and the generated source/header
+  artifacts expose the dispatch manifest route consumed by the exporter.
+- Added C++ coverage for representative direct RVV and RVV+scalar dispatch
+  manifest lookup, including unknown-route rejection.
+
+### Evidence
+
+- No RVV runtime/correctness/performance claim was made in this round; no fresh
+  `ssh rvv` run was required.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-scalar-i64-vmul-dispatch-generic-route|rvv-scalar-dispatch-bundle-e2e|rvv-microkernel-bundle-e2e'`
+- Broader artifact/planning lit from `artifacts/tmp/tianchenrv-build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'TargetArtifact|target-artifact|artifact-export|execution-planning|ExecutionPlanning|rvv-binary-planning'`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  `193/193` passed
 
 ### Status
 

@@ -51,6 +51,13 @@ std::size_t getRVVScalarDispatchRouteCount();
 llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
 getRVVScalarDispatchRouteManifest();
 
+const RVVScalarDispatchRouteManifestEntry *
+lookupRVVScalarDispatchRoute(llvm::StringRef routeID);
+
+const RVVScalarDispatchRouteManifestEntry *
+lookupRVVScalarDispatchRoute(const DispatchBinaryFamilyDescriptor &family,
+                             RVVScalarDispatchRouteKind routeKind);
+
 llvm::Error exportRVVScalarDispatchRoute(
     mlir::ModuleOp module, const RVVScalarDispatchRouteManifestEntry &route,
     llvm::raw_ostream &os);

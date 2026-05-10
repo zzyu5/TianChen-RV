@@ -441,12 +441,18 @@ bool isScalarCallableCandidateForFamily(
 
 const DispatchI32FamilySpec *
 lookupDispatchFamilyByRVVRouteID(llvm::StringRef routeID) {
-  for (const auto *descriptor :
-       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
-    const DispatchI32FamilySpec &family = descriptor->dispatch;
-    if (family.rvvRouteID == routeID)
-      return &family;
-  }
+  if (const rvv::RVVMicrokernelDirectRouteManifestEntry *route =
+          rvv::lookupRVVMicrokernelDirectRoute(routeID))
+    if (route->routeKind ==
+            rvv::RVVMicrokernelDirectRouteKind::Source &&
+        route->family)
+      for (const auto *descriptor :
+           tianchenrv::target::rvv_scalar::
+               getRVVScalarBinaryFamilyDescriptors()) {
+        const DispatchI32FamilySpec &family = descriptor->dispatch;
+        if (family.rvvFamily == route->family)
+          return &family;
+      }
   return nullptr;
 }
 
@@ -463,12 +469,10 @@ lookupDispatchFamilyByScalarRouteID(llvm::StringRef routeID) {
 
 const DispatchI32FamilySpec *
 getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
-  for (const auto *descriptor :
-       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
-    const DispatchI32FamilySpec &family = descriptor->dispatch;
-    if (isRVVCallableCandidateForFamily(candidate, family))
-      return &family;
-  }
+  if (const DispatchI32FamilySpec *family =
+          lookupDispatchFamilyByRVVRouteID(candidate.routeID))
+    if (isRVVCallableCandidateForFamily(candidate, *family))
+      return family;
   return nullptr;
 }
 
@@ -517,6 +521,43 @@ llvm::Error validateRegisteredCallableRouteMetadata(
     std::string message = llvm::toString(std::move(error));
     return makeDispatchError(candidate.kernel, message);
   }
+  return llvm::Error::success();
+}
+
+bool isSameDispatchFamily(const DispatchI32FamilySpec &lhs,
+                          const DispatchI32FamilySpec &rhs) {
+  return lhs.rvvFamily && rhs.rvvFamily &&
+         lhs.rvvFamily->familyID == rhs.rvvFamily->familyID &&
+         lhs.diagnosticName == rhs.diagnosticName;
+}
+
+llvm::Error validateDispatchManifestRouteForFamily(
+    KernelOp kernel, const DispatchI32FamilySpec &family,
+    DispatchRouteKind routeKind, llvm::StringRef context) {
+  const DispatchRouteManifestEntry *route =
+      lookupRVVScalarDispatchRoute(family, routeKind);
+  if (!route || !route->family)
+    return makeDispatchError(
+        kernel,
+        llvm::Twine(context) +
+            " requires a manifest-backed RVV+scalar dispatch route for " +
+            family.diagnosticName);
+
+  if (!isSameDispatchFamily(*route->family, family))
+    return makeDispatchError(
+        kernel,
+        llvm::Twine(context) +
+            " resolved a stale RVV+scalar dispatch manifest family for " +
+            family.diagnosticName);
+  return llvm::Error::success();
+}
+
+llvm::Error validateDispatchManifestRoutesForFamily(
+    KernelOp kernel, const DispatchI32FamilySpec &family) {
+  for (DispatchRouteKind routeKind : getRVVScalarDispatchRouteKinds())
+    if (llvm::Error error = validateDispatchManifestRouteForFamily(
+            kernel, family, routeKind, "selected dispatch pair"))
+      return error;
   return llvm::Error::success();
 }
 
@@ -1275,6 +1316,10 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
   if (!selectedShape)
     return selectedShape.takeError();
   pair.selectedShape = *selectedShape;
+  if (llvm::Error error =
+          validateDispatchManifestRoutesForFamily(pair.rvv.kernel,
+                                                  *pair.family))
+    return std::move(error);
   return pair;
 }
 
@@ -2137,6 +2182,14 @@ void printDispatcherFunction(llvm::raw_ostream &os,
 
 llvm::Error printDispatchHeader(const DispatchPair &pair,
                                 llvm::raw_ostream &os) {
+  const DispatchRouteManifestEntry *route =
+      lookupRVVScalarDispatchRoute(*pair.family, DispatchRouteKind::Header);
+  if (!route || !route->family)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        llvm::Twine("dispatch header export requires manifest route for ") +
+            pair.family->diagnosticName);
+
   llvm::Expected<DispatchRuntimeABIParameterBindings> bindings =
       bindDispatchRuntimeABIParametersByRole(
           pair.rvv.kernel, pair.abiPlan.parameters,
@@ -2147,6 +2200,9 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
   std::string includeGuard = makeDispatchHeaderIncludeGuard(pair);
   std::string dispatcherFunctionName = makeDispatcherFunctionName(pair);
 
+  os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
+  os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
+     << " */\n";
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
   os << "#include <stddef.h>\n";
@@ -2235,6 +2291,17 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
                                 llvm::StringRef rvvSource,
                                 llvm::StringRef scalarSource,
                                 bool includeSelfCheck, llvm::raw_ostream &os) {
+  DispatchRouteKind manifestRouteKind =
+      includeSelfCheck ? DispatchRouteKind::SelfCheckSource
+                       : DispatchRouteKind::Source;
+  const DispatchRouteManifestEntry *route =
+      lookupRVVScalarDispatchRoute(*pair.family, manifestRouteKind);
+  if (!route || !route->family)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        llvm::Twine("dispatch source export requires manifest route for ") +
+            pair.family->diagnosticName);
+
   KernelOp kernel = pair.rvv.kernel;
   std::string rvvFunctionName = makeRVVFunctionName(pair);
   std::string scalarFunctionName = makeScalarFunctionName(pair);
@@ -2255,6 +2322,9 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
      << bindings->dispatchAvailabilityGuard->cName
      << " parameter; no automatic hardware probe is generated. */\n";
   os << "/* selected_kernel: @" << kernel.getSymName() << " */\n";
+  os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
+  os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
+     << " */\n";
   printCandidateMetadata(os, "rvv", pair.rvv);
   printCandidateMetadata(os, "scalar", pair.scalar);
   printDispatchMemWindowMetadata(os, pair.abiPlan.bufferWindows);
@@ -2461,7 +2531,11 @@ llvm::Error compileGeneratedDispatchSourceToObject(
 
 llvm::Expected<DispatchPair> collectDispatchPairForExpectedFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
-    llvm::StringRef routeContext) {
+    DispatchRouteKind routeKind, llvm::StringRef routeContext) {
+  if (llvm::Error error = validateDispatchManifestRouteForFamily(
+          KernelOp(), expectedFamily, routeKind, routeContext))
+    return std::move(error);
+
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
   if (!pair)
     return pair.takeError();
@@ -2498,6 +2572,10 @@ llvm::Error exportDispatchSourceImpl(mlir::ModuleOp module,
   llvm::Expected<DispatchPair> pair = collectDispatchPair(module);
   if (!pair)
     return pair.takeError();
+  if (llvm::Error error = validateDispatchManifestRouteForFamily(
+          pair->rvv.kernel, *pair->family, DispatchRouteKind::Source,
+          "generic source export route"))
+    return error;
   return exportDispatchSourceFromPair(*pair, /*includeSelfCheck=*/false, os);
 }
 
@@ -2505,7 +2583,8 @@ llvm::Error exportDispatchSourceForFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
-      module, expectedFamily, "direct source export route");
+      module, expectedFamily, DispatchRouteKind::Source,
+      "direct source export route");
   if (!pair)
     return pair.takeError();
   return exportDispatchSourceFromPair(*pair, /*includeSelfCheck=*/false, os);
@@ -2542,6 +2621,12 @@ llvm::Error exportDispatchHeaderImpl(mlir::ModuleOp module,
     std::string message = llvm::toString(pair.takeError());
     return makeModuleDispatchHeaderError(message);
   }
+  if (llvm::Error error = validateDispatchManifestRouteForFamily(
+          pair->rvv.kernel, *pair->family, DispatchRouteKind::Header,
+          "generic header export route")) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchHeaderError(message);
+  }
   return exportDispatchHeaderFromPair(*pair, os);
 }
 
@@ -2549,7 +2634,8 @@ llvm::Error exportDispatchHeaderForFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
-      module, expectedFamily, "direct header export route");
+      module, expectedFamily, DispatchRouteKind::Header,
+      "direct header export route");
   if (!pair) {
     std::string message = llvm::toString(pair.takeError());
     return makeModuleDispatchHeaderError(message);
@@ -2561,7 +2647,8 @@ llvm::Error exportDispatchSelfCheckSourceForFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
-      module, expectedFamily, "self-check export route");
+      module, expectedFamily, DispatchRouteKind::SelfCheckSource,
+      "self-check export route");
   if (!pair)
     return pair.takeError();
   return exportDispatchSourceFromPair(*pair, /*includeSelfCheck=*/true, os);
@@ -2603,6 +2690,12 @@ llvm::Error exportDispatchObjectImpl(mlir::ModuleOp module,
     std::string message = llvm::toString(pair.takeError());
     return makeModuleDispatchObjectError(message);
   }
+  if (llvm::Error error = validateDispatchManifestRouteForFamily(
+          pair->rvv.kernel, *pair->family, DispatchRouteKind::Object,
+          "generic object export route")) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleDispatchObjectError(message);
+  }
   return exportDispatchObjectFromPair(*pair, /*includeSelfCheck=*/false, os);
 }
 
@@ -2610,7 +2703,8 @@ llvm::Error exportDispatchObjectForFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
-      module, expectedFamily, "direct object export route");
+      module, expectedFamily, DispatchRouteKind::Object,
+      "direct object export route");
   if (!pair) {
     std::string message = llvm::toString(pair.takeError());
     return makeModuleDispatchObjectError(message);
@@ -2622,7 +2716,8 @@ llvm::Error exportDispatchSelfCheckObjectForFamily(
     mlir::ModuleOp module, const DispatchI32FamilySpec &expectedFamily,
     llvm::raw_ostream &os) {
   llvm::Expected<DispatchPair> pair = collectDispatchPairForExpectedFamily(
-      module, expectedFamily, "self-check object export route");
+      module, expectedFamily, DispatchRouteKind::SelfCheckObject,
+      "self-check object export route");
   if (!pair) {
     std::string message = llvm::toString(pair.takeError());
     return makeModuleDispatchObjectError(message);
@@ -2735,6 +2830,27 @@ getRVVScalarDispatchRouteManifest() {
         return result;
       }();
   return llvm::ArrayRef(routes);
+}
+
+const RVVScalarDispatchRouteManifestEntry *
+lookupRVVScalarDispatchRoute(llvm::StringRef routeID) {
+  routeID = routeID.trim();
+  for (const RVVScalarDispatchRouteManifestEntry &route :
+       getRVVScalarDispatchRouteManifest())
+    if (route.routeID == routeID)
+      return &route;
+  return nullptr;
+}
+
+const RVVScalarDispatchRouteManifestEntry *
+lookupRVVScalarDispatchRoute(const DispatchBinaryFamilyDescriptor &family,
+                             RVVScalarDispatchRouteKind routeKind) {
+  for (const RVVScalarDispatchRouteManifestEntry &route :
+       getRVVScalarDispatchRouteManifest())
+    if (route.family && route.routeKind == routeKind &&
+        isSameDispatchFamily(*route.family, family))
+      return &route;
+  return nullptr;
 }
 
 llvm::Error exportRVVScalarDispatchRoute(

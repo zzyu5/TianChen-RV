@@ -75,11 +75,15 @@ module {
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
 // IR: tcrv_scalar.i64_vmul_microkernel
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
+// IR: lowering_pipeline = "tcrv-export-rvv-i64-vmul-microkernel-c"
+// IR-SAME: runtime_abi_name = "rvv-i64-vmul-runtime-callable-c-function.v1"
 // IR: lowering_pipeline = "tcrv-export-scalar-i64-vmul-microkernel-c"
 // IR-SAME: runtime_abi_name = "scalar-i64-vmul-runtime-callable-c-function.v1"
 
 // GENERIC: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // GENERIC: /* Scope: one selected RVV i64-vmul dispatch case plus one scalar i64-vmul dispatch fallback. */
+// GENERIC: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-c */
+// GENERIC: /* dispatch_manifest_artifact_kind: runtime-callable-c-source */
 // GENERIC: /* rvv_artifact_route_id: tcrv-export-rvv-i64-vmul-microkernel-c */
 // GENERIC: /* scalar_artifact_route_id: tcrv-export-scalar-i64-vmul-microkernel-c */
 // GENERIC: void tcrv_rvv_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_rvv_first_slice
@@ -92,11 +96,14 @@ module {
 // GENERIC: return;
 // GENERIC: tcrv_scalar_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_scalar_fallback_first_slice(lhs, rhs, out, n);
 
+// GENERIC-HDR: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-header */
+// GENERIC-HDR: /* dispatch_manifest_artifact_kind: runtime-callable-c-header */
 // GENERIC-HDR: #ifndef TIANCHENRV_RVV_SCALAR_I64_VMUL_DISPATCH_CONFLICT_PLANNED_I64_VMUL_DISPATCH_H
 // GENERIC-HDR: extern "C" {
 // GENERIC-HDR: void tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n, int rvv_available);
 // GENERIC-HDR: #endif /* TIANCHENRV_RVV_SCALAR_I64_VMUL_DISPATCH_CONFLICT_PLANNED_I64_VMUL_DISPATCH_H */
 
+// SELF: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c */
 // SELF: static int tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch_self_check_one(size_t runtime_n, int rvv_available)
 // SELF: int64_t lhs[kCapacity];
 // SELF: int64_t rhs[kCapacity];

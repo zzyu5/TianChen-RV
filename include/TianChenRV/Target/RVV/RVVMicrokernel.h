@@ -51,6 +51,14 @@ std::size_t getRVVMicrokernelDirectRouteCount();
 llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
 getRVVMicrokernelDirectRouteManifest();
 
+const RVVMicrokernelDirectRouteManifestEntry *
+lookupRVVMicrokernelDirectRoute(llvm::StringRef routeID);
+
+const RVVMicrokernelDirectRouteManifestEntry *
+lookupRVVMicrokernelDirectRoute(
+    const RVVBinaryFamilyDescriptor &family,
+    RVVMicrokernelDirectRouteKind routeKind);
+
 llvm::Error exportRVVMicrokernelDirectRoute(
     mlir::ModuleOp module, const RVVMicrokernelDirectRouteManifestEntry &route,
     llvm::raw_ostream &os);

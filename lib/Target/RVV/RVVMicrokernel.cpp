@@ -313,20 +313,6 @@ getI32MicrokernelFamilyForOp(mlir::Operation *op) {
   return nullptr;
 }
 
-const RVVI32MicrokernelFamilySpec *
-getI32MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
-  const RVVI32MicrokernelFamilySpec &addFamily = getI32VAddFamilySpec();
-  if (routeID == addFamily.routeID)
-    return &addFamily;
-  const RVVI32MicrokernelFamilySpec &subFamily = getI32VSubFamilySpec();
-  if (routeID == subFamily.routeID)
-    return &subFamily;
-  const RVVI32MicrokernelFamilySpec &mulFamily = getI32VMulFamilySpec();
-  if (routeID == mulFamily.routeID)
-    return &mulFamily;
-  return nullptr;
-}
-
 const RVVBinaryFamilyDescriptor *
 getI64MicrokernelFamilyForOp(mlir::Operation *op) {
   if (!op)
@@ -336,17 +322,6 @@ getI64MicrokernelFamilyForOp(mlir::Operation *op) {
        getRVVBinaryFamilyDescriptors()) {
     if (family->dtype == RVVBinaryDTypeKind::I64 &&
         family->microkernelOpName == opName)
-      return family;
-  }
-  return nullptr;
-}
-
-const RVVBinaryFamilyDescriptor *
-getI64MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
-  for (const RVVBinaryFamilyDescriptor *family :
-       getRVVBinaryFamilyDescriptors()) {
-    if (family->dtype == RVVBinaryDTypeKind::I64 &&
-        family->routeID == routeID)
       return family;
   }
   return nullptr;
@@ -3836,67 +3811,48 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
 
 llvm::Error validateRVVMicrokernelSourceCandidate(
     const TargetArtifactCandidate &candidate) {
-  if (const RVVBinaryFamilyDescriptor *i64Family =
-          getI64MicrokernelFamilyForSourceRoute(candidate.routeID)) {
-    RVVBinaryIntrinsicDescriptor descriptor =
-        getRVVBinaryIntrinsicDescriptor(*i64Family, getI64M1VectorShapeConfig());
-    if (!candidateMatchesRVVBinaryDescriptor(candidate, descriptor))
-      return makeModuleMicrokernelError(
-          llvm::Twine("target artifact route '") + candidate.routeID +
-          "' does not match supported RVV i64 microkernel ABI metadata; "
-          "expected emission_kind '" +
-          descriptor.family.emissionKind + "', artifact_kind '" +
-          kMicrokernelArtifactKind + "', runtime_abi '" +
-          descriptor.getRVVRuntimeABI() + "', runtime_abi_kind '" +
-          descriptor.getRVVRuntimeABIKind() + "', runtime_abi_name '" +
-          descriptor.getRVVRuntimeABIName() + "', runtime_glue_role '" +
-          descriptor.getRVVRuntimeGlueRole() + "'");
+  const RVVMicrokernelDirectRouteManifestEntry *route =
+      lookupRVVMicrokernelDirectRoute(candidate.routeID);
+  if (!route || route->routeKind != RVVMicrokernelDirectRouteKind::Source ||
+      !route->family)
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' is not a manifest-backed RVV microkernel source route");
 
-    TargetArtifactExporter sourceExporter(
-        descriptor.getRVVRouteID(), kMicrokernelArtifactKind,
-        kRVVPluginName, descriptor.family.emissionKind, exportRVVMicrokernelC,
-        descriptor.getCallableRuntimeABIRoleRequirements(),
-        /*directHelperRoute=*/true, /*handoffKind=*/{},
-        /*candidateValidationFn=*/nullptr,
-        descriptor.getRVVExternalABIComponentGroup(),
-        descriptor.getRVVRuntimeABIName());
-    if (llvm::Error error = validateTargetArtifactCandidateAgainstExporter(
-            candidate, sourceExporter))
-      return error;
-    return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
+  const RVVBinaryFamilyDescriptor &family = *route->family;
+  const RVVVectorShapeConfig &abiMirrorShape =
+      family.dtype == RVVBinaryDTypeKind::I64 ? getI64M1VectorShapeConfig()
+                                              : getI32M1VectorShapeConfig();
+  RVVBinaryIntrinsicDescriptor descriptor =
+      getRVVBinaryIntrinsicDescriptor(family, abiMirrorShape);
+  if (!candidateMatchesRVVBinaryDescriptor(candidate, descriptor)) {
+    llvm::StringRef expectedDescription =
+        family.dtype == RVVBinaryDTypeKind::I64
+            ? "supported RVV i64 microkernel ABI metadata"
+            : "supported RVV i32 microkernel family ABI metadata";
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' does not match " + expectedDescription + "; "
+        "expected emission_kind '" +
+        descriptor.family.emissionKind + "', artifact_kind '" +
+        route->getArtifactKind() + "', runtime_abi '" +
+        descriptor.getRVVRuntimeABI() + "', runtime_abi_kind '" +
+        descriptor.getRVVRuntimeABIKind() + "', runtime_abi_name '" +
+        descriptor.getRVVRuntimeABIName() + "', runtime_glue_role '" +
+        descriptor.getRVVRuntimeGlueRole() + "'");
   }
 
-  const RVVI32MicrokernelFamilySpec *family =
-      getI32MicrokernelFamilyForSourceRoute(candidate.routeID);
-  if (!family)
-    return makeModuleMicrokernelError(
-        llvm::Twine("target artifact route '") + candidate.routeID +
-        "' is not a supported RVV i32 or i64 microkernel source route");
-
-  if (!candidateMatchesRVVMicrokernelFamily(candidate, *family))
-    return makeModuleMicrokernelError(
-        llvm::Twine("target artifact route '") + candidate.routeID +
-        "' does not match supported RVV i32 microkernel family ABI metadata; "
-        "expected emission_kind '" +
-        family->emissionKind + "', artifact_kind '" +
-        kMicrokernelArtifactKind + "', runtime_abi '" + family->runtimeABI +
-        "', runtime_abi_kind '" + family->runtimeABIKind +
-        "', runtime_abi_name '" + family->runtimeABIName +
-        "', runtime_glue_role '" + family->runtimeGlueRole + "'");
-
   TargetArtifactExporter sourceExporter(
-      family->routeID, kMicrokernelArtifactKind, kRVVPluginName,
-      family->emissionKind, exportRVVMicrokernelC,
-      getRVVBinaryCallableRuntimeABIRoleRequirements(*family),
-      family->arithmetic == RVVI32MicrokernelKind::Add,
+      route->getRouteID(), route->getArtifactKind(), kRVVPluginName,
+      family.emissionKind, exportRVVMicrokernelC,
+      getRVVBinaryCallableRuntimeABIRoleRequirements(family),
+      /*directHelperRoute=*/true,
       /*handoffKind=*/{}, /*candidateValidationFn=*/nullptr,
-      family->externalABIComponentGroup, family->runtimeABIName);
+      family.externalABIComponentGroup, family.runtimeABIName);
   if (llvm::Error error =
           validateTargetArtifactCandidateAgainstExporter(candidate,
                                                         sourceExporter))
     return error;
-  RVVBinaryIntrinsicDescriptor descriptor =
-      getRVVBinaryIntrinsicDescriptor(*family, getI32M1VectorShapeConfig());
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
 }
 
@@ -4315,6 +4271,28 @@ getRVVMicrokernelDirectRouteManifest() {
         return result;
       }();
   return llvm::ArrayRef(routes);
+}
+
+const RVVMicrokernelDirectRouteManifestEntry *
+lookupRVVMicrokernelDirectRoute(llvm::StringRef routeID) {
+  routeID = routeID.trim();
+  for (const RVVMicrokernelDirectRouteManifestEntry &route :
+       getRVVMicrokernelDirectRouteManifest())
+    if (route.family && route.getRouteID() == routeID)
+      return &route;
+  return nullptr;
+}
+
+const RVVMicrokernelDirectRouteManifestEntry *
+lookupRVVMicrokernelDirectRoute(
+    const RVVBinaryFamilyDescriptor &family,
+    RVVMicrokernelDirectRouteKind routeKind) {
+  for (const RVVMicrokernelDirectRouteManifestEntry &route :
+       getRVVMicrokernelDirectRouteManifest())
+    if (route.family && route.routeKind == routeKind &&
+        isSameRVVBinaryFamily(*route.family, family))
+      return &route;
+  return nullptr;
 }
 
 llvm::Error exportRVVMicrokernelDirectRoute(

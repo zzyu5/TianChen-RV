@@ -552,6 +552,32 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
     return false;
   }
 
+  const auto &i64VMulFamily =
+      tianchenrv::target::rvv::getI64VMulFamilyDescriptor();
+  const auto *i64VMulSourceByID =
+      tianchenrv::target::rvv::lookupRVVMicrokernelDirectRoute(
+          "tcrv-export-rvv-i64-vmul-microkernel-c");
+  const auto *i64VMulSourceByFamily =
+      tianchenrv::target::rvv::lookupRVVMicrokernelDirectRoute(
+          i64VMulFamily,
+          tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source);
+  if (!i64VMulSourceByID || i64VMulSourceByID != i64VMulSourceByFamily ||
+      i64VMulSourceByID->family != &i64VMulFamily ||
+      i64VMulSourceByID->routeKind !=
+          tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source ||
+      i64VMulSourceByID->getRouteID() !=
+          "tcrv-export-rvv-i64-vmul-microkernel-c") {
+    llvm::errs() << "RVV direct route manifest lookup did not resolve the "
+                    "i64-vmul selected source route\n";
+    return false;
+  }
+  if (tianchenrv::target::rvv::lookupRVVMicrokernelDirectRoute(
+          "tcrv-export-rvv-i64-vdiv-microkernel-c")) {
+    llvm::errs() << "RVV direct route manifest lookup accepted an unknown "
+                    "finite family route\n";
+    return false;
+  }
+
   for (const RVVBinaryFamilyDescriptor *family :
        tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
     for (tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind routeKind :
@@ -603,6 +629,51 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
   return expectFailure(
       tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(registry),
       "duplicate RVV direct route contribution rejected");
+}
+
+bool expectRVVScalarDispatchRouteManifestLookup() {
+  using RouteKind = tianchenrv::target::rvv_scalar::RVVScalarDispatchRouteKind;
+  const auto &family =
+      tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().dispatch;
+
+  const auto *sourceByID =
+      tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
+          "tcrv-export-rvv-scalar-i64-vmul-dispatch-c");
+  const auto *sourceByFamily =
+      tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
+          family, RouteKind::Source);
+  if (!sourceByID || sourceByID != sourceByFamily ||
+      sourceByID->family != &family ||
+      sourceByID->routeKind != RouteKind::Source ||
+      sourceByID->routeID != family.dispatchSourceRouteID ||
+      sourceByID->artifactKind != "runtime-callable-c-source") {
+    llvm::errs() << "RVV+scalar dispatch manifest lookup did not resolve the "
+                    "i64-vmul selected source route\n";
+    return false;
+  }
+
+  const auto *header =
+      tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
+          family, RouteKind::Header);
+  const auto *object =
+      tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
+          family, RouteKind::Object);
+  if (!header || !object || header->routeID != family.dispatchHeaderRouteID ||
+      object->routeID != family.dispatchObjectRouteID ||
+      header->artifactKind != "runtime-callable-c-header" ||
+      object->artifactKind != "riscv-elf-relocatable-object") {
+    llvm::errs() << "RVV+scalar dispatch manifest lookup did not resolve the "
+                    "i64-vmul header/object artifact routes\n";
+    return false;
+  }
+
+  if (tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
+          "tcrv-export-rvv-scalar-i64-vdiv-dispatch-c")) {
+    llvm::errs() << "RVV+scalar dispatch manifest lookup accepted an unknown "
+                    "finite family route\n";
+    return false;
+  }
+  return true;
 }
 
 bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
@@ -2149,6 +2220,8 @@ int main() {
   if (!expectRVVBinaryRuntimeABIContractShape())
     return 1;
   if (!expectRVVMicrokernelDirectRouteManifestShape())
+    return 1;
+  if (!expectRVVScalarDispatchRouteManifestLookup())
     return 1;
   if (!expectTargetTranslateRouteRegistryShape())
     return 1;
