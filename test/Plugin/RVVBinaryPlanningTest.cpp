@@ -1,5 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
+#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
@@ -12,6 +14,7 @@
 #include <memory>
 
 using tianchenrv::plugin::rvv::RVVBinarySelectedPlan;
+using tianchenrv::plugin::rvv::RVVBinaryEmissionIdentity;
 
 namespace {
 
@@ -89,6 +92,20 @@ int runI32SelectedPlanTest() {
           expect(plan.getEmissionPath() ==
                      "rvv-explicit-i32-vsub-microkernel-c-source-export",
                  "i32 selected plan exposes readiness emission path"))
+    return result;
+  if (int result =
+          expect(plan.getArtifactKind() == "runtime-callable-c-source",
+                 "i32 selected plan exposes source artifact kind"))
+    return result;
+  if (int result = expect(
+          plan.getSupportedMessage() ==
+              "explicit RVV i32 vector-subtract microkernel C source export "
+              "provides a library-style runtime-callable C ABI function for "
+              "this selected path; any self-check main is an explicit harness "
+              "export and is not the default artifact contract; this is not "
+              "generic RVV lowering, runtime integration, arbitrary kernel "
+              "emission, correctness, or performance evidence",
+          "i32 selected plan exposes planner-owned bounded support message"))
     return result;
   if (int result =
           expect(plan.getSetVLIntrinsicName() == "__riscv_vsetvl_e32m2",
@@ -182,6 +199,62 @@ int runI64SelectedPlanTest() {
       tianchenrv::target::rvv::getI64VMulFamilyDescriptor());
 }
 
+int runEmissionIdentityTest() {
+  RVVBinaryEmissionIdentity i32Identity;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryEmissionIdentity(
+              tianchenrv::target::rvv::getI32VAddFamilyDescriptor()),
+          i32Identity, "build i32-vadd emission identity"))
+    return result;
+  if (int result =
+          expect(i32Identity.getRouteID() ==
+                     "tcrv-export-rvv-microkernel-c",
+                 "i32 emission identity references target-owned route id"))
+    return result;
+  if (int result =
+          expect(i32Identity.getEmissionPath() ==
+                     "rvv-explicit-i32-vadd-microkernel-c-source-export",
+                 "i32 emission identity derives readiness path"))
+    return result;
+  if (int result =
+          expect(i32Identity.getArtifactKind() == "runtime-callable-c-source",
+                 "i32 emission identity preserves source artifact kind"))
+    return result;
+
+  RVVBinaryEmissionIdentity i64VMulIdentity;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryEmissionIdentity(
+              tianchenrv::target::rvv::getI64VMulFamilyDescriptor()),
+          i64VMulIdentity, "build i64-vmul emission identity"))
+    return result;
+
+  const auto &dispatchFamily =
+      tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().dispatch;
+  if (int result = expect(
+          llvm::StringRef(dispatchFamily.rvvRouteID) ==
+              i64VMulIdentity.getRouteID(),
+          "i64-vmul dispatch family reuses the selected RVV route id"))
+    return result;
+  if (int result = expect(
+          llvm::StringRef(dispatchFamily.rvvEmissionKind) ==
+              i64VMulIdentity.getEmissionKind(),
+          "i64-vmul dispatch family reuses the selected RVV emission kind"))
+    return result;
+  if (int result = expect(
+          llvm::StringRef(dispatchFamily.rvvRuntimeABIName) ==
+              i64VMulIdentity.getRuntimeABIName(),
+          "i64-vmul dispatch family reuses the selected RVV ABI name"))
+    return result;
+  if (int result =
+          expect(dispatchFamily.dispatchObjectRouteID ==
+                     "tcrv-export-rvv-scalar-i64-vmul-dispatch-object",
+                 "i64-vmul dispatch object route remains target-owned"))
+    return result;
+  return expect(dispatchFamily.selfCheckSuccessMarker ==
+                    "tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok",
+                "i64-vmul dispatch success marker remains target-owned");
+}
+
 int runNegativeSelectedPlanTest() {
   llvm::Expected<RVVBinarySelectedPlan> plan =
       tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
@@ -245,6 +318,8 @@ int main() {
   if (int result = runI32SelectedPlanTest())
     return result;
   if (int result = runI64SelectedPlanTest())
+    return result;
+  if (int result = runEmissionIdentityTest())
     return result;
   if (int result = runNegativeSelectedPlanTest())
     return result;

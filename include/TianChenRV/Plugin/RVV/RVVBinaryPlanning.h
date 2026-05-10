@@ -28,6 +28,23 @@ struct RVVSelectedVectorShapeMetadataNames {
   llvm::StringRef setvlSuffix;
 };
 
+struct RVVBinaryEmissionIdentity {
+  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  std::string emissionPath;
+  std::string supportedMessage;
+
+  llvm::StringRef getFamilyID() const;
+  llvm::StringRef getEmissionKind() const;
+  llvm::StringRef getEmissionPath() const;
+  llvm::StringRef getRouteID() const;
+  llvm::StringRef getArtifactKind() const;
+  llvm::StringRef getRuntimeABI() const;
+  llvm::StringRef getRuntimeABIKind() const;
+  llvm::StringRef getRuntimeABIName() const;
+  llvm::StringRef getRuntimeGlueRole() const;
+  llvm::StringRef getSupportedMessage() const;
+};
+
 struct RVVBinarySelectedPlan {
   target::rvv::RVVBinaryIntrinsicDescriptor descriptor;
   const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
@@ -36,6 +53,7 @@ struct RVVBinarySelectedPlan {
   std::string requiredMarch;
   std::optional<std::string> selectedMABI;
   std::string emissionPath;
+  std::string supportedMessage;
 
   llvm::StringRef getFamilyID() const;
   llvm::StringRef getDTypeID() const;
@@ -45,10 +63,12 @@ struct RVVBinarySelectedPlan {
   llvm::StringRef getEmissionKind() const;
   llvm::StringRef getEmissionPath() const;
   llvm::StringRef getRouteID() const;
+  llvm::StringRef getArtifactKind() const;
   llvm::StringRef getRuntimeABI() const;
   llvm::StringRef getRuntimeABIKind() const;
   llvm::StringRef getRuntimeABIName() const;
   llvm::StringRef getRuntimeGlueRole() const;
+  llvm::StringRef getSupportedMessage() const;
   std::string getSetVLIntrinsicName() const;
   std::string getLoadIntrinsicName() const;
   std::string getArithmeticIntrinsicName() const;
@@ -60,6 +80,11 @@ getRVVVariantSelectedVectorShapeMetadataNames();
 
 const RVVSelectedVectorShapeMetadataNames &
 getRVVBoundarySelectedVectorShapeMetadataNames();
+
+llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind();
+
+llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
+    const target::rvv::RVVBinaryFamilyDescriptor &family);
 
 llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
     const target::rvv::RVVBinaryFamilyDescriptor &family,

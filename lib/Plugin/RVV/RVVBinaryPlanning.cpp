@@ -18,6 +18,8 @@ constexpr llvm::StringLiteral kLoweringDescriptorAttrName(
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName(
     "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
+    "runtime-callable-c-source");
 
 constexpr llvm::StringLiteral kBoundarySelectedVectorShapeAttrName(
     "selected_vector_shape");
@@ -90,7 +92,80 @@ llvm::StringRef getDTypeDiagnosticSpelling(
   return shape.dtypeID;
 }
 
+llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
+getRegisteredRVVBinaryFamily(
+    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  const target::rvv::RVVBinaryFamilyDescriptor *registeredFamily =
+      target::rvv::lookupRVVBinaryFamilyByID(family.familyID);
+  if (!registeredFamily ||
+      registeredFamily->loweringDescriptor != family.loweringDescriptor ||
+      registeredFamily->routeID != family.routeID ||
+      registeredFamily->emissionKind != family.emissionKind ||
+      registeredFamily->runtimeABI != family.runtimeABI ||
+      registeredFamily->runtimeABIKind != family.runtimeABIKind ||
+      registeredFamily->runtimeABIName != family.runtimeABIName ||
+      registeredFamily->runtimeGlueRole != family.runtimeGlueRole) {
+    return makeRVVBinaryPlanningError(
+        llvm::Twine("family '") + family.familyID +
+        "' must be one registered finite RVV binary family descriptor");
+  }
+  return registeredFamily;
+}
+
+std::string buildSupportedEmissionMessage(
+    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  return (llvm::Twine("explicit RVV ") + family.dtypeID + " vector-" +
+          family.arithmeticVerb +
+          " microkernel C source export provides a library-style "
+          "runtime-callable C ABI function for this selected path; any "
+          "self-check main is an explicit harness export and is not the "
+          "default artifact contract; this is not generic RVV lowering, "
+          "runtime integration, arbitrary kernel emission, correctness, or "
+          "performance evidence")
+      .str();
+}
+
 } // namespace
+
+llvm::StringRef RVVBinaryEmissionIdentity::getFamilyID() const {
+  return family ? family->familyID : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getEmissionKind() const {
+  return family ? family->emissionKind : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getEmissionPath() const {
+  return emissionPath;
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getRouteID() const {
+  return family ? family->routeID : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getArtifactKind() const {
+  return getRVVBinaryRuntimeCallableCSourceArtifactKind();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeABI() const {
+  return family ? family->runtimeABI : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeABIKind() const {
+  return family ? family->runtimeABIKind : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeABIName() const {
+  return family ? family->runtimeABIName : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeGlueRole() const {
+  return family ? family->runtimeGlueRole : llvm::StringRef();
+}
+
+llvm::StringRef RVVBinaryEmissionIdentity::getSupportedMessage() const {
+  return supportedMessage;
+}
 
 llvm::StringRef RVVBinarySelectedPlan::getFamilyID() const {
   return family ? family->familyID : llvm::StringRef();
@@ -124,6 +199,10 @@ llvm::StringRef RVVBinarySelectedPlan::getRouteID() const {
   return descriptor.getRVVRouteID();
 }
 
+llvm::StringRef RVVBinarySelectedPlan::getArtifactKind() const {
+  return getRVVBinaryRuntimeCallableCSourceArtifactKind();
+}
+
 llvm::StringRef RVVBinarySelectedPlan::getRuntimeABI() const {
   return descriptor.getRVVRuntimeABI();
 }
@@ -138,6 +217,10 @@ llvm::StringRef RVVBinarySelectedPlan::getRuntimeABIName() const {
 
 llvm::StringRef RVVBinarySelectedPlan::getRuntimeGlueRole() const {
   return descriptor.getRVVRuntimeGlueRole();
+}
+
+llvm::StringRef RVVBinarySelectedPlan::getSupportedMessage() const {
+  return supportedMessage;
 }
 
 std::string RVVBinarySelectedPlan::getSetVLIntrinsicName() const {
@@ -184,11 +267,36 @@ getRVVBoundarySelectedVectorShapeMetadataNames() {
   return names;
 }
 
+llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind() {
+  return kRuntimeCallableCSourceArtifactKind;
+}
+
+llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
+    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
+      registeredFamily = getRegisteredRVVBinaryFamily(family);
+  if (!registeredFamily)
+    return registeredFamily.takeError();
+
+  RVVBinaryEmissionIdentity identity;
+  identity.family = *registeredFamily;
+  identity.emissionPath =
+      (llvm::Twine((*registeredFamily)->emissionKind) + "-export").str();
+  identity.supportedMessage =
+      buildSupportedEmissionMessage(**registeredFamily);
+  return identity;
+}
+
 llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
     const target::rvv::RVVBinaryFamilyDescriptor &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     std::int64_t elementCount, llvm::StringRef requiredMarch,
     std::optional<std::string> selectedMABI) {
+  llvm::Expected<RVVBinaryEmissionIdentity> identity =
+      buildRVVBinaryEmissionIdentity(family);
+  if (!identity)
+    return identity.takeError();
+
   if (family.dtypeID != shape.dtypeID) {
     return makeRVVBinaryPlanningError(
         llvm::Twine(family.descriptorNoun) +
@@ -223,7 +331,8 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
   plan.elementCount = elementCount;
   plan.requiredMarch = trimmedMarch.str();
   plan.selectedMABI = std::move(selectedMABI);
-  plan.emissionPath = (llvm::Twine(family.emissionKind) + "-export").str();
+  plan.emissionPath = identity->emissionPath;
+  plan.supportedMessage = identity->supportedMessage;
   return plan;
 }
 

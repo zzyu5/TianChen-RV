@@ -41,6 +41,52 @@ Moved tcrv-translate RVV direct and RVV+scalar route-family helper command regis
 [OK] **Completed and archived**
 
 
+## Session 25: Plugin-local RVV binary planning extraction
+
+**Date**: 2026-05-10
+**Task**: Plugin-local RVV binary planning extraction
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes brief after confirming there was no
+active `.trellis/.current-task`. Completed a plugin-local C++ extraction for
+selected RVV binary emission identity planning without reopening the archived
+runtime evidence task.
+
+### Main Changes
+
+- Added `RVVBinaryEmissionIdentity` to `RVVBinaryPlanning` so selected direct
+  RVV binary readiness path, route id, emission kind, source artifact kind,
+  runtime ABI identity, runtime glue role, and bounded support explanation are
+  derived from the target-owned finite RVV binary family descriptor.
+- Removed the `RVVI32MicrokernelFamilySpec` table from
+  `RVVExtensionPlugin.cpp`; the plugin now consumes the planner identity for
+  direct i32 and i64 RVV binary emission readiness and emission plans.
+- Extended RVV binary planning C++ coverage across i32 and i64 families,
+  including the i64-vmul dispatch representative's selected RVV component
+  facts and target-owned dispatch object route/success marker.
+
+### Evidence
+
+- No RVV runtime/correctness/performance claim was made in this round; no fresh
+  `ssh rvv` run was required.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-binary-planning|rvv-extension-plugin|rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e'`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  `194/194` passed
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 19: Fixture-free RVV frontend dispatch runtime evidence
 
 **Date**: 2026-05-10
