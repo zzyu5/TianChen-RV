@@ -59,6 +59,58 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
+## Session 29: Scalar fallback plugin-owned exporter bundle
+
+**Date**: 2026-05-11
+**Task**: Scalar fallback artifact exporters through plugin-owned bundle
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes fallback brief, then moved the
+finite scalar fallback source/header/object artifact route group behind the
+plugin-owned target exporter bundle boundary. The generic plugin-owned exporter
+registry now supports multiple bundles for the same enabled plugin, allowing
+`scalar-plugin` to publish standalone scalar routes without forcing the
+RVV-dependent RVV+scalar dispatch bundle to publish when `rvv-plugin` is
+missing.
+
+### Main Changes
+
+- Added multi-bundle-per-plugin support to `PluginTargetArtifactExporterRegistry`.
+- Added `scalar::registerScalarMicrokernelPluginTargetExporterBundle`.
+- Removed direct scalar microkernel route publication from the built-in
+  non-plugin target exporter list.
+- Added C++ coverage for scalar plugin-owned exporter registration,
+  duplicate bundle/route failure, missing/disabled scalar-plugin behavior, and
+  built-in registration without scalar.
+- Updated scalar and lowering/runtime specs to record the scalar exporter
+  ownership boundary.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `Target/ArtifactExport/scalar-target-source-artifact-routes.test`,
+  `Target/ArtifactExport/scalar-target-vmul-source-artifact-routes.test`,
+  and `Target/ArtifactExport/scalar-target-header-object-artifact-routes.test`
+  passed 3/3.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-05-11-scalar-fallback-plugin-owned-exporter-bundle`:
+  passed.
+- No RVV/scalar runtime, correctness, throughput, latency, ratio, or
+  performance claim was made; no fresh `ssh rvv` evidence was needed.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 29: RVV+scalar dispatch bundle ssh RVV evidence
 
 **Date**: 2026-05-11

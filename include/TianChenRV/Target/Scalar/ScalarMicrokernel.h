@@ -10,6 +10,7 @@ class raw_ostream;
 
 namespace tianchenrv::target {
 class TargetArtifactExporterRegistry;
+class PluginTargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::target::scalar {
@@ -25,6 +26,9 @@ llvm::Error exportScalarMicrokernelObject(mlir::ModuleOp module,
 
 llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry);
+
+llvm::Error registerScalarMicrokernelPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry);
 
 } // namespace tianchenrv::target::scalar
 

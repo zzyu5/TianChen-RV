@@ -264,7 +264,9 @@ public:
   llvm::Error registerBundle(const PluginTargetArtifactExporterBundle &bundle);
   const PluginTargetArtifactExporterBundle *
   lookup(llvm::StringRef pluginName) const;
-  std::size_t size() const { return bundlesByPlugin.size(); }
+  llvm::ArrayRef<PluginTargetArtifactExporterBundle>
+  lookupAll(llvm::StringRef pluginName) const;
+  std::size_t size() const;
 
   llvm::Error registerExportersForEnabledPlugins(
       const plugin::ExtensionPluginRegistry &plugins,
@@ -275,7 +277,8 @@ public:
       TargetArtifactExporterRegistry &registry) const;
 
 private:
-  llvm::StringMap<PluginTargetArtifactExporterBundle> bundlesByPlugin;
+  llvm::StringMap<llvm::SmallVector<PluginTargetArtifactExporterBundle, 2>>
+      bundlesByPlugin;
 };
 
 llvm::Error collectTargetArtifactCandidates(

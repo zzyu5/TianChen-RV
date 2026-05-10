@@ -322,3 +322,11 @@ matching microkernel remain metadata-only. Header/object helper routes are
 bounded to the same finite add/sub/mul i32/i64 scalar family set as the source
 routes; a helper route must reject stale source candidates from a different
 family before header/object output.
+
+The finite scalar source/header/object target artifact routes are contributed
+through the `scalar-plugin` plugin-owned target exporter bundle. Central
+built-in target exporter composition may install the active plugin bundle, but
+must not directly publish scalar fallback route ids or duplicate scalar family
+validation. If `scalar-plugin` is missing or disabled, scalar microkernel
+source/header/object routes must be absent and later artifact export must fail
+closed through the generic route selection diagnostics.

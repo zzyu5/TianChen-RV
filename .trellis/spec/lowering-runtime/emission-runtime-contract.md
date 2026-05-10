@@ -135,7 +135,8 @@ artifacts: the RVV standalone smoke-probe C source exporter registered by RVV
 target/export code for an explicitly planned smoke-probe path, the RVV i32
 vector-add runtime-callable library C exporter registered by RVV target/export
 code, the scalar fallback i32 vector add/sub portable runtime-callable C
-source exporters registered by scalar target/export code, and the RVV+scalar
+source exporters contributed by scalar target/export code through the
+`scalar-plugin` target exporter bundle, and the RVV+scalar
 i32 vector-add host dispatch C composite exporter registered by RVV+scalar
 target/export code. The
 composite exporter consumes the selected RVV dispatch-case callable candidate
@@ -179,7 +180,8 @@ logs, credentials, artifact paths, or performance text.
 The artifact-kind-aware generic route may also select scalar fallback
 runtime-callable C header and RISC-V ELF relocatable object helpers for the same
 validated scalar i32 binary callable source candidate. These scalar helpers are
-registered by scalar target/export code, not by core orchestration. When a
+contributed by scalar target/export code through the `scalar-plugin`
+plugin-owned target exporter bundle, not by core orchestration. When a
 single scalar header/object helper route is shared by add/sub/mul, its runtime
 ABI kind/name must be derived from the matched source candidate rather than a
 vadd-only route default. The header
@@ -357,13 +359,14 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV standalone smoke-probe C source, artifact kind
     `standalone-c-source`, selected only when a plugin-owned smoke-probe
     emission plan names `tcrv-export-rvv-smoke-probe-c`.
-  - Scalar explicit i32/i64 vector add/sub/mul microkernel runtime-callable C
-    source routes.
   - Offload runtime handoff descriptor.
 - The current plugin-owned single-candidate route set includes:
   - RVV selected binary microkernel runtime-callable C source routes for the
     finite add/sub/mul i32/i64 families, registered by the `rvv-plugin`
     target-exporter bundle and emitted by RVV target/export code.
+  - Scalar selected fallback microkernel runtime-callable C source routes for
+    the finite add/sub/mul i32/i64 families, registered by the `scalar-plugin`
+    target-exporter bundle and emitted by scalar target/export code.
   - Toy metadata diagnostic artifact route, registered by the `toy-plugin`
     target-exporter bundle and emitted by Toy target/export code.
 - The current plugin-owned single-candidate composite route set includes:
@@ -379,7 +382,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     candidates and emitted by RVV target/export code without a hidden
     self-check harness or `main`. Registration must include the same
     route-local candidate preflight before object compilation.
-- The current non-plugin single-candidate composite route set includes:
+- The current plugin-owned single-candidate composite route set also includes:
   - Scalar selected fallback microkernel runtime-callable C header routes for
     the finite add/sub/mul i32/i64 families, matched from the same selected
     scalar callable source candidate and emitted by scalar target/export code.
@@ -433,11 +436,14 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   required enabled extension plugins for composite routes whose selected-plan
   contract spans more than one plugin-owned component. This applies to real
   target-owned RVV selected binary microkernel source/header/object exporters,
-  RVV+scalar dispatch source/header/object composite exporters, and
-  metadata-only Toy exporters; disabled or missing plugins must not silently
-  publish their plugin-owned target routes. Later selected-plan export then
-  fails closed as an unknown or unavailable route/origin instead of falling
-  back to a central extension-specific exporter branch.
+  scalar fallback source/header/object exporters, RVV+scalar dispatch
+  source/header/object composite exporters, and metadata-only Toy exporters. A
+  single extension plugin may contribute more than one bundle when route groups
+  have different dependency requirements, such as scalar standalone routes and
+  RVV-dependent RVV+scalar dispatch routes. Disabled or missing plugins must
+  not silently publish their plugin-owned target routes. Later selected-plan
+  export then fails closed as an unknown or unavailable route/origin instead of
+  falling back to a central extension-specific exporter branch.
 
 #### 4. Validation & Error Matrix
 

@@ -18,9 +18,6 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
   if (llvm::Error error = rvv::registerRVVSmokeProbeTargetExporters(registry))
     return error;
   if (llvm::Error error =
-          scalar::registerScalarMicrokernelTargetExporters(registry))
-    return error;
-  if (llvm::Error error =
           offload::registerOffloadRuntimeDescriptorTargetExporters(registry))
     return error;
   return llvm::Error::success();
@@ -30,6 +27,9 @@ llvm::Error registerBuiltinPluginTargetArtifactExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
   if (llvm::Error error =
           rvv::registerRVVMicrokernelPluginTargetExporterBundle(registry))
+    return error;
+  if (llvm::Error error =
+          scalar::registerScalarMicrokernelPluginTargetExporterBundle(registry))
     return error;
   if (llvm::Error error =
           rvv_scalar::registerRVVScalarDispatchPluginTargetExporterBundle(

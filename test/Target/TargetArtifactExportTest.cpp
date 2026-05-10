@@ -13,6 +13,7 @@
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
+#include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
@@ -486,6 +487,231 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
   return true;
 }
 
+bool expectPluginOwnedScalarMicrokernelTargetExporterRegistration() {
+  constexpr llvm::StringLiteral legacyScalarSourceRouteID(
+      "tcrv-export-scalar-microkernel-c");
+  constexpr llvm::StringLiteral legacyScalarHeaderRouteID(
+      "tcrv-export-scalar-microkernel-header");
+  constexpr llvm::StringLiteral legacyScalarObjectRouteID(
+      "tcrv-export-scalar-microkernel-object");
+  constexpr llvm::StringLiteral scalarVMulSourceRouteID(
+      "tcrv-export-scalar-i32-vmul-microkernel-c");
+  constexpr llvm::StringLiteral scalarVMulHeaderRouteID(
+      "tcrv-export-scalar-i32-vmul-microkernel-header");
+  constexpr llvm::StringLiteral scalarVMulObjectRouteID(
+      "tcrv-export-scalar-i32-vmul-microkernel-object");
+
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  if (!expectSuccess(
+          tianchenrv::target::scalar::
+              registerScalarMicrokernelPluginTargetExporterBundle(
+                  pluginExporters),
+          "register scalar plugin-owned target exporter bundle"))
+    return false;
+  if (!expectErrorContains(
+          tianchenrv::target::scalar::
+              registerScalarMicrokernelPluginTargetExporterBundle(
+                  pluginExporters),
+          "duplicate scalar plugin-owned target exporter bundle rejected",
+          {"duplicate plugin-owned target exporter bundle", "scalar-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(
+          tianchenrv::plugin::registerScalarExtensionPlugin(plugins),
+          "register scalar extension plugin for target exporters"))
+    return false;
+
+  PluginTargetArtifactExporterRegistry emptyPluginExporters;
+  TargetArtifactExporterRegistry missingBundleRegistry;
+  if (!expectSuccess(emptyPluginExporters.registerExportersForEnabledPlugins(
+                         plugins, missingBundleRegistry),
+                     "skip scalar exporters when bundle is missing"))
+    return false;
+  if (missingBundleRegistry.lookup(legacyScalarSourceRouteID) ||
+      missingBundleRegistry.lookupComposite(legacyScalarHeaderRouteID) ||
+      missingBundleRegistry.lookupComposite(legacyScalarObjectRouteID)) {
+    llvm::errs() << "missing scalar plugin-owned bundle unexpectedly "
+                    "registered target artifact exporters\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          emptyPluginExporters.registerExportersForPlugin(
+              plugins,
+              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              missingBundleRegistry),
+          "explicit missing scalar target exporter bundle registration "
+          "rejected",
+          {"no registered target artifact exporter bundle", "scalar-plugin"}))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         plugins, registry),
+                     "populate scalar exporters from enabled plugin bundle"))
+    return false;
+
+  const std::size_t familyCount =
+      tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()
+          .size();
+  if (registry.size() != familyCount ||
+      registry.compositeSize() != familyCount * 2) {
+    llvm::errs() << "scalar plugin-owned microkernel bundle expected "
+                 << familyCount << " source routes and " << familyCount * 2
+                 << " header/object composite routes, got "
+                 << registry.size() << " and " << registry.compositeSize()
+                 << "\n";
+    return false;
+  }
+
+  if (!expectRoute(registry, legacyScalarSourceRouteID,
+                   "runtime-callable-c-source", "scalar-plugin",
+                   "scalar-explicit-i32-vadd-microkernel-c-source", 4))
+    return false;
+  if (!expectRouteRuntimeABIParameters(
+          registry, legacyScalarSourceRouteID,
+          getAddRuntimeABIContract().getCallableRoleRequirements()))
+    return false;
+  if (!expectRoute(registry, scalarVMulSourceRouteID,
+                   "runtime-callable-c-source", "scalar-plugin",
+                   "scalar-explicit-i32-vmul-microkernel-c-source", 4))
+    return false;
+  if (!expectRouteRuntimeABIParameters(
+          registry, scalarVMulSourceRouteID,
+          getMulRuntimeABIContract().getCallableRoleRequirements()))
+    return false;
+
+  const TargetArtifactExporter *sourceExporter =
+      registry.lookup(legacyScalarSourceRouteID);
+  if (!sourceExporter || !sourceExporter->getCandidateValidationFn()) {
+    llvm::errs() << "scalar plugin-owned source route lacks candidate "
+                    "preflight validator\n";
+    return false;
+  }
+  if (!expectCompositeRoute(registry, legacyScalarHeaderRouteID,
+                            "runtime-callable-c-header", "scalar-plugin",
+                            /*expectedRuntimeABIKind=*/{},
+                            /*expectedRuntimeABIName=*/{},
+                            /*expectedDirectHelperRoute=*/false,
+                            /*expectedComponentGroup=*/{},
+                            /*expectedExternalABIName=*/{},
+                            /*expectedCandidateValidation=*/true))
+    return false;
+  if (!expectCompositeRoute(registry, legacyScalarObjectRouteID,
+                            "riscv-elf-relocatable-object", "scalar-plugin",
+                            /*expectedRuntimeABIKind=*/{},
+                            /*expectedRuntimeABIName=*/{},
+                            /*expectedDirectHelperRoute=*/false,
+                            /*expectedComponentGroup=*/{},
+                            /*expectedExternalABIName=*/{},
+                            /*expectedCandidateValidation=*/true))
+    return false;
+  if (!expectCompositeRoute(registry, scalarVMulHeaderRouteID,
+                            "runtime-callable-c-header", "scalar-plugin",
+                            /*expectedRuntimeABIKind=*/{},
+                            /*expectedRuntimeABIName=*/{},
+                            /*expectedDirectHelperRoute=*/false,
+                            /*expectedComponentGroup=*/{},
+                            /*expectedExternalABIName=*/{},
+                            /*expectedCandidateValidation=*/true))
+    return false;
+  if (!expectCompositeRoute(registry, scalarVMulObjectRouteID,
+                            "riscv-elf-relocatable-object", "scalar-plugin",
+                            /*expectedRuntimeABIKind=*/{},
+                            /*expectedRuntimeABIName=*/{},
+                            /*expectedDirectHelperRoute=*/false,
+                            /*expectedComponentGroup=*/{},
+                            /*expectedExternalABIName=*/{},
+                            /*expectedCandidateValidation=*/true))
+    return false;
+
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              plugins,
+              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              registry),
+          "duplicate plugin-owned scalar target exporter route rejected",
+          {"duplicate exporter route id", legacyScalarSourceRouteID}))
+    return false;
+
+  DisabledScalarTargetExporterPlugin disabledScalar;
+  ExtensionPluginRegistry disabledPlugins;
+  if (!expectSuccess(disabledPlugins.registerPlugin(disabledScalar),
+                     "register disabled scalar plugin"))
+    return false;
+
+  TargetArtifactExporterRegistry disabledRegistry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         disabledPlugins, disabledRegistry),
+                     "skip target exporters for disabled scalar plugin"))
+    return false;
+  if (disabledRegistry.lookup(legacyScalarSourceRouteID) ||
+      disabledRegistry.lookupComposite(legacyScalarHeaderRouteID) ||
+      disabledRegistry.lookupComposite(legacyScalarObjectRouteID)) {
+    llvm::errs() << "disabled scalar plugin unexpectedly registered scalar "
+                    "microkernel target artifact exporters\n";
+    return false;
+  }
+
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              disabledPlugins,
+              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              disabledRegistry),
+          "explicit disabled scalar target exporter registration rejected",
+          {"disabled extension plugin", "scalar-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry missingPlugins;
+  TargetArtifactExporterRegistry missingRegistry;
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              missingPlugins,
+              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              missingRegistry),
+          "explicit missing scalar target exporter registration rejected",
+          {"unknown extension plugin", "scalar-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry noScalarPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(
+                         noScalarPlugins),
+                     "register non-scalar RVV plugin for built-in target "
+                     "exporters"))
+    return false;
+
+  TargetArtifactExporterRegistry noScalarBuiltinRegistry;
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(
+                         noScalarBuiltinRegistry, noScalarPlugins),
+                     "register built-in target exporters without scalar "
+                     "plugin"))
+    return false;
+  if (noScalarBuiltinRegistry.lookup(legacyScalarSourceRouteID) ||
+      noScalarBuiltinRegistry.lookupComposite(legacyScalarHeaderRouteID) ||
+      noScalarBuiltinRegistry.lookupComposite(legacyScalarObjectRouteID)) {
+    llvm::errs() << "built-in target exporter registration without enabled "
+                    "scalar-plugin exposed scalar microkernel routes\n";
+    return false;
+  }
+  if (!noScalarBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
+    llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
+                    "built-in non-plugin target route set\n";
+    return false;
+  }
+  if (!noScalarBuiltinRegistry.lookup("tcrv-export-offload-runtime-descriptor")) {
+    llvm::errs() << "non-plugin offload descriptor route should remain in the "
+                    "built-in non-plugin target route set\n";
+    return false;
+  }
+  if (!noScalarBuiltinRegistry.lookup("tcrv-export-rvv-microkernel-c")) {
+    llvm::errs() << "enabled RVV plugin-owned selected route should remain "
+                    "available when scalar plugin is missing\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   constexpr llvm::StringLiteral dispatchSourceRouteID(
       "tcrv-export-rvv-scalar-i32-vmul-dispatch-c");
@@ -741,7 +967,7 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
     return false;
   }
   if (!scalarOnlyBuiltinRegistry.lookup("tcrv-export-scalar-microkernel-c")) {
-    llvm::errs() << "scalar non-plugin callable route should remain "
+    llvm::errs() << "scalar plugin-owned callable route should remain "
                     "available when dispatch plugin dependencies are missing\n";
     return false;
   }
@@ -2866,6 +3092,8 @@ int main() {
   if (!expectPluginOwnedToyTargetExporterRegistration())
     return 1;
   if (!expectPluginOwnedRVVMicrokernelTargetExporterRegistration())
+    return 1;
+  if (!expectPluginOwnedScalarMicrokernelTargetExporterRegistration())
     return 1;
   if (!expectPluginOwnedRVVScalarDispatchTargetExporterRegistration())
     return 1;

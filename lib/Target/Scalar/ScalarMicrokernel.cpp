@@ -2345,4 +2345,10 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   return llvm::Error::success();
 }
 
+llvm::Error registerScalarMicrokernelPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      kScalarPluginName, registerScalarMicrokernelTargetExporters));
+}
+
 } // namespace tianchenrv::target::scalar

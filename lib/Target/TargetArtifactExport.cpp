@@ -2330,13 +2330,31 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerBundle(
           requiredPluginName + "'");
   }
 
-  auto [it, inserted] =
-      bundlesByPlugin.try_emplace(bundle.getPluginName(), bundle);
-  (void)it;
-  if (!inserted)
-    return makePluginTargetRegistryError(
-        llvm::Twine("duplicate plugin-owned target exporter bundle for plugin '") +
-        bundle.getPluginName() + "'");
+  llvm::SmallVector<PluginTargetArtifactExporterBundle, 2> &bundles =
+      bundlesByPlugin[bundle.getPluginName()];
+  for (const PluginTargetArtifactExporterBundle &existing : bundles) {
+    if (existing.getRegistrationFn() != bundle.getRegistrationFn())
+      continue;
+    if (existing.getRequiredPluginNames().size() !=
+        bundle.getRequiredPluginNames().size())
+      continue;
+
+    bool sameRequiredPlugins = true;
+    for (auto [lhs, rhs] : llvm::zip(existing.getRequiredPluginNames(),
+                                     bundle.getRequiredPluginNames())) {
+      if (lhs != rhs) {
+        sameRequiredPlugins = false;
+        break;
+      }
+    }
+    if (sameRequiredPlugins)
+      return makePluginTargetRegistryError(
+          llvm::Twine(
+              "duplicate plugin-owned target exporter bundle for plugin '") +
+          bundle.getPluginName() + "'");
+  }
+
+  bundles.push_back(bundle);
 
   return llvm::Error::success();
 }
@@ -2345,9 +2363,25 @@ const PluginTargetArtifactExporterBundle *
 PluginTargetArtifactExporterRegistry::lookup(
     llvm::StringRef pluginName) const {
   auto it = bundlesByPlugin.find(pluginName);
-  if (it == bundlesByPlugin.end())
+  if (it == bundlesByPlugin.end() || it->getValue().empty())
     return nullptr;
-  return &it->getValue();
+  return &it->getValue().front();
+}
+
+llvm::ArrayRef<PluginTargetArtifactExporterBundle>
+PluginTargetArtifactExporterRegistry::lookupAll(
+    llvm::StringRef pluginName) const {
+  auto it = bundlesByPlugin.find(pluginName);
+  if (it == bundlesByPlugin.end())
+    return {};
+  return it->getValue();
+}
+
+std::size_t PluginTargetArtifactExporterRegistry::size() const {
+  std::size_t count = 0;
+  for (const auto &entry : bundlesByPlugin)
+    count += entry.getValue().size();
+  return count;
 }
 
 namespace {
@@ -2402,18 +2436,21 @@ llvm::Error PluginTargetArtifactExporterRegistry::
     if (!plugin->isEnabled())
       continue;
 
-    const PluginTargetArtifactExporterBundle *bundle =
-        lookup(plugin->getName());
-    if (!bundle)
-      continue;
-    if (!hasEnabledBundleDependencies(plugins, *bundle))
+    llvm::ArrayRef<PluginTargetArtifactExporterBundle> bundles =
+        lookupAll(plugin->getName());
+    if (bundles.empty())
       continue;
 
-    if (llvm::Error error = bundle->getRegistrationFn()(registry)) {
-      std::string message = llvm::toString(std::move(error));
-      return makePluginTargetRegistryError(
-          llvm::Twine("plugin '") + plugin->getName() +
-          "' failed to register target artifact exporters: " + message);
+    for (const PluginTargetArtifactExporterBundle &bundle : bundles) {
+      if (!hasEnabledBundleDependencies(plugins, bundle))
+        continue;
+
+      if (llvm::Error error = bundle.getRegistrationFn()(registry)) {
+        std::string message = llvm::toString(std::move(error));
+        return makePluginTargetRegistryError(
+            llvm::Twine("plugin '") + plugin->getName() +
+            "' failed to register target artifact exporters: " + message);
+      }
     }
   }
 
@@ -2440,19 +2477,25 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerExportersForPlugin(
                     "extension plugin '") +
         pluginName + "'");
 
-  const PluginTargetArtifactExporterBundle *bundle = lookup(pluginName);
-  if (!bundle)
+  llvm::ArrayRef<PluginTargetArtifactExporterBundle> bundles =
+      lookupAll(pluginName);
+  if (bundles.empty())
     return makePluginTargetRegistryError(
         llvm::Twine("extension plugin '") + pluginName +
         "' has no registered target artifact exporter bundle");
-  if (llvm::Error error = requireEnabledBundleDependencies(plugins, *bundle))
-    return error;
 
-  if (llvm::Error error = bundle->getRegistrationFn()(registry)) {
-    std::string message = llvm::toString(std::move(error));
-    return makePluginTargetRegistryError(
-        llvm::Twine("plugin '") + pluginName +
-        "' failed to register target artifact exporters: " + message);
+  for (const PluginTargetArtifactExporterBundle &bundle : bundles) {
+    if (llvm::Error error = requireEnabledBundleDependencies(plugins, bundle))
+      return error;
+  }
+
+  for (const PluginTargetArtifactExporterBundle &bundle : bundles) {
+    if (llvm::Error error = bundle.getRegistrationFn()(registry)) {
+      std::string message = llvm::toString(std::move(error));
+      return makePluginTargetRegistryError(
+          llvm::Twine("plugin '") + pluginName +
+          "' failed to register target artifact exporters: " + message);
+    }
   }
 
   return llvm::Error::success();
