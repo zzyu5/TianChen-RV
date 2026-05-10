@@ -99,12 +99,16 @@ contract, binding, access, memory space, and selected plan owner, but it must
 not embed sample runtime values, tensor sizes, RVV guard values, hardware facts,
 or vendor execution data.
 The offload descriptor target exporter must register this required typed role
-contract with the generic target artifact exporter registry. Before descriptor
-text or bundle files are emitted, the generic target-artifact/front-door
-preflight must reject missing roles or metadata that no longer mirrors the
-IR-backed `mem_window` / `runtime_param` ABI plan. The offload descriptor
-exporter still repeats route-local validation as the final safety net, but
-shared target artifact code must not gain offload policy branches.
+contract through the `offload-plugin` plugin-owned target exporter bundle into
+the generic target artifact exporter registry. Central built-in target exporter
+composition may install the active plugin bundle, but must not directly publish
+the offload descriptor route or duplicate descriptor validation. Before
+descriptor text or bundle files are emitted, the generic
+target-artifact/front-door preflight must reject missing roles or metadata that
+no longer mirrors the IR-backed `mem_window` / `runtime_param` ABI plan. The
+offload descriptor exporter still repeats route-local validation as the final
+safety net, but shared target artifact code must not gain offload policy
+branches.
 
 ## Why It Belongs In TianChen-RV
 

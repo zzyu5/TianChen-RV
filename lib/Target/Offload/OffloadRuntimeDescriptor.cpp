@@ -1620,4 +1620,10 @@ llvm::Error registerOffloadRuntimeDescriptorTargetExporters(
       validateOffloadDescriptorTargetArtifactRuntimeABIContract));
 }
 
+llvm::Error registerOffloadRuntimeDescriptorPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      kOffloadPluginName, registerOffloadRuntimeDescriptorTargetExporters));
+}
+
 } // namespace tianchenrv::target::offload

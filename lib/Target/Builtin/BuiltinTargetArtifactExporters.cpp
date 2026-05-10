@@ -15,18 +15,17 @@ namespace {
 
 llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error = rvv::registerRVVSmokeProbeTargetExporters(registry))
-    return error;
-  if (llvm::Error error =
-          offload::registerOffloadRuntimeDescriptorTargetExporters(registry))
-    return error;
-  return llvm::Error::success();
+  return rvv::registerRVVSmokeProbeTargetExporters(registry);
 }
 
 llvm::Error registerBuiltinPluginTargetArtifactExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
   if (llvm::Error error =
           rvv::registerRVVMicrokernelPluginTargetExporterBundle(registry))
+    return error;
+  if (llvm::Error error =
+          offload::registerOffloadRuntimeDescriptorPluginTargetExporterBundle(
+              registry))
     return error;
   if (llvm::Error error =
           scalar::registerScalarMicrokernelPluginTargetExporterBundle(registry))

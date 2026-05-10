@@ -359,11 +359,13 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV standalone smoke-probe C source, artifact kind
     `standalone-c-source`, selected only when a plugin-owned smoke-probe
     emission plan names `tcrv-export-rvv-smoke-probe-c`.
-  - Offload runtime handoff descriptor.
 - The current plugin-owned single-candidate route set includes:
   - RVV selected binary microkernel runtime-callable C source routes for the
     finite add/sub/mul i32/i64 families, registered by the `rvv-plugin`
     target-exporter bundle and emitted by RVV target/export code.
+  - Offload runtime handoff descriptor route, registered by the
+    `offload-plugin` target-exporter bundle and emitted by offload
+    target/export code.
   - Scalar selected fallback microkernel runtime-callable C source routes for
     the finite add/sub/mul i32/i64 families, registered by the `scalar-plugin`
     target-exporter bundle and emitted by scalar target/export code.
@@ -436,6 +438,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   required enabled extension plugins for composite routes whose selected-plan
   contract spans more than one plugin-owned component. This applies to real
   target-owned RVV selected binary microkernel source/header/object exporters,
+  offload runtime handoff descriptor exporters,
   scalar fallback source/header/object exporters, RVV+scalar dispatch
   source/header/object composite exporters, and metadata-only Toy exporters. A
   single extension plugin may contribute more than one bundle when route groups

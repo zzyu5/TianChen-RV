@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Global no-Python-core and compute-free exec review"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify generic code did not gain offload/vendor semantic branches"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify offload descriptor remains metadata-only and non-claiming"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact exporter ownership and route behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused target artifact export tests cover changed behavior"}

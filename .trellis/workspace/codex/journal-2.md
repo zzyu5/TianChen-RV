@@ -59,6 +59,52 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
+## Session 29: Offload descriptor exporter through plugin-owned bundle
+
+**Date**: 2026-05-11
+**Task**: Offload descriptor exporter through plugin-owned bundle
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes malformed-review fallback,
+then moved the existing runtime-offload descriptor target artifact route behind
+the `offload-plugin` plugin-owned target exporter bundle boundary. The
+descriptor body, runtime ABI role contract, selected-plan metadata validation,
+and route-local preflight remain in `Target/Offload`.
+
+### Main Changes
+
+- Added
+  `offload::registerOffloadRuntimeDescriptorPluginTargetExporterBundle`.
+- Removed direct offload descriptor registration from the non-plugin built-in
+  target artifact route list.
+- Added offload plugin-owned exporter bundle registration to built-in target
+  artifact exporter composition.
+- Added focused C++ coverage for enabled, missing, disabled, duplicate-bundle,
+  and duplicate-route offload plugin-owned exporter behavior.
+- Updated offload and lowering/runtime specs to document the new ownership
+  boundary.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 -m lit ...` was attempted for a focused filter but the system
+  Python lacks the `lit` module; the full `check-tianchenrv` CMake target was
+  used instead.
+- No runtime/correctness/performance claim was made; no `ssh rvv` evidence was
+  needed or collected.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 29: Scalar fallback plugin-owned exporter bundle
 
 **Date**: 2026-05-11
