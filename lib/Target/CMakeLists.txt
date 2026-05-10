@@ -9,6 +9,7 @@ add_mlir_library(TianChenRVTarget
 
   LINK_LIBS PUBLIC
   TianChenRVExecDialect
+  TianChenRVPlugin
   MLIRIR
   MLIRSupport
 )

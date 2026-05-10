@@ -4,6 +4,7 @@ add_mlir_library(TianChenRVBuiltinTargetArtifactExporters
   RVVScalarDispatch.cpp
 
   LINK_LIBS PUBLIC
+  TianChenRVBuiltinPlugins
   TianChenRVOffloadTarget
   TianChenRVRVVTarget
   TianChenRVScalarTarget

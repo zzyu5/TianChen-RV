@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -93,6 +94,14 @@ mlir::Operation *getPathVariantOperation(const SelectedPath &path) {
 llvm::Error makeRegistryError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV target artifact exporter registry failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::Error makePluginTargetRegistryError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV plugin-owned target artifact exporter "
+                  "registry failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -2285,6 +2294,101 @@ TargetArtifactExporterRegistry::lookupComposite(llvm::StringRef routeID) const {
     if (exporter.getRouteID() == routeID)
       return &exporter;
   return nullptr;
+}
+
+PluginTargetArtifactExporterBundle::PluginTargetArtifactExporterBundle(
+    llvm::StringRef pluginName,
+    PluginTargetArtifactExporterRegistrationFn registrationFn)
+    : pluginName(pluginName.str()), registrationFn(registrationFn) {}
+
+llvm::Error PluginTargetArtifactExporterRegistry::registerBundle(
+    const PluginTargetArtifactExporterBundle &bundle) {
+  if (bundle.getPluginName().trim().empty())
+    return makePluginTargetRegistryError(
+        "plugin-owned target exporter bundle plugin name must be non-empty");
+  if (!bundle.getRegistrationFn())
+    return makePluginTargetRegistryError(
+        llvm::Twine("plugin-owned target exporter bundle for plugin '") +
+        bundle.getPluginName() + "' must have a non-null registration callback");
+
+  auto [it, inserted] =
+      bundlesByPlugin.try_emplace(bundle.getPluginName(), bundle);
+  (void)it;
+  if (!inserted)
+    return makePluginTargetRegistryError(
+        llvm::Twine("duplicate plugin-owned target exporter bundle for plugin '") +
+        bundle.getPluginName() + "'");
+
+  return llvm::Error::success();
+}
+
+const PluginTargetArtifactExporterBundle *
+PluginTargetArtifactExporterRegistry::lookup(
+    llvm::StringRef pluginName) const {
+  auto it = bundlesByPlugin.find(pluginName);
+  if (it == bundlesByPlugin.end())
+    return nullptr;
+  return &it->getValue();
+}
+
+llvm::Error PluginTargetArtifactExporterRegistry::
+    registerExportersForEnabledPlugins(
+        const plugin::ExtensionPluginRegistry &plugins,
+        TargetArtifactExporterRegistry &registry) const {
+  for (const plugin::ExtensionPlugin *plugin : plugins.getAllPlugins()) {
+    if (!plugin->isEnabled())
+      continue;
+
+    const PluginTargetArtifactExporterBundle *bundle =
+        lookup(plugin->getName());
+    if (!bundle)
+      continue;
+
+    if (llvm::Error error = bundle->getRegistrationFn()(registry)) {
+      std::string message = llvm::toString(std::move(error));
+      return makePluginTargetRegistryError(
+          llvm::Twine("plugin '") + plugin->getName() +
+          "' failed to register target artifact exporters: " + message);
+    }
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error PluginTargetArtifactExporterRegistry::registerExportersForPlugin(
+    const plugin::ExtensionPluginRegistry &plugins, llvm::StringRef pluginName,
+    TargetArtifactExporterRegistry &registry) const {
+  if (pluginName.trim().empty())
+    return makePluginTargetRegistryError(
+        "explicit plugin-owned target exporter registration requires a "
+        "non-empty plugin name");
+
+  const plugin::ExtensionPlugin *plugin = plugins.lookupPlugin(pluginName);
+  if (!plugin)
+    return makePluginTargetRegistryError(
+        llvm::Twine("cannot register target artifact exporters for unknown "
+                    "extension plugin '") +
+        pluginName + "'");
+  if (!plugin->isEnabled())
+    return makePluginTargetRegistryError(
+        llvm::Twine("cannot register target artifact exporters for disabled "
+                    "extension plugin '") +
+        pluginName + "'");
+
+  const PluginTargetArtifactExporterBundle *bundle = lookup(pluginName);
+  if (!bundle)
+    return makePluginTargetRegistryError(
+        llvm::Twine("extension plugin '") + pluginName +
+        "' has no registered target artifact exporter bundle");
+
+  if (llvm::Error error = bundle->getRegistrationFn()(registry)) {
+    std::string message = llvm::toString(std::move(error));
+    return makePluginTargetRegistryError(
+        llvm::Twine("plugin '") + pluginName +
+        "' failed to register target artifact exporters: " + message);
+  }
+
+  return llvm::Error::success();
 }
 
 llvm::Error exportTargetSourceArtifact(

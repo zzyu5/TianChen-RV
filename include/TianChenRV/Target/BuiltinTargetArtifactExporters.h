@@ -7,8 +7,20 @@ namespace tianchenrv::target {
 
 class TargetArtifactExporterRegistry;
 
+} // namespace tianchenrv::target
+
+namespace tianchenrv::plugin {
+class ExtensionPluginRegistry;
+} // namespace tianchenrv::plugin
+
+namespace tianchenrv::target {
+
 llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry);
+
+llvm::Error registerBuiltinTargetArtifactExporters(
+    TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins);
 
 } // namespace tianchenrv::target
 

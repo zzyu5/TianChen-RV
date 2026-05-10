@@ -59,7 +59,6 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
-
 ## Session 16: Target-owned artifact route translation registration
 
 **Date**: 2026-05-10
@@ -989,6 +988,61 @@ Toy route now emits deterministic non-executable metadata evidence through
   `toy|ToyMetadataArtifact`: 5/5 passed.
 - `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
   199/199 lit tests passed.
+- No RVV runtime/correctness/performance claim was made; no `ssh rvv` evidence
+  was needed or collected.
+
+### Status
+
+[OK] **Completed and archived**
+
+
+## Session 28: Plugin-owned target artifact exporter registration
+
+**Date**: 2026-05-11
+**Task**: Plugin-owned target artifact exporter registration through the extension pipeline
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then added a narrow
+target-layer plugin-owned exporter bundle registry. Built-in target artifact
+registration now takes the active `ExtensionPluginRegistry` and uses that same
+enabled-plugin view to populate plugin-owned target artifact exporters. Toy
+metadata artifact registration moved behind this generic plugin-owned boundary
+while the Toy exporter body and candidate validation remain in `Target/Toy`.
+
+### Main Changes
+
+- Added `PluginTargetArtifactExporterBundle` and
+  `PluginTargetArtifactExporterRegistry` to the C++ target artifact export
+  surface.
+- Added enabled-plugin population and explicit single-plugin registration
+  helpers with fail-closed diagnostics for unknown, disabled, duplicate-bundle,
+  and duplicate-route cases.
+- Reworked built-in target artifact exporter registration so RVV/scalar/offload
+  routes stay unchanged and Toy is contributed through the plugin-owned bundle
+  path.
+- Updated `tcrv-opt` and `tcrv-translate` to pass the active extension plugin
+  registry into target exporter registration.
+- Added C++ coverage proving Toy plugin-owned exporter registration,
+  duplicate-route rejection, and disabled/missing plugin fail-closed behavior.
+- Recorded the plugin-owned exporter bundle boundary in the lowering/runtime
+  spec.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-toy-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-toy-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `toy|ToyMetadataArtifact`: 5/5 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-plugin-owned-target-exporter-registration`: passed.
 - No RVV runtime/correctness/performance claim was made; no `ssh rvv` evidence
   was needed or collected.
 

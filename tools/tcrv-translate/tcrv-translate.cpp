@@ -49,7 +49,7 @@ mlir::LogicalResult populateBuiltinPlanningRegistries(
 
   if (llvm::Error error =
           tianchenrv::target::registerBuiltinTargetArtifactExporters(
-              exporters)) {
+              exporters, plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -74,10 +74,18 @@ void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
 
 mlir::LogicalResult exportEmissionManifest(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
+  tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  if (llvm::Error error =
+          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
           tianchenrv::target::registerBuiltinTargetArtifactExporters(
-              exporters)) {
+              exporters, plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

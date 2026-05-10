@@ -21,11 +21,22 @@ class raw_ostream;
 namespace tianchenrv::target {
 
 struct TargetArtifactCandidate;
+class TargetArtifactExporterRegistry;
+
+} // namespace tianchenrv::target
+
+namespace tianchenrv::plugin {
+class ExtensionPluginRegistry;
+} // namespace tianchenrv::plugin
+
+namespace tianchenrv::target {
 
 using TargetArtifactExportFn = llvm::Error (*)(mlir::ModuleOp module,
                                                llvm::raw_ostream &os);
 using TargetArtifactCandidateValidationFn = llvm::Error (*)(
     const TargetArtifactCandidate &candidate);
+using PluginTargetArtifactExporterRegistrationFn =
+    llvm::Error (*)(TargetArtifactExporterRegistry &registry);
 using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
     llvm::ArrayRef<TargetArtifactCandidate> candidates);
 using TargetArtifactCompositeCandidateValidationFn = llvm::Error (*)(
@@ -224,6 +235,42 @@ public:
 private:
   llvm::StringMap<TargetArtifactExporter> exporters;
   llvm::SmallVector<TargetArtifactCompositeExporter, 4> compositeExporters;
+};
+
+class PluginTargetArtifactExporterBundle {
+public:
+  PluginTargetArtifactExporterBundle() = default;
+  PluginTargetArtifactExporterBundle(
+      llvm::StringRef pluginName,
+      PluginTargetArtifactExporterRegistrationFn registrationFn);
+
+  llvm::StringRef getPluginName() const { return pluginName; }
+  PluginTargetArtifactExporterRegistrationFn getRegistrationFn() const {
+    return registrationFn;
+  }
+
+private:
+  std::string pluginName;
+  PluginTargetArtifactExporterRegistrationFn registrationFn = nullptr;
+};
+
+class PluginTargetArtifactExporterRegistry {
+public:
+  llvm::Error registerBundle(const PluginTargetArtifactExporterBundle &bundle);
+  const PluginTargetArtifactExporterBundle *
+  lookup(llvm::StringRef pluginName) const;
+  std::size_t size() const { return bundlesByPlugin.size(); }
+
+  llvm::Error registerExportersForEnabledPlugins(
+      const plugin::ExtensionPluginRegistry &plugins,
+      TargetArtifactExporterRegistry &registry) const;
+  llvm::Error registerExportersForPlugin(
+      const plugin::ExtensionPluginRegistry &plugins,
+      llvm::StringRef pluginName,
+      TargetArtifactExporterRegistry &registry) const;
+
+private:
+  llvm::StringMap<PluginTargetArtifactExporterBundle> bundlesByPlugin;
 };
 
 llvm::Error collectTargetArtifactCandidates(

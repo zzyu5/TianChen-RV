@@ -549,4 +549,11 @@ llvm::Error registerToyMetadataArtifactTargetExporters(
       validateToyMetadataCandidate));
 }
 
+llvm::Error registerToyMetadataArtifactPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      pluginToy::getToyExtensionPluginName(),
+      registerToyMetadataArtifactTargetExporters));
+}
+
 } // namespace tianchenrv::target::toy

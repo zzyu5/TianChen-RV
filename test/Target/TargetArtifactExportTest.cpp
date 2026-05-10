@@ -1,5 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
@@ -11,6 +13,7 @@
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -27,6 +30,9 @@ using namespace tianchenrv::target;
 
 namespace {
 
+using tianchenrv::plugin::ExtensionPlugin;
+using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::PluginCapability;
 using tianchenrv::support::I32BinaryRuntimeABIContract;
 using tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
 using tianchenrv::support::RuntimeABIParameter;
@@ -74,6 +80,23 @@ llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
   os << "header-artifact\n";
   return llvm::Error::success();
 }
+
+class DisabledToyTargetExporterPlugin final : public ExtensionPlugin {
+public:
+  llvm::StringRef getName() const override {
+    return tianchenrv::plugin::toy::getToyExtensionPluginName();
+  }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return {};
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  bool isEnabled() const override { return false; }
+};
 
 llvm::Expected<bool>
 neverMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>) {
@@ -170,6 +193,95 @@ bool expectRouteRuntimeABIParameters(
   return expectRuntimeABIParametersEqual(
       exporter->getRequiredRuntimeABIParameters(), expected,
       "route '" + routeID.str() + "' contract parameters");
+}
+
+bool expectPluginOwnedToyTargetExporterRegistration() {
+  constexpr llvm::StringLiteral toyRouteID(
+      "none-executable-toy-template-metadata");
+
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  if (!expectSuccess(
+          tianchenrv::target::toy::
+              registerToyMetadataArtifactPluginTargetExporterBundle(
+                  pluginExporters),
+          "register Toy plugin-owned target exporter bundle"))
+    return false;
+  if (!expectErrorContains(
+          tianchenrv::target::toy::
+              registerToyMetadataArtifactPluginTargetExporterBundle(
+                  pluginExporters),
+          "duplicate Toy plugin-owned target exporter bundle rejected",
+          {"duplicate plugin-owned target exporter bundle", "toy-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(plugins),
+                     "register Toy extension plugin for target exporters"))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         plugins, registry),
+                     "populate target exporters from enabled Toy plugin"))
+    return false;
+  if (!expectRoute(registry, toyRouteID, "metadata-diagnostic", "toy-plugin",
+                   "toy-template-metadata-route", 0,
+                   /*expectedDirectHelperRoute=*/false,
+                   "toy-lowering-template"))
+    return false;
+  const TargetArtifactExporter *toyExporter = registry.lookup(toyRouteID);
+  if (!toyExporter || !toyExporter->getCandidateValidationFn()) {
+    llvm::errs() << "plugin-owned Toy target exporter lacks candidate "
+                    "preflight validator\n";
+    return false;
+  }
+
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              plugins, tianchenrv::plugin::toy::getToyExtensionPluginName(),
+              registry),
+          "duplicate plugin-owned Toy target exporter route rejected",
+          {"duplicate exporter route id", toyRouteID}))
+    return false;
+
+  DisabledToyTargetExporterPlugin disabledToy;
+  ExtensionPluginRegistry disabledPlugins;
+  if (!expectSuccess(disabledPlugins.registerPlugin(disabledToy),
+                     "register disabled Toy plugin"))
+    return false;
+
+  TargetArtifactExporterRegistry disabledRegistry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         disabledPlugins, disabledRegistry),
+                     "skip target exporters for disabled Toy plugin"))
+    return false;
+  if (disabledRegistry.lookup(toyRouteID)) {
+    llvm::errs() << "disabled Toy plugin unexpectedly registered a target "
+                    "artifact exporter\n";
+    return false;
+  }
+
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              disabledPlugins,
+              tianchenrv::plugin::toy::getToyExtensionPluginName(),
+              disabledRegistry),
+          "explicit disabled Toy target exporter registration rejected",
+          {"disabled extension plugin", "toy-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry missingPlugins;
+  TargetArtifactExporterRegistry missingRegistry;
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              missingPlugins,
+              tianchenrv::plugin::toy::getToyExtensionPluginName(),
+              missingRegistry),
+          "explicit missing Toy target exporter registration rejected",
+          {"unknown extension plugin", "toy-plugin"}))
+    return false;
+
+  return true;
 }
 
 bool expectParameter(const RuntimeABIParameter &parameter,
@@ -2218,6 +2330,8 @@ int main() {
   if (!expectTargetArtifactBundleFileNames())
     return 1;
   if (!expectTargetArtifactBundleComponentContractValidation())
+    return 1;
+  if (!expectPluginOwnedToyTargetExporterRegistration())
     return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;

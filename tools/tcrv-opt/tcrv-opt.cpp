@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     }
     if (llvm::Error error =
             tianchenrv::target::registerBuiltinTargetArtifactExporters(
-                targetExporters)) {
+                targetExporters, plugins)) {
       llvm::errs() << "failed to register TianChen-RV built-in target "
                       "artifact exporters: "
                    << llvm::toString(std::move(error)) << "\n";

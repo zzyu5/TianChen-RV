@@ -399,6 +399,15 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - Source-only filtering remains the responsibility of the generic exporter via
   artifact-kind validation, not by omitting non-source built-ins from the
   registration helper.
+- Extension/plugin-owned metadata artifact routes may be registered through a
+  target-layer plugin-exporter bundle registry keyed by extension plugin name.
+  Public tools that already own an `ExtensionPluginRegistry` must pass that same
+  active registry into built-in target exporter registration so enabled plugins
+  can contribute their plugin-owned target artifact exporters through the
+  generic boundary. Disabled or missing plugins must not silently publish their
+  plugin-owned target routes; later selected-plan export then fails closed as an
+  unknown or unavailable route/origin instead of falling back to a central
+  extension-specific exporter branch.
 
 #### 4. Validation & Error Matrix
 
@@ -406,6 +415,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   exporter -> generic `TargetArtifactExporterRegistry` registration failure.
 - Duplicate route id, including calling the built-in helper twice on the same
   registry -> generic duplicate route failure.
+- Duplicate plugin-exporter bundle keys, null plugin-exporter callbacks, and
+  duplicate route ids produced while populating enabled plugin-owned exporters
+  -> generic registration failure before target artifact output.
 - Missing built-in route registration in a tool -> route lookup fails closed as
   an unknown target artifact route or no supported artifact route.
 - Offload descriptor selected through source-only command -> source artifact

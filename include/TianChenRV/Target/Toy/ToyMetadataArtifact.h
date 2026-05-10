@@ -10,6 +10,7 @@ class raw_ostream;
 
 namespace tianchenrv::target {
 class TargetArtifactExporterRegistry;
+class PluginTargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::target::toy {
@@ -19,6 +20,9 @@ llvm::Error exportToyMetadataArtifact(mlir::ModuleOp module,
 
 llvm::Error registerToyMetadataArtifactTargetExporters(
     TargetArtifactExporterRegistry &registry);
+
+llvm::Error registerToyMetadataArtifactPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry);
 
 } // namespace tianchenrv::target::toy
 
