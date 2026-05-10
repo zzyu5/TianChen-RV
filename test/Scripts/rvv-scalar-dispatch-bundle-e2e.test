@@ -329,9 +329,26 @@
 # I64-VMUL-EVIDENCE: "route": "tcrv-export-rvv-scalar-i64-vmul-dispatch-c"
 # I64-VMUL-EVIDENCE: "route": "tcrv-export-rvv-scalar-i64-vmul-dispatch-header"
 # I64-VMUL-EVIDENCE: "route": "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
+# I64-VMUL-EVIDENCE: "dispatch_fallback": {
+# I64-VMUL-EVIDENCE: "selected_scalar_callable": "scalar_fallback_first_slice"
+# I64-VMUL-EVIDENCE: "target": "scalar_fallback_first_slice"
+# I64-VMUL-EVIDENCE: "dispatch_runtime_guard": {
+# I64-VMUL-EVIDENCE: "case": "rvv_first_slice"
+# I64-VMUL-EVIDENCE: "guard_c_name": "rvv_available"
+# I64-VMUL-EVIDENCE: "runtime_guard": "abi_dispatch_availability_guard"
+# I64-VMUL-EVIDENCE: "branch_coverage": {
+# I64-VMUL-EVIDENCE: "arithmetic_output_checked": true
+# I64-VMUL-EVIDENCE: "selected_branch": "scalar-dispatch-fallback"
+# I64-VMUL-EVIDENCE: "selected_branch": "rvv-dispatch-case"
+# I64-VMUL-EVIDENCE: "guard_parameter": "rvv_available"
+# I64-VMUL-EVIDENCE: "overrun_behavior_checked": true
 # I64-VMUL-EVIDENCE: "branches_exercised": [
 # I64-VMUL-EVIDENCE: "rvv_available=0"
 # I64-VMUL-EVIDENCE: "rvv_available=1"
+# I64-VMUL-EVIDENCE: "output_validation_contract": {
+# I64-VMUL-EVIDENCE: "arithmetic_output_checked": true
+# I64-VMUL-EVIDENCE: "overrun_behavior_checked": true
+# I64-VMUL-EVIDENCE: "source_built_object_path_checked_by_live_run": false
 # I64-VMUL-EVIDENCE: "pass_fail_result": "pass"
 # I64-VMUL-EVIDENCE: "ssh_evidence": null
 # I64-VMUL-EVIDENCE: "status": "success"

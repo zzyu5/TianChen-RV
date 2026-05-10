@@ -124,3 +124,64 @@ and real `ssh rvv` compile/link/run validation.
 ### Status
 
 [OK] **Completed; ready to archive and commit**
+
+
+## Session 19: Front-door RVV+scalar dispatch bundle ssh evidence
+
+**Date**: 2026-05-10
+**Task**: Front-door RVV+scalar dispatch bundle ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Completed a bounded `i64-vmul` RVV+scalar dispatch bundle evidence path from
+`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` through
+source/header/object bundle records, generated external caller construction,
+and real `ssh rvv` compile/link/run validation for both dispatch branches.
+
+### Main Changes
+
+- Updated `scripts/rvv_scalar_dispatch_e2e.py` to persist first-class dispatch
+  evidence fields for runtime guard linkage, scalar fallback linkage, runtime
+  params, branch coverage, output validation contract, and structured ssh
+  compile/link/run/output-validation summaries.
+- Added self-test coverage for dispatch linkage parsing, branch coverage
+  evidence, and bundle ssh summary aggregation.
+- Updated focused bundle lit coverage to assert the live-capable `i64-vmul`
+  front-door evidence schema without contacting `ssh rvv`.
+
+### Evidence
+
+- Dry-run command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --input test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir --run-id codex-frontdoor-dispatch-i64-vmul-dry --overwrite`
+- Dry-run artifact:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-frontdoor-dispatch-i64-vmul-dry/evidence.json`
+- Live command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --input test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir --ssh-target rvv --run-id codex-frontdoor-dispatch-i64-vmul-live --overwrite`
+- Live artifact:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-frontdoor-dispatch-i64-vmul-live/evidence.json`
+- Live result:
+  `ssh_evidence.success = true`, remote compile/link/run/output validation all
+  true; recorded host facts include `architecture = riscv64`,
+  `clang_path = /usr/bin/clang`, and
+  `clang_version = Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Scope:
+  bounded RVV+scalar `i64-vmul` target-artifact bundle external caller
+  correctness only; no performance, generic lowering, broad correctness, or
+  generic RVV backend claim.
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv -sv . --filter rvv-scalar-dispatch-bundle-e2e`
+- [OK] live `ssh rvv` evidence command above
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: 193/193
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-10-front-door-rvv-scalar-dispatch-bundle-ssh-evidence`
+
+### Status
+
+[OK] **Completed and archived**

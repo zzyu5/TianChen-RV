@@ -750,6 +750,327 @@ def parse_source_comment(source: str, field: str, *, required: bool) -> str:
     return value
 
 
+def parse_comment_key_values(source: str, field: str) -> dict[str, str]:
+    return parse_comma_key_values(
+        parse_source_comment(source, field, required=True), field
+    )
+
+
+def parse_symbol_value(value: str, context: str) -> str:
+    reject_secret_like_text(context, value)
+    if not value.startswith("@") or len(value) == 1:
+        raise BridgeError(f"{context} must be an @symbol reference")
+    symbol = value[1:]
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_.$-]*$", symbol):
+        raise BridgeError(f"{context} contains malformed symbol reference: {value}")
+    return symbol
+
+
+def require_dispatch_component_variant(
+    record: dict[str, Any], role: str, context: str
+) -> str:
+    matches = [
+        component
+        for component in record.get("components", [])
+        if component.get("role") == role
+    ]
+    if len(matches) != 1:
+        raise BridgeError(
+            f"{context} must contain exactly one dispatch component role {role}"
+        )
+    selected_variant = str(matches[0].get("selected_variant", ""))
+    reject_secret_like_text(f"{context} selected_variant", selected_variant)
+    if not selected_variant:
+        raise BridgeError(f"{context} component role {role} has empty selected_variant")
+    return selected_variant
+
+
+def parse_dispatch_runtime_param_comments(source: str) -> list[dict[str, str]]:
+    params: list[dict[str, str]] = []
+    pattern = re.compile(
+        r"/\*\s*dispatch_runtime_param\[([0-9]+)\]:\s*([^*]*?)\s*\*/"
+    )
+    for match in pattern.finditer(source):
+        index = match.group(1).strip()
+        values = parse_comma_key_values(
+            match.group(2), f"dispatch_runtime_param[{index}]"
+        )
+        for field in ("symbol", "abi_role", "c_name", "c_type", "ownership"):
+            if field not in values:
+                raise BridgeError(
+                    f"dispatch_runtime_param[{index}] missing required field {field}"
+                )
+        values["index"] = index
+        values["symbol"] = parse_symbol_value(
+            values["symbol"], f"dispatch_runtime_param[{index}] symbol"
+        )
+        params.append(values)
+    if not params:
+        raise BridgeError(
+            "generated dispatch C source missing dispatch_runtime_param metadata"
+        )
+    return params
+
+
+def find_runtime_param_by_role(
+    params: list[dict[str, str]], role: str, context: str
+) -> dict[str, str]:
+    matches = [param for param in params if param.get("abi_role") == role]
+    if len(matches) != 1:
+        raise BridgeError(f"{context} requires exactly one runtime_param role {role}")
+    return matches[0]
+
+
+def build_dispatch_ir_linkage_summary(
+    source: str, selected_records: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    source_record = selected_records["source"]
+    rvv_component = require_dispatch_component_variant(
+        source_record, "dispatch case", "source bundle record"
+    )
+    scalar_component = require_dispatch_component_variant(
+        source_record, "dispatch fallback", "source bundle record"
+    )
+
+    runtime_params = parse_dispatch_runtime_param_comments(source)
+    guard_param = find_runtime_param_by_role(
+        runtime_params,
+        "dispatch-availability-guard",
+        "dispatch runtime guard evidence",
+    )
+    runtime_count_param = find_runtime_param_by_role(
+        runtime_params,
+        "runtime-element-count",
+        "dispatch runtime count evidence",
+    )
+
+    guard_link = parse_comment_key_values(source, "dispatch_runtime_guard_link")
+    fallback_link = parse_comment_key_values(source, "dispatch_fallback_link")
+    fallback_metadata = parse_comment_key_values(
+        source, "dispatch_fallback_metadata"
+    )
+
+    guard_case = parse_symbol_value(
+        guard_link.get("case", ""), "dispatch_runtime_guard_link case"
+    )
+    guard_symbol = parse_symbol_value(
+        guard_link.get("runtime_guard", ""),
+        "dispatch_runtime_guard_link runtime_guard",
+    )
+    fallback_target = parse_symbol_value(
+        fallback_link.get("target", ""), "dispatch_fallback_link target"
+    )
+    selected_scalar_callable = parse_symbol_value(
+        fallback_link.get("selected_scalar_callable", ""),
+        "dispatch_fallback_link selected_scalar_callable",
+    )
+    fallback_metadata_target = parse_symbol_value(
+        fallback_metadata.get("target", ""),
+        "dispatch_fallback_metadata target",
+    )
+
+    if guard_case != rvv_component:
+        raise BridgeError(
+            "dispatch runtime_guard case does not match bundle dispatch case component"
+        )
+    if guard_symbol != guard_param["symbol"]:
+        raise BridgeError(
+            "dispatch runtime_guard symbol does not match dispatch runtime_param metadata"
+        )
+    if fallback_target != scalar_component:
+        raise BridgeError(
+            "dispatch fallback target does not match bundle fallback component"
+        )
+    if selected_scalar_callable != scalar_component:
+        raise BridgeError(
+            "dispatch fallback selected scalar callable does not match bundle fallback component"
+        )
+    if fallback_metadata_target != fallback_target:
+        raise BridgeError(
+            "dispatch fallback metadata target does not match fallback link target"
+        )
+
+    return {
+        "runtime_guard": {
+            "case": guard_case,
+            "runtime_guard": guard_symbol,
+            "guard_c_name": guard_param["c_name"],
+            "guard_c_type": guard_param["c_type"],
+            "guard_role": guard_param["abi_role"],
+            "ownership": guard_param["ownership"],
+        },
+        "fallback": {
+            "target": fallback_target,
+            "selected_scalar_callable": selected_scalar_callable,
+            "origin": fallback_metadata.get("origin", ""),
+            "fallback_role": fallback_metadata.get("fallback_role", ""),
+        },
+        "runtime_element_count": {
+            "symbol": runtime_count_param["symbol"],
+            "c_name": runtime_count_param["c_name"],
+            "c_type": runtime_count_param["c_type"],
+            "role": runtime_count_param["abi_role"],
+            "ownership": runtime_count_param["ownership"],
+        },
+        "runtime_params": runtime_params,
+    }
+
+
+def build_dispatch_branch_coverage(guard_c_name: str) -> dict[str, Any]:
+    reject_secret_like_text("dispatch branch guard C name", guard_c_name)
+    return {
+        "guard_parameter": guard_c_name,
+        "branches": [
+            {
+                "guard_value": 0,
+                "selected_branch": "scalar-dispatch-fallback",
+                "runtime_element_counts": [7, 16],
+            },
+            {
+                "guard_value": 1,
+                "selected_branch": "rvv-dispatch-case",
+                "runtime_element_counts": [7, 16],
+            },
+        ],
+        "arithmetic_output_checked": True,
+        "overrun_behavior_checked": True,
+    }
+
+
+def command_step_summary(
+    commands: list[dict[str, Any]], names: list[str]
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    for name in names:
+        matches = [command for command in commands if command.get("name") == name]
+        if not matches:
+            steps.append(
+                {
+                    "name": name,
+                    "attempted": False,
+                    "succeeded": False,
+                    "exit_code": None,
+                    "timed_out": False,
+                    "log_path": "",
+                }
+            )
+            continue
+        command = matches[-1]
+        succeeded = command.get("exit_code") == 0 and not bool(
+            command.get("timed_out")
+        )
+        steps.append(
+            {
+                "name": name,
+                "attempted": True,
+                "succeeded": succeeded,
+                "exit_code": command.get("exit_code"),
+                "timed_out": bool(command.get("timed_out")),
+                "log_path": str(command.get("log_path", "")),
+            }
+        )
+    return steps
+
+
+def command_phase_summary(
+    commands: list[dict[str, Any]], names: list[str]
+) -> dict[str, Any]:
+    steps = command_step_summary(commands, names)
+    return {
+        "succeeded": all(step["attempted"] and step["succeeded"] for step in steps),
+        "steps": steps,
+    }
+
+
+def build_ssh_evidence_summary(
+    kind: str,
+    *,
+    args: argparse.Namespace,
+    commands: list[dict[str, Any]],
+    details: dict[str, Any] | None,
+    error: str = "",
+) -> dict[str, Any]:
+    if kind == "dispatch-self-check-source":
+        compile_names = ["ssh_compile_dispatch_object"]
+        link_names = ["ssh_link_dispatch_executable"]
+        run_names = ["ssh_run_dispatch_self_check"]
+        marker_fields = ["stdout_marker_observed"]
+    elif kind == "dispatch-bundle-external-abi":
+        compile_names = [
+            "ssh_compile_bundle_external_caller_object",
+            "ssh_compile_bundle_dispatch_source_object",
+        ]
+        link_names = [
+            "ssh_link_bundle_source_external_caller",
+            "ssh_link_bundle_index_object_external_caller",
+        ]
+        run_names = [
+            "ssh_run_bundle_source_external_caller",
+            "ssh_run_bundle_index_object_external_caller",
+        ]
+        marker_fields = [
+            "source_stdout_marker_observed",
+            "bundle_object_stdout_marker_observed",
+        ]
+    else:
+        raise BridgeError(f"unknown ssh evidence kind: {kind}")
+
+    compile_phase = command_phase_summary(commands, compile_names)
+    link_phase = command_phase_summary(commands, link_names)
+    run_phase = command_phase_summary(commands, run_names)
+    marker_observations = {
+        field: bool(details.get(field, False)) if details else False
+        for field in marker_fields
+    }
+    output_validation_succeeded = bool(details) and all(
+        marker_observations.values()
+    )
+
+    summary: dict[str, Any] = {
+        "attempted": True,
+        "kind": kind,
+        "success": False,
+        "ssh_target": args.ssh_target,
+        "remote_compile": compile_phase,
+        "remote_link": link_phase,
+        "remote_run": run_phase,
+        "output_validation": {
+            "succeeded": output_validation_succeeded,
+            "expected_stdout_marker": (
+                str(details.get("expected_stdout_marker", "")) if details else ""
+            ),
+            "marker_observations": marker_observations,
+        },
+        "remote_compile_succeeded": compile_phase["succeeded"],
+        "remote_link_succeeded": link_phase["succeeded"],
+        "remote_run_succeeded": run_phase["succeeded"],
+        "output_validation_succeeded": output_validation_succeeded,
+    }
+    if details:
+        summary["remote_dir"] = details.get("remote_dir", "")
+        if "host_facts" in details:
+            summary["host_facts"] = details["host_facts"]
+        if "compile_flags" in details:
+            summary["compile_flags"] = details["compile_flags"]
+    if error:
+        summary["error"] = sanitize_text(error)
+
+    summary["success"] = (
+        summary["remote_compile_succeeded"]
+        and summary["remote_link_succeeded"]
+        and summary["remote_run_succeeded"]
+        and summary["output_validation_succeeded"]
+        and not error
+    )
+    return summary
+
+
+def ssh_evidence_succeeded(value: Any) -> bool:
+    if isinstance(value, dict):
+        return bool(value.get("success"))
+    return bool(value)
+
+
 def validate_dispatch_manifest(manifest_text: str) -> None:
     reject_secret_like_text("emission manifest", manifest_text)
     required = [
@@ -2223,6 +2544,12 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     if "v" not in source_flags["selected_march"].lower():
         raise BridgeError("selected_march from bundled dispatch source must contain RVV vector evidence")
 
+    dispatch_ir_linkage = build_dispatch_ir_linkage_summary(
+        source_text, selected_records
+    )
+    branch_coverage = build_dispatch_branch_coverage(
+        str(dispatch_ir_linkage["runtime_guard"]["guard_c_name"])
+    )
     dispatch_signature = require_dispatch_runtime_abi_signature(
         selected_records["header"]
     )
@@ -2299,6 +2626,12 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             for label, record in selected_records.items()
         },
         "generated_symbols": generated_symbols,
+        "dispatch_runtime_guard": dispatch_ir_linkage["runtime_guard"],
+        "dispatch_fallback": dispatch_ir_linkage["fallback"],
+        "dispatch_runtime_element_count": dispatch_ir_linkage[
+            "runtime_element_count"
+        ],
+        "dispatch_runtime_params": dispatch_ir_linkage["runtime_params"],
         "selected_artifact_paths": {
             "bundle_index": relative_to_repo(index_path, root),
             "source": relative_to_repo(source_path, root),
@@ -2307,6 +2640,14 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "external_caller": relative_to_repo(caller_path, root),
         },
         "source_export_mode": "runtime-callable-library",
+        "branch_coverage": branch_coverage,
+        "output_validation_contract": {
+            "arithmetic_output_checked": True,
+            "overrun_behavior_checked": True,
+            "success_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+            "source_built_object_path_checked_by_live_run": not args.dry_run,
+            "bundle_object_path_checked_by_live_run": not args.dry_run,
+        },
         "external_caller": {
             "kind": "generated-c-caller",
             "dispatcher_function": dispatcher_function,
@@ -2314,6 +2655,11 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "success_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
             "branches_exercised": ["rvv_available=0", "rvv_available=1"],
             "runtime_element_counts": [7, 16],
+            "branch_coverage": branch_coverage,
+            "output_validation_contract": {
+                "arithmetic_output_checked": True,
+                "overrun_behavior_checked": True,
+            },
         },
         "selected_compile_flags": remote_compile_flags(source_flags),
         "pass_fail_result": "pass",
@@ -2321,6 +2667,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "artifacts": artifacts,
         "commands": commands,
         "ssh_evidence": None,
+        "ssh_evidence_details": None,
         "ssh_evidence_verified": False,
         "claim_scope": (
             "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
@@ -2333,7 +2680,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.dry_run:
         try:
-            evidence["ssh_evidence"] = run_remote_bundle_external_abi_evidence(
+            ssh_details = run_remote_bundle_external_abi_evidence(
                 args,
                 root=root,
                 artifact_dir=artifact_dir,
@@ -2347,14 +2694,33 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 flags=source_flags,
                 run_id=run_id,
             )
-            evidence["runtime_success"] = True
-            evidence["ssh_evidence_verified"] = True
+            evidence["ssh_evidence_details"] = ssh_details
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "dispatch-bundle-external-abi",
+                args=args,
+                commands=commands,
+                details=ssh_details,
+            )
+            evidence["runtime_success"] = ssh_evidence_succeeded(
+                evidence["ssh_evidence"]
+            )
+            evidence["ssh_evidence_verified"] = ssh_evidence_succeeded(
+                evidence["ssh_evidence"]
+            )
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
             evidence["pass_fail_result"] = "fail"
             evidence["error"] = sanitize_text(str(error))
             evidence["commands"] = commands
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "dispatch-bundle-external-abi",
+                args=args,
+                commands=commands,
+                details=None,
+                error=str(error),
+            )
+            evidence["ssh_evidence_verified"] = False
             write_json(
                 artifact_dir / "command_summary.json",
                 {"artifact_dir": relative_to_repo(artifact_dir, root), "commands": commands},
@@ -2515,6 +2881,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         },
         "commands": commands,
         "ssh_evidence": None,
+        "ssh_evidence_details": None,
         "ssh_evidence_verified": False,
         "claim_scope": (
             "local dry-run verifies planned dispatch, manifest handoff, and source export only"
@@ -2527,7 +2894,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.dry_run:
         try:
-            evidence["ssh_evidence"] = run_remote_evidence(
+            ssh_details = run_remote_evidence(
                 args,
                 root=root,
                 artifact_dir=artifact_dir,
@@ -2536,13 +2903,32 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 flags=source_flags,
                 run_id=run_id,
             )
-            evidence["runtime_success"] = True
-            evidence["ssh_evidence_verified"] = True
+            evidence["ssh_evidence_details"] = ssh_details
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "dispatch-self-check-source",
+                args=args,
+                commands=commands,
+                details=ssh_details,
+            )
+            evidence["runtime_success"] = ssh_evidence_succeeded(
+                evidence["ssh_evidence"]
+            )
+            evidence["ssh_evidence_verified"] = ssh_evidence_succeeded(
+                evidence["ssh_evidence"]
+            )
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
             evidence["error"] = sanitize_text(str(error))
             evidence["commands"] = commands
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "dispatch-self-check-source",
+                args=args,
+                commands=commands,
+                details=None,
+                error=str(error),
+            )
+            evidence["ssh_evidence_verified"] = False
             write_json(
                 artifact_dir / "command_summary.json",
                 {"artifact_dir": relative_to_repo(artifact_dir, root), "commands": commands},
@@ -3074,6 +3460,107 @@ artifact[2]:
             == active_dispatch_runtime_abi_signature(),
             "bundle dispatch header record did not use explicit runtime ABI signature",
         )
+        sample_linkage_source = """
+/* dispatch_runtime_param[0]: symbol=@abi_runtime_n, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned, purpose=runtime element count */
+/* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=explicit host-provided RVV availability guard */
+/* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+/* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
+/* dispatch_fallback_metadata: target=@scalar_fallback_first_slice, origin=scalar-plugin, fallback_role=conservative */
+""".strip()
+        linkage = build_dispatch_ir_linkage_summary(sample_linkage_source, selected)
+        assert_self_test(
+            linkage["runtime_guard"]["runtime_guard"]
+            == "abi_dispatch_availability_guard",
+            "dispatch runtime guard linkage was not parsed",
+        )
+        assert_self_test(
+            linkage["fallback"]["target"] == "scalar_fallback_first_slice",
+            "dispatch fallback target linkage was not parsed",
+        )
+        branch_coverage = build_dispatch_branch_coverage(
+            linkage["runtime_guard"]["guard_c_name"]
+        )
+        assert_self_test(
+            branch_coverage["branches"][0]["guard_value"] == 0
+            and branch_coverage["branches"][1]["guard_value"] == 1,
+            "dispatch branch coverage guard values changed",
+        )
+        assert_self_test(
+            branch_coverage["overrun_behavior_checked"],
+            "dispatch overrun validation contract was not recorded",
+        )
+        fake_commands = [
+            {
+                "name": "ssh_compile_bundle_external_caller_object",
+                "exit_code": 0,
+                "timed_out": False,
+                "log_path": "logs/compile-caller.log",
+            },
+            {
+                "name": "ssh_compile_bundle_dispatch_source_object",
+                "exit_code": 0,
+                "timed_out": False,
+                "log_path": "logs/compile-source.log",
+            },
+            {
+                "name": "ssh_link_bundle_source_external_caller",
+                "exit_code": 0,
+                "timed_out": False,
+                "log_path": "logs/link-source.log",
+            },
+            {
+                "name": "ssh_link_bundle_index_object_external_caller",
+                "exit_code": 0,
+                "timed_out": False,
+                "log_path": "logs/link-object.log",
+            },
+            {
+                "name": "ssh_run_bundle_source_external_caller",
+                "exit_code": 0,
+                "timed_out": False,
+                "log_path": "logs/run-source.log",
+            },
+            {
+                "name": "ssh_run_bundle_index_object_external_caller",
+                "exit_code": 0,
+                "timed_out": False,
+                "log_path": "logs/run-object.log",
+            },
+        ]
+        fake_details = {
+            "expected_stdout_marker": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+            "source_stdout_marker_observed": True,
+            "bundle_object_stdout_marker_observed": True,
+            "host_facts": {"architecture": "riscv64"},
+            "compile_flags": ["-O2", "-march=rv64gcv"],
+            "remote_dir": "/tmp/tianchenrv_rvv_bundle_e2e_self_test",
+        }
+        ssh_summary = build_ssh_evidence_summary(
+            "dispatch-bundle-external-abi",
+            args=argparse.Namespace(ssh_target="rvv"),
+            commands=fake_commands,
+            details=fake_details,
+        )
+        assert_self_test(
+            ssh_summary["remote_compile_succeeded"],
+            "ssh evidence summary did not record compile success",
+        )
+        assert_self_test(
+            ssh_summary["remote_link_succeeded"],
+            "ssh evidence summary did not record link success",
+        )
+        assert_self_test(
+            ssh_summary["remote_run_succeeded"],
+            "ssh evidence summary did not record run success",
+        )
+        assert_self_test(
+            ssh_summary["output_validation_succeeded"],
+            "ssh evidence summary did not record output validation success",
+        )
+        assert_self_test(
+            ssh_evidence_succeeded(ssh_summary),
+            "ssh evidence summary did not record overall success",
+        )
         try:
             select_dispatch_bundle_records(
                 [
@@ -3316,7 +3803,9 @@ def main(argv: list[str]) -> int:
                 "self_check_source_export_route": evidence.get(
                     "self_check_source_export_route", ""
                 ),
-                "ssh_evidence": bool(evidence["ssh_evidence"]),
+                "ssh_evidence": ssh_evidence_succeeded(
+                    evidence.get("ssh_evidence")
+                ),
                 "ssh_evidence_verified": bool(
                     evidence.get("ssh_evidence_verified", False)
                 ),
