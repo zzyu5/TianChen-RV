@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, Python boundary, and compute-free exec checks"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-boundary behavior and finite binary contract checks"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry selected-boundary result validation checks"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-local ownership and generic core no-branch checks"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI and artifact-claim boundary checks"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit validation and RVV evidence checks"}

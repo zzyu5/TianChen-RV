@@ -279,6 +279,64 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 - None - task complete
 
 
+## Session 20: Plugin-local RVV selected lowering-boundary materialization
+
+**Date**: 2026-05-10
+**Task**: Plugin-local RVV selected lowering-boundary materialization
+**Branch**: `main`
+
+### Summary
+
+Extracted finite RVV binary selected lowering-boundary materialization and
+validation into a plugin-local C++ component. `RVVExtensionPlugin` now
+delegates selected boundary materialization/validation to that module while
+keeping generic core passes free of RVV semantics and preserving smoke-probe
+and unsupported diagnostic behavior.
+
+### Main Changes
+
+- Added `RVVBinarySelectedLoweringBoundary` as the plugin-local owner for
+  selected `tcrv_rvv.lowering_boundary` materialization and validation.
+- Moved selected boundary capability-summary construction, boundary op
+  construction, selected vector metadata copying, capacity metadata
+  copying/validation, duplicate-boundary rejection, runtime ABI
+  mem_window/runtime_param ensuring, and i32/i64 callable microkernel
+  orchestration out of `RVVExtensionPlugin.cpp`.
+- Added focused module C++ coverage for i32 selected materialization,
+  `i64-vmul` selected materialization, ABI boundary ensuring, duplicate
+  boundary rejection, and ratio-valid boundary/variant capacity mismatch
+  validation.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-selected-lowering-boundary-test
+  tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` covering
+  `rvv-extension-plugin`, `rvv-scalar-dispatch-e2e`, and
+  `rvv-scalar-dispatch-bundle-e2e`: 3/3 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  194/194 lit tests passed.
+- No generated runtime artifact semantics changed and no new RVV
+  runtime/correctness/performance claim was made; no fresh `ssh rvv` run was
+  required.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 18: Front-door RVV binary frontend bundle with ssh rvv execution evidence
 
 **Date**: 2026-05-10
