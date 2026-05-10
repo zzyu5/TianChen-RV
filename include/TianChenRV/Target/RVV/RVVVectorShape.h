@@ -27,15 +27,19 @@ struct RVVVectorShapeConfig {
   llvm::StringRef dtypeDiagnosticSpelling;
 };
 
-using RVVI32VectorShapeConfig = RVVVectorShapeConfig;
+using RVVSelectedVectorShapeConfig = RVVVectorShapeConfig;
+using RVVI32VectorShapeConfig = RVVSelectedVectorShapeConfig;
 
-struct RVVI32VectorShapeSelectedPlanMetadataDescriptor {
+struct RVVVectorShapeSelectedPlanMetadataDescriptor {
   llvm::StringRef name;
   llvm::StringRef value;
   llvm::StringRef role;
   llvm::StringRef note;
   llvm::StringRef diagnosticSpelling;
 };
+
+using RVVI32VectorShapeSelectedPlanMetadataDescriptor =
+    RVVVectorShapeSelectedPlanMetadataDescriptor;
 
 inline const RVVI32VectorShapeConfig &getI32M1VectorShapeConfig() {
   static const RVVI32VectorShapeConfig config{
@@ -172,18 +176,26 @@ inline llvm::StringRef getRVVSelectedSetVLSuffixAttrName() {
   return "tcrv_rvv.selected_setvl_suffix";
 }
 
-inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataRole() {
+inline llvm::StringRef getSelectedRVVVectorShapeMetadataRole() {
   return "selected-rvv-vector-shape-config";
 }
 
-inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
+inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataRole() {
+  return getSelectedRVVVectorShapeMetadataRole();
+}
+
+inline llvm::StringRef getSelectedRVVVectorShapeMetadataNote() {
   return "compile-time RVV vector-shape config selected by the RVV "
          "plugin and validated against capabilities; not base lane capacity, "
          "runtime AVL/VL, or descriptor element_count";
 }
 
+inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
+  return getSelectedRVVVectorShapeMetadataNote();
+}
+
 inline llvm::StringRef
-getRVVI32VectorShapeSEWMetadataValue(const RVVI32VectorShapeConfig &config) {
+getRVVVectorShapeSEWMetadataValue(const RVVVectorShapeConfig &config) {
   if (config.sewBits == 32)
     return "32";
   if (config.sewBits == 64)
@@ -191,16 +203,20 @@ getRVVI32VectorShapeSEWMetadataValue(const RVVI32VectorShapeConfig &config) {
   return {};
 }
 
-inline void appendRVVI32VectorShapeSelectedPlanMetadata(
-    const RVVI32VectorShapeConfig &config,
-    llvm::SmallVectorImpl<RVVI32VectorShapeSelectedPlanMetadataDescriptor>
-        &out) {
-  llvm::StringRef role = getSelectedRVVI32VectorShapeMetadataRole();
-  llvm::StringRef note = getSelectedRVVI32VectorShapeMetadataNote();
+inline llvm::StringRef
+getRVVI32VectorShapeSEWMetadataValue(const RVVI32VectorShapeConfig &config) {
+  return getRVVVectorShapeSEWMetadataValue(config);
+}
+
+inline void appendRVVVectorShapeSelectedPlanMetadata(
+    const RVVVectorShapeConfig &config,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef role = getSelectedRVVVectorShapeMetadataRole();
+  llvm::StringRef note = getSelectedRVVVectorShapeMetadataNote();
   out.push_back({getRVVSelectedVectorShapeAttrName(), config.shapeID, role,
                  note, "shape"});
   out.push_back({getRVVSelectedVectorSEWAttrName(),
-                 getRVVI32VectorShapeSEWMetadataValue(config), role, note,
+                 getRVVVectorShapeSEWMetadataValue(config), role, note,
                  "sew"});
   out.push_back({getRVVSelectedVectorLMULAttrName(), config.lmul, role, note,
                  "lmul"});
@@ -214,6 +230,16 @@ inline void appendRVVI32VectorShapeSelectedPlanMetadata(
                  role, note, "vector suffix"});
   out.push_back({getRVVSelectedSetVLSuffixAttrName(), config.setvlSuffix, role,
                  note, "setvl suffix"});
+}
+
+inline void appendRVVI32VectorShapeSelectedPlanMetadata(
+    const RVVI32VectorShapeConfig &config,
+    llvm::SmallVectorImpl<RVVI32VectorShapeSelectedPlanMetadataDescriptor>
+        &out) {
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
+      genericOut;
+  appendRVVVectorShapeSelectedPlanMetadata(config, genericOut);
+  out.append(genericOut.begin(), genericOut.end());
 }
 
 } // namespace tianchenrv::target::rvv

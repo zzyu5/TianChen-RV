@@ -57,10 +57,48 @@ struct RVVBinaryCapabilityPropertyView {
   const target::rvv::RVVVectorShapeConfig *selectedShape = nullptr;
 };
 
+struct RVVBinarySelectedConfig {
+  const target::rvv::RVVVectorShapeConfig *shape = nullptr;
+
+  bool isValid() const { return shape != nullptr; }
+  const target::rvv::RVVVectorShapeConfig &getShape() const {
+    return *shape;
+  }
+  llvm::StringRef getShapeID() const { return shape ? shape->shapeID : ""; }
+  llvm::StringRef getDTypeID() const { return shape ? shape->dtypeID : ""; }
+  std::int64_t getSEWBits() const { return shape ? shape->sewBits : 0; }
+  llvm::StringRef getLMUL() const { return shape ? shape->lmul : ""; }
+  llvm::StringRef getTailPolicy() const {
+    return shape ? shape->tailPolicy : "";
+  }
+  llvm::StringRef getMaskPolicy() const {
+    return shape ? shape->maskPolicy : "";
+  }
+  llvm::StringRef getVectorType() const {
+    return shape ? shape->vectorType : "";
+  }
+  llvm::StringRef getVectorSuffix() const {
+    return shape ? shape->vectorSuffix : "";
+  }
+  llvm::StringRef getSetVLSuffix() const {
+    return shape ? shape->setvlSuffix : "";
+  }
+  llvm::SmallVector<llvm::StringRef, 4> getCapabilityIDs() const {
+    llvm::SmallVector<llvm::StringRef, 4> ids;
+    if (!shape)
+      return ids;
+    ids.push_back(shape->sewCapabilityID);
+    ids.push_back(shape->lmulCapabilityID);
+    ids.push_back(shape->tailPolicyCapabilityID);
+    ids.push_back(shape->maskPolicyCapabilityID);
+    return ids;
+  }
+};
+
 struct RVVBinarySelectedPlan {
   target::rvv::RVVBinaryIntrinsicDescriptor descriptor;
   const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
-  const target::rvv::RVVVectorShapeConfig *shape = nullptr;
+  RVVBinarySelectedConfig selectedConfig;
   std::int64_t elementCount = 0;
   std::string requiredMarch;
   std::optional<std::string> selectedMABI;
@@ -81,6 +119,12 @@ struct RVVBinarySelectedPlan {
   llvm::StringRef getRuntimeABIName() const;
   llvm::StringRef getRuntimeGlueRole() const;
   llvm::StringRef getSupportedMessage() const;
+  const RVVBinarySelectedConfig &getSelectedConfig() const {
+    return selectedConfig;
+  }
+  const target::rvv::RVVVectorShapeConfig &getShape() const {
+    return selectedConfig.getShape();
+  }
   std::string getSetVLIntrinsicName() const;
   std::string getLoadIntrinsicName() const;
   std::string getArithmeticIntrinsicName() const;

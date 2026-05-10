@@ -519,7 +519,7 @@ RVVBinaryProposalPlan::getFamily() const {
 
 const target::rvv::RVVVectorShapeConfig &
 RVVBinaryProposalPlan::getSelectedShape() const {
-  return *selectedPlan.shape;
+  return selectedPlan.getShape();
 }
 
 llvm::ArrayRef<std::string>
@@ -939,7 +939,7 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
 
   RVVBinarySelectedPlan plan;
   plan.family = &family;
-  plan.shape = &shape;
+  plan.selectedConfig.shape = &shape;
   plan.descriptor = target::rvv::getRVVBinaryIntrinsicDescriptor(family, shape);
   plan.elementCount = elementCount;
   plan.requiredMarch = trimmedMarch.str();

@@ -125,7 +125,15 @@ module {
 // PIPE-SAME: {name = "tcrv_rvv.selected_vector_lmul"
 // PIPE-SAME: value = "m1"}
 // PIPE-SAME: {name = "tcrv_rvv.selected_setvl_suffix"
-// PIPE-SAME: value = "e64m1"}]
+// PIPE-SAME: value = "e64m1"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_avl_source"
+// PIPE-SAME: value = "runtime-element-count-abi-parameter"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_avl_role"
+// PIPE-SAME: value = "runtime-element-count"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_vl_source"
+// PIPE-SAME: value = "tcrv_rvv.setvl"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_vl_scope"
+// PIPE-SAME: value = "tcrv_rvv.with_vl"}]
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 
@@ -133,13 +141,15 @@ module {
 // SOURCE: /* arithmetic_family: i64-vsub */
 // SOURCE: /* dtype: i64 */
 // SOURCE: /* active_route: tcrv-export-rvv-i64-vsub-microkernel-c */
+// SOURCE: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
+// SOURCE: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_sub -> tcrv_rvv.i64_store */
 // SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 // SOURCE: void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
-// SOURCE: __riscv_vsetvl_e64m1
+// SOURCE: __riscv_vsetvl_e64m1(n - offset)
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vsub_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1

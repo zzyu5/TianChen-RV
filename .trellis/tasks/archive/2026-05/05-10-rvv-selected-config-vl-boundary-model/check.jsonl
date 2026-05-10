@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global project and stack boundary compliance"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected config, finite binary family, and AVL/VL boundary behavior"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check parameter layering and capability ownership"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin interface routing and selected-boundary contract compliance"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check no RVV semantics moved into generic core"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check execution planning pipeline behavior remains coherent"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI and artifact export claim boundaries"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused C++ coverage for selected config and runtime AVL/VL selected-emission metadata."}
+{"file": "test/Transforms/LinalgToExec/linalg-i64-vsub-to-rvv-artifact.mlir", "reason": "Lit coverage for i64-vsub selected config metadata and runtime AVL/VL artifact boundary."}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir", "reason": "Lit coverage for i32-vsub/i32m2 selected config metadata and runtime AVL/VL artifact boundary."}

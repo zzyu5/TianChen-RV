@@ -279,6 +279,78 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 - None - task complete
 
 
+## Session 20: First-class RVV selected config and runtime VL boundary model
+
+**Date**: 2026-05-10
+**Task**: First-class RVV selected config and runtime VL boundary model
+**Branch**: `main`
+
+### Summary
+
+Created the bounded Trellis task from the Hermes brief, recorded the current
+RVV parameter-layering inventory, tightened the plugin-local selected config
+surface for finite RVV binary selected plans, and made runtime AVL/VL boundary
+metadata visible in selected emission planning for the current C-intrinsics
+artifact path.
+
+### Main Changes
+
+- Added `RVVBinarySelectedConfig` around the selected `RVVVectorShapeConfig`
+  and routed selected-plan shape consumers through that structured surface.
+- Generalized selected vector-shape metadata helpers from misleading i32-only
+  names to `RVVVectorShapeSelectedPlanMetadataDescriptor` and
+  `appendRVVVectorShapeSelectedPlanMetadata`.
+- Added selected-emission metadata entries for runtime AVL source, AVL role,
+  VL source, and VL scope so the selected path exposes `runtime n -> AVL ->
+  tcrv_rvv.setvl -> !tcrv_rvv.vl -> tcrv_rvv.with_vl`.
+- Added C++ and lit coverage for the runtime AVL/VL boundary metadata on
+  `i64-vsub` and `i32-vsub`/`i32m2` without changing generated artifact
+  semantics.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVPlugin
+  TianChenRVRVVTarget TianChenRVTransforms tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-binary-variant-legality-test
+  tianchenrv-rvv-selected-lowering-boundary-test
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-rvv-dialect-test tianchenrv-emission-readiness-test
+  tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-dialect-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emission-readiness-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` covering
+  `linalg-i64-vsub-to-rvv-artifact`,
+  `linalg-i32-vsub-to-rvv-artifact`,
+  `rvv-microkernel-auto-materialization`, and `rvv-microkernel-i64-vsub`:
+  4/4 passed after repairing FileCheck order to match exporter output.
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run
+  --arithmetic-family=i64-vsub --lower-linalg-frontend --input
+  test/Transforms/LinalgToExec/linalg-i64-vsub-to-rvv-artifact.mlir
+  --run-id codex-selected-config-vl-boundary-i64-vsub-dry --overwrite`:
+  status `success`, `ssh_evidence=false`.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  194/194 lit tests passed.
+- No new RVV runtime/correctness/performance claim was made; no fresh
+  `ssh rvv` run was required.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 25: RVV i64-vsub selected path artifact evidence
 
 **Date**: 2026-05-10

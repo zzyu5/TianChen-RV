@@ -120,10 +120,24 @@ module {
 // PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // PIPE-SAME: runtime_abi_name = "rvv-i32-vsub-runtime-callable-c-function.v1"
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vsub-function"
+// PIPE-SAME: selected_plan_metadata = [{name = "tcrv_rvv.selected_vector_shape"
+// PIPE-SAME: value = "i32m2"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_setvl_suffix"
+// PIPE-SAME: value = "e32m2"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_avl_source"
+// PIPE-SAME: value = "runtime-element-count-abi-parameter"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_avl_role"
+// PIPE-SAME: value = "runtime-element-count"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_vl_source"
+// PIPE-SAME: value = "tcrv_rvv.setvl"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_vl_scope"
+// PIPE-SAME: value = "tcrv_rvv.with_vl"}]
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+// SOURCE: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
+// SOURCE: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec */
 // SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
@@ -131,7 +145,7 @@ module {
 // SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // SOURCE: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice
-// SOURCE: __riscv_vsetvl_e32m2
+// SOURCE: __riscv_vsetvl_e32m2(n - offset)
 // SOURCE: __riscv_vle32_v_i32m2
 // SOURCE: __riscv_vsub_vv_i32m2
 // SOURCE: __riscv_vse32_v_i32m2

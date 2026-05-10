@@ -20,6 +20,7 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -43,6 +44,7 @@ using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
+using tianchenrv::plugin::VariantSelectedPlanMetadata;
 using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
@@ -214,6 +216,20 @@ int expectProposalIntegerAttr(const VariantProposal &proposal,
   return expect(attr.getInt() == expectedValue,
                 llvm::Twine("proposal integer attribute ") + attrName +
                     " preserves expected value");
+}
+
+bool hasSelectedPlanMetadata(
+    llvm::ArrayRef<VariantSelectedPlanMetadata> metadata,
+    llvm::StringRef expectedName, llvm::StringRef expectedValue,
+    llvm::StringRef expectedRole = llvm::StringRef()) {
+  for (const VariantSelectedPlanMetadata &entry : metadata) {
+    if (entry.name != expectedName || entry.value != expectedValue)
+      continue;
+    if (!expectedRole.empty() && entry.role != expectedRole)
+      continue;
+    return true;
+  }
+  return false;
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
@@ -2294,6 +2310,18 @@ module {
           "RVV i32 selected-emission planner preserves selected vector-shape "
           "metadata separately"))
     return result;
+  if (int result = expect(
+          hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                  "tcrv_rvv.runtime_avl_source",
+                                  "runtime-element-count-abi-parameter",
+                                  "rvv-runtime-vl-avl-boundary") &&
+              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.runtime_vl_source",
+                                      "tcrv_rvv.setvl",
+                                      "rvv-runtime-vl-avl-boundary"),
+          "RVV i32 selected-emission planner exposes runtime AVL/VL "
+          "boundary metadata separately"))
+    return result;
 
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(
@@ -2574,6 +2602,18 @@ module {
               plannerI64Plan.selectedPlanMetadata[0].value == "i64m1",
           "RVV i64 selected-emission planner preserves selected vector-shape "
           "metadata separately"))
+    return result;
+  if (int result = expect(
+          hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                  "tcrv_rvv.runtime_avl_source",
+                                  "runtime-element-count-abi-parameter",
+                                  "rvv-runtime-vl-avl-boundary") &&
+              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.runtime_vl_source",
+                                      "tcrv_rvv.setvl",
+                                      "rvv-runtime-vl-avl-boundary"),
+          "RVV i64 selected-emission planner exposes runtime AVL/VL "
+          "boundary metadata separately"))
     return result;
 
   VariantEmissionPlan emissionPlan;

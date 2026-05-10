@@ -231,7 +231,7 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
   const RVVBinarySelectedPlan &selectedPlan = plan.selectedPlan;
   const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor =
       selectedPlan.descriptor;
-  const target::rvv::RVVVectorShapeConfig &shape = *selectedPlan.shape;
+  const target::rvv::RVVVectorShapeConfig &shape = selectedPlan.getShape();
 
   mlir::Type vectorType =
       getRVVBinaryVectorType(builder.getContext(), shape);

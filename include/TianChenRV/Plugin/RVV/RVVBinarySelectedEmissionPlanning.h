@@ -23,7 +23,7 @@ struct RVVBinarySelectedEmissionAttachment {
   }
 
   const target::rvv::RVVVectorShapeConfig &getShape() const {
-    return *selectedPlan.shape;
+    return selectedPlan.getShape();
   }
 
   llvm::StringRef getFamilyID() const { return selectedPlan.getFamilyID(); }
@@ -36,7 +36,7 @@ struct RVVBinarySelectedEmissionPlan {
   RVVBinarySelectedPlan selectedPlan;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   llvm::SmallVector<std::string, 5> requiredCapabilitySymbols;
-  llvm::SmallVector<VariantSelectedPlanMetadata, 10> selectedPlanMetadata;
+  llvm::SmallVector<VariantSelectedPlanMetadata, 14> selectedPlanMetadata;
 
   llvm::StringRef getFamilyID() const { return selectedPlan.getFamilyID(); }
   llvm::StringRef getEmissionKind() const {

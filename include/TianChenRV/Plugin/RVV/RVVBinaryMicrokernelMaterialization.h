@@ -34,7 +34,7 @@ struct RVVBinaryMicrokernelMaterializationPlan {
   }
 
   const target::rvv::RVVVectorShapeConfig &getShape() const {
-    return *selectedPlan.shape;
+    return selectedPlan.getShape();
   }
 };
 
