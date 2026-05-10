@@ -55,6 +55,71 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 13: RVV binary family registry owner
+
+**Date**: 2026-05-10
+**Task**: Promote RVV binary family ownership out of i32 legacy registry
+**Branch**: `main`
+
+### Summary
+
+Moved RVV binary family ownership into a target-local RVV registry for the four
+currently supported RVV binary families: i32-vadd, i32-vsub, i32-vmul, and
+i64-vadd. Frontend lowering, RVV plugin emission/proposal paths, RVV target
+microkernel export, and target artifact export tests now consume RVV-owned
+descriptor metadata instead of combining the legacy i32 registry with an
+i64-vadd special case.
+
+### Main Changes
+
+- Added `include/TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h` with finite
+  family descriptors, lookup by family id/frontend lowering/lowering descriptor,
+  dtype/arithmetic metadata, route IDs, runtime ABI names, scalar C types, and
+  selected shape hooks.
+- Refactored `RVVBinaryDescriptor.h` so it no longer includes
+  `I32BinaryFamilyRegistry.h`; generic RVV binary descriptors now derive
+  callable ABI, buffer window, intrinsic, shape, and runtime parameter metadata
+  from the RVV family descriptor.
+- Updated `LowerLinalgI32BinaryToExec.cpp`, `RVVExtensionPlugin.cpp`, and
+  `RVVMicrokernel.cpp` to consume the RVV-owned family interface for RVV
+  frontend markers and microkernel/export metadata while keeping the legacy i32
+  registry only where scalar/dispatch compatibility still owns behavior.
+- Preserved existing artifact spellings, including i32 selected-shape comments
+  and role-bound runtime `c_name` behavior; repaired stale emission-plan
+  diagnostics to keep the prior callable-plan error wording.
+- No `ssh rvv` evidence was run or claimed because this round changed ownership
+  and metadata consumption only, not generated runtime behavior or evidence
+  runner semantics.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit filter
+  `linalg-i32-vadd-to-exec|linalg-i64-vadd-to-rvv-artifact|linalg-i32-vsub-to-rvv-artifact`
+- [OK] focused self-repair lit filter
+  `rvv-microkernel-runtime-abi-role-binding|rvv-scalar-i32-vadd-dispatch-runtime-abi-role-binding`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 179/179
+- [OK] `python3 .trellis/scripts/task.py validate .trellis/tasks/05-10-rvv-binary-family-registry-owner`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 14: RVV capability-driven vector-shape proposal and selection
 
 **Date**: 2026-05-10

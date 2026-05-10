@@ -4,7 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Transforms/Passes.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -44,8 +44,6 @@ using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
-using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
@@ -1712,7 +1710,8 @@ module {
 
   auto expectFamily =
       [&](llvm::StringRef kernelName,
-          const I32BinaryFamilyDescriptor &family) -> int {
+          const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family)
+          -> int {
     KernelOp kernel = findKernel(*module, kernelName);
     if (int result =
             expect(kernel, llvm::Twine("kernel is present: ") + kernelName))
@@ -1774,12 +1773,14 @@ module {
                    llvm::Twine("RVV boundary materialized for ") + kernelName))
       return result;
 
-    if (family.kind == I32BinaryFamilyKind::Add) {
+    if (family.arithmetic ==
+        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
       if (int result = expect(
               findRVVAddMicrokernel(kernel, variant.getSymName()),
               "registry-backed RVV vadd descriptor materializes vadd op"))
         return result;
-    } else if (family.kind == I32BinaryFamilyKind::Sub) {
+    } else if (family.arithmetic ==
+               tianchenrv::target::rvv::RVVBinaryArithmeticKind::Sub) {
       if (int result = expect(
               findRVVSubMicrokernel(kernel, variant.getSymName()),
               "registry-backed RVV vsub descriptor materializes vsub op"))
@@ -1802,22 +1803,23 @@ module {
     if (int result =
             expect(emissionPlan.isSupported() &&
                        emissionPlan.getEmissionKind() ==
-                           family.rvv.emissionKind &&
+                           family.emissionKind &&
                        emissionPlan.getLoweringPipeline() ==
-                           family.rvv.routeID &&
+                           family.routeID &&
                        emissionPlan.getRuntimeABI() ==
-                           family.rvv.runtimeABI &&
+                           family.runtimeABI &&
                        emissionPlan.getRuntimeABIKind() ==
-                           family.rvv.runtimeABIKind &&
+                           family.runtimeABIKind &&
                        emissionPlan.getRuntimeABIName() ==
-                           family.rvv.runtimeABIName &&
+                           family.runtimeABIName &&
                        emissionPlan.getRuntimeGlueRole() ==
-                           family.rvv.runtimeGlueRole,
+                           family.runtimeGlueRole,
                    llvm::Twine("RVV emission plan consumes registry facts for ") +
                        kernelName))
       return result;
 
-    if (family.kind != I32BinaryFamilyKind::Add) {
+    if (family.arithmetic !=
+        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
       mlir::OpBuilder::InsertionGuard guard(builder);
       builder.setInsertionPointToEnd(&kernel.getBody().front());
       mlir::OperationState staleState(
@@ -1835,7 +1837,7 @@ module {
                   VariantEmissionRequest(variant, kernel, capabilities,
                                          VariantEmissionRole::DirectVariant),
                   staleStatus),
-              {"descriptor requires", family.rvv.microkernelOpName}))
+              {"descriptor requires", family.microkernelOpName}))
         return result;
     }
 
@@ -1844,15 +1846,15 @@ module {
 
   if (int result = expectFamily(
           "registry_rvv_vadd",
-          tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor()))
+          tianchenrv::target::rvv::getI32VAddFamilyDescriptor()))
     return result;
   if (int result = expectFamily(
           "registry_rvv_vsub",
-          tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor()))
+          tianchenrv::target::rvv::getI32VSubFamilyDescriptor()))
     return result;
   if (int result = expectFamily(
           "registry_rvv_vmul",
-          tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor()))
+          tianchenrv::target::rvv::getI32VMulFamilyDescriptor()))
     return result;
 
   return 0;
@@ -2068,9 +2070,8 @@ module {
     return result;
   return expect(emissionPlan.isSupported() &&
                     emissionPlan.getLoweringPipeline() ==
-                        tianchenrv::target::i32_binary::
-                            getI32VSubFamilyDescriptor()
-                                .rvv.routeID,
+                        tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+                            .routeID,
                 "RVV i32m2 emission plan preserves vsub route");
 }
 

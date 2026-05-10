@@ -3,7 +3,6 @@
 #include "TianChenRV/Dialect/Exec/IR/CapabilityProviderComposition.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 
 #include "mlir/IR/Block.h"
@@ -24,6 +23,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
+#include <optional>
 #include <string>
 
 namespace tianchenrv::transforms {
@@ -61,88 +61,60 @@ struct FrontendBinarySpec {
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeElementCountSpecs;
 };
 
-const FrontendBinarySpec &getI32VAddFrontendSpec() {
-  static const FrontendBinarySpec spec = [] {
-    FrontendBinarySpec spec;
-    spec.attrValue =
-        target::i32_binary::getI32VAddFamilyDescriptor().frontendLowering;
-    spec.arithmeticOpName = kArithAddIOpName;
-    spec.diagnosticName =
-        target::i32_binary::getI32VAddFamilyDescriptor().familyID;
-    spec.elementBitWidth = 32;
-    spec.bufferMemWindowSpecs = support::getI32BinaryBufferMemWindowSpecs();
-    spec.runtimeElementCountSpecs =
-        support::getI32BinaryRuntimeElementCountParamSpecs();
-    return spec;
-  }();
+llvm::StringRef
+getFrontendArithmeticOpName(
+    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  using Kind = target::rvv::RVVBinaryArithmeticKind;
+  switch (family.arithmetic) {
+  case Kind::Add:
+    return kArithAddIOpName;
+  case Kind::Sub:
+    return kArithSubIOpName;
+  case Kind::Mul:
+    return kArithMulIOpName;
+  }
+  llvm_unreachable("unknown RVV binary arithmetic kind");
+}
+
+FrontendBinarySpec
+makeFrontendBinarySpec(const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  FrontendBinarySpec spec;
+  spec.attrValue = family.frontendLowering;
+  spec.arithmeticOpName = getFrontendArithmeticOpName(family);
+  spec.diagnosticName = family.familyID;
+  spec.elementBitWidth = family.elementBitWidth;
+  spec.bufferMemWindowSpecs =
+      target::rvv::getRVVBinaryBufferMemWindowSpecs(family);
+  spec.runtimeElementCountSpecs =
+      target::rvv::getRVVBinaryRuntimeElementCountParamSpecs(family);
   return spec;
 }
 
-const FrontendBinarySpec &getI32VSubFrontendSpec() {
-  static const FrontendBinarySpec spec = [] {
-    FrontendBinarySpec spec;
-    spec.attrValue =
-        target::i32_binary::getI32VSubFamilyDescriptor().frontendLowering;
-    spec.arithmeticOpName = kArithSubIOpName;
-    spec.diagnosticName =
-        target::i32_binary::getI32VSubFamilyDescriptor().familyID;
-    spec.elementBitWidth = 32;
-    spec.bufferMemWindowSpecs = support::getI32BinaryBufferMemWindowSpecs();
-    spec.runtimeElementCountSpecs =
-        support::getI32BinaryRuntimeElementCountParamSpecs();
-    return spec;
-  }();
-  return spec;
-}
-
-const FrontendBinarySpec &getI32VMulFrontendSpec() {
-  static const FrontendBinarySpec spec = [] {
-    FrontendBinarySpec spec;
-    spec.attrValue =
-        target::i32_binary::getI32VMulFamilyDescriptor().frontendLowering;
-    spec.arithmeticOpName = kArithMulIOpName;
-    spec.diagnosticName =
-        target::i32_binary::getI32VMulFamilyDescriptor().familyID;
-    spec.elementBitWidth = 32;
-    spec.bufferMemWindowSpecs = support::getI32BinaryBufferMemWindowSpecs();
-    spec.runtimeElementCountSpecs =
-        support::getI32BinaryRuntimeElementCountParamSpecs();
-    return spec;
-  }();
-  return spec;
-}
-
-const FrontendBinarySpec &getI64VAddFrontendSpec() {
-  static const FrontendBinarySpec spec = [] {
-    target::rvv::RVVBinaryIntrinsicDescriptor descriptor =
-        target::rvv::getI64VAddIntrinsicDescriptor();
-    FrontendBinarySpec spec;
-    spec.attrValue = descriptor.family.frontendLowering;
-    spec.arithmeticOpName = kArithAddIOpName;
-    spec.diagnosticName = descriptor.getArithmeticFamilyID();
-    spec.elementBitWidth = 64;
-    spec.bufferMemWindowSpecs = descriptor.getBufferMemWindowSpecs();
-    spec.runtimeElementCountSpecs =
-        descriptor.getRuntimeElementCountParamSpecs();
-    return spec;
-  }();
-  return spec;
-}
-
-const FrontendBinarySpec *lookupFrontendBinarySpec(llvm::StringRef name) {
-  if (name == getI32VAddFrontendSpec().attrValue)
-    return &getI32VAddFrontendSpec();
-  if (name == getI32VSubFrontendSpec().attrValue)
-    return &getI32VSubFrontendSpec();
-  if (name == getI32VMulFrontendSpec().attrValue)
-    return &getI32VMulFrontendSpec();
+std::optional<FrontendBinarySpec>
+lookupFrontendBinarySpec(llvm::StringRef name) {
   const target::rvv::RVVBinaryFamilyDescriptor *rvvFamily =
       target::rvv::lookupRVVBinaryFamilyByFrontendLowering(name);
-  if (rvvFamily &&
-      rvvFamily->dtype == target::rvv::RVVBinaryDTypeKind::I64 &&
-      rvvFamily->arithmetic == target::rvv::RVVBinaryArithmeticKind::Add)
-    return &getI64VAddFrontendSpec();
-  return nullptr;
+  if (!rvvFamily)
+    return std::nullopt;
+  return makeFrontendBinarySpec(*rvvFamily);
+}
+
+std::string formatSupportedFrontendLowerings() {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  llvm::ArrayRef<const target::rvv::RVVBinaryFamilyDescriptor *> families =
+      target::rvv::getRVVBinaryFamilyDescriptors();
+  for (auto [index, family] : llvm::enumerate(families)) {
+    if (index != 0) {
+      if (index + 1 == families.size())
+        stream << ", or ";
+      else
+        stream << ", ";
+    }
+    stream << "'" << family->frontendLowering << "'";
+  }
+  stream.flush();
+  return text;
 }
 
 bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
@@ -570,15 +542,14 @@ mlir::LogicalResult materializeFrontendBinaryABI(
 mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
                                          mlir::Operation *linalgOp) {
   auto frontendAttr = getStringAttr(linalgOp, kFrontendLoweringAttrName);
-  const FrontendBinarySpec *spec =
+  std::optional<FrontendBinarySpec> spec =
       frontendAttr ? lookupFrontendBinarySpec(frontendAttr.getValue())
-                   : nullptr;
+                   : std::nullopt;
   if (!spec)
     return linalgOp->emitError()
            << "marked linalg.generic for TianChen-RV expects '"
            << kFrontendLoweringAttrName
-           << "' to be 'i32-vadd', 'i32-vsub', 'i32-vmul', or '"
-           << getI64VAddFrontendSpec().attrValue << "'";
+           << "' to be " << formatSupportedFrontendLowerings();
 
   mlir::Operation *funcOp = linalgOp->getParentOp();
   if (mlir::failed(requireSourceWrapperShape(funcOp, linalgOp)))

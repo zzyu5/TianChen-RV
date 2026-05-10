@@ -7,9 +7,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
-#include "TianChenRV/Target/RVV/RVVI32BinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
@@ -155,11 +153,9 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
 }
 
 using RVVI32MicrokernelKind =
-    tianchenrv::target::i32_binary::I32BinaryFamilyKind;
+    tianchenrv::target::rvv::RVVBinaryArithmeticKind;
 using RVVI32FamilyDescriptor =
-    tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
-using RVVI32RegistryMicrokernelDescriptor =
-    tianchenrv::target::i32_binary::RVVI32MicrokernelFamilyDescriptor;
+    tianchenrv::target::rvv::RVVBinaryFamilyDescriptor;
 using RVVI32VectorShapeConfig =
     tianchenrv::target::rvv::RVVI32VectorShapeConfig;
 using RVVBinaryFamilyDescriptor =
@@ -191,18 +187,16 @@ struct RVVI32MicrokernelFamilySpec {
   llvm::StringRef emissionPath;
   llvm::StringRef supportedMessage;
 
-  RVVI32MicrokernelKind getKind() const { return family->kind; }
+  RVVI32MicrokernelKind getKind() const { return family->arithmetic; }
   llvm::StringRef getLoweringDescriptor() const {
     return family->loweringDescriptor;
   }
-  const RVVI32RegistryMicrokernelDescriptor &getRVV() const {
-    return family->rvv;
-  }
+  const RVVI32FamilyDescriptor &getRVV() const { return *family; }
 };
 
 const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
   static const RVVI32MicrokernelFamilySpec spec{
-      &tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor(),
+      &tianchenrv::target::rvv::getI32VAddFamilyDescriptor(),
       "finite RVV i32-vadd lowering descriptor",
       "rvv-explicit-i32-vadd-microkernel-c-source-export",
       "explicit RVV i32 vector-add microkernel C source export provides a "
@@ -216,7 +210,7 @@ const RVVI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
 
 const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
   static const RVVI32MicrokernelFamilySpec spec{
-      &tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor(),
+      &tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
       "finite RVV i32-vsub lowering descriptor",
       "rvv-explicit-i32-vsub-microkernel-c-source-export",
       "explicit RVV i32 vector-subtract microkernel C source export provides "
@@ -230,7 +224,7 @@ const RVVI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
 
 const RVVI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
   static const RVVI32MicrokernelFamilySpec spec{
-      &tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor(),
+      &tianchenrv::target::rvv::getI32VMulFamilyDescriptor(),
       "finite RVV i32-vmul lowering descriptor",
       "rvv-explicit-i32-vmul-microkernel-c-source-export",
       "explicit RVV i32 vector-multiply microkernel C source export provides "
@@ -245,27 +239,16 @@ const RVVI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
 const RVVI32MicrokernelFamilySpec *
 lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
   const RVVI32FamilyDescriptor *family =
-      tianchenrv::target::i32_binary::lookupI32BinaryFamilyByLoweringDescriptor(
+      tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
           descriptor);
-  if (!family)
+  if (!family ||
+      family->dtype != tianchenrv::target::rvv::RVVBinaryDTypeKind::I32)
     return nullptr;
-  if (family->kind == RVVI32MicrokernelKind::Add)
+  if (family->arithmetic == RVVI32MicrokernelKind::Add)
     return &getI32VAddFamilySpec();
-  if (family->kind == RVVI32MicrokernelKind::Sub)
+  if (family->arithmetic == RVVI32MicrokernelKind::Sub)
     return &getI32VSubFamilySpec();
-  if (family->kind == RVVI32MicrokernelKind::Mul)
-    return &getI32VMulFamilySpec();
-  return nullptr;
-}
-
-const RVVI32MicrokernelFamilySpec *
-getI32MicrokernelFamilyByDescriptor(
-    const RVVI32FamilyDescriptor &family) {
-  if (family.kind == RVVI32MicrokernelKind::Add)
-    return &getI32VAddFamilySpec();
-  if (family.kind == RVVI32MicrokernelKind::Sub)
-    return &getI32VSubFamilySpec();
-  if (family.kind == RVVI32MicrokernelKind::Mul)
+  if (family->arithmetic == RVVI32MicrokernelKind::Mul)
     return &getI32VMulFamilySpec();
   return nullptr;
 }
@@ -1495,7 +1478,10 @@ buildI64MicrokernelMaterializationPlan(
   const RVVBinaryFamilyDescriptor *family =
       tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
           descriptor.getValue());
-  if (!family)
+  if (!family ||
+      family->dtype != tianchenrv::target::rvv::RVVBinaryDTypeKind::I64 ||
+      family->arithmetic !=
+          tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add)
     return std::optional<RVVI64MicrokernelMaterializationPlan>();
 
   std::string descriptorContext =
@@ -2226,9 +2212,8 @@ std::string sanitizeRVVDeclineReason(llvm::StringRef reason) {
 
 llvm::Expected<VariantProposal>
 buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
-  const RVVI32MicrokernelFamilySpec *requestedFamily =
-      &getI32VAddFamilySpec();
-  const RVVBinaryFamilyDescriptor *requestedI64Family = nullptr;
+  const RVVBinaryFamilyDescriptor *requestedFamily =
+      &tianchenrv::target::rvv::getI32VAddFamilyDescriptor();
   if (auto frontendLowering =
           request.getKernel()->getAttrOfType<mlir::StringAttr>(
               kFrontendLoweringAttrName)) {
@@ -2240,36 +2225,31 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
             kFrontendLoweringAttrName, value))
       return std::move(error);
 
-    const RVVI32FamilyDescriptor *requestedDescriptor =
-        tianchenrv::target::i32_binary::lookupI32BinaryFamilyByFrontendLowering(
-            value);
-    if (requestedDescriptor) {
-      requestedFamily = getI32MicrokernelFamilyByDescriptor(
-          *requestedDescriptor);
-      if (!requestedFamily)
-        return makeRVVPluginError(
-            llvm::Twine("kernel @") + request.getKernel().getSymName() +
-            " frontend lowering family is not an RVV i32 microkernel family");
-    } else if (const RVVBinaryFamilyDescriptor *i64Family =
-                   tianchenrv::target::rvv::
-                       lookupRVVBinaryFamilyByFrontendLowering(value)) {
-      requestedI64Family = i64Family;
-    } else {
+    const RVVBinaryFamilyDescriptor *lookup =
+        tianchenrv::target::rvv::lookupRVVBinaryFamilyByFrontendLowering(value);
+    if (!lookup)
       return makeRVVPluginError(
           llvm::Twine("kernel @") + request.getKernel().getSymName() +
           " frontend lowering family must be '" +
-          getI32VAddFamilySpec().family->frontendLowering + "' or '" +
-          getI32VSubFamilySpec().family->frontendLowering + "' or '" +
-          getI32VMulFamilySpec().family->frontendLowering + "' or '" +
+          tianchenrv::target::rvv::getI32VAddFamilyDescriptor()
+              .frontendLowering +
+          "' or '" +
+          tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+              .frontendLowering +
+          "' or '" +
+          tianchenrv::target::rvv::getI32VMulFamilyDescriptor()
+              .frontendLowering +
+          "' or '" +
           tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
               .frontendLowering +
           "'");
-    }
+    requestedFamily = lookup;
   }
 
   const RVVI32VectorShapeConfig *requiredConfig =
-      requestedI64Family ? &tianchenrv::target::rvv::getI64M1VectorShapeConfig()
-                         : nullptr;
+      requestedFamily->dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64
+          ? &tianchenrv::target::rvv::getI64M1VectorShapeConfig()
+          : nullptr;
   llvm::Expected<RVVCapabilityPropertyView> propertyView =
       buildRVVCapabilityPropertyView(request.getCapabilities(),
                                      requiredConfig);
@@ -2279,13 +2259,8 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
   RVVBinaryIntrinsicDescriptor descriptor =
-      requestedI64Family
-          ? tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-                *requestedI64Family, *propertyView->i32Config)
-          : tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-                tianchenrv::target::rvv::getRVVBinaryFamilyDescriptor(
-                    *requestedFamily->family),
-                *propertyView->i32Config);
+      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+          *requestedFamily, *propertyView->i32Config);
   for (llvm::StringRef capabilityID : descriptor.getSelectedShapeCapabilityIDs())
     proposal.addRequiredCapabilityID(capabilityID);
   proposal.setCondition("rvv_capability_properties_available");
@@ -2958,12 +2933,15 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind(family.getRVV().runtimeABIKind);
     out.setRuntimeABIName(family.getRVV().runtimeABIName);
     out.setRuntimeGlueRole(family.getRVV().runtimeGlueRole);
-    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-        support::buildI32BinaryCallableABIPlan(request.getKernel(),
-                                              *family.family);
-    if (!callablePlan)
-      return callablePlan.takeError();
-    out.addRuntimeABIParameters(callablePlan->parameters);
+    RVVBinaryIntrinsicDescriptor descriptor =
+        tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+            family.getRVV(), **selectedConfig);
+    llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
+        callableParameters = buildRVVBinaryCallableRuntimeABIParameters(
+            request.getKernel(), descriptor);
+    if (!callableParameters)
+      return callableParameters.takeError();
+    out.addRuntimeABIParameters(*callableParameters);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
@@ -3164,10 +3142,28 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
                                                         request.getRole()))
       return error;
 
-  if (microkernelPlan || selectedPathHasExistingI32Microkernel)
+  std::optional<RVVBinaryIntrinsicDescriptor> i32Descriptor;
+  if (microkernelPlan) {
+    i32Descriptor = tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+        microkernelPlan->family->getRVV(), **selectedConfig);
+  } else if (selectedPathHasExistingI32Microkernel) {
+    VariantEmissionRequest emissionRequest(variant, kernel,
+                                           request.getCapabilities(),
+                                           request.getRole());
+    llvm::Expected<const RVVI32MicrokernelFamilySpec *> explicitMicrokernel =
+        findMatchingExplicitMicrokernelFamily(emissionRequest);
+    if (!explicitMicrokernel)
+      return explicitMicrokernel.takeError();
+    if (*explicitMicrokernel)
+      i32Descriptor =
+          tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+              (*explicitMicrokernel)->getRVV(), **selectedConfig);
+  }
+
+  if (i32Descriptor)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
             kernel, request.getBuilder(),
-            support::getI32BinaryBufferMemWindowSpecs()))
+            i32Descriptor->getBufferMemWindowSpecs()))
       return error;
 
   if (i64MicrokernelPlan)
@@ -3178,10 +3174,14 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 
   if (selectedPathHasCallableMicrokernel) {
     llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
+    if (!i64MicrokernelPlan && !i32Descriptor)
+      return makeRVVPluginError(
+          "selected RVV i32 callable microkernel requires descriptor-backed "
+          "runtime ABI metadata");
     auto countSpecs =
         i64MicrokernelPlan
             ? i64MicrokernelPlan->descriptor.getRuntimeElementCountParamSpecs()
-            : support::getI32BinaryRuntimeElementCountParamSpecs();
+            : i32Descriptor->getRuntimeElementCountParamSpecs();
     runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     if (llvm::Error error =
             support::ensureRuntimeABIParamsAllowingExistingCNames(

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariants for review"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "review target ownership without high-level compute IR drift"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review RVV finite family and selected-shape behavior"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "review plugin locality and target-neutral core boundaries"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "review registry routing/proposal/legality/readiness contracts"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review target artifact route and ABI layering"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review required focused compiler tests"}

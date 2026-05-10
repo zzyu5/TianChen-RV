@@ -625,7 +625,7 @@ TargetArtifactCandidate makeRVVDispatchCandidate(
 TargetArtifactCandidate makeRVVSubDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
   const auto &family =
-      tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor().rvv;
+      tianchenrv::target::rvv::getI32VSubFamilyDescriptor();
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
@@ -647,7 +647,7 @@ TargetArtifactCandidate makeRVVSubDirectCandidate(
 TargetArtifactCandidate makeRVVMulDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
   const auto &family =
-      tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor().rvv;
+      tianchenrv::target::rvv::getI32VMulFamilyDescriptor();
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();

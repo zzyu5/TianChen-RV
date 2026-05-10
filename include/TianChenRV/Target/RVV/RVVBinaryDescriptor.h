@@ -4,7 +4,7 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -18,139 +18,75 @@
 
 namespace tianchenrv::target::rvv {
 
-enum class RVVBinaryDTypeKind {
-  I32,
-  I64,
-};
-
-enum class RVVBinaryArithmeticKind {
-  Add,
-  Sub,
-  Mul,
-};
-
-struct RVVBinaryFamilyDescriptor {
-  RVVBinaryDTypeKind dtype = RVVBinaryDTypeKind::I32;
-  RVVBinaryArithmeticKind arithmetic = RVVBinaryArithmeticKind::Add;
-  llvm::StringRef dtypeID;
-  llvm::StringRef familyID;
-  llvm::StringRef frontendLowering;
-  llvm::StringRef loweringDescriptor;
-  llvm::StringRef descriptorNoun;
-  llvm::StringRef microkernelOpName;
-  llvm::StringRef arithmeticOpName;
-  llvm::StringRef arithmeticVerb;
-  llvm::StringRef functionStem;
-  llvm::StringRef headerGuardStem;
-  llvm::StringRef arithmeticIntrinsicPrefix;
-  llvm::StringRef resultCName;
-  llvm::StringRef emissionKind;
-  llvm::StringRef routeID;
-  llvm::StringRef headerRouteID;
-  llvm::StringRef objectRouteID;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
-  llvm::StringRef externalABIComponentGroup;
-  llvm::StringRef cOperator;
-  llvm::StringRef scalarCType;
-  llvm::StringRef constInputPointerCType;
-  llvm::StringRef outputPointerCType;
-};
-
-inline RVVBinaryArithmeticKind
-convertI32ArithmeticKind(i32_binary::I32BinaryFamilyKind kind) {
-  switch (kind) {
-  case i32_binary::I32BinaryFamilyKind::Add:
-    return RVVBinaryArithmeticKind::Add;
-  case i32_binary::I32BinaryFamilyKind::Sub:
-    return RVVBinaryArithmeticKind::Sub;
-  case i32_binary::I32BinaryFamilyKind::Mul:
-    return RVVBinaryArithmeticKind::Mul;
-  }
-  llvm_unreachable("unknown i32 binary family kind");
+inline llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVBinaryCallableRuntimeABIParameters(
+    const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef runtimeCountCName = "n") {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", family.constInputPointerCType,
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", family.constInputPointerCType,
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", family.outputPointerCType,
+      support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      runtimeCountCName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
 }
 
-inline RVVBinaryFamilyDescriptor
-getRVVBinaryFamilyDescriptor(
-    const i32_binary::I32BinaryFamilyDescriptor &family) {
-  return RVVBinaryFamilyDescriptor{
-      RVVBinaryDTypeKind::I32,
-      convertI32ArithmeticKind(family.kind),
-      "i32",
-      family.familyID,
-      family.frontendLowering,
-      family.loweringDescriptor,
-      family.descriptorNoun,
-      family.rvv.microkernelOpName,
-      family.rvv.arithmeticOpName,
-      family.rvv.arithmeticVerb,
-      family.rvv.functionStem,
-      family.rvv.headerGuardStem,
-      family.rvv.arithmeticIntrinsicPrefix,
-      family.rvv.resultCName,
-      family.rvv.emissionKind,
-      family.rvv.routeID,
-      family.rvv.headerRouteID,
-      family.rvv.objectRouteID,
-      family.rvv.runtimeABI,
-      family.rvv.runtimeABIKind,
-      family.rvv.runtimeABIName,
-      family.rvv.runtimeGlueRole,
-      family.rvv.externalABIComponentGroup,
-      family.dispatch.cOperator,
-      "int32_t",
-      "const int32_t *",
-      "int32_t *"};
+inline llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVBinaryCallableRuntimeABIRoleRequirements(
+    const RVVBinaryFamilyDescriptor &family) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> requirements;
+  for (const support::RuntimeABIParameter &parameter :
+       getRVVBinaryCallableRuntimeABIParameters(family))
+    requirements.push_back(support::makeTargetExportABIRoleRequirement(
+        parameter.cType, parameter.role));
+  return requirements;
 }
 
-inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
-  static const RVVBinaryFamilyDescriptor descriptor{
-      RVVBinaryDTypeKind::I64,
-      RVVBinaryArithmeticKind::Add,
-      "i64",
-      "i64-vadd",
-      "i64-vadd",
-      "i64-vadd-microkernel.v1",
-      "finite i64-vadd lowering descriptor",
-      "tcrv_rvv.i64_vadd_microkernel",
-      "tcrv_rvv.i64_add",
-      "add",
-      "i64_vadd",
-      "I64_VADD",
-      "__riscv_vadd_vv_",
-      "sum_vec",
-      "rvv-explicit-i64-vadd-microkernel-c-source",
-      "tcrv-export-rvv-i64-vadd-microkernel-c",
-      "tcrv-export-rvv-i64-vadd-microkernel-header",
-      "tcrv-export-rvv-i64-vadd-microkernel-object",
-      "rvv-i64-vadd-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i64-vadd-runtime-callable-c-function.v1",
-      "runtime-callable-i64-vadd-function",
-      "rvv-i64-vadd-microkernel-external-abi.v1",
-      "+",
-      "int64_t",
-      "const int64_t *",
-      "int64_t *"};
-  return descriptor;
+inline llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3>
+getRVVBinaryBufferMemWindowSpecs(
+    const RVVBinaryFamilyDescriptor &family) {
+  llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> specs;
+  specs.push_back(support::RuntimeABIMemWindowSpec(
+      "abi_lhs_input_buffer",
+      support::RuntimeABIParameterRole::LHSInputBuffer,
+      support::kRuntimeABIReadAccess,
+      support::stringifyRuntimeABIParameterOwnership(
+          support::RuntimeABIParameterOwnership::TargetExportABIOwned),
+      family.constInputPointerCType));
+  specs.push_back(support::RuntimeABIMemWindowSpec(
+      "abi_rhs_input_buffer",
+      support::RuntimeABIParameterRole::RHSInputBuffer,
+      support::kRuntimeABIReadAccess,
+      support::stringifyRuntimeABIParameterOwnership(
+          support::RuntimeABIParameterOwnership::TargetExportABIOwned),
+      family.constInputPointerCType));
+  specs.push_back(support::RuntimeABIMemWindowSpec(
+      "abi_output_buffer", support::RuntimeABIParameterRole::OutputBuffer,
+      support::kRuntimeABIWriteAccess,
+      support::stringifyRuntimeABIParameterOwnership(
+          support::RuntimeABIParameterOwnership::TargetExportABIOwned),
+      family.outputPointerCType));
+  return specs;
 }
 
-inline const RVVBinaryFamilyDescriptor *
-lookupRVVBinaryFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
-  frontendLowering = frontendLowering.trim();
-  if (frontendLowering == getI64VAddFamilyDescriptor().frontendLowering)
-    return &getI64VAddFamilyDescriptor();
-  return nullptr;
-}
-
-inline const RVVBinaryFamilyDescriptor *
-lookupRVVBinaryFamilyByLoweringDescriptor(llvm::StringRef loweringDescriptor) {
-  loweringDescriptor = loweringDescriptor.trim();
-  if (loweringDescriptor == getI64VAddFamilyDescriptor().loweringDescriptor)
-    return &getI64VAddFamilyDescriptor();
-  return nullptr;
+inline llvm::SmallVector<support::RuntimeABIParamSpec, 1>
+getRVVBinaryRuntimeElementCountParamSpecs(
+    const RVVBinaryFamilyDescriptor &family, llvm::StringRef cName = "n") {
+  (void)family;
+  llvm::SmallVector<support::RuntimeABIParamSpec, 1> specs;
+  specs.push_back(support::RuntimeABIParamSpec(
+      "abi_runtime_element_count",
+      support::RuntimeABIParameterRole::RuntimeElementCount, cName, "size_t",
+      support::stringifyRuntimeABIParameterOwnership(
+          support::RuntimeABIParameterOwnership::TargetExportABIOwned)));
+  return specs;
 }
 
 struct RVVBinaryIntrinsicDescriptor {
@@ -239,68 +175,23 @@ struct RVVBinaryIntrinsicDescriptor {
   llvm::SmallVector<support::RuntimeABIParameter, 4>
   getCallableRuntimeABIParameters(llvm::StringRef runtimeCountCName = "n")
       const {
-    llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
-    parameters.push_back(support::makeTargetExportABIParameter(
-        "lhs", family.constInputPointerCType,
-        support::RuntimeABIParameterRole::LHSInputBuffer));
-    parameters.push_back(support::makeTargetExportABIParameter(
-        "rhs", family.constInputPointerCType,
-        support::RuntimeABIParameterRole::RHSInputBuffer));
-    parameters.push_back(support::makeTargetExportABIParameter(
-        "out", family.outputPointerCType,
-        support::RuntimeABIParameterRole::OutputBuffer));
-    parameters.push_back(support::makeTargetExportABIParameter(
-        runtimeCountCName, "size_t",
-        support::RuntimeABIParameterRole::RuntimeElementCount));
-    return parameters;
+    return getRVVBinaryCallableRuntimeABIParameters(family,
+                                                    runtimeCountCName);
   }
 
   llvm::SmallVector<support::RuntimeABIParameter, 4>
   getCallableRuntimeABIRoleRequirements() const {
-    llvm::SmallVector<support::RuntimeABIParameter, 4> requirements;
-    for (const support::RuntimeABIParameter &parameter :
-         getCallableRuntimeABIParameters())
-      requirements.push_back(support::makeTargetExportABIRoleRequirement(
-          parameter.cType, parameter.role));
-    return requirements;
+    return getRVVBinaryCallableRuntimeABIRoleRequirements(family);
   }
 
   llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3>
   getBufferMemWindowSpecs() const {
-    llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> specs;
-    specs.push_back(support::RuntimeABIMemWindowSpec(
-        "abi_lhs_input_buffer",
-        support::RuntimeABIParameterRole::LHSInputBuffer,
-        support::kRuntimeABIReadAccess,
-        support::stringifyRuntimeABIParameterOwnership(
-            support::RuntimeABIParameterOwnership::TargetExportABIOwned),
-        family.constInputPointerCType));
-    specs.push_back(support::RuntimeABIMemWindowSpec(
-        "abi_rhs_input_buffer",
-        support::RuntimeABIParameterRole::RHSInputBuffer,
-        support::kRuntimeABIReadAccess,
-        support::stringifyRuntimeABIParameterOwnership(
-            support::RuntimeABIParameterOwnership::TargetExportABIOwned),
-        family.constInputPointerCType));
-    specs.push_back(support::RuntimeABIMemWindowSpec(
-        "abi_output_buffer",
-        support::RuntimeABIParameterRole::OutputBuffer,
-        support::kRuntimeABIWriteAccess,
-        support::stringifyRuntimeABIParameterOwnership(
-            support::RuntimeABIParameterOwnership::TargetExportABIOwned),
-        family.outputPointerCType));
-    return specs;
+    return getRVVBinaryBufferMemWindowSpecs(family);
   }
 
   llvm::SmallVector<support::RuntimeABIParamSpec, 1>
   getRuntimeElementCountParamSpecs(llvm::StringRef cName = "n") const {
-    llvm::SmallVector<support::RuntimeABIParamSpec, 1> specs;
-    specs.push_back(support::RuntimeABIParamSpec(
-        "abi_runtime_element_count",
-        support::RuntimeABIParameterRole::RuntimeElementCount, cName, "size_t",
-        support::stringifyRuntimeABIParameterOwnership(
-            support::RuntimeABIParameterOwnership::TargetExportABIOwned)));
-    return specs;
+    return getRVVBinaryRuntimeElementCountParamSpecs(family, cName);
   }
 
   std::string getCArithmeticCheckExpression(llvm::StringRef lhs,
@@ -311,8 +202,10 @@ struct RVVBinaryIntrinsicDescriptor {
   std::string formatSelectedVectorShapeConfigCommentBody() const {
     std::string text;
     llvm::raw_string_ostream stream(text);
-    stream << "selected_vector_shape_config: dtype=" << family.dtypeID
-           << ", shape=" << shape->shapeID << ", sew=" << shape->sewBits
+    stream << "selected_vector_shape_config: ";
+    if (family.dtype != RVVBinaryDTypeKind::I32)
+      stream << "dtype=" << family.dtypeID << ", ";
+    stream << "shape=" << shape->shapeID << ", sew=" << shape->sewBits
            << ", lmul=" << shape->lmul
            << ", tail_policy=" << shape->tailPolicy
            << ", mask_policy=" << shape->maskPolicy
@@ -336,8 +229,7 @@ struct RVVBinaryIntrinsicDescriptor {
   std::string formatIntrinsicConfigCommentBody() const {
     std::string text;
     llvm::raw_string_ostream stream(text);
-    stream << "intrinsic_config: dtype=" << family.dtypeID
-           << ", vector_type=" << shape->vectorType
+    stream << "intrinsic_config: vector_type=" << shape->vectorType
            << ", vector_suffix=" << shape->vectorSuffix
            << ", setvl_suffix=" << shape->setvlSuffix
            << ", tail_policy=" << shape->tailPolicy
@@ -356,6 +248,21 @@ inline RVVBinaryIntrinsicDescriptor getRVVBinaryIntrinsicDescriptor(
 inline RVVBinaryIntrinsicDescriptor getI64VAddIntrinsicDescriptor() {
   return getRVVBinaryIntrinsicDescriptor(getI64VAddFamilyDescriptor(),
                                          getI64M1VectorShapeConfig());
+}
+
+inline RVVBinaryIntrinsicDescriptor getI32VAddIntrinsicDescriptor(
+    const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
+  return getRVVBinaryIntrinsicDescriptor(getI32VAddFamilyDescriptor(), shape);
+}
+
+inline RVVBinaryIntrinsicDescriptor getI32VSubIntrinsicDescriptor(
+    const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
+  return getRVVBinaryIntrinsicDescriptor(getI32VSubFamilyDescriptor(), shape);
+}
+
+inline RVVBinaryIntrinsicDescriptor getI32VMulIntrinsicDescriptor(
+    const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
+  return getRVVBinaryIntrinsicDescriptor(getI32VMulFamilyDescriptor(), shape);
 }
 
 } // namespace tianchenrv::target::rvv
