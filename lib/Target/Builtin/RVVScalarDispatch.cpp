@@ -391,7 +391,12 @@ llvm::Error validateRegisteredCallableRouteMetadata(
         llvm::Twine("unknown selected callable artifact route id '") +
             candidate.routeID + "'");
 
-  return validateTargetArtifactCandidateAgainstExporter(candidate, *exporter);
+  if (llvm::Error error =
+          validateTargetArtifactCandidateAgainstExporter(candidate, *exporter)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeDispatchError(candidate.kernel, message);
+  }
+  return llvm::Error::success();
 }
 
 bool isValidCParameterName(llvm::StringRef value) {

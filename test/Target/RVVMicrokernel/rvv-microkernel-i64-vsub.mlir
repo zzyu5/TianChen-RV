@@ -1,5 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PIPE --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not=tcrv_rvv.i64_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vmul_vv_i64m1 --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/,+8 s/c_type = "const int64_t \*"/c_type = "const int32_t *"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=BAD-I64-MEM-WINDOW --implicit-check-not="void tcrv_rvv_i64_vsub_microkernel" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
 
 module @rvv_microkernel_i64_vsub_export_input {
   tcrv.exec.kernel @export_i64_vsub {
@@ -136,3 +137,7 @@ module @rvv_microkernel_i64_vsub_export_input {
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vsub_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+
+// BAD-I64-MEM-WINDOW: runtime ABI role contract preflight failed
+// BAD-I64-MEM-WINDOW-SAME: runtime ABI mem_window validation failed
+// BAD-I64-MEM-WINDOW-SAME: tcrv.exec.mem_window @abi_lhs_input_buffer requires attribute 'c_type' = "const int64_t *"

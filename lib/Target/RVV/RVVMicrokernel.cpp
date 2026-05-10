@@ -2971,6 +2971,25 @@ llvm::Error resolveRVVBinaryRuntimeABIParametersForPath(
   return llvm::Error::success();
 }
 
+llvm::Error validateRVVBinaryCandidateRuntimeABIMirrorsIR(
+    const TargetArtifactCandidate &candidate,
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
+  if (!candidate.kernel)
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> irBackedParameters;
+  llvm::SmallVector<MemWindowOp, 3> ignoredWindows;
+  RuntimeParamOp ignoredRuntimeElementCount;
+  if (llvm::Error error = buildRVVBinaryCallableABIPlanFromIR(
+          candidate.kernel, descriptor, irBackedParameters, ignoredWindows,
+          ignoredRuntimeElementCount))
+    return error;
+
+  return validateRVVBinaryCallableABIParameterMirror(
+      candidate.kernel, candidate.runtimeABIParameters, irBackedParameters,
+      "selected RVV target artifact candidate", descriptor);
+}
+
 llvm::Expected<RVVMicrokernelRecord>
 buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                        const TargetCapabilitySet &capabilities,
@@ -3816,8 +3835,10 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
         /*candidateValidationFn=*/nullptr,
         descriptor.getRVVExternalABIComponentGroup(),
         descriptor.getRVVRuntimeABIName());
-    return validateTargetArtifactCandidateAgainstExporter(candidate,
-                                                          sourceExporter);
+    if (llvm::Error error = validateTargetArtifactCandidateAgainstExporter(
+            candidate, sourceExporter))
+      return error;
+    return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
   }
 
   const RVVI32MicrokernelFamilySpec *family =
@@ -3845,8 +3866,13 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
       family->arithmetic == RVVI32MicrokernelKind::Add,
       /*handoffKind=*/{}, /*candidateValidationFn=*/nullptr,
       family->externalABIComponentGroup, family->runtimeABIName);
-  return validateTargetArtifactCandidateAgainstExporter(candidate,
-                                                        sourceExporter);
+  if (llvm::Error error =
+          validateTargetArtifactCandidateAgainstExporter(candidate,
+                                                        sourceExporter))
+    return error;
+  RVVBinaryIntrinsicDescriptor descriptor =
+      getRVVBinaryIntrinsicDescriptor(*family, getI32M1VectorShapeConfig());
+  return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
 }
 
 llvm::Error validateRVVMicrokernelCallableCandidatePreflight(

@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global project boundary and implementation stack constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that ABI coherence remains on existing exec IR metadata surfaces."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check readiness/coherence/export behavior against emission runtime and target artifact contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV descriptor/plugin locality and evidence claims."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check that core orchestration remains target-neutral and registry-driven."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test additions and validation scope."}
+{"check": "git diff --check", "result": "pass"}
+{"check": "cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate -j2", "result": "pass"}
+{"check": "/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVMicrokernel/rvv-microkernel-i64-vsub.mlir Target/ArtifactExport/target-source-artifact-routes.test Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir", "cwd": "artifacts/tmp/tianchenrv-build/test", "result": "pass", "notes": "Focused lit after self-repair of stale diagnostic anchors and legacy ABI-boundary fixtures."}
+{"check": "cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-binary-planning-test tianchenrv-target-artifact-export-test -j2", "result": "pass"}
+{"check": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test && artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test && artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test", "result": "pass", "notes": "RVV extension and binary planning tests printed smoke pass messages; TargetArtifactExportTest exited 0 silently."}
+{"check": "cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2", "result": "pass", "notes": "192 lit tests passed."}
+{"check": "ssh rvv runtime evidence", "result": "not_run", "notes": "Not required because this round only changes IR/coherence/export metadata validation and generated runtime-callable behavior did not change."}
