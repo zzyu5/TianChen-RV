@@ -337,6 +337,68 @@ and unsupported diagnostic behavior.
 - None - task complete
 
 
+## Session 24: Plugin-local RVV binary variant legality validation
+
+**Date**: 2026-05-10
+**Task**: Plugin-local RVV binary variant legality validation
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes malformed-review fallback after
+confirming there was no active `.trellis/.current-task`. Extracted finite RVV
+binary variant legality validation from `RVVExtensionPlugin.cpp` into the
+plugin-local `RVVBinaryVariantLegality` C++ module. The public plugin now
+delegates legality to that module, and smoke-probe readiness/plan construction
+reuse the same bounded smoke metadata helper instead of keeping a private
+legality-helper island in the extension plugin file.
+
+### Main Changes
+
+- Added `RVVBinaryVariantLegality` as the plugin-local owner for finite RVV
+  binary variant legality validation.
+- Moved origin, available `rvv` capability, `requires`, finite vector-shape,
+  descriptor dtype/shape, typed policy, selected vector-shape metadata,
+  required march, smoke-probe descriptor, capacity metadata, and selected
+  i32/i64 microkernel selected-plan legality checks out of
+  `RVVExtensionPlugin.cpp`.
+- Updated `RVVExtensionPlugin::verifyVariantLegality` to delegate to the new
+  module.
+- Updated smoke-probe readiness and emission-plan paths to use
+  `verifyRVVBinarySmokeProbeVariantMetadata`.
+- Added focused `tianchenrv-rvv-binary-variant-legality-test` direct module
+  coverage for i32, `i64-vmul`, smoke-probe, origin mismatch, and selected
+  vector-shape metadata mismatch paths.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-binary-variant-legality-test
+  tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-selected-lowering-boundary-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` covering
+  `rvv-extension-plugin`, `rvv-scalar-dispatch-e2e`, and
+  `rvv-scalar-dispatch-bundle-e2e`: 3/3 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  194/194 lit tests passed.
+- No generated runtime artifact semantics changed and no new RVV
+  runtime/correctness/performance claim was made; no fresh `ssh rvv` run was
+  required.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 18: Front-door RVV binary frontend bundle with ssh rvv execution evidence
 
 **Date**: 2026-05-10
