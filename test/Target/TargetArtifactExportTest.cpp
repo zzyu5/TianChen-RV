@@ -2238,8 +2238,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 14) {
-    llvm::errs() << "expected exactly 14 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 15) {
+    llvm::errs() << "expected exactly 15 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -2368,6 +2368,21 @@ int main() {
                    "runtime-offload-handoff-descriptor", 4,
                    /*expectedDirectHelperRoute=*/false, "runtime-offload"))
     return 1;
+  if (!expectRoute(builtinRegistry,
+                   "none-executable-toy-template-metadata",
+                   "metadata-diagnostic", "toy-plugin",
+                   "toy-template-metadata-route", 0,
+                   /*expectedDirectHelperRoute=*/false,
+                   "toy-lowering-template"))
+    return 1;
+  const TargetArtifactExporter *toyMetadataExporter =
+      builtinRegistry.lookup("none-executable-toy-template-metadata");
+  if (!toyMetadataExporter ||
+      !toyMetadataExporter->getCandidateValidationFn()) {
+    llvm::errs()
+        << "Toy metadata artifact route lacks candidate preflight validator\n";
+    return 1;
+  }
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-offload-runtime-descriptor",
           getAddRuntimeABIContract().getCallableRoleRequirements()))

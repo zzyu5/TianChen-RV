@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and core/extension boundary invariants."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin-local target artifact route and allowed registration-only central changes."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "ExtensionPlugin registry, selected lowering-boundary, and emission-plan contracts."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Avoid Toy semantic branches in generic core or target export orchestration."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact front-door, candidate, route validation, and evidence boundary rules."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Evidence interpretation boundary; no RVV runtime/correctness/performance claims for this Toy task."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Locality review checklist for Toy target exporter integration."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure Toy metadata artifact does not add compute semantics to tcrv.exec."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-toy-plugin-target-artifact-route/prd.md", "reason": "Current task goal, requirements, non-goals, and acceptance criteria."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-toy-extension-plugin-template/prd.md", "reason": "Prior Toy plugin template scope and completed emission-plan baseline."}

@@ -946,3 +946,52 @@ selected lowering-boundary materialization, and emission-plan metadata path.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Toy metadata artifact route through target exporter
+
+**Date**: 2026-05-11
+**Task**: Toy plugin metadata artifact route through the target exporter front door
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then extended the Toy
+plugin template to the existing C++ target artifact exporter front door. The
+Toy route now emits deterministic non-executable metadata evidence through
+`tcrv-translate --tcrv-export-target-artifact` from real selected
+`TargetArtifactCandidate` records.
+
+### Main Changes
+
+- Added a Toy-owned target exporter under `Target/Toy` with route-local
+  candidate validation and bounded text artifact formatting.
+- Registered the Toy metadata route through builtin target artifact exporter
+  aggregation; the central change is registration only.
+- Adjusted the Toy emission plan to be a supported metadata artifact route
+  while keeping readiness and the `tcrv_toy.lowering_boundary` explicitly
+  metadata-only.
+- Added positive lit coverage for `tcrv-opt --tcrv-execution-planning-pipeline`
+  piped into `tcrv-translate --tcrv-export-target-artifact`.
+- Added fail-closed lit coverage for mismatched Toy runtime ABI metadata.
+- Updated target artifact registry C++ coverage for the new Toy route and
+  candidate preflight callback.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-toy-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-toy-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `toy|ToyMetadataArtifact`: 5/5 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- No RVV runtime/correctness/performance claim was made; no `ssh rvv` evidence
+  was needed or collected.
+
+### Status
+
+[OK] **Completed and archived**

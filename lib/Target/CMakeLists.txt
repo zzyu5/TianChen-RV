@@ -13,4 +13,5 @@ add_mlir_library(TianChenRVTarget
   MLIRSupport
 )
 
+add_subdirectory(Toy)
 add_subdirectory(Builtin)

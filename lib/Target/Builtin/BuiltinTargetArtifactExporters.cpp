@@ -5,6 +5,7 @@
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
+#include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 namespace tianchenrv::target {
 
@@ -21,7 +22,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   if (llvm::Error error =
           rvv_scalar::registerRVVScalarDispatchTargetExporters(registry))
     return error;
-  return offload::registerOffloadRuntimeDescriptorTargetExporters(registry);
+  if (llvm::Error error =
+          offload::registerOffloadRuntimeDescriptorTargetExporters(registry))
+    return error;
+  return toy::registerToyMetadataArtifactTargetExporters(registry);
 }
 
 } // namespace tianchenrv::target

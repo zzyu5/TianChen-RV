@@ -475,7 +475,7 @@ module {
           "Toy emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isMetadataOnly() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::toy::
                              getToyExtensionPluginName() &&
@@ -491,17 +491,19 @@ module {
                          tianchenrv::plugin::toy::
                              getToyMetadataArtifactKind() &&
                      emissionPlan.getRuntimeABIKind() ==
-                         "toy-template-metadata" &&
+                         tianchenrv::plugin::toy::
+                             getToyMetadataRuntimeABIKind() &&
                      emissionPlan.getRuntimeABIName() ==
                          tianchenrv::plugin::toy::
                              getToyExpectedTemplateABI() &&
                      emissionPlan.getRuntimeGlueRole() ==
-                         "metadata-only-toy-template-boundary" &&
+                         tianchenrv::plugin::toy::
+                             getToyMetadataRuntimeGlueRole() &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
-                 "Toy emission plan records stable metadata-only route"))
+                 "Toy emission plan records stable exportable metadata route"))
     return result;
 
   return 0;

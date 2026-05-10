@@ -59,7 +59,7 @@ module {
     // PIPE-SAME: value = "toy-metadata-boundary.v1"
     // PIPE-SAME: name = "toy_template_scope"
     // PIPE-SAME: value = "metadata-only"
-    // PIPE-SAME: status = "metadata-only"
+    // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @toy_template_first_slice
     // ROUNDTRIP: tcrv_toy.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @toy_template_first_slice

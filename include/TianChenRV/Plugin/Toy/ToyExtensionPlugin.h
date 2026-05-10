@@ -21,6 +21,8 @@ llvm::StringRef getToyTemplatePolicy();
 llvm::StringRef getToyMetadataRouteID();
 llvm::StringRef getToyMetadataEmissionKind();
 llvm::StringRef getToyMetadataArtifactKind();
+llvm::StringRef getToyMetadataRuntimeABIKind();
+llvm::StringRef getToyMetadataRuntimeGlueRole();
 
 class ToyExtensionPlugin final : public ExtensionPlugin {
 public:

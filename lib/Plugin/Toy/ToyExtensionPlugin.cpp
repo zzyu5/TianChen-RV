@@ -424,6 +424,14 @@ llvm::StringRef getToyMetadataArtifactKind() {
   return kToyMetadataArtifactKind;
 }
 
+llvm::StringRef getToyMetadataRuntimeABIKind() {
+  return kToyRuntimeABIKind;
+}
+
+llvm::StringRef getToyMetadataRuntimeGlueRole() {
+  return kToyRuntimeGlueRole;
+}
+
 ToyExtensionPlugin::ToyExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       kToyTemplateCapabilityID, kToyTemplateCapabilityKind,
@@ -584,7 +592,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getMetadataOnly(
+  out = VariantEmissionPlan::getSupported(
       kToyPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
       kToyMetadataEmissionKind, kToyMetadataRouteID, kExpectedTemplateABI,
