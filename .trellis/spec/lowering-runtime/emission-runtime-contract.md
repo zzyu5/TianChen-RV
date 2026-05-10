@@ -396,19 +396,21 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     `i32-vadd` scalar source candidate must not satisfy the `i32-vmul` or i64
     scalar header/object helper routes, and stale ABI family metadata must fail
     before output.
-- The current multi-candidate composite route set is:
-  - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C source,
+- The current plugin-owned multi-candidate composite route set includes:
+  - RVV+scalar explicit finite binary host dispatch runtime-callable C source,
     matched by target-owned RVV+scalar dispatch exporter code from the selected
     RVV dispatch-case callable route and scalar dispatch-fallback callable
-    route. Its registration must preflight both callable component candidates
-    against their direct route ABI role contracts before deriving the dispatcher
-    ABI.
-  - RVV+scalar explicit i32 vector-add host dispatch runtime-callable RISC-V
+    route. These routes are registered by the `scalar-plugin` target-exporter
+    bundle and require an enabled `rvv-plugin`; disabled or missing RVV/scalar
+    plugins must not publish the dispatch route group. Registration must
+    preflight both callable component candidates against their direct route ABI
+    role contracts before deriving the dispatcher ABI.
+  - RVV+scalar explicit finite binary host dispatch runtime-callable RISC-V
     ELF relocatable library object, matched from the same selected callable
     candidates and emitted by the target-owned RVV+scalar dispatch exporter
     code without a hidden self-check harness or `main`. Its registration must
     include the same callable component candidate preflight.
-  - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C header,
+  - RVV+scalar explicit finite binary host dispatch runtime-callable C header,
     matched from the same selected callable candidates and emitted by the
     target-owned RVV+scalar dispatch exporter code as an external caller ABI
     surface with artifact kind `runtime-callable-c-header`. Its registration
@@ -427,12 +429,15 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   Public tools that already own an `ExtensionPluginRegistry` must pass that same
   active registry into built-in target exporter registration so enabled plugins
   can contribute their plugin-owned target artifact exporters through the
-  generic boundary. This applies to real target-owned RVV selected binary
-  microkernel source/header/object exporters as well as metadata-only Toy
-  exporters; disabled or missing plugins must not silently publish their
-  plugin-owned target routes. Later selected-plan export then fails closed as
-  an unknown or unavailable route/origin instead of falling back to a central
-  extension-specific exporter branch.
+  generic boundary. A plugin-owned exporter bundle may additionally declare
+  required enabled extension plugins for composite routes whose selected-plan
+  contract spans more than one plugin-owned component. This applies to real
+  target-owned RVV selected binary microkernel source/header/object exporters,
+  RVV+scalar dispatch source/header/object composite exporters, and
+  metadata-only Toy exporters; disabled or missing plugins must not silently
+  publish their plugin-owned target routes. Later selected-plan export then
+  fails closed as an unknown or unavailable route/origin instead of falling
+  back to a central extension-specific exporter branch.
 
 #### 4. Validation & Error Matrix
 

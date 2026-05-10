@@ -59,6 +59,60 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
+## Session 29: RVV+scalar dispatch plugin-owned exporter bundle
+
+**Date**: 2026-05-11
+**Task**: RVV+scalar dispatch artifact routes through plugin-owned exporter registration
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then moved the
+RVV+scalar dispatch source/header/object target artifact route group out of
+central non-plugin built-in exporter registration. The routes now publish
+through a plugin-owned target exporter bundle owned by `scalar-plugin` and
+requiring an enabled `rvv-plugin`, so missing or disabled relevant plugins fail
+closed by not exposing the dispatch route group.
+
+### Main Changes
+
+- Extended `PluginTargetArtifactExporterBundle` with generic required-plugin
+  dependency metadata.
+- Registered RVV+scalar dispatch source/header/object composite exporters
+  through the plugin-owned bundle boundary while keeping all dispatch route
+  matching, runtime ABI preflight, source/header/object emission, and
+  component-group semantics in RVVScalarDispatch target code.
+- Removed direct RVV+scalar dispatch route publication from central
+  non-plugin built-in target exporter composition.
+- Added C++ coverage for enabled contribution, duplicate route rejection,
+  disabled/missing scalar owner behavior, and disabled/missing RVV dependency
+  behavior.
+- Updated the lowering/runtime spec to record plugin-owned composite dispatch
+  registration with required enabled plugin dependencies.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate -j2`
+- Focused lit:
+  `cd artifacts/tmp/tianchenrv-build/test && /usr/bin/python3.10
+  /usr/lib/llvm-20/build/utils/lit/lit.py -sv -sv
+  /home/kingdom/phdworks/TianchenRV/artifacts/tmp/tianchenrv-build/test/Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir`
+  passed 1/1.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- No RVV runtime/correctness/performance claim was made; no `ssh rvv` evidence
+  was needed or collected.
+
+### Status
+
+[OK] **Completed and archived; commit pending in this session**
+
+
 ## Session 29: Scalar finite fallback header/object artifact routes
 
 **Date**: 2026-05-11

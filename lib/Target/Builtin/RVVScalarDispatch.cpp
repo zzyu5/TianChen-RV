@@ -3105,6 +3105,14 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
   return llvm::Error::success();
 }
 
+llvm::Error registerRVVScalarDispatchPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  static const llvm::StringRef requiredPlugins[] = {kRVVPluginName};
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      kScalarPluginName, registerRVVScalarDispatchTargetExporters,
+      requiredPlugins));
+}
+
 llvm::Error registerRVVScalarDispatchTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
   for (const RVVScalarDispatchRouteManifestEntry &route :

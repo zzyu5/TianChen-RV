@@ -2298,8 +2298,13 @@ TargetArtifactExporterRegistry::lookupComposite(llvm::StringRef routeID) const {
 
 PluginTargetArtifactExporterBundle::PluginTargetArtifactExporterBundle(
     llvm::StringRef pluginName,
-    PluginTargetArtifactExporterRegistrationFn registrationFn)
-    : pluginName(pluginName.str()), registrationFn(registrationFn) {}
+    PluginTargetArtifactExporterRegistrationFn registrationFn,
+    llvm::ArrayRef<llvm::StringRef> requiredPluginNames)
+    : pluginName(pluginName.str()), registrationFn(registrationFn) {
+  this->requiredPluginNames.reserve(requiredPluginNames.size());
+  for (llvm::StringRef requiredPluginName : requiredPluginNames)
+    this->requiredPluginNames.push_back(requiredPluginName.str());
+}
 
 llvm::Error PluginTargetArtifactExporterRegistry::registerBundle(
     const PluginTargetArtifactExporterBundle &bundle) {
@@ -2310,6 +2315,20 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerBundle(
     return makePluginTargetRegistryError(
         llvm::Twine("plugin-owned target exporter bundle for plugin '") +
         bundle.getPluginName() + "' must have a non-null registration callback");
+  llvm::StringSet<> seenRequiredPlugins;
+  for (llvm::StringRef requiredPluginName : bundle.getRequiredPluginNames()) {
+    if (requiredPluginName.trim().empty())
+      return makePluginTargetRegistryError(
+          llvm::Twine("plugin-owned target exporter bundle for plugin '") +
+          bundle.getPluginName() +
+          "' has an empty required extension plugin name");
+    if (!seenRequiredPlugins.insert(requiredPluginName).second)
+      return makePluginTargetRegistryError(
+          llvm::Twine("plugin-owned target exporter bundle for plugin '") +
+          bundle.getPluginName() +
+          "' has duplicate required extension plugin '" +
+          requiredPluginName + "'");
+  }
 
   auto [it, inserted] =
       bundlesByPlugin.try_emplace(bundle.getPluginName(), bundle);
@@ -2331,6 +2350,50 @@ PluginTargetArtifactExporterRegistry::lookup(
   return &it->getValue();
 }
 
+namespace {
+
+bool hasEnabledRequiredPlugin(
+    const plugin::ExtensionPluginRegistry &plugins,
+    llvm::StringRef requiredPluginName) {
+  const plugin::ExtensionPlugin *requiredPlugin =
+      plugins.lookupPlugin(requiredPluginName);
+  return requiredPlugin && requiredPlugin->isEnabled();
+}
+
+llvm::Error requireEnabledBundleDependencies(
+    const plugin::ExtensionPluginRegistry &plugins,
+    const PluginTargetArtifactExporterBundle &bundle) {
+  for (llvm::StringRef requiredPluginName : bundle.getRequiredPluginNames()) {
+    const plugin::ExtensionPlugin *requiredPlugin =
+        plugins.lookupPlugin(requiredPluginName);
+    if (!requiredPlugin)
+      return makePluginTargetRegistryError(
+          llvm::Twine("plugin '") + bundle.getPluginName() +
+          "' target artifact exporter bundle requires missing extension "
+          "plugin '" +
+          requiredPluginName + "'");
+    if (!requiredPlugin->isEnabled())
+      return makePluginTargetRegistryError(
+          llvm::Twine("plugin '") + bundle.getPluginName() +
+          "' target artifact exporter bundle requires disabled extension "
+          "plugin '" +
+          requiredPluginName + "'");
+  }
+  return llvm::Error::success();
+}
+
+bool hasEnabledBundleDependencies(
+    const plugin::ExtensionPluginRegistry &plugins,
+    const PluginTargetArtifactExporterBundle &bundle) {
+  return llvm::all_of(bundle.getRequiredPluginNames(),
+                      [&](llvm::StringRef requiredPluginName) {
+                        return hasEnabledRequiredPlugin(plugins,
+                                                        requiredPluginName);
+                      });
+}
+
+} // namespace
+
 llvm::Error PluginTargetArtifactExporterRegistry::
     registerExportersForEnabledPlugins(
         const plugin::ExtensionPluginRegistry &plugins,
@@ -2342,6 +2405,8 @@ llvm::Error PluginTargetArtifactExporterRegistry::
     const PluginTargetArtifactExporterBundle *bundle =
         lookup(plugin->getName());
     if (!bundle)
+      continue;
+    if (!hasEnabledBundleDependencies(plugins, *bundle))
       continue;
 
     if (llvm::Error error = bundle->getRegistrationFn()(registry)) {
@@ -2380,6 +2445,8 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerExportersForPlugin(
     return makePluginTargetRegistryError(
         llvm::Twine("extension plugin '") + pluginName +
         "' has no registered target artifact exporter bundle");
+  if (llvm::Error error = requireEnabledBundleDependencies(plugins, *bundle))
+    return error;
 
   if (llvm::Error error = bundle->getRegistrationFn()(registry)) {
     std::string message = llvm::toString(std::move(error));

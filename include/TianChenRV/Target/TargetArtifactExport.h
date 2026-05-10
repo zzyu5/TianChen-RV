@@ -242,16 +242,21 @@ public:
   PluginTargetArtifactExporterBundle() = default;
   PluginTargetArtifactExporterBundle(
       llvm::StringRef pluginName,
-      PluginTargetArtifactExporterRegistrationFn registrationFn);
+      PluginTargetArtifactExporterRegistrationFn registrationFn,
+      llvm::ArrayRef<llvm::StringRef> requiredPluginNames = {});
 
   llvm::StringRef getPluginName() const { return pluginName; }
   PluginTargetArtifactExporterRegistrationFn getRegistrationFn() const {
     return registrationFn;
   }
+  llvm::ArrayRef<std::string> getRequiredPluginNames() const {
+    return requiredPluginNames;
+  }
 
 private:
   std::string pluginName;
   PluginTargetArtifactExporterRegistrationFn registrationFn = nullptr;
+  llvm::SmallVector<std::string, 2> requiredPluginNames;
 };
 
 class PluginTargetArtifactExporterRegistry {
