@@ -278,7 +278,6 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 - None - task complete
 
-
 ## Session 20: First-class RVV selected config and runtime VL boundary model
 
 **Date**: 2026-05-10
@@ -349,7 +348,6 @@ artifact path.
 ### Next Steps
 
 - None - task complete
-
 
 ## Session 25: RVV i64-vsub selected path artifact evidence
 
@@ -884,6 +882,62 @@ this commit
   194/194 lit tests passed.
 - No new RVV runtime/correctness/performance claim was made; no fresh
   `ssh rvv` run was required.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 26: Toy extension plugin template through registry pipeline
+
+**Date**: 2026-05-11
+**Task**: Toy extension plugin template through the real registry pipeline
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then implemented a
+minimal Toy extension template that enters TianChen-RV through the existing
+C++/MLIR plugin registry, variant materialization, generic selection,
+selected lowering-boundary materialization, and emission-plan metadata path.
+
+### Main Changes
+
+- Added the plugin-local `tcrv_toy` dialect with a metadata-only
+  `tcrv_toy.lowering_boundary` op and verifier.
+- Added `ToyExtensionPlugin` with a bounded `toy.template` capability,
+  capability-gated proposal, plugin legality, cost, lowering-boundary,
+  emission readiness, and metadata-only emission plan hooks.
+- Registered Toy through builtin extension plugin aggregation and CMake without
+  adding Toy-specific semantic branches to generic core passes.
+- Added focused Toy C++ coverage and lit coverage for positive pipeline
+  participation plus malformed-capability fail-closed behavior.
+- Updated the existing RVV builtin-registry smoke test to account for Toy as
+  the fourth builtin plugin.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tianchenrv-toy-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-toy-extension-plugin-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter `toy`:
+  3/3 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-rvv-extension-plugin-test tianchenrv-toy-extension-plugin-test
+  -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- Focused lit with filter `rvv-extension-plugin|toy`: 4/4 passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-toy-extension-plugin-template`: passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  197/197 lit tests passed.
+- No RVV runtime/correctness/performance claim was made; no `ssh rvv` evidence
+  was needed or collected.
 
 ### Status
 

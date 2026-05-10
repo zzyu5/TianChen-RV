@@ -168,6 +168,23 @@ target_link_libraries(tianchenrv-offload-extension-plugin-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-toy-extension-plugin-test
+  Plugin/ToyExtensionPluginTest.cpp
+)
+
+target_link_libraries(tianchenrv-toy-extension-plugin-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVPlugin
+  TianChenRVSupport
+  TianChenRVToyDialect
+  TianChenRVToyPlugin
+  TianChenRVTransforms
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_executable(tianchenrv-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )
@@ -328,6 +345,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-rvv-lowering-boundary-test
   tianchenrv-scalar-extension-plugin-test
   tianchenrv-target-artifact-export-test
+  tianchenrv-toy-extension-plugin-test
   tianchenrv-variant-dispatch-synthesis-test
   tianchenrv-variant-materialization-test
   tianchenrv-variant-selection-test

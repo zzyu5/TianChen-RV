@@ -1,0 +1,6 @@
+set(LLVM_TARGET_DEFINITIONS ToyOps.td)
+mlir_tablegen(ToyOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_toy)
+mlir_tablegen(ToyOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_toy)
+mlir_tablegen(ToyOps.h.inc -gen-op-decls)
+mlir_tablegen(ToyOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRToyOpsIncGen)
