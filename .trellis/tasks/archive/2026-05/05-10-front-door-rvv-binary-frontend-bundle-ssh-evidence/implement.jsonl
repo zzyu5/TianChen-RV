@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for compiler stack, RVV hardware evidence, and tcrv.exec compute boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "bounded Linalg RVV binary frontend contract and public pass naming"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact bundle export, plan-and-export front door, direct RVV binary runtime ABI, and ssh evidence boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and rvv_microkernel_e2e evidence requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, ssh rvv evidence interpretation, and finite i32/i64 binary routes"}

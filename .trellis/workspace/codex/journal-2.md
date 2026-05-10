@@ -73,3 +73,54 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Front-door RVV binary frontend bundle with ssh rvv execution evidence
+
+**Date**: 2026-05-10
+**Task**: Front-door RVV binary frontend bundle with ssh rvv execution evidence
+**Branch**: `main`
+
+### Summary
+
+Completed a direct i64-vmul marked-Linalg front-door evidence path through
+`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle`, target-owned
+source/header/object bundle emission, generated external caller construction,
+and real `ssh rvv` compile/link/run validation.
+
+### Main Changes
+
+- Updated `scripts/rvv_microkernel_e2e.py` so direct RVV bundle records accept
+  the compiler-emitted selected variant symbol while still requiring all
+  source/header/object records to agree.
+- Added structured live `ssh_evidence` with explicit remote compile, link, run,
+  and output-marker validation status.
+- Added focused bundle lit coverage for i64-vmul marked-Linalg input through
+  the plan-and-export bundle front door.
+
+### Evidence
+
+- Live command:
+  `python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --input test/Transforms/LinalgToExec/linalg-i64-vmul-to-rvv-artifact.mlir --expect-selected-kernel frontend_i64_vmul --ssh-target rvv --run-id codex-frontdoor-i64-vmul-live --overwrite`
+- Live artifact:
+  `artifacts/tmp/rvv_microkernel_bundle_e2e/codex-frontdoor-i64-vmul-live/evidence.json`
+- Live result:
+  `ssh_evidence.success = true`, remote compile/link/run/output validation all
+  true; claim scope is bounded i64-vmul target-artifact bundle external caller
+  correctness only.
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] focused lit:
+  `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv -sv /home/kingdom/phdworks/TianchenRV/artifacts/tmp/tianchenrv-build/test --filter rvv-microkernel-bundle-e2e`
+- [OK] live `ssh rvv` evidence command above
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-front-door-rvv-binary-frontend-bundle-ssh-evidence`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: 193/193
+
+### Status
+
+[OK] **Completed; ready to archive and commit**

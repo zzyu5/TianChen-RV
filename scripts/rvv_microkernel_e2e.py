@@ -1797,12 +1797,12 @@ def require_rvv_runtime_abi_signature(
     return parameters
 
 
-def require_rvv_component_metadata(record: dict[str, Any]) -> None:
-    expected_variant = active_selected_variant()
-    if record.get("selected_variant") != expected_variant:
+def require_rvv_component_metadata(record: dict[str, Any]) -> str:
+    selected_variant = str(record.get("selected_variant", "")).strip()
+    if not selected_variant:
         raise BridgeError(
             f"bundle record route {record.get('route')} must preserve "
-            f"selected_variant @{expected_variant}"
+            "a non-empty selected_variant"
         )
     if record.get("role") != "direct variant":
         raise BridgeError(
@@ -1814,21 +1814,23 @@ def require_rvv_component_metadata(record: dict[str, Any]) -> None:
             f"bundle record route {record.get('route')} must preserve exactly one selected component"
         )
     component = components[0]
-    if component.get("selected_variant") != expected_variant:
+    if component.get("selected_variant") != selected_variant:
         raise BridgeError(
             f"bundle record route {record.get('route')} component must "
-            f"preserve {expected_variant}"
+            f"preserve {selected_variant}"
         )
     if component.get("role") != "direct variant":
         raise BridgeError(
             f"bundle record route {record.get('route')} component must preserve direct variant role"
         )
+    return selected_variant
 
 
 def select_rvv_bundle_records(
     records: list[dict[str, Any]], bundle_dir: Path
 ) -> dict[str, dict[str, Any]]:
     selected: dict[str, dict[str, Any]] = {}
+    selected_variants: set[str] = set()
     for label, expected in RVV_BUNDLE_ROUTES.items():
         matches = [record for record in records if record.get("route") == expected["route"]]
         if len(matches) != 1:
@@ -1850,7 +1852,7 @@ def select_rvv_bundle_records(
                 raise BridgeError(
                     f"bundle {label} record field {field}={record.get(field)!r} does not match expected {expected[field]!r}"
                 )
-        require_rvv_component_metadata(record)
+        selected_variants.add(require_rvv_component_metadata(record))
         require_rvv_runtime_abi_signature(record)
         artifact_path = bundle_dir / str(record["file_name"])
         if not artifact_path.exists() or artifact_path.stat().st_size == 0:
@@ -1859,6 +1861,10 @@ def select_rvv_bundle_records(
             )
         selected[label] = record
 
+    if len(selected_variants) != 1:
+        raise BridgeError(
+            "selected RVV bundle records must preserve one consistent selected variant"
+        )
     signatures = {
         json.dumps(record.get("runtime_abi_parameters", []), sort_keys=True)
         for record in selected.values()
@@ -2612,6 +2618,172 @@ def run_remote_bundle_external_abi_evidence(
     }
 
 
+def command_step_summary(
+    commands: list[dict[str, Any]], names: list[str]
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    for name in names:
+        matches = [command for command in commands if command.get("name") == name]
+        if not matches:
+            steps.append(
+                {
+                    "name": name,
+                    "attempted": False,
+                    "succeeded": False,
+                    "exit_code": None,
+                    "timed_out": False,
+                    "log_path": "",
+                }
+            )
+            continue
+        command = matches[-1]
+        succeeded = command.get("exit_code") == 0 and not bool(
+            command.get("timed_out")
+        )
+        steps.append(
+            {
+                "name": name,
+                "attempted": True,
+                "succeeded": succeeded,
+                "exit_code": command.get("exit_code"),
+                "timed_out": bool(command.get("timed_out")),
+                "log_path": str(command.get("log_path", "")),
+            }
+        )
+    return steps
+
+
+def command_phase_summary(
+    commands: list[dict[str, Any]],
+    names: list[str],
+    *,
+    integrated_with_compile: bool = False,
+) -> dict[str, Any]:
+    if integrated_with_compile:
+        return {
+            "succeeded": False,
+            "integrated_with_compile": True,
+            "steps": [],
+        }
+    steps = command_step_summary(commands, names)
+    return {
+        "succeeded": all(step["attempted"] and step["succeeded"] for step in steps),
+        "steps": steps,
+    }
+
+
+def build_ssh_evidence_summary(
+    kind: str,
+    *,
+    args: argparse.Namespace,
+    commands: list[dict[str, Any]],
+    details: dict[str, Any] | None,
+    error: str = "",
+) -> dict[str, Any]:
+    if kind == "self-check-source":
+        compile_names = ["ssh_compile_microkernel_self_check"]
+        link_names: list[str] = []
+        run_names = ["ssh_run_microkernel_self_check"]
+        marker_fields = ["stdout_marker_observed"]
+    elif kind == "direct-external-abi":
+        compile_names = [
+            "ssh_compile_external_caller_object",
+            "ssh_compile_external_source_object",
+        ]
+        link_names = [
+            "ssh_link_external_source_caller",
+            "ssh_link_external_object_caller",
+        ]
+        run_names = [
+            "ssh_run_external_source_caller",
+            "ssh_run_external_object_caller",
+        ]
+        marker_fields = [
+            "source_stdout_marker_observed",
+            "object_stdout_marker_observed",
+        ]
+    elif kind == "bundle-external-abi":
+        compile_names = [
+            "ssh_compile_bundle_external_caller_object",
+            "ssh_compile_bundle_source_object",
+        ]
+        link_names = [
+            "ssh_link_bundle_source_external_caller",
+            "ssh_link_bundle_index_object_external_caller",
+        ]
+        run_names = [
+            "ssh_run_bundle_source_external_caller",
+            "ssh_run_bundle_index_object_external_caller",
+        ]
+        marker_fields = [
+            "source_stdout_marker_observed",
+            "bundle_object_stdout_marker_observed",
+        ]
+    else:
+        raise BridgeError(f"unknown ssh evidence kind: {kind}")
+
+    compile_phase = command_phase_summary(commands, compile_names)
+    link_phase = command_phase_summary(
+        commands,
+        link_names,
+        integrated_with_compile=kind == "self-check-source",
+    )
+    if kind == "self-check-source":
+        link_phase["succeeded"] = compile_phase["succeeded"]
+    run_phase = command_phase_summary(commands, run_names)
+
+    marker_observations = {
+        field: bool(details.get(field, False)) if details else False
+        for field in marker_fields
+    }
+    output_validation_succeeded = bool(details) and all(
+        marker_observations.values()
+    )
+    summary = {
+        "attempted": True,
+        "kind": kind,
+        "success": False,
+        "ssh_target": args.ssh_target,
+        "remote_compile": compile_phase,
+        "remote_link": link_phase,
+        "remote_run": run_phase,
+        "output_validation": {
+            "succeeded": output_validation_succeeded,
+            "expected_stdout_marker": (
+                str(details.get("expected_stdout_marker", "")) if details else ""
+            ),
+            "marker_observations": marker_observations,
+        },
+        "remote_compile_succeeded": compile_phase["succeeded"],
+        "remote_link_succeeded": link_phase["succeeded"],
+        "remote_run_succeeded": run_phase["succeeded"],
+        "output_validation_succeeded": output_validation_succeeded,
+    }
+    if details:
+        summary["remote_dir"] = details.get("remote_dir", "")
+        if "host_facts" in details:
+            summary["host_facts"] = details["host_facts"]
+        if "compile_flags" in details:
+            summary["compile_flags"] = details["compile_flags"]
+    if error:
+        summary["error"] = sanitize_text(error)
+
+    summary["success"] = (
+        summary["remote_compile_succeeded"]
+        and summary["remote_link_succeeded"]
+        and summary["remote_run_succeeded"]
+        and summary["output_validation_succeeded"]
+        and not error
+    )
+    return summary
+
+
+def ssh_evidence_succeeded(value: Any) -> bool:
+    if isinstance(value, dict):
+        return bool(value.get("success"))
+    return bool(value)
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     reject_secret_like_text(path.name, text)
@@ -2795,6 +2967,15 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_flags = validate_generated_source(source_text, require_harness=False)
+    selected_bundle_variant = str(selected_records["source"]["selected_variant"])
+    if (
+        source_flags["compiler_path_context"]["selected_variant"]
+        != selected_bundle_variant
+    ):
+        raise BridgeError(
+            "bundle source selected_variant does not match compiler-emitted "
+            "source metadata"
+        )
     expected_selected_kernel = validate_expected_selected_kernel(
         source_flags["compiler_path_context"], args.expect_selected_kernel
     )
@@ -2915,7 +3096,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
 
     if not args.dry_run:
         try:
-            evidence["ssh_evidence_details"] = run_remote_bundle_external_abi_evidence(
+            ssh_details = run_remote_bundle_external_abi_evidence(
                 args,
                 root=root,
                 artifact_dir=artifact_dir,
@@ -2929,7 +3110,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 flags=source_flags,
                 run_id=run_id,
             )
-            evidence["ssh_evidence_details"]["host_artifact_hashes"] = {
+            ssh_details["host_artifact_hashes"] = {
                 "bundle_microkernel_source_sha256": hashes[
                     "bundle_microkernel_source_sha256"
                 ],
@@ -2943,13 +3124,25 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
                     "bundle_external_caller_c_sha256"
                 ],
             }
-            evidence["ssh_evidence"] = True
+            evidence["ssh_evidence_details"] = ssh_details
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "bundle-external-abi",
+                args=args,
+                commands=commands,
+                details=ssh_details,
+            )
             evidence["stdout_marker_observed"] = True
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
             evidence["pass_fail_result"] = "fail"
-            evidence["ssh_evidence"] = False
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "bundle-external-abi",
+                args=args,
+                commands=commands,
+                details=None,
+                error=str(error),
+            )
             evidence["stdout_marker_observed"] = False
             evidence["error"] = sanitize_text(str(error))
             evidence["commands"] = commands
@@ -3318,7 +3511,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     if not args.dry_run:
         try:
             if use_harness:
-                evidence["ssh_evidence_details"] = run_remote_self_check_source_evidence(
+                ssh_details = run_remote_self_check_source_evidence(
                     args,
                     root=root,
                     artifact_dir=artifact_dir,
@@ -3327,11 +3520,18 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                     flags=source_flags,
                     run_id=run_id,
                 )
-                evidence["ssh_evidence_details"]["host_artifact_hashes"] = {
+                ssh_details["host_artifact_hashes"] = {
                     "rvv_microkernel_c_sha256": hashes["rvv_microkernel_c_sha256"],
                 }
+                evidence["ssh_evidence_details"] = ssh_details
+                evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                    "self-check-source",
+                    args=args,
+                    commands=commands,
+                    details=ssh_details,
+                )
             else:
-                evidence["ssh_evidence_details"] = run_remote_external_abi_evidence(
+                ssh_details = run_remote_external_abi_evidence(
                     args,
                     root=root,
                     artifact_dir=artifact_dir,
@@ -3343,7 +3543,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                     flags=source_flags,
                     run_id=run_id,
                 )
-                evidence["ssh_evidence_details"]["host_artifact_hashes"] = {
+                ssh_details["host_artifact_hashes"] = {
                     "rvv_microkernel_c_sha256": hashes["rvv_microkernel_c_sha256"],
                     "rvv_microkernel_h_sha256": hashes["rvv_microkernel_h_sha256"],
                     "rvv_microkernel_o_sha256": hashes["rvv_microkernel_o_sha256"],
@@ -3351,13 +3551,25 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                         "rvv_microkernel_external_caller_c_sha256"
                     ],
                 }
-            evidence["ssh_evidence"] = True
+                evidence["ssh_evidence_details"] = ssh_details
+                evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                    "direct-external-abi",
+                    args=args,
+                    commands=commands,
+                    details=ssh_details,
+                )
             evidence["stdout_marker_observed"] = True
             evidence["commands"] = commands
         except BridgeError as error:
             evidence["status"] = "failure"
             evidence["pass_fail_result"] = "fail"
-            evidence["ssh_evidence"] = False
+            evidence["ssh_evidence"] = build_ssh_evidence_summary(
+                "self-check-source" if use_harness else "direct-external-abi",
+                args=args,
+                commands=commands,
+                details=None,
+                error=str(error),
+            )
             evidence["stdout_marker_observed"] = False
             evidence["error"] = sanitize_text(str(error))
             evidence["commands"] = commands
@@ -3956,6 +4168,102 @@ void tcrv_rvv_i32_vadd_microkernel_self_test(const int32_t *lhs, const int32_t *
         "rvv_microkernel_external_caller.c rvv_microkernel.o" in external_link_command,
         "external ABI link command does not consume caller and object",
     )
+    ssh_summary_args = parse_args(["--ssh-target", "rvv"])
+    successful_bundle_commands = [
+        {
+            "name": "ssh_compile_bundle_external_caller_object",
+            "exit_code": 0,
+            "timed_out": False,
+            "log_path": "logs/000_compile_caller.log",
+        },
+        {
+            "name": "ssh_compile_bundle_source_object",
+            "exit_code": 0,
+            "timed_out": False,
+            "log_path": "logs/001_compile_source.log",
+        },
+        {
+            "name": "ssh_link_bundle_source_external_caller",
+            "exit_code": 0,
+            "timed_out": False,
+            "log_path": "logs/002_link_source.log",
+        },
+        {
+            "name": "ssh_link_bundle_index_object_external_caller",
+            "exit_code": 0,
+            "timed_out": False,
+            "log_path": "logs/003_link_object.log",
+        },
+        {
+            "name": "ssh_run_bundle_source_external_caller",
+            "exit_code": 0,
+            "timed_out": False,
+            "log_path": "logs/004_run_source.log",
+        },
+        {
+            "name": "ssh_run_bundle_index_object_external_caller",
+            "exit_code": 0,
+            "timed_out": False,
+            "log_path": "logs/005_run_object.log",
+        },
+    ]
+    successful_bundle_details = {
+        "ssh_target": "rvv",
+        "remote_dir": "/tmp/tianchenrv_rvv_microkernel_bundle_self_test",
+        "compile_flags": ["-O2", "-march=rv64gcv", "-mabi=lp64d"],
+        "expected_stdout_marker": EXTERNAL_ABI_SUCCESS_MARKER,
+        "source_stdout_marker_observed": True,
+        "bundle_object_stdout_marker_observed": True,
+        "host_facts": {
+            "architecture": "riscv64",
+            "clang_path": "/usr/bin/clang",
+        },
+    }
+    ssh_summary = build_ssh_evidence_summary(
+        "bundle-external-abi",
+        args=ssh_summary_args,
+        commands=successful_bundle_commands,
+        details=successful_bundle_details,
+    )
+    assert_self_test(
+        ssh_summary["remote_compile_succeeded"],
+        "ssh evidence summary did not preserve compile success",
+    )
+    assert_self_test(
+        ssh_summary["remote_link_succeeded"],
+        "ssh evidence summary did not preserve link success",
+    )
+    assert_self_test(
+        ssh_summary["remote_run_succeeded"],
+        "ssh evidence summary did not preserve run success",
+    )
+    assert_self_test(
+        ssh_summary["output_validation_succeeded"],
+        "ssh evidence summary did not preserve output validation success",
+    )
+    assert_self_test(
+        ssh_evidence_succeeded(ssh_summary),
+        "ssh evidence success helper rejected successful structured evidence",
+    )
+    failed_ssh_summary = build_ssh_evidence_summary(
+        "bundle-external-abi",
+        args=ssh_summary_args,
+        commands=successful_bundle_commands[:3],
+        details=None,
+        error="remote bundle link failed",
+    )
+    assert_self_test(
+        not failed_ssh_summary["success"],
+        "failed ssh evidence summary reported success",
+    )
+    assert_self_test(
+        not failed_ssh_summary["remote_run_succeeded"],
+        "failed ssh evidence summary reported unattempted run success",
+    )
+    assert_self_test(
+        not ssh_evidence_succeeded(failed_ssh_summary),
+        "ssh evidence success helper accepted failed structured evidence",
+    )
 
     print("rvv_microkernel_e2e self-test passed")
 
@@ -4136,7 +4444,7 @@ def main(argv: list[str]) -> int:
                 ),
                 "source_export_mode": evidence["source_export_mode"],
                 "source_export_route": evidence.get("source_export_route", ""),
-                "ssh_evidence": bool(evidence["ssh_evidence"]),
+                "ssh_evidence": ssh_evidence_succeeded(evidence["ssh_evidence"]),
                 "claim_scope": evidence["claim_scope"],
             },
             indent=2,

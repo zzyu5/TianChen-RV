@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "verify no Python compiler-core substitution and no compute semantics in tcrv.exec"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify bundle/evidence changes preserve target-owned route and runtime claim boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused local coverage and real ssh evidence expectations"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify live RVV claims are scoped to ssh rvv execution evidence only"}
