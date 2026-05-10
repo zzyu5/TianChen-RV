@@ -151,6 +151,39 @@ struct RVVBinaryProposalPlan {
   bool hasCapacityMetadata() const;
 };
 
+struct RVVBinaryFamilyPlanningResolution {
+  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVVectorShapeConfig *directSelectedShape = nullptr;
+  std::string sourceKind;
+
+  bool isValid() const { return family != nullptr; }
+  llvm::StringRef getFamilyID() const {
+    return family ? family->familyID : llvm::StringRef();
+  }
+  llvm::StringRef getFrontendLowering() const {
+    return family ? family->frontendLowering : llvm::StringRef();
+  }
+  llvm::StringRef getLoweringDescriptor() const {
+    return family ? family->loweringDescriptor : llvm::StringRef();
+  }
+  llvm::StringRef getSourceKind() const { return sourceKind; }
+  llvm::StringRef getDirectSelectedShapeID() const {
+    return directSelectedShape ? directSelectedShape->shapeID
+                               : llvm::StringRef();
+  }
+  llvm::SmallVector<llvm::StringRef, 4>
+  getDirectSelectedCapabilityIDs() const {
+    llvm::SmallVector<llvm::StringRef, 4> ids;
+    if (!directSelectedShape)
+      return ids;
+    ids.push_back(directSelectedShape->sewCapabilityID);
+    ids.push_back(directSelectedShape->lmulCapabilityID);
+    ids.push_back(directSelectedShape->tailPolicyCapabilityID);
+    ids.push_back(directSelectedShape->maskPolicyCapabilityID);
+    return ids;
+  }
+};
+
 const RVVSelectedVectorShapeMetadataNames &
 getRVVVariantSelectedVectorShapeMetadataNames();
 
@@ -184,9 +217,24 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
     std::int64_t elementCount, llvm::StringRef requiredMarch,
     std::optional<std::string> selectedMABI = std::nullopt);
 
+llvm::Expected<RVVBinaryFamilyPlanningResolution>
+resolveRVVBinaryFamilyForProposal(
+    tcrv::exec::KernelOp kernel,
+    llvm::StringRef diagnosticContext = "RVV binary proposal");
+
+llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
+    const support::TargetCapabilitySet &capabilities,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef diagnosticContext = "RVV binary proposal");
+
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const support::TargetCapabilitySet &capabilities,
     llvm::StringRef frontendLowering = llvm::StringRef(),
+    llvm::StringRef diagnosticContext = "RVV binary proposal");
+
+llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
+    const support::TargetCapabilitySet &capabilities,
+    tcrv::exec::KernelOp kernel,
     llvm::StringRef diagnosticContext = "RVV binary proposal");
 
 llvm::Expected<std::optional<RVVBinarySelectedPlan>>

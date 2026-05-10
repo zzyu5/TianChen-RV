@@ -21,7 +21,11 @@ constexpr llvm::StringLiteral kLoweringDescriptorAttrName(
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName(
     "tcrv_rvv.required_march");
+constexpr llvm::StringLiteral kFrontendLoweringAttrName(
+    "tcrv_frontend_lowering");
+constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
+constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
@@ -137,6 +141,14 @@ const target::rvv::RVVVectorShapeConfig &getI32M1ConfigSpec() {
 
 const target::rvv::RVVVectorShapeConfig &getI32M2ConfigSpec() {
   return target::rvv::getI32M2VectorShapeConfig();
+}
+
+const target::rvv::RVVVectorShapeConfig *
+getImplicitRequiredShapeForFamily(
+    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  if (family.dtype == target::rvv::RVVBinaryDTypeKind::I64)
+    return &target::rvv::getI64M1VectorShapeConfig();
+  return nullptr;
 }
 
 llvm::Expected<std::string>
@@ -371,6 +383,171 @@ getRegisteredRVVBinaryFamily(
         "' must be one registered finite RVV binary family descriptor");
   }
   return registeredFamily;
+}
+
+const target::rvv::RVVBinaryFamilyDescriptor *
+lookupRVVBinaryFamilyByMicrokernelOpName(llvm::StringRef opName) {
+  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+       target::rvv::getRVVBinaryFamilyDescriptors()) {
+    if (family->microkernelOpName == opName)
+      return family;
+  }
+  return nullptr;
+}
+
+llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
+resolveDirectSelectedShapeMetadata(
+    mlir::Operation *op,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const RVVSelectedVectorShapeMetadataNames &names,
+    llvm::StringRef context) {
+  if (!hasAnyRVVSelectedVectorShapeMetadata(op, names))
+    return static_cast<const target::rvv::RVVVectorShapeConfig *>(nullptr);
+
+  auto shapeAttr = op->getAttrOfType<mlir::StringAttr>(names.shape);
+  if (!shapeAttr || shapeAttr.getValue().trim().empty())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " selected vector-shape metadata must include non-empty '" +
+        names.shape + "'");
+
+  llvm::StringRef shapeID = shapeAttr.getValue().trim();
+  if (llvm::Error error =
+          validateRVVPlanningText(context, names.shape, shapeID))
+    return std::move(error);
+
+  const target::rvv::RVVVectorShapeConfig *shape =
+      target::rvv::lookupRVVBinaryFamilyShapeConfigByID(family, shapeID);
+  if (!shape)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " selected vector-shape id '" + shapeID +
+        "' does not belong to finite RVV binary descriptor family '" +
+        family.familyID + "'");
+
+  if (llvm::Error error = validateRVVSelectedVectorShapeMetadata(
+          op, context, *shape, names))
+    return std::move(error);
+  return shape;
+}
+
+struct DirectRVVBinaryFamilyCandidate {
+  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVVectorShapeConfig *selectedShape = nullptr;
+  std::string source;
+};
+
+llvm::Error mergeDirectRVVBinaryFamilyCandidate(
+    RVVBinaryFamilyPlanningResolution &resolution,
+    const DirectRVVBinaryFamilyCandidate &candidate,
+    llvm::StringRef diagnosticContext) {
+  if (!candidate.family)
+    return llvm::Error::success();
+
+  if (!resolution.family) {
+    resolution.family = candidate.family;
+    resolution.directSelectedShape = candidate.selectedShape;
+    resolution.sourceKind = candidate.source;
+    return llvm::Error::success();
+  }
+
+  if (resolution.family->familyID != candidate.family->familyID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) +
+        " has ambiguous direct RVV binary descriptors: '" +
+        resolution.family->loweringDescriptor + "' and '" +
+        candidate.family->loweringDescriptor +
+        "' resolve to different finite families");
+
+  if (resolution.directSelectedShape && candidate.selectedShape &&
+      resolution.directSelectedShape->shapeID !=
+          candidate.selectedShape->shapeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) +
+        " has ambiguous direct RVV binary selected vector-shape metadata for "
+        "family '" +
+        resolution.family->familyID + "': '" +
+        resolution.directSelectedShape->shapeID + "' and '" +
+        candidate.selectedShape->shapeID + "'");
+
+  if (!resolution.directSelectedShape)
+    resolution.directSelectedShape = candidate.selectedShape;
+  if (resolution.sourceKind != candidate.source)
+    resolution.sourceKind = "direct-rvv-binary-descriptor";
+  return llvm::Error::success();
+}
+
+llvm::Expected<DirectRVVBinaryFamilyCandidate>
+buildDirectDescriptorCandidateFromVariant(tcrv::exec::VariantOp variant) {
+  DirectRVVBinaryFamilyCandidate candidate;
+  if (!variant)
+    return candidate;
+
+  auto origin = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!origin || origin.getValue() != kRVVPluginName)
+    return candidate;
+
+  auto descriptor =
+      variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
+  if (!descriptor)
+    return candidate;
+  llvm::StringRef descriptorValue = descriptor.getValue().trim();
+  std::string context =
+      (llvm::Twine("direct RVV binary variant @") + variant.getSymName()).str();
+  if (descriptorValue.empty())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " requires non-empty string attribute '" +
+        kLoweringDescriptorAttrName + "'");
+  if (llvm::Error error = validateRVVPlanningText(
+          context, kLoweringDescriptorAttrName, descriptorValue))
+    return std::move(error);
+
+  const target::rvv::RVVBinaryFamilyDescriptor *family =
+      target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(descriptorValue);
+  if (!family)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " direct lowering descriptor '" +
+        descriptorValue +
+        "' must be one registered finite RVV binary lowering descriptor");
+
+  llvm::Expected<const target::rvv::RVVVectorShapeConfig *> selectedShape =
+      resolveDirectSelectedShapeMetadata(
+          variant.getOperation(), *family,
+          getRVVVariantSelectedVectorShapeMetadataNames(), context);
+  if (!selectedShape)
+    return selectedShape.takeError();
+
+  candidate.family = family;
+  candidate.selectedShape = *selectedShape;
+  candidate.source = "direct-lowering-descriptor";
+  return candidate;
+}
+
+llvm::Expected<DirectRVVBinaryFamilyCandidate>
+buildDirectDescriptorCandidateFromMicrokernel(mlir::Operation *op) {
+  DirectRVVBinaryFamilyCandidate candidate;
+  if (!op)
+    return candidate;
+
+  const target::rvv::RVVBinaryFamilyDescriptor *family =
+      lookupRVVBinaryFamilyByMicrokernelOpName(op->getName().getStringRef());
+  if (!family)
+    return candidate;
+
+  std::string context =
+      (llvm::Twine("direct RVV binary microkernel '") +
+       op->getName().getStringRef() + "'")
+          .str();
+  llvm::Expected<const target::rvv::RVVVectorShapeConfig *> selectedShape =
+      resolveDirectSelectedShapeMetadata(
+          op, *family, getRVVBoundarySelectedVectorShapeMetadataNames(),
+          context);
+  if (!selectedShape)
+    return selectedShape.takeError();
+
+  candidate.family = family;
+  candidate.selectedShape = *selectedShape;
+  candidate.source = "direct-microkernel-descriptor";
+  return candidate;
 }
 
 std::string buildSupportedEmissionMessage(
@@ -949,6 +1126,132 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
   return plan;
 }
 
+llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
+    const support::TargetCapabilitySet &capabilities,
+    const target::rvv::RVVBinaryFamilyDescriptor &requestedFamily,
+    const target::rvv::RVVVectorShapeConfig *directSelectedShape,
+    llvm::StringRef diagnosticContext) {
+  llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
+      registeredFamily = getRegisteredRVVBinaryFamily(requestedFamily);
+  if (!registeredFamily)
+    return registeredFamily.takeError();
+
+  const target::rvv::RVVVectorShapeConfig *requiredShape =
+      directSelectedShape ? directSelectedShape
+                          : getImplicitRequiredShapeForFamily(
+                                **registeredFamily);
+  if (requiredShape && requiredShape->dtypeID != (*registeredFamily)->dtypeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) + " finite RVV binary family '" +
+        (*registeredFamily)->familyID +
+        "' requires selected vector-shape dtype '" +
+        (*registeredFamily)->dtypeID + "' but got '" +
+        requiredShape->dtypeID + "'");
+
+  llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
+      buildRVVBinaryCapabilityPropertyView(capabilities, requiredShape);
+  if (!propertyView)
+    return propertyView.takeError();
+
+  std::int64_t descriptorElementCount =
+      deriveRVVBinaryDescriptorElementCount(*propertyView);
+  llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
+      buildRVVBinarySelectedPlan(**registeredFamily,
+                                 *propertyView->selectedShape,
+                                 descriptorElementCount,
+                                 propertyView->selectedMarch);
+  if (!selectedPlan)
+    return selectedPlan.takeError();
+
+  RVVBinaryProposalPlan plan;
+  plan.selectedPlan = std::move(*selectedPlan);
+  plan.capabilityView = std::move(*propertyView);
+  plan.requiredCapabilityIDs.push_back(kRVVCapabilityID.str());
+  for (llvm::StringRef capabilityID :
+       plan.selectedPlan.descriptor.getSelectedShapeCapabilityIDs())
+    plan.requiredCapabilityIDs.push_back(capabilityID.str());
+  plan.condition = kProposalCondition.str();
+  plan.guard = kProposalGuard.str();
+  plan.policy = kProposalPolicy.str();
+  return plan;
+}
+
+llvm::Expected<RVVBinaryFamilyPlanningResolution>
+resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
+                                  llvm::StringRef diagnosticContext) {
+  if (!kernel)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) +
+        " requires a materialized tcrv.exec.kernel");
+
+  if (auto frontendLowering =
+          kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName)) {
+    llvm::StringRef frontendLoweringValue = frontendLowering.getValue().trim();
+    if (!frontendLoweringValue.empty()) {
+      if (llvm::Error error =
+              validateRVVPlanningText(diagnosticContext,
+                                      kFrontendLoweringAttrName,
+                                      frontendLoweringValue))
+        return std::move(error);
+
+      const target::rvv::RVVBinaryFamilyDescriptor *family =
+          target::rvv::lookupRVVBinaryFamilyByFrontendLowering(
+              frontendLoweringValue);
+      if (!family)
+        return makeRVVBinaryPlanningError(
+            llvm::Twine(diagnosticContext) +
+            " frontend lowering family must be " +
+            formatRVVBinaryFamilyFrontendLoweringList());
+
+      RVVBinaryFamilyPlanningResolution resolution;
+      resolution.family = family;
+      resolution.sourceKind = "frontend-lowering";
+      return resolution;
+    }
+  }
+
+  RVVBinaryFamilyPlanningResolution directResolution;
+  if (!kernel.getBody().empty()) {
+    for (mlir::Operation &operation : kernel.getBody().front()) {
+      if (auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(operation)) {
+        llvm::Expected<DirectRVVBinaryFamilyCandidate> candidate =
+            buildDirectDescriptorCandidateFromVariant(variant);
+        if (!candidate)
+          return candidate.takeError();
+        if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
+                directResolution, *candidate, diagnosticContext))
+          return std::move(error);
+        continue;
+      }
+
+      llvm::Expected<DirectRVVBinaryFamilyCandidate> candidate =
+          buildDirectDescriptorCandidateFromMicrokernel(&operation);
+      if (!candidate)
+        return candidate.takeError();
+      if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
+              directResolution, *candidate, diagnosticContext))
+        return std::move(error);
+    }
+  }
+
+  if (directResolution.family)
+    return directResolution;
+
+  RVVBinaryFamilyPlanningResolution defaultResolution;
+  defaultResolution.family = &target::rvv::getI32VAddFamilyDescriptor();
+  defaultResolution.sourceKind = "default-i32-vadd";
+  return defaultResolution;
+}
+
+llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
+    const support::TargetCapabilitySet &capabilities,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef diagnosticContext) {
+  return buildRVVBinaryProposalPlanForFamily(
+      capabilities, family, /*directSelectedShape=*/nullptr,
+      diagnosticContext);
+}
+
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const support::TargetCapabilitySet &capabilities,
     llvm::StringRef frontendLowering, llvm::StringRef diagnosticContext) {
@@ -976,32 +1279,21 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
       requestedFamily->dtype == target::rvv::RVVBinaryDTypeKind::I64
           ? &target::rvv::getI64M1VectorShapeConfig()
           : nullptr;
-  llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
-      buildRVVBinaryCapabilityPropertyView(capabilities, requiredShape);
-  if (!propertyView)
-    return propertyView.takeError();
+  return buildRVVBinaryProposalPlanForFamily(
+      capabilities, *requestedFamily, requiredShape, diagnosticContext);
+}
 
-  std::int64_t descriptorElementCount =
-      deriveRVVBinaryDescriptorElementCount(*propertyView);
-  llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
-      buildRVVBinarySelectedPlan(*requestedFamily,
-                                 *propertyView->selectedShape,
-                                 descriptorElementCount,
-                                 propertyView->selectedMarch);
-  if (!selectedPlan)
-    return selectedPlan.takeError();
+llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
+    const support::TargetCapabilitySet &capabilities,
+    tcrv::exec::KernelOp kernel, llvm::StringRef diagnosticContext) {
+  llvm::Expected<RVVBinaryFamilyPlanningResolution> resolution =
+      resolveRVVBinaryFamilyForProposal(kernel, diagnosticContext);
+  if (!resolution)
+    return resolution.takeError();
 
-  RVVBinaryProposalPlan plan;
-  plan.selectedPlan = std::move(*selectedPlan);
-  plan.capabilityView = std::move(*propertyView);
-  plan.requiredCapabilityIDs.push_back(kRVVCapabilityID.str());
-  for (llvm::StringRef capabilityID :
-       plan.selectedPlan.descriptor.getSelectedShapeCapabilityIDs())
-    plan.requiredCapabilityIDs.push_back(capabilityID.str());
-  plan.condition = kProposalCondition.str();
-  plan.guard = kProposalGuard.str();
-  plan.policy = kProposalPolicy.str();
-  return plan;
+  return buildRVVBinaryProposalPlanForFamily(
+      capabilities, *resolution->family, resolution->directSelectedShape,
+      diagnosticContext);
 }
 
 llvm::Expected<std::optional<RVVBinarySelectedPlan>>

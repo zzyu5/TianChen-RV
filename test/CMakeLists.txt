@@ -96,6 +96,7 @@ target_link_libraries(tianchenrv-rvv-binary-planning-test
   TianChenRVRVVPlugin
   TianChenRVSupport
   MLIRIR
+  MLIRParser
   MLIRSupport
 )
 

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++ test requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected descriptor and capability-id test expectations"}

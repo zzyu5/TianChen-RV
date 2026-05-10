@@ -1,3 +1,4 @@
+#include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -5,8 +6,11 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
@@ -17,10 +21,12 @@
 
 using tianchenrv::plugin::rvv::RVVBinarySelectedPlan;
 using tianchenrv::plugin::rvv::RVVBinaryEmissionIdentity;
+using tianchenrv::plugin::rvv::RVVBinaryFamilyPlanningResolution;
 using tianchenrv::plugin::rvv::RVVBinaryProposalPlan;
 using tianchenrv::support::CapabilityAvailability;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::KernelOp;
 
 namespace {
 
@@ -68,6 +74,20 @@ makeOperation(mlir::OperationState &state) {
             if (op)
               op->destroy();
           }};
+}
+
+mlir::OwningOpRef<mlir::ModuleOp>
+parseModule(mlir::MLIRContext &context, llvm::StringRef source) {
+  return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+}
+
+KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef name) {
+  KernelOp kernel;
+  module.walk([&](KernelOp candidate) {
+    if (candidate.getSymName() == name)
+      kernel = candidate;
+  });
+  return kernel;
 }
 
 CapabilityDescriptor makeAvailableCapability(
@@ -422,6 +442,235 @@ int runProposalPlanRequirementMetadataTest() {
                              "frontend lowering family must be");
 }
 
+int runDirectDescriptorPlanningContractTest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @direct_i64_contract {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_i64_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
+      tcrv_rvv.selected_vector_shape = "i64m1",
+      tcrv_rvv.selected_vector_sew = 64 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint64m1_t",
+      tcrv_rvv.selected_vector_suffix = "i64m1",
+      tcrv_rvv.selected_setvl_suffix = "e64m1"
+    } {
+    }
+  }
+
+  tcrv.exec.kernel @direct_i32m2_contract {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_i32_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1",
+      tcrv_rvv.selected_vector_shape = "i32m2",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m2",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m2_t",
+      tcrv_rvv.selected_vector_suffix = "i32m2",
+      tcrv_rvv.selected_setvl_suffix = "e32m2"
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse direct descriptor planning contract module");
+
+  KernelOp i64Kernel = findKernel(*module, "direct_i64_contract");
+  RVVBinaryFamilyPlanningResolution i64Resolution;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
+              i64Kernel, "unit direct i64 descriptor contract"),
+          i64Resolution, "resolve direct i64 descriptor contract"))
+    return result;
+  if (int result =
+          expect(i64Resolution.getFamilyID() == "i64-vadd" &&
+                     i64Resolution.getLoweringDescriptor() ==
+                         "i64-vadd-microkernel.v1" &&
+                     i64Resolution.getSourceKind() ==
+                         "direct-lowering-descriptor" &&
+                     i64Resolution.getDirectSelectedShapeID() == "i64m1",
+                 "direct i64 descriptor contract resolves family and shape"))
+    return result;
+
+  llvm::SmallVector<llvm::StringRef, 4> i64CapabilityIDs =
+      i64Resolution.getDirectSelectedCapabilityIDs();
+  if (int result = expect(
+          i64CapabilityIDs.size() == 4 &&
+              i64CapabilityIDs[0] == "rvv.i64_m1.sew64" &&
+              i64CapabilityIDs[1] == "rvv.i64_m1.lmul_m1" &&
+              i64CapabilityIDs[2] == "rvv.i64_m1.tail_policy.agnostic" &&
+              i64CapabilityIDs[3] == "rvv.i64_m1.mask_policy.agnostic",
+          "direct i64 descriptor contract derives i64m1 capability ids"))
+    return result;
+
+  TargetCapabilitySet i64Capabilities;
+  addBaseRVVFacts(i64Capabilities);
+  addI64M1Facts(i64Capabilities);
+  RVVBinaryProposalPlan i64Plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+              i64Capabilities, i64Kernel, "unit direct i64 proposal"),
+          i64Plan, "build proposal from direct i64 descriptor contract"))
+    return result;
+  if (int result =
+          expect(i64Plan.getFamilyID() == "i64-vadd" &&
+                     i64Plan.getSelectedShape().shapeID == "i64m1" &&
+                     i64Plan.getRequiredCapabilityIDs().size() == 5 &&
+                     i64Plan.getRequiredCapabilityIDs()[1] ==
+                         "rvv.i64_m1.sew64" &&
+                     i64Plan.getRequiredCapabilityIDs()[4] ==
+                         "rvv.i64_m1.mask_policy.agnostic",
+                 "direct i64 proposal uses centralized contract capability "
+                 "ids"))
+    return result;
+
+  KernelOp i32Kernel = findKernel(*module, "direct_i32m2_contract");
+  TargetCapabilitySet i32Capabilities;
+  addBaseRVVFacts(i32Capabilities);
+  addI32M2Facts(i32Capabilities);
+  RVVBinaryProposalPlan i32Plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+              i32Capabilities, i32Kernel, "unit direct i32m2 proposal"),
+          i32Plan, "build proposal from direct i32m2 descriptor contract"))
+    return result;
+  return expect(i32Plan.getFamilyID() == "i32-vsub" &&
+                    i32Plan.getSelectedShape().shapeID == "i32m2" &&
+                    i32Plan.getRequiredCapabilityIDs()[1] ==
+                        "rvv.i32_m2.sew32" &&
+                    i32Plan.getRequiredCapabilityIDs()[2] ==
+                        "rvv.i32_m2.lmul_m2",
+                "direct i32 descriptor contract preserves i32m2 selection");
+}
+
+int runDirectDescriptorPlanningContractNegativeTest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  auto expectResolutionError =
+      [&](llvm::StringRef source, llvm::StringRef kernelName,
+          llvm::StringRef fragment) -> int {
+    mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+    if (!module)
+      return fail(llvm::Twine("failed to parse negative module '") +
+                  kernelName + "'");
+    llvm::Expected<RVVBinaryFamilyPlanningResolution> resolution =
+        tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
+            findKernel(*module, kernelName),
+            (llvm::Twine("unit negative ") + kernelName).str());
+    if (resolution)
+      return fail(llvm::Twine("expected direct descriptor error for '") +
+                  kernelName + "'");
+    return expectErrorContains(resolution.takeError(), fragment);
+  };
+
+  constexpr llvm::StringLiteral unknownDescriptor = R"mlir(
+module {
+  tcrv.exec.kernel @unknown_direct_descriptor {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_bad attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i128-vadd-microkernel.v1"
+    } {
+    }
+  }
+}
+)mlir";
+  if (int result =
+          expectResolutionError(unknownDescriptor, "unknown_direct_descriptor",
+                                "registered finite RVV binary lowering"))
+    return result;
+
+  constexpr llvm::StringLiteral ambiguousDescriptors = R"mlir(
+module {
+  tcrv.exec.kernel @ambiguous_direct_descriptors {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_add attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1"
+    } {
+    }
+    tcrv.exec.variant @rvv_sub attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1"
+    } {
+    }
+  }
+}
+)mlir";
+  if (int result = expectResolutionError(
+          ambiguousDescriptors, "ambiguous_direct_descriptors",
+          "ambiguous direct RVV binary descriptors"))
+    return result;
+
+  constexpr llvm::StringLiteral shapeMismatch = R"mlir(
+module {
+  tcrv.exec.kernel @descriptor_shape_mismatch {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_i64_bad_shape attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+  }
+}
+)mlir";
+  return expectResolutionError(
+      shapeMismatch, "descriptor_shape_mismatch",
+      "does not belong to finite RVV binary descriptor family 'i64-vadd'");
+}
+
 int runNegativeSelectedPlanTest() {
   llvm::Expected<RVVBinarySelectedPlan> plan =
       tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
@@ -489,6 +738,10 @@ int main() {
   if (int result = runEmissionIdentityTest())
     return result;
   if (int result = runProposalPlanRequirementMetadataTest())
+    return result;
+  if (int result = runDirectDescriptorPlanningContractTest())
+    return result;
+  if (int result = runDirectDescriptorPlanningContractNegativeTest())
     return result;
   if (int result = runNegativeSelectedPlanTest())
     return result;

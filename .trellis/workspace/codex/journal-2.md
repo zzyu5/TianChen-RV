@@ -1703,3 +1703,65 @@ Enforced RVV selected vector-shape and runtime AVL/VL metadata before plugin-own
 ### Next Steps
 
 - None - task complete
+
+
+## Session 31: RVV finite binary descriptor planning contract
+
+**Date**: 2026-05-11
+**Task**: RVV finite binary descriptor planning contract
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then moved finite RVV
+binary descriptor/family proposal resolution out of `RVVExtensionPlugin.cpp`
+and into the RVV-owned planning contract.
+
+### Main Changes
+
+- Added `RVVBinaryFamilyPlanningResolution` plus
+  `resolveRVVBinaryFamilyForProposal` and a kernel-aware
+  `buildRVVBinaryProposalPlan` overload in `RVVBinaryPlanning`.
+- The planning contract now resolves the finite family from either
+  `tcrv_frontend_lowering`, exactly one direct
+  `tcrv_rvv.lowering_descriptor`, or a direct RVV binary microkernel op.
+- Direct selected-shape metadata now constrains proposal planning when present,
+  so direct i64m1 and i32m2 descriptors derive the correct selected capability
+  ids from the shared contract.
+- Unknown direct descriptors, ambiguous descriptor families, and
+  descriptor/selected-shape mismatches fail closed before proposal metadata can
+  fall back to stale i32 defaults.
+- `RVVExtensionPlugin.cpp` now delegates proposal-family resolution to
+  `RVVBinaryPlanning` instead of scanning and interpreting descriptor strings
+  inline.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-binary-variant-legality-test
+  tianchenrv-rvv-extension-plugin-test tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i64-vadd --input
+  test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i64_vadd --run-id
+  codex-finite-descriptor-contract-i64-vadd-dry --overwrite --timeout 120`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `rvv-microkernel-bundle-e2e|plan-linalg-i64-vadd|rvv-extension-plugin|rvv-binary-planning|rvv-binary-variant-legality`:
+  4/4 selected tests passed.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-finite-binary-descriptor-planning-contract`: passed.
+
+No `ssh rvv` evidence was collected and no new runtime correctness or
+performance claim was made.
+
+### Status
+
+[OK] **Completed**
