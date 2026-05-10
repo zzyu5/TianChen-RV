@@ -1965,3 +1965,36 @@ Added descriptor-driven RVV binary runtime ABI contract for i32/i64 add/sub/mul,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: RVV direct binary artifact route plugin ownership
+
+**Date**: 2026-05-10
+**Task**: RVV direct binary artifact route plugin ownership
+**Branch**: `main`
+
+### Summary
+
+Moved RVV direct binary microkernel source/header/object route facts into an
+RVV target-support-owned manifest, used that manifest for both
+`tcrv-translate` helper registration and `TargetArtifactExport` registry
+population, preserved legacy generic helper aliases, added i64 direct route
+coverage and registry-coherence tests, and archived the Trellis task after
+`check-tianchenrv` passed 193/193.
+
+### Main Changes
+
+- RVV-owned direct route manifest for i32/i64 add/sub/mul source/header/object.
+- Manifest-driven `tcrv-translate` direct helper population.
+- Manifest-driven RVV target artifact exporter registration.
+- Spec update for target-local RVV direct route contribution ownership.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] focused RVV microkernel / e2e lit filter: 7/7
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: 193/193
+
+### Status
+
+[OK] **Completed**

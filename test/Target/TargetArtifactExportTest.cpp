@@ -5,12 +5,14 @@
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Parser/Parser.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -437,6 +439,119 @@ bool expectRVVBinaryRuntimeABIContractShape() {
       return false;
   }
   return true;
+}
+
+bool expectRVVMicrokernelDirectRouteManifestShape() {
+  llvm::ArrayRef<tianchenrv::target::rvv::
+                     RVVMicrokernelDirectRouteManifestEntry>
+      routes = tianchenrv::target::rvv::getRVVMicrokernelDirectRouteManifest();
+  if (routes.size() != 18) {
+    llvm::errs() << "expected 18 RVV direct microkernel route entries, got "
+                 << routes.size() << "\n";
+    return false;
+  }
+
+  llvm::StringSet<> seenRoutes;
+  for (const auto &route : routes) {
+    if (!route.family) {
+      llvm::errs() << "RVV direct route entry has no family\n";
+      return false;
+    }
+    if (route.getRouteID().empty() || route.getDescription().empty()) {
+      llvm::errs() << "RVV direct route entry has empty route metadata\n";
+      return false;
+    }
+    if (!seenRoutes.insert(route.getRouteID()).second) {
+      llvm::errs() << "duplicate RVV direct route id in manifest: "
+                   << route.getRouteID() << "\n";
+      return false;
+    }
+
+    switch (route.routeKind) {
+    case tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source:
+      if (route.getRouteID() != route.family->routeID ||
+          route.getArtifactKind() != "runtime-callable-c-source" ||
+          route.requiresBinaryStdout()) {
+        llvm::errs() << "malformed RVV direct source route manifest entry for "
+                     << route.family->familyID << "\n";
+        return false;
+      }
+      break;
+    case tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Header:
+      if (route.getRouteID() != route.family->headerRouteID ||
+          route.getArtifactKind() != "runtime-callable-c-header" ||
+          route.requiresBinaryStdout()) {
+        llvm::errs() << "malformed RVV direct header route manifest entry for "
+                     << route.family->familyID << "\n";
+        return false;
+      }
+      break;
+    case tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Object:
+      if (route.getRouteID() != route.family->objectRouteID ||
+          route.getArtifactKind() != "riscv-elf-relocatable-object" ||
+          !route.requiresBinaryStdout()) {
+        llvm::errs() << "malformed RVV direct object route manifest entry for "
+                     << route.family->familyID << "\n";
+        return false;
+      }
+      break;
+    }
+  }
+
+  for (const RVVBinaryFamilyDescriptor *family :
+       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
+    bool hasSource = false;
+    bool hasHeader = false;
+    bool hasObject = false;
+    for (const auto &route : routes) {
+      if (route.family->familyID != family->familyID)
+        continue;
+      hasSource |= route.routeKind == tianchenrv::target::rvv::
+                                          RVVMicrokernelDirectRouteKind::Source;
+      hasHeader |= route.routeKind == tianchenrv::target::rvv::
+                                          RVVMicrokernelDirectRouteKind::Header;
+      hasObject |= route.routeKind == tianchenrv::target::rvv::
+                                          RVVMicrokernelDirectRouteKind::Object;
+    }
+    if (!hasSource || !hasHeader || !hasObject) {
+      llvm::errs() << "RVV direct route manifest missing source/header/object "
+                      "entry for "
+                   << family->familyID << "\n";
+      return false;
+    }
+  }
+
+  TargetArtifactExporterRegistry registry;
+  for (const auto &route : routes) {
+    if (registry.lookup(route.getRouteID()) ||
+        registry.lookupComposite(route.getRouteID())) {
+      llvm::errs() << "empty registry unexpectedly exposes RVV direct route "
+                   << route.getRouteID() << "\n";
+      return false;
+    }
+  }
+  if (!expectSuccess(
+          tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(
+              registry),
+          "register RVV direct route contribution"))
+    return false;
+  for (const auto &route : routes) {
+    if (route.routeKind ==
+        tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source) {
+      if (!registry.lookup(route.getRouteID())) {
+        llvm::errs() << "RVV direct source route was not contributed: "
+                     << route.getRouteID() << "\n";
+        return false;
+      }
+    } else if (!registry.lookupComposite(route.getRouteID())) {
+      llvm::errs() << "RVV direct composite route was not contributed: "
+                   << route.getRouteID() << "\n";
+      return false;
+    }
+  }
+  return expectFailure(
+      tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(registry),
+      "duplicate RVV direct route contribution rejected");
 }
 
 bool expectRuntimeABIParameterRoleLookup() {
@@ -1863,6 +1978,8 @@ int main() {
   if (!expectI32BinaryRuntimeABIContractShape())
     return 1;
   if (!expectRVVBinaryRuntimeABIContractShape())
+    return 1;
+  if (!expectRVVMicrokernelDirectRouteManifestShape())
     return 1;
   if (!expectRuntimeABIParameterRoleLookup())
     return 1;

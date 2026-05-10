@@ -1,8 +1,14 @@
 #ifndef TIANCHENRV_TARGET_RVV_RVVMICROKERNEL_H
 #define TIANCHENRV_TARGET_RVV_RVVMICROKERNEL_H
 
+#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+
+#include <string>
 
 namespace llvm {
 class raw_ostream;
@@ -17,6 +23,30 @@ class TargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::target::rvv {
+
+enum class RVVMicrokernelDirectRouteKind {
+  Source,
+  Header,
+  Object,
+};
+
+struct RVVMicrokernelDirectRouteManifestEntry {
+  const RVVBinaryFamilyDescriptor *family = nullptr;
+  RVVMicrokernelDirectRouteKind routeKind =
+      RVVMicrokernelDirectRouteKind::Source;
+
+  llvm::StringRef getRouteID() const;
+  llvm::StringRef getArtifactKind() const;
+  std::string getDescription() const;
+  bool requiresBinaryStdout() const;
+};
+
+llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
+getRVVMicrokernelDirectRouteManifest();
+
+llvm::Error exportRVVMicrokernelDirectRoute(
+    mlir::ModuleOp module, const RVVMicrokernelDirectRouteManifestEntry &route,
+    llvm::raw_ostream &os);
 
 llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
                                   llvm::raw_ostream &os);

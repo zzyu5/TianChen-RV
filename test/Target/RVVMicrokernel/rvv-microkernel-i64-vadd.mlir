@@ -1,5 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PIPE --implicit-check-not=tcrv_rvv.i32_vadd_microkernel --implicit-check-not=tcrv_rvv.i32_vsub_microkernel --implicit-check-not=tcrv_rvv.i32_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i64-vadd-microkernel-c | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i64-vadd-microkernel-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not="__riscv" --implicit-check-not=riscv_vector --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
 
 module @rvv_microkernel_i64_vadd_export_input {
   tcrv.exec.kernel @export_i64_vadd {
@@ -136,3 +139,19 @@ module @rvv_microkernel_i64_vadd_export_input {
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vadd_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+
+// HEADER: #ifndef TIANCHENRV_RVV_I64_VADD_MICROKERNEL_EXPORT_I64_VADD_RVV_I64_SLICE_H
+// HEADER: #include <stddef.h>
+// HEADER: #include <stdint.h>
+// HEADER: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);
+// HEADER: #endif /* TIANCHENRV_RVV_I64_VADD_MICROKERNEL_EXPORT_I64_VADD_RVV_I64_SLICE_H */
+
+// HELP-DAG: --tcrv-export-rvv-i64-vadd-microkernel-c
+// HELP-DAG: --tcrv-export-rvv-i64-vadd-microkernel-header
+// HELP-DAG: --tcrv-export-rvv-i64-vadd-microkernel-object
+// HELP-DAG: --tcrv-export-rvv-i64-vsub-microkernel-c
+// HELP-DAG: --tcrv-export-rvv-i64-vsub-microkernel-header
+// HELP-DAG: --tcrv-export-rvv-i64-vsub-microkernel-object
+// HELP-DAG: --tcrv-export-rvv-i64-vmul-microkernel-c
+// HELP-DAG: --tcrv-export-rvv-i64-vmul-microkernel-header
+// HELP-DAG: --tcrv-export-rvv-i64-vmul-microkernel-object

@@ -3,7 +3,6 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/EmissionManifest.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
@@ -31,12 +30,6 @@ namespace {
 using TargetArtifactExportFn = llvm::Error (*)(
     mlir::ModuleOp, const tianchenrv::target::TargetArtifactExporterRegistry &,
     llvm::raw_ostream &);
-
-enum class RVVMicrokernelTranslationKind {
-  Source,
-  Header,
-  Object,
-};
 
 llvm::cl::opt<std::string> targetArtifactBundleOutputDirectory(
     "tcrv-target-artifact-bundle-output-dir",
@@ -109,17 +102,6 @@ mlir::LogicalResult exportRVVSmokeProbeC(mlir::ModuleOp module,
   return mlir::success();
 }
 
-mlir::LogicalResult exportRVVMicrokernelC(mlir::ModuleOp module,
-                                          llvm::raw_ostream &os) {
-  if (llvm::Error error =
-          tianchenrv::target::rvv::exportRVVMicrokernelC(module, os)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  return mlir::success();
-}
-
 mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
   if (llvm::Error error =
@@ -131,40 +113,12 @@ mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return mlir::success();
 }
 
-mlir::LogicalResult exportRVVMicrokernelHeader(mlir::ModuleOp module,
-                                               llvm::raw_ostream &os) {
-  if (llvm::Error error =
-          tianchenrv::target::rvv::exportRVVMicrokernelHeader(module, os)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  return mlir::success();
-}
-
-mlir::LogicalResult exportRVVMicrokernelObject(mlir::ModuleOp module,
-                                               llvm::raw_ostream &os) {
-  if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
-    module.emitError()
-        << "failed to switch stdout to binary mode for object export: "
-        << error.message();
-    return mlir::failure();
-  }
-
-  if (llvm::Error error =
-          tianchenrv::target::rvv::exportRVVMicrokernelObject(module, os)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  return mlir::success();
-}
-
-mlir::LogicalResult exportRVVMicrokernelFamilyRoute(
+mlir::LogicalResult exportRVVMicrokernelDirectManifestRoute(
     mlir::ModuleOp module,
-    tianchenrv::target::i32_binary::I32BinaryFamilyKind family,
-    RVVMicrokernelTranslationKind kind, llvm::raw_ostream &os) {
-  if (kind == RVVMicrokernelTranslationKind::Object) {
+    const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
+        &route,
+    llvm::raw_ostream &os) {
+  if (route.requiresBinaryStdout()) {
     if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
       module.emitError()
           << "failed to switch stdout to binary mode for object export: "
@@ -173,23 +127,9 @@ mlir::LogicalResult exportRVVMicrokernelFamilyRoute(
     }
   }
 
-  llvm::Error error = llvm::Error::success();
-  switch (kind) {
-  case RVVMicrokernelTranslationKind::Source:
-    error = tianchenrv::target::rvv::exportRVVMicrokernelCForFamily(module,
-                                                                    family, os);
-    break;
-  case RVVMicrokernelTranslationKind::Header:
-    error = tianchenrv::target::rvv::exportRVVMicrokernelHeaderForFamily(
-        module, family, os);
-    break;
-  case RVVMicrokernelTranslationKind::Object:
-    error = tianchenrv::target::rvv::exportRVVMicrokernelObjectForFamily(
-        module, family, os);
-    break;
-  }
-
-  if (error) {
+  if (llvm::Error error =
+          tianchenrv::target::rvv::exportRVVMicrokernelDirectRoute(module,
+                                                                   route, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -197,66 +137,33 @@ mlir::LogicalResult exportRVVMicrokernelFamilyRoute(
   return mlir::success();
 }
 
-void registerRVVMicrokernelFamilyRouteTranslation(
-    llvm::StringRef routeID, llvm::StringRef description,
-    tianchenrv::target::i32_binary::I32BinaryFamilyKind family,
-    RVVMicrokernelTranslationKind kind,
-    std::vector<std::unique_ptr<mlir::TranslateFromMLIRRegistration>>
-        &registrations) {
-  mlir::TranslateFromMLIRFunction translate =
-      [family, kind, routeID](mlir::Operation *op,
-                              llvm::raw_ostream &os) -> mlir::LogicalResult {
-    auto module = llvm::dyn_cast<mlir::ModuleOp>(op);
-    if (!module)
-      return op->emitError()
-             << "expected a 'builtin.module' op for TianChen-RV RVV "
-                "microkernel route '"
-             << routeID << "'";
-    return exportRVVMicrokernelFamilyRoute(module, family, kind, os);
-  };
-
-  registrations.push_back(
-      std::make_unique<mlir::TranslateFromMLIRRegistration>(
-          routeID, description, translate, registerTianChenRVTranslateDialects));
-}
-
-void registerRVVMicrokernelFamilyRouteTranslations() {
+void registerRVVMicrokernelDirectRouteTranslations() {
   static std::vector<std::unique_ptr<mlir::TranslateFromMLIRRegistration>>
       registrations;
   if (!registrations.empty())
     return;
 
-  const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor &legacyAdd =
-      tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor();
-  for (const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
-           *family :
-       tianchenrv::target::i32_binary::getI32BinaryFamilyDescriptors()) {
-    if (family == &legacyAdd)
-      continue;
+  for (const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
+           &route :
+       tianchenrv::target::rvv::getRVVMicrokernelDirectRouteManifest()) {
+    const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
+        *routePtr = &route;
+    mlir::TranslateFromMLIRFunction translate =
+        [routePtr](mlir::Operation *op,
+                   llvm::raw_ostream &os) -> mlir::LogicalResult {
+      auto module = llvm::dyn_cast<mlir::ModuleOp>(op);
+      if (!module)
+        return op->emitError()
+               << "expected a 'builtin.module' op for TianChen-RV RVV "
+                  "microkernel route '"
+               << routePtr->getRouteID() << "'";
+      return exportRVVMicrokernelDirectManifestRoute(module, *routePtr, os);
+    };
 
-    std::string sourceDescription =
-        (llvm::Twine("export one runtime-callable RVV ") +
-         family->familyID + " microkernel C source")
-            .str();
-    registerRVVMicrokernelFamilyRouteTranslation(
-        family->rvv.routeID, sourceDescription, family->kind,
-        RVVMicrokernelTranslationKind::Source, registrations);
-
-    std::string headerDescription =
-        (llvm::Twine("export one RVV ") + family->familyID +
-         " microkernel runtime-callable C ABI header")
-            .str();
-    registerRVVMicrokernelFamilyRouteTranslation(
-        family->rvv.headerRouteID, headerDescription, family->kind,
-        RVVMicrokernelTranslationKind::Header, registrations);
-
-    std::string objectDescription =
-        (llvm::Twine("export one RVV ") + family->familyID +
-         " microkernel library object file")
-            .str();
-    registerRVVMicrokernelFamilyRouteTranslation(
-        family->rvv.objectRouteID, objectDescription, family->kind,
-        RVVMicrokernelTranslationKind::Object, registrations);
+    registrations.push_back(
+        std::make_unique<mlir::TranslateFromMLIRRegistration>(
+            route.getRouteID(), route.getDescription(), translate,
+            registerTianChenRVTranslateDialects));
   }
 }
 
@@ -445,12 +352,6 @@ void registerTianChenRVTranslations() {
       exportRVVSmokeProbeC, registerTianChenRVTranslateDialects);
   (void)rvvSmokeProbeC;
 
-  static mlir::TranslateFromMLIRRegistration rvvMicrokernelC(
-      "tcrv-export-rvv-microkernel-c",
-      "export one runtime-callable RVV i32 add/sub/mul microkernel C source",
-      exportRVVMicrokernelC, registerTianChenRVTranslateDialects);
-  (void)rvvMicrokernelC;
-
   static mlir::TranslateFromMLIRRegistration rvvMicrokernelSelfCheckC(
       "tcrv-export-rvv-microkernel-self-check-c",
       "export one RVV i32 add/sub/mul microkernel C source with self-check "
@@ -458,19 +359,7 @@ void registerTianChenRVTranslations() {
       exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelSelfCheckC;
 
-  static mlir::TranslateFromMLIRRegistration rvvMicrokernelHeader(
-      "tcrv-export-rvv-microkernel-header",
-      "export one RVV i32 add/sub/mul microkernel runtime-callable C ABI header",
-      exportRVVMicrokernelHeader, registerTianChenRVTranslateDialects);
-  (void)rvvMicrokernelHeader;
-
-  static mlir::TranslateFromMLIRRegistration rvvMicrokernelObject(
-      "tcrv-export-rvv-microkernel-object",
-      "export one RVV i32 add/sub/mul microkernel library object file",
-      exportRVVMicrokernelObject, registerTianChenRVTranslateDialects);
-  (void)rvvMicrokernelObject;
-
-  registerRVVMicrokernelFamilyRouteTranslations();
+  registerRVVMicrokernelDirectRouteTranslations();
 
   registerRVVScalarDispatchManifestTranslations();
 

@@ -1466,6 +1466,20 @@ available. `i32-vadd` compatibility wrappers may stay as wrappers only; they
 must not be the active source of truth for `i32-vsub`, `i32-vmul`, or any i64
 RVV selected family.
 
+Direct RVV binary source/header/object route ownership is target-local. The RVV
+target support layer must expose one route contribution source of truth for the
+finite i32/i64 add/sub/mul families, and both public direct helper registration
+and `TargetArtifactExporterRegistry` population must iterate that contribution
+data rather than hand-maintaining duplicate per-family route lists in tools or
+generic target front doors. Missing contribution leaves the generic registry
+without RVV direct routes, and duplicate contribution must fail through the
+generic duplicate-route diagnostics. The legacy convenience route ids
+`tcrv-export-rvv-microkernel-c`, `tcrv-export-rvv-microkernel-header`, and
+`tcrv-export-rvv-microkernel-object` remain compatibility aliases that follow
+the selected RVV binary family; family-specific route ids must reject selected
+records from a different RVV binary family before emitting source, header, or
+object bytes.
+
 Required tests for changes to this contract:
 
 - C++ tests must prove all direct RVV i32/i64 add/sub/mul families expose the
@@ -1474,7 +1488,10 @@ Required tests for changes to this contract:
   plans expose family-specific runtime ABI identity and `int64_t` callable
   parameters rather than stale i32-vadd defaults;
 - target artifact export tests must prove an i64 route rejects stale i32-vadd
-  runtime ABI metadata before source/header/object or bundle output.
+  runtime ABI metadata before source/header/object or bundle output;
+- registry tests must prove RVV direct route contribution is explicit,
+  duplicate contribution fails, and source/header/object direct route ids remain
+  unique across the finite RVV binary family manifest.
 
 ## Host RVV + Scalar I32 VAdd Dispatch C Export Boundary
 
