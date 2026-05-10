@@ -26,6 +26,14 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=I64-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=rvv.i32_ --implicit-check-not=i32-vadd < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=I64-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vsub --run-id lit-rvv-scalar-i64-vsub-dispatch-e2e --overwrite | FileCheck %s --check-prefix=I64-VSUB-DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vsub-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=I64-VSUB-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=__riscv_vmul_vv_i64 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] * rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vsub-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=I64-VSUB-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vsub-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vmul --run-id lit-rvv-scalar-i64-vmul-dispatch-e2e --overwrite | FileCheck %s --check-prefix=I64-VMUL-DRY
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=I64-VMUL-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=__riscv_vsub_vv_i64 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: FileCheck %s --check-prefix=I64-VMUL-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
 # SELF: rvv_scalar_dispatch_e2e self-test passed
@@ -186,6 +194,64 @@
 # I64-EVIDENCE: "ssh_evidence": null
 # I64-EVIDENCE: "ssh_evidence_verified": false
 # I64-EVIDENCE: "status": "success"
+
+# I64-VSUB-DRY: "arithmetic_family": "i64-vsub"
+# I64-VSUB-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vsub-dispatch-e2e"
+# I64-VSUB-DRY: "mode": "dry-run"
+# I64-VSUB-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VSUB-DRY: "ssh_evidence": false
+# I64-VSUB-DRY: "status": "success"
+# I64-VSUB-DRY: "vector_shape": "i64m1"
+
+# I64-VSUB-SOURCE: /* Scope: one selected RVV i64-vsub dispatch case plus one scalar i64-vsub dispatch fallback. */
+# I64-VSUB-SOURCE: __riscv_vsetvl_e64m1
+# I64-VSUB-SOURCE: __riscv_vle64_v_i64m1
+# I64-VSUB-SOURCE: __riscv_vsub_vv_i64m1
+# I64-VSUB-SOURCE: __riscv_vse64_v_i64m1
+# I64-VSUB-SOURCE: int64_t lhs[kCapacity]
+# I64-VSUB-SOURCE: lhs[index] - rhs[index]
+# I64-VSUB-SOURCE: tcrv_dispatch_i64_vsub_conflict_planned_i64_vsub_dispatch_self_check_one(7, 0)
+# I64-VSUB-SOURCE: tcrv_dispatch_i64_vsub_conflict_planned_i64_vsub_dispatch_self_check_one(16, 1)
+# I64-VSUB-SOURCE: tcrv_rvv_scalar_i64_vsub_dispatch_self_check_ok
+# I64-VSUB-SOURCE-SAME: runtime_counts=7,16
+
+# I64-VSUB-EVIDENCE: "arithmetic_family": "i64-vsub"
+# I64-VSUB-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i64_vsub_microkernel_conflict_planned_i64_vsub_dispatch_rvv_first_slice"
+# I64-VSUB-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i64_vsub_microkernel_conflict_planned_i64_vsub_dispatch_scalar_fallback_first_slice"
+# I64-VSUB-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i64-vsub-dispatch-generic-route.mlir"
+# I64-VSUB-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VSUB-EVIDENCE: "ssh_evidence": null
+# I64-VSUB-EVIDENCE: "ssh_evidence_verified": false
+# I64-VSUB-EVIDENCE: "status": "success"
+
+# I64-VMUL-DRY: "arithmetic_family": "i64-vmul"
+# I64-VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e"
+# I64-VMUL-DRY: "mode": "dry-run"
+# I64-VMUL-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VMUL-DRY: "ssh_evidence": false
+# I64-VMUL-DRY: "status": "success"
+# I64-VMUL-DRY: "vector_shape": "i64m1"
+
+# I64-VMUL-SOURCE: /* Scope: one selected RVV i64-vmul dispatch case plus one scalar i64-vmul dispatch fallback. */
+# I64-VMUL-SOURCE: __riscv_vsetvl_e64m1
+# I64-VMUL-SOURCE: __riscv_vle64_v_i64m1
+# I64-VMUL-SOURCE: __riscv_vmul_vv_i64m1
+# I64-VMUL-SOURCE: __riscv_vse64_v_i64m1
+# I64-VMUL-SOURCE: int64_t lhs[kCapacity]
+# I64-VMUL-SOURCE: lhs[index] * rhs[index]
+# I64-VMUL-SOURCE: tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch_self_check_one(7, 0)
+# I64-VMUL-SOURCE: tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch_self_check_one(16, 1)
+# I64-VMUL-SOURCE: tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok
+# I64-VMUL-SOURCE-SAME: runtime_counts=7,16
+
+# I64-VMUL-EVIDENCE: "arithmetic_family": "i64-vmul"
+# I64-VMUL-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_rvv_first_slice"
+# I64-VMUL-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_scalar_fallback_first_slice"
+# I64-VMUL-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i64-vmul-dispatch-generic-route.mlir"
+# I64-VMUL-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VMUL-EVIDENCE: "ssh_evidence": null
+# I64-VMUL-EVIDENCE: "ssh_evidence_verified": false
+# I64-VMUL-EVIDENCE: "status": "success"
 
 # SECRET: rvv_scalar_dispatch_e2e:
 # SECRET-SAME: evidence note contains secret-like, credential, or URL text

@@ -128,6 +128,34 @@ const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
   return spec;
 }
 
+const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
+  static const ScalarMicrokernelFamilySpec spec{
+      &tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor(),
+      "finite scalar i64-vsub lowering descriptor",
+      "scalar-explicit-i64-vsub-microkernel-c-source-export",
+      "explicit scalar i64 vector-subtract microkernel C source export is "
+      "available as a library-style runtime-callable C ABI function for "
+      "this selected fallback path; no self-check main is part of the "
+      "default artifact contract; this is not generic scalar lowering, "
+      "runtime integration, arbitrary kernel emission, correctness, or "
+      "performance evidence"};
+  return spec;
+}
+
+const ScalarMicrokernelFamilySpec &getI64VMulFamilySpec() {
+  static const ScalarMicrokernelFamilySpec spec{
+      &tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor(),
+      "finite scalar i64-vmul lowering descriptor",
+      "scalar-explicit-i64-vmul-microkernel-c-source-export",
+      "explicit scalar i64 vector-multiply microkernel C source export is "
+      "available as a library-style runtime-callable C ABI function for "
+      "this selected fallback path; no self-check main is part of the "
+      "default artifact contract; this is not generic scalar lowering, "
+      "runtime integration, arbitrary kernel emission, correctness, or "
+      "performance evidence"};
+  return spec;
+}
+
 const ScalarMicrokernelFamilySpec *
 getScalarFamilySpec(const ScalarBinaryFamilyDescriptor &family) {
   if (family.familyID == "i32-vadd")
@@ -138,6 +166,10 @@ getScalarFamilySpec(const ScalarBinaryFamilyDescriptor &family) {
     return &getI32VMulFamilySpec();
   if (family.familyID == "i64-vadd")
     return &getI64VAddFamilySpec();
+  if (family.familyID == "i64-vsub")
+    return &getI64VSubFamilySpec();
+  if (family.familyID == "i64-vmul")
+    return &getI64VMulFamilySpec();
   return nullptr;
 }
 
@@ -353,7 +385,9 @@ buildScalarMicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
         getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
         getI32VSubFamilySpec().getLoweringDescriptor() + "' or '" +
         getI32VMulFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI64VAddFamilySpec().getLoweringDescriptor() + "'");
+        getI64VAddFamilySpec().getLoweringDescriptor() + "' or '" +
+        getI64VSubFamilySpec().getLoweringDescriptor() + "' or '" +
+        getI64VMulFamilySpec().getLoweringDescriptor() + "'");
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
@@ -427,6 +461,10 @@ getScalarMicrokernelFamilyForOp(mlir::Operation *op) {
     return &getI32VMulFamilySpec();
   if (llvm::isa_and_nonnull<tcrv::scalar::I64VAddMicrokernelOp>(op))
     return &getI64VAddFamilySpec();
+  if (llvm::isa_and_nonnull<tcrv::scalar::I64VSubMicrokernelOp>(op))
+    return &getI64VSubFamilySpec();
+  if (llvm::isa_and_nonnull<tcrv::scalar::I64VMulMicrokernelOp>(op))
+    return &getI64VMulFamilySpec();
   return nullptr;
 }
 

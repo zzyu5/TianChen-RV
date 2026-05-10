@@ -549,14 +549,14 @@ execution-plan coherence, route validation, or artifact materialization fails,
 and it must not weaken the bundle component contract or runtime ABI signature
 validation.
 
-## RVV+Scalar I32 Dispatch Route Manifest
+## RVV+Scalar I32/I64 Dispatch Route Manifest
 
 ### 1. Scope / Trigger
 
 Trigger: target/export code or public tools add, expose, or validate a
-RVV+scalar i32 binary dispatch route. The route source of truth is the bounded
-target-owned dispatch route manifest for the existing finite families
-`i32-vadd`, `i32-vsub`, and `i32-vmul`.
+RVV+scalar i32/i64 binary dispatch route. The route source of truth is the
+bounded target-owned dispatch route manifest for the existing finite families
+`i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`.
 
 This manifest is a target/export contract over already selected RVV dispatch
 case and scalar dispatch fallback callable artifacts. It must not become a
@@ -577,7 +577,7 @@ enum class RVVScalarDispatchRouteKind {
 };
 
 struct RVVScalarDispatchRouteManifestEntry {
-  const i32_binary::DispatchI32FamilyDescriptor *family;
+  const rvv_scalar::DispatchBinaryFamilyDescriptor *family;
   RVVScalarDispatchRouteKind routeKind;
   llvm::StringRef routeID;
   llvm::StringRef description;
@@ -608,16 +608,16 @@ tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
 tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
 ```
 
-The same five route kinds must exist for `i32-vsub` and `i32-vmul` with the
-same stable naming pattern.
+The same five route kinds must exist for `i32-vsub`, `i32-vmul`, `i64-vadd`,
+`i64-vsub`, and `i64-vmul` with the same stable naming pattern.
 
 ### 3. Contracts
 
 - The manifest covers exactly the current registry families `i32-vadd`,
-  `i32-vsub`, and `i32-vmul`; unsupported families are absent rather than
-  partially represented.
+  `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`;
+  unsupported families are absent rather than partially represented.
 - Each manifest entry derives family facts from
-  `I32BinaryFamilyRegistry` and adds only dispatch-route-specific stable fields
+  `RVVScalarBinaryFamily` and adds only dispatch-route-specific stable fields
   such as route kind, artifact kind, description, and binary stdout mode.
 - Source, header, and library-object entries are registered as target artifact
   composite exporters by iterating the manifest. Self-check entries remain

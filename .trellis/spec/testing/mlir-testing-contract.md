@@ -527,7 +527,7 @@ Primary command surface:
 
 ```text
 python3 scripts/rvv_microkernel_e2e.py
-  [--arithmetic-family=i32-vadd|i32-vsub|i32-vmul]
+  [--arithmetic-family=i32-vadd|i32-vsub|i32-vmul|i64-vadd|i64-vsub|i64-vmul]
   [--dry-run]
   [--generic-route]
   [--self-check-harness]
@@ -543,8 +543,8 @@ family-correct artifact routes.
 
 ### 3. Contracts
 
-- The finite supported family set is exactly `i32-vadd`, `i32-vsub`, and
-  `i32-vmul`.
+- The finite supported family set is exactly `i32-vadd`, `i32-vsub`,
+  `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`.
 - The helper must validate selected compiler-emitted fields against the chosen
   family: emission kind, source/header/object route ids, runtime ABI kind/name,
   runtime glue role, microkernel op name, arithmetic op name, RVV intrinsic,
@@ -599,6 +599,12 @@ family-correct artifact routes.
 - Good: `--use-target-artifact-bundle --arithmetic-family=i32-vmul` consumes
   source/header/object bundle records whose component group and external ABI
   name are vmul-specific, then builds a caller that checks `lhs * rhs`.
+- Good: `--dry-run --arithmetic-family=i64-vsub` consumes an i64 vsub selected
+  path, validates i64 route/runtime ABI/component metadata, observes
+  `__riscv_vsub_vv_i64m1`, and writes a no-runtime-claim evidence JSON.
+- Good: `--use-target-artifact-bundle --arithmetic-family=i64-vmul` consumes
+  i64 source/header/object bundle records and builds an `int64_t` caller that
+  checks `lhs * rhs`.
 - Good: real `--use-target-artifact-bundle --use-plan-and-export-bundle-front-door
   --arithmetic-family=i32-vsub --ssh-target rvv` compiles and runs the generated
   external caller against both source-built and bundle object artifacts on

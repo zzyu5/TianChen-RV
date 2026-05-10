@@ -229,6 +229,16 @@ const DispatchI32FamilySpec &getI64VAddDispatchFamilySpec() {
       .dispatch;
 }
 
+const DispatchI32FamilySpec &getI64VSubDispatchFamilySpec() {
+  return tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor()
+      .dispatch;
+}
+
+const DispatchI32FamilySpec &getI64VMulDispatchFamilySpec() {
+  return tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor()
+      .dispatch;
+}
+
 using DispatchRouteKind = RVVScalarDispatchRouteKind;
 using DispatchRouteManifestEntry = RVVScalarDispatchRouteManifestEntry;
 
@@ -1194,6 +1204,18 @@ llvm::Expected<bool> matchRVVScalarI64VAddDispatchCandidates(
       candidates, getI64VAddDispatchFamilySpec());
 }
 
+llvm::Expected<bool> matchRVVScalarI64VSubDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVScalarDispatchCandidatesForFamily(
+      candidates, getI64VSubDispatchFamilySpec());
+}
+
+llvm::Expected<bool> matchRVVScalarI64VMulDispatchCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVScalarDispatchCandidatesForFamily(
+      candidates, getI64VMulDispatchFamilySpec());
+}
+
 TargetArtifactCompositeMatchFn
 getDispatchCompositeMatchFn(const DispatchI32FamilySpec &family) {
   if (&family == &getI32VAddDispatchFamilySpec())
@@ -1204,6 +1226,10 @@ getDispatchCompositeMatchFn(const DispatchI32FamilySpec &family) {
     return matchRVVScalarI32VMulDispatchCandidates;
   if (&family == &getI64VAddDispatchFamilySpec())
     return matchRVVScalarI64VAddDispatchCandidates;
+  if (&family == &getI64VSubDispatchFamilySpec())
+    return matchRVVScalarI64VSubDispatchCandidates;
+  if (&family == &getI64VMulDispatchFamilySpec())
+    return matchRVVScalarI64VMulDispatchCandidates;
   return nullptr;
 }
 
@@ -2502,6 +2528,8 @@ getRVVScalarDispatchRouteManifest() {
         appendFamily(getI32VSubDispatchFamilySpec());
         appendFamily(getI32VMulDispatchFamilySpec());
         appendFamily(getI64VAddDispatchFamilySpec());
+        appendFamily(getI64VSubDispatchFamilySpec());
+        appendFamily(getI64VMulDispatchFamilySpec());
         return result;
       }();
   return llvm::ArrayRef(routes);
@@ -2552,6 +2580,18 @@ llvm::Error exportRVVScalarI64VAddDispatchC(mlir::ModuleOp module,
                                        os);
 }
 
+llvm::Error exportRVVScalarI64VSubDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportDispatchSourceForFamily(module, getI64VSubDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VMulDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportDispatchSourceForFamily(module, getI64VMulDispatchFamilySpec(),
+                                       os);
+}
+
 llvm::Error exportRVVScalarI32VAddDispatchHeader(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchHeaderForFamily(module, getI32VAddDispatchFamilySpec(),
@@ -2573,6 +2613,18 @@ llvm::Error exportRVVScalarI32VMulDispatchHeader(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI64VAddDispatchHeader(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchHeaderForFamily(module, getI64VAddDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VSubDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchHeaderForFamily(module, getI64VSubDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VMulDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchHeaderForFamily(module, getI64VMulDispatchFamilySpec(),
                                        os);
 }
 
@@ -2600,6 +2652,18 @@ llvm::Error exportRVVScalarI64VAddDispatchSelfCheckC(mlir::ModuleOp module,
       module, getI64VAddDispatchFamilySpec(), os);
 }
 
+llvm::Error exportRVVScalarI64VSubDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckSourceForFamily(
+      module, getI64VSubDispatchFamilySpec(), os);
+}
+
+llvm::Error exportRVVScalarI64VMulDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckSourceForFamily(
+      module, getI64VMulDispatchFamilySpec(), os);
+}
+
 llvm::Error exportRVVScalarI32VAddDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchObjectForFamily(module, getI32VAddDispatchFamilySpec(),
@@ -2621,6 +2685,18 @@ llvm::Error exportRVVScalarI32VMulDispatchObject(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI64VAddDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os) {
   return exportDispatchObjectForFamily(module, getI64VAddDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VSubDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchObjectForFamily(module, getI64VSubDispatchFamilySpec(),
+                                       os);
+}
+
+llvm::Error exportRVVScalarI64VMulDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os) {
+  return exportDispatchObjectForFamily(module, getI64VMulDispatchFamilySpec(),
                                        os);
 }
 
@@ -2650,6 +2726,20 @@ exportRVVScalarI64VAddDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
   return exportDispatchSelfCheckObjectForFamily(
       module, getI64VAddDispatchFamilySpec(), os);
+}
+
+llvm::Error
+exportRVVScalarI64VSubDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckObjectForFamily(
+      module, getI64VSubDispatchFamilySpec(), os);
+}
+
+llvm::Error
+exportRVVScalarI64VMulDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportDispatchSelfCheckObjectForFamily(
+      module, getI64VMulDispatchFamilySpec(), os);
 }
 
 llvm::Error registerRVVScalarDispatchRouteTargetExporter(

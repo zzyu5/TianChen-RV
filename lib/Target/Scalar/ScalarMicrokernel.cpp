@@ -52,6 +52,8 @@ using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::scalar::I64VAddMicrokernelOp;
+using tianchenrv::tcrv::scalar::I64VMulMicrokernelOp;
+using tianchenrv::tcrv::scalar::I64VSubMicrokernelOp;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 
 constexpr llvm::StringLiteral kScalarPluginName("scalar-plugin");
@@ -113,6 +115,14 @@ const ScalarI32MicrokernelFamilySpec &getI64VAddFamilySpec() {
   return tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor().scalar;
 }
 
+const ScalarI32MicrokernelFamilySpec &getI64VSubFamilySpec() {
+  return tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor().scalar;
+}
+
+const ScalarI32MicrokernelFamilySpec &getI64VMulFamilySpec() {
+  return tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().scalar;
+}
+
 const ScalarI32MicrokernelFamilySpec *
 getScalarI32MicrokernelFamilyForOp(mlir::Operation *op) {
   if (llvm::isa_and_nonnull<I32VAddMicrokernelOp>(op))
@@ -123,6 +133,10 @@ getScalarI32MicrokernelFamilyForOp(mlir::Operation *op) {
     return &getI32VMulFamilySpec();
   if (llvm::isa_and_nonnull<I64VAddMicrokernelOp>(op))
     return &getI64VAddFamilySpec();
+  if (llvm::isa_and_nonnull<I64VSubMicrokernelOp>(op))
+    return &getI64VSubFamilySpec();
+  if (llvm::isa_and_nonnull<I64VMulMicrokernelOp>(op))
+    return &getI64VMulFamilySpec();
   return nullptr;
 }
 
@@ -136,6 +150,10 @@ getScalarI32MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
     return &getI32VMulFamilySpec();
   if (routeID == getI64VAddFamilySpec().routeID)
     return &getI64VAddFamilySpec();
+  if (routeID == getI64VSubFamilySpec().routeID)
+    return &getI64VSubFamilySpec();
+  if (routeID == getI64VMulFamilySpec().routeID)
+    return &getI64VMulFamilySpec();
   return nullptr;
 }
 
@@ -1365,7 +1383,9 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
                       getI32VAddFamilySpec().descriptor + "' or '" +
                       getI32VSubFamilySpec().descriptor + "' or '" +
                       getI32VMulFamilySpec().descriptor + "' or '" +
-                      getI64VAddFamilySpec().descriptor + "'");
+                      getI64VAddFamilySpec().descriptor + "' or '" +
+                      getI64VSubFamilySpec().descriptor + "' or '" +
+                      getI64VMulFamilySpec().descriptor + "'");
 
     if (descriptorValue != family.descriptor)
       return makeMicrokernelError(
@@ -2238,6 +2258,10 @@ llvm::Error registerScalarMicrokernelTargetExporters(
   const ScalarI32MicrokernelFamilySpec &mulFamily = getI32VMulFamilySpec();
   const ScalarI32MicrokernelFamilySpec &i64AddFamily =
       getI64VAddFamilySpec();
+  const ScalarI32MicrokernelFamilySpec &i64SubFamily =
+      getI64VSubFamilySpec();
+  const ScalarI32MicrokernelFamilySpec &i64MulFamily =
+      getI64VMulFamilySpec();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           addFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
           addFamily.emissionKind, exportScalarMicrokernelC,
@@ -2270,6 +2294,24 @@ llvm::Error registerScalarMicrokernelTargetExporters(
           i64AddFamily.emissionKind, exportScalarMicrokernelC,
           tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
               *i64AddFamily.rvvFamily),
+          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          validateScalarMicrokernelSourceCandidate)))
+    return error;
+
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          i64SubFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+          i64SubFamily.emissionKind, exportScalarMicrokernelC,
+          tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+              *i64SubFamily.rvvFamily),
+          /*directHelperRoute=*/false, /*handoffKind=*/{},
+          validateScalarMicrokernelSourceCandidate)))
+    return error;
+
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          i64MulFamily.routeID, kMicrokernelArtifactKind, kScalarPluginName,
+          i64MulFamily.emissionKind, exportScalarMicrokernelC,
+          tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+              *i64MulFamily.rvvFamily),
           /*directHelperRoute=*/false, /*handoffKind=*/{},
           validateScalarMicrokernelSourceCandidate)))
     return error;

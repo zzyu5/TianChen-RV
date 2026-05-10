@@ -461,6 +461,16 @@ mlir::LogicalResult I64VAddMicrokernelOp::verify() {
       getOperation(), "bounded scalar i64 vector-add microkernel");
 }
 
+mlir::LogicalResult I64VSubMicrokernelOp::verify() {
+  return verifyScalarBinaryMicrokernelOp(
+      getOperation(), "bounded scalar i64 vector-subtract microkernel");
+}
+
+mlir::LogicalResult I64VMulMicrokernelOp::verify() {
+  return verifyScalarBinaryMicrokernelOp(
+      getOperation(), "bounded scalar i64 vector-multiply microkernel");
+}
+
 void TCRVScalarDialect::initialize() {
   addOperations<
 #define GET_OP_LIST

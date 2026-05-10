@@ -1703,13 +1703,13 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 12) {
-    llvm::errs() << "expected exactly 12 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 14) {
+    llvm::errs() << "expected exactly 14 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 26) {
-    llvm::errs() << "expected exactly 26 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 32) {
+    llvm::errs() << "expected exactly 32 built-in composite target artifact "
                     "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -1811,19 +1811,22 @@ int main() {
           builtinRegistry, "tcrv-export-scalar-i32-vsub-microkernel-c",
           getSubRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
-  const auto &scalarI64VAddFamily =
-      tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor();
-  if (!expectRoute(builtinRegistry,
-                   scalarI64VAddFamily.scalar.routeID,
-                   "runtime-callable-c-source", "scalar-plugin",
-                   scalarI64VAddFamily.scalar.emissionKind, 4))
-    return 1;
-  if (!expectRouteRuntimeABIParameters(
-          builtinRegistry, scalarI64VAddFamily.scalar.routeID,
-          tianchenrv::target::rvv_scalar::
-              getRVVScalarBinaryCallableRuntimeABIRoleRequirements(
-                  scalarI64VAddFamily)))
-    return 1;
+  auto scalarI64Families = {
+      &tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor(),
+  };
+  for (const auto *family : scalarI64Families) {
+    if (!expectRoute(builtinRegistry, family->scalar.routeID,
+                     "runtime-callable-c-source", "scalar-plugin",
+                     family->scalar.emissionKind, 4))
+      return 1;
+    if (!expectRouteRuntimeABIParameters(
+            builtinRegistry, family->scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getRVVScalarBinaryCallableRuntimeABIRoleRequirements(*family)))
+      return 1;
+  }
   if (!expectRoute(builtinRegistry,
                    "tcrv-export-offload-runtime-descriptor",
                    "runtime-offload-handoff-descriptor", "offload-plugin",
@@ -1854,7 +1857,6 @@ int main() {
       "rvv-scalar-i32-vmul-dispatch-external-abi.v1");
   constexpr llvm::StringLiteral dispatchMulRuntimeABIName(
       "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1");
-  const auto &dispatchI64VAdd = scalarI64VAddFamily.dispatch;
   if (!expectCompositeRoute(
           builtinRegistry, "tcrv-export-rvv-microkernel-header",
           "runtime-callable-c-header", "rvv-plugin", rvvABI.runtimeABIKind,
@@ -2090,46 +2092,47 @@ int main() {
           dispatchMulExternalABIComponentGroup, dispatchMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
-  if (!expectCompositeRoute(
-          builtinRegistry, dispatchI64VAdd.dispatchSourceRouteID,
-          "runtime-callable-c-source", "rvv-scalar-dispatch-target",
-          dispatchI64VAdd.dispatchRuntimeABIKind,
-          dispatchI64VAdd.dispatchRuntimeABIName,
-          /*expectedDirectHelperRoute=*/true,
-          dispatchI64VAdd.dispatchExternalABIComponentGroup,
-          dispatchI64VAdd.dispatchRuntimeABIName,
-          /*expectedCandidateValidation=*/true))
-    return 1;
-  const TargetArtifactCompositeExporter *dispatchI64VAddSourceComposite =
-      builtinRegistry.lookupComposite(dispatchI64VAdd.dispatchSourceRouteID);
-  if (!dispatchI64VAddSourceComposite ||
-      !dispatchI64VAddSourceComposite->getRuntimeABIParametersFn() ||
-      !dispatchI64VAddSourceComposite->getCandidateValidationFn()) {
-    llvm::errs() << "i64-vadd dispatch source composite route must publish "
-                    "runtime ABI parameters and route-local candidate "
-                    "preflight through C++ callbacks\n";
-    return 1;
+  for (const auto *family : scalarI64Families) {
+    const auto &dispatch = family->dispatch;
+    if (!expectCompositeRoute(
+            builtinRegistry, dispatch.dispatchSourceRouteID,
+            "runtime-callable-c-source", "rvv-scalar-dispatch-target",
+            dispatch.dispatchRuntimeABIKind, dispatch.dispatchRuntimeABIName,
+            /*expectedDirectHelperRoute=*/true,
+            dispatch.dispatchExternalABIComponentGroup,
+            dispatch.dispatchRuntimeABIName,
+            /*expectedCandidateValidation=*/true))
+      return 1;
+    const TargetArtifactCompositeExporter *dispatchSourceComposite =
+        builtinRegistry.lookupComposite(dispatch.dispatchSourceRouteID);
+    if (!dispatchSourceComposite ||
+        !dispatchSourceComposite->getRuntimeABIParametersFn() ||
+        !dispatchSourceComposite->getCandidateValidationFn()) {
+      llvm::errs() << "i64 dispatch source composite route '"
+                   << dispatch.dispatchSourceRouteID
+                   << "' must publish runtime ABI parameters and route-local "
+                      "candidate preflight through C++ callbacks\n";
+      return 1;
+    }
+    if (!expectCompositeRoute(
+            builtinRegistry, dispatch.dispatchHeaderRouteID,
+            "runtime-callable-c-header", "rvv-scalar-dispatch-target",
+            dispatch.dispatchRuntimeABIKind, dispatch.dispatchRuntimeABIName,
+            /*expectedDirectHelperRoute=*/true,
+            dispatch.dispatchExternalABIComponentGroup,
+            dispatch.dispatchRuntimeABIName,
+            /*expectedCandidateValidation=*/true))
+      return 1;
+    if (!expectCompositeRoute(
+            builtinRegistry, dispatch.dispatchObjectRouteID,
+            "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
+            dispatch.dispatchRuntimeABIKind, dispatch.dispatchRuntimeABIName,
+            /*expectedDirectHelperRoute=*/true,
+            dispatch.dispatchExternalABIComponentGroup,
+            dispatch.dispatchRuntimeABIName,
+            /*expectedCandidateValidation=*/true))
+      return 1;
   }
-  if (!expectCompositeRoute(
-          builtinRegistry, dispatchI64VAdd.dispatchHeaderRouteID,
-          "runtime-callable-c-header", "rvv-scalar-dispatch-target",
-          dispatchI64VAdd.dispatchRuntimeABIKind,
-          dispatchI64VAdd.dispatchRuntimeABIName,
-          /*expectedDirectHelperRoute=*/true,
-          dispatchI64VAdd.dispatchExternalABIComponentGroup,
-          dispatchI64VAdd.dispatchRuntimeABIName,
-          /*expectedCandidateValidation=*/true))
-    return 1;
-  if (!expectCompositeRoute(
-          builtinRegistry, dispatchI64VAdd.dispatchObjectRouteID,
-          "riscv-elf-relocatable-object", "rvv-scalar-dispatch-target",
-          dispatchI64VAdd.dispatchRuntimeABIKind,
-          dispatchI64VAdd.dispatchRuntimeABIName,
-          /*expectedDirectHelperRoute=*/true,
-          dispatchI64VAdd.dispatchExternalABIComponentGroup,
-          dispatchI64VAdd.dispatchRuntimeABIName,
-          /*expectedCandidateValidation=*/true))
-    return 1;
   if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "duplicate built-in exporter registration rejected"))
     return 1;

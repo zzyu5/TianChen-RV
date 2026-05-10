@@ -86,17 +86,49 @@ llvm::Error exportRVVScalarI32VMulDispatchObject(mlir::ModuleOp module,
 llvm::Error exportRVVScalarI64VAddDispatchC(mlir::ModuleOp module,
                                             llvm::raw_ostream &os);
 
+llvm::Error exportRVVScalarI64VSubDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VMulDispatchC(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+
 llvm::Error exportRVVScalarI64VAddDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VSubDispatchHeader(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VMulDispatchHeader(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os);
 
 llvm::Error exportRVVScalarI64VAddDispatchSelfCheckC(mlir::ModuleOp module,
                                                      llvm::raw_ostream &os);
 
+llvm::Error exportRVVScalarI64VSubDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VMulDispatchSelfCheckC(mlir::ModuleOp module,
+                                                     llvm::raw_ostream &os);
+
 llvm::Error exportRVVScalarI64VAddDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VSubDispatchObject(mlir::ModuleOp module,
+                                                 llvm::raw_ostream &os);
+
+llvm::Error exportRVVScalarI64VMulDispatchObject(mlir::ModuleOp module,
                                                  llvm::raw_ostream &os);
 
 llvm::Error
 exportRVVScalarI64VAddDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os);
+
+llvm::Error
+exportRVVScalarI64VSubDispatchSelfCheckObject(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os);
+
+llvm::Error
+exportRVVScalarI64VMulDispatchSelfCheckObject(mlir::ModuleOp module,
                                               llvm::raw_ostream &os);
 
 llvm::Error

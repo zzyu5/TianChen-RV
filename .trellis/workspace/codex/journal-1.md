@@ -177,6 +177,72 @@ evidence for compiler-generated linalg frontend artifacts.
 - None - task complete
 
 
+## Session 15: RVV i64 sub/mul scalar fallback dispatch artifact and ssh evidence
+
+**Date**: 2026-05-10
+**Task**: RVV i64 sub/mul scalar fallback dispatch artifact and ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Completed `i64-vsub` and `i64-vmul` RVV plus scalar fallback dispatch artifact
+support by extending the descriptor-backed scalar fallback, dispatch manifest,
+bundle export, runner, and tests that `i64-vadd` already exercised. Collected
+real `ssh rvv` evidence for both dispatch families with scalar and RVV branches
+exercised.
+
+### Main Changes
+
+- Extended RVV+scalar binary-family descriptors and manifest-backed direct
+  routes so i32 add/sub/mul and i64 add/sub/mul share the same finite dispatch
+  artifact surface.
+- Added scalar dialect/plugin/export support for
+  `tcrv_scalar.i64_vsub_microkernel` and
+  `tcrv_scalar.i64_vmul_microkernel`.
+- Added RVV+scalar dispatch source/header/self-check/object route wrappers for
+  `i64-vsub` and `i64-vmul`.
+- Updated `scripts/rvv_scalar_dispatch_e2e.py` and script lit coverage so
+  direct and plan-and-export bundle dry-runs validate i64 sub/mul generated
+  arithmetic, intrinsic spelling, marker strings, and evidence JSON.
+- Updated scalar fallback, lowering/runtime, and MLIR testing specs to document
+  the finite i64 add/sub/mul scalar fallback dispatch set.
+
+### Evidence
+
+- `i64-vsub` real dispatch evidence passed:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --arithmetic-family=i64-vsub --run-id codex-i64-vsub-ssh --overwrite --timeout 120`
+  Evidence: `artifacts/tmp/rvv_scalar_dispatch_e2e/codex-i64-vsub-ssh/evidence.json`.
+- `i64-vmul` real dispatch evidence passed:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --arithmetic-family=i64-vmul --run-id codex-i64-vmul-ssh --overwrite --timeout 120`
+  Evidence: `artifacts/tmp/rvv_scalar_dispatch_e2e/codex-i64-vmul-ssh/evidence.json`.
+- Both evidence files report `status=success`, `mode=ssh`,
+  `ssh_evidence_verified=true`, `runtime_success=true`, branches
+  `rvv_available=0` and `rvv_available=1`, and runtime counts `[7, 16]`.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-rvv-i64-sub-mul-scalar-fallback-dispatch-artifact-ssh-evidence`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] direct and bundle dry-runs for `i64-vsub` and `i64-vmul`
+- [OK] source-level generated artifact checks for i64 sub/mul intrinsic,
+  arithmetic, marker, and stale-family absence
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 191/191
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV binary family registry owner
 
 **Date**: 2026-05-10

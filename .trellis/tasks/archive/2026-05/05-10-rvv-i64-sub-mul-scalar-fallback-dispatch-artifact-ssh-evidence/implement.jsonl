@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants, stack boundary, and source-of-truth rules"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware evidence and forbidden compute-IR boundaries"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Compute-free dispatch, fallback, mem_window, and runtime_param contracts"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local finite i64 binary descriptor and evidence boundaries"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback lowering boundary and microkernel ownership"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keep family/dtype behavior plugin-local and core-free"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry routing, selected-boundary, and emission-plan contracts"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, runtime ABI, dispatch source/header/object, and bundle rules"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Planning pipeline, dispatch runtime guard, and frontend ownership rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/ssh evidence requirements for RVV+scalar dispatch"}

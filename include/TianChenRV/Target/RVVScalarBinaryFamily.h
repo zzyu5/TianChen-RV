@@ -254,11 +254,24 @@ inline const RVVScalarBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
   return descriptor;
 }
 
+inline const RVVScalarBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
+  static const RVVScalarBinaryFamilyDescriptor descriptor =
+      makeFamilyDescriptor(rvv::getI64VSubFamilyDescriptor());
+  return descriptor;
+}
+
+inline const RVVScalarBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
+  static const RVVScalarBinaryFamilyDescriptor descriptor =
+      makeFamilyDescriptor(rvv::getI64VMulFamilyDescriptor());
+  return descriptor;
+}
+
 inline llvm::ArrayRef<const RVVScalarBinaryFamilyDescriptor *>
 getRVVScalarBinaryFamilyDescriptors() {
   static const RVVScalarBinaryFamilyDescriptor *families[] = {
       &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor(),
-      &getI32VMulFamilyDescriptor(), &getI64VAddFamilyDescriptor()};
+      &getI32VMulFamilyDescriptor(), &getI64VAddFamilyDescriptor(),
+      &getI64VSubFamilyDescriptor(), &getI64VMulFamilyDescriptor()};
   return llvm::ArrayRef(families);
 }
 

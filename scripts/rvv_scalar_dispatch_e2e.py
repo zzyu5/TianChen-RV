@@ -3,7 +3,7 @@
 
 This helper is runner/evidence tooling only. It orchestrates existing
 TianChen-RV MLIR tools and optional ``ssh rvv`` compile/link/run evidence for
-the planned RVV+scalar i32 add/sub/mul dispatch slice. It does not
+the planned RVV+scalar i32 and i64 add/sub/mul dispatch slices. It does not
 implement compiler IR, plugin decisions, target selection, capability modeling,
 lowering, emission, runtime ABI, correctness logic, or performance measurement.
 """
@@ -212,6 +212,62 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         ),
         "default_plan_and_export_input": Path(
             "test/Target/TargetArtifactBundleExport/plan-linalg-i64-vadd-and-export-target-artifact-bundle.mlir"
+        ),
+    },
+    "i64-vsub": {
+        "diagnostic_name": "i64-vsub",
+        "dtype": "i64",
+        "element_bit_width": "64",
+        "scalar_c_type": "int64_t",
+        "const_input_pointer_c_type": "const int64_t *",
+        "output_pointer_c_type": "int64_t *",
+        "function_stem": "i64_vsub",
+        "intrinsic_op": "sub",
+        "c_operator": "-",
+        "default_vector_shape": "i64m1",
+        "success_marker": "tcrv_rvv_scalar_i64_vsub_dispatch_self_check_ok",
+        "bundle_success_marker": "tcrv_rvv_scalar_i64_vsub_bundle_external_abi_ok",
+        "component_group": "rvv-scalar-i64-vsub-dispatch-external-abi.v1",
+        "external_abi_name": "rvv-scalar-i64-vsub-dispatch-runtime-callable-c-function.v1",
+        "source_route": "tcrv-export-rvv-scalar-i64-vsub-dispatch-c",
+        "header_route": "tcrv-export-rvv-scalar-i64-vsub-dispatch-header",
+        "object_route": "tcrv-export-rvv-scalar-i64-vsub-dispatch-object",
+        "rvv_callable_route": "tcrv-export-rvv-i64-vsub-microkernel-c",
+        "scalar_callable_route": "tcrv-export-scalar-i64-vsub-microkernel-c",
+        "self_check_route": "--tcrv-export-rvv-scalar-i64-vsub-dispatch-self-check-c",
+        "default_input": Path(
+            "test/Target/RVVScalarDispatch/rvv-scalar-i64-vsub-dispatch-generic-route.mlir"
+        ),
+        "default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i64-vsub-and-export-target-artifact-bundle.mlir"
+        ),
+    },
+    "i64-vmul": {
+        "diagnostic_name": "i64-vmul",
+        "dtype": "i64",
+        "element_bit_width": "64",
+        "scalar_c_type": "int64_t",
+        "const_input_pointer_c_type": "const int64_t *",
+        "output_pointer_c_type": "int64_t *",
+        "function_stem": "i64_vmul",
+        "intrinsic_op": "mul",
+        "c_operator": "*",
+        "default_vector_shape": "i64m1",
+        "success_marker": "tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok",
+        "bundle_success_marker": "tcrv_rvv_scalar_i64_vmul_bundle_external_abi_ok",
+        "component_group": "rvv-scalar-i64-vmul-dispatch-external-abi.v1",
+        "external_abi_name": "rvv-scalar-i64-vmul-dispatch-runtime-callable-c-function.v1",
+        "source_route": "tcrv-export-rvv-scalar-i64-vmul-dispatch-c",
+        "header_route": "tcrv-export-rvv-scalar-i64-vmul-dispatch-header",
+        "object_route": "tcrv-export-rvv-scalar-i64-vmul-dispatch-object",
+        "rvv_callable_route": "tcrv-export-rvv-i64-vmul-microkernel-c",
+        "scalar_callable_route": "tcrv-export-scalar-i64-vmul-microkernel-c",
+        "self_check_route": "--tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c",
+        "default_input": Path(
+            "test/Target/RVVScalarDispatch/rvv-scalar-i64-vmul-dispatch-generic-route.mlir"
+        ),
+        "default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir"
         ),
     },
 }
@@ -2766,6 +2822,76 @@ int main(void) {{ puts("tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok runtime_
     assert_self_test(
         BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in i64_caller,
         "i64-vadd bundle caller success marker missing",
+    )
+
+    configure_arithmetic_family("i64-vsub")
+    configure_vector_shape("i64m1")
+    sample_i64_vsub_source = f"""
+/* TianChen-RV RVV+scalar host runtime dispatch C export. */
+/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
+#include <riscv_vector.h>
+void tcrv_dispatch_i64_vsub_self_test(void) {{}}
+{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "-")}
+/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+/* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+int main(void) {{ puts("tcrv_rvv_scalar_i64_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }}
+""".strip()
+    i64_vsub_flags = validate_self_check_dispatch_source(sample_i64_vsub_source)
+    assert_self_test(
+        i64_vsub_flags["vector_config"]["shape"] == "i64m1",
+        "i64-vsub vector-shape metadata was not preserved",
+    )
+    i64_vsub_caller = build_dispatch_external_caller_source(
+        "tcrv_dispatch_i64_vsub_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vsub-dispatch-header.h",
+        active_dispatch_runtime_abi_signature(),
+    )
+    assert_self_test(
+        "int64_t lhs[kCapacity]" in i64_vsub_caller
+        and "lhs[index] - rhs[index]" in i64_vsub_caller,
+        "i64-vsub bundle caller did not use int64_t subtract semantics",
+    )
+    assert_self_test(
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in i64_vsub_caller,
+        "i64-vsub bundle caller success marker missing",
+    )
+
+    configure_arithmetic_family("i64-vmul")
+    configure_vector_shape("i64m1")
+    sample_i64_vmul_source = f"""
+/* TianChen-RV RVV+scalar host runtime dispatch C export. */
+/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
+/* selected_march: rv64gcv */
+/* selected_mabi: lp64d */
+{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
+#include <riscv_vector.h>
+void tcrv_dispatch_i64_vmul_self_test(void) {{}}
+{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "*")}
+/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+/* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
+int main(void) {{ puts("tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }}
+""".strip()
+    i64_vmul_flags = validate_self_check_dispatch_source(sample_i64_vmul_source)
+    assert_self_test(
+        i64_vmul_flags["vector_config"]["shape"] == "i64m1",
+        "i64-vmul vector-shape metadata was not preserved",
+    )
+    i64_vmul_caller = build_dispatch_external_caller_source(
+        "tcrv_dispatch_i64_vmul_self_test",
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vmul-dispatch-header.h",
+        active_dispatch_runtime_abi_signature(),
+    )
+    assert_self_test(
+        "int64_t lhs[kCapacity]" in i64_vmul_caller
+        and "lhs[index] * rhs[index]" in i64_vmul_caller,
+        "i64-vmul bundle caller did not use int64_t multiply semantics",
+    )
+    assert_self_test(
+        BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER in i64_vmul_caller,
+        "i64-vmul bundle caller success marker missing",
     )
 
     configure_arithmetic_family("i32-vadd")

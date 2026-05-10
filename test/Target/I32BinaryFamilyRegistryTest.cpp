@@ -927,14 +927,16 @@ int expectRVVScalarBinaryBridgeShape() {
 
   llvm::ArrayRef<const bridge::RVVScalarBinaryFamilyDescriptor *> families =
       bridge::getRVVScalarBinaryFamilyDescriptors();
-  if (int result = expect(families.size() == 4,
-                          "RVV+scalar bridge exposes three i32 families plus i64-vadd"))
+  if (int result = expect(families.size() == 6,
+                          "RVV+scalar bridge exposes three i32 families plus three i64 families"))
     return result;
   if (int result = expect(
           families[0] == &bridge::getI32VAddFamilyDescriptor() &&
               families[1] == &bridge::getI32VSubFamilyDescriptor() &&
               families[2] == &bridge::getI32VMulFamilyDescriptor() &&
-              families[3] == &bridge::getI64VAddFamilyDescriptor(),
+              families[3] == &bridge::getI64VAddFamilyDescriptor() &&
+              families[4] == &bridge::getI64VSubFamilyDescriptor() &&
+              families[5] == &bridge::getI64VMulFamilyDescriptor(),
           "RVV+scalar bridge preserves bounded family order"))
     return result;
 
@@ -979,27 +981,58 @@ int expectRVVScalarBinaryBridgeShape() {
       return result;
   }
 
+  struct I64BridgeCase {
+    const bridge::RVVScalarBinaryFamilyDescriptor *family;
+    llvm::StringRef stem;
+    llvm::StringRef cOperator;
+  };
+  const I64BridgeCase i64Cases[] = {
+      {&bridge::getI64VAddFamilyDescriptor(), "i64_vadd", "+"},
+      {&bridge::getI64VSubFamilyDescriptor(), "i64_vsub", "-"},
+      {&bridge::getI64VMulFamilyDescriptor(), "i64_vmul", "*"},
+  };
+
+  for (const I64BridgeCase &entry : i64Cases) {
+    const bridge::RVVScalarBinaryFamilyDescriptor &i64 = *entry.family;
+    if (int result = expect(
+            i64.scalar.microkernelOpName ==
+                    (llvm::Twine("tcrv_scalar.") + entry.stem +
+                     "_microkernel")
+                        .str() &&
+                i64.scalar.routeID ==
+                    (llvm::Twine("tcrv-export-scalar-") + i64.familyID +
+                     "-microkernel-c")
+                        .str() &&
+                i64.scalar.runtimeABIName ==
+                    (llvm::Twine("scalar-") + i64.familyID +
+                     "-runtime-callable-c-function.v1")
+                        .str() &&
+                i64.scalar.cOperator == entry.cOperator,
+            "RVV+scalar bridge owns i64 scalar fallback names"))
+      return result;
+    if (int result = expect(
+            i64.dispatch.dispatchSourceRouteID ==
+                    (llvm::Twine("tcrv-export-rvv-scalar-") + i64.familyID +
+                     "-dispatch-c")
+                        .str() &&
+                i64.dispatch.dispatchHeaderRouteID ==
+                    (llvm::Twine("tcrv-export-rvv-scalar-") + i64.familyID +
+                     "-dispatch-header")
+                        .str() &&
+                i64.dispatch.dispatchObjectRouteID ==
+                    (llvm::Twine("tcrv-export-rvv-scalar-") + i64.familyID +
+                     "-dispatch-object")
+                        .str() &&
+                i64.dispatch.selfCheckSuccessMarker ==
+                    (llvm::Twine("tcrv_rvv_scalar_") + entry.stem +
+                     "_dispatch_self_check_ok")
+                        .str(),
+            "RVV+scalar bridge owns i64 dispatch routes"))
+      return result;
+  }
+
   const bridge::RVVScalarBinaryFamilyDescriptor &i64 =
-      bridge::getI64VAddFamilyDescriptor();
-  if (int result = expect(i64.scalar.microkernelOpName ==
-                              "tcrv_scalar.i64_vadd_microkernel" &&
-                              i64.scalar.routeID ==
-                                  "tcrv-export-scalar-i64-vadd-microkernel-c" &&
-                              i64.scalar.runtimeABIName ==
-                                  "scalar-i64-vadd-runtime-callable-c-function.v1" &&
-                              i64.scalar.cOperator == "+",
-                          "RVV+scalar bridge owns i64-vadd scalar fallback names"))
-    return result;
-  if (int result = expect(i64.dispatch.dispatchSourceRouteID ==
-                              "tcrv-export-rvv-scalar-i64-vadd-dispatch-c" &&
-                              i64.dispatch.dispatchHeaderRouteID ==
-                                  "tcrv-export-rvv-scalar-i64-vadd-dispatch-header" &&
-                              i64.dispatch.dispatchObjectRouteID ==
-                                  "tcrv-export-rvv-scalar-i64-vadd-dispatch-object" &&
-                              i64.dispatch.selfCheckSuccessMarker ==
-                                  "tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok",
-                          "RVV+scalar bridge owns i64-vadd dispatch routes"))
-    return result;
+      bridge::getI64VSubFamilyDescriptor();
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5> parameters =
       bridge::getRVVScalarDispatchRuntimeABIParameters(i64);
@@ -1100,15 +1133,15 @@ int main() {
             descriptor.getRVVRuntimeABIName(),
             /*expectedDirectHelperRoute=*/true))
       return result;
-  const rvv_scalar::RVVScalarBinaryFamilyDescriptor &i64Bridge =
-      rvv_scalar::getI64VAddFamilyDescriptor();
-  if (int result = expectRoute(
-          registry, i64Bridge.scalar.routeID,
-          kRuntimeCallableCSourceArtifactKind, kScalarPluginName,
-          i64Bridge.scalar.emissionKind,
-          /*componentGroup=*/{}, /*externalABIName=*/{},
-          /*expectedDirectHelperRoute=*/false))
-    return result;
+  for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
+       rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
+    if (int result = expectRoute(
+            registry, family->scalar.routeID,
+            kRuntimeCallableCSourceArtifactKind, kScalarPluginName,
+            family->scalar.emissionKind,
+            /*componentGroup=*/{}, /*externalABIName=*/{},
+            /*expectedDirectHelperRoute=*/false))
+      return result;
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
        rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Review global stack and evidence claims"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Review real RVV correctness claims against ssh evidence requirement"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Review exec dialect remains compute-free"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV i64 finite-family behavior remains plugin/target-local"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Review scalar fallback i64 sub/mul microkernel ownership"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review artifact routes, runtime ABI signatures, bundle metadata, and evidence scope"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review planning pipeline and runtime guard materialization behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused tests and ssh evidence completeness"}
