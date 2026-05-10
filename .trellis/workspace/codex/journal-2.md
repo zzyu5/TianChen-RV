@@ -279,6 +279,73 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 - None - task complete
 
 
+## Session 25: RVV i64-vsub selected path artifact evidence
+
+**Date**: 2026-05-10
+**Task**: RVV i64-vsub selected path from plugin planning to artifact evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task for the bounded `i64-vsub` selected-path composition
+round and proved current HEAD carries the marked linalg frontend route through
+RVV plugin proposal planning, variant legality, selected lowering-boundary
+materialization, selected emission planning, target artifact export, dry-run
+artifact evidence, and fresh real `ssh rvv` runtime correctness evidence.
+
+### Main Changes
+
+- Added direct `i64-vsub` coverage to the extracted
+  `RVVBinaryVariantLegality` module test.
+- Parameterized the extracted `RVVBinarySelectedLoweringBoundary` module test
+  so it now covers both `i64-vsub` and `i64-vmul`.
+- Strengthened the `linalg-i64-vsub-to-rvv-artifact.mlir` frontend lit check
+  to assert descriptor-owned runtime ABI parameters and selected-plan metadata
+  on the supported emission-plan diagnostic.
+
+### Evidence
+
+- Dry-run evidence:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-i64-vsub-selected-path-dry/evidence.json`
+  records `status = "success"`, `mode = "dry-run"`,
+  `manifest_record.kernel = "frontend_i64_vsub"`, and route
+  `tcrv-export-rvv-i64-vsub-microkernel-c`.
+- Live evidence:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-i64-vsub-selected-path-live/evidence.json`
+  records `status = "success"`, `mode = "ssh"`,
+  `ssh_evidence.success = true`, remote compile/link/run success, and marker
+  `tcrv_rvv_i64_vsub_microkernel_external_abi_ok`.
+- Claim scope is bounded finite-family generated RVV `i64-vsub`
+  C-intrinsics direct helper artifact correctness on real `ssh rvv`; this is
+  not a generic RVV backend, not an MLIR vector lowering route, and not a
+  performance claim.
+
+### Testing
+
+- `git diff --check`
+- Focused build for `tcrv-opt`, `tcrv-translate`, RVV planning, RVV variant
+  legality, RVV selected lowering-boundary, RVV extension plugin, target
+  artifact export, and family registry tests.
+- Focused C++ tests:
+  `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-rvv-binary-variant-legality-test`,
+  `tianchenrv-rvv-selected-lowering-boundary-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, and
+  `tianchenrv-i32-binary-family-registry-test`.
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `linalg-i64-vsub-to-rvv-artifact|rvv-microkernel-e2e` passed 2/2 selected
+  tests.
+- Dry-run and live `scripts/rvv_microkernel_e2e.py` commands for
+  `--arithmetic-family=i64-vsub --lower-linalg-frontend`.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  194/194 lit tests passed.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+
 ## Session 20: Plugin-local RVV selected lowering-boundary materialization
 
 **Date**: 2026-05-10

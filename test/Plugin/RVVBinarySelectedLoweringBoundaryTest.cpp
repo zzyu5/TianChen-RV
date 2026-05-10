@@ -132,6 +132,14 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   return attr.getValue();
 }
 
+void replaceAll(std::string &text, llvm::StringRef from, llvm::StringRef to) {
+  std::size_t position = 0;
+  while ((position = text.find(from.str(), position)) != std::string::npos) {
+    text.replace(position, from.size(), to.str());
+    position += to.size();
+  }
+}
+
 int expectStringAttr(mlir::Operation *op, llvm::StringRef attrName,
                      llvm::StringRef expected) {
   return expect(getStringAttr(op, attrName) == expected,
@@ -416,8 +424,12 @@ module {
       {"capacity metadata", "does not match"});
 }
 
-int runI64VMulSelectedLoweringBoundaryModuleTest(mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
+int runI64SelectedLoweringBoundaryModuleTest(
+    mlir::MLIRContext &context,
+    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
+  std::string kernelSymbol =
+      (llvm::Twine("rvv_") + family.functionStem + "_boundary").str();
+  std::string source = R"mlir(
 module {
   tcrv.exec.kernel @rvv_i64_vmul_boundary attributes {} {
     tcrv.exec.capability @rvv {
@@ -491,12 +503,14 @@ module {
   }
 }
 )mlir";
+  replaceAll(source, "rvv_i64_vmul_boundary", kernelSymbol);
+  replaceAll(source, "i64-vmul-microkernel.v1", family.loweringDescriptor);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return fail("failed to parse i64 selected-boundary module");
 
-  KernelOp kernel = findKernel(*module, "rvv_i64_vmul_boundary");
+  KernelOp kernel = findKernel(*module, kernelSymbol);
   VariantOp variant = findVariant(kernel, "rvv_first_slice");
   if (int result = expect(kernel && variant, "i64 test has kernel/variant"))
     return result;
@@ -511,10 +525,12 @@ module {
   if (int status = expectSuccess(
           materializeWithModuleAPI(plugin, builder, variant, kernel,
                                    capabilities, result),
-          "materialize i64-vmul selected lowering boundary through module API"))
+          llvm::Twine("materialize ") + family.familyID +
+              " selected lowering boundary through module API"))
     return status;
   if (int status = expect(result.isMaterialized(),
-                          "i64-vmul selected boundary result is materialized"))
+                          llvm::Twine(family.familyID) +
+                              " selected boundary result is materialized"))
     return status;
 
   LoweringBoundaryOp boundary = findBoundary(kernel, variant.getSymName());
@@ -538,11 +554,11 @@ module {
     return status;
 
   mlir::Operation *microkernel = findSelectedOpByName(
-      kernel, variant.getSymName(),
-      tianchenrv::target::rvv::getI64VMulFamilyDescriptor().microkernelOpName);
+      kernel, variant.getSymName(), family.microkernelOpName);
   if (int status =
           expect(microkernel,
-                 "i64 selected module materializes vmul microkernel"))
+                 llvm::Twine("i64 selected module materializes ") +
+                     family.familyID + " microkernel"))
     return status;
   if (int status =
           expectIntegerAttr(microkernel, "element_count", 16))
@@ -555,7 +571,8 @@ module {
 
   return expectSuccess(
       validateWithModuleAPI(plugin, variant, kernel, capabilities, boundary),
-      "validate i64-vmul selected boundary through module API");
+      llvm::Twine("validate ") + family.familyID +
+          " selected boundary through module API");
 }
 
 } // namespace
@@ -575,7 +592,11 @@ int main() {
 
   if (int result = runI32SelectedLoweringBoundaryModuleTest(context))
     return result;
-  if (int result = runI64VMulSelectedLoweringBoundaryModuleTest(context))
+  if (int result = runI64SelectedLoweringBoundaryModuleTest(
+          context, tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
+    return result;
+  if (int result = runI64SelectedLoweringBoundaryModuleTest(
+          context, tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
     return result;
 
   llvm::outs() << "RVV binary selected lowering-boundary tests passed\n";

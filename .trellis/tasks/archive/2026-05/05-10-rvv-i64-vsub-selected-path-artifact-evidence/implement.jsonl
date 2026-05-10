@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, source-of-truth, and boundary rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary family, selected metadata, plugin-owned legality/lowering/emission, and evidence contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin proposal, legality, readiness, and emission interface boundaries."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Rules keeping RVV semantics in plugin/target owners rather than generic core passes."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg RVV binary frontend and selected-path pipeline contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering boundary, emission-plan, artifact export, and parameter-layering contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck and evidence expectations for RVV selected artifact paths."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability facts versus selected config versus runtime/control parameter layering."}

@@ -113,7 +113,19 @@ module {
 // PIPE-SAME: runtime_abi = "rvv-i64-vsub-runtime-callable-c-abi.v1"
 // PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // PIPE-SAME: runtime_abi_name = "rvv-i64-vsub-runtime-callable-c-function.v1"
+// PIPE-SAME: runtime_abi_parameters = [{c_name = "lhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}
+// PIPE-SAME: {c_name = "rhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}
+// PIPE-SAME: {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"}
+// PIPE-SAME: {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}]
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i64-vsub-function"
+// PIPE-SAME: selected_plan_metadata = [{name = "tcrv_rvv.selected_vector_shape"
+// PIPE-SAME: value = "i64m1"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_vector_sew"
+// PIPE-SAME: value = "64"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_vector_lmul"
+// PIPE-SAME: value = "m1"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_setvl_suffix"
+// PIPE-SAME: value = "e64m1"}]
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 

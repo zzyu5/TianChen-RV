@@ -196,6 +196,25 @@ module {
     } {
     }
 
+    tcrv.exec.variant @i64_vsub attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_vector_shape = "i64m1",
+      tcrv_rvv.selected_vector_sew = 64 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint64m1_t",
+      tcrv_rvv.selected_vector_suffix = "i64m1",
+      tcrv_rvv.selected_setvl_suffix = "e64m1"
+    } {
+    }
+
     tcrv.exec.variant @smoke_probe attributes {
       origin = "rvv-plugin",
       requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
@@ -258,6 +277,9 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
     return result;
   if (int result = expectSuccess(verifyVariant("i64_vmul"),
                                  "direct module accepts i64-vmul RVV variant"))
+    return result;
+  if (int result = expectSuccess(verifyVariant("i64_vsub"),
+                                 "direct module accepts i64-vsub RVV variant"))
     return result;
 
   VariantOp smokeProbe = findVariant(kernel, "smoke_probe");
