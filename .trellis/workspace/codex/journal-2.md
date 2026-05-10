@@ -602,6 +602,56 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 [OK] **Completed**
 
+## Session 34: RVV i64m1 vsub front-door dispatch ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV i64m1 vsub front-door dispatch ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD for the bounded `i64-vsub` / `i64m1`
+front-door dispatch evidence module. The existing compiler stack already
+carried the route through the shared finite binary frontend descriptor, RVV
+family planning, scalar fallback, and RVV+scalar dispatch exporter, so the
+round strengthened focused lit coverage and produced real `ssh rvv` evidence.
+
+### Main Changes
+
+- Strengthened `test/Scripts/rvv-scalar-dispatch-bundle-e2e.test` so the
+  `i64-vsub` plan-and-export dispatch dry-run requires
+  `frontend_bundle_i64_vsub` and checks generated source for `rvv_first_slice`,
+  i64m1 metadata, `__riscv_vsub_vv_i64m1`, scalar `lhs - rhs`, int64 ABI
+  parameters, guard/fallback linkage, and the dispatch wrapper symbol.
+- Added this task's PRD plus implement/check context under
+  `.trellis/tasks/05-11-rvv-i64m1-vsub-frontdoor-dispatch-ssh-evidence/`.
+
+### Evidence
+
+- `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i64-vsub-frontdoor-dispatch-ssh/evidence.json`
+- Result: `status=success`, `pass_fail_result=pass`,
+  `ssh_evidence_verified=true`.
+- Remote: `ssh rvv`, `riscv64`, `/usr/bin/clang`,
+  `Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Wrapper:
+  `tcrv_dispatch_i64_vsub_frontend_bundle_i64_vsub(..., size_t n, int rvv_available)`.
+- Both source-built and bundle-object linked executables printed
+  `tcrv_rvv_scalar_i64_vsub_bundle_external_abi_ok runtime_counts=7,16 branches=scalar_and_rvv`.
+
+### Testing
+
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vsub --expect-selected-kernel=frontend_bundle_i64_vsub --run-id codex-i64-vsub-frontdoor-dispatch-dry --overwrite --timeout 120`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vsub --expect-selected-kernel=frontend_bundle_i64_vsub --ssh-target rvv --run-id codex-i64-vsub-frontdoor-dispatch-ssh --overwrite --timeout 120`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-scalar-dispatch-bundle-e2e.test`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+
+### Status
+
+[OK] **Completed**
+
 ## Session 32: RVV i64m1 plan-and-export front-door route
 
 **Date**: 2026-05-11

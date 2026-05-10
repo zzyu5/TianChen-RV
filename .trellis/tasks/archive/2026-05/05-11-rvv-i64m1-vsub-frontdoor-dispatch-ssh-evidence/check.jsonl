@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Validate final behavior against global project and implementation-stack invariants."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that the task did not add compute semantics or extension-specific branches to tcrv.exec."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected RVV i64m1 metadata, intrinsic ownership, and finite binary planning evidence."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar i64-vsub fallback route and subtraction ownership."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check linalg front-door marker and descriptor path remain bounded and normal-planning based."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check dispatch ABI, bundle metadata, runtime guard, and parameter layering."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check that runtime claims are limited to real ssh rvv evidence produced in this task."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck, dry-run, and runtime validation coverage."}
