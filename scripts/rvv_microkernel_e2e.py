@@ -30,10 +30,12 @@ SCRIPT_NAME = "tianchenrv-rvv-microkernel-e2e"
 SCHEMA_VERSION = 1
 DEFAULT_INPUT = Path("test/Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir")
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_e2e")
+DEFAULT_PROFILE_REPLAY_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_i64_profile_replay_e2e")
 DEFAULT_BUNDLE_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_bundle_e2e")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
+PROFILE_REPLAY_INPUT_FILE_NAME = "profile_replay_input.mlir"
 DIRECT_EXTERNAL_RUNTIME_COUNTS = [7, 16]
 DTYPE_SCALAR_C_TYPES = {
     "i32": "int32_t",
@@ -645,6 +647,14 @@ def resolve_repo_path(path: Path, root: Path) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def require_under_repo(path: Path, root: Path, context: str) -> None:
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError as error:
+        raise BridgeError(f"{context} must be inside the repository: {path}") from error
+
+
 def require_under_artifacts_tmp(path: Path, root: Path) -> None:
     artifacts_tmp = (root / "artifacts" / "tmp").resolve()
     resolved = path.resolve()
@@ -672,6 +682,99 @@ def prepare_artifact_dir(
         shutil.rmtree(artifact_dir)
     (artifact_dir / "logs").mkdir(parents=True, exist_ok=False)
     return artifact_dir
+
+
+def profile_replay_requested(args: argparse.Namespace) -> bool:
+    return bool(args.profile_replay_evidence_json)
+
+
+def build_profile_replay_mlir_command(
+    evidence_json: Path, kernel_name: str, frontend_lowering: str, root: Path
+) -> list[str]:
+    evidence_path = resolve_repo_path(evidence_json, root)
+    require_under_repo(
+        evidence_path, root, "profile replay evidence JSON path"
+    )
+    reject_secret_like_text("profile replay evidence JSON path", str(evidence_json))
+    reject_secret_like_text("profile replay kernel name", kernel_name)
+    reject_secret_like_text("profile replay frontend lowering", frontend_lowering)
+    if not evidence_path.exists():
+        raise BridgeError(f"profile replay evidence JSON does not exist: {evidence_json}")
+    return [
+        "python3",
+        "scripts/rvv_probe_to_mlir.py",
+        relative_to_repo(evidence_path, root),
+        "--kernel-name",
+        kernel_name,
+        "--frontend-lowering",
+        frontend_lowering,
+        "--emit-target-profile",
+    ]
+
+
+def replay_profile_input_for_run(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    artifact_dir: Path,
+    commands: list[dict[str, Any]],
+    timeout_seconds: int,
+) -> tuple[Path, dict[str, Any]]:
+    evidence_json = Path(args.profile_replay_evidence_json)
+    evidence_path = resolve_repo_path(evidence_json, root)
+    require_under_repo(
+        evidence_path, root, "profile replay evidence JSON path"
+    )
+    reject_secret_like_text(
+        "profile replay evidence JSON path", str(args.profile_replay_evidence_json)
+    )
+    if not evidence_path.exists():
+        raise BridgeError(f"profile replay evidence JSON does not exist: {evidence_json}")
+
+    kernel_name = args.profile_replay_kernel_name or "rvv_probe_i64_replay"
+    reject_secret_like_text("profile replay kernel name", kernel_name)
+    frontend_lowering = (
+        args.profile_replay_frontend_lowering
+        or str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    )
+    reject_secret_like_text("profile replay frontend lowering", frontend_lowering)
+    if frontend_lowering != str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]):
+        raise BridgeError(
+            "profile replay frontend-lowering must match the selected arithmetic family "
+            + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+        )
+    if args.input:
+        raise BridgeError(
+            "--profile-replay-evidence-json cannot be combined with --input"
+        )
+
+    replay_input_path = artifact_dir / PROFILE_REPLAY_INPUT_FILE_NAME
+    replay_stdout, _, _ = run_command(
+        "replay_profile_evidence_to_mlir",
+        build_profile_replay_mlir_command(
+            evidence_path, kernel_name, frontend_lowering, root
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=timeout_seconds,
+    )
+    write_generated_text(
+        replay_input_path,
+        "profile replay input MLIR",
+        replay_stdout,
+    )
+
+    replay_metadata = {
+        "input_source": "rvv_probe_to_mlir.py --emit-target-profile",
+        "evidence_json": relative_to_repo(evidence_path, root),
+        "evidence_json_sha256": sha256_file(evidence_path),
+        "kernel_name": kernel_name,
+        "frontend_lowering": frontend_lowering,
+        "generated_mlir": relative_to_repo(replay_input_path, root),
+        "generated_mlir_sha256": sha256_text(replay_stdout),
+    }
+    return replay_input_path, replay_metadata
 
 
 def resolve_tool(explicit: str, tool_name: str, root: Path) -> str:
@@ -1935,7 +2038,7 @@ def run_remote_self_check_source_evidence(
         "scp_generated_microkernel_self_check_source",
         [
             *scp_base_command(args),
-            str(source_path),
+            relative_to_repo(source_path, root),
             f"{args.ssh_target}:{remote_source}",
         ],
         cwd=root,
@@ -2033,10 +2136,10 @@ def run_remote_external_abi_evidence(
         "scp_external_abi_inputs",
         [
             *scp_base_command(args),
-            str(source_path),
-            str(header_path),
-            str(object_path),
-            str(caller_path),
+            relative_to_repo(source_path, root),
+            relative_to_repo(header_path, root),
+            relative_to_repo(object_path, root),
+            relative_to_repo(caller_path, root),
             f"{args.ssh_target}:{remote_dir}/",
         ],
         cwd=root,
@@ -2510,6 +2613,11 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def selected_artifact_root(args: argparse.Namespace) -> Path:
     if (
+        profile_replay_requested(args)
+        and args.artifact_root == str(DEFAULT_ARTIFACT_ROOT)
+    ):
+        return DEFAULT_PROFILE_REPLAY_ARTIFACT_ROOT
+    if (
         args.use_target_artifact_bundle
         and args.artifact_root == str(DEFAULT_ARTIFACT_ROOT)
     ):
@@ -2542,6 +2650,11 @@ def selected_input_path(args: argparse.Namespace) -> Path:
 
 
 def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]]:
+    if profile_replay_requested(args):
+        return (
+            "tcrv_opt_profile_replay_execution_planning_pipeline",
+            ["--tcrv-execution-planning-pipeline"],
+        )
     if getattr(args, "lower_linalg_frontend", False):
         return (
             "tcrv_opt_linalg_frontend_execution_planning_pipeline",
@@ -2565,6 +2678,8 @@ def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]
 
 
 def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
+    if profile_replay_requested(args):
+        return "rvv-probe-profile-replay + tcrv-execution-planning-pipeline"
     if getattr(args, "lower_linalg_frontend", False):
         return (
             "tcrv-lower-linalg-i32-binary-to-exec + "
@@ -2584,11 +2699,21 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     )
     commands: list[dict[str, Any]] = []
 
-    selected_input = selected_input_path(args)
-    input_path = resolve_repo_path(selected_input, root)
-    if not input_path.exists():
-        raise BridgeError(f"input MLIR does not exist: {selected_input}")
-    reject_secret_like_text("input MLIR path", str(selected_input))
+    profile_replay_metadata: dict[str, Any] = {}
+    if profile_replay_requested(args):
+        input_path, profile_replay_metadata = replay_profile_input_for_run(
+            args,
+            root=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    else:
+        selected_input = selected_input_path(args)
+        input_path = resolve_repo_path(selected_input, root)
+        if not input_path.exists():
+            raise BridgeError(f"input MLIR does not exist: {selected_input}")
+        reject_secret_like_text("input MLIR path", str(selected_input))
 
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
     local_clang = ensure_local_clang_on_path()
@@ -2860,15 +2985,25 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
 
     run_id = safe_run_id(args.run_id or utc_run_id())
     artifact_dir = prepare_artifact_dir(
-        Path(args.artifact_root), run_id, root, args.overwrite
+        selected_artifact_root(args), run_id, root, args.overwrite
     )
     commands: list[dict[str, Any]] = []
 
-    selected_input = selected_input_path(args)
-    input_path = resolve_repo_path(selected_input, root)
-    if not input_path.exists():
-        raise BridgeError(f"input MLIR does not exist: {selected_input}")
-    reject_secret_like_text("input MLIR path", str(selected_input))
+    profile_replay_metadata: dict[str, Any] = {}
+    if profile_replay_requested(args):
+        input_path, profile_replay_metadata = replay_profile_input_for_run(
+            args,
+            root=root,
+            artifact_dir=artifact_dir,
+            commands=commands,
+            timeout_seconds=args.timeout,
+        )
+    else:
+        selected_input = selected_input_path(args)
+        input_path = resolve_repo_path(selected_input, root)
+        if not input_path.exists():
+            raise BridgeError(f"input MLIR does not exist: {selected_input}")
+        reject_secret_like_text("input MLIR path", str(selected_input))
 
     tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
@@ -2883,7 +3018,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         planning_command_name,
         [
             tcrv_opt,
-            str(input_path),
+            relative_to_repo(input_path, root),
             *planning_args,
         ],
         cwd=root,
@@ -2901,7 +3036,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         [
             tcrv_translate,
             "--tcrv-export-emission-manifest",
-            str(post_planning_path),
+            relative_to_repo(post_planning_path, root),
         ],
         cwd=root,
         artifact_dir=artifact_dir,
@@ -2933,7 +3068,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         [
             tcrv_translate,
             source_export_flag,
-            str(post_planning_path),
+            relative_to_repo(post_planning_path, root),
         ],
         cwd=root,
         artifact_dir=artifact_dir,
@@ -2974,7 +3109,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             [
                 tcrv_translate,
                 direct_helper_flag(header_translation_route),
-                str(post_planning_path),
+                relative_to_repo(post_planning_path, root),
             ],
             cwd=root,
             artifact_dir=artifact_dir,
@@ -2995,7 +3130,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             [
                 tcrv_translate,
                 direct_helper_flag(object_translation_route),
-                str(post_planning_path),
+                relative_to_repo(post_planning_path, root),
             ],
             object_path,
             cwd=root,
@@ -3026,6 +3161,13 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "emission_manifest_sha256": sha256_text(manifest_text),
         "rvv_microkernel_c_sha256": sha256_text(source_text),
     }
+    if profile_replay_metadata:
+        hashes["profile_replay_evidence_json_sha256"] = profile_replay_metadata[
+            "evidence_json_sha256"
+        ]
+        hashes["profile_replay_input_mlir_sha256"] = profile_replay_metadata[
+            "generated_mlir_sha256"
+        ]
     if header_sha256:
         hashes["rvv_microkernel_h_sha256"] = header_sha256
     if not args.dry_run and not use_harness:
@@ -3087,24 +3229,50 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "commands": commands,
         "ssh_evidence": False,
         "ssh_evidence_details": None,
+        "profile_replay": profile_replay_metadata or None,
+        "input_source": (
+            profile_replay_metadata.get("input_source", "existing-mlir")
+            if profile_replay_metadata
+            else "existing-mlir"
+        ),
         "claim_scope": (
-            "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+            (
+                "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+                if profile_replay_metadata
+                else "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+            )
             if args.dry_run and uses_direct_family_helpers
             else (
                 "local dry-run verifies compiler-tool handoff and source export only"
                 if args.dry_run
                 else (
-                    "bounded generated RVV "
+                    (
+                        "bounded profile-replayed generated RVV "
+                        if profile_replay_metadata
+                        else "bounded generated RVV "
+                    )
                     + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
-                    + " self-check executable correctness only"
+                    + (
+                        " self-check executable correctness only"
+                        if use_harness
+                        else " direct helper artifact handoff plus header/object external caller correctness only"
+                    )
                     if use_harness
-                    else "bounded generated RVV "
+                    else (
+                        "bounded profile-replayed generated RVV "
+                        if profile_replay_metadata
+                        else "bounded generated RVV "
+                    )
                     + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
                     + " direct helper artifact handoff plus header/object external caller correctness only"
                 )
             )
         ),
     }
+    if profile_replay_metadata:
+        evidence["artifacts"]["profile_replay_input_mlir"] = profile_replay_metadata[
+            "generated_mlir"
+        ]
     if should_export_direct_header:
         evidence["artifacts"]["rvv_microkernel_h"] = relative_to_repo(
             header_path, root
@@ -3659,6 +3827,47 @@ void tcrv_rvv_i64_vadd_microkernel_self_test(const int64_t *lhs, const int64_t *
         "i64 external ABI caller success marker missing",
     )
 
+    profile_replay_command = build_profile_replay_mlir_command(
+        Path("test/Fixtures/rvv_probe/sanitized-success.json"),
+        "rvv_probe_i64_replay",
+        "i64-vadd",
+        root,
+    )
+    assert_self_test(
+        profile_replay_command[:2] == ["python3", "scripts/rvv_probe_to_mlir.py"],
+        "profile replay command did not target rvv_probe_to_mlir.py",
+    )
+    assert_self_test(
+        "--emit-target-profile" in profile_replay_command,
+        "profile replay command did not request target-profile replay",
+    )
+    profile_args = parse_args(
+        [
+            "--profile-replay-evidence-json",
+            "test/Fixtures/rvv_probe/sanitized-success.json",
+            "--arithmetic-family",
+            "i64-vadd",
+        ]
+    )
+    assert_self_test(
+        selected_artifact_root(profile_args)
+        == DEFAULT_PROFILE_REPLAY_ARTIFACT_ROOT,
+        "profile replay runs must default to the dedicated artifact root",
+    )
+    try:
+        build_profile_replay_mlir_command(
+            Path("/tmp/rvv_profile_replay_outside_repo.json"),
+            "rvv_probe_i64_replay",
+            "i64-vadd",
+            root,
+        )
+    except BridgeError:
+        pass
+    else:
+        raise AssertionError(
+            "profile replay evidence path outside the repository was accepted"
+        )
+
     configure_arithmetic_family("i32-vadd")
     configure_vector_shape("i32m1")
     remote_command = build_remote_compile_command(
@@ -3740,6 +3949,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Run bounded linalg frontend lowering before execution planning",
     )
     parser.add_argument(
+        "--profile-replay-evidence-json",
+        default="",
+        help=(
+            "Replay sanitized RVV probe evidence into a target-profile MLIR "
+            "fixture before running the compiler planning/export route"
+        ),
+    )
+    parser.add_argument(
+        "--profile-replay-kernel-name",
+        default="rvv_probe_i64_replay",
+        help="Kernel symbol used for generated profile-replay MLIR input",
+    )
+    parser.add_argument(
+        "--profile-replay-frontend-lowering",
+        default="",
+        help=(
+            "Frontend lowering marker passed to rvv_probe_to_mlir; defaults "
+            "to the selected arithmetic family"
+        ),
+    )
+    parser.add_argument(
         "--expect-selected-kernel",
         default="",
         help=(
@@ -3795,6 +4025,22 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+    if args.profile_replay_evidence_json and (
+        args.input
+        or args.lower_linalg_frontend
+        or args.use_target_artifact_bundle
+        or args.generic_route
+        or args.self_check_harness
+    ):
+        print(
+            "rvv_microkernel_e2e: --profile-replay-evidence-json currently "
+            "selects the direct source/header/object external-ABI route and "
+            "cannot be combined with --input, --lower-linalg-frontend, "
+            "--use-target-artifact-bundle, --generic-route, or "
+            "--self-check-harness",
+            file=sys.stderr,
+        )
+        return 1
     if args.lower_linalg_frontend and args.use_plan_and_export_bundle_front_door:
         print(
             "rvv_microkernel_e2e: --lower-linalg-frontend is not supported "
@@ -3824,10 +4070,12 @@ def main(argv: list[str]) -> int:
                 "artifact_dir": evidence["artifact_dir"],
                 "arithmetic_family": evidence.get("arithmetic_family", ""),
                 "bundle_export_mode": evidence.get("bundle_export_mode", ""),
+                "input_source": evidence.get("input_source", ""),
                 "mode": evidence["mode"],
                 "status": evidence["status"],
                 "manifest_handoff": evidence.get("manifest_handoff", False),
                 "planned_pipeline": evidence.get("planned_pipeline", ""),
+                "profile_replay": bool(evidence.get("profile_replay")),
                 "selected_kernel": evidence.get("compiler_path_context", {}).get(
                     "selected_kernel", ""
                 ),

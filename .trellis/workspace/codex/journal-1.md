@@ -55,6 +55,69 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 14: Profile-replayed i64 RVV ssh evidence
+
+**Date**: 2026-05-10
+**Task**: `05-10-rvv-i64-profile-replay-ssh-evidence`
+**Branch**: `main`
+
+### Summary
+
+Added a dedicated profile-replay entry to the RVV microkernel evidence runner
+and collected real `ssh rvv` evidence for the profile-replayed `i64-vadd`
+direct RVV source/header/object external ABI path.
+
+### Main Changes
+
+- Created Trellis task `05-10-rvv-i64-profile-replay-ssh-evidence` with PRD and
+  context files.
+- Extended `scripts/rvv_microkernel_e2e.py` with
+  `--profile-replay-evidence-json`, which first calls
+  `scripts/rvv_probe_to_mlir.py --emit-target-profile --frontend-lowering
+  i64-vadd` and then runs the existing C++/MLIR planning/export route.
+- Added default profile-replay artifact root
+  `artifacts/tmp/rvv_i64_profile_replay_e2e/`.
+- Recorded profile replay metadata, source probe JSON digest, generated MLIR
+  digest, command summaries, and selected compile flags in evidence JSON.
+- Added focused lit coverage for the profile replay dry-run route and generated
+  replay input.
+- No specs were updated; the existing spec contract already covered this
+  runner/evidence boundary.
+
+### Evidence
+
+- Fresh probe:
+  `artifacts/tmp/rvv_probe/20260510T-rvv-i64-profile-replay-probe/rvv_probe_evidence.json`
+- Successful profile replay ssh evidence:
+  `artifacts/tmp/rvv_i64_profile_replay_e2e/20260510T-rvv-i64-profile-replay-ssh/evidence.json`
+- Remote result: both source-built and generated-object external caller paths
+  exited 0 on `ssh rvv` and printed
+  `tcrv_rvv_i64_vadd_microkernel_external_abi_ok counts=7,16`.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py scripts/rvv_probe_to_mlir.py`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] profile replay dry-run:
+  `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --profile-replay-evidence-json test/Fixtures/rvv_probe/sanitized-success.json --run-id dev-rvv-i64-profile-replay-dry --overwrite`
+- [OK] full lit/check:
+  `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -- -j2`
+  passed 192/192.
+- [OK] fresh `ssh rvv` probe:
+  `python3 scripts/rvv_remote_probe.py --run-id 20260510T-rvv-i64-profile-replay-probe --timeout 120 --connect-timeout 10`
+- [OK] real profile-replayed ssh evidence:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i64-vadd --profile-replay-evidence-json artifacts/tmp/rvv_probe/20260510T-rvv-i64-profile-replay-probe/rvv_probe_evidence.json --run-id 20260510T-rvv-i64-profile-replay-ssh --overwrite --timeout 120 --connect-timeout 10`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV binary planning component extraction
 
 **Date**: 2026-05-10
