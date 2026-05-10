@@ -607,6 +607,68 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 - None - task complete
 
 
+## Session 31: RVV verified i64m1 direct microkernel artifact-to-ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV verified i64m1 microkernel artifact-to-ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, selected the preferred
+checked-in direct `i64-vadd` RVV microkernel fixture, and verified that current
+HEAD already carries it through selected metadata, the structured RVV body
+verifier, target artifact source/header/object bundle export, and real
+`ssh rvv` compile/link/run evidence. No C++ compiler/export change was needed.
+
+### Main Changes
+
+- Added focused script/lit coverage for the exact direct `i64-vadd`
+  target-artifact-bundle dry-run in
+  `test/Scripts/rvv-microkernel-bundle-e2e.test`.
+- The new check pins selected kernel `export_i64_vadd`, direct variant
+  `rvv_i64_slice`, i64 ABI parameter types, direct RVV route ids, i64m1
+  intrinsic evidence, and generated external caller arithmetic `lhs + rhs`.
+- Recorded the task PRD, completion notes, validation commands, and evidence
+  path under
+  `.trellis/tasks/archive/2026-05/05-11-rvv-verified-i64m1-microkernel-ssh-evidence/`.
+
+### Evidence
+
+- Real command:
+  `python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --ssh-target rvv --run-id codex-i64-vadd-direct-bundle-ssh --overwrite --timeout 120`
+- Evidence JSON:
+  `artifacts/tmp/rvv_microkernel_bundle_e2e/codex-i64-vadd-direct-bundle-ssh/evidence.json`
+- Evidence result: `status=success`, `mode=ssh`,
+  `ssh_evidence.success=true`, `remote_compile_succeeded=true`,
+  `remote_link_succeeded=true`, `remote_run_succeeded=true`, and
+  `output_validation_succeeded=true`.
+- Remote facts: architecture `riscv64`, clang path `/usr/bin/clang`, clang
+  `Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Runtime/evidence scope: direct `i64-vadd` generated caller checks
+  `lhs + rhs` for runtime counts `7` and `16`; both the remote source-built
+  object path and compiler-generated bundle object path observed
+  `tcrv_rvv_i64_vadd_microkernel_external_abi_ok`.
+
+### Testing
+
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --run-id codex-i64-vadd-direct-bundle-postpatch-dry --overwrite --timeout 120`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `rvv-microkernel-bundle-e2e`: 1/1 selected test passed.
+- `git diff --check`
+- `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 21: RVV selected vector capability metadata contract
 
 **Date**: 2026-05-11

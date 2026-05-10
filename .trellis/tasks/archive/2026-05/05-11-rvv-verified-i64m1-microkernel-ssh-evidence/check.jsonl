@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check project-wide stack and boundary invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV target/plugin ownership and bounded direct microkernel claims"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact route/runtime ABI/source-header-object layering"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused local and ssh evidence validation requirements"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check evidence interpretation stays bounded to produced ssh evidence"}
