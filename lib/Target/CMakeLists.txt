@@ -5,6 +5,7 @@ add_subdirectory(Scalar)
 add_mlir_library(TianChenRVTarget
   EmissionManifest.cpp
   TargetArtifactExport.cpp
+  TargetTranslateRegistration.cpp
 
   LINK_LIBS PUBLIC
   TianChenRVExecDialect

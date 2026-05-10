@@ -15,6 +15,7 @@ class raw_ostream;
 namespace tianchenrv::target {
 
 class TargetArtifactExporterRegistry;
+class TargetTranslateRouteRegistry;
 
 namespace rvv_scalar {
 
@@ -145,6 +146,9 @@ exportRVVScalarI32VMulDispatchSelfCheckObject(mlir::ModuleOp module,
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
     tianchenrv::target::TargetArtifactExporterRegistry &registry);
+
+llvm::Error registerRVVScalarDispatchTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry);
 
 } // namespace rvv_scalar
 } // namespace tianchenrv::target

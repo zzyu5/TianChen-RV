@@ -3,11 +3,13 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
+#include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -552,6 +554,120 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
   return expectFailure(
       tianchenrv::target::rvv::registerRVVMicrokernelTargetExporters(registry),
       "duplicate RVV direct route contribution rejected");
+}
+
+bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
+                          llvm::StringRef routeID,
+                          bool expectedBinaryStdout,
+                          llvm::StringRef expectedDescriptionFragment) {
+  const TargetTranslateRoute *route = registry.lookup(routeID);
+  if (!route) {
+    llvm::errs() << "missing target translate route '" << routeID << "'\n";
+    return false;
+  }
+  if (!route->getExportFn()) {
+    llvm::errs() << "target translate route '" << routeID
+                 << "' has no export callback\n";
+    return false;
+  }
+  if (route->requiresBinaryStdout() != expectedBinaryStdout) {
+    llvm::errs() << "target translate route '" << routeID
+                 << "' has wrong binary stdout flag\n";
+    return false;
+  }
+  if (!route->getDescription().contains(expectedDescriptionFragment)) {
+    llvm::errs() << "target translate route '" << routeID
+                 << "' has unexpected description '"
+                 << route->getDescription() << "'\n";
+    return false;
+  }
+  return true;
+}
+
+bool expectTargetTranslateRouteRegistryShape() {
+  TargetTranslateRouteRegistry registry;
+  if (!expectSuccess(registry.registerRoute(TargetTranslateRoute(
+                         "tcrv-test-translate-route",
+                         "export one test translate route", noopExporter)),
+                     "register valid target translate route"))
+    return false;
+  if (!expectTranslateRoute(registry, "tcrv-test-translate-route",
+                            /*expectedBinaryStdout=*/false,
+                            "test translate route"))
+    return false;
+  if (!expectFailure(registry.registerRoute(TargetTranslateRoute(
+                         "tcrv-test-translate-route",
+                         "export duplicate test translate route", noopExporter)),
+                     "duplicate target translate route rejected"))
+    return false;
+  if (!expectErrorContains(
+          registry.registerRoute(TargetTranslateRoute(
+              "", "export missing route id", noopExporter)),
+          "empty target translate route id rejected",
+          {"target translate route registry failed",
+           "route id must be non-empty"}))
+    return false;
+  if (!expectErrorContains(
+          registry.registerRoute(TargetTranslateRoute(
+              "tcrv-empty-description-route", "", noopExporter)),
+          "empty target translate route description rejected",
+          {"target translate route registry failed",
+           "route description must be non-empty"}))
+    return false;
+  if (!expectErrorContains(
+          registry.registerRoute(TargetTranslateRoute(
+              "tcrv-missing-callback-route", "missing callback",
+              TargetTranslateExportFn{})),
+          "null target translate route callback rejected",
+          {"target translate route registry failed",
+           "route export callback must be non-null"}))
+    return false;
+
+  TargetTranslateRouteRegistry builtinRoutes;
+  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
+                     "register built-in target translate routes"))
+    return false;
+  if (builtinRoutes.size() != 48) {
+    llvm::errs() << "expected 48 built-in target translate routes, got "
+                 << builtinRoutes.size() << "\n";
+    return false;
+  }
+
+  if (!expectTranslateRoute(builtinRoutes, "tcrv-export-rvv-microkernel-c",
+                            /*expectedBinaryStdout=*/false,
+                            "runtime-callable RVV i32-vadd"))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes, "tcrv-export-rvv-i64-vsub-microkernel-object",
+          /*expectedBinaryStdout=*/true,
+          "RVV i64-vsub microkernel library object"))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+          /*expectedBinaryStdout=*/false,
+          "RVV+scalar binary dispatch C source"))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes,
+          "tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-object",
+          /*expectedBinaryStdout=*/true,
+          "dispatch self-check object file"))
+    return false;
+  if (builtinRoutes.lookup("tcrv-export-rvv-smoke-probe-c")) {
+    llvm::errs() << "RVV smoke-probe legacy helper should remain outside the "
+                    "target translate route-family registry\n";
+    return false;
+  }
+  if (builtinRoutes.lookup("tcrv-export-rvv-microkernel-self-check-c")) {
+    llvm::errs() << "RVV standalone self-check helper should remain outside "
+                    "the target translate route-family registry\n";
+    return false;
+  }
+
+  return expectErrorContains(
+      registerBuiltinTargetTranslateRoutes(builtinRoutes),
+      "duplicate built-in target translate routes rejected",
+      {"target translate route registry failed", "duplicate route id"});
 }
 
 bool expectRuntimeABIParameterRoleLookup() {
@@ -1980,6 +2096,8 @@ int main() {
   if (!expectRVVBinaryRuntimeABIContractShape())
     return 1;
   if (!expectRVVMicrokernelDirectRouteManifestShape())
+    return 1;
+  if (!expectTargetTranslateRouteRegistryShape())
     return 1;
   if (!expectRuntimeABIParameterRoleLookup())
     return 1;

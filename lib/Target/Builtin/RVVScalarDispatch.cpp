@@ -12,6 +12,7 @@
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/SymbolTable.h"
@@ -2943,6 +2944,22 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
        getRVVScalarDispatchRouteManifest()) {
     if (llvm::Error error =
             registerRVVScalarDispatchRouteTargetExporter(registry, route))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error registerRVVScalarDispatchTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry) {
+  for (const RVVScalarDispatchRouteManifestEntry &route :
+       getRVVScalarDispatchRouteManifest()) {
+    const RVVScalarDispatchRouteManifestEntry *routePtr = &route;
+    if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
+            route.routeID, route.description,
+            [routePtr](mlir::ModuleOp module, llvm::raw_ostream &os) {
+              return exportRVVScalarDispatchRoute(module, *routePtr, os);
+            },
+            route.requiresBinaryStdout)))
       return error;
   }
   return llvm::Error::success();

@@ -20,6 +20,7 @@ enum class I32BinaryFamilyKind;
 
 namespace tianchenrv::target {
 class TargetArtifactExporterRegistry;
+class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::target::rvv {
@@ -74,6 +75,9 @@ llvm::Error exportRVVMicrokernelObjectForFamily(
 
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry);
+
+llvm::Error registerRVVMicrokernelTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry);
 
 } // namespace tianchenrv::target::rvv
 

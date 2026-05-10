@@ -2,11 +2,12 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
+#include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 #include "TianChenRV/Target/EmissionManifest.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
-#include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/TargetTranslateRegistration.h"
 #include "TianChenRV/Transforms/ExecutionPlanCoherence.h"
 #include "TianChenRV/Transforms/Passes.h"
 
@@ -113,11 +114,10 @@ mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return mlir::success();
 }
 
-mlir::LogicalResult exportRVVMicrokernelDirectManifestRoute(
-    mlir::ModuleOp module,
-    const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
-        &route,
-    llvm::raw_ostream &os) {
+mlir::LogicalResult
+exportTargetTranslateRoute(mlir::ModuleOp module,
+                           const tianchenrv::target::TargetTranslateRoute &route,
+                           llvm::raw_ostream &os) {
   if (route.requiresBinaryStdout()) {
     if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
       module.emitError()
@@ -127,9 +127,7 @@ mlir::LogicalResult exportRVVMicrokernelDirectManifestRoute(
     }
   }
 
-  if (llvm::Error error =
-          tianchenrv::target::rvv::exportRVVMicrokernelDirectRoute(module,
-                                                                   route, os)) {
+  if (llvm::Error error = route.getExportFn()(module, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -137,86 +135,44 @@ mlir::LogicalResult exportRVVMicrokernelDirectManifestRoute(
   return mlir::success();
 }
 
-void registerRVVMicrokernelDirectRouteTranslations() {
+void registerBuiltinTargetTranslateRouteTranslations() {
+  static tianchenrv::target::TargetTranslateRouteRegistry routeRegistry;
   static std::vector<std::unique_ptr<mlir::TranslateFromMLIRRegistration>>
       registrations;
+  static bool initialized = false;
   if (!registrations.empty())
     return;
 
-  for (const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
-           &route :
-       tianchenrv::target::rvv::getRVVMicrokernelDirectRouteManifest()) {
-    const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
-        *routePtr = &route;
+  if (!initialized) {
+    if (llvm::Error error =
+            tianchenrv::target::registerBuiltinTargetTranslateRoutes(
+                routeRegistry)) {
+      llvm::report_fatal_error(
+          llvm::Twine("failed to register TianChen-RV built-in target "
+                      "translate routes for tcrv-translate: ") +
+          llvm::toString(std::move(error)));
+    }
+    initialized = true;
+  }
+
+  for (const tianchenrv::target::TargetTranslateRoute &route :
+       routeRegistry.getRoutes()) {
+    const tianchenrv::target::TargetTranslateRoute *routePtr = &route;
     mlir::TranslateFromMLIRFunction translate =
         [routePtr](mlir::Operation *op,
                    llvm::raw_ostream &os) -> mlir::LogicalResult {
       auto module = llvm::dyn_cast<mlir::ModuleOp>(op);
       if (!module)
         return op->emitError()
-               << "expected a 'builtin.module' op for TianChen-RV RVV "
-                  "microkernel route '"
+               << "expected a 'builtin.module' op for TianChen-RV target "
+                  "translate route '"
                << routePtr->getRouteID() << "'";
-      return exportRVVMicrokernelDirectManifestRoute(module, *routePtr, os);
+      return exportTargetTranslateRoute(module, *routePtr, os);
     };
 
     registrations.push_back(
         std::make_unique<mlir::TranslateFromMLIRRegistration>(
             route.getRouteID(), route.getDescription(), translate,
-            registerTianChenRVTranslateDialects));
-  }
-}
-
-mlir::LogicalResult exportRVVScalarDispatchManifestRoute(
-    mlir::ModuleOp module,
-    const tianchenrv::target::rvv_scalar::
-        RVVScalarDispatchRouteManifestEntry &route,
-    llvm::raw_ostream &os) {
-  if (route.requiresBinaryStdout) {
-    if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
-      module.emitError()
-          << "failed to switch stdout to binary mode for object export: "
-          << error.message();
-      return mlir::failure();
-    }
-  }
-
-  if (llvm::Error error =
-          tianchenrv::target::rvv_scalar::exportRVVScalarDispatchRoute(
-              module, route, os)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  return mlir::success();
-}
-
-void registerRVVScalarDispatchManifestTranslations() {
-  static std::vector<std::unique_ptr<mlir::TranslateFromMLIRRegistration>>
-      registrations;
-  if (!registrations.empty())
-    return;
-
-  for (const tianchenrv::target::rvv_scalar::
-           RVVScalarDispatchRouteManifestEntry &route :
-       tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteManifest()) {
-    const tianchenrv::target::rvv_scalar::
-        RVVScalarDispatchRouteManifestEntry *routePtr = &route;
-    mlir::TranslateFromMLIRFunction translate =
-        [routePtr](mlir::Operation *op,
-                   llvm::raw_ostream &os) -> mlir::LogicalResult {
-      auto module = llvm::dyn_cast<mlir::ModuleOp>(op);
-      if (!module)
-        return op->emitError()
-               << "expected a 'builtin.module' op for TianChen-RV RVV+scalar "
-                  "dispatch route '"
-               << routePtr->routeID << "'";
-      return exportRVVScalarDispatchManifestRoute(module, *routePtr, os);
-    };
-
-    registrations.push_back(
-        std::make_unique<mlir::TranslateFromMLIRRegistration>(
-            route.routeID, route.description, translate,
             registerTianChenRVTranslateDialects));
   }
 }
@@ -359,9 +315,7 @@ void registerTianChenRVTranslations() {
       exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
   (void)rvvMicrokernelSelfCheckC;
 
-  registerRVVMicrokernelDirectRouteTranslations();
-
-  registerRVVScalarDispatchManifestTranslations();
+  registerBuiltinTargetTranslateRouteTranslations();
 
   static mlir::TranslateFromMLIRRegistration targetSourceArtifact(
       "tcrv-export-target-source-artifact",

@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-1.md`
-- **Total Sessions**: 15
+- **Active File**: `journal-2.md`
+- **Total Sessions**: 16
 - **Last Active**: 2026-05-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1929 | Active |
+| `journal-2.md` | ~60 | Active |
+| `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-05-10 | Target-owned artifact route translation registration | this commit | `main` |
 | 15 | 2026-05-10 | Descriptor-driven RVV binary runtime ABI boundary | this commit | `main` |
 | 14 | 2026-05-10 | RVV i64 profile replay sub/mul ssh evidence | this commit | `main` |
 | 13 | 2026-05-10 | RVV i64m1 profile replay parity | this commit | `main` |

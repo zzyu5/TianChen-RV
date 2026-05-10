@@ -475,6 +475,115 @@ The correct shape keeps target-specific route registration in target-owned
 modules plus one Target-layer built-in bundle, while shared generic artifact
 routing remains target-neutral and fail-closed.
 
+### Built-In Target Translate Route Registration Boundary
+
+#### 1. Scope / Trigger
+
+Trigger: a public translate tool needs direct route-family helper commands for
+target-owned artifact routes, such as bounded RVV direct binary microkernel
+source/header/object helpers or RVV+scalar dispatch source/header/object/
+self-check helpers.
+
+This boundary is a Target-layer translation route contribution helper only. It
+does not inspect MLIR modules, select routes, validate emission plans, generate
+artifacts, or run hardware.
+
+#### 2. Signatures
+
+Header:
+
+```cpp
+#include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
+#include "TianChenRV/Target/TargetTranslateRegistration.h"
+```
+
+C++ API:
+
+```cpp
+using TargetTranslateExportFn =
+    std::function<llvm::Error(mlir::ModuleOp, llvm::raw_ostream &)>;
+
+class TargetTranslateRoute {
+public:
+  llvm::StringRef getRouteID() const;
+  llvm::StringRef getDescription() const;
+  const TargetTranslateExportFn &getExportFn() const;
+  bool requiresBinaryStdout() const;
+};
+
+class TargetTranslateRouteRegistry {
+public:
+  llvm::Error registerRoute(const TargetTranslateRoute &route);
+  const TargetTranslateRoute *lookup(llvm::StringRef routeID) const;
+  llvm::ArrayRef<TargetTranslateRoute> getRoutes() const;
+};
+
+llvm::Error
+registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
+```
+
+#### 3. Contracts
+
+- The caller owns the `TargetTranslateRouteRegistry`.
+- A target translate route contribution records only the direct helper command
+  route id, help description, target-owned export callback, and whether stdout
+  must be switched to binary mode before callback execution.
+- The public translate tool owns the MLIR `TranslateFromMLIRRegistration`
+  object lifetime and attaches its dialect-registration hook generically while
+  iterating `TargetTranslateRouteRegistry::getRoutes()`.
+- Built-in target translate route registration delegates to target-owned
+  registration functions. Current route-family contributors are RVV direct
+  binary microkernel routes and RVV+scalar dispatch routes.
+- `tcrv-translate` must not manually loop over RVV direct or RVV+scalar
+  dispatch manifests. It should call `registerBuiltinTargetTranslateRoutes`
+  once and then register each contributed route generically.
+- Legacy standalone helpers that are not route-family artifact helpers, such as
+  the RVV smoke probe helper or the current standalone RVV microkernel
+  self-check C helper, may remain direct tool registrations until their owner
+  boundary is explicitly changed.
+- Target translate route registration does not change `TargetArtifactExport`
+  semantics, exporter matching, route-local ABI validation, generated artifact
+  contents, object compilation, bundle export, or evidence claims.
+
+#### 4. Validation & Error Matrix
+
+- Empty route id -> generic target translate route registry failure.
+- Empty description -> generic target translate route registry failure.
+- Null export callback -> generic target translate route registry failure.
+- Duplicate route id, including collisions between target contributors or
+  calling the built-in helper twice on one registry -> generic duplicate route
+  failure.
+- Missing built-in target translate route registration in a tool -> direct
+  helper route is absent from that tool's command surface; generic target
+  artifact front doors remain governed by `TargetArtifactExporterRegistry`.
+
+#### 5. Wrong vs Correct
+
+Wrong:
+
+```cpp
+// In tcrv-translate:
+for (const RVVMicrokernelDirectRouteManifestEntry &route :
+     getRVVMicrokernelDirectRouteManifest())
+  registerTranslateRoute(route);
+for (const RVVScalarDispatchRouteManifestEntry &route :
+     getRVVScalarDispatchRouteManifest())
+  registerTranslateRoute(route);
+```
+
+Correct:
+
+```cpp
+TargetTranslateRouteRegistry routes;
+registerBuiltinTargetTranslateRoutes(routes);
+for (const TargetTranslateRoute &route : routes.getRoutes())
+  registerTranslateRoute(route, registerTianChenRVTranslateDialects);
+```
+
+The correct shape keeps route-family facts and direct helper callbacks in
+target-owned support modules, while the public tool supplies only the generic
+MLIR translate registration and dialect hook.
+
 The artifact-kind aware generic route may also dispatch supported non-source
 artifacts through target-owned exporters. The first such route is the offload
 runtime handoff descriptor, registered by offload target/export code and

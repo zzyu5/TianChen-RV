@@ -10,6 +10,7 @@
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/TargetTranslateRegistration.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
@@ -4534,6 +4535,22 @@ llvm::Error registerRVVMicrokernelTargetExporters(
     }
   }
 
+  return llvm::Error::success();
+}
+
+llvm::Error registerRVVMicrokernelTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry) {
+  for (const RVVMicrokernelDirectRouteManifestEntry &route :
+       getRVVMicrokernelDirectRouteManifest()) {
+    const RVVMicrokernelDirectRouteManifestEntry *routePtr = &route;
+    if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
+            route.getRouteID(), route.getDescription(),
+            [routePtr](mlir::ModuleOp module, llvm::raw_ostream &os) {
+              return exportRVVMicrokernelDirectRoute(module, *routePtr, os);
+            },
+            route.requiresBinaryStdout())))
+      return error;
+  }
   return llvm::Error::success();
 }
 
