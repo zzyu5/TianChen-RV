@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and spec routing."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and locality constraints for this route."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability object and selected config layering contract."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant proposal, legality, selection, and dispatch boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected lowering/emission and runtime artifact boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit validation expectations."}

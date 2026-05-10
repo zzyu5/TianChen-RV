@@ -607,6 +607,69 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 - None - task complete
 
 
+## Session 32: RVV i64m1 plan-and-export front-door route
+
+**Date**: 2026-05-11
+**Task**: RVV i64m1 plan-and-export front-door route
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD for
+`rvv-i64m1-plan-and-export-frontdoor-route`, reproduced the direct i64-vadd
+plan-and-export bundle failure, and repaired the plugin-local proposal family
+selection. The failure was not in generic bundle export: a direct selected
+fixture without `tcrv_frontend_lowering` made `RVVExtensionPlugin` call the
+proposal planner with no frontend family marker, so the planner defaulted to
+`i32-vadd` and required i32 config ids even though the selected descriptor and
+capability facts were i64m1.
+
+### Main Changes
+
+- `RVVExtensionPlugin` now infers the proposal family from exactly one direct
+  RVV finite `tcrv_rvv.lowering_descriptor` in the same kernel when the
+  frontend marker is absent.
+- The inference stays RVV plugin-local, uses the finite RVV binary family
+  registry, and leaves generic core routing and target artifact bundle routing
+  untouched.
+- Added `RVVExtensionPluginTest` coverage proving a direct i64-vadd descriptor
+  produces i64m1 proposal requirement ids and selected vector metadata.
+- Added script lit coverage for the previously failing i64-vadd
+  plan-and-export bundle front-door dry-run, checking int64 ABI, i64 route ids,
+  selected `i64m1` capability metadata, and `__riscv_vadd_vv_i64m1`.
+
+### Validation
+
+- Reproduced baseline failure:
+  `python3 scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --run-id codex-i64-vadd-frontdoor-baseline --overwrite --timeout 120`
+- Post-fix direct front-door dry-run:
+  `python3 scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --run-id codex-i64-vadd-frontdoor-after-cpp --overwrite --timeout 120`
+- Post-fix linalg front-door dry-run:
+  `python3 scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --input test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir --expect-selected-kernel=frontend_i64_vadd --run-id codex-i64-vadd-frontdoor-linalg-after-cpp --overwrite --timeout 120`
+- Focused build:
+  `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-translate -j2`
+- Focused C++ tests:
+  `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-rvv-binary-variant-legality-test`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filters
+  `rvv-microkernel-bundle-e2e|rvv-extension-plugin` and
+  `plan-linalg-i64-vadd|rvv-binary-planning|rvv-binary-variant-legality`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-i64m1-plan-and-export-frontdoor-route`: passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/archive/2026-05/05-11-rvv-i64m1-plan-and-export-frontdoor-route`:
+  passed after archive.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 31: RVV verified i64m1 direct microkernel artifact-to-ssh evidence
 
 **Date**: 2026-05-11

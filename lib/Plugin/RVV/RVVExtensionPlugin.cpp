@@ -6,6 +6,7 @@
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedLoweringBoundary.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryVariantLegality.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
@@ -184,6 +185,40 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
           request.getKernel()->getAttrOfType<mlir::StringAttr>(
               kFrontendLoweringAttrName))
     frontendLoweringValue = frontendLowering.getValue();
+  else {
+    const target::rvv::RVVBinaryFamilyDescriptor *inferredFamily = nullptr;
+    if (request.getKernel() && !request.getKernel().getBody().empty()) {
+      for (mlir::Operation &operation :
+           request.getKernel().getBody().front()) {
+        auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(operation);
+        if (!variant)
+          continue;
+
+        auto origin = variant->getAttrOfType<mlir::StringAttr>("origin");
+        if (!origin || origin.getValue() != kRVVPluginName)
+          continue;
+
+        auto descriptor = variant->getAttrOfType<mlir::StringAttr>(
+            kRVVI32VAddLoweringDescriptorAttrName);
+        if (!descriptor)
+          continue;
+
+        const target::rvv::RVVBinaryFamilyDescriptor *family =
+            target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
+                descriptor.getValue().trim());
+        if (!family)
+          continue;
+
+        if (inferredFamily && inferredFamily != family) {
+          inferredFamily = nullptr;
+          break;
+        }
+        inferredFamily = family;
+      }
+    }
+    if (inferredFamily)
+      frontendLoweringValue = inferredFamily->frontendLowering;
+  }
 
   std::string diagnosticContext =
       (llvm::Twine("kernel @") + request.getKernel().getSymName()).str();

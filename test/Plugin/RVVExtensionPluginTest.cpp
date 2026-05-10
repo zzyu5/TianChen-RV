@@ -2792,6 +2792,121 @@ module {
                 "RVV i64 proposal fails closed without i64m1 capability facts");
 }
 
+int runRVVI64DirectDescriptorProposalInferenceTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @direct_i64_vadd_descriptor {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      provides = ["rvv.i64_m1.sew64", "rvv.i64_m1.lmul_m1", "rvv.i64_m1.tail_policy.agnostic", "rvv.i64_m1.mask_policy.agnostic"],
+      sew_bits = 64 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.variant @rvv_i64_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
+      tcrv_rvv.element_count = 8 : i64,
+      tcrv_rvv.selected_vector_shape = "i64m1",
+      tcrv_rvv.selected_vector_sew = 64 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint64m1_t",
+      tcrv_rvv.selected_vector_suffix = "i64m1",
+      tcrv_rvv.selected_setvl_suffix = "e64m1"
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV direct i64 descriptor proposal module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "direct_i64_vadd_descriptor");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  if (int result = expect(highLevelOp && kernel,
+                          "RVV direct i64 descriptor test has anchors"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for direct i64 descriptor test"))
+    return result;
+
+  VariantProposalRequest request =
+      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (int result =
+          expectSuccess(registry.collectVariantProposals(request, proposals),
+                        "collect RVV proposal inferred from direct i64 "
+                        "descriptor"))
+    return result;
+  if (int result =
+          expect(proposals.size() == 1,
+                 "direct i64 descriptor inference produces one proposal"))
+    return result;
+  if (int result = expect(
+          proposals[0].getRequiredCapabilityIDs().size() == 5 &&
+              proposals[0].getRequiredCapabilityIDs()[1] ==
+                  "rvv.i64_m1.sew64" &&
+              proposals[0].getRequiredCapabilityIDs()[2] ==
+                  "rvv.i64_m1.lmul_m1" &&
+              proposals[0].getRequiredCapabilityIDs()[3] ==
+                  "rvv.i64_m1.tail_policy.agnostic" &&
+              proposals[0].getRequiredCapabilityIDs()[4] ==
+                  "rvv.i64_m1.mask_policy.agnostic",
+          "direct i64 descriptor inference requires i64m1 config ids"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.lowering_descriptor",
+          "i64-vadd-microkernel.v1"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
+    return result;
+  return expectProposalStringAttr(proposals[0],
+                                  "tcrv_rvv.selected_setvl_suffix", "e64m1");
+}
+
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3238,6 +3353,8 @@ int main() {
   if (int result = runRVVI64VMulProposalMaterializationTest(context))
     return result;
   if (int result = runRVVI64VAddMissingCapabilityDeclinesTest(context))
+    return result;
+  if (int result = runRVVI64DirectDescriptorProposalInferenceTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;
