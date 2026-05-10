@@ -658,12 +658,21 @@ bool expectRVVScalarDispatchRouteManifestLookup() {
   const auto *object =
       tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
           family, RouteKind::Object);
-  if (!header || !object || header->routeID != family.dispatchHeaderRouteID ||
+  const auto *selfCheckObject =
+      tianchenrv::target::rvv_scalar::lookupRVVScalarDispatchRoute(
+          family, RouteKind::SelfCheckObject);
+  if (!header || !object || !selfCheckObject ||
+      header->routeID != family.dispatchHeaderRouteID ||
       object->routeID != family.dispatchObjectRouteID ||
+      selfCheckObject->routeID != family.dispatchSelfCheckObjectRouteID ||
       header->artifactKind != "runtime-callable-c-header" ||
-      object->artifactKind != "riscv-elf-relocatable-object") {
+      object->artifactKind != "riscv-elf-relocatable-object" ||
+      selfCheckObject->artifactKind !=
+          "self-check-riscv-elf-relocatable-object" ||
+      !selfCheckObject->requiresBinaryStdout ||
+      selfCheckObject->selfCheckSuccessMarker != family.selfCheckSuccessMarker) {
     llvm::errs() << "RVV+scalar dispatch manifest lookup did not resolve the "
-                    "i64-vmul header/object artifact routes\n";
+                    "i64-vmul header/object/self-check object artifact routes\n";
     return false;
   }
 

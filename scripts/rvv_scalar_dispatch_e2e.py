@@ -38,6 +38,8 @@ DEFAULT_BUNDLE_ARTIFACT_ROOT = Path(
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 60
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
+DISPATCH_OBJECT_ARTIFACT_KIND = "riscv-elf-relocatable-object"
+SELF_CHECK_OBJECT_ARTIFACT_KIND = "self-check-riscv-elf-relocatable-object"
 RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
     "i32m1": {
         "shape": "i32m1",
@@ -362,6 +364,37 @@ def configure_vector_shape(shape_name: str) -> None:
             f"requires {family_dtype}"
         )
     ACTIVE_VECTOR_SHAPE = shape_name
+
+
+def translate_option_to_route_id(option: str) -> str:
+    if not option.startswith("--tcrv-"):
+        raise BridgeError(f"translate option does not look like a route: {option}")
+    return option[2:]
+
+
+def active_self_check_source_route_id() -> str:
+    return translate_option_to_route_id(str(ACTIVE_ARITHMETIC_FAMILY["self_check_route"]))
+
+
+def active_dispatch_object_route_id() -> str:
+    return str(ACTIVE_ARITHMETIC_FAMILY["object_route"])
+
+
+def active_dispatch_object_translate_option() -> str:
+    return "--" + active_dispatch_object_route_id()
+
+
+def active_self_check_object_route_id() -> str:
+    source_route = active_self_check_source_route_id()
+    source_suffix = "-dispatch-self-check-c"
+    object_suffix = "-dispatch-self-check-object"
+    if not source_route.endswith(source_suffix):
+        raise BridgeError(f"self-check source route has unexpected shape: {source_route}")
+    return source_route[: -len(source_suffix)] + object_suffix
+
+
+def active_self_check_object_translate_option() -> str:
+    return "--" + active_self_check_object_route_id()
 
 
 def active_dispatch_runtime_abi_signature() -> list[dict[str, str]]:
@@ -734,6 +767,89 @@ def run_command(
     return stdout, stderr, int(exit_code)
 
 
+def run_command_stdout_to_file(
+    name: str,
+    command: list[str],
+    output_path: Path,
+    *,
+    cwd: Path,
+    artifact_dir: Path,
+    commands: list[dict[str, Any]],
+    timeout_seconds: int,
+) -> int:
+    started = time.monotonic()
+    timed_out = False
+    stdout_note = f"[binary stdout redirected to {relative_to_repo(output_path, cwd)}]"
+    stderr = ""
+    exit_code: int | None = None
+    try:
+        with output_path.open("wb") as output:
+            completed = subprocess.run(
+                command,
+                cwd=cwd,
+                stdout=output,
+                stderr=subprocess.PIPE,
+                timeout=timeout_seconds,
+            )
+        exit_code = completed.returncode
+        stderr = completed.stderr.decode("utf-8", errors="replace")
+    except subprocess.TimeoutExpired as timeout:
+        timed_out = True
+        stderr_bytes = timeout.stderr or b""
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+        stderr += f"\n[timed out after {timeout_seconds}s]"
+    except OSError as error:
+        stderr = str(error)
+
+    duration = time.monotonic() - started
+    log_path = write_command_log(
+        artifact_dir,
+        len(commands),
+        name,
+        command,
+        exit_code,
+        timed_out,
+        duration,
+        stdout_note,
+        stderr,
+    )
+    output_exists = output_path.exists()
+    output_size = output_path.stat().st_size if output_exists else 0
+    commands.append(
+        {
+            "name": name,
+            "command": command_display(command),
+            "exit_code": exit_code,
+            "timed_out": timed_out,
+            "duration_seconds": round(duration, 3),
+            "stdout_sha256": sha256_text(stdout_note),
+            "stderr_sha256": sha256_text(sanitize_text(stderr)),
+            "stdout_tail": stdout_note,
+            "stderr_tail": bounded_tail(stderr),
+            "log_path": log_path,
+            "output_path": relative_to_repo(output_path, cwd),
+            "output_size_bytes": output_size,
+            "output_sha256": sha256_file(output_path)
+            if output_exists and output_size > 0
+            else "",
+        }
+    )
+    if exit_code != 0 or timed_out:
+        raise BridgeError(
+            f"command failed: {name}; see {log_path} for sanitized stderr"
+        )
+    return int(exit_code)
+
+
+def validate_elf_object_artifact(path: Path, context: str) -> None:
+    if not path.exists() or path.stat().st_size == 0:
+        raise BridgeError(f"{context} object artifact is missing or empty: {path}")
+    with path.open("rb") as handle:
+        magic = handle.read(4)
+    if magic != b"\x7fELF":
+        raise BridgeError(f"{context} object artifact is not an ELF file: {path}")
+
+
 def write_generated_text(path: Path, context: str, text: str) -> None:
     reject_secret_like_text(context, text)
     path.write_text(text, encoding="utf-8")
@@ -992,9 +1108,18 @@ def build_ssh_evidence_summary(
 ) -> dict[str, Any]:
     if kind == "dispatch-self-check-source":
         compile_names = ["ssh_compile_dispatch_object"]
-        link_names = ["ssh_link_dispatch_executable"]
-        run_names = ["ssh_run_dispatch_self_check"]
-        marker_fields = ["stdout_marker_observed"]
+        link_names = [
+            "ssh_link_dispatch_executable",
+            "ssh_link_dispatch_self_check_object_executable",
+        ]
+        run_names = [
+            "ssh_run_dispatch_self_check",
+            "ssh_run_dispatch_self_check_object",
+        ]
+        marker_fields = [
+            "source_stdout_marker_observed",
+            "self_check_object_stdout_marker_observed",
+        ]
     elif kind == "dispatch-bundle-external-abi":
         compile_names = [
             "ssh_compile_bundle_external_caller_object",
@@ -1890,6 +2015,10 @@ def remote_compile_flags(flags: dict[str, str]) -> list[str]:
     return result
 
 
+def remote_link_flags(flags: dict[str, str]) -> list[str]:
+    return [*remote_compile_flags(flags), "-no-pie"]
+
+
 def first_non_empty_line(text: str) -> str:
     for line in sanitize_text(text).splitlines():
         stripped = line.strip()
@@ -1908,11 +2037,27 @@ def build_remote_compile_object_command(remote_dir: str, flags: dict[str, str]) 
 
 
 def build_remote_link_executable_command(remote_dir: str, flags: dict[str, str]) -> str:
-    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
+    return build_remote_link_named_executable_command(
+        remote_dir,
+        "rvv_scalar_dispatch_self_check.o",
+        "rvv_scalar_dispatch_self_check",
+        flags,
+    )
+
+
+def build_remote_link_named_executable_command(
+    remote_dir: str,
+    object_file_name: str,
+    executable_file_name: str,
+    flags: dict[str, str],
+) -> str:
+    validate_bundle_file_name(object_file_name)
+    validate_bundle_file_name(executable_file_name)
+    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_link_flags(flags))
     return (
         f"cd {quote_remote_path(remote_dir)} && "
-        f"clang {quoted_flags} rvv_scalar_dispatch_self_check.o "
-        "-o rvv_scalar_dispatch_self_check"
+        f"clang {quoted_flags} {shlex.quote(object_file_name)} "
+        f"-o {shlex.quote(executable_file_name)}"
     )
 
 
@@ -1956,7 +2101,7 @@ def build_remote_bundle_link_executable_command(
 ) -> str:
     validate_bundle_file_name(object_file_name)
     validate_bundle_file_name(executable_file_name)
-    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_compile_flags(flags))
+    quoted_flags = " ".join(shlex.quote(flag) for flag in remote_link_flags(flags))
     return (
         f"cd {quote_remote_path(remote_dir)} && "
         f"clang {quoted_flags} rvv_bundle_dispatch_external_caller.o "
@@ -2224,6 +2369,7 @@ def run_remote_bundle_external_abi_evidence(
             ),
         },
         "compile_flags": remote_compile_flags(flags),
+        "link_flags": remote_link_flags(flags),
         "caller_object_compile_exit_code": 0,
         "source_object_compile_exit_code": 0,
         "source_link_exit_code": 0,
@@ -2269,12 +2415,16 @@ def run_remote_evidence(
     artifact_dir: Path,
     commands: list[dict[str, Any]],
     source_path: Path,
+    self_check_object_path: Path,
     flags: dict[str, str],
     run_id: str,
 ) -> dict[str, Any]:
     reject_secret_like_text("ssh target", args.ssh_target)
     remote_dir = f"/tmp/tianchenrv_rvv_scalar_dispatch_e2e_{safe_run_id(run_id)}"
     remote_source = f"{remote_dir}/rvv_scalar_dispatch_self_check.c"
+    remote_self_check_object = (
+        f"{remote_dir}/rvv_scalar_dispatch_self_check_exported.o"
+    )
 
     setup_command = (
         f"rm -rf {quote_remote_path(remote_dir)} && "
@@ -2295,6 +2445,19 @@ def run_remote_evidence(
             *scp_base_command(args),
             str(source_path),
             f"{args.ssh_target}:{remote_source}",
+        ],
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "scp_generated_dispatch_self_check_object",
+        [
+            *scp_base_command(args),
+            relative_to_repo(self_check_object_path, root),
+            f"{args.ssh_target}:{remote_self_check_object}",
         ],
         cwd=root,
         artifact_dir=artifact_dir,
@@ -2356,6 +2519,68 @@ def run_remote_evidence(
             f"remote dispatch self-check stdout missing expected marker: {SUCCESS_MARKER}"
         )
 
+    exported_object_hash_stdout, _, _ = run_command(
+        "ssh_self_check_object_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_scalar_dispatch_self_check_exported.o"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    run_command(
+        "ssh_link_dispatch_self_check_object_executable",
+        remote_shell_command(
+            args,
+            build_remote_link_named_executable_command(
+                remote_dir,
+                "rvv_scalar_dispatch_self_check_exported.o",
+                "rvv_scalar_dispatch_self_check_exported",
+                flags,
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    exported_executable_hash_stdout, _, _ = run_command(
+        "ssh_self_check_object_executable_sha256",
+        remote_shell_command(
+            args,
+            remote_sha256_command(
+                remote_dir, "rvv_scalar_dispatch_self_check_exported"
+            ),
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+
+    exported_run_stdout, _, _ = run_command(
+        "ssh_run_dispatch_self_check_object",
+        remote_shell_command(
+            args,
+            f"cd {quote_remote_path(remote_dir)} && "
+            "./rvv_scalar_dispatch_self_check_exported",
+        ),
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    if SUCCESS_MARKER not in exported_run_stdout:
+        raise BridgeError(
+            "remote dispatch self-check object stdout missing expected marker: "
+            + SUCCESS_MARKER
+        )
+
     cleanup_status = "success"
     try:
         run_command(
@@ -2373,12 +2598,27 @@ def run_remote_evidence(
         "ssh_target": args.ssh_target,
         "remote_dir": remote_dir,
         "compile_flags": remote_compile_flags(flags),
+        "link_flags": remote_link_flags(flags),
+        "remote_artifacts": {
+            "self_check_source_file": "rvv_scalar_dispatch_self_check.c",
+            "source_built_object_file": "rvv_scalar_dispatch_self_check.o",
+            "source_built_executable": "rvv_scalar_dispatch_self_check",
+            "self_check_object_file": "rvv_scalar_dispatch_self_check_exported.o",
+            "self_check_object_executable": "rvv_scalar_dispatch_self_check_exported",
+        },
         "object_compile_exit_code": 0,
         "link_exit_code": 0,
         "run_exit_code": 0,
+        "source_object_compile_exit_code": 0,
+        "source_object_link_exit_code": 0,
+        "source_object_run_exit_code": 0,
+        "self_check_object_link_exit_code": 0,
+        "self_check_object_run_exit_code": 0,
         "runtime_success": True,
         "expected_stdout_marker": SUCCESS_MARKER,
         "stdout_marker_observed": True,
+        "source_stdout_marker_observed": True,
+        "self_check_object_stdout_marker_observed": True,
         "object_sha256": sanitize_text(object_hash_stdout).strip().splitlines()[0]
         if sanitize_text(object_hash_stdout).strip()
         else "",
@@ -2386,6 +2626,18 @@ def run_remote_evidence(
         .strip()
         .splitlines()[0]
         if sanitize_text(executable_hash_stdout).strip()
+        else "",
+        "self_check_object_sha256": sanitize_text(exported_object_hash_stdout)
+        .strip()
+        .splitlines()[0]
+        if sanitize_text(exported_object_hash_stdout).strip()
+        else "",
+        "self_check_object_executable_sha256": sanitize_text(
+            exported_executable_hash_stdout
+        )
+        .strip()
+        .splitlines()[0]
+        if sanitize_text(exported_executable_hash_stdout).strip()
         else "",
         "cleanup_status": cleanup_status,
     }
@@ -2841,6 +3093,54 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "generated RVV+scalar dispatch self-check source",
         self_check_source_text,
     )
+    self_check_source_manifest_route = parse_source_comment(
+        self_check_source_text, "dispatch_manifest_route_id", required=True
+    )
+    self_check_source_artifact_kind = parse_source_comment(
+        self_check_source_text, "dispatch_manifest_artifact_kind", required=True
+    )
+    if self_check_source_manifest_route != active_self_check_source_route_id():
+        raise BridgeError(
+            "self-check source manifest route did not match the selected "
+            f"family route: {self_check_source_manifest_route}"
+        )
+
+    ensure_local_clang_on_path()
+    dispatch_object_path = artifact_dir / "rvv_scalar_dispatch_library.o"
+    run_command_stdout_to_file(
+        "export_dispatch_object",
+        [
+            tcrv_translate,
+            active_dispatch_object_translate_option(),
+            str(post_planning_path),
+        ],
+        dispatch_object_path,
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    validate_elf_object_artifact(
+        dispatch_object_path, "generated RVV+scalar dispatch library"
+    )
+
+    self_check_object_path = artifact_dir / "rvv_scalar_dispatch_self_check.o"
+    run_command_stdout_to_file(
+        "export_dispatch_self_check_object",
+        [
+            tcrv_translate,
+            active_self_check_object_translate_option(),
+            str(post_planning_path),
+        ],
+        self_check_object_path,
+        cwd=root,
+        artifact_dir=artifact_dir,
+        commands=commands,
+        timeout_seconds=args.timeout,
+    )
+    validate_elf_object_artifact(
+        self_check_object_path, "generated RVV+scalar dispatch self-check"
+    )
 
     hashes = {
         "input_sha256": sha256_file(input_path),
@@ -2848,11 +3148,16 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "emission_manifest_sha256": sha256_text(manifest_text),
         "dispatch_library_c_sha256": sha256_text(library_source_text),
         "dispatch_self_check_c_sha256": sha256_text(self_check_source_text),
+        "dispatch_object_sha256": sha256_file(dispatch_object_path),
+        "dispatch_self_check_object_sha256": sha256_file(self_check_object_path),
     }
+    dispatch_object_route = active_dispatch_object_route_id()
+    self_check_object_route = active_self_check_object_route_id()
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "runner": SCRIPT_NAME,
         "run_id": run_id,
+        "git_sha": git_sha(root),
         "mode": "dry-run" if args.dry_run else "ssh",
         "status": "success",
         "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
@@ -2861,8 +3166,35 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
         "library_source_export_route": "generic-target-source-artifact",
-        "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check",
+        "self_check_source_export_route": str(
+            ACTIVE_ARITHMETIC_FAMILY["self_check_route"]
+        ),
+        "dispatch_object_export_route": active_dispatch_object_translate_option(),
+        "self_check_object_export_route": active_self_check_object_translate_option(),
         "source_export_mode": "self-check-harness",
+        "selected_emission_plan_routes": {
+            "rvv_callable": str(ACTIVE_ARITHMETIC_FAMILY["rvv_callable_route"]),
+            "scalar_callable": str(
+                ACTIVE_ARITHMETIC_FAMILY["scalar_callable_route"]
+            ),
+        },
+        "manifest_routes": {
+            "self_check_source": {
+                "route": self_check_source_manifest_route,
+                "artifact_kind": self_check_source_artifact_kind,
+                "artifact_path": relative_to_repo(self_check_source_path, root),
+            },
+            "dispatch_object": {
+                "route": dispatch_object_route,
+                "artifact_kind": DISPATCH_OBJECT_ARTIFACT_KIND,
+                "artifact_path": relative_to_repo(dispatch_object_path, root),
+            },
+            "self_check_object": {
+                "route": self_check_object_route,
+                "artifact_kind": SELF_CHECK_OBJECT_ARTIFACT_KIND,
+                "artifact_path": relative_to_repo(self_check_object_path, root),
+            },
+        },
         "rvv_config": source_flags["vector_config"],
         "library_rvv_config": library_vector_config,
         "self_check": {
@@ -2877,18 +3209,26 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "post_planning_mlir": relative_to_repo(post_planning_path, root),
             "emission_manifest": relative_to_repo(manifest_path, root),
             "dispatch_library_c": relative_to_repo(library_source_path, root),
+            "dispatch_library_object": relative_to_repo(dispatch_object_path, root),
             "dispatch_self_check_c": relative_to_repo(self_check_source_path, root),
+            "dispatch_self_check_object": relative_to_repo(
+                self_check_object_path, root
+            ),
         },
         "commands": commands,
         "ssh_evidence": None,
         "ssh_evidence_details": None,
         "ssh_evidence_verified": False,
+        "self_check_object_path_checked_by_live_run": not args.dry_run,
         "claim_scope": (
-            "local dry-run verifies planned dispatch, manifest handoff, and source export only"
+            "local dry-run verifies planned dispatch, manifest handoff, "
+            "dispatch object export, self-check source export, and self-check "
+            "object export only"
             if args.dry_run
             else "bounded RVV+scalar "
             + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
-            + " dispatch self-check executable runtime only"
+            + " dispatch self-check source-built and manifest self-check "
+            "object runtime only; dispatch object export is locally validated"
         ),
     }
 
@@ -2900,6 +3240,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 artifact_dir=artifact_dir,
                 commands=commands,
                 source_path=self_check_source_path,
+                self_check_object_path=self_check_object_path,
                 flags=source_flags,
                 run_id=run_id,
             )

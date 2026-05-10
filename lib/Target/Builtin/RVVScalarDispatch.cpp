@@ -2242,7 +2242,7 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "/* Runtime element count is a target/export-owned ABI parameter in "
         "this harness; "
         "descriptor-local element_count remains metadata only. */\n";
-  os << "#include <stdio.h>\n\n";
+  os << "int puts(const char *);\n\n";
   os << "static int " << dispatcherFunctionName
      << "_self_check_one(size_t runtime_n, int " << guardParameterName
      << ") {\n";

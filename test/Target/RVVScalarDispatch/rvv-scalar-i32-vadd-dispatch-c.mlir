@@ -289,7 +289,7 @@ module @rvv_scalar_dispatch_input {
 // HARNESS: /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
 // HARNESS: Runtime element count is a target/export-owned ABI parameter
 // HARNESS: descriptor-local element_count remains metadata only
-// HARNESS: #include <stdio.h>
+// HARNESS: int puts(const char *);
 // HARNESS-LABEL: {{^}}static int tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(size_t runtime_n, int rvv_available)
 // HARNESS: enum { kCapacity = 32 };
 // HARNESS: tcrv_dispatch_i32_vadd_dispatch_vadd(lhs, rhs, out, runtime_n, rvv_available);

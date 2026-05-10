@@ -1,0 +1,28 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+
+# RUN: tcrv-opt %S/rvv-scalar-i64-vmul-dispatch-generic-route.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i64-vmul-dispatch-object > %t.direct.o
+# RUN: test -s %t.direct.o
+# RUN: llvm-readobj --file-headers --symbols %t.direct.o | FileCheck %s --check-prefixes=OBJ,LIBOBJ --implicit-check-not="Name: main"
+# RUN: tcrv-opt %S/rvv-scalar-i64-vmul-dispatch-generic-route.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.generic.o
+# RUN: test -s %t.generic.o
+# RUN: llvm-readobj --file-headers --symbols %t.generic.o | FileCheck %s --check-prefixes=OBJ,LIBOBJ --implicit-check-not="Name: main"
+# RUN: tcrv-opt %S/rvv-scalar-i64-vmul-dispatch-generic-route.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-object > %t.self.o
+# RUN: test -s %t.self.o
+# RUN: llvm-readobj --file-headers --symbols %t.self.o | FileCheck %s --check-prefixes=OBJ,LIBOBJ,SELFOBJ
+
+# OBJ: Format: elf
+# OBJ: Arch: riscv
+# OBJ: Type: Relocatable
+
+# LIBOBJ: Name: tcrv_rvv_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_rvv_first_slice
+# LIBOBJ: Name: tcrv_scalar_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_scalar_fallback_first_slice
+# LIBOBJ: Name: tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch
+
+# SELFOBJ: Symbol {
+# SELFOBJ: Name: main
+# SELFOBJ: Section: .text
+# SELFOBJ: }
+# SELFOBJ: Symbol {
+# SELFOBJ: Name: puts
+# SELFOBJ: Section: Undefined
+# SELFOBJ: }

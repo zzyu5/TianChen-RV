@@ -3,7 +3,9 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/post_planning.mlir
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/emission_manifest.txt
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_library.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_library.o
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_self_check.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_self_check.o
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=SOURCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=LIBRARY --implicit-check-not="int main(void)" --implicit-check-not="tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e/rvv_scalar_dispatch_library.c
@@ -39,10 +41,10 @@
 # SELF: rvv_scalar_dispatch_e2e self-test passed
 
 # DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e"
-# DRY: "claim_scope": "local dry-run verifies planned dispatch, manifest handoff, and source export only"
+# DRY: "claim_scope": "local dry-run verifies planned dispatch, manifest handoff, dispatch object export, self-check source export, and self-check object export only"
 # DRY: "mode": "dry-run"
 # DRY: "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline"
-# DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c"
 # DRY: "source_export_mode": "self-check-harness"
 # DRY: "ssh_evidence": false
 # DRY: "status": "success"
@@ -71,16 +73,20 @@
 # SUMMARY: "name": "export_emission_manifest"
 # SUMMARY: "name": "export_dispatch_library_source"
 # SUMMARY: "name": "export_dispatch_self_check_source"
+# SUMMARY: "name": "export_dispatch_object"
+# SUMMARY: "name": "export_dispatch_self_check_object"
 # SUMMARY-NOT: live-token
 # SUMMARY-NOT: hunter2
 
+# EVIDENCE: "dispatch_object_export_route": "--tcrv-export-rvv-scalar-i32-vadd-dispatch-object"
 # EVIDENCE: "library_source_export_route": "generic-target-source-artifact"
 # EVIDENCE: "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline"
 # EVIDENCE: "self_check": {
 # EVIDENCE: "runtime_element_counts": [
 # EVIDENCE: 7
 # EVIDENCE: 16
-# EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# EVIDENCE: "self_check_object_export_route": "--tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object"
+# EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c"
 # EVIDENCE: "ssh_evidence": null
 # EVIDENCE: "status": "success"
 # EVIDENCE-NOT: runtime_success
@@ -90,14 +96,14 @@
 # VSUB-DRY: "arithmetic_family": "i32-vsub"
 # VSUB-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-dispatch-e2e"
 # VSUB-DRY: "mode": "dry-run"
-# VSUB-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VSUB-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c"
 # VSUB-DRY: "ssh_evidence": false
 # VSUB-DRY: "status": "success"
 
 # VSUB-M2-DRY: "arithmetic_family": "i32-vsub"
 # VSUB-M2-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vsub-i32m2-dispatch-e2e"
 # VSUB-M2-DRY: "mode": "dry-run"
-# VSUB-M2-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VSUB-M2-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c"
 # VSUB-M2-DRY: "ssh_evidence": false
 # VSUB-M2-DRY: "status": "success"
 # VSUB-M2-DRY: "vector_shape": "i32m2"
@@ -119,7 +125,7 @@
 # VSUB-M2-EVIDENCE-DAG: "shape": "i32m2"
 # VSUB-M2-EVIDENCE-DAG: "lmul": "m2"
 # VSUB-M2-EVIDENCE-DAG: "vector_suffix": "i32m2"
-# VSUB-M2-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VSUB-M2-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c"
 # VSUB-M2-EVIDENCE: "ssh_evidence": null
 # VSUB-M2-EVIDENCE: "status": "success"
 
@@ -135,14 +141,14 @@
 
 # VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
 # VSUB-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir"
-# VSUB-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VSUB-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c"
 # VSUB-EVIDENCE: "ssh_evidence": null
 # VSUB-EVIDENCE: "status": "success"
 
 # VMUL-DRY: "arithmetic_family": "i32-vmul"
 # VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e"
 # VMUL-DRY: "mode": "dry-run"
-# VMUL-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VMUL-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c"
 # VMUL-DRY: "ssh_evidence": false
 # VMUL-DRY: "status": "success"
 
@@ -156,14 +162,14 @@
 
 # VMUL-EVIDENCE: "arithmetic_family": "i32-vmul"
 # VMUL-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vmul-dispatch-generic-route.mlir"
-# VMUL-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# VMUL-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c"
 # VMUL-EVIDENCE: "ssh_evidence": null
 # VMUL-EVIDENCE: "status": "success"
 
 # I64-DRY: "arithmetic_family": "i64-vadd"
 # I64-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e"
 # I64-DRY: "mode": "dry-run"
-# I64-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vadd-dispatch-self-check-c"
 # I64-DRY: "ssh_evidence": false
 # I64-DRY: "status": "success"
 # I64-DRY: "vector_shape": "i64m1"
@@ -190,7 +196,7 @@
 # I64-EVIDENCE-DAG: "shape": "i64m1"
 # I64-EVIDENCE-DAG: "sew_bits": 64
 # I64-EVIDENCE-DAG: "vector_suffix": "i64m1"
-# I64-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vadd-dispatch-self-check-c"
 # I64-EVIDENCE: "ssh_evidence": null
 # I64-EVIDENCE: "ssh_evidence_verified": false
 # I64-EVIDENCE: "status": "success"
@@ -198,7 +204,7 @@
 # I64-VSUB-DRY: "arithmetic_family": "i64-vsub"
 # I64-VSUB-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vsub-dispatch-e2e"
 # I64-VSUB-DRY: "mode": "dry-run"
-# I64-VSUB-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VSUB-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vsub-dispatch-self-check-c"
 # I64-VSUB-DRY: "ssh_evidence": false
 # I64-VSUB-DRY: "status": "success"
 # I64-VSUB-DRY: "vector_shape": "i64m1"
@@ -219,7 +225,7 @@
 # I64-VSUB-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i64_vsub_microkernel_conflict_planned_i64_vsub_dispatch_rvv_first_slice"
 # I64-VSUB-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i64_vsub_microkernel_conflict_planned_i64_vsub_dispatch_scalar_fallback_first_slice"
 # I64-VSUB-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i64-vsub-dispatch-generic-route.mlir"
-# I64-VSUB-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VSUB-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vsub-dispatch-self-check-c"
 # I64-VSUB-EVIDENCE: "ssh_evidence": null
 # I64-VSUB-EVIDENCE: "ssh_evidence_verified": false
 # I64-VSUB-EVIDENCE: "status": "success"
@@ -227,7 +233,7 @@
 # I64-VMUL-DRY: "arithmetic_family": "i64-vmul"
 # I64-VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-dispatch-e2e"
 # I64-VMUL-DRY: "mode": "dry-run"
-# I64-VMUL-DRY: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VMUL-DRY: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c"
 # I64-VMUL-DRY: "ssh_evidence": false
 # I64-VMUL-DRY: "status": "success"
 # I64-VMUL-DRY: "vector_shape": "i64m1"
@@ -248,7 +254,7 @@
 # I64-VMUL-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_rvv_first_slice"
 # I64-VMUL-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_scalar_fallback_first_slice"
 # I64-VMUL-EVIDENCE: "input": "test/Target/RVVScalarDispatch/rvv-scalar-i64-vmul-dispatch-generic-route.mlir"
-# I64-VMUL-EVIDENCE: "self_check_source_export_route": "direct-rvv-scalar-dispatch-self-check"
+# I64-VMUL-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c"
 # I64-VMUL-EVIDENCE: "ssh_evidence": null
 # I64-VMUL-EVIDENCE: "ssh_evidence_verified": false
 # I64-VMUL-EVIDENCE: "status": "success"

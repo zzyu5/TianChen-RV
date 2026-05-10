@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for verifying changed source, tests, runner evidence, and claims."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check manifest-backed route ownership, object/self-check object export, target artifact preflight, and parameter layering."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++/ssh evidence coverage and bounded runtime claim wording."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV target-local semantics and real ssh rvv evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback side remains plugin-local and finite-scope."}
+{"command": "git diff --check", "result": "passed"}
+{"command": "cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-i32-binary-family-registry-test -j2", "result": "passed"}
+{"command": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test", "result": "passed"}
+{"command": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test", "result": "passed"}
+{"command": "python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py", "result": "passed"}
+{"command": "python3 scripts/rvv_scalar_dispatch_e2e.py --self-test", "result": "passed"}
+{"command": "python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vmul --run-id codex-selected-i64-vmul-object-dry --overwrite", "result": "passed"}
+{"command": "python3 scripts/rvv_scalar_dispatch_e2e.py --arithmetic-family=i64-vmul --ssh-target rvv --run-id codex-selected-i64-vmul-object-live --overwrite", "result": "passed; evidence at artifacts/tmp/rvv_scalar_dispatch_e2e/codex-selected-i64-vmul-object-live/evidence.json records ssh_evidence_verified true and success marker tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok"}
+{"command": "/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-scalar-i64-vmul-dispatch-object|rvv-scalar-i64-vmul-dispatch-generic-route|rvv-scalar-dispatch-bundle-e2e|target-artifact-export|TargetArtifact|artifact-export'", "result": "passed 20/20 from artifacts/tmp/tianchenrv-build/test"}
+{"command": "/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-scalar-dispatch-e2e'", "result": "passed after FileCheck self-repair"}
+{"command": "cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2", "result": "passed 194/194 after updating stale script lit expectations"}
+{"command": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-rvv-selected-dispatch-object-evidence", "result": "passed"}
+{"command": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-10-rvv-selected-dispatch-object-evidence", "result": "passed"}

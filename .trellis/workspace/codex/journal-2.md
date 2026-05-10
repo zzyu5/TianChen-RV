@@ -39,7 +39,6 @@ Moved tcrv-translate RVV direct and RVV+scalar route-family helper command regis
 ### Status
 
 [OK] **Completed and archived**
-
 ## Session 21: RVV binary artifact manifests as target-owned family source of truth
 
 **Date**: 2026-05-10
@@ -311,6 +310,66 @@ manifest-backed target artifact export validation.
   `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'TargetArtifact|target-artifact|artifact-export|execution-planning|ExecutionPlanning|rvv-binary-planning'`
 - `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
   `193/193` passed
+
+### Status
+
+[OK] **Completed and archived**
+
+
+## Session 23: Manifest-backed RVV selected dispatch object evidence
+
+**Date**: 2026-05-10
+**Task**: Manifest-backed RVV selected dispatch object evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes brief after confirming there was no
+active `.trellis/.current-task`. Completed the bounded selected `i64-vmul`
+RVV+scalar dispatch object/self-check object evidence handoff from selected
+emission-plan route metadata through target-owned manifest routes to real
+`ssh rvv` runtime evidence.
+
+### Main Changes
+
+- Added selected `i64-vmul` lit coverage for dispatch object and self-check
+  object export through the emission-plan fixture, including ELF relocatable
+  checks and symbol separation.
+- Extended target artifact export C++ coverage for `i64-vmul`
+  self-check object manifest lookup metadata.
+- Updated the generated self-check harness to declare `puts` directly instead
+  of including host sysroot headers, allowing local RISC-V self-check object
+  export without a RISC-V sysroot.
+- Extended `scripts/rvv_scalar_dispatch_e2e.py` to export dispatch object and
+  self-check object artifacts through target-owned routes, record
+  manifest route/kind/path/hash evidence, and link/run the exported
+  self-check object on the real RVV host.
+- Updated script lit expectations for the new manifest-backed object and
+  self-check object dry-run evidence.
+
+### Evidence
+
+- Runtime/correctness claim is bounded to selected `i64-vmul`
+  RVV+scalar dispatch self-check source-built and exported self-check object
+  execution on real `ssh rvv`.
+- Live evidence:
+  `artifacts/tmp/rvv_scalar_dispatch_e2e/codex-selected-i64-vmul-object-live/evidence.json`
+  records `ssh_evidence_verified: true` and marker
+  `tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok`.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vmul --run-id codex-selected-i64-vmul-object-dry --overwrite`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --arithmetic-family=i64-vmul --ssh-target rvv --run-id codex-selected-i64-vmul-object-live --overwrite`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` covering selected
+  `i64-vmul` object/self-check object, route, bundle, target artifact export,
+  and script e2e filters.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  `194/194` passed
 
 ### Status
 
