@@ -5,18 +5,18 @@ include "mlir/Pass/PassBase.td"
 
 def LowerLinalgI32BinaryToExec
     : Pass<"tcrv-lower-linalg-i32-binary-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Lower bounded marked linalg i32 binary add/sub/mul wrappers to tcrv.exec";
+  let summary = "Lower bounded marked linalg i32 binary or i64 vadd wrappers to tcrv.exec";
   let description = [{
     Consumes explicitly marked hand-written/test linalg.generic i32 vector
-    add/sub/mul wrappers and materializes the TianChen-RV execution boundary
-    consumed by the existing plugin planning pipeline. The pass creates a
-    tcrv.exec.kernel with a selected module target profile reference, preserves
-    the bounded frontend lowering family marker, validates that target
-    profile's generic capability provider composition, optionally clones
-    explicitly referenced supplemental module-level capability providers into
-    the kernel capability scope, and materializes the bounded i32 binary
-    runtime ABI mem_window/runtime_param surface, then removes the source
-    wrapper.
+    add/sub/mul wrappers plus the bounded i64 vector-add wrapper and
+    materializes the TianChen-RV execution boundary consumed by the existing
+    plugin planning pipeline. The pass creates a tcrv.exec.kernel with a
+    selected module target profile reference, preserves the bounded frontend
+    lowering family marker, validates that target profile's generic capability
+    provider composition, optionally clones explicitly referenced supplemental
+    module-level capability providers into the kernel capability scope, and
+    materializes the bounded binary runtime ABI mem_window/runtime_param
+    surface, then removes the source wrapper.
 
     This is a narrow frontend lowering slice. It does not add generic tcrv
     compute ops, infer arbitrary linalg semantics, select variants, branch on

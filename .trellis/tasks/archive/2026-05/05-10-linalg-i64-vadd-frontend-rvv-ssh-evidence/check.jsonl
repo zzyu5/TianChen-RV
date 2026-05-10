@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final review"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Review against RVV hardware evidence and compute-boundary rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV capability/plugin ownership for i64 vadd path"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Review target-neutral plugin routing and selected-boundary discipline"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Review bounded linalg frontend behavior and fail-closed rules"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review runtime ABI and artifact export coherence"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review focused test and evidence coverage"}

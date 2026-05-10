@@ -120,6 +120,9 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     "i64-vadd": {
         "diagnostic_name": "i64-vadd",
         "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-i64-vadd.mlir"),
+        "default_frontend_input": Path(
+            "test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir"
+        ),
         "default_vector_shape": "i64m1",
         "selected_variant": "rvv_i64_slice",
         "microkernel_op_name": "tcrv_rvv.i64_vadd_microkernel",
@@ -2457,6 +2460,10 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
 def selected_input_path(args: argparse.Namespace) -> Path:
     if args.input:
         return Path(args.input)
+    if getattr(args, "lower_linalg_frontend", False):
+        frontend_input = ACTIVE_ARITHMETIC_FAMILY.get("default_frontend_input")
+        if frontend_input is not None:
+            return Path(frontend_input)
     active_shape = str(ACTIVE_VECTOR_SHAPE["shape"])
     default_shape = str(ACTIVE_ARITHMETIC_FAMILY.get("default_vector_shape", "i32m1"))
     if active_shape == default_shape:
@@ -2474,7 +2481,15 @@ def selected_input_path(args: argparse.Namespace) -> Path:
     return Path(default_input)
 
 
-def selected_planning_pipeline() -> tuple[str, list[str]]:
+def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]]:
+    if getattr(args, "lower_linalg_frontend", False):
+        return (
+            "tcrv_opt_linalg_frontend_execution_planning_pipeline",
+            [
+                "--tcrv-lower-linalg-i32-binary-to-exec",
+                "--tcrv-execution-planning-pipeline",
+            ],
+        )
     if ACTIVE_VECTOR_SHAPE["planning_pipeline"] == "tcrv-execution-planning-pipeline":
         return (
             "tcrv_opt_execution_planning_pipeline",
@@ -2487,6 +2502,15 @@ def selected_planning_pipeline() -> tuple[str, list[str]]:
             "--tcrv-materialize-emission-plans",
         ],
     )
+
+
+def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
+    if getattr(args, "lower_linalg_frontend", False):
+        return (
+            "tcrv-lower-linalg-i32-binary-to-exec + "
+            "tcrv-execution-planning-pipeline"
+        )
+    return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
 
 
 def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
@@ -2530,7 +2554,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         )
     else:
         tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
-        planning_command_name, planning_args = selected_planning_pipeline()
+        planning_command_name, planning_args = selected_planning_pipeline(args)
         post_planning_mlir, _, _ = run_command(
             planning_command_name,
             [
@@ -2618,7 +2642,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     planned_pipeline = (
         "tcrv-plan-and-export-target-artifact-bundle"
         if args.use_plan_and_export_bundle_front_door
-        else str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
+        else selected_planning_pipeline_label(args)
     )
     artifacts = {
         "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
@@ -2794,7 +2818,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         else ""
     )
 
-    planning_command_name, planning_args = selected_planning_pipeline()
+    planning_command_name, planning_args = selected_planning_pipeline(args)
     post_planning_mlir, _, _ = run_command(
         planning_command_name,
         [
@@ -2962,7 +2986,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "function_symbol": source_flags["compiler_path_context"]["microkernel_function"],
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
-        "planned_pipeline": str(ACTIVE_VECTOR_SHAPE["planning_pipeline"]),
+        "planned_pipeline": selected_planning_pipeline_label(args),
         "manifest_handoff": True,
         "manifest_record": manifest_handoff,
         "rvv_config": source_flags["vector_config"],
@@ -3651,6 +3675,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ssh-option", action="append", default=[])
     parser.add_argument("--evidence-note", default="")
     parser.add_argument(
+        "--lower-linalg-frontend",
+        action="store_true",
+        help="Run bounded linalg frontend lowering before execution planning",
+    )
+    parser.add_argument(
         "--expect-selected-kernel",
         default="",
         help=(
@@ -3703,6 +3732,13 @@ def main(argv: list[str]) -> int:
         print(
             "rvv_microkernel_e2e: --use-plan-and-export-bundle-front-door "
             "requires --use-target-artifact-bundle",
+            file=sys.stderr,
+        )
+        return 1
+    if args.lower_linalg_frontend and args.use_plan_and_export_bundle_front_door:
+        print(
+            "rvv_microkernel_e2e: --lower-linalg-frontend is not supported "
+            "with --use-plan-and-export-bundle-front-door",
             file=sys.stderr,
         )
         return 1
