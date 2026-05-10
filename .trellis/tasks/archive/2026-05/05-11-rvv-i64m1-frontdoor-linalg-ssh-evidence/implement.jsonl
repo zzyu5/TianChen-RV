@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec index and pre-development routing for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and locality constraints."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability selection and contract rules for i64m1 route evidence."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Proposal planning, variant selection, and tuning boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Generated artifact emission and runtime evidence contract."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Experiment and hardware evidence recording requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck regression expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-i64m1-plan-and-export-frontdoor-route/prd.md", "reason": "Archived predecessor task context; do not reopen."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-verified-i64m1-microkernel-ssh-evidence/prd.md", "reason": "Archived direct selected i64m1 ssh evidence context; do not treat as front-door proof."}

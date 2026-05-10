@@ -606,7 +606,6 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 - None - task complete
 
-
 ## Session 32: RVV i64m1 plan-and-export front-door route
 
 **Date**: 2026-05-11
@@ -846,6 +845,65 @@ artifact path.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: RVV i64m1 front-door linalg-to-ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV i64m1 front-door linalg-to-ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded linalg `i64-vadd` / `i64m1` RVV front-door evidence loop:
+checked-in linalg input -> plan-and-export bundle front door -> selected
+`frontend_i64_vadd` RVV microkernel -> generated source/header/object bundle ->
+real `ssh rvv` compile/link/run/output validation.
+
+### Evidence
+
+- Local dry-run:
+  `python3 scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --input test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir --expect-selected-kernel=frontend_i64_vadd --run-id codex-i64-vadd-frontdoor-linalg-dry --overwrite --timeout 120`
+- SSH evidence:
+  `python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --input test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir --expect-selected-kernel=frontend_i64_vadd --ssh-target rvv --run-id codex-i64-vadd-frontdoor-linalg-ssh --overwrite --timeout 120`
+- Evidence JSON:
+  `artifacts/tmp/rvv_microkernel_bundle_e2e/codex-i64-vadd-frontdoor-linalg-ssh/evidence.json`
+- Result: `status=success`, `mode=ssh`, `selected_kernel=frontend_i64_vadd`,
+  `selected_variant=rvv_first_slice`, `vector_shape=i64m1`,
+  `remote_compile_succeeded=true`, `remote_link_succeeded=true`,
+  `remote_run_succeeded=true`, and `output_validation_succeeded=true`.
+- Remote facts: architecture `riscv64`, clang `/usr/bin/clang`,
+  `Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Runtime evidence: generated external caller checked `lhs + rhs` for runtime
+  counts `7` and `16`; both source-built and bundle-object paths observed
+  `tcrv_rvv_i64_vadd_microkernel_external_abi_ok`.
+
+### Main Changes
+
+- Added focused `rvv-microkernel-bundle-e2e` lit coverage for the linalg
+  `i64-vadd` plan-and-export bundle front-door.
+- FileCheck now proves the route uses `test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir`,
+  selects `frontend_i64_vadd` / `rvv_first_slice`, emits i64 ABI parameters,
+  preserves i64m1 selected capability metadata, and contains
+  `__riscv_vadd_vv_i64m1`, without silently using the direct selected fixture
+  symbols or i64 sub/mul fallback.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit filters:
+  `rvv-microkernel-bundle-e2e`,
+  `plan-linalg-i64-vadd|rvv-extension-plugin|rvv-microkernel-bundle-e2e`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- Trellis task validation passed before archive.
+
+### Status
+
+[OK] **Completed; ready to archive**
 
 ## Session 25: RVV i64-vsub selected path artifact evidence
 
