@@ -1,5 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PIPE --implicit-check-not=tcrv_rvv.i32_vadd_microkernel --implicit-check-not=tcrv_rvv.i32_vsub_microkernel --implicit-check-not=tcrv_rvv.i32_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/tcrv_rvv.i64_vadd_microkernel/,+20 s/element_count = 8 : i64/element_count = 16 : i64/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=BAD-ELEMENT-COUNT --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i64-vadd-microkernel-c | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i64-vadd-microkernel-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not="__riscv" --implicit-check-not=riscv_vector --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
@@ -113,6 +114,12 @@ module @rvv_microkernel_i64_vadd_export_input {
 // PIPE-SAME: {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}]
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i64-vadd-function"
 // PIPE-SAME: status = "supported"
+
+// BAD-ELEMENT-COUNT: TianChen-RV RVV microkernel body verifier failed
+// BAD-ELEMENT-COUNT-SAME: family 'tcrv_rvv.i64_vadd_microkernel'
+// BAD-ELEMENT-COUNT-SAME: descriptor-local element_count layer is stale
+// BAD-ELEMENT-COUNT-SAME: body element_count=16
+// BAD-ELEMENT-COUNT-SAME: tcrv_rvv.element_count=8
 
 // SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // SOURCE: /* Scope: library-style C source for exactly one tcrv_rvv.i64_vadd_microkernel. */

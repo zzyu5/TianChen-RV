@@ -77,6 +77,8 @@ module {
   }
 }
 
-// CHECK: route 'tcrv-export-rvv-i32-vsub-microkernel-c' selected family 'tcrv_rvv.i32_vsub_microkernel' has invalid RVV intrinsic metadata
-// CHECK-SAME: selected capability config requires sew=32,lmul=m2
-
+// CHECK: TianChen-RV RVV microkernel body verifier failed
+// CHECK-SAME: family 'tcrv_rvv.i32_vsub_microkernel'
+// CHECK-SAME: route 'tcrv-export-rvv-i32-vsub-microkernel-c'
+// CHECK-SAME: tcrv_rvv.setvl compile-time vector config layer is stale
+// CHECK-SAME: selected descriptor/config requires sew=32, lmul=m2

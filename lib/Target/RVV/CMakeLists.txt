@@ -1,4 +1,5 @@
 add_mlir_library(TianChenRVRVVTarget
+  RVVBinaryMicrokernelBodyVerifier.cpp
   RVVMicrokernel.cpp
   RVVSmokeProbe.cpp
 

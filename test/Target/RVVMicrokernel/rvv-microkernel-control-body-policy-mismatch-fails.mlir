@@ -84,5 +84,7 @@ module {
   }
 }
 
-// CHECK: route 'tcrv-export-rvv-microkernel-c' selected family 'tcrv_rvv.i32_vadd_microkernel' has invalid RVV intrinsic metadata
-// CHECK-SAME: tcrv_rvv.setvl policy must match selected variant tcrv_rvv.policy metadata before C intrinsic emission
+// CHECK: TianChen-RV RVV microkernel body verifier failed
+// CHECK-SAME: family 'tcrv_rvv.i32_vadd_microkernel'
+// CHECK-SAME: tcrv_rvv.setvl policy layer is stale
+// CHECK-SAME: selected variant tcrv_rvv.policy metadata before artifact export
