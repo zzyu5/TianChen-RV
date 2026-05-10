@@ -576,3 +576,60 @@ Created and completed the Trellis task for the fixture-free `i64-vmul` frontend 
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 19: Plugin-local RVV binary selected emission planning
+
+**Date**: 2026-05-10
+**Task**: Plugin-local RVV binary selected emission planning
+**Branch**: `main`
+
+### Summary
+
+Extracted finite RVV binary selected-emission planning into a plugin-local C++ component, delegated RVV extension readiness/plan construction to it, preserved target-owned route/runtime ABI metadata, and completed focused C++ plus lit validation without a new RVV runtime claim.
+
+### Main Changes
+
+- Added `RVVBinarySelectedEmissionPlanning` as a plugin-local C++ selected
+  emission planner for finite RVV binary selected paths.
+- Moved i32/i64 explicit callable microkernel matching, descriptor-backed
+  selected plan construction, runtime ABI parameter collection, required
+  capability symbol extraction, selected vector metadata, and capacity
+  metadata propagation out of `RVVExtensionPlugin.cpp`.
+- Updated `RVVExtensionPlugin::checkVariantEmissionReadiness` and
+  `RVVExtensionPlugin::buildVariantEmissionPlan` to delegate finite binary
+  selected direct/callable paths to the new planner while keeping smoke-probe
+  and unsupported diagnostics separate.
+- Added focused plugin C++ coverage for the new planner API on an i32 selected
+  path and the i64 finite family path, including `i64-vmul`.
+
+### Git Commits
+
+this commit
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test
+  tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` covering
+  `rvv-binary-planning`, `rvv-extension-plugin`, `rvv-scalar-dispatch-e2e`,
+  and `rvv-scalar-dispatch-bundle-e2e`: 4/4 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  194/194 lit tests passed.
+- No new RVV runtime/correctness/performance claim was made; no fresh
+  `ssh rvv` run was required.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete

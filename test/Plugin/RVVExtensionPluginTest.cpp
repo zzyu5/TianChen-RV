@@ -3,6 +3,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVBinarySelectedEmissionPlanning.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
@@ -26,6 +27,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -2244,6 +2246,55 @@ module {
                  "RVV i32m2 materialization emits i32m2 arithmetic result"))
     return result;
 
+  llvm::Expected<
+      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
+      selectedEmissionPlan =
+          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+  if (!selectedEmissionPlan)
+    return fail(llvm::Twine("build RVV i32m2 selected-emission plan: ") +
+                llvm::toString(selectedEmissionPlan.takeError()));
+  if (int result =
+          expect(static_cast<bool>(*selectedEmissionPlan),
+                 "RVV i32m2 selected-emission planner finds callable path"))
+    return result;
+  const auto &plannerI32Plan = **selectedEmissionPlan;
+  if (int result =
+          expect(plannerI32Plan.getFamilyID() == "i32-vsub" &&
+                     plannerI32Plan.getLoweringPipeline() ==
+                         tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+                             .routeID &&
+                     plannerI32Plan.getRuntimeABIName() ==
+                         tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+                             .runtimeABIName,
+                 "RVV i32 selected-emission planner preserves descriptor "
+                 "route and ABI identity"))
+    return result;
+  if (int result = expect(plannerI32Plan.requiredCapabilitySymbols.size() == 5 &&
+                              plannerI32Plan.requiredCapabilitySymbols[1] ==
+                                  "rvv_i32_m2_sew32",
+                          "RVV i32 selected-emission planner preserves "
+                          "required capability symbols separately"))
+    return result;
+  if (int result = expect(
+          plannerI32Plan.runtimeABIParameters.size() == 4 &&
+              plannerI32Plan.runtimeABIParameters[0].cType ==
+                  "const int32_t *" &&
+              plannerI32Plan.runtimeABIParameters[2].cType == "int32_t *",
+          "RVV i32 selected-emission planner preserves callable ABI "
+          "parameters separately"))
+    return result;
+  if (int result = expect(
+          !plannerI32Plan.selectedPlanMetadata.empty() &&
+              plannerI32Plan.selectedPlanMetadata[0].name ==
+                  "tcrv_rvv.selected_vector_shape" &&
+              plannerI32Plan.selectedPlanMetadata[0].value == "i32m2",
+          "RVV i32 selected-emission planner preserves selected vector-shape "
+          "metadata separately"))
+    return result;
+
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
@@ -2469,6 +2520,60 @@ module {
           expect(arithmeticResult &&
                      llvm::isa<I64M1VectorType>(arithmeticResult.getType()),
                  "RVV i64 materialization emits i64m1 arithmetic result"))
+    return result;
+
+  llvm::Expected<
+      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
+      selectedEmissionPlan =
+          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+  if (!selectedEmissionPlan)
+    return fail(llvm::Twine("build RVV i64 selected-emission plan for ") +
+                family.familyID + ": " +
+                llvm::toString(selectedEmissionPlan.takeError()));
+  if (int result =
+          expect(static_cast<bool>(*selectedEmissionPlan),
+                 llvm::Twine("RVV i64 selected-emission planner finds ") +
+                     family.familyID + " callable path"))
+    return result;
+  const auto &plannerI64Plan = **selectedEmissionPlan;
+  if (int result =
+          expect(plannerI64Plan.getFamilyID() == family.familyID &&
+                     plannerI64Plan.getLoweringPipeline() == family.routeID &&
+                     plannerI64Plan.getRuntimeABI() == family.runtimeABI &&
+                     plannerI64Plan.getRuntimeABIKind() ==
+                         family.runtimeABIKind &&
+                     plannerI64Plan.getRuntimeABIName() ==
+                         family.runtimeABIName &&
+                     plannerI64Plan.getRuntimeGlueRole() ==
+                         family.runtimeGlueRole,
+                 llvm::Twine("RVV i64 selected-emission planner preserves "
+                             "descriptor route and ABI for ") +
+                     family.familyID))
+    return result;
+  if (int result = expect(plannerI64Plan.requiredCapabilitySymbols.size() == 5 &&
+                              plannerI64Plan.requiredCapabilitySymbols[1] ==
+                                  "rvv_i64_m1_sew64",
+                          "RVV i64 selected-emission planner preserves "
+                          "required capability symbols separately"))
+    return result;
+  if (int result = expect(
+          plannerI64Plan.runtimeABIParameters.size() == 4 &&
+              plannerI64Plan.runtimeABIParameters[0].cType ==
+                  "const int64_t *" &&
+              plannerI64Plan.runtimeABIParameters[2].cType == "int64_t *",
+          "RVV i64 selected-emission planner preserves int64 callable ABI "
+          "parameters separately"))
+    return result;
+  if (int result = expect(
+          !plannerI64Plan.selectedPlanMetadata.empty() &&
+              plannerI64Plan.selectedPlanMetadata[0].name ==
+                  "tcrv_rvv.selected_vector_shape" &&
+              plannerI64Plan.selectedPlanMetadata[0].value == "i64m1",
+          "RVV i64 selected-emission planner preserves selected vector-shape "
+          "metadata separately"))
     return result;
 
   VariantEmissionPlan emissionPlan;
