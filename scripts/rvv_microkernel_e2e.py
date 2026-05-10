@@ -2666,7 +2666,7 @@ def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]
         return (
             "tcrv_opt_linalg_frontend_execution_planning_pipeline",
             [
-                "--tcrv-lower-linalg-i32-binary-to-exec",
+                "--tcrv-lower-linalg-rvv-binary-to-exec",
                 "--tcrv-execution-planning-pipeline",
             ],
         )
@@ -2689,7 +2689,7 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
         return "rvv-probe-profile-replay + tcrv-execution-planning-pipeline"
     if getattr(args, "lower_linalg_frontend", False):
         return (
-            "tcrv-lower-linalg-i32-binary-to-exec + "
+            "tcrv-lower-linalg-rvv-binary-to-exec + "
             "tcrv-execution-planning-pipeline"
         )
     return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])

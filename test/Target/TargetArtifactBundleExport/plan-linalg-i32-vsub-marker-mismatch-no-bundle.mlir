@@ -51,4 +51,4 @@ module @plan_linalg_i32_vsub_marker_mismatch_no_bundle {
 }
 
 // CHECK: marked linalg.generic for TianChen-RV i32-vsub expects one arith.subi feeding linalg.yield
-// CHECK: TianChen-RV plan-and-export target artifact bundle failed during bounded linalg i32 add/sub/mul frontend lowering
+// CHECK: TianChen-RV plan-and-export target artifact bundle failed during bounded linalg RVV binary frontend lowering

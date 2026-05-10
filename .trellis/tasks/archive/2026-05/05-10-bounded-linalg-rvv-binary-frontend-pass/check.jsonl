@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Global spec index for validation framing."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Validate pass naming and frontend lowering contract against variant pipeline spec."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Validate focused lit/FileCheck and C++ test coverage requirements."}

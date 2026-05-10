@@ -28,6 +28,7 @@
 
 namespace tianchenrv::transforms {
 
+#define GEN_PASS_DEF_LOWERLINALGRVVBINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32BINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32VADDTOEXEC
 #include "TianChenRV/Transforms/Passes.h.inc"
@@ -635,6 +636,14 @@ mlir::LogicalResult lowerMarkedFrontendBinaryLinalgInModule(
   return mlir::success();
 }
 
+struct LowerLinalgRVVBinaryToExecPass
+    : impl::LowerLinalgRVVBinaryToExecBase<LowerLinalgRVVBinaryToExecPass> {
+  void runOnOperation() override {
+    if (mlir::failed(lowerMarkedFrontendBinaryLinalgInModule(getOperation())))
+      signalPassFailure();
+  }
+};
+
 struct LowerLinalgI32BinaryToExecPass
     : impl::LowerLinalgI32BinaryToExecBase<LowerLinalgI32BinaryToExecPass> {
   void runOnOperation() override {
@@ -652,6 +661,10 @@ struct LowerLinalgI32VAddToExecPass
 };
 
 } // namespace
+
+std::unique_ptr<mlir::Pass> createLowerLinalgRVVBinaryToExecPass() {
+  return std::make_unique<LowerLinalgRVVBinaryToExecPass>();
+}
 
 std::unique_ptr<mlir::Pass> createLowerLinalgI32BinaryToExecPass() {
   return std::make_unique<LowerLinalgI32BinaryToExecPass>();

@@ -42,6 +42,9 @@ void registerTianChenRVOptPasses(
     const tianchenrv::target::TargetArtifactExporterRegistry
         &targetExporters) {
   mlir::registerPass([] {
+    return tianchenrv::transforms::createLowerLinalgRVVBinaryToExecPass();
+  });
+  mlir::registerPass([] {
     return tianchenrv::transforms::createLowerLinalgI32BinaryToExecPass();
   });
   mlir::registerPass([] {

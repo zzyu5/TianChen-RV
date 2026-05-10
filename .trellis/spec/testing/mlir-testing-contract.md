@@ -154,23 +154,27 @@ Use lit/FileCheck for:
   registry-derived bundle without hand-authored selected-path or emission
   metadata; and a focused fail-closed negative case proving planning failure
   does not print bundle completion or emit a complete bundle index.
-- bounded linalg frontend lowering coverage, including a hand-written/test
-  `linalg.generic` i32 vector add/sub/mul wrapper that lowers through
-  `--tcrv-lower-linalg-i32-binary-to-exec` to a parseable `tcrv.exec.kernel`
-  with a module target profile reference plus lhs/rhs/out `mem_window` roles
-  and runtime `n` `runtime_param`; pipeline coverage proving the generated
-  kernel can feed existing RVV/scalar proposal, selection, selected-boundary,
-  and supported emission-plan materialization; RVV subtract/multiply coverage
-  proving `tcrv_frontend_lowering = "i32-vsub"` selects the bounded
-  `i32-vsub-microkernel.v1` descriptor and target-owned source export emits
-  `__riscv_vsub_vv_i32m1`, while `tcrv_frontend_lowering = "i32-vmul"`
-  selects `i32-vmul-microkernel.v1` and emits `__riscv_vmul_vv_i32m1` instead
-  of stale vadd metadata; and fail-closed
-  negative coverage proving unsupported marked linalg bodies do not create an
-  exec kernel. If the old vadd-named pass option remains, it must have only
-  focused compatibility coverage proving delegation to the family-named
-  implementation. These tests must not claim generic linalg lowering,
-  LLVM/RISC-V lowering, runtime success, correctness, or performance.
+- bounded linalg frontend lowering coverage, including hand-written/test
+  `linalg.generic` finite RVV binary vector add/sub/mul wrappers that lower
+  through `--tcrv-lower-linalg-rvv-binary-to-exec` to parseable
+  `tcrv.exec.kernel` operations with module target profile references plus
+  lhs/rhs/out `mem_window` roles and runtime `n` `runtime_param`; pipeline
+  coverage proving the generated kernel can feed existing RVV/scalar proposal,
+  selection, selected-boundary, and supported emission-plan materialization;
+  RVV subtract/multiply coverage proving `tcrv_frontend_lowering = "i32-vsub"`
+  selects the bounded `i32-vsub-microkernel.v1` descriptor and target-owned
+  source export emits `__riscv_vsub_vv_i32m1`, while
+  `tcrv_frontend_lowering = "i32-vmul"` selects
+  `i32-vmul-microkernel.v1` and emits `__riscv_vmul_vv_i32m1` instead of stale
+  vadd metadata; i64 coverage proving the same bounded pass surface preserves
+  `i64-vadd`/`i64-vsub`/`i64-vmul` family markers, `int64_t` ABI spellings,
+  and i64 RVV intrinsic names; and fail-closed negative coverage proving
+  unsupported marked linalg bodies do not create an exec kernel. The old
+  `--tcrv-lower-linalg-i32-binary-to-exec` and
+  `--tcrv-lower-linalg-i32-vadd-to-exec` pass options must have only focused
+  compatibility coverage proving delegation to the RVV binary implementation.
+  These tests must not claim generic linalg lowering, LLVM/RISC-V lowering,
+  runtime success, correctness, or performance.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and offload descriptor planned paths;
   existing execution-planning pipeline output followed by the preflight pass;

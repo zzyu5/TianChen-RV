@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR boundaries and source-of-truth rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg frontend pass contract and execution planning pipeline ownership."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR/TableGen/CMake/lit implementation stack and Python boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck coverage for pass behavior and frontend lowering."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensures frontend pass does not introduce generic tcrv compute semantics."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Preserves capability-owned planning decisions and avoids target-family branches in core."}

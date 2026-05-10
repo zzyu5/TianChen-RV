@@ -1,3 +1,4 @@
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec | FileCheck %s --implicit-check-not=linalg.generic --implicit-check-not=func.func
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-vadd-to-exec | FileCheck %s --implicit-check-not=linalg.generic --implicit-check-not=func.func
 
 #map = affine_map<(d0) -> (d0)>

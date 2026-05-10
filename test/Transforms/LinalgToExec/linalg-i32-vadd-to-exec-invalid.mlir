@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec 2>&1 | FileCheck %s --implicit-check-not="tcrv.exec.kernel @bad_frontend_vadd"
+// RUN: not tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec 2>&1 | FileCheck %s --implicit-check-not="tcrv.exec.kernel @bad_frontend_vadd"
 
 #map = affine_map<(d0) -> (d0)>
 

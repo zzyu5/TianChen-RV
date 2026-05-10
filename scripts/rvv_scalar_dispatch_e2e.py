@@ -2111,7 +2111,7 @@ def selected_input_path(args: argparse.Namespace) -> Path:
 def execution_planning_command_args(args: argparse.Namespace) -> list[str]:
     command_args: list[str] = []
     if args.lower_linalg_frontend:
-        command_args.append("--tcrv-lower-linalg-i32-binary-to-exec")
+        command_args.append("--tcrv-lower-linalg-rvv-binary-to-exec")
     command_args.append("--tcrv-execution-planning-pipeline")
     return command_args
 
@@ -3246,7 +3246,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--lower-linalg-frontend",
         action="store_true",
         help=(
-            "Run the bounded linalg i32 add/sub/mul frontend lowering pass before "
+            "Run the bounded linalg RVV binary frontend lowering pass before "
             "the execution-planning pipeline"
         ),
     )

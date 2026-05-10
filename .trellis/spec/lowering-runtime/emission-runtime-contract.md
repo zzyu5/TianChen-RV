@@ -644,15 +644,15 @@ from file names.
 `tcrv-translate --tcrv-export-target-artifact-bundle` remains the
 coherence-gated exporter for already planned MLIR. The separate
 `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` entry may first
-run the bounded marked-linalg i32 add/sub/mul frontend lowering slice, then run
-the existing execution planning pipeline with built-in plugin and target artifact
+run the bounded marked-linalg RVV binary frontend lowering slice, then run the
+existing execution planning pipeline with built-in plugin and target artifact
 exporter registries, and finally call the same bundle exporter. The frontend
 step is limited to creating the already specified `tcrv.exec.kernel` plus
 `mem_window` / `runtime_param` ABI boundary from explicitly marked test or
-hand-written linalg input and preserving the bounded frontend family marker
-that lets plugins choose the existing add, subtract, or multiply microkernel
-descriptor; it must not become generic linalg lowering or bypass plugin-owned
-realization.
+hand-written finite RVV binary linalg input and preserving the bounded frontend
+family marker that lets plugins choose the existing add, subtract, or multiply
+microkernel descriptor; it must not become generic linalg lowering or bypass
+plugin-owned realization.
 It must fail before printing bundle completion if frontend lowering, planning,
 execution-plan coherence, route validation, or artifact materialization fails,
 and it must not weaken the bundle component contract or runtime ABI signature

@@ -3,25 +3,42 @@
 
 include "mlir/Pass/PassBase.td"
 
-def LowerLinalgI32BinaryToExec
-    : Pass<"tcrv-lower-linalg-i32-binary-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Lower bounded marked linalg i32 binary or i64 vadd wrappers to tcrv.exec";
+def LowerLinalgRVVBinaryToExec
+    : Pass<"tcrv-lower-linalg-rvv-binary-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Lower bounded marked linalg RVV binary wrappers to tcrv.exec";
   let description = [{
-    Consumes explicitly marked hand-written/test linalg.generic i32 vector
-    add/sub/mul wrappers plus the bounded i64 vector-add wrapper and
-    materializes the TianChen-RV execution boundary consumed by the existing
-    plugin planning pipeline. The pass creates a tcrv.exec.kernel with a
-    selected module target profile reference, preserves the bounded frontend
-    lowering family marker, validates that target profile's generic capability
-    provider composition, optionally clones explicitly referenced supplemental
-    module-level capability providers into the kernel capability scope, and
-    materializes the bounded binary runtime ABI mem_window/runtime_param
-    surface, then removes the source wrapper.
+    Consumes explicitly marked hand-written/test linalg.generic finite RVV
+    binary add/sub/mul wrappers and materializes the TianChen-RV execution
+    boundary consumed by the existing plugin planning pipeline. The pass
+    creates a tcrv.exec.kernel with a selected module target profile reference,
+    preserves the bounded frontend lowering family marker, validates that target
+    profile's generic capability provider composition, optionally clones
+    explicitly referenced supplemental module-level capability providers into
+    the kernel capability scope, and materializes the bounded binary runtime ABI
+    mem_window/runtime_param surface, then removes the source wrapper.
 
     This is a narrow frontend lowering slice. It does not add generic tcrv
     compute ops, infer arbitrary linalg semantics, select variants, branch on
     RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
     runtime correctness/performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createLowerLinalgRVVBinaryToExecPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
+def LowerLinalgI32BinaryToExec
+    : Pass<"tcrv-lower-linalg-i32-binary-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Deprecated compatibility alias for bounded marked linalg RVV binary lowering";
+  let description = [{
+    Deprecated compatibility alias for
+    --tcrv-lower-linalg-rvv-binary-to-exec. New tests, scripts,
+    documentation, and tool front doors should use the RVV binary pass. The
+    alias delegates to the same bounded frontend lowering implementation and is
+    retained only so older command lines keep working while the public surface
+    migrates.
   }];
   let constructor =
       "::tianchenrv::transforms::createLowerLinalgI32BinaryToExecPass()";
@@ -32,14 +49,14 @@ def LowerLinalgI32BinaryToExec
 
 def LowerLinalgI32VAddToExec
     : Pass<"tcrv-lower-linalg-i32-vadd-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Deprecated compatibility alias for bounded marked linalg i32 binary lowering";
+  let summary = "Deprecated compatibility alias for bounded marked linalg RVV binary lowering";
   let description = [{
     Deprecated compatibility alias for
-    --tcrv-lower-linalg-i32-binary-to-exec. New tests, scripts, documentation,
-    and tool front doors should use the family-named i32 binary pass. The alias
-    delegates to the same bounded add/sub/mul frontend lowering implementation
-    and is retained only so older command lines fail less abruptly while the
-    public surface migrates.
+    --tcrv-lower-linalg-rvv-binary-to-exec. New tests, scripts,
+    documentation, and tool front doors should use the RVV binary pass. The
+    alias delegates to the same bounded frontend lowering implementation and is
+    retained only so older command lines keep working while the public surface
+    migrates.
   }];
   let constructor =
       "::tianchenrv::transforms::createLowerLinalgI32VAddToExecPass()";

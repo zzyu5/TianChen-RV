@@ -251,12 +251,12 @@ mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
 mlir::LogicalResult lowerBoundedLinalgFrontendForPlanning(
     mlir::ModuleOp module, llvm::StringRef frontDoorName) {
   mlir::PassManager pm(module.getContext());
-  pm.addPass(tianchenrv::transforms::createLowerLinalgI32BinaryToExecPass());
+  pm.addPass(tianchenrv::transforms::createLowerLinalgRVVBinaryToExecPass());
   if (mlir::succeeded(pm.run(module)))
     return mlir::success();
 
   module.emitError() << "TianChen-RV " << frontDoorName
-                     << " failed during bounded linalg i32 add/sub/mul "
+                     << " failed during bounded linalg RVV binary "
                         "frontend lowering";
   return mlir::failure();
 }

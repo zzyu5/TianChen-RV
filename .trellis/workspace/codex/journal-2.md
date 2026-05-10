@@ -39,3 +39,37 @@ Moved tcrv-translate RVV direct and RVV+scalar route-family helper command regis
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 17: Bounded linalg RVV binary frontend pass naming
+
+**Date**: 2026-05-10
+**Task**: Bounded linalg RVV binary frontend pass naming
+**Branch**: `main`
+
+### Summary
+
+Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 aliases, updated specs/scripts/tests, and passed focused plus full checks.
+
+### Main Changes
+
+- Added the public tcrv-lower-linalg-rvv-binary-to-exec pass and C++ factory while keeping the old i32 binary and i32-vadd pass options as compatibility aliases.
+- Updated tcrv-translate plan-and-export frontend lowering, RVV/scalar scripts, planned_pipeline metadata, Trellis specs, and focused lit coverage to use the RVV binary public surface.
+- Validated with git diff --check, focused build, focused lit, script self-tests, full check-tianchenrv, and Trellis context validation.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
