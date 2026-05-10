@@ -2630,65 +2630,108 @@ llvm::Error exportDispatchSelfCheckObjectForFamily(
   return exportDispatchObjectFromPair(*pair, /*includeSelfCheck=*/true, os);
 }
 
+RVVScalarDispatchRouteManifestEntry
+makeRVVScalarDispatchRouteManifestEntry(const DispatchI32FamilySpec &family,
+                                        DispatchRouteKind routeKind) {
+  switch (routeKind) {
+  case DispatchRouteKind::Source:
+    return {&family,
+            DispatchRouteKind::Source,
+            family.dispatchSourceRouteID,
+            "export one host RVV+scalar binary dispatch C source",
+            kRuntimeCallableCSourceArtifactKind,
+            family.dispatchRuntimeABIKind,
+            family.dispatchRuntimeABIName,
+            family.dispatchExternalABIComponentGroup,
+            family.dispatchRuntimeABIName,
+            family.selfCheckSuccessMarker,
+            /*requiresBinaryStdout=*/false};
+  case DispatchRouteKind::Header:
+    return {&family,
+            DispatchRouteKind::Header,
+            family.dispatchHeaderRouteID,
+            "export one host RVV+scalar binary dispatch C ABI header",
+            kRuntimeCallableCHeaderArtifactKind,
+            family.dispatchRuntimeABIKind,
+            family.dispatchRuntimeABIName,
+            family.dispatchExternalABIComponentGroup,
+            family.dispatchRuntimeABIName,
+            family.selfCheckSuccessMarker,
+            /*requiresBinaryStdout=*/false};
+  case DispatchRouteKind::Object:
+    return {&family,
+            DispatchRouteKind::Object,
+            family.dispatchObjectRouteID,
+            "export one host RVV+scalar binary dispatch library object file",
+            kRiscvELFRelocatableObjectArtifactKind,
+            family.dispatchRuntimeABIKind,
+            family.dispatchRuntimeABIName,
+            family.dispatchExternalABIComponentGroup,
+            family.dispatchRuntimeABIName,
+            family.selfCheckSuccessMarker,
+            /*requiresBinaryStdout=*/true};
+  case DispatchRouteKind::SelfCheckSource:
+    return {&family,
+            DispatchRouteKind::SelfCheckSource,
+            family.dispatchSelfCheckSourceRouteID,
+            "export one host RVV+scalar binary dispatch C source with "
+            "self-check harness",
+            kSelfCheckCSourceArtifactKind,
+            family.dispatchRuntimeABIKind,
+            family.dispatchRuntimeABIName,
+            family.dispatchExternalABIComponentGroup,
+            family.dispatchRuntimeABIName,
+            family.selfCheckSuccessMarker,
+            /*requiresBinaryStdout=*/false};
+  case DispatchRouteKind::SelfCheckObject:
+    return {&family,
+            DispatchRouteKind::SelfCheckObject,
+            family.dispatchSelfCheckObjectRouteID,
+            "export one host RVV+scalar binary dispatch self-check object "
+            "file",
+            kSelfCheckObjectArtifactKind,
+            family.dispatchRuntimeABIKind,
+            family.dispatchRuntimeABIName,
+            family.dispatchExternalABIComponentGroup,
+            family.dispatchRuntimeABIName,
+            family.selfCheckSuccessMarker,
+            /*requiresBinaryStdout=*/true};
+  }
+  llvm_unreachable("unknown RVV+scalar dispatch route kind");
+}
+
 } // namespace
+
+llvm::ArrayRef<RVVScalarDispatchRouteKind>
+getRVVScalarDispatchRouteKinds() {
+  static const RVVScalarDispatchRouteKind routeKinds[] = {
+      RVVScalarDispatchRouteKind::Source,
+      RVVScalarDispatchRouteKind::Header,
+      RVVScalarDispatchRouteKind::Object,
+      RVVScalarDispatchRouteKind::SelfCheckSource,
+      RVVScalarDispatchRouteKind::SelfCheckObject,
+  };
+  return routeKinds;
+}
+
+std::size_t getRVVScalarDispatchRouteCount() {
+  return getRVVScalarBinaryFamilyDescriptors().size() *
+         getRVVScalarDispatchRouteKinds().size();
+}
 
 llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
 getRVVScalarDispatchRouteManifest() {
   static const llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 32>
       routes = [] {
         llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 32> result;
-        auto appendFamily = [&](const DispatchI32FamilySpec &family) {
-          result.push_back(
-              {&family, DispatchRouteKind::Source,
-               family.dispatchSourceRouteID,
-               "export one host RVV+scalar binary dispatch C source",
-               kRuntimeCallableCSourceArtifactKind,
-               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-               family.dispatchExternalABIComponentGroup,
-               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
-               /*requiresBinaryStdout=*/false});
-          result.push_back(
-              {&family, DispatchRouteKind::Header,
-               family.dispatchHeaderRouteID,
-               "export one host RVV+scalar binary dispatch C ABI header",
-               kRuntimeCallableCHeaderArtifactKind,
-               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-               family.dispatchExternalABIComponentGroup,
-               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
-               /*requiresBinaryStdout=*/false});
-          result.push_back(
-              {&family, DispatchRouteKind::Object,
-               family.dispatchObjectRouteID,
-               "export one host RVV+scalar binary dispatch library object file",
-               kRiscvELFRelocatableObjectArtifactKind,
-               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-               family.dispatchExternalABIComponentGroup,
-               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
-               /*requiresBinaryStdout=*/true});
-          result.push_back(
-              {&family, DispatchRouteKind::SelfCheckSource,
-               family.dispatchSelfCheckSourceRouteID,
-               "export one host RVV+scalar binary dispatch C source with "
-               "self-check harness",
-               kSelfCheckCSourceArtifactKind,
-               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-               family.dispatchExternalABIComponentGroup,
-               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
-               /*requiresBinaryStdout=*/false});
-          result.push_back(
-              {&family, DispatchRouteKind::SelfCheckObject,
-               family.dispatchSelfCheckObjectRouteID,
-               "export one host RVV+scalar binary dispatch self-check object "
-               "file",
-               kSelfCheckObjectArtifactKind,
-               family.dispatchRuntimeABIKind, family.dispatchRuntimeABIName,
-               family.dispatchExternalABIComponentGroup,
-               family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
-               /*requiresBinaryStdout=*/true});
-        };
+        result.reserve(getRVVScalarDispatchRouteCount());
         for (const RVVScalarBinaryFamilyDescriptor *descriptor :
-             getRVVScalarBinaryFamilyDescriptors())
-          appendFamily(descriptor->dispatch);
+             getRVVScalarBinaryFamilyDescriptors()) {
+          for (RVVScalarDispatchRouteKind routeKind :
+               getRVVScalarDispatchRouteKinds())
+            result.push_back(makeRVVScalarDispatchRouteManifestEntry(
+                descriptor->dispatch, routeKind));
+        }
         return result;
       }();
   return llvm::ArrayRef(routes);

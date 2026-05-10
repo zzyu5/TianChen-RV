@@ -19,6 +19,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstddef>
 #include <initializer_list>
 #include <string>
 
@@ -448,13 +449,49 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
   llvm::ArrayRef<tianchenrv::target::rvv::
                      RVVMicrokernelDirectRouteManifestEntry>
       routes = tianchenrv::target::rvv::getRVVMicrokernelDirectRouteManifest();
-  if (routes.size() != 18) {
-    llvm::errs() << "expected 18 RVV direct microkernel route entries, got "
+  llvm::ArrayRef<tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind>
+      routeKinds = tianchenrv::target::rvv::getRVVMicrokernelDirectRouteKinds();
+  const std::size_t expectedRouteCount =
+      tianchenrv::target::rvv::getRVVMicrokernelDirectRouteCount();
+  if (routes.size() != expectedRouteCount) {
+    llvm::errs() << "expected " << expectedRouteCount
+                 << " RVV direct microkernel route entries from manifest "
+                    "API, got "
                  << routes.size() << "\n";
+    return false;
+  }
+  if (routes.size() !=
+      tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors().size() *
+          routeKinds.size()) {
+    llvm::errs() << "RVV direct route count is not family-count x route-kind "
+                    "count\n";
+    return false;
+  }
+
+  bool exposesSourceKind = false;
+  bool exposesHeaderKind = false;
+  bool exposesObjectKind = false;
+  for (tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind routeKind :
+       routeKinds) {
+    exposesSourceKind |=
+        routeKind ==
+        tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source;
+    exposesHeaderKind |=
+        routeKind ==
+        tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Header;
+    exposesObjectKind |=
+        routeKind ==
+        tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Object;
+  }
+  if (!exposesSourceKind || !exposesHeaderKind || !exposesObjectKind) {
+    llvm::errs() << "RVV direct route-kind manifest must expose "
+                    "source/header/object kinds\n";
     return false;
   }
 
   llvm::StringSet<> seenRoutes;
+  bool hasLegacyI32VAddSourceRoute = false;
+  bool hasI64VMulObjectRoute = false;
   for (const auto &route : routes) {
     if (!route.family) {
       llvm::errs() << "RVV direct route entry has no family\n";
@@ -469,6 +506,15 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
                    << route.getRouteID() << "\n";
       return false;
     }
+
+    hasLegacyI32VAddSourceRoute |=
+        route.routeKind ==
+            tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source &&
+        route.getRouteID() == "tcrv-export-rvv-microkernel-c";
+    hasI64VMulObjectRoute |=
+        route.routeKind ==
+            tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Object &&
+        route.getRouteID() == "tcrv-export-rvv-i64-vmul-microkernel-object";
 
     switch (route.routeKind) {
     case tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source:
@@ -500,27 +546,29 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
       break;
     }
   }
+  if (!hasLegacyI32VAddSourceRoute || !hasI64VMulObjectRoute) {
+    llvm::errs() << "RVV direct route manifest is missing representative "
+                    "i32-vadd source or i64-vmul object route names\n";
+    return false;
+  }
 
   for (const RVVBinaryFamilyDescriptor *family :
        tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
-    bool hasSource = false;
-    bool hasHeader = false;
-    bool hasObject = false;
-    for (const auto &route : routes) {
-      if (route.family->familyID != family->familyID)
-        continue;
-      hasSource |= route.routeKind == tianchenrv::target::rvv::
-                                          RVVMicrokernelDirectRouteKind::Source;
-      hasHeader |= route.routeKind == tianchenrv::target::rvv::
-                                          RVVMicrokernelDirectRouteKind::Header;
-      hasObject |= route.routeKind == tianchenrv::target::rvv::
-                                          RVVMicrokernelDirectRouteKind::Object;
-    }
-    if (!hasSource || !hasHeader || !hasObject) {
-      llvm::errs() << "RVV direct route manifest missing source/header/object "
-                      "entry for "
-                   << family->familyID << "\n";
-      return false;
+    for (tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind routeKind :
+         routeKinds) {
+      bool hasRouteKind = false;
+      for (const auto &route : routes) {
+        if (route.family == family && route.routeKind == routeKind) {
+          hasRouteKind = true;
+          break;
+        }
+      }
+      if (!hasRouteKind) {
+        llvm::errs() << "RVV direct route manifest missing route-kind entry "
+                        "for "
+                     << family->familyID << "\n";
+        return false;
+      }
     }
   }
 
@@ -629,9 +677,8 @@ bool expectTargetTranslateRouteRegistryShape() {
                      "register built-in target translate routes"))
     return false;
   const std::size_t expectedBuiltinRouteCount =
-      tianchenrv::target::rvv::getRVVMicrokernelDirectRouteManifest().size() +
-      tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteManifest()
-          .size();
+      tianchenrv::target::rvv::getRVVMicrokernelDirectRouteCount() +
+      tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteCount();
   if (builtinRoutes.size() != expectedBuiltinRouteCount) {
     llvm::errs() << "expected " << expectedBuiltinRouteCount
                  << " built-in target translate routes from route manifests, "

@@ -8,6 +8,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstddef>
+
 namespace llvm {
 class raw_ostream;
 } // namespace llvm
@@ -40,6 +42,11 @@ struct RVVScalarDispatchRouteManifestEntry {
   llvm::StringRef selfCheckSuccessMarker;
   bool requiresBinaryStdout = false;
 };
+
+llvm::ArrayRef<RVVScalarDispatchRouteKind>
+getRVVScalarDispatchRouteKinds();
+
+std::size_t getRVVScalarDispatchRouteCount();
 
 llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
 getRVVScalarDispatchRouteManifest();

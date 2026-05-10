@@ -13,6 +13,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstddef>
 #include <initializer_list>
 #include <optional>
 #include <string>
@@ -318,9 +319,37 @@ int expectDispatchRouteManifest() {
       rvv_scalar::getRVVScalarBinaryFamilyDescriptors();
   llvm::ArrayRef<rvv_scalar::RVVScalarDispatchRouteManifestEntry> routes =
       rvv_scalar::getRVVScalarDispatchRouteManifest();
+  llvm::ArrayRef<RouteKind> routeKinds =
+      rvv_scalar::getRVVScalarDispatchRouteKinds();
+  const std::size_t expectedRouteCount =
+      rvv_scalar::getRVVScalarDispatchRouteCount();
   if (int result =
-          expect(routes.size() == families.size() * 5,
-                 "dispatch route manifest has five routes per RVV+scalar family"))
+          expect(routes.size() == expectedRouteCount,
+                 "dispatch route manifest count is exposed by manifest API"))
+    return result;
+  if (int result =
+          expect(routes.size() == families.size() * routeKinds.size(),
+                 "dispatch route manifest count is family-count x route-kind "
+                 "count"))
+    return result;
+
+  bool exposesSourceKind = false;
+  bool exposesHeaderKind = false;
+  bool exposesObjectKind = false;
+  bool exposesSelfCheckSourceKind = false;
+  bool exposesSelfCheckObjectKind = false;
+  for (RouteKind routeKind : routeKinds) {
+    exposesSourceKind |= routeKind == RouteKind::Source;
+    exposesHeaderKind |= routeKind == RouteKind::Header;
+    exposesObjectKind |= routeKind == RouteKind::Object;
+    exposesSelfCheckSourceKind |= routeKind == RouteKind::SelfCheckSource;
+    exposesSelfCheckObjectKind |= routeKind == RouteKind::SelfCheckObject;
+  }
+  if (int result =
+          expect(exposesSourceKind && exposesHeaderKind && exposesObjectKind &&
+                     exposesSelfCheckSourceKind && exposesSelfCheckObjectKind,
+                 "dispatch route-kind manifest exposes all bounded route "
+                 "kinds"))
     return result;
 
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family : families) {
@@ -361,7 +390,16 @@ int expectDispatchRouteManifest() {
       return result;
   }
 
+  bool hasI32VAddSourceRoute = false;
+  bool hasI64VMulSelfCheckObjectRoute = false;
   for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &lhs : routes) {
+    hasI32VAddSourceRoute |=
+        lhs.routeKind == RouteKind::Source &&
+        lhs.routeID == "tcrv-export-rvv-scalar-i32-vadd-dispatch-c";
+    hasI64VMulSelfCheckObjectRoute |=
+        lhs.routeKind == RouteKind::SelfCheckObject &&
+        lhs.routeID ==
+            "tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-object";
     for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &rhs : routes) {
       if (&lhs == &rhs)
         continue;
@@ -383,7 +421,9 @@ int expectDispatchRouteManifest() {
     }
   }
 
-  return 0;
+  return expect(hasI32VAddSourceRoute && hasI64VMulSelfCheckObjectRoute,
+                "dispatch manifest exposes representative i32-vadd source "
+                "and i64-vmul self-check object routes");
 }
 
 int expectStaleFamilyMismatchGuards() {

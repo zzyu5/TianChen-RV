@@ -41,6 +41,51 @@ Moved tcrv-translate RVV direct and RVV+scalar route-family helper command regis
 [OK] **Completed and archived**
 
 
+## Session 21: RVV binary artifact manifests as target-owned family source of truth
+
+**Date**: 2026-05-10
+**Task**: RVV binary artifact manifests as target-owned family source of truth
+**Branch**: `main`
+
+### Summary
+
+Continued the Round 50 route-manifest cleanup by removing the remaining direct
+RVV microkernel handwritten finite route list. Direct RVV microkernel routes
+and RVV+scalar dispatch routes now expose target-owned route-kind/count APIs and
+derive manifest records from the finite binary family registries.
+
+### Main Changes
+
+- Added direct RVV microkernel route-kind/count APIs in
+  `include/TianChenRV/Target/RVV/RVVMicrokernel.h` and implemented
+  registry-derived direct source/header/object route manifest construction in
+  `lib/Target/RVV/RVVMicrokernel.cpp`.
+- Added RVV+scalar dispatch route-kind/count APIs in
+  `include/TianChenRV/Target/RVVScalarDispatch.h` and made
+  `lib/Target/Builtin/RVVScalarDispatch.cpp` build dispatch route records via
+  route-kind x family-registry derivation.
+- Updated `test/Target/TargetArtifactExportTest.cpp` and
+  `test/Target/I32BinaryFamilyRegistryTest.cpp` so expected route counts and
+  all-family invariants are manifest-owned, with representative direct and
+  dispatch route-name checks.
+
+### Evidence
+
+- No RVV runtime/correctness/performance claim was made; this was a local
+  C++ target-support manifest refactor.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --show-pass . --filter 'target-artifact-export|i32-binary-family-registry|rvv-microkernel-bundle|rvv-scalar-dispatch-bundle'`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: `193/193` passed
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 17: Bounded linalg RVV binary frontend pass naming
 
 **Date**: 2026-05-10

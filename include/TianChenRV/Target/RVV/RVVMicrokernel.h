@@ -8,6 +8,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstddef>
 #include <string>
 
 namespace llvm {
@@ -41,6 +42,11 @@ struct RVVMicrokernelDirectRouteManifestEntry {
   std::string getDescription() const;
   bool requiresBinaryStdout() const;
 };
+
+llvm::ArrayRef<RVVMicrokernelDirectRouteKind>
+getRVVMicrokernelDirectRouteKinds();
+
+std::size_t getRVVMicrokernelDirectRouteCount();
 
 llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
 getRVVMicrokernelDirectRouteManifest();

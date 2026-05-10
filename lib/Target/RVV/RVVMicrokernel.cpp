@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -4278,6 +4279,21 @@ bool RVVMicrokernelDirectRouteManifestEntry::requiresBinaryStdout() const {
   return routeKind == RVVMicrokernelDirectRouteKind::Object;
 }
 
+llvm::ArrayRef<RVVMicrokernelDirectRouteKind>
+getRVVMicrokernelDirectRouteKinds() {
+  static const RVVMicrokernelDirectRouteKind routeKinds[] = {
+      RVVMicrokernelDirectRouteKind::Source,
+      RVVMicrokernelDirectRouteKind::Header,
+      RVVMicrokernelDirectRouteKind::Object,
+  };
+  return routeKinds;
+}
+
+std::size_t getRVVMicrokernelDirectRouteCount() {
+  return getRVVBinaryFamilyDescriptors().size() *
+         getRVVMicrokernelDirectRouteKinds().size();
+}
+
 static bool isLegacyGenericRVVMicrokernelDirectRoute(
     const RVVMicrokernelDirectRouteManifestEntry &route) {
   return route.family &&
@@ -4286,27 +4302,19 @@ static bool isLegacyGenericRVVMicrokernelDirectRoute(
 
 llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
 getRVVMicrokernelDirectRouteManifest() {
-  static const RVVMicrokernelDirectRouteManifestEntry routes[] = {
-      {&getI32VAddFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Source},
-      {&getI32VAddFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Header},
-      {&getI32VAddFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Object},
-      {&getI32VSubFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Source},
-      {&getI32VSubFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Header},
-      {&getI32VSubFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Object},
-      {&getI32VMulFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Source},
-      {&getI32VMulFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Header},
-      {&getI32VMulFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Object},
-      {&getI64VAddFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Source},
-      {&getI64VAddFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Header},
-      {&getI64VAddFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Object},
-      {&getI64VSubFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Source},
-      {&getI64VSubFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Header},
-      {&getI64VSubFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Object},
-      {&getI64VMulFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Source},
-      {&getI64VMulFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Header},
-      {&getI64VMulFamilyDescriptor(), RVVMicrokernelDirectRouteKind::Object},
-  };
-  return routes;
+  static const llvm::SmallVector<RVVMicrokernelDirectRouteManifestEntry, 32>
+      routes = [] {
+        llvm::SmallVector<RVVMicrokernelDirectRouteManifestEntry, 32> result;
+        result.reserve(getRVVMicrokernelDirectRouteCount());
+        for (const RVVBinaryFamilyDescriptor *family :
+             getRVVBinaryFamilyDescriptors()) {
+          for (RVVMicrokernelDirectRouteKind routeKind :
+               getRVVMicrokernelDirectRouteKinds())
+            result.push_back({family, routeKind});
+        }
+        return result;
+      }();
+  return llvm::ArrayRef(routes);
 }
 
 llvm::Error exportRVVMicrokernelDirectRoute(
