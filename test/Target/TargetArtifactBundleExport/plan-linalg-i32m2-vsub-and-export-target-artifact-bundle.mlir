@@ -121,6 +121,12 @@ module @plan_linalg_i32m2_vsub_bundle_input {
 // INDEX: selected_plan_metadata[7]:
 // INDEX: name: "tcrv_rvv.selected_setvl_suffix"
 // INDEX: value: "e32m2"
+// INDEX: selected_plan_metadata[8]:
+// INDEX: name: "tcrv_rvv.selected_vector_sew_capability"
+// INDEX: value: "rvv.i32_m2.sew32"
+// INDEX: selected_plan_metadata[9]:
+// INDEX: name: "tcrv_rvv.selected_vector_lmul_capability"
+// INDEX: value: "rvv.i32_m2.lmul_m2"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h"
@@ -153,6 +159,10 @@ module @plan_linalg_i32m2_vsub_bundle_input {
 // SOURCE: /* rvv_selected_plan_metadata[2]: name=tcrv_rvv.selected_vector_lmul, value=m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[7]: name=tcrv_rvv.selected_setvl_suffix, value=e32m2, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.selected_vector_sew_capability, value=rvv.i32_m2.sew32, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[9]: name=tcrv_rvv.selected_vector_lmul_capability, value=rvv.i32_m2.lmul_m2, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[10]: name=tcrv_rvv.selected_tail_policy_capability, value=rvv.i32_m2.tail_policy.agnostic, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[11]: name=tcrv_rvv.selected_mask_policy_capability, value=rvv.i32_m2.mask_policy.agnostic, role=selected-rvv-vector-shape-capability
 // SOURCE: /* rvv_required_capabilities: @frontend_vsub_i32m2_bundle_profile */
 // SOURCE: /* scalar_selected_variant: @scalar_fallback_first_slice */
 // SOURCE: /* scalar_selected_role: dispatch fallback */

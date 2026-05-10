@@ -1761,7 +1761,7 @@ resolveRVVMicrokernelCandidateSelectedShape(
 llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
     const RVVBinaryIntrinsicDescriptor &descriptor) {
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 12> expected;
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 16> expected;
   appendRVVVectorShapeSelectedPlanMetadata(*descriptor.shape, expected);
   appendRVVRuntimeVLBoundarySelectedPlanMetadata(expected);
 

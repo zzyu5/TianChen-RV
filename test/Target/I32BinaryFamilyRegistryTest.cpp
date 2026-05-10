@@ -534,11 +534,11 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
                             "finite RVV descriptor carries capability ids"))
       return result;
 
-    llvm::SmallVector<RVVI32VectorShapeSelectedPlanMetadataDescriptor, 8>
+    llvm::SmallVector<RVVI32VectorShapeSelectedPlanMetadataDescriptor, 12>
         metadata;
     tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(
         *config, metadata);
-    if (int result = expect(metadata.size() == 8,
+    if (int result = expect(metadata.size() == 12,
                             "finite RVV descriptor owns selected-plan "
                             "metadata field count"))
       return result;
@@ -572,6 +572,39 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
                         getRVVSelectedSetVLSuffixAttrName() &&
                 metadata[7].value == config->setvlSuffix,
             "finite RVV descriptor owns setvl suffix metadata"))
+      return result;
+    if (int result = expect(
+            metadata[8].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedVectorSEWCapabilityAttrName() &&
+                metadata[8].value == config->sewCapabilityID &&
+                metadata[8].role ==
+                    tianchenrv::target::rvv::
+                        getSelectedRVVVectorShapeCapabilityMetadataRole(),
+            "finite RVV descriptor owns selected SEW capability metadata"))
+      return result;
+    if (int result = expect(
+            metadata[9].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedVectorLMULCapabilityAttrName() &&
+                metadata[9].value == config->lmulCapabilityID,
+            "finite RVV descriptor owns selected LMUL capability metadata"))
+      return result;
+    if (int result = expect(
+            metadata[10].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedTailPolicyCapabilityAttrName() &&
+                metadata[10].value == config->tailPolicyCapabilityID,
+            "finite RVV descriptor owns selected tail-policy capability "
+            "metadata"))
+      return result;
+    if (int result = expect(
+            metadata[11].name ==
+                    tianchenrv::target::rvv::
+                        getRVVSelectedMaskPolicyCapabilityAttrName() &&
+                metadata[11].value == config->maskPolicyCapabilityID,
+            "finite RVV descriptor owns selected mask-policy capability "
+            "metadata"))
       return result;
   }
 

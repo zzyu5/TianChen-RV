@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and project boundary invariants for this implementation task."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected-plan metadata layering and target artifact export preflight rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck coverage for execution-plan coherence and target artifact bundle guard behavior."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec compute-free dialect boundary while RVV capability metadata remains plugin/target-owned."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector-shape metadata and backing capability id contract."}

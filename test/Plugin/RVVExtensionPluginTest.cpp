@@ -2313,6 +2313,18 @@ module {
     return result;
   if (int result = expect(
           hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                  "tcrv_rvv.selected_vector_sew_capability",
+                                  "rvv.i32_m2.sew32",
+                                  "selected-rvv-vector-shape-capability") &&
+              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.selected_vector_lmul_capability",
+                                      "rvv.i32_m2.lmul_m2",
+                                      "selected-rvv-vector-shape-capability"),
+          "RVV i32 selected-emission planner exposes selected vector-shape "
+          "capability metadata separately"))
+    return result;
+  if (int result = expect(
+          hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
                                   "tcrv_rvv.runtime_avl_source",
                                   "runtime-element-count-abi-parameter",
                                   "rvv-runtime-vl-avl-boundary") &&
@@ -2603,6 +2615,18 @@ module {
               plannerI64Plan.selectedPlanMetadata[0].value == "i64m1",
           "RVV i64 selected-emission planner preserves selected vector-shape "
           "metadata separately"))
+    return result;
+  if (int result = expect(
+          hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                  "tcrv_rvv.selected_vector_sew_capability",
+                                  "rvv.i64_m1.sew64",
+                                  "selected-rvv-vector-shape-capability") &&
+              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.selected_vector_lmul_capability",
+                                      "rvv.i64_m1.lmul_m1",
+                                      "selected-rvv-vector-shape-capability"),
+          "RVV i64 selected-emission planner exposes selected vector-shape "
+          "capability metadata separately"))
     return result;
   if (int result = expect(
           hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,

@@ -176,6 +176,22 @@ inline llvm::StringRef getRVVSelectedSetVLSuffixAttrName() {
   return "tcrv_rvv.selected_setvl_suffix";
 }
 
+inline llvm::StringRef getRVVSelectedVectorSEWCapabilityAttrName() {
+  return "tcrv_rvv.selected_vector_sew_capability";
+}
+
+inline llvm::StringRef getRVVSelectedVectorLMULCapabilityAttrName() {
+  return "tcrv_rvv.selected_vector_lmul_capability";
+}
+
+inline llvm::StringRef getRVVSelectedTailPolicyCapabilityAttrName() {
+  return "tcrv_rvv.selected_tail_policy_capability";
+}
+
+inline llvm::StringRef getRVVSelectedMaskPolicyCapabilityAttrName() {
+  return "tcrv_rvv.selected_mask_policy_capability";
+}
+
 inline llvm::StringRef getSelectedRVVVectorShapeMetadataRole() {
   return "selected-rvv-vector-shape-config";
 }
@@ -192,6 +208,16 @@ inline llvm::StringRef getSelectedRVVVectorShapeMetadataNote() {
 
 inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
   return getSelectedRVVVectorShapeMetadataNote();
+}
+
+inline llvm::StringRef getSelectedRVVVectorShapeCapabilityMetadataRole() {
+  return "selected-rvv-vector-shape-capability";
+}
+
+inline llvm::StringRef getSelectedRVVVectorShapeCapabilityMetadataNote() {
+  return "capability id backing the selected RVV vector-shape config; "
+         "compile-time capability evidence, not runtime AVL/VL or descriptor "
+         "element_count";
 }
 
 inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataRole() {
@@ -273,6 +299,23 @@ inline void appendRVVVectorShapeSelectedPlanMetadata(
                  role, note, "vector suffix"});
   out.push_back({getRVVSelectedSetVLSuffixAttrName(), config.setvlSuffix, role,
                  note, "setvl suffix"});
+
+  llvm::StringRef capabilityRole =
+      getSelectedRVVVectorShapeCapabilityMetadataRole();
+  llvm::StringRef capabilityNote =
+      getSelectedRVVVectorShapeCapabilityMetadataNote();
+  out.push_back({getRVVSelectedVectorSEWCapabilityAttrName(),
+                 config.sewCapabilityID, capabilityRole, capabilityNote,
+                 "SEW capability id"});
+  out.push_back({getRVVSelectedVectorLMULCapabilityAttrName(),
+                 config.lmulCapabilityID, capabilityRole, capabilityNote,
+                 "LMUL capability id"});
+  out.push_back({getRVVSelectedTailPolicyCapabilityAttrName(),
+                 config.tailPolicyCapabilityID, capabilityRole, capabilityNote,
+                 "tail-policy capability id"});
+  out.push_back({getRVVSelectedMaskPolicyCapabilityAttrName(),
+                 config.maskPolicyCapabilityID, capabilityRole, capabilityNote,
+                 "mask-policy capability id"});
 }
 
 inline void appendRVVRuntimeVLBoundarySelectedPlanMetadata(
@@ -297,7 +340,7 @@ inline void appendRVVI32VectorShapeSelectedPlanMetadata(
     const RVVI32VectorShapeConfig &config,
     llvm::SmallVectorImpl<RVVI32VectorShapeSelectedPlanMetadataDescriptor>
         &out) {
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
       genericOut;
   appendRVVVectorShapeSelectedPlanMetadata(config, genericOut);
   out.append(genericOut.begin(), genericOut.end());

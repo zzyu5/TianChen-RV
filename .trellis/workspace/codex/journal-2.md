@@ -606,6 +606,51 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 - None - task complete
 
+
+## Session 21: RVV selected vector capability metadata contract
+
+**Date**: 2026-05-11
+**Task**: RVV selected vector capability metadata contract
+**Branch**: `main`
+
+### Summary
+
+Carried selected RVV vector-shape backing capability ids through
+`selected_plan_metadata` and made the existing RVV artifact/export preflight
+fail closed on missing or stale capability metadata.
+
+### Main Changes
+
+- Added shared selected-plan metadata descriptors for selected SEW, LMUL,
+  tail-policy, and mask-policy capability ids in
+  `include/TianChenRV/Target/RVV/RVVVectorShape.h`.
+- Reused the shared descriptor path from RVV selected-emission planning, direct
+  RVV microkernel preflight, and RVV+scalar dispatch preflight; no generic
+  target artifact routing branch was added.
+- Added C++ checks for i32/i64 planner metadata, direct i64 missing/stale
+  capability metadata rejection, and dispatch source/header/object stale RVV
+  capability rejection.
+- Updated hand-authored RVV artifact fixtures and bundle/source FileCheck
+  expectations so valid paths now expose the selected capability ids before
+  capacity and runtime AVL/VL metadata.
+- No `ssh rvv` evidence was run or claimed; this round changes compiler
+  metadata/preflight contracts and local artifact checks only.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test tianchenrv-rvv-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-11-rvv-selected-vector-capability-metadata-contract`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
 ## Session 20: First-class RVV selected config and runtime VL boundary model
 
 **Date**: 2026-05-10

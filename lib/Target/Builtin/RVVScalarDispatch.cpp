@@ -1700,7 +1700,7 @@ llvm::Error validateDispatchSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
     const DispatchRVVVectorShapeConfig &config) {
   llvm::SmallVector<
-      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 16>
       expected;
   tianchenrv::target::rvv::appendRVVVectorShapeSelectedPlanMetadata(config,
                                                                    expected);

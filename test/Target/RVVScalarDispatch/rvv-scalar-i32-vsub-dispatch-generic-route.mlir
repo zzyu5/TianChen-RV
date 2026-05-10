@@ -120,8 +120,12 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // SOURCE: /* rvv_runtime_glue_role: runtime-callable-i32-vsub-function */
 // SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m1, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m1, role=selected-rvv-vector-shape-config
-// SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.vlenb_bytes, value=16, role=rvv-base-capacity-fact
-// SOURCE: /* rvv_selected_plan_metadata[9]: name=tcrv_rvv.base_i32_m1_lanes, value=4, role=rvv-base-capacity-fact
+// SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.selected_vector_sew_capability, value=rvv.i32_m1.sew32, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[9]: name=tcrv_rvv.selected_vector_lmul_capability, value=rvv.i32_m1.lmul_m1, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[10]: name=tcrv_rvv.selected_tail_policy_capability, value=rvv.i32_m1.tail_policy.agnostic, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[11]: name=tcrv_rvv.selected_mask_policy_capability, value=rvv.i32_m1.mask_policy.agnostic, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[12]: name=tcrv_rvv.vlenb_bytes, value=16, role=rvv-base-capacity-fact
+// SOURCE: /* rvv_selected_plan_metadata[13]: name=tcrv_rvv.base_i32_m1_lanes, value=4, role=rvv-base-capacity-fact
 // SOURCE: /* scalar_artifact_route_id: tcrv-export-scalar-i32-vsub-microkernel-c */
 // SOURCE: /* scalar_runtime_abi: scalar-i32-vsub-runtime-callable-c-abi.v1 */
 // SOURCE: /* scalar_runtime_abi_name: scalar-i32-vsub-runtime-callable-c-function.v1 */

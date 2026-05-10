@@ -110,6 +110,12 @@ module @plan_linalg_i32m2_vmul_bundle_input {
 // INDEX: selected_plan_metadata[7]:
 // INDEX: name: "tcrv_rvv.selected_setvl_suffix"
 // INDEX: value: "e32m2"
+// INDEX: selected_plan_metadata[8]:
+// INDEX: name: "tcrv_rvv.selected_vector_sew_capability"
+// INDEX: value: "rvv.i32_m2.sew32"
+// INDEX: selected_plan_metadata[9]:
+// INDEX: name: "tcrv_rvv.selected_vector_lmul_capability"
+// INDEX: value: "rvv.i32_m2.lmul_m2"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vmul-dispatch-header.h"
 // INDEX: component_group: "rvv-scalar-i32-vmul-dispatch-external-abi.v1"
@@ -131,6 +137,10 @@ module @plan_linalg_i32m2_vmul_bundle_input {
 // SOURCE: /* rvv_selected_plan_metadata[2]: name=tcrv_rvv.selected_vector_lmul, value=m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[7]: name=tcrv_rvv.selected_setvl_suffix, value=e32m2, role=selected-rvv-vector-shape-config
+// SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.selected_vector_sew_capability, value=rvv.i32_m2.sew32, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[9]: name=tcrv_rvv.selected_vector_lmul_capability, value=rvv.i32_m2.lmul_m2, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[10]: name=tcrv_rvv.selected_tail_policy_capability, value=rvv.i32_m2.tail_policy.agnostic, role=selected-rvv-vector-shape-capability
+// SOURCE: /* rvv_selected_plan_metadata[11]: name=tcrv_rvv.selected_mask_policy_capability, value=rvv.i32_m2.mask_policy.agnostic, role=selected-rvv-vector-shape-capability
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32m2_vmul_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32m2_vmul_scalar_fallback_first_slice */
 // SOURCE: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */

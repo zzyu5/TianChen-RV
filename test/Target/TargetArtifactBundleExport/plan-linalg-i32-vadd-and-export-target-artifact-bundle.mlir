@@ -164,11 +164,18 @@ module @plan_linalg_i32_vadd_bundle_input {
 // INDEX: value: "i32m1"
 // INDEX: role: "selected-rvv-vector-shape-config"
 // INDEX: selected_plan_metadata[8]:
+// INDEX: name: "tcrv_rvv.selected_vector_sew_capability"
+// INDEX: value: "rvv.i32_m1.sew32"
+// INDEX: role: "selected-rvv-vector-shape-capability"
+// INDEX: selected_plan_metadata[9]:
+// INDEX: name: "tcrv_rvv.selected_vector_lmul_capability"
+// INDEX: value: "rvv.i32_m1.lmul_m1"
+// INDEX: selected_plan_metadata[12]:
 // INDEX: name: "tcrv_rvv.vlenb_bytes"
 // INDEX: value: "16"
 // INDEX: role: "rvv-base-capacity-fact"
 // INDEX: note: "base i32 M1 capacity fact from target/profile evidence; not selected vector shape, runtime input, VL/AVL, or performance evidence"
-// INDEX: selected_plan_metadata[9]:
+// INDEX: selected_plan_metadata[13]:
 // INDEX: name: "tcrv_rvv.base_i32_m1_lanes"
 // INDEX: value: "4"
 // INDEX: evidence_role: "compiler-artifact"

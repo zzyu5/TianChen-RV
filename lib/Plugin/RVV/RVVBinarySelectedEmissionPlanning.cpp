@@ -822,7 +822,7 @@ void appendSelectedVectorShapeMetadata(
     const RVVVectorShapeConfig &shape,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
-      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
       shapeMetadata;
   target::rvv::appendRVVVectorShapeSelectedPlanMetadata(shape, shapeMetadata);
   for (const auto &entry : shapeMetadata)

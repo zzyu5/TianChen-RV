@@ -96,6 +96,19 @@ bool setSelectedPlanMetadataValue(TargetArtifactCandidate &candidate,
   return false;
 }
 
+bool eraseSelectedPlanMetadataEntry(TargetArtifactCandidate &candidate,
+                                    llvm::StringRef name) {
+  for (auto it = candidate.selectedPlanMetadata.begin(),
+            end = candidate.selectedPlanMetadata.end();
+       it != end; ++it) {
+    if (it->name == name) {
+      candidate.selectedPlanMetadata.erase(it);
+      return true;
+    }
+  }
+  return false;
+}
+
 const tianchenrv::target::rvv::RVVVectorShapeConfig &
 getDefaultRVVSelectedShapeForFamily(const RVVBinaryFamilyDescriptor &family) {
   if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
@@ -2646,6 +2659,34 @@ bool expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
        "requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'"});
 }
 
+bool expectRVVI64SourceRejectsMissingSelectedCapabilityMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for selected capability "
+                    "metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!eraseSelectedPlanMetadataEntry(
+          candidate, "tcrv_rvv.selected_vector_sew_capability")) {
+    llvm::errs() << "test candidate is missing selected_vector_sew_capability "
+                    "metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "missing selected RVV capability metadata rejected by RVV i64 source "
+      "route",
+      {"target artifact candidate validation failed",
+       "requires selected_plan_metadata "
+       "'tcrv_rvv.selected_vector_sew_capability'"});
+}
+
 bool expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
     const TargetArtifactExporterRegistry &registry,
     const RVVBinaryFamilyDescriptor &family) {
@@ -2670,6 +2711,35 @@ bool expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
       {"target artifact candidate validation failed",
        "selected_plan_metadata 'tcrv_rvv.selected_vector_sew' sew must be "
        "'64'"});
+}
+
+bool expectRVVI64SourceRejectsStaleSelectedCapabilityMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for stale selected "
+                    "capability metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!setSelectedPlanMetadataValue(
+          candidate, "tcrv_rvv.selected_vector_sew_capability",
+          "rvv.i32_m1.sew32")) {
+    llvm::errs() << "test candidate is missing selected_vector_sew_capability "
+                    "metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale selected RVV SEW capability metadata rejected by RVV i64 source "
+      "route",
+      {"target artifact candidate validation failed",
+       "selected_plan_metadata 'tcrv_rvv.selected_vector_sew_capability' "
+       "SEW capability id must be 'rvv.i64_m1.sew64'"});
 }
 
 bool expectRVVI64SourceRejectsMismatchedSelectedShapeMetadata(
@@ -2951,6 +3021,50 @@ bool expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
            : "route id 'tcrv-export-scalar-microkernel-c'",
        "runtime ABI parameter role 'runtime-element-count'",
        "must use c type 'size_t'"});
+}
+
+bool expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  TargetArtifactCandidate rvvCandidate =
+      routeID.contains("i32-vmul")
+          ? makeRVVMulDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                        "rvv_first_slice")
+      : routeID.contains("i32-vsub")
+          ? makeRVVSubDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                        "rvv_first_slice")
+          : makeRVVDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                     "rvv_first_slice");
+  TargetArtifactCandidate scalarCandidate =
+      routeID.contains("i32-vmul")
+          ? makeScalarMulDispatchFallbackCandidate(
+                tianchenrv::tcrv::exec::KernelOp(),
+                "scalar_fallback_first_slice")
+      : routeID.contains("i32-vsub")
+          ? makeScalarSubDispatchFallbackCandidate(
+                tianchenrv::tcrv::exec::KernelOp(),
+                "scalar_fallback_first_slice")
+          : makeScalarDispatchFallbackCandidate(
+                tianchenrv::tcrv::exec::KernelOp(),
+                "scalar_fallback_first_slice");
+  if (!setSelectedPlanMetadataValue(
+          rvvCandidate, "tcrv_rvv.selected_vector_lmul_capability",
+          "rvv.i32_m2.lmul_m2")) {
+    llvm::errs() << "test candidate is missing "
+                    "selected_vector_lmul_capability metadata\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(rvvCandidate);
+  candidates.push_back(scalarCandidate);
+
+  return expectCompositeCandidateValidationRejects(
+      registry, routeID, candidates,
+      "dispatch composite rejects stale RVV selected capability metadata for " +
+          routeID.str(),
+      {"selected RVV target artifact candidate @rvv_first_slice",
+       "selected_plan_metadata 'tcrv_rvv.selected_vector_lmul_capability' "
+       "LMUL capability id must be 'rvv.i32_m1.lmul_m1'"});
 }
 
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
@@ -3937,7 +4051,15 @@ int main() {
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
     return 1;
+  if (!expectRVVI64SourceRejectsMissingSelectedCapabilityMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
   if (!expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleSelectedCapabilityMetadata(
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
     return 1;
@@ -4033,6 +4155,17 @@ int main() {
   if (!expectDispatchCompositePreflightRejectsScalarRuntimeABIMismatch(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vmul-dispatch-object"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-header"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"))
     return 1;
   if (!expectDispatchCompositeRejectsFallbackMismatch(context,
                                                       builtinRegistry))
