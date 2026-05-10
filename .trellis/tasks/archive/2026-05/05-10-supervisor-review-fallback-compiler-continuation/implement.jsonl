@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, source-of-truth, and RVV evidence invariants"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Compiler/Python boundary for evidence runner changes"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV profile/replay and finite i64m1 family route contract"}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "RVV main profile and ssh evidence interpretation"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and RVV evidence validation policy"}
+{"file": ".trellis/tasks/archive/2026-05/05-10-supervisor-review-fallback-compiler-continuation/prd.md", "reason": "Task requirements and acceptance criteria"}

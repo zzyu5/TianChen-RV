@@ -5,6 +5,8 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-e2e-vmul --overwrite | FileCheck %s --check-prefix=VMUL-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --run-id lit-rvv-microkernel-e2e-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --profile-replay-evidence-json %S/../Fixtures/rvv_probe/sanitized-success.json --run-id lit-rvv-microkernel-e2e-i64-profile-replay --overwrite | FileCheck %s --check-prefix=PROFILE-REPLAY-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vsub --profile-replay-evidence-json %S/../Fixtures/rvv_probe/sanitized-success.json --run-id lit-rvv-microkernel-e2e-i64-vsub-profile-replay --overwrite | FileCheck %s --check-prefix=PROFILE-VSUB-REPLAY-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vmul --profile-replay-evidence-json %S/../Fixtures/rvv_probe/sanitized-success.json --run-id lit-rvv-microkernel-e2e-i64-vmul-profile-replay --overwrite | FileCheck %s --check-prefix=PROFILE-VMUL-REPLAY-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --lower-linalg-frontend --run-id lit-rvv-microkernel-e2e-i64-vadd-frontend --overwrite | FileCheck %s --check-prefix=I64-FRONTEND-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vsub --lower-linalg-frontend --run-id lit-rvv-microkernel-e2e-i64-vsub-frontend --overwrite | FileCheck %s --check-prefix=I64-VSUB-FRONTEND-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vmul --lower-linalg-frontend --run-id lit-rvv-microkernel-e2e-i64-vmul-frontend --overwrite | FileCheck %s --check-prefix=I64-VMUL-FRONTEND-DRY
@@ -17,6 +19,10 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/profile_replay_input.mlir
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/profile_replay_input.mlir
+# RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/profile_replay_input.mlir
+# RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd-frontend/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vsub-frontend/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vmul-frontend/rvv_microkernel.c
@@ -24,6 +30,8 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd-frontend/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vsub-frontend/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vmul-frontend/rvv_microkernel.h
@@ -44,6 +52,12 @@
 # RUN: FileCheck %s --check-prefix=I64-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/evidence.json
 # RUN: FileCheck %s --check-prefix=PROFILE-REPLAY-EVIDENCE < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/evidence.json
 # RUN: FileCheck %s --check-prefix=PROFILE-REPLAY-INPUT < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/profile_replay_input.mlir
+# RUN: FileCheck %s --check-prefix=PROFILE-VSUB-REPLAY-EVIDENCE < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/evidence.json
+# RUN: FileCheck %s --check-prefix=PROFILE-VSUB-REPLAY-INPUT < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/profile_replay_input.mlir
+# RUN: FileCheck %s --check-prefix=PROFILE-VSUB-REPLAY-SOURCE < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/rvv_microkernel.c
+# RUN: FileCheck %s --check-prefix=PROFILE-VMUL-REPLAY-EVIDENCE < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/evidence.json
+# RUN: FileCheck %s --check-prefix=PROFILE-VMUL-REPLAY-INPUT < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/profile_replay_input.mlir
+# RUN: FileCheck %s --check-prefix=PROFILE-VMUL-REPLAY-SOURCE < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=I64-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=I64-FRONTEND-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd-frontend/evidence.json
 # RUN: FileCheck %s --check-prefix=I64-FRONTEND-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd-frontend/rvv_microkernel.c
@@ -435,6 +449,38 @@
 # PROFILE-REPLAY-DRY-NOT: throughput
 # PROFILE-REPLAY-DRY-NOT: latency
 
+# PROFILE-VSUB-REPLAY-DRY: "arithmetic_family": "i64-vsub"
+# PROFILE-VSUB-REPLAY-DRY: "artifact_dir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay"
+# PROFILE-VSUB-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+# PROFILE-VSUB-REPLAY-DRY: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
+# PROFILE-VSUB-REPLAY-DRY: "mode": "dry-run"
+# PROFILE-VSUB-REPLAY-DRY: "planned_pipeline": "rvv-probe-profile-replay + tcrv-execution-planning-pipeline"
+# PROFILE-VSUB-REPLAY-DRY: "profile_replay": true
+# PROFILE-VSUB-REPLAY-DRY: "selected_kernel": "rvv_probe_i64_vsub_replay"
+# PROFILE-VSUB-REPLAY-DRY: "source_export_route": "tcrv-export-rvv-i64-vsub-microkernel-c"
+# PROFILE-VSUB-REPLAY-DRY: "ssh_evidence": false
+# PROFILE-VSUB-REPLAY-DRY: "status": "success"
+# PROFILE-VSUB-REPLAY-DRY: "vector_shape": "i64m1"
+# PROFILE-VSUB-REPLAY-DRY-NOT: runtime_success
+# PROFILE-VSUB-REPLAY-DRY-NOT: throughput
+# PROFILE-VSUB-REPLAY-DRY-NOT: latency
+
+# PROFILE-VMUL-REPLAY-DRY: "arithmetic_family": "i64-vmul"
+# PROFILE-VMUL-REPLAY-DRY: "artifact_dir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay"
+# PROFILE-VMUL-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+# PROFILE-VMUL-REPLAY-DRY: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
+# PROFILE-VMUL-REPLAY-DRY: "mode": "dry-run"
+# PROFILE-VMUL-REPLAY-DRY: "planned_pipeline": "rvv-probe-profile-replay + tcrv-execution-planning-pipeline"
+# PROFILE-VMUL-REPLAY-DRY: "profile_replay": true
+# PROFILE-VMUL-REPLAY-DRY: "selected_kernel": "rvv_probe_i64_vmul_replay"
+# PROFILE-VMUL-REPLAY-DRY: "source_export_route": "tcrv-export-rvv-i64-vmul-microkernel-c"
+# PROFILE-VMUL-REPLAY-DRY: "ssh_evidence": false
+# PROFILE-VMUL-REPLAY-DRY: "status": "success"
+# PROFILE-VMUL-REPLAY-DRY: "vector_shape": "i64m1"
+# PROFILE-VMUL-REPLAY-DRY-NOT: runtime_success
+# PROFILE-VMUL-REPLAY-DRY-NOT: throughput
+# PROFILE-VMUL-REPLAY-DRY-NOT: latency
+
 # PROFILE-REPLAY-EVIDENCE: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
 # PROFILE-REPLAY-EVIDENCE-DAG: "kernel_name": "rvv_probe_i64_replay"
 # PROFILE-REPLAY-EVIDENCE-DAG: "frontend_lowering": "i64-vadd"
@@ -454,6 +500,76 @@
 # PROFILE-REPLAY-INPUT-NOT: runtime_success
 # PROFILE-REPLAY-INPUT-NOT: throughput
 # PROFILE-REPLAY-INPUT-NOT: latency
+
+# PROFILE-VSUB-REPLAY-EVIDENCE: "arithmetic_family": "i64-vsub"
+# PROFILE-VSUB-REPLAY-EVIDENCE: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
+# PROFILE-VSUB-REPLAY-EVIDENCE-DAG: "kernel_name": "rvv_probe_i64_vsub_replay"
+# PROFILE-VSUB-REPLAY-EVIDENCE-DAG: "frontend_lowering": "i64-vsub"
+# PROFILE-VSUB-REPLAY-EVIDENCE-DAG: "generated_mlir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/profile_replay_input.mlir"
+# PROFILE-VSUB-REPLAY-EVIDENCE: "source_export_route": "tcrv-export-rvv-i64-vsub-microkernel-c"
+# PROFILE-VSUB-REPLAY-EVIDENCE: "ssh_evidence": false
+# PROFILE-VSUB-REPLAY-EVIDENCE-NOT: runtime_success
+# PROFILE-VSUB-REPLAY-EVIDENCE-NOT: throughput
+# PROFILE-VSUB-REPLAY-EVIDENCE-NOT: latency
+# PROFILE-VSUB-REPLAY-EVIDENCE-NOT: live-token
+# PROFILE-VSUB-REPLAY-EVIDENCE-NOT: hunter2
+
+# PROFILE-VSUB-REPLAY-INPUT: tcrv.exec.target @rvv_probe_i64_vsub_replay_profile
+# PROFILE-VSUB-REPLAY-INPUT: @rvv_i64_m1_sew64
+# PROFILE-VSUB-REPLAY-INPUT: @rvv_i64_m1_lmul_m1
+# PROFILE-VSUB-REPLAY-INPUT: @rvv_i64_m1_tail_agnostic
+# PROFILE-VSUB-REPLAY-INPUT: @rvv_i64_m1_mask_agnostic
+# PROFILE-VSUB-REPLAY-INPUT: tcrv_frontend_lowering = "i64-vsub"
+# PROFILE-VSUB-REPLAY-INPUT-NOT: runtime_success
+# PROFILE-VSUB-REPLAY-INPUT-NOT: throughput
+# PROFILE-VSUB-REPLAY-INPUT-NOT: latency
+
+# PROFILE-VSUB-REPLAY-SOURCE: /* selected_kernel: @rvv_probe_i64_vsub_replay */
+# PROFILE-VSUB-REPLAY-SOURCE: /* executable_microkernel: tcrv_rvv.i64_vsub_microkernel */
+# PROFILE-VSUB-REPLAY-SOURCE: /* arithmetic_family: i64-vsub */
+# PROFILE-VSUB-REPLAY-SOURCE: /* active_route: tcrv-export-rvv-i64-vsub-microkernel-c */
+# PROFILE-VSUB-REPLAY-SOURCE: __riscv_vsub_vv_i64m1
+# PROFILE-VSUB-REPLAY-SOURCE-NOT: int32_t
+# PROFILE-VSUB-REPLAY-SOURCE-NOT: i64-vadd
+# PROFILE-VSUB-REPLAY-SOURCE-NOT: i64-vmul
+# PROFILE-VSUB-REPLAY-SOURCE-NOT: runtime_success
+# PROFILE-VSUB-REPLAY-SOURCE-NOT: throughput
+# PROFILE-VSUB-REPLAY-SOURCE-NOT: latency
+
+# PROFILE-VMUL-REPLAY-EVIDENCE: "arithmetic_family": "i64-vmul"
+# PROFILE-VMUL-REPLAY-EVIDENCE: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
+# PROFILE-VMUL-REPLAY-EVIDENCE-DAG: "kernel_name": "rvv_probe_i64_vmul_replay"
+# PROFILE-VMUL-REPLAY-EVIDENCE-DAG: "frontend_lowering": "i64-vmul"
+# PROFILE-VMUL-REPLAY-EVIDENCE-DAG: "generated_mlir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/profile_replay_input.mlir"
+# PROFILE-VMUL-REPLAY-EVIDENCE: "source_export_route": "tcrv-export-rvv-i64-vmul-microkernel-c"
+# PROFILE-VMUL-REPLAY-EVIDENCE: "ssh_evidence": false
+# PROFILE-VMUL-REPLAY-EVIDENCE-NOT: runtime_success
+# PROFILE-VMUL-REPLAY-EVIDENCE-NOT: throughput
+# PROFILE-VMUL-REPLAY-EVIDENCE-NOT: latency
+# PROFILE-VMUL-REPLAY-EVIDENCE-NOT: live-token
+# PROFILE-VMUL-REPLAY-EVIDENCE-NOT: hunter2
+
+# PROFILE-VMUL-REPLAY-INPUT: tcrv.exec.target @rvv_probe_i64_vmul_replay_profile
+# PROFILE-VMUL-REPLAY-INPUT: @rvv_i64_m1_sew64
+# PROFILE-VMUL-REPLAY-INPUT: @rvv_i64_m1_lmul_m1
+# PROFILE-VMUL-REPLAY-INPUT: @rvv_i64_m1_tail_agnostic
+# PROFILE-VMUL-REPLAY-INPUT: @rvv_i64_m1_mask_agnostic
+# PROFILE-VMUL-REPLAY-INPUT: tcrv_frontend_lowering = "i64-vmul"
+# PROFILE-VMUL-REPLAY-INPUT-NOT: runtime_success
+# PROFILE-VMUL-REPLAY-INPUT-NOT: throughput
+# PROFILE-VMUL-REPLAY-INPUT-NOT: latency
+
+# PROFILE-VMUL-REPLAY-SOURCE: /* selected_kernel: @rvv_probe_i64_vmul_replay */
+# PROFILE-VMUL-REPLAY-SOURCE: /* executable_microkernel: tcrv_rvv.i64_vmul_microkernel */
+# PROFILE-VMUL-REPLAY-SOURCE: /* arithmetic_family: i64-vmul */
+# PROFILE-VMUL-REPLAY-SOURCE: /* active_route: tcrv-export-rvv-i64-vmul-microkernel-c */
+# PROFILE-VMUL-REPLAY-SOURCE: __riscv_vmul_vv_i64m1
+# PROFILE-VMUL-REPLAY-SOURCE-NOT: int32_t
+# PROFILE-VMUL-REPLAY-SOURCE-NOT: i64-vadd
+# PROFILE-VMUL-REPLAY-SOURCE-NOT: i64-vsub
+# PROFILE-VMUL-REPLAY-SOURCE-NOT: runtime_success
+# PROFILE-VMUL-REPLAY-SOURCE-NOT: throughput
+# PROFILE-VMUL-REPLAY-SOURCE-NOT: latency
 
 # MANIFEST: emission_status: "supported"
 # MANIFEST: emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"

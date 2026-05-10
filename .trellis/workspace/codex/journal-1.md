@@ -1298,7 +1298,11 @@ Shortened the Codex base prompt, changed Hermes reviews to emit module-sized tas
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task `05-10-supervisor-review-fallback-compiler-continuation` from the Hermes fallback brief after reading latest supervisor audit/review artifacts.
+- Added family-specific default profile-replay kernel names for non-vadd i64 binary families while preserving the existing `rvv_probe_i64_replay` default for `i64-vadd`.
+- Extended `test/Scripts/rvv-microkernel-e2e.test` with profile-replay `i64-vsub` and `i64-vmul` dry-run, replay input, source, and evidence checks.
+- Collected fresh `ssh rvv` probe evidence and successful profile-replayed real evidence for generated `i64-vsub` and `i64-vmul` source/object external ABI routes.
+- No `.trellis/spec/` update was needed because this preserved the existing RVV profile/replay and evidence contracts.
 
 ### Git Commits
 
@@ -1385,7 +1389,20 @@ Added i32-vsub support to the RVV/scalar dispatch evidence runner and direct sel
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `git diff --check`
+- [OK] `python3 -m py_compile scripts/rvv_microkernel_e2e.py scripts/rvv_probe_to_mlir.py`
+- [OK] `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- [OK] focused profile-replay dry-runs for `i64-vsub` and `i64-vmul`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] focused lit filter `rvv-microkernel-e2e` passed 1/1
+- [OK] fresh `ssh rvv` probe:
+  `artifacts/tmp/rvv_probe/20260510T-rvv-i64-sub-mul-profile-replay-probe/rvv_probe_evidence.json`
+- [OK] real `ssh rvv` profile-replay evidence for `i64-vsub`:
+  `artifacts/tmp/rvv_i64_profile_replay_e2e/20260510T-rvv-i64-vsub-profile-replay-ssh/evidence.json`
+- [OK] real `ssh rvv` profile-replay evidence for `i64-vmul`:
+  `artifacts/tmp/rvv_i64_profile_replay_e2e/20260510T-rvv-i64-vmul-profile-replay-ssh/evidence.json`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 192/192
+- [OK] archived task context validation
 
 ### Status
 
@@ -1813,6 +1830,39 @@ Made finite RVV i64m1 profile/replay capabilities first-class, drove a replay/pr
 - Validation: `git diff --check`; Python py_compile and self-tests; RVV plugin C++ smoke executable; manual FileCheck reproduction of `test/Scripts/rvv-probe-to-mlir.test`; focused i64 add/sub/mul linalg artifact and missing-config checks; `task.py validate`; `check-tianchenrv` passed 192/192.
 - No new `ssh rvv` evidence was produced because this round makes no fresh runtime correctness or performance claim.
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 14: RVV i64 profile replay sub/mul ssh evidence
+
+**Date**: 2026-05-10
+**Task**: RVV i64 profile replay sub/mul ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Added family-specific profile-replay kernel naming for i64 sub/mul evidence, covered profile-replay i64-vsub/i64-vmul dry-runs in lit, collected fresh ssh rvv probe plus successful source/object external ABI evidence for both paths, and archived the Trellis task after check-tianchenrv 192/192.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

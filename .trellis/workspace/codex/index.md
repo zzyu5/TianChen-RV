@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-05-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1770 | Active |
+| `journal-1.md` | ~1883 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-05-10 | RVV i64 profile replay sub/mul ssh evidence | this commit | `main` |
 | 13 | 2026-05-10 | RVV i64m1 profile replay parity | this commit | `main` |
 | 12 | 2026-05-10 | Linalg i32m2 vsub ssh external ABI evidence | this commit | `main` |
 | 11 | 2026-05-10 | RVV selected-shape descriptor ownership | this commit | `main` |

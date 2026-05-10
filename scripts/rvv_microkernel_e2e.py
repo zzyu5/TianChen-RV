@@ -712,6 +712,13 @@ def build_profile_replay_mlir_command(
     ]
 
 
+def default_profile_replay_kernel_name() -> str:
+    family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    if family == "i64-vadd":
+        return "rvv_probe_i64_replay"
+    return "rvv_probe_" + family.replace("-", "_") + "_replay"
+
+
 def replay_profile_input_for_run(
     args: argparse.Namespace,
     *,
@@ -731,7 +738,7 @@ def replay_profile_input_for_run(
     if not evidence_path.exists():
         raise BridgeError(f"profile replay evidence JSON does not exist: {evidence_json}")
 
-    kernel_name = args.profile_replay_kernel_name or "rvv_probe_i64_replay"
+    kernel_name = args.profile_replay_kernel_name or default_profile_replay_kernel_name()
     reject_secret_like_text("profile replay kernel name", kernel_name)
     frontend_lowering = (
         args.profile_replay_frontend_lowering
@@ -3854,6 +3861,45 @@ void tcrv_rvv_i64_vadd_microkernel_self_test(const int64_t *lhs, const int64_t *
         == DEFAULT_PROFILE_REPLAY_ARTIFACT_ROOT,
         "profile replay runs must default to the dedicated artifact root",
     )
+    configure_arithmetic_family("i64-vsub")
+    assert_self_test(
+        default_profile_replay_kernel_name() == "rvv_probe_i64_vsub_replay",
+        "i64-vsub profile replay default kernel name was not family-specific",
+    )
+    profile_vsub_command = build_profile_replay_mlir_command(
+        Path("test/Fixtures/rvv_probe/sanitized-success.json"),
+        default_profile_replay_kernel_name(),
+        "i64-vsub",
+        root,
+    )
+    assert_self_test(
+        "rvv_probe_i64_vsub_replay" in profile_vsub_command,
+        "i64-vsub profile replay command lost family-specific kernel name",
+    )
+    assert_self_test(
+        "i64-vsub" in profile_vsub_command,
+        "i64-vsub profile replay command lost frontend lowering marker",
+    )
+    configure_arithmetic_family("i64-vmul")
+    assert_self_test(
+        default_profile_replay_kernel_name() == "rvv_probe_i64_vmul_replay",
+        "i64-vmul profile replay default kernel name was not family-specific",
+    )
+    profile_vmul_command = build_profile_replay_mlir_command(
+        Path("test/Fixtures/rvv_probe/sanitized-success.json"),
+        default_profile_replay_kernel_name(),
+        "i64-vmul",
+        root,
+    )
+    assert_self_test(
+        "rvv_probe_i64_vmul_replay" in profile_vmul_command,
+        "i64-vmul profile replay command lost family-specific kernel name",
+    )
+    assert_self_test(
+        "i64-vmul" in profile_vmul_command,
+        "i64-vmul profile replay command lost frontend lowering marker",
+    )
+    configure_arithmetic_family("i64-vadd")
     try:
         build_profile_replay_mlir_command(
             Path("/tmp/rvv_profile_replay_outside_repo.json"),
@@ -3958,7 +4004,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile-replay-kernel-name",
-        default="rvv_probe_i64_replay",
+        default="",
         help="Kernel symbol used for generated profile-replay MLIR input",
     )
     parser.add_argument(

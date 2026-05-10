@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack and source-of-truth red lines"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "Check Python remains tooling only"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV profile/replay ownership and finite i64m1 boundaries"}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Check ssh evidence claim wording"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test and evidence coverage requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-10-supervisor-review-fallback-compiler-continuation/prd.md", "reason": "Check implementation against this task acceptance criteria"}
