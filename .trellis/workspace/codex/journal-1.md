@@ -55,6 +55,65 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 13: RVV binary planning component extraction
+
+**Date**: 2026-05-10
+**Task**: Extract RVV binary planning from the monolithic RVV plugin
+**Branch**: `main`
+
+### Summary
+
+Extracted a plugin-local RVV binary selected-plan/planning component from
+`RVVExtensionPlugin.cpp` and wired the live RVV plugin through it for proposal,
+descriptor-backed materialization planning, selected-shape metadata emission,
+emission-plan metadata, and selected-boundary validation.
+
+### Main Changes
+
+- Created Trellis task
+  `05-10-rvv-binary-planning-component-extraction` and PRD for the switch-module
+  round.
+- Added `RVVBinarySelectedPlan` in
+  `include/TianChenRV/Plugin/RVV/RVVBinaryPlanning.h` with family, shape,
+  element-count, required-march/mabi, intrinsic descriptor, route/runtime ABI,
+  and emission readiness path ownership.
+- Moved selected vector-shape metadata group emission/validation into
+  `lib/Plugin/RVV/RVVBinaryPlanning.cpp`.
+- Updated `RVVExtensionPlugin.cpp` to consume the new planning component for
+  proposal, descriptor-backed i32/i64 plan construction, metadata emission, and
+  selected-boundary validation while keeping RVV op materialization local to the
+  plugin.
+- Added direct C++ coverage in `test/Plugin/RVVBinaryPlanningTest.cpp` and lit
+  wrapper `test/Plugin/rvv-binary-planning.test`.
+- No new RVV runtime/correctness/performance claim was made, and no new
+  `ssh rvv` evidence was produced.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 192/192
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-rvv-binary-planning-component-extraction`
+- [NOTE] `clang-format` and common versioned `clang-format-*` binaries were not installed; no formatting command was available.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV i64-vadd scalar fallback dispatch artifact and ssh evidence
 
 **Date**: 2026-05-10

@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
@@ -56,38 +57,6 @@ constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
 constexpr llvm::StringLiteral kRVVBoundaryVLenBBytesAttrName("vlenb_bytes");
 constexpr llvm::StringLiteral kRVVBoundaryI32M1LanesAttrName(
     "base_i32_m1_lanes");
-constexpr llvm::StringLiteral kRVVSelectedVectorShapeAttrName(
-    "tcrv_rvv.selected_vector_shape");
-constexpr llvm::StringLiteral kRVVSelectedVectorSEWAttrName(
-    "tcrv_rvv.selected_vector_sew");
-constexpr llvm::StringLiteral kRVVSelectedVectorLMULAttrName(
-    "tcrv_rvv.selected_vector_lmul");
-constexpr llvm::StringLiteral kRVVSelectedTailPolicyAttrName(
-    "tcrv_rvv.selected_tail_policy");
-constexpr llvm::StringLiteral kRVVSelectedMaskPolicyAttrName(
-    "tcrv_rvv.selected_mask_policy");
-constexpr llvm::StringLiteral kRVVSelectedVectorTypeAttrName(
-    "tcrv_rvv.selected_vector_type");
-constexpr llvm::StringLiteral kRVVSelectedVectorSuffixAttrName(
-    "tcrv_rvv.selected_vector_suffix");
-constexpr llvm::StringLiteral kRVVSelectedSetVLSuffixAttrName(
-    "tcrv_rvv.selected_setvl_suffix");
-constexpr llvm::StringLiteral kBoundarySelectedVectorShapeAttrName(
-    "selected_vector_shape");
-constexpr llvm::StringLiteral kBoundarySelectedVectorSEWAttrName(
-    "selected_vector_sew");
-constexpr llvm::StringLiteral kBoundarySelectedVectorLMULAttrName(
-    "selected_vector_lmul");
-constexpr llvm::StringLiteral kBoundarySelectedTailPolicyAttrName(
-    "selected_tail_policy");
-constexpr llvm::StringLiteral kBoundarySelectedMaskPolicyAttrName(
-    "selected_mask_policy");
-constexpr llvm::StringLiteral kBoundarySelectedVectorTypeAttrName(
-    "selected_vector_type");
-constexpr llvm::StringLiteral kBoundarySelectedVectorSuffixAttrName(
-    "selected_vector_suffix");
-constexpr llvm::StringLiteral kBoundarySelectedSetVLSuffixAttrName(
-    "selected_setvl_suffix");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
 constexpr llvm::StringLiteral kISAVectorHintsPropertyName("isa_vector_hints");
 constexpr llvm::StringLiteral kHartCountPropertyName("count");
@@ -496,159 +465,6 @@ llvm::Error verifyFirstSliceConfigCapabilities(
           capabilities, config.maskPolicyCapabilityID,
           kMaskPolicyPropertyName, config.maskPolicy))
     return error;
-  return llvm::Error::success();
-}
-
-llvm::Error validateSelectedVectorShapeMetadata(
-    mlir::Operation *op, llvm::StringRef context,
-    const RVVI32VectorShapeConfig &config, llvm::StringRef shapeAttrName,
-    llvm::StringRef sewAttrName, llvm::StringRef lmulAttrName,
-    llvm::StringRef tailPolicyAttrName, llvm::StringRef maskPolicyAttrName,
-    llvm::StringRef vectorTypeAttrName, llvm::StringRef vectorSuffixAttrName,
-    llvm::StringRef setvlSuffixAttrName) {
-  bool hasAnyMetadata = op->hasAttr(shapeAttrName) ||
-                        op->hasAttr(sewAttrName) ||
-                        op->hasAttr(lmulAttrName) ||
-                        op->hasAttr(tailPolicyAttrName) ||
-                        op->hasAttr(maskPolicyAttrName) ||
-                        op->hasAttr(vectorTypeAttrName) ||
-                        op->hasAttr(vectorSuffixAttrName) ||
-                        op->hasAttr(setvlSuffixAttrName);
-  if (!hasAnyMetadata)
-    return llvm::Error::success();
-
-  auto shape = op->getAttrOfType<mlir::StringAttr>(shapeAttrName);
-  auto sew = op->getAttrOfType<mlir::IntegerAttr>(sewAttrName);
-  auto lmul = op->getAttrOfType<mlir::StringAttr>(lmulAttrName);
-  auto tailPolicy =
-      op->getAttrOfType<mlir::StringAttr>(tailPolicyAttrName);
-  auto maskPolicy =
-      op->getAttrOfType<mlir::StringAttr>(maskPolicyAttrName);
-  auto vectorType =
-      op->getAttrOfType<mlir::StringAttr>(vectorTypeAttrName);
-  auto vectorSuffix =
-      op->getAttrOfType<mlir::StringAttr>(vectorSuffixAttrName);
-  auto setvlSuffix =
-      op->getAttrOfType<mlir::StringAttr>(setvlSuffixAttrName);
-  if (!shape || !sew || !lmul || !tailPolicy || !maskPolicy || !vectorType ||
-      !vectorSuffix || !setvlSuffix)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape metadata must be "
-                              "complete when any selected-shape attribute is "
-                              "present");
-
-  if (shape.getValue().trim() != config.shapeID)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape id must be '" +
-                              config.shapeID + "'");
-  if (sew.getInt() != config.sewBits)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape sew must be '" +
-                              llvm::Twine(config.sewBits) + "'");
-  if (lmul.getValue().trim() != config.lmul)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape lmul must be '" +
-                              config.lmul + "'");
-  if (tailPolicy.getValue().trim() != config.tailPolicy)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape tail policy must be '" +
-                              config.tailPolicy + "'");
-  if (maskPolicy.getValue().trim() != config.maskPolicy)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape mask policy must be '" +
-                              config.maskPolicy + "'");
-  if (vectorType.getValue().trim() != config.vectorType)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape vector type must be '" +
-                              config.vectorType + "'");
-  if (vectorSuffix.getValue().trim() != config.vectorSuffix)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape vector suffix must be '" +
-                              config.vectorSuffix + "'");
-  if (setvlSuffix.getValue().trim() != config.setvlSuffix)
-    return makeRVVPluginError(llvm::Twine(context) +
-                              " selected vector-shape setvl suffix must be '" +
-                              config.setvlSuffix + "'");
-  return llvm::Error::success();
-}
-
-void addSelectedVectorShapeMetadataToProposal(
-    VariantProposal &proposal, mlir::MLIRContext *context,
-    const RVVI32VectorShapeConfig &config) {
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedVectorShapeAttrName),
-      mlir::StringAttr::get(context, config.shapeID));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedVectorSEWAttrName),
-      mlir::IntegerAttr::get(mlir::IntegerType::get(context, 64),
-                             config.sewBits));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedVectorLMULAttrName),
-      mlir::StringAttr::get(context, config.lmul));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedTailPolicyAttrName),
-      mlir::StringAttr::get(context, config.tailPolicy));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedMaskPolicyAttrName),
-      mlir::StringAttr::get(context, config.maskPolicy));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedVectorTypeAttrName),
-      mlir::StringAttr::get(context, config.vectorType));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedVectorSuffixAttrName),
-      mlir::StringAttr::get(context, config.vectorSuffix));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(context, kRVVSelectedSetVLSuffixAttrName),
-      mlir::StringAttr::get(context, config.setvlSuffix));
-}
-
-void addSelectedVectorShapeMetadataToOperationState(
-    mlir::OperationState &state, mlir::MLIRContext *context,
-    const RVVI32VectorShapeConfig &config) {
-  state.addAttribute(kBoundarySelectedVectorShapeAttrName,
-                     mlir::StringAttr::get(context, config.shapeID));
-  state.addAttribute(kBoundarySelectedVectorSEWAttrName,
-                     mlir::IntegerAttr::get(mlir::IntegerType::get(context, 64),
-                                            config.sewBits));
-  state.addAttribute(kBoundarySelectedVectorLMULAttrName,
-                     mlir::StringAttr::get(context, config.lmul));
-  state.addAttribute(kBoundarySelectedTailPolicyAttrName,
-                     mlir::StringAttr::get(context, config.tailPolicy));
-  state.addAttribute(kBoundarySelectedMaskPolicyAttrName,
-                     mlir::StringAttr::get(context, config.maskPolicy));
-  state.addAttribute(kBoundarySelectedVectorTypeAttrName,
-                     mlir::StringAttr::get(context, config.vectorType));
-  state.addAttribute(kBoundarySelectedVectorSuffixAttrName,
-                     mlir::StringAttr::get(context, config.vectorSuffix));
-  state.addAttribute(kBoundarySelectedSetVLSuffixAttrName,
-                     mlir::StringAttr::get(context, config.setvlSuffix));
-}
-
-llvm::Error addSelectedVectorShapeMetadataToPlan(
-    VariantEmissionPlan &plan, tcrv::exec::VariantOp variant,
-    const RVVI32VectorShapeConfig &config) {
-  if (llvm::Error error =
-          validateSelectedVectorShapeMetadata(
-              variant.getOperation(),
-              (llvm::Twine("selected RVV variant @") + variant.getSymName())
-                  .str(),
-              config, kRVVSelectedVectorShapeAttrName,
-              kRVVSelectedVectorSEWAttrName, kRVVSelectedVectorLMULAttrName,
-              kRVVSelectedTailPolicyAttrName, kRVVSelectedMaskPolicyAttrName,
-              kRVVSelectedVectorTypeAttrName,
-              kRVVSelectedVectorSuffixAttrName,
-              kRVVSelectedSetVLSuffixAttrName))
-    return error;
-
-  llvm::SmallVector<
-      tianchenrv::target::rvv::RVVI32VectorShapeSelectedPlanMetadataDescriptor,
-      8>
-      metadata;
-  tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(config,
-                                                                       metadata);
-  for (const auto &entry : metadata)
-    plan.addSelectedPlanMetadata(entry.name.str(), entry.value.str(),
-                                 entry.role.str(), entry.note.str());
   return llvm::Error::success();
 }
 
@@ -1306,21 +1122,6 @@ bool hasAnyCapacityMetadata(mlir::Operation *op, llvm::StringRef vlenbAttrName,
   return op && (op->hasAttr(vlenbAttrName) || op->hasAttr(lanesAttrName));
 }
 
-bool hasAnySelectedVectorShapeMetadata(
-    mlir::Operation *op, llvm::StringRef shapeAttrName,
-    llvm::StringRef sewAttrName, llvm::StringRef lmulAttrName,
-    llvm::StringRef tailPolicyAttrName, llvm::StringRef maskPolicyAttrName,
-    llvm::StringRef vectorTypeAttrName, llvm::StringRef vectorSuffixAttrName,
-    llvm::StringRef setvlSuffixAttrName) {
-  return op && (op->hasAttr(shapeAttrName) || op->hasAttr(sewAttrName) ||
-                op->hasAttr(lmulAttrName) ||
-                op->hasAttr(tailPolicyAttrName) ||
-                op->hasAttr(maskPolicyAttrName) ||
-                op->hasAttr(vectorTypeAttrName) ||
-                op->hasAttr(vectorSuffixAttrName) ||
-                op->hasAttr(setvlSuffixAttrName));
-}
-
 llvm::Error addSelectedCapacityMetadataToPlan(VariantEmissionPlan &plan,
                                               tcrv::exec::VariantOp variant) {
   llvm::Expected<std::optional<RVVCapacityMetadata>> metadata =
@@ -1394,81 +1195,34 @@ buildI32MicrokernelMaterializationPlan(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
     const RVVCapabilityPropertyView &view) {
-  mlir::Attribute rawDescriptor =
-      variant->getAttr(kRVVI32VAddLoweringDescriptorAttrName);
-  if (!rawDescriptor)
-    return std::optional<RVVI32MicrokernelMaterializationPlan>();
-
-  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-  if (!descriptor || descriptor.getValue().trim().empty())
-    return makeRVVPluginError(
-        llvm::Twine("finite RVV i32 microkernel lowering descriptor on "
-                    "variant @") +
-        variant.getSymName() + " requires string attribute '" +
-        kRVVI32VAddLoweringDescriptorAttrName + "'");
-
-  const RVVI32MicrokernelFamilySpec *family =
-      lookupI32MicrokernelFamilyByDescriptor(descriptor.getValue());
-  if (!family) {
-    if (tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
-            descriptor.getValue()))
-      return std::optional<RVVI32MicrokernelMaterializationPlan>();
-    return makeRVVPluginError(
-        llvm::Twine("finite RVV i32 microkernel lowering descriptor on "
-                    "variant @") +
-        variant.getSymName() + " must be '" +
-        getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI32VSubFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI32VMulFamilySpec().getLoweringDescriptor() + "'");
-  }
-
-  std::string descriptorContext =
-      (llvm::Twine("variant @") + variant.getSymName() +
-       " " + family->descriptorNoun)
-          .str();
-  if (llvm::Error error = validateRVVPropertyText(
-          descriptorContext, kRVVI32VAddLoweringDescriptorAttrName,
-          descriptor.getValue().trim()))
-    return std::move(error);
-
-  auto elementCountAttr =
-      variant->getAttrOfType<mlir::IntegerAttr>(
-          kRVVI32VAddElementCountAttrName);
-  if (!elementCountAttr)
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires integer attribute '" +
-        kRVVI32VAddElementCountAttrName + "'");
-
-  std::int64_t elementCount = elementCountAttr.getInt();
-  if (elementCount <= 0 || elementCount > 64)
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() +
-        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
-
-  auto requiredMarch =
-      variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
-  if (!requiredMarch || requiredMarch.getValue().trim().empty())
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires string 'tcrv_rvv.required_march' "
-                               "metadata");
-
-  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
-    return std::move(error);
-
   llvm::Expected<std::optional<std::string>> selectedMABI =
       getOptionalSelectedMABI(capabilities);
   if (!selectedMABI)
     return selectedMABI.takeError();
 
+  llvm::Expected<std::optional<rvv::RVVBinarySelectedPlan>> selectedPlan =
+      rvv::buildRVVBinarySelectedPlanFromVariant(
+          variant, *view.i32Config, "i32", std::move(*selectedMABI));
+  if (!selectedPlan)
+    return selectedPlan.takeError();
+  if (!*selectedPlan)
+    return std::optional<RVVI32MicrokernelMaterializationPlan>();
+
+  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
+    return std::move(error);
+
+  const RVVI32MicrokernelFamilySpec *family =
+      lookupI32MicrokernelFamilyByDescriptor(
+          (*selectedPlan)->getLoweringDescriptor());
+  if (!family)
+    return std::optional<RVVI32MicrokernelMaterializationPlan>();
+
   RVVI32MicrokernelMaterializationPlan plan;
   plan.family = family;
   plan.i32Config = view.i32Config;
-  plan.elementCount = elementCount;
-  plan.requiredMarch = requiredMarch.getValue().trim().str();
-  plan.selectedMABI = std::move(*selectedMABI);
+  plan.elementCount = (*selectedPlan)->elementCount;
+  plan.requiredMarch = (*selectedPlan)->requiredMarch;
+  plan.selectedMABI = std::move((*selectedPlan)->selectedMABI);
   return plan;
 }
 
@@ -1477,81 +1231,27 @@ buildI64MicrokernelMaterializationPlan(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
     const RVVCapabilityPropertyView &view) {
-  mlir::Attribute rawDescriptor =
-      variant->getAttr(kRVVI32VAddLoweringDescriptorAttrName);
-  if (!rawDescriptor)
-    return std::optional<RVVI64MicrokernelMaterializationPlan>();
-
-  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-  if (!descriptor || descriptor.getValue().trim().empty())
-    return makeRVVPluginError(
-        llvm::Twine("finite RVV i64 microkernel lowering descriptor on "
-                    "variant @") +
-        variant.getSymName() + " requires string attribute '" +
-        kRVVI32VAddLoweringDescriptorAttrName + "'");
-
-  const RVVBinaryFamilyDescriptor *family =
-      tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
-          descriptor.getValue());
-  if (!family ||
-      family->dtype != tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
-    return std::optional<RVVI64MicrokernelMaterializationPlan>();
-
-  std::string descriptorContext =
-      (llvm::Twine("variant @") + variant.getSymName() + " " +
-       family->descriptorNoun)
-          .str();
-  if (llvm::Error error = validateRVVPropertyText(
-          descriptorContext, kRVVI32VAddLoweringDescriptorAttrName,
-          descriptor.getValue().trim()))
-    return std::move(error);
-
-  if (view.i32Config !=
-      &tianchenrv::target::rvv::getI64M1VectorShapeConfig())
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires finite i64m1 vector-shape config "
-                               "capability ids");
-
-  auto elementCountAttr =
-      variant->getAttrOfType<mlir::IntegerAttr>(
-          kRVVI32VAddElementCountAttrName);
-  if (!elementCountAttr)
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires integer attribute '" +
-        kRVVI32VAddElementCountAttrName + "'");
-
-  std::int64_t elementCount = elementCountAttr.getInt();
-  if (elementCount <= 0 || elementCount > 64)
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() +
-        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
-
-  auto requiredMarch =
-      variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
-  if (!requiredMarch || requiredMarch.getValue().trim().empty())
-    return makeRVVPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires string 'tcrv_rvv.required_march' "
-                               "metadata");
-
-  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
-    return std::move(error);
-
   llvm::Expected<std::optional<std::string>> selectedMABI =
       getOptionalSelectedMABI(capabilities);
   if (!selectedMABI)
     return selectedMABI.takeError();
 
+  llvm::Expected<std::optional<rvv::RVVBinarySelectedPlan>> selectedPlan =
+      rvv::buildRVVBinarySelectedPlanFromVariant(
+          variant, *view.i32Config, "i64", std::move(*selectedMABI));
+  if (!selectedPlan)
+    return selectedPlan.takeError();
+  if (!*selectedPlan)
+    return std::optional<RVVI64MicrokernelMaterializationPlan>();
+
+  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
+    return std::move(error);
+
   RVVI64MicrokernelMaterializationPlan plan;
-  plan.descriptor =
-      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-          *family, *view.i32Config);
-  plan.elementCount = elementCount;
-  plan.requiredMarch = requiredMarch.getValue().trim().str();
-  plan.selectedMABI = std::move(*selectedMABI);
+  plan.descriptor = (*selectedPlan)->descriptor;
+  plan.elementCount = (*selectedPlan)->elementCount;
+  plan.requiredMarch = (*selectedPlan)->requiredMarch;
+  plan.selectedMABI = std::move((*selectedPlan)->selectedMABI);
   return plan;
 }
 
@@ -2201,19 +1901,13 @@ findMatchingExplicitI64MicrokernelDescriptor(
           "metadata 'tcrv_rvv.element_count'");
 
     if (llvm::Error error =
-            validateSelectedVectorShapeMetadata(
+            rvv::validateRVVSelectedVectorShapeMetadata(
                 &op,
                 (llvm::Twine("explicit RVV i64 microkernel ") +
                  descriptor.getRVVMicrokernelOpName())
                     .str(),
-                *descriptor.shape, kBoundarySelectedVectorShapeAttrName,
-                kBoundarySelectedVectorSEWAttrName,
-                kBoundarySelectedVectorLMULAttrName,
-                kBoundarySelectedTailPolicyAttrName,
-                kBoundarySelectedMaskPolicyAttrName,
-                kBoundarySelectedVectorTypeAttrName,
-                kBoundarySelectedVectorSuffixAttrName,
-                kBoundarySelectedSetVLSuffixAttrName))
+                *descriptor.shape,
+                rvv::getRVVBoundarySelectedVectorShapeMetadataNames()))
       return std::move(error);
   }
 
@@ -2281,12 +1975,20 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
   if (!propertyView)
     return propertyView.takeError();
 
+  std::int64_t descriptorElementCount =
+      deriveI32VAddDescriptorElementCount(*propertyView);
+  llvm::Expected<rvv::RVVBinarySelectedPlan> selectedPlan =
+      rvv::buildRVVBinarySelectedPlan(*requestedFamily,
+                                      *propertyView->i32Config,
+                                      descriptorElementCount,
+                                      propertyView->selectedMarch);
+  if (!selectedPlan)
+    return selectedPlan.takeError();
+
   VariantProposal proposal(kRVVFirstSliceVariantName, kRVVPluginName);
   proposal.addRequiredCapabilityID(kRVVCapabilityID);
-  RVVBinaryIntrinsicDescriptor descriptor =
-      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-          *requestedFamily, *propertyView->i32Config);
-  for (llvm::StringRef capabilityID : descriptor.getSelectedShapeCapabilityIDs())
+  for (llvm::StringRef capabilityID :
+       selectedPlan->descriptor.getSelectedShapeCapabilityIDs())
     proposal.addRequiredCapabilityID(capabilityID);
   proposal.setCondition("rvv_capability_properties_available");
   proposal.setGuard("plugin_local_rvv_property_evidence");
@@ -2299,9 +2001,8 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
                             kRVVRequiredMarchAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             propertyView->selectedMarch));
-  addSelectedVectorShapeMetadataToProposal(proposal,
-                                           request.getKernel()->getContext(),
-                                           *propertyView->i32Config);
+  rvv::addRVVSelectedVectorShapeMetadataToProposal(
+      proposal, request.getKernel()->getContext(), *propertyView->i32Config);
   if (hasAvailableRVVSmokeProbeCapability(request.getCapabilities())) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
@@ -2314,14 +2015,13 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddLoweringDescriptorAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            descriptor.getLoweringDescriptor()));
+                            selectedPlan->getLoweringDescriptor()));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddElementCountAttrName),
       mlir::IntegerAttr::get(mlir::IntegerType::get(
                                  request.getKernel()->getContext(), 64),
-                             deriveI32VAddDescriptorElementCount(
-                                 *propertyView)));
+                             selectedPlan->elementCount));
   if (propertyView->vlenbBytes && propertyView->i32M1LaneCount) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
@@ -2360,7 +2060,7 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
   state.addAttribute(kStatusAttrName,
                      builder.getStringAttr(kUnsupportedStatusValue));
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  addSelectedVectorShapeMetadataToOperationState(
+  rvv::addRVVSelectedVectorShapeMetadataToOperationState(
       state, builder.getContext(), selectedConfig);
   if (llvm::Error error =
           copyCapacityMetadataToBoundary(state, variant, builder))
@@ -2398,7 +2098,7 @@ mlir::Operation *materializeRVVI32MicrokernelOp(
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   state.addAttribute(kMicrokernelRequiredMarchAttrName,
                      builder.getStringAttr(plan.requiredMarch));
-  addSelectedVectorShapeMetadataToOperationState(
+  rvv::addRVVSelectedVectorShapeMetadataToOperationState(
       state, builder.getContext(), *plan.i32Config);
   if (plan.selectedMABI)
     state.addAttribute(kSelectedMABIAttrName,
@@ -2513,7 +2213,7 @@ mlir::Operation *materializeRVVI64MicrokernelOp(
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   state.addAttribute(kMicrokernelRequiredMarchAttrName,
                      builder.getStringAttr(plan.requiredMarch));
-  addSelectedVectorShapeMetadataToOperationState(
+  rvv::addRVVSelectedVectorShapeMetadataToOperationState(
       state, builder.getContext(), *plan.descriptor.shape);
   if (plan.selectedMABI)
     state.addAttribute(kSelectedMABIAttrName,
@@ -2793,17 +2493,13 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
     return error;
 
   if (llvm::Error error =
-          validateSelectedVectorShapeMetadata(
+          rvv::validateRVVSelectedVectorShapeMetadata(
               variant.getOperation(),
               (llvm::Twine("materialized RVV variant @") +
                variant.getSymName())
                   .str(),
-              **requiredConfig, kRVVSelectedVectorShapeAttrName,
-              kRVVSelectedVectorSEWAttrName, kRVVSelectedVectorLMULAttrName,
-              kRVVSelectedTailPolicyAttrName, kRVVSelectedMaskPolicyAttrName,
-              kRVVSelectedVectorTypeAttrName,
-              kRVVSelectedVectorSuffixAttrName,
-              kRVVSelectedSetVLSuffixAttrName))
+              **requiredConfig,
+              rvv::getRVVVariantSelectedVectorShapeMetadataNames()))
     return error;
 
   if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
@@ -2970,7 +2666,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
-    if (llvm::Error error = addSelectedVectorShapeMetadataToPlan(
+    if (llvm::Error error = rvv::addRVVSelectedVectorShapeMetadataToPlan(
             out, request.getVariant(), **selectedConfig))
       return error;
     if (llvm::Error error =
@@ -3011,7 +2707,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
-    if (llvm::Error error = addSelectedVectorShapeMetadataToPlan(
+    if (llvm::Error error = rvv::addRVVSelectedVectorShapeMetadataToPlan(
             out, request.getVariant(), **selectedConfig))
       return error;
     if (llvm::Error error =
@@ -3046,7 +2742,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
-    if (llvm::Error error = addSelectedVectorShapeMetadataToPlan(
+    if (llvm::Error error = rvv::addRVVSelectedVectorShapeMetadataToPlan(
             out, request.getVariant(), **selectedConfig))
       return error;
     if (llvm::Error error =
@@ -3072,7 +2768,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
-  if (llvm::Error error = addSelectedVectorShapeMetadataToPlan(
+  if (llvm::Error error = rvv::addRVVSelectedVectorShapeMetadataToPlan(
           out, request.getVariant(), **selectedConfig))
     return error;
   if (llvm::Error error =
@@ -3260,20 +2956,11 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
       hasAnyCapacityMetadata(boundary, kRVVBoundaryVLenBBytesAttrName,
                              kRVVBoundaryI32M1LanesAttrName);
   bool hasSelectedShapeMetadata =
-      hasAnySelectedVectorShapeMetadata(
-          variant.getOperation(), kRVVSelectedVectorShapeAttrName,
-          kRVVSelectedVectorSEWAttrName, kRVVSelectedVectorLMULAttrName,
-          kRVVSelectedTailPolicyAttrName, kRVVSelectedMaskPolicyAttrName,
-          kRVVSelectedVectorTypeAttrName, kRVVSelectedVectorSuffixAttrName,
-          kRVVSelectedSetVLSuffixAttrName) ||
-      hasAnySelectedVectorShapeMetadata(
-          boundary, kBoundarySelectedVectorShapeAttrName,
-          kBoundarySelectedVectorSEWAttrName, kBoundarySelectedVectorLMULAttrName,
-          kBoundarySelectedTailPolicyAttrName,
-          kBoundarySelectedMaskPolicyAttrName,
-          kBoundarySelectedVectorTypeAttrName,
-          kBoundarySelectedVectorSuffixAttrName,
-          kBoundarySelectedSetVLSuffixAttrName);
+      rvv::hasAnyRVVSelectedVectorShapeMetadata(
+          variant.getOperation(),
+          rvv::getRVVVariantSelectedVectorShapeMetadataNames()) ||
+      rvv::hasAnyRVVSelectedVectorShapeMetadata(
+          boundary, rvv::getRVVBoundarySelectedVectorShapeMetadataNames());
   bool requiresSelectedLegality =
       variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName) ||
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
@@ -3296,19 +2983,13 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
   if (!selectedConfig)
     return selectedConfig.takeError();
   if (llvm::Error error =
-          validateSelectedVectorShapeMetadata(
+          rvv::validateRVVSelectedVectorShapeMetadata(
               boundary,
               (llvm::Twine("selected RVV lowering boundary for @") +
                variant.getSymName())
                   .str(),
-              **selectedConfig, kBoundarySelectedVectorShapeAttrName,
-              kBoundarySelectedVectorSEWAttrName,
-              kBoundarySelectedVectorLMULAttrName,
-              kBoundarySelectedTailPolicyAttrName,
-              kBoundarySelectedMaskPolicyAttrName,
-              kBoundarySelectedVectorTypeAttrName,
-              kBoundarySelectedVectorSuffixAttrName,
-              kBoundarySelectedSetVLSuffixAttrName))
+              **selectedConfig,
+              rvv::getRVVBoundarySelectedVectorShapeMetadataNames()))
     return error;
 
   if (!hasCapacityMetadata)

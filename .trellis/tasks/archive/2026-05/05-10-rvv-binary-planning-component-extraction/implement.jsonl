@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV compiler stack and extension boundary invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected vector-shape, descriptor, emission-plan, and evidence boundaries"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin-owned lowering/emission integration and core/plugin boundary"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin-locality rules for extracting RVV-specific planning without core branches"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission readiness, emission plan, runtime ABI, and target artifact layering"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++ and lit/FileCheck coverage expectations"}
+{"file": ".trellis/tasks/05-10-rvv-binary-planning-component-extraction/prd.md", "reason": "module goal, boundaries, acceptance criteria, and validation plan"}
