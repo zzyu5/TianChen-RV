@@ -112,7 +112,11 @@ or ABI surface that states the new meaning.
    fact derived from vlenb/profile evidence; when serialized into plugin
    metadata it must use a name such as `base_i32_m1_lanes` so an i32m2 selected
    path cannot confuse the hardware capacity fact with selected m1 vector
-   config.
+   config. Finite RVV i64m1 profile facts such as `rvv.i64_m1.sew64`,
+   `rvv.i64_m1.lmul_m1`, `rvv.i64_m1.tail_policy.agnostic`, and
+   `rvv.i64_m1.mask_policy.agnostic` are compile-time capability/profile facts
+   that constrain i64 family legality; they are not runtime `n`, AVL/VL, or
+   descriptor-local element-count claims.
 2. Compile-time variant config belongs in plugin-proposed variant metadata,
    selected config, tuning, or lowering-boundary metadata and must be checked
    against target capability. Examples include SEW, LMUL, tail policy, mask

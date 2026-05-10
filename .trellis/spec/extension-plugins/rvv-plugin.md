@@ -57,6 +57,12 @@ finite i32m2 capability ids:
   rvv.i32_m2.lmul_m2
   rvv.i32_m2.tail_policy.agnostic
   rvv.i32_m2.mask_policy.agnostic
+finite i64m1 capability ids consumed by plugin-local profile/replay and i64
+binary family routes:
+  rvv.i64_m1.sew64
+  rvv.i64_m1.lmul_m1
+  rvv.i64_m1.tail_policy.agnostic
+  rvv.i64_m1.mask_policy.agnostic
 optional finite i32 binary selected vector-shape selector capability id:
   rvv.i32_binary.selected_vector_shape
 selector property:
@@ -105,6 +111,11 @@ capability id or through a structured relation-provider capability whose
 `provides` or `implies` list satisfies id `rvv`. The satisfying capability must
 also carry the preserved RVV capability properties that provide bounded
 plugin-local evidence.
+
+The plugin-local profile/replay contract may additionally surface the finite
+i64m1 capability ids above as structured capability facts for i64 add/sub/mul
+family routes. These facts remain capability/profile inputs, not runtime SSA
+values, selected vector shape metadata, or descriptor-local element counts.
 
 The current minimal proposal gate is:
 

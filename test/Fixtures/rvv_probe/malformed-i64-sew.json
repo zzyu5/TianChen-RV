@@ -1,5 +1,5 @@
 {
-  "artifact_dir": "artifacts/tmp/rvv_probe/fixture-success",
+  "artifact_dir": "artifacts/tmp/rvv_probe/fixture-malformed-i64-sew",
   "capability_facts": {
     "architecture": "riscv64",
     "binary_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -12,11 +12,11 @@
     "first_slice_sew_bits": 32,
     "first_slice_tail_policy": "agnostic",
     "hart_count": 64,
+    "i32_m1_lane_count": 4,
     "i64_m1_lmul": "m1",
     "i64_m1_mask_policy": "agnostic",
-    "i64_m1_sew_bits": 64,
+    "i64_m1_sew_bits": 32,
     "i64_m1_tail_policy": "agnostic",
-    "i32_m1_lane_count": 4,
     "isa_vector_hints": "isa: rv64imafdcv_zve64d_zvfh_zvl128b",
     "minimal_rvv_compile_run_succeeded": true,
     "selected_mabi": "lp64d",
@@ -27,7 +27,7 @@
   "commands": [],
   "facts": {},
   "probe_name": "tianchenrv-rvv-remote-probe",
-  "run_id": "fixture-success",
+  "run_id": "fixture-malformed-i64-sew",
   "rvv_compile_run": {
     "status": "success"
   },

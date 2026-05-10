@@ -261,6 +261,18 @@ def build_capability_facts(
         "first_slice_mask_policy": "agnostic"
         if compile_run.get("status") == "success"
         else "",
+        "i64_m1_sew_bits": 64
+        if compile_run.get("status") == "success"
+        else 0,
+        "i64_m1_lmul": "m1"
+        if compile_run.get("status") == "success"
+        else "",
+        "i64_m1_tail_policy": "agnostic"
+        if compile_run.get("status") == "success"
+        else "",
+        "i64_m1_mask_policy": "agnostic"
+        if compile_run.get("status") == "success"
+        else "",
         "isa_vector_hints": extract_isa_vector_hints(facts),
         "clang_available": bool(facts.get("clang", {}).get("available")),
         "clang_version": bounded_fact_value(facts.get("clang", {}).get("version", "")),
@@ -632,6 +644,10 @@ def validate_evidence_artifact(artifact: dict[str, Any]) -> list[str]:
         "first_slice_lmul": str,
         "first_slice_tail_policy": str,
         "first_slice_mask_policy": str,
+        "i64_m1_sew_bits": int,
+        "i64_m1_lmul": str,
+        "i64_m1_tail_policy": str,
+        "i64_m1_mask_policy": str,
         "isa_vector_hints": str,
         "clang_available": bool,
         "clang_version": str,
@@ -854,6 +870,22 @@ def run_self_test() -> None:
     assert_self_test(
         capability_facts["first_slice_mask_policy"] == "agnostic",
         "capability facts first-slice mask policy missing",
+    )
+    assert_self_test(
+        capability_facts["i64_m1_sew_bits"] == 64,
+        "capability facts i64m1 SEW missing",
+    )
+    assert_self_test(
+        capability_facts["i64_m1_lmul"] == "m1",
+        "capability facts i64m1 LMUL missing",
+    )
+    assert_self_test(
+        capability_facts["i64_m1_tail_policy"] == "agnostic",
+        "capability facts i64m1 tail policy missing",
+    )
+    assert_self_test(
+        capability_facts["i64_m1_mask_policy"] == "agnostic",
+        "capability facts i64m1 mask policy missing",
     )
     assert_self_test(
         "rv64imafdcv" in capability_facts["isa_vector_hints"],

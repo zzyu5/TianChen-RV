@@ -151,7 +151,10 @@ def append_capability(
     lines: list[str],
     symbol: str,
     attrs: list[tuple[str, str | int | list[str]]],
+    provider_symbols: list[str] | None = None,
 ) -> None:
+    if provider_symbols is not None:
+        provider_symbols.append(symbol)
     lines.append(f"    tcrv.exec.capability @{symbol} {{")
     for index, (name, value) in enumerate(attrs):
         is_last = index == len(attrs) - 1
@@ -205,6 +208,14 @@ def validated_capability_facts(artifact: dict[str, Any]) -> dict[str, Any]:
         "first_slice_lmul": first_slice_lmul,
         "first_slice_tail_policy": first_slice_tail_policy,
         "first_slice_mask_policy": first_slice_mask_policy,
+        "i64_m1_sew_bits": optional_int(capability_facts, "i64_m1_sew_bits"),
+        "i64_m1_lmul": optional_str(capability_facts, "i64_m1_lmul"),
+        "i64_m1_tail_policy": optional_str(
+            capability_facts, "i64_m1_tail_policy"
+        ),
+        "i64_m1_mask_policy": optional_str(
+            capability_facts, "i64_m1_mask_policy"
+        ),
         "isa_vector_hints": optional_str(capability_facts, "isa_vector_hints"),
         "clang_available": optional_bool(capability_facts, "clang_available"),
         "clang_version": optional_str(capability_facts, "clang_version"),
@@ -227,15 +238,44 @@ def default_kernel_name(artifact: dict[str, Any]) -> str:
     return validate_kernel_name(sanitized)
 
 
+def validate_frontend_lowering(value: str) -> str:
+    return validate_fact_string("frontend_lowering", value, required=False)
+
+
+def append_kernel_header(
+    lines: list[str],
+    kernel_symbol: str,
+    *,
+    target_profile: str,
+    frontend_lowering: str,
+) -> None:
+    attrs: list[str] = []
+    if target_profile:
+        attrs.append(f"target = @{target_profile}")
+    if frontend_lowering:
+        attrs.append(f"tcrv_frontend_lowering = {mlir_string(frontend_lowering)}")
+    if attrs:
+        lines.append(
+            f"  tcrv.exec.kernel @{kernel_symbol} attributes "
+            f"{{{', '.join(attrs)}}} {{"
+        )
+    else:
+        lines.append(f"  tcrv.exec.kernel @{kernel_symbol} {{")
+
+
 def emit_replay_mlir(
     artifact: dict[str, Any],
     *,
     kernel_name: str | None,
     include_scalar_fallback: bool,
     scalar_fallback_status: str,
+    frontend_lowering: str = "",
+    emit_target_profile: bool = False,
 ) -> str:
     facts = validated_capability_facts(artifact)
     kernel_symbol = validate_kernel_name(kernel_name or default_kernel_name(artifact))
+    frontend_lowering = validate_frontend_lowering(frontend_lowering)
+    target_profile_symbol = f"{kernel_symbol}_profile" if emit_target_profile else ""
 
     rvv_status = (
         "available"
@@ -246,7 +286,15 @@ def emit_replay_mlir(
         facts["minimal_rvv_compile_run_succeeded"]
     )
 
-    lines: list[str] = ["module {", f"  tcrv.exec.kernel @{kernel_symbol} {{"]
+    lines: list[str] = ["module {"]
+    provider_symbols: list[str] = []
+    if not emit_target_profile:
+        append_kernel_header(
+            lines,
+            kernel_symbol,
+            target_profile="",
+            frontend_lowering=frontend_lowering,
+        )
     append_capability(
         lines,
         "rvv",
@@ -257,6 +305,7 @@ def emit_replay_mlir(
             ("isa_vector_hints", facts["isa_vector_hints"]),
             ("status", rvv_status),
         ],
+        provider_symbols if emit_target_profile else None,
     )
     append_capability(
         lines,
@@ -268,6 +317,7 @@ def emit_replay_mlir(
             ("count", facts["hart_count"]),
             ("status", status_from_bool(facts["hart_count"] > 0)),
         ],
+        provider_symbols if emit_target_profile else None,
     )
     if facts["vlenb_bytes"]:
         append_capability(
@@ -279,6 +329,7 @@ def emit_replay_mlir(
                 ("bytes", facts["vlenb_bytes"]),
                 ("status", status_from_bool(facts["vlenb_bytes"] > 0)),
             ],
+            provider_symbols if emit_target_profile else None,
         )
     if facts["i32_m1_lane_count"]:
         append_capability(
@@ -290,6 +341,7 @@ def emit_replay_mlir(
                 ("lanes", facts["i32_m1_lane_count"]),
                 ("status", status_from_bool(facts["i32_m1_lane_count"] > 0)),
             ],
+            provider_symbols if emit_target_profile else None,
         )
     if facts["first_slice_sew_bits"]:
         append_capability(
@@ -307,6 +359,7 @@ def emit_replay_mlir(
                 ),
                 ("sew_bits", facts["first_slice_sew_bits"]),
             ],
+            provider_symbols if emit_target_profile else None,
         )
     if facts["first_slice_lmul"]:
         append_capability(
@@ -324,6 +377,7 @@ def emit_replay_mlir(
                 ),
                 ("lmul", facts["first_slice_lmul"]),
             ],
+            provider_symbols if emit_target_profile else None,
         )
     if facts["first_slice_tail_policy"]:
         append_capability(
@@ -341,6 +395,7 @@ def emit_replay_mlir(
                 ),
                 ("tail_policy", facts["first_slice_tail_policy"]),
             ],
+            provider_symbols if emit_target_profile else None,
         )
     if facts["first_slice_mask_policy"]:
         append_capability(
@@ -358,6 +413,79 @@ def emit_replay_mlir(
                 ),
                 ("mask_policy", facts["first_slice_mask_policy"]),
             ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i64_m1_sew_bits"]:
+        append_capability(
+            lines,
+            "rvv_i64_m1_sew64",
+            [
+                ("id", "rvv.i64_m1.sew64"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i64_m1_sew_bits"] == 64
+                    ),
+                ),
+                ("sew_bits", facts["i64_m1_sew_bits"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i64_m1_lmul"]:
+        append_capability(
+            lines,
+            "rvv_i64_m1_lmul_m1",
+            [
+                ("id", "rvv.i64_m1.lmul_m1"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i64_m1_lmul"] == "m1"
+                    ),
+                ),
+                ("lmul", facts["i64_m1_lmul"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i64_m1_tail_policy"]:
+        append_capability(
+            lines,
+            "rvv_i64_m1_tail_agnostic",
+            [
+                ("id", "rvv.i64_m1.tail_policy.agnostic"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i64_m1_tail_policy"] == "agnostic"
+                    ),
+                ),
+                ("tail_policy", facts["i64_m1_tail_policy"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i64_m1_mask_policy"]:
+        append_capability(
+            lines,
+            "rvv_i64_m1_mask_agnostic",
+            [
+                ("id", "rvv.i64_m1.mask_policy.agnostic"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i64_m1_mask_policy"] == "agnostic"
+                    ),
+                ),
+                ("mask_policy", facts["i64_m1_mask_policy"]),
+            ],
+            provider_symbols if emit_target_profile else None,
         )
     append_capability(
         lines,
@@ -368,6 +496,7 @@ def emit_replay_mlir(
             ("status", status_from_bool(facts["clang_available"])),
             ("version", facts["clang_version"]),
         ],
+        provider_symbols if emit_target_profile else None,
     )
     append_capability(
         lines,
@@ -378,6 +507,7 @@ def emit_replay_mlir(
             ("status", status_from_bool(facts["cmake_available"])),
             ("version", facts["cmake_version"]),
         ],
+        provider_symbols if emit_target_profile else None,
     )
 
     compile_run_attrs: list[tuple[str, str | int | list[str]]] = [
@@ -394,6 +524,8 @@ def emit_replay_mlir(
     if facts["binary_sha256"]:
         compile_run_attrs.append(("binary_sha256", facts["binary_sha256"]))
     append_capability(lines, "rvv_probe_compile_run", compile_run_attrs)
+    if emit_target_profile:
+        provider_symbols.append("rvv_probe_compile_run")
 
     if facts["selected_march"]:
         append_capability(
@@ -405,6 +537,7 @@ def emit_replay_mlir(
                 ("status", compile_run_status),
                 ("value", facts["selected_march"]),
             ],
+            provider_symbols if emit_target_profile else None,
         )
     if facts["selected_mabi"]:
         append_capability(
@@ -416,6 +549,7 @@ def emit_replay_mlir(
                 ("status", compile_run_status),
                 ("value", facts["selected_mabi"]),
             ],
+            provider_symbols if emit_target_profile else None,
         )
 
     if include_scalar_fallback:
@@ -429,6 +563,22 @@ def emit_replay_mlir(
                 ("kind", "fallback"),
                 ("status", scalar_fallback_status),
             ],
+            provider_symbols if emit_target_profile else None,
+        )
+
+    if emit_target_profile:
+        provider_refs = ", ".join(f"@{symbol}" for symbol in provider_symbols)
+        lines.append(f"  tcrv.exec.target @{target_profile_symbol} {{")
+        lines.append("    id = \"rvv.profile.replay\",")
+        lines.append("    kind = \"profile\",")
+        lines.append("    status = \"available\",")
+        lines.append(f"    capability_providers = [{provider_refs}]")
+        lines.append("  }")
+        append_kernel_header(
+            lines,
+            kernel_symbol,
+            target_profile=target_profile_symbol,
+            frontend_lowering=frontend_lowering,
         )
 
     lines.append("  }")
@@ -450,6 +600,10 @@ def make_artifact(**capability_overrides: Any) -> dict[str, Any]:
         "first_slice_lmul": "m1",
         "first_slice_tail_policy": "agnostic",
         "first_slice_mask_policy": "agnostic",
+        "i64_m1_sew_bits": 64,
+        "i64_m1_lmul": "m1",
+        "i64_m1_tail_policy": "agnostic",
+        "i64_m1_mask_policy": "agnostic",
         "isa_vector_hints": "isa: rv64imafdcv_zve64d_zvfh_zvl128b",
         "clang_available": True,
         "clang_version": "clang version 18.1.3",
@@ -529,8 +683,36 @@ def run_self_test() -> None:
             "RVV first-slice config/policy capabilities were not emitted",
         )
         assert_self_test(
+            'tcrv.exec.capability @rvv_i64_m1_sew64' in mlir
+            and 'id = "rvv.i64_m1.sew64"' in mlir
+            and "sew_bits = 64 : i64" in mlir
+            and 'tcrv.exec.capability @rvv_i64_m1_lmul_m1' in mlir
+            and 'lmul = "m1"' in mlir
+            and 'tcrv.exec.capability @rvv_i64_m1_tail_agnostic' in mlir
+            and 'tail_policy = "agnostic"' in mlir
+            and 'tcrv.exec.capability @rvv_i64_m1_mask_agnostic' in mlir
+            and 'mask_policy = "agnostic"' in mlir,
+            "RVV i64m1 config/policy capabilities were not emitted",
+        )
+        assert_self_test(
             'tcrv.exec.capability @scalar_fallback' in mlir,
             "explicit scalar fallback capability was not emitted",
+        )
+
+        target_profile_mlir = emit_replay_mlir(
+            artifact,
+            kernel_name="rvv_probe_i64_replay",
+            include_scalar_fallback=False,
+            scalar_fallback_status="available",
+            frontend_lowering="i64-vadd",
+            emit_target_profile=True,
+        )
+        assert_self_test(
+            "tcrv.exec.target @rvv_probe_i64_replay_profile" in target_profile_mlir
+            and "capability_providers = [@rvv, @rvv_hart_count" in target_profile_mlir
+            and 'tcrv_frontend_lowering = "i64-vadd"' in target_profile_mlir
+            and "target = @rvv_probe_i64_replay_profile" in target_profile_mlir,
+            "target-profile replay fixture was not emitted",
         )
 
         failed_compile = make_artifact(
@@ -588,6 +770,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="available",
         choices=["available", "unavailable", "disabled", "missing"],
     )
+    parser.add_argument("--frontend-lowering", default="")
+    parser.add_argument("--emit-target-profile", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
 
@@ -608,6 +792,8 @@ def main(argv: list[str]) -> int:
             kernel_name=args.kernel_name or None,
             include_scalar_fallback=args.include_scalar_fallback,
             scalar_fallback_status=args.scalar_fallback_status,
+            frontend_lowering=args.frontend_lowering,
+            emit_target_profile=args.emit_target_profile,
         )
     )
     return 0

@@ -35,6 +35,14 @@ Rules:
   replay helper remains artifact parsing tooling: it must not implement
   capability relations, RVV legality, variant selection, lowering, emission, or
   runtime decisions.
+- RVV replay fixtures may also package sanitized capability facts through a
+  module-level `tcrv.exec.target` profile and explicit `capability_providers`
+  composition. For the finite i64m1 binary slice, replay/profile facts may
+  preserve `rvv.i64_m1.sew64`, `rvv.i64_m1.lmul_m1`,
+  `rvv.i64_m1.tail_policy.agnostic`, and
+  `rvv.i64_m1.mask_policy.agnostic`; compiler legality, family selection,
+  lowering-boundary materialization, emission planning, and artifact export
+  remain owned by C++/MLIR plugin and target code.
 - Required positive facts for the RVV probe-derived profile include `riscv64` architecture, `hart_count > 0`, bounded RVV ISA/vector hints, clang and CMake availability/version facts, minimal hand-written RVV compile/run success, and selected march/mabi facts when emitted by the probe.
 - Stable profile capability identities must remain plugin-local and generic,
   such as `rv64`, `rvv`, `rvv.hart_count`, `riscv.toolchain.march`,

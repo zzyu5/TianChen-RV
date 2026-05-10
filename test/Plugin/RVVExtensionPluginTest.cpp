@@ -512,7 +512,7 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                 llvm::toString(capabilitiesOrError.takeError()));
 
   TargetCapabilitySet capabilities = std::move(*capabilitiesOrError);
-  if (int result = expect(capabilities.size() == 13,
+  if (int result = expect(capabilities.size() == 17,
                           "RVV probe facts produce deterministic capabilities"))
     return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
@@ -592,6 +592,39 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                  "fact"))
     return result;
 
+  const CapabilityDescriptor *i64SEW64 = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI64M1SEW64CapabilityID());
+  if (int result =
+          expect(i64SEW64 && i64SEW64->getKind() == "isa-vector-config" &&
+                     i64SEW64->getProperty("sew_bits") == "64",
+                 "RVV profile preserves i64m1 SEW=64 config fact"))
+    return result;
+  const CapabilityDescriptor *i64LMULM1 = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI64M1LMULM1CapabilityID());
+  if (int result =
+          expect(i64LMULM1 && i64LMULM1->getKind() == "isa-vector-config" &&
+                     i64LMULM1->getProperty("lmul") == "m1",
+                 "RVV profile preserves i64m1 LMUL=m1 config fact"))
+    return result;
+  const CapabilityDescriptor *i64TailAgnostic = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI64M1TailAgnosticCapabilityID());
+  if (int result =
+          expect(i64TailAgnostic &&
+                     i64TailAgnostic->getKind() == "isa-vector-config" &&
+                     i64TailAgnostic->getProperty("tail_policy") ==
+                         "agnostic",
+                 "RVV profile preserves i64m1 tail agnostic policy fact"))
+    return result;
+  const CapabilityDescriptor *i64MaskAgnostic = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI64M1MaskAgnosticCapabilityID());
+  if (int result =
+          expect(i64MaskAgnostic &&
+                     i64MaskAgnostic->getKind() == "isa-vector-config" &&
+                     i64MaskAgnostic->getProperty("mask_policy") ==
+                         "agnostic",
+                 "RVV profile preserves i64m1 mask agnostic policy fact"))
+    return result;
+
   const CapabilityDescriptor *clang = capabilities.lookupByID(
       tianchenrv::plugin::rvv::getRVVClangToolchainCapabilityID());
   if (int result = expect(clang && clang->getKind() == "toolchain" &&
@@ -645,8 +678,20 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                              getRVVI32M1MaskAgnosticCapabilitySymbol() &&
                      orderedCapabilities[8].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVClangToolchainCapabilitySymbol() &&
+                             getRVVI64M1SEW64CapabilitySymbol() &&
                      orderedCapabilities[9].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI64M1LMULM1CapabilitySymbol() &&
+                     orderedCapabilities[10].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI64M1TailAgnosticCapabilitySymbol() &&
+                     orderedCapabilities[11].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI64M1MaskAgnosticCapabilitySymbol() &&
+                     orderedCapabilities[12].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVClangToolchainCapabilitySymbol() &&
+                     orderedCapabilities[13].getSymbolName() ==
                          tianchenrv::plugin::rvv::
                              getRVVCMakeToolchainCapabilitySymbol(),
                  "RVV profile capability ordering is deterministic"))
@@ -674,6 +719,11 @@ module {
       mask_policy = "agnostic",
       status = "available"
     }
+  }
+
+  tcrv.exec.kernel @profile_i64_vadd attributes {
+    tcrv_frontend_lowering = "i64-vadd"
+  } {
   }
 }
 )mlir";
@@ -811,6 +861,102 @@ module {
                  "metadata"))
     return result;
 
+  KernelOp i64Kernel = findKernel(*module, "profile_i64_vadd");
+  if (int result =
+          expect(static_cast<bool>(i64Kernel),
+                 "RVV capability profile i64 test kernel is present"))
+    return result;
+
+  VariantProposalRequest i64Request =
+      makeRequest(highLevelOp.getOperation(), i64Kernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> i64Proposals;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(i64Request, i64Proposals),
+          "profile-derived i64m1 capabilities feed RVV proposal collection"))
+    return result;
+  if (int result =
+          expect(i64Proposals.size() == 1,
+                 "profile-derived i64m1 RVV capabilities propose one variant"))
+    return result;
+  if (int result = expect(
+          i64Proposals[0].getRequiredCapabilityIDs().size() == 5 &&
+              i64Proposals[0].getRequiredCapabilityIDs()[1] ==
+                  "rvv.i64_m1.sew64" &&
+              i64Proposals[0].getRequiredCapabilityIDs()[2] ==
+                  "rvv.i64_m1.lmul_m1" &&
+              i64Proposals[0].getRequiredCapabilityIDs()[3] ==
+                  "rvv.i64_m1.tail_policy.agnostic" &&
+              i64Proposals[0].getRequiredCapabilityIDs()[4] ==
+                  "rvv.i64_m1.mask_policy.agnostic",
+          "profile-derived i64 proposal requires i64m1 capability IDs"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          i64Proposals[0], "tcrv_rvv.lowering_descriptor",
+          tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
+              .loweringDescriptor))
+    return result;
+  if (int result = expectProposalStringAttr(
+          i64Proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
+    return result;
+
+  llvm::SmallVector<VariantOp, 1> i64MaterializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, i64Request, &i64MaterializedVariants),
+          "materialize RVV i64 proposal from profile capabilities"))
+    return result;
+  if (int result =
+          expect(i64MaterializedVariants.size() == 1,
+                 "one profile-derived RVV i64 variant materialized"))
+    return result;
+  VariantOp i64Variant = i64MaterializedVariants.front();
+
+  VariantLoweringBoundaryResult i64BoundaryResult;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&i64Kernel.getBody().front());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    i64Variant, i64Kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                i64BoundaryResult),
+            "materialize profile-derived RVV i64 lowering boundary"))
+      return result;
+  }
+  if (int result =
+          expect(i64BoundaryResult.isMaterialized(),
+                 "profile-derived RVV i64 boundary materialized"))
+    return result;
+
+  mlir::Operation *i64Microkernel = findRVVI64Microkernel(
+      i64Kernel, i64Variant.getSymName(),
+      tianchenrv::target::rvv::getI64VAddFamilyDescriptor().microkernelOpName);
+  if (int result =
+          expect(i64Microkernel,
+                 "profile-derived RVV i64 path materializes i64 vadd op"))
+    return result;
+
+  VariantEmissionPlan i64Plan;
+  if (int result = expectSuccess(
+          plugin.buildVariantEmissionPlan(
+              VariantEmissionRequest(i64Variant, i64Kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              i64Plan),
+          "profile-derived RVV i64 path builds emission plan"))
+    return result;
+  if (int result =
+          expect(i64Plan.isSupported() &&
+                     i64Plan.getLoweringPipeline() ==
+                         tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
+                             .routeID &&
+                     i64Plan.getRuntimeABIName() ==
+                         tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
+                             .runtimeABIName,
+                 "profile-derived RVV i64 path reaches supported emission "
+                 "plan"))
+    return result;
+
   RVVProbeCapabilityFacts wideFacts = makeSuccessfulProbeFacts();
   wideFacts.vlenbBytes = 128;
   wideFacts.i32M1LaneCount = 32;
@@ -896,6 +1042,27 @@ int runRVVCapabilityProfileRejectionTest() {
   if (int result = expectExpectedErrorContains(
           plugin.buildTargetCapabilitiesFromProbeFacts(facts),
           {"i32 m1 lane count", "divided by four"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.i64M1SEWBits = 32;
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"i64m1 SEW", "64"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.i64M1LMUL = "m2";
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"i64m1 LMUL", "m1"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.i64M1TailPolicy = "secret-tail";
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"i64m1 tail policy", "secret-like"}))
     return result;
 
   facts = makeSuccessfulProbeFacts();

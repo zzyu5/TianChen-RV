@@ -59,6 +59,22 @@ constexpr llvm::StringLiteral kRVVI32M2MaskAgnosticCapabilityID(
     "rvv.i32_m2.mask_policy.agnostic");
 constexpr llvm::StringLiteral kRVVI32M2MaskAgnosticCapabilitySymbol(
     "rvv_i32_m2_mask_agnostic");
+constexpr llvm::StringLiteral kRVVI64M1SEW64CapabilityID(
+    "rvv.i64_m1.sew64");
+constexpr llvm::StringLiteral kRVVI64M1SEW64CapabilitySymbol(
+    "rvv_i64_m1_sew64");
+constexpr llvm::StringLiteral kRVVI64M1LMULM1CapabilityID(
+    "rvv.i64_m1.lmul_m1");
+constexpr llvm::StringLiteral kRVVI64M1LMULM1CapabilitySymbol(
+    "rvv_i64_m1_lmul_m1");
+constexpr llvm::StringLiteral kRVVI64M1TailAgnosticCapabilityID(
+    "rvv.i64_m1.tail_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI64M1TailAgnosticCapabilitySymbol(
+    "rvv_i64_m1_tail_agnostic");
+constexpr llvm::StringLiteral kRVVI64M1MaskAgnosticCapabilityID(
+    "rvv.i64_m1.mask_policy.agnostic");
+constexpr llvm::StringLiteral kRVVI64M1MaskAgnosticCapabilitySymbol(
+    "rvv_i64_m1_mask_agnostic");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilityID(
     "rvv.toolchain.clang");
 constexpr llvm::StringLiteral kRVVClangToolchainCapabilitySymbol(
@@ -273,6 +289,38 @@ llvm::StringRef getRVVI32M2MaskAgnosticCapabilitySymbol() {
   return kRVVI32M2MaskAgnosticCapabilitySymbol;
 }
 
+llvm::StringRef getRVVI64M1SEW64CapabilityID() {
+  return kRVVI64M1SEW64CapabilityID;
+}
+
+llvm::StringRef getRVVI64M1SEW64CapabilitySymbol() {
+  return kRVVI64M1SEW64CapabilitySymbol;
+}
+
+llvm::StringRef getRVVI64M1LMULM1CapabilityID() {
+  return kRVVI64M1LMULM1CapabilityID;
+}
+
+llvm::StringRef getRVVI64M1LMULM1CapabilitySymbol() {
+  return kRVVI64M1LMULM1CapabilitySymbol;
+}
+
+llvm::StringRef getRVVI64M1TailAgnosticCapabilityID() {
+  return kRVVI64M1TailAgnosticCapabilityID;
+}
+
+llvm::StringRef getRVVI64M1TailAgnosticCapabilitySymbol() {
+  return kRVVI64M1TailAgnosticCapabilitySymbol;
+}
+
+llvm::StringRef getRVVI64M1MaskAgnosticCapabilityID() {
+  return kRVVI64M1MaskAgnosticCapabilityID;
+}
+
+llvm::StringRef getRVVI64M1MaskAgnosticCapabilitySymbol() {
+  return kRVVI64M1MaskAgnosticCapabilitySymbol;
+}
+
 llvm::StringRef getRVVClangToolchainCapabilityID() {
   return kRVVClangToolchainCapabilityID;
 }
@@ -352,6 +400,23 @@ validateRVVProbeCapabilityFacts(const RVVProbeCapabilityFacts &facts) {
   if (!facts.firstSliceMaskPolicy.empty() &&
       normalizeFactString(facts.firstSliceMaskPolicy) != "agnostic")
     errors.push_back("first-slice mask policy must be agnostic");
+
+  if (facts.i64M1SEWBits != 64)
+    errors.push_back("i64m1 SEW bits must be 64");
+  validateFactString("i64m1 LMUL", facts.i64M1LMUL, errors, true);
+  if (!facts.i64M1LMUL.empty() &&
+      normalizeFactString(facts.i64M1LMUL) != "m1")
+    errors.push_back("i64m1 LMUL must be m1");
+  validateFactString("i64m1 tail policy", facts.i64M1TailPolicy, errors,
+                     true);
+  if (!facts.i64M1TailPolicy.empty() &&
+      normalizeFactString(facts.i64M1TailPolicy) != "agnostic")
+    errors.push_back("i64m1 tail policy must be agnostic");
+  validateFactString("i64m1 mask policy", facts.i64M1MaskPolicy, errors,
+                     true);
+  if (!facts.i64M1MaskPolicy.empty() &&
+      normalizeFactString(facts.i64M1MaskPolicy) != "agnostic")
+    errors.push_back("i64m1 mask policy must be agnostic");
 
   validateFactString("ISA/vector hint", facts.isaVectorHints, errors,
                      true);
@@ -445,6 +510,26 @@ buildRVVTargetCapabilitiesFromProbeFacts(
           capabilities, getRVVI32M1MaskAgnosticCapabilitySymbol(),
           getRVVI32M1MaskAgnosticCapabilityID(), "isa-vector-config",
           {{"mask_policy", normalizeFactString(facts.firstSliceMaskPolicy)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI64M1SEW64CapabilitySymbol(),
+          getRVVI64M1SEW64CapabilityID(), "isa-vector-config",
+          {{"sew_bits", std::to_string(facts.i64M1SEWBits)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI64M1LMULM1CapabilitySymbol(),
+          getRVVI64M1LMULM1CapabilityID(), "isa-vector-config",
+          {{"lmul", normalizeFactString(facts.i64M1LMUL)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI64M1TailAgnosticCapabilitySymbol(),
+          getRVVI64M1TailAgnosticCapabilityID(), "isa-vector-config",
+          {{"tail_policy", normalizeFactString(facts.i64M1TailPolicy)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI64M1MaskAgnosticCapabilitySymbol(),
+          getRVVI64M1MaskAgnosticCapabilityID(), "isa-vector-config",
+          {{"mask_policy", normalizeFactString(facts.i64M1MaskPolicy)}}))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
           capabilities, getRVVClangToolchainCapabilitySymbol(),

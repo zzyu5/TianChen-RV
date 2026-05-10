@@ -1726,3 +1726,45 @@ Collected bounded ssh rvv source/object external ABI evidence for the compiler-p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: RVV i64m1 profile replay parity
+
+**Date**: 2026-05-10
+**Task**: RVV i64m1 profile replay parity
+**Branch**: `main`
+
+### Summary
+
+Made finite RVV i64m1 profile/replay capabilities first-class, drove a replay/profile-derived i64 RVV route through planning, materialization, emission planning, and source export, and passed focused plus full TianChen-RV checks.
+
+### Main Changes
+
+- Created and archived Trellis task `05-10-rvv-i64-profile-replay-parity`.
+- Added plugin-local C++ RVV profile facts and capability IDs for `rvv.i64_m1.sew64`, `rvv.i64_m1.lmul_m1`, `rvv.i64_m1.tail_policy.agnostic`, and `rvv.i64_m1.mask_policy.agnostic`.
+- Added bounded validation for malformed i64m1 SEW/LMUL/tail/mask profile facts.
+- Extended sanitized RVV probe/replay tooling to preserve i64m1 facts into MLIR capability fixtures and optional replay target profiles without deciding compiler legality, selection, lowering, emission, or correctness.
+- Added C++ coverage proving profile-derived i64 capabilities feed RVV proposal collection, selected-boundary materialization, plugin microkernel materialization, and supported emission planning.
+- Added script/FileCheck replay coverage for i64 target-profile source export and malformed i64 SEW fail-closed behavior.
+- Updated only the durable RVV/capability specs needed for the implemented contract.
+- Validation: `git diff --check`; Python py_compile and self-tests; RVV plugin C++ smoke executable; manual FileCheck reproduction of `test/Scripts/rvv-probe-to-mlir.test`; focused i64 add/sub/mul linalg artifact and missing-config checks; `task.py validate`; `check-tianchenrv` passed 192/192.
+- No new `ssh rvv` evidence was produced because this round makes no fresh runtime correctness or performance claim.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
