@@ -1368,3 +1368,63 @@ while the Toy exporter body and candidate validation remain in `Target/Toy`.
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 30: i64m1 RVV scalar dispatch artifact path with ssh rvv evidence
+
+**Date**: 2026-05-11
+**Task**: i64m1 RVV scalar dispatch artifact path with ssh rvv evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, selected exactly one
+finite family (`i64-vmul`), and verified the existing compiler path end to end.
+Current HEAD already carries `i64-vmul` from the marked-linalg
+plan-and-export target artifact bundle front door through RVV/scalar selected
+dispatch metadata, plugin-owned source/header/object dispatch bundle records,
+and a real `ssh rvv` compile/link/run proof. No compiler or runner source
+change was needed.
+
+### Evidence
+
+- Real command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --ssh-target rvv --run-id codex-i64-vmul-dispatch-bundle-ssh --overwrite --timeout 120`
+- Evidence JSON:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i64-vmul-dispatch-bundle-ssh/evidence.json`
+- Evidence result: `status=success`, `mode=ssh`,
+  `ssh_evidence_verified=true`, `runtime_success=true`,
+  `remote_compile_succeeded=true`, `remote_link_succeeded=true`,
+  `remote_run_succeeded=true`, and `output_validation_succeeded=true`.
+- Remote facts: architecture `riscv64`, clang
+  `Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Branch/runtime coverage: `rvv_available=0` and `rvv_available=1`, runtime
+  counts `7` and `16`, `int64_t` caller buffers, and multiply check
+  `lhs[index] * rhs[index]`.
+- Bundle ABI identity:
+  `rvv-scalar-i64-vmul-dispatch-external-abi.v1`, routes
+  `tcrv-export-rvv-scalar-i64-vmul-dispatch-c`,
+  `tcrv-export-rvv-scalar-i64-vmul-dispatch-header`, and
+  `tcrv-export-rvv-scalar-i64-vmul-dispatch-object`.
+
+### Testing
+
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --run-id codex-i64-vmul-dispatch-bundle-dry --overwrite --timeout 120`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`: script bundle e2e,
+  `i64-vmul` plan-and-export bundle, `i64-vmul` dispatch route/object, and
+  linalg frontend RVV artifact path all passed.
+- `git diff --check`
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-11-i64m1-rvv-scalar-dispatch-artifact-path-ssh-evidence`: passed.
+
+### Status
+
+[OK] **Completed and archived**
