@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
@@ -85,6 +86,23 @@ class DisabledToyTargetExporterPlugin final : public ExtensionPlugin {
 public:
   llvm::StringRef getName() const override {
     return tianchenrv::plugin::toy::getToyExtensionPluginName();
+  }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return {};
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  bool isEnabled() const override { return false; }
+};
+
+class DisabledRVVTargetExporterPlugin final : public ExtensionPlugin {
+public:
+  llvm::StringRef getName() const override {
+    return tianchenrv::plugin::rvv::getRVVExtensionPluginName();
   }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
@@ -195,6 +213,16 @@ bool expectRouteRuntimeABIParameters(
       "route '" + routeID.str() + "' contract parameters");
 }
 
+bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
+                          llvm::StringRef routeID, llvm::StringRef artifactKind,
+                          llvm::StringRef expectedOwner,
+                          llvm::StringRef expectedRuntimeABIKind,
+                          llvm::StringRef expectedRuntimeABIName,
+                          bool expectedDirectHelperRoute,
+                          llvm::StringRef expectedComponentGroup,
+                          llvm::StringRef expectedExternalABIName,
+                          bool expectedCandidateValidation);
+
 bool expectPluginOwnedToyTargetExporterRegistration() {
   constexpr llvm::StringLiteral toyRouteID(
       "none-executable-toy-template-metadata");
@@ -280,6 +308,162 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
           "explicit missing Toy target exporter registration rejected",
           {"unknown extension plugin", "toy-plugin"}))
     return false;
+
+  return true;
+}
+
+bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
+  constexpr llvm::StringLiteral legacyRVVSourceRouteID(
+      "tcrv-export-rvv-microkernel-c");
+  constexpr llvm::StringLiteral legacyRVVHeaderRouteID(
+      "tcrv-export-rvv-microkernel-header");
+  constexpr llvm::StringLiteral legacyRVVObjectRouteID(
+      "tcrv-export-rvv-microkernel-object");
+
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              registerRVVMicrokernelPluginTargetExporterBundle(
+                  pluginExporters),
+          "register RVV plugin-owned target exporter bundle"))
+    return false;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              registerRVVMicrokernelPluginTargetExporterBundle(
+                  pluginExporters),
+          "duplicate RVV plugin-owned target exporter bundle rejected",
+          {"duplicate plugin-owned target exporter bundle", "rvv-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+                     "register RVV extension plugin for target exporters"))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         plugins, registry),
+                     "populate target exporters from enabled RVV plugin"))
+    return false;
+
+  const std::size_t familyCount =
+      tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors().size();
+  if (registry.size() != familyCount ||
+      registry.compositeSize() != familyCount * 2) {
+    llvm::errs() << "RVV plugin-owned microkernel bundle expected "
+                 << familyCount << " source routes and " << familyCount * 2
+                 << " header/object composite routes, got "
+                 << registry.size() << " and " << registry.compositeSize()
+                 << "\n";
+    return false;
+  }
+
+  const tianchenrv::support::RuntimeABICallableIdentity &rvvABI =
+      getAddRuntimeABIContract().getRVVCallableIdentity();
+  if (!expectRoute(registry, legacyRVVSourceRouteID,
+                   "runtime-callable-c-source", "rvv-plugin",
+                   "rvv-explicit-i32-vadd-microkernel-c-source", 4,
+                   /*expectedDirectHelperRoute=*/true,
+                   /*expectedHandoffKind=*/{},
+                   "rvv-i32-vadd-microkernel-external-abi.v1",
+                   rvvABI.runtimeABIName))
+    return false;
+  if (!expectRouteRuntimeABIParameters(
+          registry, legacyRVVSourceRouteID,
+          getAddRuntimeABIContract().getCallableRoleRequirements()))
+    return false;
+  if (!expectCompositeRoute(registry, legacyRVVHeaderRouteID,
+                            "runtime-callable-c-header", "rvv-plugin",
+                            rvvABI.runtimeABIKind, rvvABI.runtimeABIName,
+                            /*expectedDirectHelperRoute=*/true,
+                            "rvv-i32-vadd-microkernel-external-abi.v1",
+                            rvvABI.runtimeABIName,
+                            /*expectedCandidateValidation=*/true))
+    return false;
+  if (!expectCompositeRoute(registry, legacyRVVObjectRouteID,
+                            "riscv-elf-relocatable-object", "rvv-plugin",
+                            rvvABI.runtimeABIKind, rvvABI.runtimeABIName,
+                            /*expectedDirectHelperRoute=*/true,
+                            "rvv-i32-vadd-microkernel-external-abi.v1",
+                            rvvABI.runtimeABIName,
+                            /*expectedCandidateValidation=*/true))
+    return false;
+
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              plugins,
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(), registry),
+          "duplicate plugin-owned RVV target exporter route rejected",
+          {"duplicate exporter route id", legacyRVVSourceRouteID}))
+    return false;
+
+  DisabledRVVTargetExporterPlugin disabledRVV;
+  ExtensionPluginRegistry disabledPlugins;
+  if (!expectSuccess(disabledPlugins.registerPlugin(disabledRVV),
+                     "register disabled RVV plugin"))
+    return false;
+
+  TargetArtifactExporterRegistry disabledRegistry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         disabledPlugins, disabledRegistry),
+                     "skip target exporters for disabled RVV plugin"))
+    return false;
+  if (disabledRegistry.lookup(legacyRVVSourceRouteID) ||
+      disabledRegistry.lookupComposite(legacyRVVHeaderRouteID) ||
+      disabledRegistry.lookupComposite(legacyRVVObjectRouteID)) {
+    llvm::errs() << "disabled RVV plugin unexpectedly registered selected "
+                    "microkernel target artifact exporters\n";
+    return false;
+  }
+
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              disabledPlugins,
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+              disabledRegistry),
+          "explicit disabled RVV target exporter registration rejected",
+          {"disabled extension plugin", "rvv-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry missingPlugins;
+  TargetArtifactExporterRegistry missingRegistry;
+  if (!expectErrorContains(
+          pluginExporters.registerExportersForPlugin(
+              missingPlugins,
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+              missingRegistry),
+          "explicit missing RVV target exporter registration rejected",
+          {"unknown extension plugin", "rvv-plugin"}))
+    return false;
+
+  ExtensionPluginRegistry noRVVPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(
+                         noRVVPlugins),
+                     "register non-RVV plugin for built-in target exporters"))
+    return false;
+
+  TargetArtifactExporterRegistry noRVVBuiltinRegistry;
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(
+                         noRVVBuiltinRegistry, noRVVPlugins),
+                     "register built-in target exporters without RVV plugin"))
+    return false;
+  if (noRVVBuiltinRegistry.lookup(legacyRVVSourceRouteID) ||
+      noRVVBuiltinRegistry.lookupComposite(legacyRVVHeaderRouteID) ||
+      noRVVBuiltinRegistry.lookupComposite(legacyRVVObjectRouteID)) {
+    llvm::errs() << "built-in target exporter registration without enabled "
+                    "rvv-plugin exposed selected RVV microkernel routes\n";
+    return false;
+  }
+  if (!noRVVBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
+    llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
+                    "built-in non-plugin target route set\n";
+    return false;
+  }
+  if (!noRVVBuiltinRegistry.lookup("none-executable-toy-template-metadata")) {
+    llvm::errs() << "enabled non-RVV plugin-owned Toy route should still be "
+                    "registered through the same built-in target boundary\n";
+    return false;
+  }
 
   return true;
 }
@@ -2332,6 +2516,8 @@ int main() {
   if (!expectTargetArtifactBundleComponentContractValidation())
     return 1;
   if (!expectPluginOwnedToyTargetExporterRegistration())
+    return 1;
+  if (!expectPluginOwnedRVVMicrokernelTargetExporterRegistration())
     return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;

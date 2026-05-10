@@ -18,9 +18,6 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
   if (llvm::Error error = rvv::registerRVVSmokeProbeTargetExporters(registry))
     return error;
   if (llvm::Error error =
-          rvv::registerRVVMicrokernelTargetExporters(registry))
-    return error;
-  if (llvm::Error error =
           scalar::registerScalarMicrokernelTargetExporters(registry))
     return error;
   if (llvm::Error error =
@@ -34,6 +31,9 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
 
 llvm::Error registerBuiltinPluginTargetArtifactExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
+  if (llvm::Error error =
+          rvv::registerRVVMicrokernelPluginTargetExporterBundle(registry))
+    return error;
   return toy::registerToyMetadataArtifactPluginTargetExporterBundle(registry);
 }
 

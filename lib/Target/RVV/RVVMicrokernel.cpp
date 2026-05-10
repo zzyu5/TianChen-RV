@@ -4524,6 +4524,12 @@ llvm::Error registerRVVMicrokernelTargetExporters(
   return llvm::Error::success();
 }
 
+llvm::Error registerRVVMicrokernelPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      kRVVPluginName, registerRVVMicrokernelTargetExporters));
+}
+
 llvm::Error registerRVVMicrokernelTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
   for (const RVVMicrokernelDirectRouteManifestEntry &route :

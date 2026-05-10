@@ -1,0 +1,6 @@
+{"file":".trellis/spec/index.md","reason":"global compiler stack and tcrv.exec no-compute invariant"}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV route ownership, selected config, and runtime evidence checks"}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"enabled-plugin registration and generic fail-closed behavior"}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"no RVV semantic branches in generic code"}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"target artifact front door, candidate preflight, and plugin-owned exporter bundle checks"}
+{"file":".trellis/spec/validation/experiment-reference.md","reason":"avoid unsupported RVV runtime/correctness claims"}

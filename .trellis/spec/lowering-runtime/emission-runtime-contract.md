@@ -353,26 +353,31 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - The caller owns the `TargetArtifactExporterRegistry`.
 - The helper registers every currently supported built-in target artifact route
   by delegating to target-owned registration functions.
-- The current single-candidate route set is:
+- The current non-plugin single-candidate route set is:
   - RVV standalone smoke-probe C source, artifact kind
     `standalone-c-source`, selected only when a plugin-owned smoke-probe
     emission plan names `tcrv-export-rvv-smoke-probe-c`.
-  - RVV explicit i32 vector-add microkernel runtime-callable C source.
   - Scalar explicit i32 vector add/sub microkernel runtime-callable C source.
   - Offload runtime handoff descriptor.
-- The current single-candidate composite route set is:
-  - RVV explicit i32 vector-add microkernel runtime-callable C header,
-    matched from the same selected callable source candidate and emitted by
-    RVV target/export code as an external caller ABI surface with artifact kind
-    `runtime-callable-c-header`. Its registration must include route-local
+- The current plugin-owned single-candidate route set includes:
+  - RVV selected binary microkernel runtime-callable C source routes for the
+    finite add/sub/mul i32/i64 families, registered by the `rvv-plugin`
+    target-exporter bundle and emitted by RVV target/export code.
+  - Toy metadata diagnostic artifact route, registered by the `toy-plugin`
+    target-exporter bundle and emitted by Toy target/export code.
+- The current plugin-owned single-candidate composite route set includes:
+  - RVV selected binary microkernel runtime-callable C header routes, matched
+    from the same selected callable source candidates and emitted by RVV
+    target/export code as external caller ABI surfaces with artifact kind
+    `runtime-callable-c-header`. Registration must include route-local
     candidate preflight that validates the matched RVV callable source
     candidate against the RVV direct callable runtime ABI role contract before
     header output.
-  - RVV explicit i32 vector-add microkernel runtime-callable RISC-V ELF
-    relocatable library object, matched from the same selected callable source
-    candidate and emitted by RVV target/export code without a hidden self-check
-    harness or `main`. Its registration must include the same route-local
-    candidate preflight before object compilation.
+  - RVV selected binary microkernel runtime-callable RISC-V ELF relocatable
+    library object routes, matched from the same selected callable source
+    candidates and emitted by RVV target/export code without a hidden
+    self-check harness or `main`. Registration must include the same
+    route-local candidate preflight before object compilation.
 - The current multi-candidate composite route set is:
   - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C source,
     matched by target-owned RVV+scalar dispatch exporter code from the selected
@@ -399,14 +404,16 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - Source-only filtering remains the responsibility of the generic exporter via
   artifact-kind validation, not by omitting non-source built-ins from the
   registration helper.
-- Extension/plugin-owned metadata artifact routes may be registered through a
+- Extension/plugin-owned artifact routes may be registered through a
   target-layer plugin-exporter bundle registry keyed by extension plugin name.
   Public tools that already own an `ExtensionPluginRegistry` must pass that same
   active registry into built-in target exporter registration so enabled plugins
   can contribute their plugin-owned target artifact exporters through the
-  generic boundary. Disabled or missing plugins must not silently publish their
-  plugin-owned target routes; later selected-plan export then fails closed as an
-  unknown or unavailable route/origin instead of falling back to a central
+  generic boundary. This applies to real target-owned RVV selected binary
+  microkernel source/header/object exporters as well as metadata-only Toy
+  exporters; disabled or missing plugins must not silently publish their
+  plugin-owned target routes. Later selected-plan export then fails closed as
+  an unknown or unavailable route/origin instead of falling back to a central
   extension-specific exporter branch.
 
 #### 4. Validation & Error Matrix
@@ -435,9 +442,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   selected plan has both supported callable sides and local RVV object
   compilation support.
 - Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
-  direct RVV i32-vadd microkernel runtime-callable C header route from the same
-  selected callable source candidate without changing source-only or default
-  object artifact selection.
+  direct RVV selected binary microkernel runtime-callable C header route from
+  the same selected callable source candidate after enabled `rvv-plugin`
+  exporter-bundle registration, without changing source-only or default object
+  artifact selection.
 - Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
   RVV+scalar dispatch runtime-callable C header composite route from the same
   selected callable sides without changing the source or object front-door
@@ -451,6 +459,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   `registerScalarMicrokernelTargetExporters`, and
   `registerOffloadRuntimeDescriptorTargetExporters`; adding a target route then
   requires broad hand-editing in generic tool code.
+- Bad: central built-in target exporter composition registers the selected RVV
+  binary microkernel routes directly even when `rvv-plugin` is missing or
+  disabled.
 
 #### 6. Tests Required
 

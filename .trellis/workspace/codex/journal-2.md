@@ -59,6 +59,61 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
+## Session 29: RVV selected artifact exporters through plugin-owned registration
+
+**Date**: 2026-05-11
+**Task**: RVV selected artifact routes through plugin-owned exporter registration
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then moved the
+existing finite RVV selected binary microkernel source/header/object target
+artifact exporter group behind the generic plugin-owned target exporter bundle
+boundary. The default built-in front door still exposes the selected RVV
+artifact routes because builtin extension plugins enable `rvv-plugin`, while a
+registry without enabled `rvv-plugin` no longer publishes those selected RVV
+microkernel routes centrally.
+
+### Main Changes
+
+- Added a `rvv-plugin` target-exporter bundle entry in `Target/RVV` that
+  delegates to the existing RVV microkernel target exporter registration.
+- Removed direct RVV microkernel route registration from the central
+  non-plugin built-in target exporter list and registered it through the
+  plugin-owned bundle registry next to Toy.
+- Kept RVV route identity, source/header/object exporters, selected binary
+  family checks, runtime ABI role requirements, and candidate preflight in
+  RVV target-owned C++ code.
+- Extended target artifact export C++ coverage for RVV plugin-owned bundle
+  registration, duplicate bundle/route rejection, disabled/missing
+  `rvv-plugin` fail-closed behavior, and default built-in route visibility.
+- Updated the lowering/runtime spec to record that plugin-owned target exporter
+  bundles now cover real RVV selected binary microkernel routes as well as Toy
+  metadata routes.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `target-source-artifact-routes|rvv-microkernel-object`: 3/3 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-plugin-owned-target-exporter-bundle`: passed.
+- No RVV runtime/correctness/performance claim was made; no fresh `ssh rvv`
+  evidence was needed or collected.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 16: Target-owned artifact route translation registration
 
 **Date**: 2026-05-10
