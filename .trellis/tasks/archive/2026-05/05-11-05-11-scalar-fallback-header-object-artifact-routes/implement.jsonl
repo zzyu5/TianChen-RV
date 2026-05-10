@@ -1,0 +1,7 @@
+{"file":".trellis/spec/index.md","reason":"global compiler stack, Python boundary, tcrv.exec no-compute invariant"}
+{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"finite scalar fallback source/header/object route scope and non-runtime claim boundary"}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"generic target artifact front door, composite route, and candidate preflight contract"}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"plugin locality and no extension-specific generic core branches"}
+{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"review checklist for target-owned extension behavior"}
+{"file":".trellis/spec/guides/compute-boundary-review-guide.md","reason":"avoid moving scalar compute semantics into tcrv.exec or generic core"}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"focused MLIR/C++ test and evidence discipline for artifact routes"}

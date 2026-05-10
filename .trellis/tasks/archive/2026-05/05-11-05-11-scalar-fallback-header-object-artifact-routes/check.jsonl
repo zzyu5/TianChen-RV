@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"verify global project boundary and stack discipline"}
+{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"verify finite scalar fallback header/object scope and evidence wording"}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"verify target artifact route registration, matching, and preflight behavior"}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"verify scalar behavior remains target/plugin-local"}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"verify focused C++/lit coverage and no unsupported runtime claims"}

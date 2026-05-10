@@ -59,6 +59,57 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
+## Session 29: Scalar finite fallback header/object artifact routes
+
+**Date**: 2026-05-11
+**Task**: Scalar finite fallback header/object artifact routes
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the malformed-review fallback brief after
+confirming there was no active current task. Completed the finite scalar
+fallback artifact surface so existing i32/i64 add/sub/mul scalar callable
+source candidates can also select matching scalar header and relocatable-object
+artifact routes through the generic target artifact front doors.
+
+### Main Changes
+
+- Added family-derived scalar header/object route ids for non-legacy finite
+  scalar families while preserving the legacy i32-vadd route ids.
+- Reworked scalar target exporter registration to register source, header, and
+  object routes for all finite scalar fallback families.
+- Made scalar header/object composite matching family-specific so stale add
+  candidates cannot satisfy vmul or i64 helper routes.
+- Updated target artifact and i32 family registry C++ coverage for the expanded
+  scalar route set and stale-family rejection.
+- Added focused lit coverage for non-add scalar vmul header/object/bundle
+  front-door artifact export.
+- Updated scalar fallback and lowering/runtime specs to record the finite
+  scalar header/object route boundary without making runtime claims.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-target-artifact-export-test
+  tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `Target/ArtifactExport/scalar-target-header-object-artifact-routes.test`
+  and `Target/ArtifactExport/scalar-target-vmul-source-artifact-routes.test`,
+  2/2 passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- No RVV runtime/correctness/performance claim was made; no `ssh rvv` evidence
+  was needed or collected.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 29: RVV selected artifact exporters through plugin-owned registration
 
 **Date**: 2026-05-11

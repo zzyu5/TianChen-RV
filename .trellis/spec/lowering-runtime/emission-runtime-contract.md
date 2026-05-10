@@ -357,7 +357,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV standalone smoke-probe C source, artifact kind
     `standalone-c-source`, selected only when a plugin-owned smoke-probe
     emission plan names `tcrv-export-rvv-smoke-probe-c`.
-  - Scalar explicit i32 vector add/sub microkernel runtime-callable C source.
+  - Scalar explicit i32/i64 vector add/sub/mul microkernel runtime-callable C
+    source routes.
   - Offload runtime handoff descriptor.
 - The current plugin-owned single-candidate route set includes:
   - RVV selected binary microkernel runtime-callable C source routes for the
@@ -378,6 +379,23 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     candidates and emitted by RVV target/export code without a hidden
     self-check harness or `main`. Registration must include the same
     route-local candidate preflight before object compilation.
+- The current non-plugin single-candidate composite route set includes:
+  - Scalar selected fallback microkernel runtime-callable C header routes for
+    the finite add/sub/mul i32/i64 families, matched from the same selected
+    scalar callable source candidate and emitted by scalar target/export code.
+    The legacy i32-vadd header route remains
+    `tcrv-export-scalar-microkernel-header`; non-add routes use
+    `tcrv-export-scalar-<family>-microkernel-header`.
+  - Scalar selected fallback microkernel runtime-callable RISC-V ELF
+    relocatable object routes for the same finite families, matched from the
+    same selected scalar callable source candidate and emitted by scalar
+    target/export code. The legacy i32-vadd object route remains
+    `tcrv-export-scalar-microkernel-object`; non-add routes use
+    `tcrv-export-scalar-<family>-microkernel-object`.
+  - Scalar header/object matching must be family-specific: a selected
+    `i32-vadd` scalar source candidate must not satisfy the `i32-vmul` or i64
+    scalar header/object helper routes, and stale ABI family metadata must fail
+    before output.
 - The current multi-candidate composite route set is:
   - RVV+scalar explicit i32 vector-add host dispatch runtime-callable C source,
     matched by target-owned RVV+scalar dispatch exporter code from the selected

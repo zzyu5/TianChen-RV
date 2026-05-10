@@ -14,6 +14,20 @@
 # RUN: FileCheck %s --check-prefix=SCALAR-INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar.bundle/tianchenrv-target-artifact-bundle.index
 # RUN: llvm-readobj --file-headers --symbols %t.scalar.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-microkernel-object.o | FileCheck %s --check-prefixes=SCALAR-OBJ --implicit-check-not="Name: main"
 
+# RUN: tcrv-opt %S/Inputs/scalar-vmul-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-vmul-post-planning.mlir
+# RUN: tcrv-translate --tcrv-export-target-header-artifact %t.scalar-vmul-post-planning.mlir > %t.scalar-vmul.h
+# RUN: FileCheck %s --check-prefix=SCALAR-VMUL-HEADER --implicit-check-not=") {" --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not="int main" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar-vmul.h
+# RUN: tcrv-translate --tcrv-export-target-artifact %t.scalar-vmul-post-planning.mlir > %t.scalar-vmul.o
+# RUN: llvm-readobj --file-headers --symbols %t.scalar-vmul.o | FileCheck %s --check-prefixes=SCALAR-VMUL-OBJ --implicit-check-not="Name: main"
+# RUN: rm -rf %t.scalar-vmul.bundle && mkdir %t.scalar-vmul.bundle
+# RUN: tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.scalar-vmul.bundle %t.scalar-vmul-post-planning.mlir > %t.scalar-vmul.bundle.stdout
+# RUN: FileCheck %s --check-prefix=STDOUT < %t.scalar-vmul.bundle.stdout
+# RUN: test -s %t.scalar-vmul.bundle/artifact-0-runtime-callable-c-source-tcrv-export-scalar-i32-vmul-microkernel-c.c
+# RUN: test -s %t.scalar-vmul.bundle/artifact-1-runtime-callable-c-header-tcrv-export-scalar-i32-vmul-microkernel-header.h
+# RUN: test -s %t.scalar-vmul.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-i32-vmul-microkernel-object.o
+# RUN: FileCheck %s --check-prefix=SCALAR-VMUL-INDEX --implicit-check-not=tcrv-export-scalar-microkernel-header --implicit-check-not=tcrv-export-scalar-microkernel-object --implicit-check-not=i32-vadd --implicit-check-not=i32-vsub --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar-vmul.bundle/tianchenrv-target-artifact-bundle.index
+# RUN: llvm-readobj --file-headers --symbols %t.scalar-vmul.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-i32-vmul-microkernel-object.o | FileCheck %s --check-prefixes=SCALAR-VMUL-OBJ --implicit-check-not="Name: main"
+
 # SCALAR-HEADER: #ifndef TIANCHENRV_SCALAR_I32_VADD_MICROKERNEL_SCALAR_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H
 # SCALAR-HEADER: #define TIANCHENRV_SCALAR_I32_VADD_MICROKERNEL_SCALAR_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H
 # SCALAR-HEADER: #include <stddef.h>
@@ -55,3 +69,42 @@
 # SCALAR-INDEX: route: "tcrv-export-scalar-microkernel-object"
 # SCALAR-INDEX: owner: "scalar-plugin"
 # SCALAR-INDEX: evidence_role: "relocatable-object"
+
+# SCALAR-VMUL-HEADER: #ifndef TIANCHENRV_SCALAR_I32_VMUL_MICROKERNEL_SCALAR_VMUL_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H
+# SCALAR-VMUL-HEADER: #define TIANCHENRV_SCALAR_I32_VMUL_MICROKERNEL_SCALAR_VMUL_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H
+# SCALAR-VMUL-HEADER: #include <stddef.h>
+# SCALAR-VMUL-HEADER: #include <stdint.h>
+# SCALAR-VMUL-HEADER: extern "C" {
+# SCALAR-VMUL-HEADER: void tcrv_scalar_i32_vmul_microkernel_scalar_vmul_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+# SCALAR-VMUL-HEADER: #endif /* TIANCHENRV_SCALAR_I32_VMUL_MICROKERNEL_SCALAR_VMUL_MICROKERNEL_EXPORT_SCALAR_FALLBACK_FIRST_SLICE_H */
+
+# SCALAR-VMUL-OBJ: Format: elf
+# SCALAR-VMUL-OBJ: Arch: riscv
+# SCALAR-VMUL-OBJ: Type: Relocatable
+# SCALAR-VMUL-OBJ: Name: tcrv_scalar_i32_vmul_microkernel_scalar_vmul_microkernel_export_scalar_fallback_first_slice
+
+# SCALAR-VMUL-INDEX: tianchenrv.target_artifact_bundle.version: 1
+# SCALAR-VMUL-INDEX: bundle_status: "complete"
+# SCALAR-VMUL-INDEX: artifact_count: 3
+# SCALAR-VMUL-INDEX: artifact[0]:
+# SCALAR-VMUL-INDEX: file_name: "artifact-0-runtime-callable-c-source-tcrv-export-scalar-i32-vmul-microkernel-c.c"
+# SCALAR-VMUL-INDEX: selected_variant: @scalar_fallback_first_slice
+# SCALAR-VMUL-INDEX: role: "direct variant"
+# SCALAR-VMUL-INDEX: artifact_kind: "runtime-callable-c-source"
+# SCALAR-VMUL-INDEX: route: "tcrv-export-scalar-i32-vmul-microkernel-c"
+# SCALAR-VMUL-INDEX: owner: "scalar-plugin"
+# SCALAR-VMUL-INDEX: runtime_abi_kind: "scalar-runtime-callable-c-abi"
+# SCALAR-VMUL-INDEX: runtime_abi_name: "scalar-i32-vmul-runtime-callable-c-function.v1"
+# SCALAR-VMUL-INDEX: evidence_role: "compiler-artifact"
+# SCALAR-VMUL-INDEX: artifact[1]:
+# SCALAR-VMUL-INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-scalar-i32-vmul-microkernel-header.h"
+# SCALAR-VMUL-INDEX: artifact_kind: "runtime-callable-c-header"
+# SCALAR-VMUL-INDEX: route: "tcrv-export-scalar-i32-vmul-microkernel-header"
+# SCALAR-VMUL-INDEX: owner: "scalar-plugin"
+# SCALAR-VMUL-INDEX: evidence_role: "header-declaration"
+# SCALAR-VMUL-INDEX: artifact[2]:
+# SCALAR-VMUL-INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-scalar-i32-vmul-microkernel-object.o"
+# SCALAR-VMUL-INDEX: artifact_kind: "riscv-elf-relocatable-object"
+# SCALAR-VMUL-INDEX: route: "tcrv-export-scalar-i32-vmul-microkernel-object"
+# SCALAR-VMUL-INDEX: owner: "scalar-plugin"
+# SCALAR-VMUL-INDEX: evidence_role: "relocatable-object"

@@ -113,6 +113,24 @@ inline std::string makeScalarRouteID(
       .str();
 }
 
+inline std::string makeScalarHeaderRouteID(
+    const rvv::RVVBinaryFamilyDescriptor &family) {
+  if (family.familyID == "i32-vadd")
+    return "tcrv-export-scalar-microkernel-header";
+  return (llvm::Twine("tcrv-export-scalar-") + family.familyID +
+          "-microkernel-header")
+      .str();
+}
+
+inline std::string makeScalarObjectRouteID(
+    const rvv::RVVBinaryFamilyDescriptor &family) {
+  if (family.familyID == "i32-vadd")
+    return "tcrv-export-scalar-microkernel-object";
+  return (llvm::Twine("tcrv-export-scalar-") + family.familyID +
+          "-microkernel-object")
+      .str();
+}
+
 inline std::string makeScalarRuntimeABI(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("scalar-") + family.familyID +
@@ -182,8 +200,8 @@ inline RVVScalarBinaryFamilyDescriptor makeFamilyDescriptor(
   descriptor.scalar.descriptor = family.loweringDescriptor.str();
   descriptor.scalar.emissionKind = makeScalarEmissionKind(family);
   descriptor.scalar.routeID = makeScalarRouteID(family);
-  descriptor.scalar.headerRouteID = "tcrv-export-scalar-microkernel-header";
-  descriptor.scalar.objectRouteID = "tcrv-export-scalar-microkernel-object";
+  descriptor.scalar.headerRouteID = makeScalarHeaderRouteID(family);
+  descriptor.scalar.objectRouteID = makeScalarObjectRouteID(family);
   descriptor.scalar.runtimeABI = makeScalarRuntimeABI(family);
   descriptor.scalar.runtimeABIKind = "scalar-runtime-callable-c-abi";
   descriptor.scalar.runtimeABIName = makeScalarRuntimeABIName(family);

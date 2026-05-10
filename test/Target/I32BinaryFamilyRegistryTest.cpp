@@ -217,22 +217,20 @@ int expectStandaloneFamilyExporterRoutes(
           /*expectedDirectHelperRoute=*/true))
     return result;
 
-  if (family.kind == I32BinaryFamilyKind::Add) {
-    if (int result = expectCompositeRoute(
-            registry, family.scalar.headerRouteID,
-            kRuntimeCallableCHeaderArtifactKind, kScalarPluginName,
-            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-            /*componentGroup=*/{}, /*externalABIName=*/{},
-            /*expectedDirectHelperRoute=*/false))
-      return result;
-    if (int result = expectCompositeRoute(
-            registry, family.scalar.objectRouteID,
-            kRiscvELFRelocatableObjectArtifactKind, kScalarPluginName,
-            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-            /*componentGroup=*/{}, /*externalABIName=*/{},
-            /*expectedDirectHelperRoute=*/false))
-      return result;
-  }
+  if (int result = expectCompositeRoute(
+          registry, family.scalar.headerRouteID,
+          kRuntimeCallableCHeaderArtifactKind, kScalarPluginName,
+          /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+          /*componentGroup=*/{}, /*externalABIName=*/{},
+          /*expectedDirectHelperRoute=*/false))
+    return result;
+  if (int result = expectCompositeRoute(
+          registry, family.scalar.objectRouteID,
+          kRiscvELFRelocatableObjectArtifactKind, kScalarPluginName,
+          /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+          /*componentGroup=*/{}, /*externalABIName=*/{},
+          /*expectedDirectHelperRoute=*/false))
+    return result;
 
   return 0;
 }
@@ -1182,6 +1180,23 @@ int main() {
             /*componentGroup=*/{}, /*externalABIName=*/{},
             /*expectedDirectHelperRoute=*/false))
       return result;
+  for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
+       rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+    if (int result = expectCompositeRoute(
+            registry, family->scalar.headerRouteID,
+            kRuntimeCallableCHeaderArtifactKind, kScalarPluginName,
+            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+            /*componentGroup=*/{}, /*externalABIName=*/{},
+            /*expectedDirectHelperRoute=*/false))
+      return result;
+    if (int result = expectCompositeRoute(
+            registry, family->scalar.objectRouteID,
+            kRiscvELFRelocatableObjectArtifactKind, kScalarPluginName,
+            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+            /*componentGroup=*/{}, /*externalABIName=*/{},
+            /*expectedDirectHelperRoute=*/false))
+      return result;
+  }
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
        rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))

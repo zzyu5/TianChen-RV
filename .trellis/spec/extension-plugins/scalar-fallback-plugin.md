@@ -280,13 +280,19 @@ selected role/fallback role, artifact kind, element count, required
 capabilities, runtime ABI kind/name, runtime glue role, and ABI parameter roles.
 
 The same validated callable source candidate may also feed two bounded scalar
-target artifact helpers:
+target artifact helpers. The i32-vadd route keeps the legacy helper names for
+compatibility, while the other finite i32/i64 add/sub/mul families use
+family-derived route ids:
 
 ```text
-header route: tcrv-export-scalar-microkernel-header
+legacy add header route: tcrv-export-scalar-microkernel-header
 header artifact kind: runtime-callable-c-header
-object route: tcrv-export-scalar-microkernel-object
+legacy add object route: tcrv-export-scalar-microkernel-object
 object artifact kind: riscv-elf-relocatable-object
+family header route pattern:
+  tcrv-export-scalar-<family>-microkernel-header
+family object route pattern:
+  tcrv-export-scalar-<family>-microkernel-object
 ```
 
 The header route emits only the single external C prototype derived from the
@@ -312,6 +318,7 @@ path and runtime ABI metadata. These helpers still do not add generic scalar
 lowering, arbitrary scalar source export, linking, runtime dispatch
 integration, broad correctness coverage, RVV hardware evidence, or performance
 evidence. Scalar fallback selected paths without a valid descriptor or explicit
-matching microkernel remain metadata-only. Header/object helper routes remain
-bounded to the existing scalar add callable unless a later task adds matching
-subtract helper routes and tests.
+matching microkernel remain metadata-only. Header/object helper routes are
+bounded to the same finite add/sub/mul i32/i64 scalar family set as the source
+routes; a helper route must reject stale source candidates from a different
+family before header/object output.
