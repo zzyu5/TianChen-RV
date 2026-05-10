@@ -693,14 +693,16 @@ int expectRVVBinaryFamilyRegistryShape() {
 
   llvm::ArrayRef<const rvv::RVVBinaryFamilyDescriptor *> families =
       rvv::getRVVBinaryFamilyDescriptors();
-  if (int result = expect(families.size() == 4,
-                          "RVV registry contains four binary families"))
+  if (int result = expect(families.size() == 6,
+                          "RVV registry contains six binary families"))
     return result;
   if (int result =
           expect(families[0] == &rvv::getI32VAddFamilyDescriptor() &&
                      families[1] == &rvv::getI32VSubFamilyDescriptor() &&
                      families[2] == &rvv::getI32VMulFamilyDescriptor() &&
-                     families[3] == &rvv::getI64VAddFamilyDescriptor(),
+                     families[3] == &rvv::getI64VAddFamilyDescriptor() &&
+                     families[4] == &rvv::getI64VSubFamilyDescriptor() &&
+                     families[5] == &rvv::getI64VMulFamilyDescriptor(),
                  "RVV registry preserves finite family order"))
     return result;
 
@@ -788,37 +790,43 @@ int expectRVVBinaryFamilyRegistryShape() {
               ->scalarCType == "int64_t",
           "RVV registry owns i64-vadd scalar C type"))
     return result;
-  return expect(!rvv::lookupRVVBinaryFamilyByFrontendLowering("i64-vsub"),
-                "RVV registry rejects unsupported families");
+  if (int result = expect(
+          rvv::lookupRVVBinaryFamilyByFrontendLowering("i64-vsub")
+                  ->runtimeABIName ==
+              "rvv-i64-vsub-runtime-callable-c-function.v1",
+          "RVV registry owns i64-vsub runtime ABI name"))
+    return result;
+  return expect(
+      rvv::lookupRVVBinaryFamilyByFrontendLowering("i64-vmul")->routeID ==
+          "tcrv-export-rvv-i64-vmul-microkernel-c",
+      "RVV registry owns i64-vmul route id");
 }
 
-int expectRVVI64VAddDescriptorShape() {
+int expectRVVBinaryI64DescriptorShape() {
+  namespace rvv = tianchenrv::target::rvv;
+
   using tianchenrv::target::rvv::getI64M1VectorShapeConfig;
   using tianchenrv::target::rvv::getI64VAddFamilyDescriptor;
   using tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor;
+  using tianchenrv::target::rvv::getI64VSubFamilyDescriptor;
+  using tianchenrv::target::rvv::getI64VSubIntrinsicDescriptor;
+  using tianchenrv::target::rvv::getI64VMulFamilyDescriptor;
+  using tianchenrv::target::rvv::getI64VMulIntrinsicDescriptor;
   using tianchenrv::target::rvv::lookupFiniteI64VectorShapeConfigByShapeID;
   using tianchenrv::target::rvv::lookupRVVBinaryFamilyByFrontendLowering;
   using tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor;
 
-  const auto &family = getI64VAddFamilyDescriptor();
   const auto &shape = getI64M1VectorShapeConfig();
-  auto descriptor = getI64VAddIntrinsicDescriptor();
+  struct Case {
+    const rvv::RVVBinaryFamilyDescriptor *family;
+    rvv::RVVBinaryIntrinsicDescriptor descriptor;
+  };
+  const Case cases[] = {
+      {&getI64VAddFamilyDescriptor(), getI64VAddIntrinsicDescriptor()},
+      {&getI64VSubFamilyDescriptor(), getI64VSubIntrinsicDescriptor()},
+      {&getI64VMulFamilyDescriptor(), getI64VMulIntrinsicDescriptor()},
+  };
 
-  if (int result = expect(family.dtypeID == "i64" &&
-                              family.frontendLowering == "i64-vadd" &&
-                              family.loweringDescriptor ==
-                                  "i64-vadd-microkernel.v1",
-                          "RVV i64 vadd family exposes dtype and descriptor"))
-    return result;
-  if (int result = expect(lookupRVVBinaryFamilyByFrontendLowering("i64-vadd") ==
-                              &family,
-                          "RVV binary lookup accepts i64 frontend lowering"))
-    return result;
-  if (int result = expect(
-          lookupRVVBinaryFamilyByLoweringDescriptor(
-              "i64-vadd-microkernel.v1") == &family,
-          "RVV binary lookup accepts i64 lowering descriptor"))
-    return result;
   if (int result = expect(lookupFiniteI64VectorShapeConfigByShapeID("i64m1") ==
                               &shape,
                           "RVV i64 shape lookup accepts i64m1"))
@@ -831,52 +839,86 @@ int expectRVVI64VAddDescriptorShape() {
                           "RVV i64m1 shape carries SEW64/vector spellings"))
     return result;
 
-  if (int result = expect(descriptor.getDTypeID() == "i64" &&
-                              descriptor.getShapeID() == "i64m1" &&
-                              descriptor.getScalarCType() == "int64_t" &&
-                              descriptor.getConstInputPointerCType() ==
-                                  "const int64_t *" &&
-                              descriptor.getOutputPointerCType() ==
-                                  "int64_t *",
-                          "RVV i64 vadd descriptor owns int64 ABI types"))
-    return result;
-  if (int result = expect(descriptor.getSetVLIntrinsicName() ==
-                                  "__riscv_vsetvl_e64m1" &&
-                              descriptor.getLoadIntrinsicName() ==
-                                  "__riscv_vle64_v_i64m1" &&
-                              descriptor.getArithmeticIntrinsicName() ==
-                                  "__riscv_vadd_vv_i64m1" &&
-                              descriptor.getStoreIntrinsicName() ==
-                                  "__riscv_vse64_v_i64m1",
-                          "RVV i64 vadd descriptor derives SEW64 intrinsics"))
-    return result;
-  if (int result = expect(descriptor.getRVVRouteID() ==
-                                  "tcrv-export-rvv-i64-vadd-microkernel-c" &&
-                              descriptor.getRVVRuntimeABIName() ==
-                                  "rvv-i64-vadd-runtime-callable-c-function.v1",
-                          "RVV i64 vadd descriptor owns source route and ABI"))
-    return result;
+  for (const Case &entry : cases) {
+    const auto &caseFamily = *entry.family;
+    const auto &descriptor = entry.descriptor;
+    llvm::StringRef expectedArithmeticIntrinsic;
+    switch (caseFamily.arithmetic) {
+    case rvv::RVVBinaryArithmeticKind::Add:
+      expectedArithmeticIntrinsic = "__riscv_vadd_vv_i64m1";
+      break;
+    case rvv::RVVBinaryArithmeticKind::Sub:
+      expectedArithmeticIntrinsic = "__riscv_vsub_vv_i64m1";
+      break;
+    case rvv::RVVBinaryArithmeticKind::Mul:
+      expectedArithmeticIntrinsic = "__riscv_vmul_vv_i64m1";
+      break;
+    }
+    if (int result = expect(caseFamily.dtypeID == "i64" &&
+                                caseFamily.frontendLowering ==
+                                    caseFamily.familyID &&
+                                caseFamily.loweringDescriptor ==
+                                    (llvm::Twine(caseFamily.familyID) +
+                                     "-microkernel.v1")
+                                        .str(),
+                            "RVV i64 family exposes dtype and descriptor"))
+      return result;
+    if (int result = expect(lookupRVVBinaryFamilyByFrontendLowering(
+                                caseFamily.frontendLowering) == &caseFamily,
+                            "RVV binary lookup accepts i64 frontend lowering"))
+      return result;
+    if (int result = expect(lookupRVVBinaryFamilyByLoweringDescriptor(
+                                caseFamily.loweringDescriptor) == &caseFamily,
+                            "RVV binary lookup accepts i64 lowering descriptor"))
+      return result;
+    if (int result = expect(descriptor.getDTypeID() == "i64" &&
+                                descriptor.getShapeID() == "i64m1" &&
+                                descriptor.getScalarCType() == "int64_t" &&
+                                descriptor.getConstInputPointerCType() ==
+                                    "const int64_t *" &&
+                                descriptor.getOutputPointerCType() ==
+                                    "int64_t *",
+                            "RVV i64 descriptor owns int64 ABI types"))
+      return result;
+    if (int result = expect(descriptor.getSetVLIntrinsicName() ==
+                                    "__riscv_vsetvl_e64m1" &&
+                                descriptor.getLoadIntrinsicName() ==
+                                    "__riscv_vle64_v_i64m1" &&
+                                descriptor.getArithmeticIntrinsicName() ==
+                                    expectedArithmeticIntrinsic &&
+                                descriptor.getStoreIntrinsicName() ==
+                                    "__riscv_vse64_v_i64m1",
+                            "RVV i64 descriptor derives SEW64 intrinsics"))
+      return result;
+    if (int result = expect(descriptor.getRVVRouteID() == caseFamily.routeID &&
+                                descriptor.getRVVRuntimeABIName() ==
+                                    caseFamily.runtimeABIName,
+                            "RVV i64 descriptor owns source route and ABI"))
+      return result;
 
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
-      descriptor.getCallableRuntimeABIParameters();
-  if (int result = expect(parameters.size() == 4 &&
-                              parameters[0].cType == "const int64_t *" &&
-                              parameters[1].cType == "const int64_t *" &&
-                              parameters[2].cType == "int64_t *" &&
-                              parameters[3].cType == "size_t",
-                          "RVV i64 vadd descriptor derives callable ABI"))
-    return result;
+    llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+        descriptor.getCallableRuntimeABIParameters();
+    if (int result = expect(parameters.size() == 4 &&
+                                parameters[0].cType == "const int64_t *" &&
+                                parameters[1].cType == "const int64_t *" &&
+                                parameters[2].cType == "int64_t *" &&
+                                parameters[3].cType == "size_t",
+                            "RVV i64 descriptor derives callable ABI"))
+      return result;
 
-  llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
-      descriptor.getSelectedShapeCapabilityIDs();
-  return expect(capabilityIDs.size() == 4 &&
-                    capabilityIDs[0] == "rvv.i64_m1.sew64" &&
-                    capabilityIDs[1] == "rvv.i64_m1.lmul_m1" &&
-                    capabilityIDs[2] ==
-                        "rvv.i64_m1.tail_policy.agnostic" &&
-                    capabilityIDs[3] ==
-                        "rvv.i64_m1.mask_policy.agnostic",
-                "RVV i64 vadd descriptor reports i64m1 capability ids");
+    llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
+        descriptor.getSelectedShapeCapabilityIDs();
+    if (int result = expect(capabilityIDs.size() == 4 &&
+                                capabilityIDs[0] == "rvv.i64_m1.sew64" &&
+                                capabilityIDs[1] == "rvv.i64_m1.lmul_m1" &&
+                                capabilityIDs[2] ==
+                                    "rvv.i64_m1.tail_policy.agnostic" &&
+                                capabilityIDs[3] ==
+                                    "rvv.i64_m1.mask_policy.agnostic",
+                            "RVV i64 descriptor reports i64m1 capability ids"))
+      return result;
+  }
+  return 0;
 }
 
 } // namespace
@@ -921,7 +963,7 @@ int main() {
     return result;
   if (int result = expectRVVBinaryFamilyRegistryShape())
     return result;
-  if (int result = expectRVVI64VAddDescriptorShape())
+  if (int result = expectRVVBinaryI64DescriptorShape())
     return result;
 
   TargetArtifactExporterRegistry registry;
@@ -941,14 +983,20 @@ int main() {
   for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectStandaloneFamilyExporterRoutes(registry, *family))
       return result;
-  if (int result = expectRoute(
-          registry, "tcrv-export-rvv-i64-vadd-microkernel-c",
-          kRuntimeCallableCSourceArtifactKind, kRVVPluginName,
-          "rvv-explicit-i64-vadd-microkernel-c-source",
-          "rvv-i64-vadd-microkernel-external-abi.v1",
-          "rvv-i64-vadd-runtime-callable-c-function.v1",
-          /*expectedDirectHelperRoute=*/true))
-    return result;
+  const rvv::RVVBinaryIntrinsicDescriptor i64Descriptors[] = {
+      rvv::getI64VAddIntrinsicDescriptor(),
+      rvv::getI64VSubIntrinsicDescriptor(),
+      rvv::getI64VMulIntrinsicDescriptor(),
+  };
+  for (const rvv::RVVBinaryIntrinsicDescriptor &descriptor : i64Descriptors)
+    if (int result = expectRoute(
+            registry, descriptor.getRVVRouteID(),
+            kRuntimeCallableCSourceArtifactKind, kRVVPluginName,
+            descriptor.family.emissionKind,
+            descriptor.getRVVExternalABIComponentGroup(),
+            descriptor.getRVVRuntimeABIName(),
+            /*expectedDirectHelperRoute=*/true))
+      return result;
   for (const I32BinaryFamilyDescriptor *family : families)
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
       return result;

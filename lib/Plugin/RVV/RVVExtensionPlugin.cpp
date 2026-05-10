@@ -268,6 +268,21 @@ struct RVVI64MicrokernelMaterializationPlan {
   std::optional<std::string> selectedMABI;
 };
 
+std::string formatRVVBinaryFamilyFrontendLoweringList() {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  bool first = true;
+  for (const RVVBinaryFamilyDescriptor *family :
+       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
+    if (!first)
+      stream << " or ";
+    stream << '\'' << family->frontendLowering << '\'';
+    first = false;
+  }
+  stream.flush();
+  return text;
+}
+
 struct RVVCapacityMetadata {
   std::int64_t vlenbBytes = 0;
   std::int64_t i32M1Lanes = 0;
@@ -1479,9 +1494,7 @@ buildI64MicrokernelMaterializationPlan(
       tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
           descriptor.getValue());
   if (!family ||
-      family->dtype != tianchenrv::target::rvv::RVVBinaryDTypeKind::I64 ||
-      family->arithmetic !=
-          tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add)
+      family->dtype != tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     return std::optional<RVVI64MicrokernelMaterializationPlan>();
 
   std::string descriptorContext =
@@ -1636,6 +1649,20 @@ getI32MicrokernelFamilyForOp(mlir::Operation *op) {
   return nullptr;
 }
 
+const RVVBinaryFamilyDescriptor *
+getI64MicrokernelFamilyForOp(mlir::Operation *op) {
+  if (!op)
+    return nullptr;
+  llvm::StringRef opName = op->getName().getStringRef();
+  for (const RVVBinaryFamilyDescriptor *family :
+       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
+    if (family->dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64 &&
+        family->microkernelOpName == opName)
+      return family;
+  }
+  return nullptr;
+}
+
 llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
                                                 tcrv::exec::VariantOp variant) {
   if (!kernel || kernel.getBody().empty())
@@ -1672,8 +1699,9 @@ llvm::Error rejectExistingRVVMicrokernelForSelectedPath(
   for (mlir::Operation &op : kernel.getBody().front()) {
     const RVVI32MicrokernelFamilySpec *family =
         getI32MicrokernelFamilyForOp(&op);
-    bool isI64VAdd = llvm::isa<tcrv::rvv::I64VAddMicrokernelOp>(op);
-    if (!family && !isI64VAdd)
+    const RVVBinaryFamilyDescriptor *i64Family =
+        getI64MicrokernelFamilyForOp(&op);
+    if (!family && !i64Family)
       continue;
 
     auto target =
@@ -1690,7 +1718,7 @@ llvm::Error rejectExistingRVVMicrokernelForSelectedPath(
     return makeRVVPluginError(
         llvm::Twine("requires no pre-existing ") +
         (family ? family->getRVV().microkernelOpName
-                : llvm::StringRef("tcrv_rvv.i64_vadd_microkernel")) +
+                : i64Family->microkernelOpName) +
         " for target @" +
         targetSymbol + " as " + expectedRole);
   }
@@ -2091,8 +2119,9 @@ findMatchingExplicitI64MicrokernelDescriptor(
   unsigned matches = 0;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<tcrv::rvv::I64VAddMicrokernelOp>(op);
-    if (!microkernel)
+    const RVVBinaryFamilyDescriptor *microkernelFamily =
+        getI64MicrokernelFamilyForOp(&op);
+    if (!microkernelFamily)
       continue;
 
     auto selectedVariant =
@@ -2105,11 +2134,18 @@ findMatchingExplicitI64MicrokernelDescriptor(
     if (selectedVariant.getValue() != variant.getSymName() ||
         role.getValue() != expectedRole) {
       return makeRVVPluginError(
-          llvm::Twine("stale ") + descriptor.getRVVMicrokernelOpName() +
+          llvm::Twine("stale ") + microkernelFamily->microkernelOpName +
           " for @" + selectedVariant.getValue() + " as " + role.getValue() +
           " is not the selected RVV emission plan path @" +
           variant.getSymName() + " as " + expectedRole);
     }
+
+    if (microkernelFamily->familyID != descriptor.family.familyID)
+      return makeRVVPluginError(
+          llvm::Twine("explicit RVV i64 microkernel emission plan for path @") +
+          variant.getSymName() + " as " + expectedRole + " requires " +
+          descriptor.getRVVMicrokernelOpName() + " but found " +
+          microkernelFamily->microkernelOpName);
 
     ++matches;
     if (llvm::Error error =
@@ -2230,19 +2266,8 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
     if (!lookup)
       return makeRVVPluginError(
           llvm::Twine("kernel @") + request.getKernel().getSymName() +
-          " frontend lowering family must be '" +
-          tianchenrv::target::rvv::getI32VAddFamilyDescriptor()
-              .frontendLowering +
-          "' or '" +
-          tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
-              .frontendLowering +
-          "' or '" +
-          tianchenrv::target::rvv::getI32VMulFamilyDescriptor()
-              .frontendLowering +
-          "' or '" +
-          tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
-              .frontendLowering +
-          "'");
+          " frontend lowering family must be " +
+          formatRVVBinaryFamilyFrontendLoweringList());
     requestedFamily = lookup;
   }
 
@@ -2560,16 +2585,15 @@ mlir::Operation *materializeRVVI64MicrokernelOp(
       llvm::cast<tcrv::rvv::I64LoadOp>(withVLBodyBuilder.create(rhsLoadState));
 
   mlir::OperationState arithmeticState(variant.getLoc(),
-                                       tcrv::rvv::I64AddOp::getOperationName());
+                                       plan.descriptor.getRVVOperationName());
   arithmeticState.addOperands(
       {lhsLoad.getLoaded(), rhsLoad.getLoaded(), setvl.getVl()});
   arithmeticState.addTypes(i64Vector);
-  auto add =
-      llvm::cast<tcrv::rvv::I64AddOp>(withVLBodyBuilder.create(arithmeticState));
+  mlir::Operation *arithmetic = withVLBodyBuilder.create(arithmeticState);
 
   mlir::OperationState storeState(variant.getLoc(),
                                   tcrv::rvv::I64StoreOp::getOperationName());
-  storeState.addOperands({add.getSum(), setvl.getVl()});
+  storeState.addOperands({arithmetic->getResult(0), setvl.getVl()});
   storeState.addAttribute(
       kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
@@ -2872,9 +2896,10 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
   if (!i64MicrokernelDescriptor)
     return i64MicrokernelDescriptor.takeError();
   if (*i64MicrokernelDescriptor) {
+    const RVVBinaryIntrinsicDescriptor &descriptor = **i64MicrokernelDescriptor;
     out = VariantEmissionStatus::getSupported(
         kRVVPluginName, request.getVariant().getSymName(),
-        "rvv-explicit-i64-vadd-microkernel-c-source-export");
+        (llvm::Twine(descriptor.family.emissionKind) + "-export").str());
     return llvm::Error::success();
   }
 
@@ -2961,15 +2986,19 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     return i64MicrokernelDescriptor.takeError();
   if (*i64MicrokernelDescriptor) {
     const RVVBinaryIntrinsicDescriptor &descriptor = **i64MicrokernelDescriptor;
+    std::string supportedMessage =
+        (llvm::Twine("explicit RVV i64 ") +
+         descriptor.family.arithmeticVerb +
+         " microkernel C source export provides a library-style "
+         "runtime-callable C ABI function for this selected path; this is not "
+         "generic dtype lowering, runtime correctness, or performance evidence")
+            .str();
     out = VariantEmissionPlan::getSupported(
         kRVVPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
         descriptor.family.emissionKind, descriptor.getRVVRouteID(),
         descriptor.getRVVRuntimeABI(), "runtime-callable-c-source",
-        "explicit RVV i64 vector-add microkernel C source export provides a "
-        "library-style runtime-callable C ABI function for this selected path; "
-        "this is not generic dtype lowering, runtime correctness, or "
-        "performance evidence");
+        supportedMessage);
     out.setRuntimeABIKind(descriptor.getRVVRuntimeABIKind());
     out.setRuntimeABIName(descriptor.getRVVRuntimeABIName());
     out.setRuntimeGlueRole(descriptor.getRVVRuntimeGlueRole());

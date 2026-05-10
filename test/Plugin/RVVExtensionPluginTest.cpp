@@ -53,9 +53,10 @@ using tianchenrv::tcrv::rvv::I32SubOp;
 using tianchenrv::tcrv::rvv::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::I64AddOp;
+using tianchenrv::tcrv::rvv::I64MulOp;
 using tianchenrv::tcrv::rvv::I64LoadOp;
 using tianchenrv::tcrv::rvv::I64M1VectorType;
-using tianchenrv::tcrv::rvv::I64VAddMicrokernelOp;
+using tianchenrv::tcrv::rvv::I64SubOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::SetVLOp;
@@ -278,21 +279,37 @@ I32VMulMicrokernelOp findRVVMulMicrokernel(
   return result;
 }
 
-I64VAddMicrokernelOp findRVVI64VAddMicrokernel(
-    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
-  I64VAddMicrokernelOp result;
+mlir::Operation *findRVVI64Microkernel(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol,
+    llvm::StringRef microkernelOpName) {
   if (!kernel || kernel.getBody().empty())
-    return result;
+    return nullptr;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I64VAddMicrokernelOp>(op);
-    if (!microkernel)
+    if (op.getName().getStringRef() != microkernelOpName)
       continue;
     auto selectedVariant =
         op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
     if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = microkernel;
+      return &op;
   }
-  return result;
+  return nullptr;
+}
+
+std::string getRVVFamilySymbolFragment(
+    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
+  std::string fragment = family.familyID.str();
+  for (char &character : fragment)
+    if (character == '-')
+      character = '_';
+  return fragment;
+}
+
+void replaceAll(std::string &text, llvm::StringRef from, llvm::StringRef to) {
+  std::size_t position = 0;
+  while ((position = text.find(from.str(), position)) != std::string::npos) {
+    text.replace(position, from.size(), to.str());
+    position += to.size();
+  }
 }
 
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
@@ -2075,8 +2092,16 @@ module {
                 "RVV i32m2 emission plan preserves vsub route");
 }
 
-int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
+int runRVVI64BinaryFamilyProposalMaterializationTest(
+    mlir::MLIRContext &context,
+    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
+  std::string familySymbol = getRVVFamilySymbolFragment(family);
+  std::string kernelSymbol = (llvm::Twine("rvv_") + familySymbol).str();
+  std::string frontendKernelSymbol =
+      (llvm::Twine("frontend_") + familySymbol).str();
+  std::string sourceFunctionSymbol =
+      (llvm::Twine("source_") + familySymbol).str();
+  std::string source = R"mlir(
 module {
   func.func @high_level_placeholder() {
     return
@@ -2138,13 +2163,17 @@ module {
   }
 }
 )mlir";
+  replaceAll(source, "rvv_i64_vadd", kernelSymbol);
+  replaceAll(source, "frontend_i64_vadd", frontendKernelSymbol);
+  replaceAll(source, "source_i64_vadd", sourceFunctionSymbol);
+  replaceAll(source, "i64-vadd", family.frontendLowering);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return fail("failed to parse RVV i64 proposal module");
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
-  KernelOp kernel = findKernel(*module, "rvv_i64_vadd");
+  KernelOp kernel = findKernel(*module, kernelSymbol);
   if (int result = expect(highLevelOp && kernel,
                           "RVV i64 proposal test has op and kernel"))
     return result;
@@ -2182,7 +2211,7 @@ module {
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.lowering_descriptor",
-          "i64-vadd-microkernel.v1"))
+          family.loweringDescriptor))
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
@@ -2208,7 +2237,7 @@ module {
 
   if (int result = expectStringAttr(variant.getOperation(),
                                     "tcrv_rvv.lowering_descriptor",
-                                    "i64-vadd-microkernel.v1"))
+                                    family.loweringDescriptor))
     return result;
   if (int result = expectStringAttr(variant.getOperation(),
                                     "tcrv_rvv.selected_vector_shape", "i64m1"))
@@ -2231,21 +2260,35 @@ module {
                           "RVV i64 boundary materialized"))
     return result;
 
-  I64VAddMicrokernelOp microkernel =
-      findRVVI64VAddMicrokernel(kernel, variant.getSymName());
+  mlir::Operation *microkernel =
+      findRVVI64Microkernel(kernel, variant.getSymName(),
+                            family.microkernelOpName);
   if (int result = expect(microkernel,
-                          "RVV i64 descriptor materializes i64 vadd op"))
+                          llvm::Twine("RVV i64 descriptor materializes ") +
+                              family.familyID + " op"))
     return result;
 
   SetVLOp setvl;
   I64LoadOp load;
-  I64AddOp add;
+  mlir::Value arithmeticResult;
   microkernel->walk([&](SetVLOp op) { setvl = op; });
   microkernel->walk([&](I64LoadOp op) {
     if (!load)
       load = op;
   });
-  microkernel->walk([&](I64AddOp op) { add = op; });
+  using RVVKind = tianchenrv::target::rvv::RVVBinaryArithmeticKind;
+  switch (family.arithmetic) {
+  case RVVKind::Add:
+    microkernel->walk([&](I64AddOp op) { arithmeticResult = op.getSum(); });
+    break;
+  case RVVKind::Sub:
+    microkernel->walk(
+        [&](I64SubOp op) { arithmeticResult = op.getDifference(); });
+    break;
+  case RVVKind::Mul:
+    microkernel->walk([&](I64MulOp op) { arithmeticResult = op.getProduct(); });
+    break;
+  }
 
   if (int result = expect(setvl && setvl.getSew() == 64 &&
                               setvl.getLmul() == "m1",
@@ -2256,7 +2299,8 @@ module {
                  "RVV i64 materialization emits i64m1 load type"))
     return result;
   if (int result =
-          expect(add && llvm::isa<I64M1VectorType>(add.getSum().getType()),
+          expect(arithmeticResult &&
+                     llvm::isa<I64M1VectorType>(arithmeticResult.getType()),
                  "RVV i64 materialization emits i64m1 arithmetic result"))
     return result;
 
@@ -2269,10 +2313,12 @@ module {
           "build RVV i64 emission plan"))
     return result;
   if (int result = expect(emissionPlan.isSupported() &&
+                              emissionPlan.getEmissionKind() ==
+                                  family.emissionKind &&
                               emissionPlan.getLoweringPipeline() ==
-                                  "tcrv-export-rvv-i64-vadd-microkernel-c" &&
+                                  family.routeID &&
                               emissionPlan.getRuntimeABIName() ==
-                                  "rvv-i64-vadd-runtime-callable-c-function.v1",
+                                  family.runtimeABIName,
                           "RVV i64 emission plan preserves route and ABI"))
     return result;
 
@@ -2284,6 +2330,21 @@ module {
                     parameters[2].cType == "int64_t *" &&
                     parameters[3].cType == "size_t",
                 "RVV i64 emission plan carries int64 callable ABI params");
+}
+
+int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {
+  return runRVVI64BinaryFamilyProposalMaterializationTest(
+      context, tianchenrv::target::rvv::getI64VAddFamilyDescriptor());
+}
+
+int runRVVI64VSubProposalMaterializationTest(mlir::MLIRContext &context) {
+  return runRVVI64BinaryFamilyProposalMaterializationTest(
+      context, tianchenrv::target::rvv::getI64VSubFamilyDescriptor());
+}
+
+int runRVVI64VMulProposalMaterializationTest(mlir::MLIRContext &context) {
+  return runRVVI64BinaryFamilyProposalMaterializationTest(
+      context, tianchenrv::target::rvv::getI64VMulFamilyDescriptor());
 }
 
 int runRVVI64VAddMissingCapabilityDeclinesTest(mlir::MLIRContext &context) {
@@ -2809,6 +2870,10 @@ int main() {
   if (int result = runRVVI32M2ProposalMaterializationTest(context))
     return result;
   if (int result = runRVVI64VAddProposalMaterializationTest(context))
+    return result;
+  if (int result = runRVVI64VSubProposalMaterializationTest(context))
+    return result;
+  if (int result = runRVVI64VMulProposalMaterializationTest(context))
     return result;
   if (int result = runRVVI64VAddMissingCapabilityDeclinesTest(context))
     return result;

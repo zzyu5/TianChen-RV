@@ -55,6 +55,67 @@ Initialized Trellis for TianChen-RV MLIR and replaced default web specs with lon
 - None - task complete
 
 
+## Session 13: RVV i64 binary sub/mul frontend artifact ssh evidence
+
+**Date**: 2026-05-10
+**Task**: RVV i64 binary sub/mul frontend artifact and ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Completed bounded `i64-vsub` and `i64-vmul` RVV binary family support through
+the descriptor-backed compiler path and collected real `ssh rvv` correctness
+evidence for compiler-generated linalg frontend artifacts.
+
+### Main Changes
+
+- Created Trellis task `05-10-rvv-i64-binary-sub-mul-frontend-artifact-ssh-evidence`.
+- Added `i64-vsub` and `i64-vmul` descriptors to the RVV-owned binary family
+  registry with family ids, frontend lowering strings, lowering descriptors,
+  route ids, header/object routes, runtime ABI names, glue roles, component
+  groups, C ABI metadata, intrinsic prefixes, and function/header stems.
+- Added descriptor-backed i64m1 intrinsic helpers for `__riscv_vsub_vv_i64m1`
+  and `__riscv_vmul_vv_i64m1`.
+- Added finite RVV dialect ops and verifiers for `tcrv_rvv.i64_sub`,
+  `tcrv_rvv.i64_mul`, `tcrv_rvv.i64_vsub_microkernel`, and
+  `tcrv_rvv.i64_vmul_microkernel`.
+- Generalized RVV plugin and target microkernel/export logic so i64 add/sub/mul
+  materialization, readiness, route validation, and emission plans are selected
+  from the RVV family descriptor instead of i64-vadd-only branches.
+- Added linalg frontend artifact lit tests, explicit microkernel lit fixtures,
+  a missing-i64m1 fail-closed test, C++ registry/plugin/exporter coverage, and
+  script dry-run coverage for the new frontend evidence modes.
+
+### Evidence
+
+- `ssh rvv` probe passed: host `ubuntu`, arch `riscv64`, compiler `/usr/bin/clang`.
+- `i64-vsub` real frontend evidence passed:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i64-vsub --lower-linalg-frontend --expect-selected-kernel frontend_i64_vsub --run-id codex-i64-vsub-frontend-ssh --overwrite`
+  Evidence dir: `artifacts/tmp/rvv_microkernel_e2e/codex-i64-vsub-frontend-ssh`.
+- `i64-vmul` real frontend evidence passed:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i64-vmul --lower-linalg-frontend --expect-selected-kernel frontend_i64_vmul --run-id codex-i64-vmul-frontend-ssh --overwrite`
+  Evidence dir: `artifacts/tmp/rvv_microkernel_e2e/codex-i64-vmul-frontend-ssh`.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit filter for new i64-vsub/i64-vmul, existing i64-vadd/i32,
+  and `rvv-microkernel-e2e` tests passed 37/37 selected tests.
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 184/184.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV binary family registry owner
 
 **Date**: 2026-05-10

@@ -64,8 +64,9 @@ using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::I64AddOp;
 using tianchenrv::tcrv::rvv::I64LoadOp;
 using tianchenrv::tcrv::rvv::I64M1VectorType;
+using tianchenrv::tcrv::rvv::I64MulOp;
 using tianchenrv::tcrv::rvv::I64StoreOp;
-using tianchenrv::tcrv::rvv::I64VAddMicrokernelOp;
+using tianchenrv::tcrv::rvv::I64SubOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
@@ -316,6 +317,31 @@ getI32MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
   const RVVI32MicrokernelFamilySpec &mulFamily = getI32VMulFamilySpec();
   if (routeID == mulFamily.routeID)
     return &mulFamily;
+  return nullptr;
+}
+
+const RVVBinaryFamilyDescriptor *
+getI64MicrokernelFamilyForOp(mlir::Operation *op) {
+  if (!op)
+    return nullptr;
+  llvm::StringRef opName = op->getName().getStringRef();
+  for (const RVVBinaryFamilyDescriptor *family :
+       getRVVBinaryFamilyDescriptors()) {
+    if (family->dtype == RVVBinaryDTypeKind::I64 &&
+        family->microkernelOpName == opName)
+      return family;
+  }
+  return nullptr;
+}
+
+const RVVBinaryFamilyDescriptor *
+getI64MicrokernelFamilyForSourceRoute(llvm::StringRef routeID) {
+  for (const RVVBinaryFamilyDescriptor *family :
+       getRVVBinaryFamilyDescriptors()) {
+    if (family->dtype == RVVBinaryDTypeKind::I64 &&
+        family->routeID == routeID)
+      return family;
+  }
   return nullptr;
 }
 
@@ -2345,7 +2371,7 @@ llvm::Error findAndValidateMicrokernel(
 llvm::Error validateI64MicrokernelForPath(
     KernelOp kernel, const SelectedPath &path, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
-    PolicyAttr expectedPolicy, I64VAddMicrokernelOp microkernel,
+    PolicyAttr expectedPolicy, mlir::Operation *microkernel,
     const RVVBinaryIntrinsicDescriptor &descriptor,
     const RVVI32VectorShapeConfig &selectedConfig,
     llvm::StringRef activeRouteID,
@@ -2363,7 +2389,7 @@ llvm::Error validateI64MicrokernelForPath(
 
   std::string sourceKernel;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
+          requireSafeStringAttr(kernel, microkernel,
                                 kSourceKernelAttrName,
                                 descriptor.getRVVMicrokernelOpName(),
                                 sourceKernel))
@@ -2377,7 +2403,7 @@ llvm::Error validateI64MicrokernelForPath(
 
   std::string origin;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
+          requireSafeStringAttr(kernel, microkernel,
                                 execDiagnostic::kOriginAttrName,
                                 descriptor.getRVVMicrokernelOpName(), origin))
     return error;
@@ -2388,7 +2414,7 @@ llvm::Error validateI64MicrokernelForPath(
 
   std::string role;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
+          requireSafeStringAttr(kernel, microkernel,
                                 execDiagnostic::kRoleAttrName,
                                 descriptor.getRVVMicrokernelOpName(), role))
     return error;
@@ -2420,7 +2446,7 @@ llvm::Error validateI64MicrokernelForPath(
 
   if (llvm::Error error =
           validateSelectedVectorShapeMetadata(
-              kernel, microkernel.getOperation(),
+              kernel, microkernel,
               descriptor.getRVVMicrokernelOpName(), selectedConfig,
               kBoundarySelectedVectorShapeAttrName,
               kBoundarySelectedVectorSEWAttrName,
@@ -2434,7 +2460,7 @@ llvm::Error validateI64MicrokernelForPath(
 
   std::string microkernelMarch;
   if (llvm::Error error =
-          requireSafeStringAttr(kernel, microkernel.getOperation(),
+          requireSafeStringAttr(kernel, microkernel,
                                 kRequiredMarchAttrName,
                                 descriptor.getRVVMicrokernelOpName(),
                                 microkernelMarch))
@@ -2550,34 +2576,69 @@ llvm::Error validateI64MicrokernelForPath(
     return makeMicrokernelError(
         kernel, llvm::Twine(descriptor.getRVVMicrokernelOpName()) +
                     " control-plane with_vl body requires exactly the finite "
-                    "tcrv_rvv.i64_load, tcrv_rvv.i64_load, tcrv_rvv.i64_add, "
-                    "tcrv_rvv.i64_store dataflow sequence");
+                    "tcrv_rvv.i64_load, tcrv_rvv.i64_load, " +
+                    descriptor.getRVVOperationName() +
+                    ", tcrv_rvv.i64_store dataflow sequence");
 
   auto lhsLoad = llvm::dyn_cast<I64LoadOp>(dataflowOps[0]);
   auto rhsLoad = llvm::dyn_cast<I64LoadOp>(dataflowOps[1]);
-  auto add = llvm::dyn_cast<I64AddOp>(dataflowOps[2]);
   auto store = llvm::dyn_cast<I64StoreOp>(dataflowOps[3]);
-  if (!lhsLoad || !rhsLoad || !add || !store)
+  mlir::Value arithmeticLHS;
+  mlir::Value arithmeticRHS;
+  mlir::Value arithmeticVL;
+  mlir::Value arithmeticResult;
+  if (auto add = llvm::dyn_cast<I64AddOp>(dataflowOps[2])) {
+    if (descriptor.family.arithmetic != RVVI32MicrokernelKind::Add)
+      return makeMicrokernelError(
+          kernel, "RVV i64 microkernel arithmetic op does not match selected "
+                  "family");
+    arithmeticLHS = add.getLhs();
+    arithmeticRHS = add.getRhs();
+    arithmeticVL = add.getVl();
+    arithmeticResult = add.getSum();
+  } else if (auto sub = llvm::dyn_cast<I64SubOp>(dataflowOps[2])) {
+    if (descriptor.family.arithmetic != RVVI32MicrokernelKind::Sub)
+      return makeMicrokernelError(
+          kernel, "RVV i64 microkernel arithmetic op does not match selected "
+                  "family");
+    arithmeticLHS = sub.getLhs();
+    arithmeticRHS = sub.getRhs();
+    arithmeticVL = sub.getVl();
+    arithmeticResult = sub.getDifference();
+  } else if (auto mul = llvm::dyn_cast<I64MulOp>(dataflowOps[2])) {
+    if (descriptor.family.arithmetic != RVVI32MicrokernelKind::Mul)
+      return makeMicrokernelError(
+          kernel, "RVV i64 microkernel arithmetic op does not match selected "
+                  "family");
+    arithmeticLHS = mul.getLhs();
+    arithmeticRHS = mul.getRhs();
+    arithmeticVL = mul.getVl();
+    arithmeticResult = mul.getProduct();
+  }
+  if (!lhsLoad || !rhsLoad || !arithmeticResult || !store)
     return makeMicrokernelError(
         kernel, llvm::Twine(descriptor.getRVVMicrokernelOpName()) +
                     " control-plane with_vl body requires exactly the finite "
-                    "tcrv_rvv.i64_load, tcrv_rvv.i64_load, tcrv_rvv.i64_add, "
-                    "tcrv_rvv.i64_store dataflow sequence");
+                    "tcrv_rvv.i64_load, tcrv_rvv.i64_load, " +
+                    descriptor.getRVVOperationName() +
+                    ", tcrv_rvv.i64_store dataflow sequence");
 
   if (lhsLoad.getVl() != withVL.getVl() ||
-      rhsLoad.getVl() != withVL.getVl() || add.getVl() != withVL.getVl() ||
+      rhsLoad.getVl() != withVL.getVl() ||
+      arithmeticVL != withVL.getVl() ||
       store.getVl() != withVL.getVl())
     return makeMicrokernelError(
         kernel, llvm::Twine(descriptor.getRVVMicrokernelOpName()) +
                     " requires every finite RVV i64 dataflow op to consume "
                     "the !tcrv_rvv.vl token owned by with_vl");
-  if (add.getLhs() != lhsLoad.getLoaded() ||
-      add.getRhs() != rhsLoad.getLoaded() ||
-      store.getValue() != add.getSum())
+  if (arithmeticLHS != lhsLoad.getLoaded() ||
+      arithmeticRHS != rhsLoad.getLoaded() ||
+      store.getValue() != arithmeticResult)
     return makeMicrokernelError(
         kernel, llvm::Twine(descriptor.getRVVMicrokernelOpName()) +
                     " requires finite RVV i64 dataflow SSA chain "
-                    "lhs-load,rhs-load -> add -> store");
+                    "lhs-load,rhs-load -> " +
+                    descriptor.family.arithmeticVerb + " -> store");
 
   if (llvm::Error error = requireDataflowValueLMUL(
           kernel, lhsLoad.getLoaded(), *config, "tcrv_rvv.i64_load result"))
@@ -2585,14 +2646,20 @@ llvm::Error validateI64MicrokernelForPath(
   if (llvm::Error error = requireDataflowValueLMUL(
           kernel, rhsLoad.getLoaded(), *config, "tcrv_rvv.i64_load result"))
     return error;
+  std::string arithmeticLHSContext =
+      (llvm::Twine(descriptor.getRVVOperationName()) + " lhs").str();
+  std::string arithmeticRHSContext =
+      (llvm::Twine(descriptor.getRVVOperationName()) + " rhs").str();
+  std::string arithmeticResultContext =
+      (llvm::Twine(descriptor.getRVVOperationName()) + " result").str();
   if (llvm::Error error = requireDataflowValueLMUL(
-          kernel, add.getLhs(), *config, "tcrv_rvv.i64_add lhs"))
+          kernel, arithmeticLHS, *config, arithmeticLHSContext))
     return error;
   if (llvm::Error error = requireDataflowValueLMUL(
-          kernel, add.getRhs(), *config, "tcrv_rvv.i64_add rhs"))
+          kernel, arithmeticRHS, *config, arithmeticRHSContext))
     return error;
   if (llvm::Error error = requireDataflowValueLMUL(
-          kernel, add.getSum(), *config, "tcrv_rvv.i64_add result"))
+          kernel, arithmeticResult, *config, arithmeticResultContext))
     return error;
   if (llvm::Error error = requireDataflowValueLMUL(
           kernel, store.getValue(), *config, "tcrv_rvv.i64_store value"))
@@ -2633,10 +2700,26 @@ llvm::Error validateI64MicrokernelForPath(
       makeLoadStep(*lhsRole, RVVI32VAddDataflowValue::LHSVector));
   dataflowPlan.steps.push_back(
       makeLoadStep(*rhsRole, RVVI32VAddDataflowValue::RHSVector));
-  dataflowPlan.steps.push_back(
-      makeAddStep(RVVI32VAddDataflowValue::LHSVector,
-                  RVVI32VAddDataflowValue::RHSVector,
-                  RVVI32VAddDataflowValue::ResultVector));
+  switch (descriptor.family.arithmetic) {
+  case RVVI32MicrokernelKind::Add:
+    dataflowPlan.steps.push_back(
+        makeAddStep(RVVI32VAddDataflowValue::LHSVector,
+                    RVVI32VAddDataflowValue::RHSVector,
+                    RVVI32VAddDataflowValue::ResultVector));
+    break;
+  case RVVI32MicrokernelKind::Sub:
+    dataflowPlan.steps.push_back(
+        makeSubStep(RVVI32VAddDataflowValue::LHSVector,
+                    RVVI32VAddDataflowValue::RHSVector,
+                    RVVI32VAddDataflowValue::ResultVector));
+    break;
+  case RVVI32MicrokernelKind::Mul:
+    dataflowPlan.steps.push_back(
+        makeMulStep(RVVI32VAddDataflowValue::LHSVector,
+                    RVVI32VAddDataflowValue::RHSVector,
+                    RVVI32VAddDataflowValue::ResultVector));
+    break;
+  }
   dataflowPlan.steps.push_back(
       makeStoreStep(*storeRole, RVVI32VAddDataflowValue::ResultVector));
 
@@ -2650,7 +2733,7 @@ llvm::Error findAndValidateI64Microkernel(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
-    PolicyAttr expectedPolicy, I64VAddMicrokernelOp &matchedMicrokernel,
+    PolicyAttr expectedPolicy, mlir::Operation *&matchedMicrokernel,
     const RVVBinaryIntrinsicDescriptor &descriptor,
     const RVVI32VectorShapeConfig &selectedConfig,
     llvm::StringRef activeRouteID,
@@ -2659,8 +2742,9 @@ llvm::Error findAndValidateI64Microkernel(
     RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I64VAddMicrokernelOp>(op);
-    if (!microkernel)
+    const RVVBinaryFamilyDescriptor *microkernelFamily =
+        getI64MicrokernelFamilyForOp(&op);
+    if (!microkernelFamily)
       continue;
 
     auto selectedVariant =
@@ -2674,15 +2758,21 @@ llvm::Error findAndValidateI64Microkernel(
     if (!selectedRVVPathKeys.count(key))
       return makeMicrokernelError(
           kernel, llvm::Twine("stale ") +
-                      descriptor.getRVVMicrokernelOpName() + " for @" +
+                      microkernelFamily->microkernelOpName + " for @" +
                       selectedVariant.getValue() + " as " + role.getValue() +
                       " is not selected by the current RVV microkernel "
                       "surface");
 
     if (selectedVariant.getValue() == getPathVariantSymbol(path) &&
         role.getValue() == path.role) {
+      if (microkernelFamily->familyID != descriptor.family.familyID)
+        return makeMicrokernelError(
+            kernel, llvm::Twine("selected RVV path @") +
+                        getPathVariantSymbol(path) + " as " + path.role +
+                        " requires " + descriptor.getRVVMicrokernelOpName() +
+                        " but found " + microkernelFamily->microkernelOpName);
       ++matches;
-      matchedMicrokernel = microkernel;
+      matchedMicrokernel = &op;
     }
   }
 
@@ -2972,7 +3062,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                       "' does not match selected vector-shape dtype '" +
                       (*selectedConfig)->dtypeID + "'");
 
-    I64VAddMicrokernelOp i64Microkernel;
+    mlir::Operation *i64Microkernel = nullptr;
     std::int64_t elementCount = 0;
     std::int64_t controlPlaneSEW = 0;
     std::string controlPlaneLMUL;
@@ -3702,29 +3792,30 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
 
 llvm::Error validateRVVMicrokernelSourceCandidate(
     const TargetArtifactCandidate &candidate) {
-  RVVBinaryIntrinsicDescriptor i64Descriptor = getI64VAddIntrinsicDescriptor();
-  if (candidate.routeID == i64Descriptor.getRVVRouteID()) {
-    if (!candidateMatchesRVVBinaryDescriptor(candidate, i64Descriptor))
+  if (const RVVBinaryFamilyDescriptor *i64Family =
+          getI64MicrokernelFamilyForSourceRoute(candidate.routeID)) {
+    RVVBinaryIntrinsicDescriptor descriptor =
+        getRVVBinaryIntrinsicDescriptor(*i64Family, getI64M1VectorShapeConfig());
+    if (!candidateMatchesRVVBinaryDescriptor(candidate, descriptor))
       return makeModuleMicrokernelError(
           llvm::Twine("target artifact route '") + candidate.routeID +
-          "' does not match supported RVV i64 vadd microkernel ABI metadata; "
+          "' does not match supported RVV i64 microkernel ABI metadata; "
           "expected emission_kind '" +
-          i64Descriptor.family.emissionKind + "', artifact_kind '" +
+          descriptor.family.emissionKind + "', artifact_kind '" +
           kMicrokernelArtifactKind + "', runtime_abi '" +
-          i64Descriptor.getRVVRuntimeABI() + "', runtime_abi_kind '" +
-          i64Descriptor.getRVVRuntimeABIKind() + "', runtime_abi_name '" +
-          i64Descriptor.getRVVRuntimeABIName() + "', runtime_glue_role '" +
-          i64Descriptor.getRVVRuntimeGlueRole() + "'");
+          descriptor.getRVVRuntimeABI() + "', runtime_abi_kind '" +
+          descriptor.getRVVRuntimeABIKind() + "', runtime_abi_name '" +
+          descriptor.getRVVRuntimeABIName() + "', runtime_glue_role '" +
+          descriptor.getRVVRuntimeGlueRole() + "'");
 
     TargetArtifactExporter sourceExporter(
-        i64Descriptor.getRVVRouteID(), kMicrokernelArtifactKind,
-        kRVVPluginName, i64Descriptor.family.emissionKind,
-        exportRVVMicrokernelC,
-        i64Descriptor.getCallableRuntimeABIRoleRequirements(),
+        descriptor.getRVVRouteID(), kMicrokernelArtifactKind,
+        kRVVPluginName, descriptor.family.emissionKind, exportRVVMicrokernelC,
+        descriptor.getCallableRuntimeABIRoleRequirements(),
         /*directHelperRoute=*/true, /*handoffKind=*/{},
         /*candidateValidationFn=*/nullptr,
-        i64Descriptor.getRVVExternalABIComponentGroup(),
-        i64Descriptor.getRVVRuntimeABIName());
+        descriptor.getRVVExternalABIComponentGroup(),
+        descriptor.getRVVRuntimeABIName());
     return validateTargetArtifactCandidateAgainstExporter(candidate,
                                                           sourceExporter);
   }
@@ -3734,7 +3825,7 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
   if (!family)
     return makeModuleMicrokernelError(
         llvm::Twine("target artifact route '") + candidate.routeID +
-        "' is not a supported RVV i32 microkernel source route");
+        "' is not a supported RVV i32 or i64 microkernel source route");
 
   if (!candidateMatchesRVVMicrokernelFamily(candidate, *family))
     return makeModuleMicrokernelError(
@@ -3804,12 +3895,30 @@ llvm::Expected<bool> matchRVVMicrokernelMulObjectCandidate(
                                              getI32VMulFamilySpec());
 }
 
-llvm::Expected<bool> matchRVVMicrokernelI64VAddObjectCandidate(
-    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+llvm::Expected<bool> matchRVVMicrokernelI64FamilyCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates,
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
   if (candidates.size() != 1)
     return false;
-  return candidateMatchesRVVBinaryDescriptor(candidates.front(),
-                                            getI64VAddIntrinsicDescriptor());
+  return candidateMatchesRVVBinaryDescriptor(candidates.front(), descriptor);
+}
+
+llvm::Expected<bool> matchRVVMicrokernelI64VAddObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  return matchRVVMicrokernelI64FamilyCandidate(
+      candidates, getI64VAddIntrinsicDescriptor());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelI64VSubObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  return matchRVVMicrokernelI64FamilyCandidate(
+      candidates, getI64VSubIntrinsicDescriptor());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelI64VMulObjectCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  return matchRVVMicrokernelI64FamilyCandidate(
+      candidates, getI64VMulIntrinsicDescriptor());
 }
 
 llvm::Expected<bool> matchRVVMicrokernelAddHeaderCandidate(
@@ -3838,10 +3947,20 @@ llvm::Expected<bool> matchRVVMicrokernelMulHeaderCandidate(
 
 llvm::Expected<bool> matchRVVMicrokernelI64VAddHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
-  if (candidates.size() != 1)
-    return false;
-  return candidateMatchesRVVBinaryDescriptor(candidates.front(),
-                                            getI64VAddIntrinsicDescriptor());
+  return matchRVVMicrokernelI64FamilyCandidate(
+      candidates, getI64VAddIntrinsicDescriptor());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelI64VSubHeaderCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  return matchRVVMicrokernelI64FamilyCandidate(
+      candidates, getI64VSubIntrinsicDescriptor());
+}
+
+llvm::Expected<bool> matchRVVMicrokernelI64VMulHeaderCandidate(
+    llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
+  return matchRVVMicrokernelI64FamilyCandidate(
+      candidates, getI64VMulIntrinsicDescriptor());
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
@@ -4175,6 +4294,10 @@ llvm::Error registerRVVMicrokernelTargetExporters(
 
   RVVBinaryIntrinsicDescriptor i64VAddDescriptor =
       getI64VAddIntrinsicDescriptor();
+  RVVBinaryIntrinsicDescriptor i64VSubDescriptor =
+      getI64VSubIntrinsicDescriptor();
+  RVVBinaryIntrinsicDescriptor i64VMulDescriptor =
+      getI64VMulIntrinsicDescriptor();
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           i64VAddDescriptor.getRVVRouteID(), kMicrokernelArtifactKind,
           kRVVPluginName, i64VAddDescriptor.family.emissionKind,
@@ -4184,6 +4307,28 @@ llvm::Error registerRVVMicrokernelTargetExporters(
           validateRVVMicrokernelSourceCandidate,
           i64VAddDescriptor.getRVVExternalABIComponentGroup(),
           i64VAddDescriptor.getRVVRuntimeABIName())))
+    return error;
+
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          i64VSubDescriptor.getRVVRouteID(), kMicrokernelArtifactKind,
+          kRVVPluginName, i64VSubDescriptor.family.emissionKind,
+          exportRVVMicrokernelC,
+          i64VSubDescriptor.getCallableRuntimeABIRoleRequirements(),
+          /*directHelperRoute=*/true, /*handoffKind=*/{},
+          validateRVVMicrokernelSourceCandidate,
+          i64VSubDescriptor.getRVVExternalABIComponentGroup(),
+          i64VSubDescriptor.getRVVRuntimeABIName())))
+    return error;
+
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          i64VMulDescriptor.getRVVRouteID(), kMicrokernelArtifactKind,
+          kRVVPluginName, i64VMulDescriptor.family.emissionKind,
+          exportRVVMicrokernelC,
+          i64VMulDescriptor.getCallableRuntimeABIRoleRequirements(),
+          /*directHelperRoute=*/true, /*handoffKind=*/{},
+          validateRVVMicrokernelSourceCandidate,
+          i64VMulDescriptor.getRVVExternalABIComponentGroup(),
+          i64VMulDescriptor.getRVVRuntimeABIName())))
     return error;
 
   if (llvm::Error error =
@@ -4239,6 +4384,36 @@ llvm::Error registerRVVMicrokernelTargetExporters(
 
   if (llvm::Error error =
           registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              i64VSubDescriptor.getRVVHeaderRouteID(),
+              kMicrokernelHeaderArtifactKind,
+              matchRVVMicrokernelI64VSubHeaderCandidate,
+              exportRVVMicrokernelHeader, kRVVPluginName,
+              i64VSubDescriptor.getRVVRuntimeABIKind(),
+              i64VSubDescriptor.getRVVRuntimeABIName(),
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true,
+              i64VSubDescriptor.getRVVExternalABIComponentGroup(),
+              i64VSubDescriptor.getRVVRuntimeABIName(),
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              i64VMulDescriptor.getRVVHeaderRouteID(),
+              kMicrokernelHeaderArtifactKind,
+              matchRVVMicrokernelI64VMulHeaderCandidate,
+              exportRVVMicrokernelHeader, kRVVPluginName,
+              i64VMulDescriptor.getRVVRuntimeABIKind(),
+              i64VMulDescriptor.getRVVRuntimeABIName(),
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true,
+              i64VMulDescriptor.getRVVExternalABIComponentGroup(),
+              i64VMulDescriptor.getRVVRuntimeABIName(),
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
               addFamily.objectRouteID, kMicrokernelObjectArtifactKind,
               matchRVVMicrokernelAddObjectCandidate,
               exportRVVMicrokernelObject, kRVVPluginName,
@@ -4273,15 +4448,45 @@ llvm::Error registerRVVMicrokernelTargetExporters(
               validateRVVMicrokernelCallableCandidatePreflight)))
     return error;
 
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              i64VAddDescriptor.getRVVObjectRouteID(),
+              kMicrokernelObjectArtifactKind,
+              matchRVVMicrokernelI64VAddObjectCandidate,
+              exportRVVMicrokernelObject, kRVVPluginName,
+              i64VAddDescriptor.getRVVRuntimeABIKind(),
+              i64VAddDescriptor.getRVVRuntimeABIName(),
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true,
+              i64VAddDescriptor.getRVVExternalABIComponentGroup(),
+              i64VAddDescriptor.getRVVRuntimeABIName(),
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
+  if (llvm::Error error =
+          registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+              i64VSubDescriptor.getRVVObjectRouteID(),
+              kMicrokernelObjectArtifactKind,
+              matchRVVMicrokernelI64VSubObjectCandidate,
+              exportRVVMicrokernelObject, kRVVPluginName,
+              i64VSubDescriptor.getRVVRuntimeABIKind(),
+              i64VSubDescriptor.getRVVRuntimeABIName(),
+              resolveRVVMicrokernelRuntimeABIParameters,
+              /*directHelperRoute=*/true,
+              i64VSubDescriptor.getRVVExternalABIComponentGroup(),
+              i64VSubDescriptor.getRVVRuntimeABIName(),
+              validateRVVMicrokernelCallableCandidatePreflight)))
+    return error;
+
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      i64VAddDescriptor.getRVVObjectRouteID(), kMicrokernelObjectArtifactKind,
-      matchRVVMicrokernelI64VAddObjectCandidate, exportRVVMicrokernelObject,
-      kRVVPluginName, i64VAddDescriptor.getRVVRuntimeABIKind(),
-      i64VAddDescriptor.getRVVRuntimeABIName(),
+      i64VMulDescriptor.getRVVObjectRouteID(), kMicrokernelObjectArtifactKind,
+      matchRVVMicrokernelI64VMulObjectCandidate, exportRVVMicrokernelObject,
+      kRVVPluginName, i64VMulDescriptor.getRVVRuntimeABIKind(),
+      i64VMulDescriptor.getRVVRuntimeABIName(),
       resolveRVVMicrokernelRuntimeABIParameters,
       /*directHelperRoute=*/true,
-      i64VAddDescriptor.getRVVExternalABIComponentGroup(),
-      i64VAddDescriptor.getRVVRuntimeABIName(),
+      i64VMulDescriptor.getRVVExternalABIComponentGroup(),
+      i64VMulDescriptor.getRVVRuntimeABIName(),
       validateRVVMicrokernelCallableCandidatePreflight));
 }
 

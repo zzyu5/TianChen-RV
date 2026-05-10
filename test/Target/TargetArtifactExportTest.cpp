@@ -1702,13 +1702,13 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 9) {
-    llvm::errs() << "expected exactly 9 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 11) {
+    llvm::errs() << "expected exactly 11 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 19) {
-    llvm::errs() << "expected exactly 19 built-in composite target artifact "
+  if (builtinRegistry.compositeSize() != 23) {
+    llvm::errs() << "expected exactly 23 built-in composite target artifact "
                     "routes, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
@@ -1765,20 +1765,25 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
           getMulRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
-  auto i64VAddDescriptor =
-      tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor();
-  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i64-vadd-microkernel-c",
-                   "runtime-callable-c-source", "rvv-plugin",
-                   "rvv-explicit-i64-vadd-microkernel-c-source", 4,
-                   /*expectedDirectHelperRoute=*/true,
-                   /*expectedHandoffKind=*/{},
-                   "rvv-i64-vadd-microkernel-external-abi.v1",
-                   "rvv-i64-vadd-runtime-callable-c-function.v1"))
-    return 1;
-  if (!expectRouteRuntimeABIParameters(
-          builtinRegistry, "tcrv-export-rvv-i64-vadd-microkernel-c",
-          i64VAddDescriptor.getCallableRuntimeABIRoleRequirements()))
-    return 1;
+  auto i64Families = {
+      tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor(),
+      tianchenrv::target::rvv::getI64VSubIntrinsicDescriptor(),
+      tianchenrv::target::rvv::getI64VMulIntrinsicDescriptor(),
+  };
+  for (const auto &descriptor : i64Families) {
+    if (!expectRoute(builtinRegistry, descriptor.getRVVRouteID(),
+                     "runtime-callable-c-source", "rvv-plugin",
+                     descriptor.family.emissionKind, 4,
+                     /*expectedDirectHelperRoute=*/true,
+                     /*expectedHandoffKind=*/{},
+                     descriptor.getRVVExternalABIComponentGroup(),
+                     descriptor.getRVVRuntimeABIName()))
+      return 1;
+    if (!expectRouteRuntimeABIParameters(
+            builtinRegistry, descriptor.getRVVRouteID(),
+            descriptor.getCallableRuntimeABIRoleRequirements()))
+      return 1;
+  }
   if (!expectRoute(builtinRegistry, "tcrv-export-scalar-microkernel-c",
                    "runtime-callable-c-source", "scalar-plugin",
                    "scalar-explicit-i32-vadd-microkernel-c-source", 4))
@@ -1883,62 +1888,62 @@ int main() {
           rvvMulExternalABIComponentGroup, rvvMulRuntimeABIName,
           /*expectedCandidateValidation=*/true))
     return 1;
-  if (!expectCompositeRoute(
-          builtinRegistry, "tcrv-export-rvv-i64-vadd-microkernel-header",
-          "runtime-callable-c-header", "rvv-plugin",
-          i64VAddDescriptor.getRVVRuntimeABIKind(),
-          i64VAddDescriptor.getRVVRuntimeABIName(),
-          /*expectedDirectHelperRoute=*/true,
-          i64VAddDescriptor.getRVVExternalABIComponentGroup(),
-          i64VAddDescriptor.getRVVRuntimeABIName(),
-          /*expectedCandidateValidation=*/true))
-    return 1;
-  if (!expectCompositeRoute(
-          builtinRegistry, "tcrv-export-rvv-i64-vadd-microkernel-object",
-          "riscv-elf-relocatable-object", "rvv-plugin",
-          i64VAddDescriptor.getRVVRuntimeABIKind(),
-          i64VAddDescriptor.getRVVRuntimeABIName(),
-          /*expectedDirectHelperRoute=*/true,
-          i64VAddDescriptor.getRVVExternalABIComponentGroup(),
-          i64VAddDescriptor.getRVVRuntimeABIName(),
-          /*expectedCandidateValidation=*/true))
-    return 1;
+  for (const auto &descriptor : i64Families) {
+    if (!expectCompositeRoute(
+            builtinRegistry, descriptor.getRVVHeaderRouteID(),
+            "runtime-callable-c-header", "rvv-plugin",
+            descriptor.getRVVRuntimeABIKind(), descriptor.getRVVRuntimeABIName(),
+            /*expectedDirectHelperRoute=*/true,
+            descriptor.getRVVExternalABIComponentGroup(),
+            descriptor.getRVVRuntimeABIName(),
+            /*expectedCandidateValidation=*/true))
+      return 1;
+    if (!expectCompositeRoute(
+            builtinRegistry, descriptor.getRVVObjectRouteID(),
+            "riscv-elf-relocatable-object", "rvv-plugin",
+            descriptor.getRVVRuntimeABIKind(), descriptor.getRVVRuntimeABIName(),
+            /*expectedDirectHelperRoute=*/true,
+            descriptor.getRVVExternalABIComponentGroup(),
+            descriptor.getRVVRuntimeABIName(),
+            /*expectedCandidateValidation=*/true))
+      return 1;
+  }
   const TargetArtifactCompositeExporter *rvvHeaderComposite =
       builtinRegistry.lookupComposite("tcrv-export-rvv-microkernel-header");
   const TargetArtifactCompositeExporter *rvvObjectComposite =
       builtinRegistry.lookupComposite("tcrv-export-rvv-microkernel-object");
-  const TargetArtifactCompositeExporter *rvvSubHeaderComposite =
-      builtinRegistry.lookupComposite(
-          "tcrv-export-rvv-i32-vsub-microkernel-header");
-  const TargetArtifactCompositeExporter *rvvSubObjectComposite =
-      builtinRegistry.lookupComposite(
-          "tcrv-export-rvv-i32-vsub-microkernel-object");
-  const TargetArtifactCompositeExporter *rvvMulHeaderComposite =
-      builtinRegistry.lookupComposite(
-          "tcrv-export-rvv-i32-vmul-microkernel-header");
-  const TargetArtifactCompositeExporter *rvvMulObjectComposite =
-      builtinRegistry.lookupComposite(
-          "tcrv-export-rvv-i32-vmul-microkernel-object");
   const TargetArtifactCompositeExporter *rvvI64VAddHeaderComposite =
       builtinRegistry.lookupComposite(
           "tcrv-export-rvv-i64-vadd-microkernel-header");
   const TargetArtifactCompositeExporter *rvvI64VAddObjectComposite =
       builtinRegistry.lookupComposite(
           "tcrv-export-rvv-i64-vadd-microkernel-object");
+  const TargetArtifactCompositeExporter *rvvI64VSubHeaderComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-i64-vsub-microkernel-header");
+  const TargetArtifactCompositeExporter *rvvI64VSubObjectComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-i64-vsub-microkernel-object");
+  const TargetArtifactCompositeExporter *rvvI64VMulHeaderComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-i64-vmul-microkernel-header");
+  const TargetArtifactCompositeExporter *rvvI64VMulObjectComposite =
+      builtinRegistry.lookupComposite(
+          "tcrv-export-rvv-i64-vmul-microkernel-object");
   if (!rvvHeaderComposite || !rvvHeaderComposite->getRuntimeABIParametersFn() ||
       !rvvObjectComposite || !rvvObjectComposite->getRuntimeABIParametersFn() ||
-      !rvvSubHeaderComposite ||
-      !rvvSubHeaderComposite->getRuntimeABIParametersFn() ||
-      !rvvSubObjectComposite ||
-      !rvvSubObjectComposite->getRuntimeABIParametersFn() ||
-      !rvvMulHeaderComposite ||
-      !rvvMulHeaderComposite->getRuntimeABIParametersFn() ||
-      !rvvMulObjectComposite ||
-      !rvvMulObjectComposite->getRuntimeABIParametersFn() ||
       !rvvI64VAddHeaderComposite ||
       !rvvI64VAddHeaderComposite->getRuntimeABIParametersFn() ||
       !rvvI64VAddObjectComposite ||
-      !rvvI64VAddObjectComposite->getRuntimeABIParametersFn()) {
+      !rvvI64VAddObjectComposite->getRuntimeABIParametersFn() ||
+      !rvvI64VSubHeaderComposite ||
+      !rvvI64VSubHeaderComposite->getRuntimeABIParametersFn() ||
+      !rvvI64VSubObjectComposite ||
+      !rvvI64VSubObjectComposite->getRuntimeABIParametersFn() ||
+      !rvvI64VMulHeaderComposite ||
+      !rvvI64VMulHeaderComposite->getRuntimeABIParametersFn() ||
+      !rvvI64VMulObjectComposite ||
+      !rvvI64VMulObjectComposite->getRuntimeABIParametersFn()) {
     llvm::errs() << "RVV microkernel header/object composites must publish "
                     "runtime ABI parameters through route-local C++ callbacks\n";
     return 1;

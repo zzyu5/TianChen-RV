@@ -256,6 +256,14 @@ bool isAllowedI64AddAttr(llvm::StringRef name) {
   return false;
 }
 
+bool isAllowedI64SubAttr(llvm::StringRef name) {
+  return false;
+}
+
+bool isAllowedI64MulAttr(llvm::StringRef name) {
+  return false;
+}
+
 bool isAllowedI64StoreAttr(llvm::StringRef name) {
   return name == kBufferRoleAttrName;
 }
@@ -474,19 +482,75 @@ getEnclosingI32MicrokernelArithmetic(mlir::Operation *op) {
   return std::nullopt;
 }
 
-bool isNestedUnderI64VAddMicrokernel(mlir::Operation *op) {
-  return static_cast<bool>(op->getParentOfType<I64VAddMicrokernelOp>());
+enum class I64MicrokernelArithmetic {
+  Add,
+  Sub,
+  Mul,
+};
+
+struct I64MicrokernelFamilySpec {
+  I64MicrokernelArithmetic arithmetic;
+  llvm::StringRef microkernelOpName;
+  llvm::StringRef arithmeticOpName;
+  llvm::StringRef arithmeticVerb;
+};
+
+const I64MicrokernelFamilySpec &
+getI64MicrokernelFamilySpec(I64MicrokernelArithmetic arithmetic) {
+  static const I64MicrokernelFamilySpec addSpec{
+      I64MicrokernelArithmetic::Add, "tcrv_rvv.i64_vadd_microkernel",
+      "tcrv_rvv.i64_add", "add"};
+  static const I64MicrokernelFamilySpec subSpec{
+      I64MicrokernelArithmetic::Sub, "tcrv_rvv.i64_vsub_microkernel",
+      "tcrv_rvv.i64_sub", "subtract"};
+  static const I64MicrokernelFamilySpec mulSpec{
+      I64MicrokernelArithmetic::Mul, "tcrv_rvv.i64_vmul_microkernel",
+      "tcrv_rvv.i64_mul", "multiply"};
+  switch (arithmetic) {
+  case I64MicrokernelArithmetic::Add:
+    return addSpec;
+  case I64MicrokernelArithmetic::Sub:
+    return subSpec;
+  case I64MicrokernelArithmetic::Mul:
+    return mulSpec;
+  }
+  llvm_unreachable("unknown RVV i64 microkernel arithmetic");
 }
 
-mlir::LogicalResult verifyNestedI64DataflowOp(mlir::Operation *op) {
+std::optional<I64MicrokernelArithmetic>
+getEnclosingI64MicrokernelArithmetic(mlir::Operation *op) {
+  if (op->getParentOfType<I64VAddMicrokernelOp>())
+    return I64MicrokernelArithmetic::Add;
+  if (op->getParentOfType<I64VSubMicrokernelOp>())
+    return I64MicrokernelArithmetic::Sub;
+  if (op->getParentOfType<I64VMulMicrokernelOp>())
+    return I64MicrokernelArithmetic::Mul;
+  return std::nullopt;
+}
+
+mlir::LogicalResult verifyNestedI64DataflowOp(
+    mlir::Operation *op,
+    std::optional<I64MicrokernelArithmetic> requiredArithmetic =
+        std::nullopt) {
   if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
     return op->emitOpError()
            << "must be nested directly in a tcrv_rvv.with_vl body";
-  if (!isNestedUnderI64VAddMicrokernel(op))
+  std::optional<I64MicrokernelArithmetic> enclosingArithmetic =
+      getEnclosingI64MicrokernelArithmetic(op);
+  if (!enclosingArithmetic)
     return op->emitOpError()
-           << "must be nested under tcrv_rvv.i64_vadd_microkernel; it is a "
-              "finite i64 microkernel dataflow op, not a standalone RVV "
-              "compute op";
+           << "must be nested under tcrv_rvv.i64_vadd_microkernel, "
+              "tcrv_rvv.i64_vsub_microkernel, or "
+              "tcrv_rvv.i64_vmul_microkernel; it is a finite i64 microkernel "
+              "dataflow op, not a standalone RVV compute op";
+  if (requiredArithmetic && *requiredArithmetic != *enclosingArithmetic) {
+    const I64MicrokernelFamilySpec &requiredSpec =
+        getI64MicrokernelFamilySpec(*requiredArithmetic);
+    return op->emitOpError()
+           << "must be nested under " << requiredSpec.microkernelOpName
+           << "; the bounded RVV i64 family keeps arithmetic semantics tied "
+              "to the enclosing microkernel op";
+  }
   if (op->getNumRegions() != 0)
     return op->emitOpError() << "does not own regions";
   return mlir::success();
@@ -556,6 +620,42 @@ bool matchArithmeticOp(mlir::Operation *op,
     return false;
   }
   llvm_unreachable("unknown RVV i32 microkernel arithmetic");
+}
+
+bool matchI64ArithmeticOp(mlir::Operation *op,
+                          I64MicrokernelArithmetic arithmetic,
+                          mlir::Value &lhs, mlir::Value &rhs, mlir::Value &vl,
+                          mlir::Value &result) {
+  switch (arithmetic) {
+  case I64MicrokernelArithmetic::Add:
+    if (auto add = llvm::dyn_cast<I64AddOp>(op)) {
+      lhs = add.getLhs();
+      rhs = add.getRhs();
+      vl = add.getVl();
+      result = add.getSum();
+      return true;
+    }
+    return false;
+  case I64MicrokernelArithmetic::Sub:
+    if (auto sub = llvm::dyn_cast<I64SubOp>(op)) {
+      lhs = sub.getLhs();
+      rhs = sub.getRhs();
+      vl = sub.getVl();
+      result = sub.getDifference();
+      return true;
+    }
+    return false;
+  case I64MicrokernelArithmetic::Mul:
+    if (auto mul = llvm::dyn_cast<I64MulOp>(op)) {
+      lhs = mul.getLhs();
+      rhs = mul.getRhs();
+      vl = mul.getVl();
+      result = mul.getProduct();
+      return true;
+    }
+    return false;
+  }
+  llvm_unreachable("unknown RVV i64 microkernel arithmetic");
 }
 
 mlir::LogicalResult
@@ -705,8 +805,8 @@ verifyMicrokernelStructuredControlPlane(
   return mlir::success();
 }
 
-mlir::LogicalResult
-verifyI64VAddMicrokernelStructuredControlPlane(mlir::Operation *microkernel) {
+mlir::LogicalResult verifyI64MicrokernelStructuredControlPlane(
+    mlir::Operation *microkernel, const I64MicrokernelFamilySpec &family) {
   mlir::Region &body = microkernel->getRegion(0);
   if (body.empty() || !llvm::hasSingleElement(body))
     return microkernel->emitOpError()
@@ -769,7 +869,7 @@ verifyI64VAddMicrokernelStructuredControlPlane(mlir::Operation *microkernel) {
   if (setvl.getSew() != 64 || setvl.getLmul() != "m1" ||
       withVLSew.getInt() != 64 || withVLLMUL.getValue() != "m1")
     return microkernel->emitOpError()
-           << "requires finite i64 vadd control-plane config SEW64/LMUL m1";
+           << "requires finite RVV i64 control-plane config SEW64/LMUL m1";
 
   mlir::Region &withVLBody = withVL.getBody();
   if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
@@ -787,21 +887,29 @@ verifyI64VAddMicrokernelStructuredControlPlane(mlir::Operation *microkernel) {
   if (ops.size() != 4)
     return microkernel->emitOpError()
            << "requires tcrv_rvv.with_vl body to contain exactly the finite "
-              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, tcrv_rvv.i64_add, "
+              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, "
+           << family.arithmeticOpName << ", "
               "tcrv_rvv.i64_store dataflow sequence";
 
   auto lhsLoad = llvm::dyn_cast<I64LoadOp>(ops[0]);
   auto rhsLoad = llvm::dyn_cast<I64LoadOp>(ops[1]);
-  auto add = llvm::dyn_cast<I64AddOp>(ops[2]);
+  mlir::Value arithmeticLHS;
+  mlir::Value arithmeticRHS;
+  mlir::Value arithmeticVL;
+  mlir::Value arithmeticResult;
+  bool hasArithmetic = matchI64ArithmeticOp(ops[2], family.arithmetic,
+                                            arithmeticLHS, arithmeticRHS,
+                                            arithmeticVL, arithmeticResult);
   auto store = llvm::dyn_cast<I64StoreOp>(ops[3]);
-  if (!lhsLoad || !rhsLoad || !add || !store)
+  if (!lhsLoad || !rhsLoad || !hasArithmetic || !store)
     return microkernel->emitOpError()
            << "requires tcrv_rvv.with_vl body to contain exactly the finite "
-              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, tcrv_rvv.i64_add, "
+              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, "
+           << family.arithmeticOpName << ", "
               "tcrv_rvv.i64_store dataflow sequence";
 
   if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
-      add.getVl() != withVL.getVl() || store.getVl() != withVL.getVl())
+      arithmeticVL != withVL.getVl() || store.getVl() != withVL.getVl())
     return microkernel->emitOpError()
            << "requires every finite RVV i64 dataflow op to consume the "
               "!tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl";
@@ -831,11 +939,13 @@ verifyI64VAddMicrokernelStructuredControlPlane(mlir::Operation *microkernel) {
            << "requires tcrv_rvv.i64_store to reference runtime ABI role "
               "'output-buffer'";
 
-  if (add.getLhs() != lhsLoad.getLoaded() ||
-      add.getRhs() != rhsLoad.getLoaded() || store.getValue() != add.getSum())
+  if (arithmeticLHS != lhsLoad.getLoaded() ||
+      arithmeticRHS != rhsLoad.getLoaded() ||
+      store.getValue() != arithmeticResult)
     return microkernel->emitOpError()
            << "requires finite RVV i64 dataflow SSA chain "
-              "lhs-load,rhs-load -> add -> store";
+              "lhs-load,rhs-load -> "
+           << family.arithmeticVerb << " -> store";
 
   return mlir::success();
 }
@@ -1273,13 +1383,104 @@ mlir::LogicalResult I64AddOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
            << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI64DataflowOp(op)))
+  if (mlir::failed(
+          verifyNestedI64DataflowOp(op, I64MicrokernelArithmetic::Add)))
     return mlir::failure();
   if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
   if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
     return mlir::failure();
   return verifyI64VectorTypeForWithVL(op, getSum(), "result");
+}
+
+mlir::LogicalResult I64SubOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i64_sub keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "element_count as descriptor-local microkernel metadata";
+
+    if (!isAllowedI64SubAttr(attrName))
+      return emitOpError()
+             << "does not accept dataflow attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs bounded RVV i64 vector operands, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i64 vector result";
+  if (!isI64M1Vector(getLhs().getType()) ||
+      !isI64M1Vector(getRhs().getType()) ||
+      !isI64M1Vector(getDifference().getType()))
+    return emitOpError()
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i64m1";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getDifference().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same bounded RVV "
+              "i64 vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  if (mlir::failed(
+          verifyNestedI64DataflowOp(op, I64MicrokernelArithmetic::Sub)))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyI64VectorTypeForWithVL(op, getDifference(), "result");
+}
+
+mlir::LogicalResult I64MulOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i64_mul keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "element_count as descriptor-local microkernel metadata";
+
+    if (!isAllowedI64MulAttr(attrName))
+      return emitOpError()
+             << "does not accept dataflow attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs bounded RVV i64 vector operands, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i64 vector result";
+  if (!isI64M1Vector(getLhs().getType()) ||
+      !isI64M1Vector(getRhs().getType()) ||
+      !isI64M1Vector(getProduct().getType()))
+    return emitOpError()
+           << "requires lhs, rhs, and result types to be !tcrv_rvv.i64m1";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getProduct().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same bounded RVV "
+              "i64 vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  if (mlir::failed(
+          verifyNestedI64DataflowOp(op, I64MicrokernelArithmetic::Mul)))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyI64VectorTypeForWithVL(op, getProduct(), "result");
 }
 
 mlir::LogicalResult I64StoreOp::verify() {
@@ -1673,9 +1874,8 @@ verifyI32MicrokernelOp(mlir::Operation *op,
   return mlir::success();
 }
 
-mlir::LogicalResult verifyI64VAddMicrokernelOp(mlir::Operation *op) {
-  constexpr llvm::StringLiteral kMicrokernelOpName(
-      "tcrv_rvv.i64_vadd_microkernel");
+mlir::LogicalResult verifyI64MicrokernelOp(
+    mlir::Operation *op, const I64MicrokernelFamilySpec &family) {
   auto emitOpError = [&]() { return op->emitOpError(); };
 
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -1684,8 +1884,8 @@ mlir::LogicalResult verifyI64VAddMicrokernelOp(mlir::Operation *op) {
              << "does not accept generic tensor/tile/benchmark or unknown "
                 "attribute '"
              << attr.getName()
-             << "'; this op is exactly a bounded RVV i64 vector-add "
-                "microkernel";
+             << "'; this op is exactly a bounded RVV i64 vector "
+             << family.arithmeticVerb << " microkernel";
   }
 
   if (hasMissingOrEmptyStringAttr(op, kSourceKernelAttrName))
@@ -1860,10 +2060,9 @@ mlir::LogicalResult verifyI64VAddMicrokernelOp(mlir::Operation *op) {
     return emitOpError()
            << "required_capabilities must include capability id 'rvv'";
 
-  if (mlir::failed(verifyI64VAddMicrokernelStructuredControlPlane(op)))
+  if (mlir::failed(verifyI64MicrokernelStructuredControlPlane(op, family)))
     return mlir::failure();
 
-  (void)kMicrokernelOpName;
   return mlir::success();
 }
 
@@ -1886,7 +2085,21 @@ mlir::LogicalResult I32VMulMicrokernelOp::verify() {
 }
 
 mlir::LogicalResult I64VAddMicrokernelOp::verify() {
-  return verifyI64VAddMicrokernelOp(getOperation());
+  return verifyI64MicrokernelOp(
+      getOperation(),
+      getI64MicrokernelFamilySpec(I64MicrokernelArithmetic::Add));
+}
+
+mlir::LogicalResult I64VSubMicrokernelOp::verify() {
+  return verifyI64MicrokernelOp(
+      getOperation(),
+      getI64MicrokernelFamilySpec(I64MicrokernelArithmetic::Sub));
+}
+
+mlir::LogicalResult I64VMulMicrokernelOp::verify() {
+  return verifyI64MicrokernelOp(
+      getOperation(),
+      getI64MicrokernelFamilySpec(I64MicrokernelArithmetic::Mul));
 }
 
 void TCRVRVVDialect::initialize() {

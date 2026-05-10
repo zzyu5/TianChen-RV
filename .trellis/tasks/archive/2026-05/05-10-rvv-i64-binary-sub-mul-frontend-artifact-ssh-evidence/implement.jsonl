@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Keep TianChen-RV scoped as capability-driven post-MLIR execution layer and require ssh rvv for RVV runtime claims."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Define RVV plugin-local responsibilities, finite RVV microkernel boundaries, capability gates, and selected-shape metadata."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Ensure new i64 family behavior stays plugin/target-local and does not enter generic core branches."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Preserve plugin proposal, legality, readiness, lowering-boundary, and emission-plan interface contracts."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Preserve target-owned artifact export, runtime ABI parameter, route, header/object, and evidence boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Guide focused lit/C++/runtime evidence coverage for MLIR and RVV artifact behavior."}

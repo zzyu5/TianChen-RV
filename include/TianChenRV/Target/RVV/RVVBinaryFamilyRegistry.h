@@ -183,11 +183,78 @@ inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
   return descriptor;
 }
 
+inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
+  static const RVVBinaryFamilyDescriptor descriptor{
+      RVVBinaryDTypeKind::I64,
+      RVVBinaryArithmeticKind::Sub,
+      "i64",
+      64,
+      "i64-vsub",
+      "i64-vsub",
+      "i64-vsub-microkernel.v1",
+      "finite i64-vsub lowering descriptor",
+      "tcrv_rvv.i64_vsub_microkernel",
+      "tcrv_rvv.i64_sub",
+      "subtract",
+      "i64_vsub",
+      "I64_VSUB",
+      "__riscv_vsub_vv_",
+      "difference_vec",
+      "rvv-explicit-i64-vsub-microkernel-c-source",
+      "tcrv-export-rvv-i64-vsub-microkernel-c",
+      "tcrv-export-rvv-i64-vsub-microkernel-header",
+      "tcrv-export-rvv-i64-vsub-microkernel-object",
+      "rvv-i64-vsub-runtime-callable-c-abi.v1",
+      "rvv-runtime-callable-c-abi",
+      "rvv-i64-vsub-runtime-callable-c-function.v1",
+      "runtime-callable-i64-vsub-function",
+      "rvv-i64-vsub-microkernel-external-abi.v1",
+      "-",
+      "int64_t",
+      "const int64_t *",
+      "int64_t *"};
+  return descriptor;
+}
+
+inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
+  static const RVVBinaryFamilyDescriptor descriptor{
+      RVVBinaryDTypeKind::I64,
+      RVVBinaryArithmeticKind::Mul,
+      "i64",
+      64,
+      "i64-vmul",
+      "i64-vmul",
+      "i64-vmul-microkernel.v1",
+      "finite i64-vmul lowering descriptor",
+      "tcrv_rvv.i64_vmul_microkernel",
+      "tcrv_rvv.i64_mul",
+      "multiply",
+      "i64_vmul",
+      "I64_VMUL",
+      "__riscv_vmul_vv_",
+      "product_vec",
+      "rvv-explicit-i64-vmul-microkernel-c-source",
+      "tcrv-export-rvv-i64-vmul-microkernel-c",
+      "tcrv-export-rvv-i64-vmul-microkernel-header",
+      "tcrv-export-rvv-i64-vmul-microkernel-object",
+      "rvv-i64-vmul-runtime-callable-c-abi.v1",
+      "rvv-runtime-callable-c-abi",
+      "rvv-i64-vmul-runtime-callable-c-function.v1",
+      "runtime-callable-i64-vmul-function",
+      "rvv-i64-vmul-microkernel-external-abi.v1",
+      "*",
+      "int64_t",
+      "const int64_t *",
+      "int64_t *"};
+  return descriptor;
+}
+
 inline llvm::ArrayRef<const RVVBinaryFamilyDescriptor *>
 getRVVBinaryFamilyDescriptors() {
   static const RVVBinaryFamilyDescriptor *families[] = {
       &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor(),
-      &getI32VMulFamilyDescriptor(), &getI64VAddFamilyDescriptor()};
+      &getI32VMulFamilyDescriptor(), &getI64VAddFamilyDescriptor(),
+      &getI64VSubFamilyDescriptor(), &getI64VMulFamilyDescriptor()};
   return llvm::ArrayRef(families);
 }
 

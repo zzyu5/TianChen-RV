@@ -250,6 +250,16 @@ inline RVVBinaryIntrinsicDescriptor getI64VAddIntrinsicDescriptor() {
                                          getI64M1VectorShapeConfig());
 }
 
+inline RVVBinaryIntrinsicDescriptor getI64VSubIntrinsicDescriptor() {
+  return getRVVBinaryIntrinsicDescriptor(getI64VSubFamilyDescriptor(),
+                                         getI64M1VectorShapeConfig());
+}
+
+inline RVVBinaryIntrinsicDescriptor getI64VMulIntrinsicDescriptor() {
+  return getRVVBinaryIntrinsicDescriptor(getI64VMulFamilyDescriptor(),
+                                         getI64M1VectorShapeConfig());
+}
+
 inline RVVBinaryIntrinsicDescriptor getI32VAddIntrinsicDescriptor(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
   return getRVVBinaryIntrinsicDescriptor(getI32VAddFamilyDescriptor(), shape);
