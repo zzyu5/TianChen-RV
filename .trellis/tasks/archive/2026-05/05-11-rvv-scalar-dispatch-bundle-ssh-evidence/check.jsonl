@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Project invariants and spec routing for final check"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check evidence scope and ssh RVV claims"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check bundle index and dispatch ABI contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite family and no broad backend claim"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback ABI and no scalar performance claim"}

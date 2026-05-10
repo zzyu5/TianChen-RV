@@ -59,6 +59,67 @@ and required capability metadata from `RVVExtensionPlugin.cpp` into
 [OK] **Completed and archived**
 
 
+## Session 29: RVV+scalar dispatch bundle ssh RVV evidence
+
+**Date**: 2026-05-11
+**Task**: RVV+scalar dispatch bundle ssh rvv compile/run evidence
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, confirmed the existing
+RVV+scalar dispatch bundle runner already consumes the real
+`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` front door, and
+collected real `ssh rvv` compile/link/run evidence for the non-legacy
+`i32-vmul` dispatch bundle.
+
+### Main Changes
+
+- Added the Trellis task/PRD and context files for
+  `rvv-scalar-dispatch-bundle-ssh-evidence`.
+- No compiler or runner source change was required.
+- Real evidence path used the compiler-generated target artifact bundle index
+  to locate source/header/object artifacts, generated an external caller from
+  the emitted header ABI, and exercised both `rvv_available=0` and
+  `rvv_available=1` dispatch branches.
+
+### Evidence
+
+- Command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --input test/Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir --run-id codex-rvv-scalar-i32-vmul-bundle-ssh --overwrite --timeout 120`
+- Evidence JSON:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-rvv-scalar-i32-vmul-bundle-ssh/evidence.json`
+- Outcome:
+  `mode=ssh`, `status=success`, `ssh_evidence_verified=true`,
+  `remote_compile_succeeded=true`, `remote_link_succeeded=true`,
+  `remote_run_succeeded=true`.
+- Remote facts:
+  architecture `riscv64`; clang `Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Scope:
+  bounded `i32-vmul` target-artifact bundle external caller correctness only;
+  no throughput, latency, ratio, or performance claim.
+
+### Testing
+
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --input test/Target/TargetArtifactBundleExport/plan-linalg-i32-vmul-and-export-target-artifact-bundle.mlir --run-id codex-rvv-scalar-i32-vmul-bundle-dry --overwrite`
+- Focused lit:
+  `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-scalar-dispatch-bundle-e2e.test`
+- Evidence JSON structural assertion for compile/link/run success, selected
+  `i32-vmul`, selected dispatch surface, both dispatch branches, artifact
+  hashes/paths, remote facts, and absence of throughput/latency/performance
+  metric field names.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  199/199 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-scalar-dispatch-bundle-ssh-evidence`: passed.
+
+### Status
+
+[OK] **Completed and archived**
+
+
 ## Session 29: RVV+scalar dispatch plugin-owned exporter bundle
 
 **Date**: 2026-05-11
