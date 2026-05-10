@@ -1098,6 +1098,40 @@ def command_phase_summary(
     }
 
 
+def command_output_tail_summary(
+    commands: list[dict[str, Any]], names: list[str]
+) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for name in names:
+        matches = [command for command in commands if command.get("name") == name]
+        if not matches:
+            summaries.append(
+                {
+                    "name": name,
+                    "attempted": False,
+                    "exit_code": None,
+                    "timed_out": False,
+                    "stdout_tail": "",
+                    "stderr_tail": "",
+                    "log_path": "",
+                }
+            )
+            continue
+        command = matches[-1]
+        summaries.append(
+            {
+                "name": name,
+                "attempted": True,
+                "exit_code": command.get("exit_code"),
+                "timed_out": bool(command.get("timed_out")),
+                "stdout_tail": bounded_tail(str(command.get("stdout_tail", ""))),
+                "stderr_tail": bounded_tail(str(command.get("stderr_tail", ""))),
+                "log_path": str(command.get("log_path", "")),
+            }
+        )
+    return summaries
+
+
 def build_ssh_evidence_summary(
     kind: str,
     *,
@@ -1166,6 +1200,9 @@ def build_ssh_evidence_summary(
             ),
             "marker_observations": marker_observations,
         },
+        "stdout_stderr_summary": command_output_tail_summary(
+            commands, [*compile_names, *link_names, *run_names]
+        ),
         "remote_compile_succeeded": compile_phase["succeeded"],
         "remote_link_succeeded": link_phase["succeeded"],
         "remote_run_succeeded": run_phase["succeeded"],
@@ -1177,6 +1214,8 @@ def build_ssh_evidence_summary(
             summary["host_facts"] = details["host_facts"]
         if "compile_flags" in details:
             summary["compile_flags"] = details["compile_flags"]
+        if "link_flags" in details:
+            summary["link_flags"] = details["link_flags"]
     if error:
         summary["error"] = sanitize_text(error)
 
@@ -3120,13 +3159,14 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     tcrv_opt = resolve_tool(args.tcrv_opt, "tcrv-opt", root)
     tcrv_translate = resolve_tool(args.tcrv_translate, "tcrv-translate", root)
 
+    planning_command = [
+        tcrv_opt,
+        str(input_path),
+        *execution_planning_command_args(args),
+    ]
     post_planning_mlir, _, _ = run_command(
         "tcrv_opt_execution_planning_pipeline",
-        [
-            tcrv_opt,
-            str(input_path),
-            *execution_planning_command_args(args),
-        ],
+        planning_command,
         cwd=root,
         artifact_dir=artifact_dir,
         commands=commands,
@@ -3288,6 +3328,14 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
+        "frontend_pipeline_command": command_display(
+            [
+                "tcrv-opt",
+                relative_to_repo(input_path, root),
+                *execution_planning_command_args(args),
+            ]
+        ),
+        "frontend_pipeline_args": execution_planning_command_args(args),
         "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
         "fixture_free_pipeline_path": (
             "marked-linalg-rvv-binary-frontend-to-execution-planning"
@@ -3965,36 +4013,48 @@ artifact[2]:
                 "name": "ssh_compile_bundle_external_caller_object",
                 "exit_code": 0,
                 "timed_out": False,
+                "stdout_tail": "",
+                "stderr_tail": "",
                 "log_path": "logs/compile-caller.log",
             },
             {
                 "name": "ssh_compile_bundle_dispatch_source_object",
                 "exit_code": 0,
                 "timed_out": False,
+                "stdout_tail": "",
+                "stderr_tail": "",
                 "log_path": "logs/compile-source.log",
             },
             {
                 "name": "ssh_link_bundle_source_external_caller",
                 "exit_code": 0,
                 "timed_out": False,
+                "stdout_tail": "",
+                "stderr_tail": "",
                 "log_path": "logs/link-source.log",
             },
             {
                 "name": "ssh_link_bundle_index_object_external_caller",
                 "exit_code": 0,
                 "timed_out": False,
+                "stdout_tail": "",
+                "stderr_tail": "",
                 "log_path": "logs/link-object.log",
             },
             {
                 "name": "ssh_run_bundle_source_external_caller",
                 "exit_code": 0,
                 "timed_out": False,
+                "stdout_tail": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+                "stderr_tail": "",
                 "log_path": "logs/run-source.log",
             },
             {
                 "name": "ssh_run_bundle_index_object_external_caller",
                 "exit_code": 0,
                 "timed_out": False,
+                "stdout_tail": BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER,
+                "stderr_tail": "",
                 "log_path": "logs/run-object.log",
             },
         ]
@@ -4004,6 +4064,7 @@ artifact[2]:
             "bundle_object_stdout_marker_observed": True,
             "host_facts": {"architecture": "riscv64"},
             "compile_flags": ["-O2", "-march=rv64gcv"],
+            "link_flags": ["-O2", "-march=rv64gcv", "-no-pie"],
             "remote_dir": "/tmp/tianchenrv_rvv_bundle_e2e_self_test",
         }
         ssh_summary = build_ssh_evidence_summary(
@@ -4027,6 +4088,17 @@ artifact[2]:
         assert_self_test(
             ssh_summary["output_validation_succeeded"],
             "ssh evidence summary did not record output validation success",
+        )
+        assert_self_test(
+            ssh_summary.get("link_flags") == ["-O2", "-march=rv64gcv", "-no-pie"],
+            "ssh evidence summary did not preserve link flags",
+        )
+        assert_self_test(
+            any(
+                step.get("stdout_tail") == BUNDLE_EXTERNAL_ABI_SUCCESS_MARKER
+                for step in ssh_summary.get("stdout_stderr_summary", [])
+            ),
+            "ssh evidence summary did not preserve stdout/stderr tails",
         )
         assert_self_test(
             ssh_evidence_succeeded(ssh_summary),

@@ -275,6 +275,10 @@
 # I64-VMUL-FRONTEND-EVIDENCE: "arithmetic_family": "i64-vmul"
 # I64-VMUL-FRONTEND-EVIDENCE: "fixture_free_frontend_pipeline": true
 # I64-VMUL-FRONTEND-EVIDENCE: "fixture_free_pipeline_path": "marked-linalg-rvv-binary-frontend-to-execution-planning"
+# I64-VMUL-FRONTEND-EVIDENCE: "frontend_pipeline_args": [
+# I64-VMUL-FRONTEND-EVIDENCE: "--tcrv-lower-linalg-rvv-binary-to-exec"
+# I64-VMUL-FRONTEND-EVIDENCE: "--tcrv-execution-planning-pipeline"
+# I64-VMUL-FRONTEND-EVIDENCE: "frontend_pipeline_command": "tcrv-opt test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline"
 # I64-VMUL-FRONTEND-EVIDENCE: "input": "test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir"
 # I64-VMUL-FRONTEND-EVIDENCE: "pipeline_artifact_route_evidence": {
 # I64-VMUL-FRONTEND-EVIDENCE: "dispatch_object": {

@@ -1,0 +1,22 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global stack, evidence, capability, and plugin boundaries remain satisfied."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains compute-free."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV runtime claim is bounded, real-ssh-backed, and finite-family scoped."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback dispatch side remains plugin-local."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check manifest-backed route ownership, object/self-check export, runtime ABI, and evidence fields."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected route metadata comes from the compiler pipeline."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check generic core does not hard-code RVV-specific semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++/ssh validation coverage and claim wording."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability-driven design."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review compute boundary."}
+{"command": "git diff --check", "result": "passed"}
+{"command": "python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py", "result": "passed"}
+{"command": "python3 scripts/rvv_scalar_dispatch_e2e.py --self-test", "result": "passed"}
+{"command": "python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vmul --lower-linalg-frontend --run-id codex-fixture-free-i64-vmul-runtime-dry --overwrite --input test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir", "result": "passed"}
+{"command": "python3 scripts/rvv_scalar_dispatch_e2e.py --arithmetic-family=i64-vmul --lower-linalg-frontend --run-id codex-fixture-free-i64-vmul-runtime-live --overwrite --input test/Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir --ssh-target rvv", "result": "passed; evidence at artifacts/tmp/rvv_scalar_dispatch_e2e/codex-fixture-free-i64-vmul-runtime-live/evidence.json records fixture_free_frontend_pipeline true, ssh_evidence_verified true, link_flags with -no-pie, stdout/stderr summaries, and marker tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok"}
+{"command": "cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-i32-binary-family-registry-test -j2", "result": "passed"}
+{"command": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"command": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test", "result": "passed"}
+{"command": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test", "result": "passed"}
+{"command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-scalar-i64-vmul-dispatch-object|rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e'", "result": "passed after reordering sorted-JSON FileCheck assertions"}
+{"command": "cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2", "result": "passed 194/194"}

@@ -39,6 +39,69 @@ Moved tcrv-translate RVV direct and RVV+scalar route-family helper command regis
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 19: Fixture-free RVV frontend dispatch runtime evidence
+
+**Date**: 2026-05-10
+**Task**: Fixture-free RVV dispatch runtime evidence from frontend pipeline
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded fixture-free `i64-vmul` RVV+scalar dispatch runtime
+evidence path. The existing C++/MLIR pipeline already carried marked linalg
+frontend input through `--tcrv-lower-linalg-rvv-binary-to-exec` and
+`--tcrv-execution-planning-pipeline` to selected manifest-backed dispatch
+object/self-check object routes, so this round tightened runner evidence and
+validated the path live on `ssh rvv`.
+
+### Main Changes
+
+- Added direct evidence fields for `frontend_pipeline_command` and
+  `frontend_pipeline_args`, proving the fixture-free path uses the frontend
+  lowering pass before execution planning.
+- Added live remote evidence summary fields preserving remote link flags and
+  bounded stdout/stderr tails for compile/link/run steps.
+- Extended runner self-test for link flags and stdout/stderr summary
+  preservation.
+- Updated focused script lit coverage to assert the fixture-free `i64-vmul`
+  direct path records the frontend pipeline command.
+- Preserved selected-fixture evidence and C++/MLIR/target-owned route
+  semantics; no generic core pass or compiler route ownership moved into
+  Python.
+
+### Evidence
+
+- Runtime/correctness claim is bounded to fixture-free `i64-vmul`
+  RVV+scalar dispatch self-check execution on real `ssh rvv`.
+- Live evidence:
+  `artifacts/tmp/rvv_scalar_dispatch_e2e/codex-fixture-free-i64-vmul-runtime-live/evidence.json`
+  records `fixture_free_frontend_pipeline: true`,
+  `ssh_evidence_verified: true`, route ids
+  `tcrv-export-rvv-scalar-i64-vmul-dispatch-object` and
+  `tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-object`, link flags
+  including `-no-pie`, stdout/stderr summaries, and marker
+  `tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok`.
+- `git diff --check`
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Fixture-free dry run for `i64-vmul` with `--lower-linalg-frontend`
+- Fixture-free live run for `i64-vmul` with `--lower-linalg-frontend` and
+  `--ssh-target rvv`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit filter:
+  `rvv-scalar-i64-vmul-dispatch-object|rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e`
+  passed after reordering sorted-JSON FileCheck assertions.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  `194/194` passed
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
 ## Session 21: RVV binary artifact manifests as target-owned family source of truth
 
 **Date**: 2026-05-10
