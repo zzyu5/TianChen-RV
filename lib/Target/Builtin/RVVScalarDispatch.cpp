@@ -2634,9 +2634,9 @@ llvm::Error exportDispatchSelfCheckObjectForFamily(
 
 llvm::ArrayRef<RVVScalarDispatchRouteManifestEntry>
 getRVVScalarDispatchRouteManifest() {
-  static const llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 20>
+  static const llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 32>
       routes = [] {
-        llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 20> result;
+        llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 32> result;
         auto appendFamily = [&](const DispatchI32FamilySpec &family) {
           result.push_back(
               {&family, DispatchRouteKind::Source,
@@ -2686,12 +2686,9 @@ getRVVScalarDispatchRouteManifest() {
                family.dispatchRuntimeABIName, family.selfCheckSuccessMarker,
                /*requiresBinaryStdout=*/true});
         };
-        appendFamily(getI32VAddDispatchFamilySpec());
-        appendFamily(getI32VSubDispatchFamilySpec());
-        appendFamily(getI32VMulDispatchFamilySpec());
-        appendFamily(getI64VAddDispatchFamilySpec());
-        appendFamily(getI64VSubDispatchFamilySpec());
-        appendFamily(getI64VMulDispatchFamilySpec());
+        for (const RVVScalarBinaryFamilyDescriptor *descriptor :
+             getRVVScalarBinaryFamilyDescriptors())
+          appendFamily(descriptor->dispatch);
         return result;
       }();
   return llvm::ArrayRef(routes);

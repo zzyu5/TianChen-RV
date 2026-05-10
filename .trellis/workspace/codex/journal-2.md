@@ -185,3 +185,43 @@ and real `ssh rvv` compile/link/run validation for both dispatch branches.
 ### Status
 
 [OK] **Completed and archived**
+
+
+## Session 20: Manifest-derived RVV+scalar dispatch route registration
+
+**Date**: 2026-05-10
+**Task**: Manifest-derived RVV+scalar dispatch route registration
+**Branch**: `main`
+
+### Summary
+
+Repaired the malformed Hermes review fallback into a concrete target-route
+registration task. The RVV+scalar dispatch route manifest now derives its
+source/header/object/self-check source/self-check object records by iterating
+the finite `getRVVScalarBinaryFamilyDescriptors()` registry, so artifact and
+translate route registration no longer carries a second six-family append list.
+
+### Main Changes
+
+- Updated `lib/Target/Builtin/RVVScalarDispatch.cpp` so
+  `getRVVScalarDispatchRouteManifest()` consumes the finite bridge family
+  registry directly.
+- Updated `test/Target/TargetArtifactExportTest.cpp` so the built-in target
+  translate route count is derived from the RVV microkernel route manifest plus
+  the RVV+scalar dispatch route manifest, not a hard-coded total.
+
+### Evidence
+
+- No RVV runtime/correctness claim was made in this round; the behavior change
+  is target-owned C++ route registration.
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-i32-binary-family-registry-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'target-artifact-export|i32-binary-family-registry|rvv-scalar-dispatch'`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: `193/193` passed
+
+### Status
+
+[OK] **Completed and archived**

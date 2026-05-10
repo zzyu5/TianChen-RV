@@ -8,6 +8,7 @@
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
+#include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
@@ -627,9 +628,14 @@ bool expectTargetTranslateRouteRegistryShape() {
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes"))
     return false;
-  if (builtinRoutes.size() != 48) {
-    llvm::errs() << "expected 48 built-in target translate routes, got "
-                 << builtinRoutes.size() << "\n";
+  const std::size_t expectedBuiltinRouteCount =
+      tianchenrv::target::rvv::getRVVMicrokernelDirectRouteManifest().size() +
+      tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteManifest()
+          .size();
+  if (builtinRoutes.size() != expectedBuiltinRouteCount) {
+    llvm::errs() << "expected " << expectedBuiltinRouteCount
+                 << " built-in target translate routes from route manifests, "
+                 << "got " << builtinRoutes.size() << "\n";
     return false;
   }
 
