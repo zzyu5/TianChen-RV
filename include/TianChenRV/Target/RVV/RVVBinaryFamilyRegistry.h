@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_TARGET_RVV_RVVBINARYFAMILYREGISTRY_H
 #define TIANCHENRV_TARGET_RVV_RVVBINARYFAMILYREGISTRY_H
 
+#include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -49,6 +50,8 @@ struct RVVBinaryFamilyDescriptor {
   llvm::StringRef scalarCType;
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
+  const support::FiniteBinaryFrontendLoweringDescriptor *frontendContract =
+      nullptr;
 };
 
 inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
@@ -80,7 +83,8 @@ inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
       "+",
       "int32_t",
       "const int32_t *",
-      "int32_t *"};
+      "int32_t *",
+      &support::getI32VAddFiniteBinaryFrontendLoweringDescriptor()};
   return descriptor;
 }
 
@@ -113,7 +117,8 @@ inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
       "-",
       "int32_t",
       "const int32_t *",
-      "int32_t *"};
+      "int32_t *",
+      &support::getI32VSubFiniteBinaryFrontendLoweringDescriptor()};
   return descriptor;
 }
 
@@ -146,7 +151,8 @@ inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
       "*",
       "int32_t",
       "const int32_t *",
-      "int32_t *"};
+      "int32_t *",
+      &support::getI32VMulFiniteBinaryFrontendLoweringDescriptor()};
   return descriptor;
 }
 
@@ -179,7 +185,8 @@ inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
       "+",
       "int64_t",
       "const int64_t *",
-      "int64_t *"};
+      "int64_t *",
+      &support::getI64VAddFiniteBinaryFrontendLoweringDescriptor()};
   return descriptor;
 }
 
@@ -212,7 +219,8 @@ inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
       "-",
       "int64_t",
       "const int64_t *",
-      "int64_t *"};
+      "int64_t *",
+      &support::getI64VSubFiniteBinaryFrontendLoweringDescriptor()};
   return descriptor;
 }
 
@@ -245,7 +253,8 @@ inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
       "*",
       "int64_t",
       "const int64_t *",
-      "int64_t *"};
+      "int64_t *",
+      &support::getI64VMulFiniteBinaryFrontendLoweringDescriptor()};
   return descriptor;
 }
 

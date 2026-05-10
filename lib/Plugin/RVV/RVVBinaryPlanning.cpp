@@ -377,10 +377,23 @@ getRegisteredRVVBinaryFamily(
       registeredFamily->runtimeABI != family.runtimeABI ||
       registeredFamily->runtimeABIKind != family.runtimeABIKind ||
       registeredFamily->runtimeABIName != family.runtimeABIName ||
-      registeredFamily->runtimeGlueRole != family.runtimeGlueRole) {
+      registeredFamily->runtimeGlueRole != family.runtimeGlueRole ||
+      !registeredFamily->frontendContract ||
+      registeredFamily->frontendContract->familyID != family.familyID ||
+      registeredFamily->frontendContract->frontendLowering !=
+          family.frontendLowering ||
+      registeredFamily->frontendContract->loweringDescriptor !=
+          family.loweringDescriptor ||
+      registeredFamily->frontendContract->elementBitWidth !=
+          family.elementBitWidth ||
+      registeredFamily->frontendContract->constInputPointerCType !=
+          family.constInputPointerCType ||
+      registeredFamily->frontendContract->outputPointerCType !=
+          family.outputPointerCType) {
     return makeRVVBinaryPlanningError(
         llvm::Twine("family '") + family.familyID +
-        "' must be one registered finite RVV binary family descriptor");
+        "' must be one registered finite RVV binary family descriptor with a "
+        "matching finite frontend lowering contract");
   }
   return registeredFamily;
 }

@@ -602,10 +602,6 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 [OK] **Completed**
 
-### Next Steps
-
-- None - task complete
-
 ## Session 32: RVV i64m1 plan-and-export front-door route
 
 **Date**: 2026-05-11
@@ -1760,6 +1756,80 @@ and into the RVV-owned planning contract.
   .trellis/tasks/05-11-rvv-finite-binary-descriptor-planning-contract`: passed.
 
 No `ssh rvv` evidence was collected and no new runtime correctness or
+performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+## Session 33: Finite binary frontend lowering contract
+
+**Date**: 2026-05-11
+**Task**: Finite binary frontend lowering contract
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then made the bounded
+linalg-to-exec frontend consume a neutral finite binary descriptor instead of a
+local transform-only RVV/i32-shaped spec.
+
+### Main Changes
+
+- Added `support::FiniteBinaryFrontendLoweringDescriptor` for the existing
+  bounded i32/i64 add/sub/mul frontend markers, arithmetic kind, element width,
+  descriptor name, and runtime ABI mem-window/runtime-param specs.
+- Renamed the transform implementation file from
+  `LowerLinalgI32BinaryToExec.cpp` to `LowerLinalgRVVBinaryToExec.cpp` while
+  preserving the deprecated i32 pass aliases.
+- Updated the linalg frontend pass to validate unknown markers, element width,
+  arithmetic operator, target/profile, capability imports, and ABI
+  materialization through the neutral descriptor.
+- Linked RVV finite family descriptors back to the same frontend contract and
+  tightened RVV binary planning registration validation for marker/descriptor,
+  element width, and callable pointer C type agreement.
+- Added focused negative lit coverage for unknown marker, unsupported element
+  type, and i64 descriptor/operator mismatch.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-scalar-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test` with filter
+  `linalg-finite-binary-frontend-invalid|linalg-i64-vadd-to-rvv-artifact|linalg-i64-vsub-to-rvv-artifact|linalg-i32-vadd-to-exec|rvv-scalar-dispatch-bundle-e2e`:
+  6/6 selected tests passed.
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i64-vadd --input
+  test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i64_vadd --run-id
+  codex-finite-frontend-contract-i64-vadd-dry --overwrite --timeout 120`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i64-vsub --run-id
+  codex-finite-frontend-contract-i64-vsub-bundle-dry --overwrite --timeout
+  120`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i64-vsub --input
+  test/Transforms/LinalgToExec/linalg-i64-vsub-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i64_vsub --run-id
+  codex-finite-frontend-contract-i64-vsub-direct-dry --overwrite --timeout
+  120`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-finite-binary-frontend-lowering-contract`: passed.
+
+No new `ssh rvv` evidence was collected and no new runtime correctness or
 performance claim was made.
 
 ### Status
