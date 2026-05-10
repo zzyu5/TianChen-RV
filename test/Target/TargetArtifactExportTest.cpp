@@ -27,6 +27,8 @@ using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
 using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using RVVBinaryFamilyDescriptor =
+    tianchenrv::target::rvv::RVVBinaryFamilyDescriptor;
 
 const I32BinaryRuntimeABIContract &
 getRuntimeABIContract(const I32BinaryFamilyDescriptor &family) {
@@ -329,6 +331,111 @@ bool expectI32BinaryRuntimeABIContractShape() {
           "dispatch i32-vmul ABI"))
     return false;
 
+  return true;
+}
+
+bool expectRVVBinaryRuntimeABIContractShapeForFamily(
+    const RVVBinaryFamilyDescriptor &family) {
+  const auto &contract =
+      tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(family);
+  constexpr RuntimeABIParameterOwnership owned =
+      RuntimeABIParameterOwnership::TargetExportABIOwned;
+
+  if (&contract.getFamilyDescriptor() != &family ||
+      contract.getFamilyID() != family.familyID ||
+      contract.getRuntimeABI() != family.runtimeABI ||
+      contract.getRuntimeABIKind() != family.runtimeABIKind ||
+      contract.getRuntimeABIName() != family.runtimeABIName ||
+      contract.getRuntimeGlueRole() != family.runtimeGlueRole ||
+      contract.getExternalABIComponentGroup() !=
+          family.externalABIComponentGroup) {
+    llvm::errs() << "RVV binary runtime ABI contract identity mismatch for "
+                 << family.familyID << "\n";
+    return false;
+  }
+
+  llvm::ArrayRef<RuntimeABIParameter> callable =
+      contract.getCallableParameters();
+  if (callable.size() != 4 ||
+      !expectParameter(callable[0], "lhs", family.constInputPointerCType,
+                       RuntimeABIParameterRole::LHSInputBuffer, owned,
+                       "RVV callable lhs") ||
+      !expectParameter(callable[1], "rhs", family.constInputPointerCType,
+                       RuntimeABIParameterRole::RHSInputBuffer, owned,
+                       "RVV callable rhs") ||
+      !expectParameter(callable[2], "out", family.outputPointerCType,
+                       RuntimeABIParameterRole::OutputBuffer, owned,
+                       "RVV callable out") ||
+      !expectParameter(callable[3], "n", "size_t",
+                       RuntimeABIParameterRole::RuntimeElementCount, owned,
+                       "RVV callable runtime element count"))
+    return false;
+
+  llvm::SmallVector<RuntimeABIParameter, 4> renamed =
+      contract.getCallableParameters("runtime_n");
+  if (renamed.size() != 4 || renamed[3].cName != "runtime_n" ||
+      renamed[3].cType != "size_t" ||
+      renamed[3].role != RuntimeABIParameterRole::RuntimeElementCount) {
+    llvm::errs() << "RVV binary runtime ABI contract did not preserve the "
+                    "runtime element-count parameter override for "
+                 << family.familyID << "\n";
+    return false;
+  }
+
+  llvm::ArrayRef<RuntimeABIParameter> requirements =
+      contract.getCallableRoleRequirements();
+  if (requirements.size() != callable.size())
+    return false;
+  for (auto [index, requirement] : llvm::enumerate(requirements)) {
+    if (!requirement.cName.empty() ||
+        requirement.cType != callable[index].cType ||
+        requirement.role != callable[index].role ||
+        requirement.ownership != callable[index].ownership) {
+      llvm::errs() << "RVV callable role requirement[" << index
+                   << "] does not mirror descriptor-owned role/type for "
+                   << family.familyID << "\n";
+      return false;
+    }
+  }
+
+  llvm::ArrayRef<tianchenrv::support::RuntimeABIMemWindowSpec> windows =
+      contract.getBufferMemWindowSpecs();
+  if (windows.size() != 3 ||
+      windows[0].cType != family.constInputPointerCType ||
+      windows[1].cType != family.constInputPointerCType ||
+      windows[2].cType != family.outputPointerCType ||
+      windows[0].role != RuntimeABIParameterRole::LHSInputBuffer ||
+      windows[1].role != RuntimeABIParameterRole::RHSInputBuffer ||
+      windows[2].role != RuntimeABIParameterRole::OutputBuffer) {
+    llvm::errs() << "RVV binary runtime ABI contract mem_window specs are "
+                    "not descriptor-owned for "
+                 << family.familyID << "\n";
+    return false;
+  }
+
+  tianchenrv::support::RuntimeABIParamSpec count =
+      contract.getRuntimeElementCountParamSpec("runtime_n");
+  if (count.role != RuntimeABIParameterRole::RuntimeElementCount ||
+      count.cName != "runtime_n" || count.cType != "size_t" ||
+      count.ownership != "target-export-abi-owned") {
+    llvm::errs() << "RVV binary runtime ABI contract runtime count spec is "
+                    "malformed for "
+                 << family.familyID << "\n";
+    return false;
+  }
+
+  return expectRuntimeABIParametersEqual(
+      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
+          family),
+      requirements, "RVV legacy helper delegates to runtime ABI contract");
+}
+
+bool expectRVVBinaryRuntimeABIContractShape() {
+  for (const RVVBinaryFamilyDescriptor *family :
+       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
+    if (!expectRVVBinaryRuntimeABIContractShapeForFamily(*family))
+      return false;
+  }
   return true;
 }
 
@@ -664,6 +771,30 @@ TargetArtifactCandidate makeRVVMulDirectCandidate(
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
+  return candidate;
+}
+
+TargetArtifactCandidate makeRVVI64DirectCandidate(
+    tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant,
+    const RVVBinaryFamilyDescriptor &family) {
+  const auto &contract =
+      tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(family);
+  TargetArtifactCandidate candidate;
+  candidate.kernel = kernel;
+  candidate.selectedVariant = selectedVariant.str();
+  candidate.role = "direct variant";
+  candidate.origin = "rvv-plugin";
+  candidate.routeID = family.routeID.str();
+  candidate.emissionKind = family.emissionKind.str();
+  candidate.artifactKind = "runtime-callable-c-source";
+  candidate.loweringBoundary = "tcrv_rvv.lowering_boundary";
+  candidate.runtimeABI = contract.getRuntimeABI().str();
+  candidate.runtimeABIKind = contract.getRuntimeABIKind().str();
+  candidate.runtimeABIName = contract.getRuntimeABIName().str();
+  candidate.runtimeGlueRole = contract.getRuntimeGlueRole().str();
+  llvm::ArrayRef<RuntimeABIParameter> callable =
+      contract.getCallableParameters();
+  candidate.runtimeABIParameters.append(callable.begin(), callable.end());
   return candidate;
 }
 
@@ -1059,6 +1190,38 @@ bool expectRVVSubSourceRejectsStaleAddMetadata(
        "target artifact candidate validation failed",
        "supported RVV i32 microkernel family ABI metadata",
        "runtime_abi_name 'rvv-i32-vsub-runtime-callable-c-function.v1'"});
+}
+
+bool expectRVVI64SourceRejectsStaleI32AddMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for stale metadata "
+                    "test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *exporter),
+                     "family-shaped RVV i64 runtime ABI candidate accepted"))
+    return false;
+
+  const auto &addFamily =
+      tianchenrv::target::rvv::getI32VAddFamilyDescriptor();
+  candidate.runtimeABI = addFamily.runtimeABI.str();
+  candidate.runtimeABIName = addFamily.runtimeABIName.str();
+  candidate.runtimeGlueRole = addFamily.runtimeGlueRole.str();
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale i32 add ABI metadata rejected by RVV i64 source route",
+      {"route id '" + family.routeID.str() + "'",
+       "target artifact candidate validation failed",
+       "supported RVV i64 microkernel ABI metadata",
+       "runtime_abi_name '" + family.runtimeABIName.str() + "'"});
 }
 
 bool expectScalarSubSourceRejectsStaleAddMetadata(
@@ -1699,6 +1862,8 @@ int main() {
     return 1;
   if (!expectI32BinaryRuntimeABIContractShape())
     return 1;
+  if (!expectRVVBinaryRuntimeABIContractShape())
+    return 1;
   if (!expectRuntimeABIParameterRoleLookup())
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
@@ -2139,6 +2304,18 @@ int main() {
   if (!expectExporterRejectsRuntimeABIContractMismatch(builtinRegistry))
     return 1;
   if (!expectRVVSubSourceRejectsStaleAddMetadata(builtinRegistry))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleI32AddMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VAddFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleI32AddMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
+    return 1;
+  if (!expectRVVI64SourceRejectsStaleI32AddMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
     return 1;
   if (!expectScalarSubSourceRejectsStaleAddMetadata(builtinRegistry))
     return 1;

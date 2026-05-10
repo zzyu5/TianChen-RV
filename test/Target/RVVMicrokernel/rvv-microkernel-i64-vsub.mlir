@@ -102,7 +102,13 @@ module @rvv_microkernel_i64_vsub_export_input {
 // PIPE-SAME: emission_kind = "rvv-explicit-i64-vsub-microkernel-c-source"
 // PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-i64-vsub-microkernel-c"
 // PIPE-SAME: runtime_abi = "rvv-i64-vsub-runtime-callable-c-abi.v1"
+// PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // PIPE-SAME: runtime_abi_name = "rvv-i64-vsub-runtime-callable-c-function.v1"
+// PIPE-SAME: runtime_abi_parameters = [{c_name = "lhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}
+// PIPE-SAME: {c_name = "rhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}
+// PIPE-SAME: {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"}
+// PIPE-SAME: {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}]
+// PIPE-SAME: runtime_glue_role = "runtime-callable-i64-vsub-function"
 // PIPE-SAME: status = "supported"
 
 // SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */

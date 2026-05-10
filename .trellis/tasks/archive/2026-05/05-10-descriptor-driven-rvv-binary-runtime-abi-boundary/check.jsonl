@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global project red lines and source-of-truth boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI parameter, emission manifest, export, and bundle behavior against contract."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local descriptor and microkernel route behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required test forms and RVV runtime evidence boundary."}

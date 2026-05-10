@@ -1379,7 +1379,13 @@ Added i32-vsub support to the RVV/scalar dispatch evidence runner and direct sel
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task `05-10-descriptor-driven-rvv-binary-runtime-abi-boundary`.
+- Added `RVVBinaryRuntimeABIContract` as the target-layer descriptor-owned ABI surface for RVV i32/i64 add/sub/mul callable parameters, role requirements, mem-window specs, runtime element-count specs, runtime ABI identity, glue role, and external ABI component group.
+- Routed supported RVV emission-plan runtime ABI identity through the selected RVV binary contract.
+- Extended C++ tests for i64 add/sub/mul selected-plan ABI parameters, supported emission-plan ABI metadata, target exporter route contracts, and stale i32-vadd metadata rejection on i64 RVV routes.
+- Extended i64 RVV microkernel lit checks to assert descriptor-owned `runtime_abi_parameters` on emission-plan diagnostics.
+- Updated the lowering/runtime spec with the direct RVV i32/i64 binary runtime ABI contract.
+- No new `ssh rvv` evidence was needed because this round changed compiler-owned metadata/contracts/tests and made no new runtime correctness or performance claim.
 
 ### Git Commits
 
@@ -1435,7 +1441,14 @@ Migrated RVV and scalar plugin-local i32 add/sub proposal, materialization, read
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual FileCheck reproduction for i64 add/sub/mul PIPE and SOURCE RVV microkernel routes
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 192/192
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-10-descriptor-driven-rvv-binary-runtime-abi-boundary`
 
 ### Status
 
@@ -1859,6 +1872,39 @@ Made finite RVV i64m1 profile/replay capabilities first-class, drove a replay/pr
 ### Summary
 
 Added family-specific profile-replay kernel naming for i64 sub/mul evidence, covered profile-replay i64-vsub/i64-vmul dry-runs in lit, collected fresh ssh rvv probe plus successful source/object external ABI evidence for both paths, and archived the Trellis task after check-tianchenrv 192/192.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 15: Descriptor-driven RVV binary runtime ABI boundary
+
+**Date**: 2026-05-10
+**Task**: Descriptor-driven RVV binary runtime ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Added descriptor-driven RVV binary runtime ABI contract for i32/i64 add/sub/mul, routed supported RVV emission-plan ABI identity through it, extended C++ and lit coverage, and archived the Trellis task after check-tianchenrv 192/192.
 
 ### Main Changes
 

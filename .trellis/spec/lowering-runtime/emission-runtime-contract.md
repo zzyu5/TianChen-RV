@@ -1430,6 +1430,52 @@ Required tests for changes to this contract:
   RVV+scalar dispatch exports consume the same `tcrv.exec.mem_window` and
   `tcrv.exec.runtime_param` IR-backed ABI plan.
 
+## Target-Layer RVV Binary Runtime ABI Contract
+
+The selected RVV binary microkernel route has a target-owned runtime ABI
+contract over the finite RVV family registry:
+
+```cpp
+const tianchenrv::target::rvv::RVVBinaryRuntimeABIContract &
+tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(
+    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family);
+```
+
+This contract covers exactly the currently supported direct RVV binary
+families `i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and
+`i64-vmul`. It derives from the selected `RVVBinaryFamilyDescriptor`:
+
+- ordered callable C parameters:
+  `lhs`, `rhs`, `out`, and runtime element count `n`;
+- C pointer spellings from the selected dtype, for example
+  `const int32_t *` / `int32_t *` for i32 families and
+  `const int64_t *` / `int64_t *` for i64 families;
+- target-export ABI ownership and callable role requirements;
+- `tcrv.exec.mem_window` specs for lhs/rhs/out buffer roles;
+- the direct runtime element-count `tcrv.exec.runtime_param` spec;
+- RVV runtime ABI kind/name, runtime glue role, and external ABI component
+  group for source/header/object bundle coherence.
+
+The older i32 support-layer contract remains the scalar/dispatch compatibility
+owner for bounded i32 shared surfaces. Direct RVV microkernel planning,
+readiness, emission-plan diagnostics, target-artifact exporter registration,
+route-local candidate preflight, header/object helper metadata, and manifest or
+bundle serialization that handle direct RVV i32/i64 add/sub/mul must consume
+the selected RVV binary contract when a concrete selected RVV family is
+available. `i32-vadd` compatibility wrappers may stay as wrappers only; they
+must not be the active source of truth for `i32-vsub`, `i32-vmul`, or any i64
+RVV selected family.
+
+Required tests for changes to this contract:
+
+- C++ tests must prove all direct RVV i32/i64 add/sub/mul families expose the
+  descriptor-owned callable parameter order, roles, C spellings, and ownership;
+- C++ tests must prove i64 add/sub/mul selected plans and supported emission
+  plans expose family-specific runtime ABI identity and `int64_t` callable
+  parameters rather than stale i32-vadd defaults;
+- target artifact export tests must prove an i64 route rejects stale i32-vadd
+  runtime ABI metadata before source/header/object or bundle output.
+
 ## Host RVV + Scalar I32 VAdd Dispatch C Export Boundary
 
 Trigger: post-planning MLIR contains one selected `rvv-plugin` dispatch case

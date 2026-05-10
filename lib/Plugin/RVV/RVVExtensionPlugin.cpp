@@ -2274,15 +2274,18 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     return microkernelFamily.takeError();
   if (*microkernelFamily) {
     const RVVI32MicrokernelFamilySpec &family = **microkernelFamily;
+    const auto &runtimeABI =
+        tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(
+            family.getRVV());
     out = VariantEmissionPlan::getSupported(
         kRVVPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
         family.getRVV().emissionKind, family.getRVV().routeID,
-        family.getRVV().runtimeABI,
+        runtimeABI.getRuntimeABI(),
         "runtime-callable-c-source", family.supportedMessage);
-    out.setRuntimeABIKind(family.getRVV().runtimeABIKind);
-    out.setRuntimeABIName(family.getRVV().runtimeABIName);
-    out.setRuntimeGlueRole(family.getRVV().runtimeGlueRole);
+    out.setRuntimeABIKind(runtimeABI.getRuntimeABIKind());
+    out.setRuntimeABIName(runtimeABI.getRuntimeABIName());
+    out.setRuntimeGlueRole(runtimeABI.getRuntimeGlueRole());
     RVVBinaryIntrinsicDescriptor descriptor =
         tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
             family.getRVV(), **selectedConfig);
@@ -2311,6 +2314,9 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     return i64MicrokernelDescriptor.takeError();
   if (*i64MicrokernelDescriptor) {
     const RVVBinaryIntrinsicDescriptor &descriptor = **i64MicrokernelDescriptor;
+    const auto &runtimeABI =
+        tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(
+            descriptor.family);
     std::string supportedMessage =
         (llvm::Twine("explicit RVV i64 ") +
          descriptor.family.arithmeticVerb +
@@ -2322,11 +2328,11 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
         kRVVPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
         descriptor.family.emissionKind, descriptor.getRVVRouteID(),
-        descriptor.getRVVRuntimeABI(), "runtime-callable-c-source",
+        runtimeABI.getRuntimeABI(), "runtime-callable-c-source",
         supportedMessage);
-    out.setRuntimeABIKind(descriptor.getRVVRuntimeABIKind());
-    out.setRuntimeABIName(descriptor.getRVVRuntimeABIName());
-    out.setRuntimeGlueRole(descriptor.getRVVRuntimeGlueRole());
+    out.setRuntimeABIKind(runtimeABI.getRuntimeABIKind());
+    out.setRuntimeABIName(runtimeABI.getRuntimeABIName());
+    out.setRuntimeGlueRole(runtimeABI.getRuntimeGlueRole());
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
         parameters = rvv::buildRVVBinaryCallableRuntimeABIParameters(
             request.getKernel(), descriptor);

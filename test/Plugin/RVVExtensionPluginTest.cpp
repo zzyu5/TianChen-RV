@@ -2484,19 +2484,44 @@ module {
                                   family.emissionKind &&
                               emissionPlan.getLoweringPipeline() ==
                                   family.routeID &&
+                              emissionPlan.getRuntimeABI() ==
+                                  family.runtimeABI &&
+                              emissionPlan.getRuntimeABIKind() ==
+                                  family.runtimeABIKind &&
                               emissionPlan.getRuntimeABIName() ==
-                                  family.runtimeABIName,
+                                  family.runtimeABIName &&
+                              emissionPlan.getRuntimeGlueRole() ==
+                                  family.runtimeGlueRole,
                           "RVV i64 emission plan preserves route and ABI"))
     return result;
 
   llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters =
       emissionPlan.getRuntimeABIParameters();
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  using Ownership = tianchenrv::support::RuntimeABIParameterOwnership;
   return expect(parameters.size() == 4 &&
+                    parameters[0].cName == "lhs" &&
                     parameters[0].cType == "const int64_t *" &&
+                    parameters[0].role == Role::LHSInputBuffer &&
+                    parameters[0].ownership ==
+                        Ownership::TargetExportABIOwned &&
+                    parameters[1].cName == "rhs" &&
                     parameters[1].cType == "const int64_t *" &&
+                    parameters[1].role == Role::RHSInputBuffer &&
+                    parameters[1].ownership ==
+                        Ownership::TargetExportABIOwned &&
+                    parameters[2].cName == "out" &&
                     parameters[2].cType == "int64_t *" &&
-                    parameters[3].cType == "size_t",
-                "RVV i64 emission plan carries int64 callable ABI params");
+                    parameters[2].role == Role::OutputBuffer &&
+                    parameters[2].ownership ==
+                        Ownership::TargetExportABIOwned &&
+                    parameters[3].cName == "n" &&
+                    parameters[3].cType == "size_t" &&
+                    parameters[3].role == Role::RuntimeElementCount &&
+                    parameters[3].ownership ==
+                        Ownership::TargetExportABIOwned,
+                "RVV i64 emission plan carries descriptor-owned int64 "
+                "callable ABI params");
 }
 
 int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {

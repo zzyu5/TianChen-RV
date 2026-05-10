@@ -109,36 +109,77 @@ int runI32SelectedPlanTest() {
 }
 
 int runI64SelectedPlanTest() {
-  RVVBinarySelectedPlan plan;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-              tianchenrv::target::rvv::getI64VMulFamilyDescriptor(),
-              tianchenrv::target::rvv::getI64M1VectorShapeConfig(), 16,
-              "rv64gcv"),
-          plan, "build i64-vmul i64m1 selected plan"))
-    return result;
+  auto expectI64Family =
+      [](const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family)
+      -> int {
+    RVVBinarySelectedPlan plan;
+    if (int result = expectExpectedSuccess(
+            tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
+                family, tianchenrv::target::rvv::getI64M1VectorShapeConfig(),
+                16, "rv64gcv"),
+            plan, llvm::Twine("build selected plan for ") + family.familyID))
+      return result;
+
+    if (int result =
+            expect(plan.getFamilyID() == family.familyID,
+                   "i64 selected plan preserves binary family id"))
+      return result;
+    if (int result =
+            expect(plan.getRouteID() == family.routeID,
+                   "i64 selected plan exposes family-specific RVV route id"))
+      return result;
+    if (int result = expect(
+            plan.getRuntimeABI() == family.runtimeABI &&
+                plan.getRuntimeABIKind() == family.runtimeABIKind &&
+                plan.getRuntimeABIName() == family.runtimeABIName &&
+                plan.getRuntimeGlueRole() == family.runtimeGlueRole,
+            "i64 selected plan exposes descriptor-owned runtime ABI identity"))
+      return result;
+
+    llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+        plan.descriptor.getCallableRuntimeABIParameters();
+    using Role = tianchenrv::support::RuntimeABIParameterRole;
+    using Ownership = tianchenrv::support::RuntimeABIParameterOwnership;
+    if (int result = expect(
+            parameters.size() == 4 && parameters[0].cName == "lhs" &&
+                parameters[0].cType == "const int64_t *" &&
+                parameters[0].role == Role::LHSInputBuffer &&
+                parameters[0].ownership == Ownership::TargetExportABIOwned &&
+                parameters[1].cName == "rhs" &&
+                parameters[1].cType == "const int64_t *" &&
+                parameters[1].role == Role::RHSInputBuffer &&
+                parameters[1].ownership == Ownership::TargetExportABIOwned &&
+                parameters[2].cName == "out" &&
+                parameters[2].cType == "int64_t *" &&
+                parameters[2].role == Role::OutputBuffer &&
+                parameters[2].ownership == Ownership::TargetExportABIOwned &&
+                parameters[3].cName == "n" &&
+                parameters[3].cType == "size_t" &&
+                parameters[3].role == Role::RuntimeElementCount &&
+                parameters[3].ownership == Ownership::TargetExportABIOwned,
+            "i64 selected plan exposes descriptor-owned callable ABI "
+            "parameters"))
+      return result;
+
+    if (int result =
+            expect(plan.getArithmeticIntrinsicName() ==
+                       (llvm::Twine(family.arithmeticIntrinsicPrefix) +
+                        "i64m1")
+                           .str(),
+                   "i64 selected plan owns RVV C intrinsic spelling"))
+      return result;
+    return expect(plan.getStoreIntrinsicName() == "__riscv_vse64_v_i64m1",
+                  "i64 selected plan owns store intrinsic spelling");
+  };
 
   if (int result =
-          expect(plan.getFamilyID() == "i64-vmul",
-                 "i64 selected plan preserves binary family id"))
+          expectI64Family(tianchenrv::target::rvv::getI64VAddFamilyDescriptor()))
     return result;
   if (int result =
-          expect(plan.getRouteID() ==
-                     "tcrv-export-rvv-i64-vmul-microkernel-c",
-                 "i64 selected plan exposes RVV route id"))
+          expectI64Family(tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
     return result;
-  if (int result =
-          expect(plan.getRuntimeABIName() ==
-                     "rvv-i64-vmul-runtime-callable-c-function.v1",
-                 "i64 selected plan exposes runtime ABI name"))
-    return result;
-  if (int result =
-          expect(plan.getArithmeticIntrinsicName() ==
-                     "__riscv_vmul_vv_i64m1",
-                 "i64 selected plan owns RVV C intrinsic spelling"))
-    return result;
-  return expect(plan.getStoreIntrinsicName() == "__riscv_vse64_v_i64m1",
-                "i64 selected plan owns store intrinsic spelling");
+  return expectI64Family(
+      tianchenrv::target::rvv::getI64VMulFamilyDescriptor());
 }
 
 int runNegativeSelectedPlanTest() {
