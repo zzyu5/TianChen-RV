@@ -1,4 +1,5 @@
 add_mlir_library(TianChenRVRVVPlugin
+  RVVBinaryMicrokernelMaterialization.cpp
   RVVBinaryPlanning.cpp
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp

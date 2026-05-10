@@ -1,11 +1,10 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVBinaryMicrokernelMaterialization.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Support/RuntimeABICallablePlan.h"
-#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
@@ -221,21 +220,6 @@ lookupI32MicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
     return &getI32VMulFamilySpec();
   return nullptr;
 }
-
-struct RVVI32MicrokernelMaterializationPlan {
-  const RVVI32MicrokernelFamilySpec *family = nullptr;
-  const RVVI32VectorShapeConfig *i32Config = nullptr;
-  std::int64_t elementCount = 0;
-  std::string requiredMarch;
-  std::optional<std::string> selectedMABI;
-};
-
-struct RVVI64MicrokernelMaterializationPlan {
-  RVVBinaryIntrinsicDescriptor descriptor;
-  std::int64_t elementCount = 0;
-  std::string requiredMarch;
-  std::optional<std::string> selectedMABI;
-};
 
 std::string formatRVVBinaryFamilyFrontendLoweringList() {
   std::string text;
@@ -1190,7 +1174,7 @@ llvm::Expected<std::optional<std::string>> getOptionalSelectedMABI(
   return selectedMABI;
 }
 
-llvm::Expected<std::optional<RVVI32MicrokernelMaterializationPlan>>
+llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
 buildI32MicrokernelMaterializationPlan(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
@@ -1200,33 +1184,27 @@ buildI32MicrokernelMaterializationPlan(
   if (!selectedMABI)
     return selectedMABI.takeError();
 
-  llvm::Expected<std::optional<rvv::RVVBinarySelectedPlan>> selectedPlan =
-      rvv::buildRVVBinarySelectedPlanFromVariant(
+  llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
+      plan = rvv::buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
           variant, *view.i32Config, "i32", std::move(*selectedMABI));
-  if (!selectedPlan)
-    return selectedPlan.takeError();
-  if (!*selectedPlan)
-    return std::optional<RVVI32MicrokernelMaterializationPlan>();
+  if (!plan)
+    return plan.takeError();
+  if (!*plan)
+    return std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>();
 
   if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
     return std::move(error);
 
   const RVVI32MicrokernelFamilySpec *family =
       lookupI32MicrokernelFamilyByDescriptor(
-          (*selectedPlan)->getLoweringDescriptor());
+          (*plan)->selectedPlan.getLoweringDescriptor());
   if (!family)
-    return std::optional<RVVI32MicrokernelMaterializationPlan>();
+    return std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>();
 
-  RVVI32MicrokernelMaterializationPlan plan;
-  plan.family = family;
-  plan.i32Config = view.i32Config;
-  plan.elementCount = (*selectedPlan)->elementCount;
-  plan.requiredMarch = (*selectedPlan)->requiredMarch;
-  plan.selectedMABI = std::move((*selectedPlan)->selectedMABI);
-  return plan;
+  return std::move(plan);
 }
 
-llvm::Expected<std::optional<RVVI64MicrokernelMaterializationPlan>>
+llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
 buildI64MicrokernelMaterializationPlan(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
@@ -1236,106 +1214,22 @@ buildI64MicrokernelMaterializationPlan(
   if (!selectedMABI)
     return selectedMABI.takeError();
 
-  llvm::Expected<std::optional<rvv::RVVBinarySelectedPlan>> selectedPlan =
-      rvv::buildRVVBinarySelectedPlanFromVariant(
+  llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
+      plan = rvv::buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
           variant, *view.i32Config, "i64", std::move(*selectedMABI));
-  if (!selectedPlan)
-    return selectedPlan.takeError();
-  if (!*selectedPlan)
-    return std::optional<RVVI64MicrokernelMaterializationPlan>();
+  if (!plan)
+    return plan.takeError();
+  if (!*plan)
+    return std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>();
 
   if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
     return std::move(error);
 
-  RVVI64MicrokernelMaterializationPlan plan;
-  plan.descriptor = (*selectedPlan)->descriptor;
-  plan.elementCount = (*selectedPlan)->elementCount;
-  plan.requiredMarch = (*selectedPlan)->requiredMarch;
-  plan.selectedMABI = std::move((*selectedPlan)->selectedMABI);
-  return plan;
+  return std::move(plan);
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-llvm::StringRef getStringAttrValue(mlir::Operation *op,
-                                   llvm::StringRef name) {
-  mlir::StringAttr attr = getStringAttr(op, name);
-  if (!attr)
-    return {};
-  return attr.getValue();
-}
-
-llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
-buildRVVBinaryCallableRuntimeABIParameters(
-    tcrv::exec::KernelOp kernel,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
-  llvm::SmallVector<tcrv::exec::MemWindowOp, 3> windows;
-  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
-          kernel, descriptor.getBufferMemWindowSpecs(), windows))
-    return std::move(error);
-
-  llvm::SmallVector<support::RuntimeABIParamSpec, 1> countSpecs =
-      descriptor.getRuntimeElementCountParamSpecs(/*cName=*/"");
-  llvm::SmallVector<tcrv::exec::RuntimeParamOp, 1> runtimeParams;
-  if (llvm::Error error =
-          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams))
-    return std::move(error);
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
-  auto appendWindowParameter =
-      [&](tcrv::exec::MemWindowOp window,
-          support::RuntimeABIParameterRole role,
-          llvm::StringRef cName) -> llvm::Error {
-    llvm::StringRef cType =
-        getStringAttrValue(window.getOperation(), support::kMemWindowCTypeAttrName);
-    llvm::StringRef ownership = getStringAttrValue(
-        window.getOperation(), support::kMemWindowOwnershipAttrName);
-    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-        support::symbolizeRuntimeABIParameterOwnership(ownership);
-    if (!parsedOwnership)
-      return makeRVVPluginError(
-          llvm::Twine("i64 RVV callable ABI mem_window @") +
-          window.getSymName() + " has unsupported ownership '" + ownership +
-          "'");
-    parameters.push_back(
-        support::RuntimeABIParameter(cName, cType, role, *parsedOwnership));
-    return llvm::Error::success();
-  };
-
-  if (llvm::Error error =
-          appendWindowParameter(windows[0],
-                                support::RuntimeABIParameterRole::LHSInputBuffer,
-                                "lhs"))
-    return std::move(error);
-  if (llvm::Error error =
-          appendWindowParameter(windows[1],
-                                support::RuntimeABIParameterRole::RHSInputBuffer,
-                                "rhs"))
-    return std::move(error);
-  if (llvm::Error error =
-          appendWindowParameter(windows[2],
-                                support::RuntimeABIParameterRole::OutputBuffer,
-                                "out"))
-    return std::move(error);
-
-  tcrv::exec::RuntimeParamOp runtimeCount = runtimeParams.front();
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(getStringAttrValue(
-          runtimeCount.getOperation(), support::kRuntimeParamOwnershipAttrName));
-  if (!parsedOwnership)
-    return makeRVVPluginError(
-        llvm::Twine("i64 RVV callable ABI runtime_param @") +
-        runtimeCount.getSymName() + " has unsupported ownership");
-  parameters.push_back(support::RuntimeABIParameter(
-      getStringAttrValue(runtimeCount.getOperation(),
-                         support::kRuntimeParamCNameAttrName),
-      getStringAttrValue(runtimeCount.getOperation(),
-                         support::kRuntimeParamCTypeAttrName),
-      support::RuntimeABIParameterRole::RuntimeElementCount, *parsedOwnership));
-
-  return parameters;
 }
 
 const RVVI32MicrokernelFamilySpec *
@@ -1384,43 +1278,6 @@ llvm::Error rejectExistingRVVBoundaryForVariant(tcrv::exec::KernelOp kernel,
         llvm::Twine("requires no pre-existing tcrv_rvv.lowering_boundary for "
                     "target @") +
         targetSymbol);
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Error rejectExistingRVVMicrokernelForSelectedPath(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
-    VariantEmissionRole role) {
-  if (!kernel || kernel.getBody().empty())
-    return llvm::Error::success();
-
-  llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVI32MicrokernelFamilySpec *family =
-        getI32MicrokernelFamilyForOp(&op);
-    const RVVBinaryFamilyDescriptor *i64Family =
-        getI64MicrokernelFamilyForOp(&op);
-    if (!family && !i64Family)
-      continue;
-
-    auto target =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    auto microkernelRole = getStringAttr(&op, kRoleAttrName);
-    llvm::StringRef targetSymbol =
-        target ? target.getValue() : llvm::StringRef("<missing>");
-    llvm::StringRef roleValue = microkernelRole
-                                    ? microkernelRole.getValue()
-                                    : llvm::StringRef("<missing>");
-    if (targetSymbol != variant.getSymName() || roleValue != expectedRole)
-      continue;
-
-    return makeRVVPluginError(
-        llvm::Twine("requires no pre-existing ") +
-        (family ? family->getRVV().microkernelOpName
-                : i64Family->microkernelOpName) +
-        " for target @" +
-        targetSymbol + " as " + expectedRole);
   }
 
   return llvm::Error::success();
@@ -1628,11 +1485,11 @@ llvm::Error validateMicrokernelStructuredControlPlane(
   return llvm::Error::success();
 }
 
-llvm::Expected<std::optional<RVVI32MicrokernelMaterializationPlan>>
+llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
 buildDescriptorPlanForEmission(const VariantEmissionRequest &request) {
   tcrv::exec::VariantOp variant = request.getVariant();
   if (!variant || !variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName))
-    return std::optional<RVVI32MicrokernelMaterializationPlan>();
+    return std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>();
 
   llvm::Expected<const RVVI32VectorShapeConfig *> requiredConfig =
       getVariantRequiredFirstSliceConfig(variant, request.getCapabilities());
@@ -1657,7 +1514,7 @@ findMatchingExplicitMicrokernelFamily(
   if (!kernel || !variant || kernel.getBody().empty())
     return static_cast<const RVVI32MicrokernelFamilySpec *>(nullptr);
 
-  llvm::Expected<std::optional<RVVI32MicrokernelMaterializationPlan>>
+  llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
       descriptorPlan = buildDescriptorPlanForEmission(request);
   if (!descriptorPlan)
     return descriptorPlan.takeError();
@@ -1694,12 +1551,13 @@ findMatchingExplicitMicrokernelFamily(
 
     ++matches;
     matchedFamily = family;
-    if (*descriptorPlan && (*descriptorPlan)->family != family)
+    if (*descriptorPlan && (*descriptorPlan)->selectedPlan.family !=
+                               &family->getRVV())
       return makeRVVPluginError(
           llvm::Twine("explicit RVV microkernel emission plan uses ") +
           family->getRVV().microkernelOpName +
           " but selected variant descriptor requires " +
-          (*descriptorPlan)->family->getRVV().microkernelOpName);
+          (*descriptorPlan)->selectedPlan.getMicrokernelOpName());
 
     if (llvm::Error error =
             validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
@@ -1746,7 +1604,7 @@ findMatchingExplicitMicrokernelFamily(
           "explicit RVV microkernel emission plan requires element_count in "
           "the bounded smoke range [1, 64]");
     if (*descriptorPlan &&
-        elementCount.getInt() != (*descriptorPlan)->elementCount)
+        elementCount.getInt() != (*descriptorPlan)->selectedPlan.elementCount)
       return makeRVVPluginError(
           llvm::Twine("explicit RVV microkernel emission plan requires ") +
           family->getRVV().microkernelOpName +
@@ -1801,7 +1659,7 @@ findMatchingExplicitI64MicrokernelDescriptor(
   if (!propertyView)
     return propertyView.takeError();
 
-  llvm::Expected<std::optional<RVVI64MicrokernelMaterializationPlan>>
+  llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
       descriptorPlan = buildI64MicrokernelMaterializationPlan(
           variant, request.getCapabilities(), *propertyView);
   if (!descriptorPlan)
@@ -1810,7 +1668,7 @@ findMatchingExplicitI64MicrokernelDescriptor(
     return std::optional<RVVBinaryIntrinsicDescriptor>();
 
   const RVVBinaryIntrinsicDescriptor &descriptor =
-      (*descriptorPlan)->descriptor;
+      (*descriptorPlan)->selectedPlan.descriptor;
   llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -1893,7 +1751,7 @@ findMatchingExplicitI64MicrokernelDescriptor(
       return makeRVVPluginError(
           "explicit RVV i64 microkernel emission plan requires element_count "
           "in the bounded smoke range [1, 64]");
-    if (elementCount.getInt() != (*descriptorPlan)->elementCount)
+    if (elementCount.getInt() != (*descriptorPlan)->selectedPlan.elementCount)
       return makeRVVPluginError(
           llvm::Twine("explicit RVV i64 microkernel emission plan requires ") +
           descriptor.getRVVMicrokernelOpName() +
@@ -2074,235 +1932,6 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
           "lowering pipeline, runtime ABI, generated artifact, correctness "
           "proof, or performance measurement is produced"));
   return llvm::cast<tcrv::rvv::LoweringBoundaryOp>(builder.create(state));
-}
-
-mlir::Operation *materializeRVVI32MicrokernelOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role,
-    const RVVI32MicrokernelMaterializationPlan &plan) {
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  mlir::OperationState state(
-      variant.getLoc(), plan.family->getRVV().microkernelOpName);
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kElementCountAttrName,
-                     builder.getI64IntegerAttr(plan.elementCount));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  state.addAttribute(kMicrokernelRequiredMarchAttrName,
-                     builder.getStringAttr(plan.requiredMarch));
-  rvv::addRVVSelectedVectorShapeMetadataToOperationState(
-      state, builder.getContext(), *plan.i32Config);
-  if (plan.selectedMABI)
-    state.addAttribute(kSelectedMABIAttrName,
-                       builder.getStringAttr(*plan.selectedMABI));
-
-  mlir::Region *body = state.addRegion();
-  auto *block = new mlir::Block();
-  body->push_back(block);
-  mlir::Value runtimeN =
-      block->addArgument(builder.getIndexType(), variant.getLoc());
-
-  mlir::OpBuilder bodyBuilder(builder.getContext());
-  bodyBuilder.setInsertionPointToStart(block);
-
-  tcrv::rvv::PolicyAttr policy =
-      getExpectedRVVPolicyAttr(builder.getContext());
-
-  mlir::OperationState setvlState(variant.getLoc(),
-                                  tcrv::rvv::SetVLOp::getOperationName());
-  setvlState.addOperands(runtimeN);
-  setvlState.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  setvlState.addAttribute(kSEWAttrName,
-                          builder.getI64IntegerAttr(plan.i32Config->sewBits));
-  setvlState.addAttribute(kLMULAttrName,
-                          builder.getStringAttr(plan.i32Config->lmul));
-  setvlState.addAttribute(kPolicyAttrName, policy);
-  auto setvl =
-      llvm::cast<tcrv::rvv::SetVLOp>(bodyBuilder.create(setvlState));
-
-  mlir::OperationState withVLState(variant.getLoc(),
-                                   tcrv::rvv::WithVLOp::getOperationName());
-  withVLState.addOperands(setvl.getVl());
-  withVLState.addAttribute(kSEWAttrName,
-                           builder.getI64IntegerAttr(plan.i32Config->sewBits));
-  withVLState.addAttribute(kLMULAttrName,
-                           builder.getStringAttr(plan.i32Config->lmul));
-  withVLState.addAttribute(kPolicyAttrName, policy);
-  mlir::Region *withVLBody = withVLState.addRegion();
-  auto *withVLBlock = new mlir::Block();
-  withVLBody->push_back(withVLBlock);
-
-  mlir::OpBuilder withVLBodyBuilder(builder.getContext());
-  withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
-  mlir::Type i32Vector =
-      plan.i32Config->lmul == "m2"
-          ? mlir::Type(tcrv::rvv::I32M2VectorType::get(builder.getContext()))
-          : mlir::Type(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
-
-  mlir::OperationState lhsLoadState(variant.getLoc(),
-                                    tcrv::rvv::I32LoadOp::getOperationName());
-  lhsLoadState.addOperands(setvl.getVl());
-  lhsLoadState.addTypes(i32Vector);
-  lhsLoadState.addAttribute(
-      kBufferRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::LHSInputBuffer)));
-  auto lhsLoad =
-      llvm::cast<tcrv::rvv::I32LoadOp>(withVLBodyBuilder.create(lhsLoadState));
-
-  mlir::OperationState rhsLoadState(variant.getLoc(),
-                                    tcrv::rvv::I32LoadOp::getOperationName());
-  rhsLoadState.addOperands(setvl.getVl());
-  rhsLoadState.addTypes(i32Vector);
-  rhsLoadState.addAttribute(
-      kBufferRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::RHSInputBuffer)));
-  auto rhsLoad =
-      llvm::cast<tcrv::rvv::I32LoadOp>(withVLBodyBuilder.create(rhsLoadState));
-
-  mlir::OperationState arithmeticState(variant.getLoc(),
-                                       plan.family->getRVV().arithmeticOpName);
-  arithmeticState.addOperands(
-      {lhsLoad.getLoaded(), rhsLoad.getLoaded(), setvl.getVl()});
-  arithmeticState.addTypes(i32Vector);
-  mlir::Operation *arithmetic = withVLBodyBuilder.create(arithmeticState);
-  mlir::Value arithmeticResult = arithmetic->getResult(0);
-
-  mlir::OperationState storeState(variant.getLoc(),
-                                  tcrv::rvv::I32StoreOp::getOperationName());
-  storeState.addOperands({arithmeticResult, setvl.getVl()});
-  storeState.addAttribute(
-      kBufferRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::OutputBuffer)));
-  withVLBodyBuilder.create(storeState);
-
-  bodyBuilder.create(withVLState);
-
-  return builder.create(state);
-}
-
-mlir::Operation *materializeRVVI64MicrokernelOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role,
-    const RVVI64MicrokernelMaterializationPlan &plan) {
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  mlir::OperationState state(variant.getLoc(),
-                             plan.descriptor.getRVVMicrokernelOpName());
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kElementCountAttrName,
-                     builder.getI64IntegerAttr(plan.elementCount));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  state.addAttribute(kMicrokernelRequiredMarchAttrName,
-                     builder.getStringAttr(plan.requiredMarch));
-  rvv::addRVVSelectedVectorShapeMetadataToOperationState(
-      state, builder.getContext(), *plan.descriptor.shape);
-  if (plan.selectedMABI)
-    state.addAttribute(kSelectedMABIAttrName,
-                       builder.getStringAttr(*plan.selectedMABI));
-
-  mlir::Region *body = state.addRegion();
-  auto *block = new mlir::Block();
-  body->push_back(block);
-  mlir::Value runtimeN =
-      block->addArgument(builder.getIndexType(), variant.getLoc());
-
-  mlir::OpBuilder bodyBuilder(builder.getContext());
-  bodyBuilder.setInsertionPointToStart(block);
-
-  tcrv::rvv::PolicyAttr policy =
-      getExpectedRVVPolicyAttr(builder.getContext());
-
-  mlir::OperationState setvlState(variant.getLoc(),
-                                  tcrv::rvv::SetVLOp::getOperationName());
-  setvlState.addOperands(runtimeN);
-  setvlState.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  setvlState.addAttribute(kSEWAttrName,
-                          builder.getI64IntegerAttr(
-                              plan.descriptor.getSEWBits()));
-  setvlState.addAttribute(kLMULAttrName,
-                          builder.getStringAttr(plan.descriptor.getLMUL()));
-  setvlState.addAttribute(kPolicyAttrName, policy);
-  auto setvl =
-      llvm::cast<tcrv::rvv::SetVLOp>(bodyBuilder.create(setvlState));
-
-  mlir::OperationState withVLState(variant.getLoc(),
-                                   tcrv::rvv::WithVLOp::getOperationName());
-  withVLState.addOperands(setvl.getVl());
-  withVLState.addAttribute(kSEWAttrName,
-                           builder.getI64IntegerAttr(
-                               plan.descriptor.getSEWBits()));
-  withVLState.addAttribute(kLMULAttrName,
-                           builder.getStringAttr(plan.descriptor.getLMUL()));
-  withVLState.addAttribute(kPolicyAttrName, policy);
-  mlir::Region *withVLBody = withVLState.addRegion();
-  auto *withVLBlock = new mlir::Block();
-  withVLBody->push_back(withVLBlock);
-
-  mlir::OpBuilder withVLBodyBuilder(builder.getContext());
-  withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
-  mlir::Type i64Vector =
-      tcrv::rvv::I64M1VectorType::get(builder.getContext());
-
-  mlir::OperationState lhsLoadState(variant.getLoc(),
-                                    tcrv::rvv::I64LoadOp::getOperationName());
-  lhsLoadState.addOperands(setvl.getVl());
-  lhsLoadState.addTypes(i64Vector);
-  lhsLoadState.addAttribute(
-      kBufferRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::LHSInputBuffer)));
-  auto lhsLoad =
-      llvm::cast<tcrv::rvv::I64LoadOp>(withVLBodyBuilder.create(lhsLoadState));
-
-  mlir::OperationState rhsLoadState(variant.getLoc(),
-                                    tcrv::rvv::I64LoadOp::getOperationName());
-  rhsLoadState.addOperands(setvl.getVl());
-  rhsLoadState.addTypes(i64Vector);
-  rhsLoadState.addAttribute(
-      kBufferRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::RHSInputBuffer)));
-  auto rhsLoad =
-      llvm::cast<tcrv::rvv::I64LoadOp>(withVLBodyBuilder.create(rhsLoadState));
-
-  mlir::OperationState arithmeticState(variant.getLoc(),
-                                       plan.descriptor.getRVVOperationName());
-  arithmeticState.addOperands(
-      {lhsLoad.getLoaded(), rhsLoad.getLoaded(), setvl.getVl()});
-  arithmeticState.addTypes(i64Vector);
-  mlir::Operation *arithmetic = withVLBodyBuilder.create(arithmeticState);
-
-  mlir::OperationState storeState(variant.getLoc(),
-                                  tcrv::rvv::I64StoreOp::getOperationName());
-  storeState.addOperands({arithmetic->getResult(0), setvl.getVl()});
-  storeState.addAttribute(
-      kBufferRoleAttrName,
-      builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::OutputBuffer)));
-  withVLBodyBuilder.create(storeState);
-
-  bodyBuilder.create(withVLState);
-
-  return builder.create(state);
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -2522,12 +2151,12 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
             verifyOptionalCapacityAttrs(variant, *propertyView))
       return error;
 
-    llvm::Expected<std::optional<RVVI32MicrokernelMaterializationPlan>>
+    llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
         microkernelPlan = buildI32MicrokernelMaterializationPlan(
             variant, request.getCapabilities(), *propertyView);
     if (!microkernelPlan)
       return microkernelPlan.takeError();
-    llvm::Expected<std::optional<RVVI64MicrokernelMaterializationPlan>>
+    llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
         i64MicrokernelPlan = buildI64MicrokernelMaterializationPlan(
             variant, request.getCapabilities(), *propertyView);
     if (!i64MicrokernelPlan)
@@ -2658,7 +2287,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
         tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
             family.getRVV(), **selectedConfig);
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
-        callableParameters = buildRVVBinaryCallableRuntimeABIParameters(
+        callableParameters = rvv::buildRVVBinaryCallableRuntimeABIParameters(
             request.getKernel(), descriptor);
     if (!callableParameters)
       return callableParameters.takeError();
@@ -2699,7 +2328,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIName(descriptor.getRVVRuntimeABIName());
     out.setRuntimeGlueRole(descriptor.getRVVRuntimeGlueRole());
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
-        parameters = buildRVVBinaryCallableRuntimeABIParameters(
+        parameters = rvv::buildRVVBinaryCallableRuntimeABIParameters(
             request.getKernel(), descriptor);
     if (!parameters)
       return parameters.takeError();
@@ -2822,8 +2451,9 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   if (!capabilitySummary)
     return capabilitySummary.takeError();
 
-  std::optional<RVVI32MicrokernelMaterializationPlan> microkernelPlan;
-  std::optional<RVVI64MicrokernelMaterializationPlan> i64MicrokernelPlan;
+  std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan> microkernelPlan;
+  std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>
+      i64MicrokernelPlan;
   bool selectedPathHasExistingI32Microkernel = false;
   if (variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName)) {
     llvm::Expected<RVVCapabilityPropertyView> propertyView =
@@ -2832,14 +2462,14 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     if (!propertyView)
       return propertyView.takeError();
 
-    llvm::Expected<std::optional<RVVI32MicrokernelMaterializationPlan>> planned =
-        buildI32MicrokernelMaterializationPlan(variant, request.getCapabilities(),
-                                        *propertyView);
+    llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
+        planned = buildI32MicrokernelMaterializationPlan(
+            variant, request.getCapabilities(), *propertyView);
     if (!planned)
       return planned.takeError();
     microkernelPlan = std::move(*planned);
 
-    llvm::Expected<std::optional<RVVI64MicrokernelMaterializationPlan>>
+    llvm::Expected<std::optional<rvv::RVVBinaryMicrokernelMaterializationPlan>>
         plannedI64 = buildI64MicrokernelMaterializationPlan(
             variant, request.getCapabilities(), *propertyView);
     if (!plannedI64)
@@ -2863,14 +2493,13 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 
   if (microkernelPlan || i64MicrokernelPlan)
     if (llvm::Error error =
-            rejectExistingRVVMicrokernelForSelectedPath(kernel, variant,
-                                                        request.getRole()))
+            rvv::rejectExistingRVVBinaryMicrokernelForSelectedPath(
+                kernel, variant, request.getRole()))
       return error;
 
   std::optional<RVVBinaryIntrinsicDescriptor> i32Descriptor;
   if (microkernelPlan) {
-    i32Descriptor = tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-        microkernelPlan->family->getRVV(), **selectedConfig);
+    i32Descriptor = microkernelPlan->selectedPlan.descriptor;
   } else if (selectedPathHasExistingI32Microkernel) {
     VariantEmissionRequest emissionRequest(variant, kernel,
                                            request.getCapabilities(),
@@ -2894,7 +2523,8 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   if (i64MicrokernelPlan)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
             kernel, request.getBuilder(),
-            i64MicrokernelPlan->descriptor.getBufferMemWindowSpecs()))
+            i64MicrokernelPlan->selectedPlan.descriptor
+                .getBufferMemWindowSpecs()))
       return error;
 
   if (selectedPathHasCallableMicrokernel) {
@@ -2905,7 +2535,8 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
           "runtime ABI metadata");
     auto countSpecs =
         i64MicrokernelPlan
-            ? i64MicrokernelPlan->descriptor.getRuntimeElementCountParamSpecs()
+            ? i64MicrokernelPlan->selectedPlan.descriptor
+                  .getRuntimeElementCountParamSpecs()
             : i32Descriptor->getRuntimeElementCountParamSpecs();
     runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     if (llvm::Error error =
@@ -2915,17 +2546,25 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   }
 
   llvm::Expected<tcrv::rvv::LoweringBoundaryOp> boundary =
-      materializeRVVBoundaryOp(
-      request.getBuilder(), kernel, variant, request.getRole(),
-      *capabilitySummary, **selectedConfig);
+      materializeRVVBoundaryOp(request.getBuilder(), kernel, variant,
+                               request.getRole(), *capabilitySummary,
+                               **selectedConfig);
   if (!boundary)
     return boundary.takeError();
   if (microkernelPlan)
-    materializeRVVI32MicrokernelOp(request.getBuilder(), kernel, variant,
-                                   request.getRole(), *microkernelPlan);
+    if (llvm::Expected<mlir::Operation *> microkernel =
+            rvv::materializeRVVBinaryMicrokernelOp(
+                request.getBuilder(), kernel, variant, request.getRole(),
+                *microkernelPlan);
+        !microkernel)
+      return microkernel.takeError();
   if (i64MicrokernelPlan)
-    materializeRVVI64MicrokernelOp(request.getBuilder(), kernel, variant,
-                                   request.getRole(), *i64MicrokernelPlan);
+    if (llvm::Expected<mlir::Operation *> microkernel =
+            rvv::materializeRVVBinaryMicrokernelOp(
+                request.getBuilder(), kernel, variant, request.getRole(),
+                *i64MicrokernelPlan);
+        !microkernel)
+      return microkernel.takeError();
   out = VariantLoweringBoundaryResult::getMaterialized(
       kRVVPluginName, kernel.getSymName(), variant.getSymName(),
       request.getRole(), boundary->getOperation());

@@ -114,6 +114,68 @@ emission-plan metadata, and selected-boundary validation.
 - None - task complete
 
 
+## Session 16: RVV binary microkernel materialization component extraction
+
+**Date**: 2026-05-10
+**Task**: Extract RVV binary microkernel materialization component
+**Branch**: `main`
+
+### Summary
+
+Extracted descriptor-backed RVV binary microkernel materialization from
+`RVVExtensionPlugin.cpp` into a plugin-local component while preserving the live
+i32/i64 selected-boundary, runtime ABI preflight, and materialized
+`tcrv_rvv.*_microkernel` behavior.
+
+### Main Changes
+
+- Created Trellis task
+  `05-10-rvv-binary-microkernel-materialization-component` from the malformed
+  Hermes review fallback brief and current repo evidence.
+- Added `RVVBinaryMicrokernelMaterialization` under
+  `include/TianChenRV/Plugin/RVV/` and `lib/Plugin/RVV/`.
+- Moved descriptor-backed selected-plan wrapping, callable runtime ABI
+  parameter collection, duplicate selected-path microkernel rejection, and
+  generic i32/i64 microkernel op construction into the new component.
+- Updated `RVVExtensionPlugin.cpp` so it still owns RVV capability, legality,
+  selected-boundary routing, explicit microkernel validation, and plugin
+  registry behavior, but delegates descriptor-backed materialization to the new
+  component.
+- No `.trellis/spec/` update was needed: this was a behavior-preserving
+  component extraction within existing RVV/plugin-boundary specs.
+- No new RVV runtime/correctness/performance claim was made, and no new
+  `ssh rvv` evidence was produced.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-binary-planning-test -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter
+  `rvv-microkernel-(auto-materialization|i64-vadd|i64-vsub|i64-vmul|i32m2-family-sub|i32m2-object|missing-op-fails|duplicate-op-fails|dataflow-mismatch-fails)`
+  passed 10/10 selected tests
+- [OK] focused lit filter
+  `plan-linalg-(i32m2-vsub|i32m2-vmul|i64-vadd|i64-vsub|i64-vmul)-and-export-target-artifact-bundle`
+  passed 5/5 selected tests
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` passed 192/192
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-10-rvv-binary-microkernel-materialization-component`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 13: RVV i64-vadd scalar fallback dispatch artifact and ssh evidence
 
 **Date**: 2026-05-10

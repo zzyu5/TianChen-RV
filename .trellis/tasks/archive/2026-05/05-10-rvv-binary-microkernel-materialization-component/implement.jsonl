@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin materialization and parameter-layering contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-boundary and registry interface contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant planning and selected lowering-boundary pipeline contract"}

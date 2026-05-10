@@ -1,0 +1,67 @@
+#ifndef TIANCHENRV_PLUGIN_RVV_RVVBINARYMICROKERNELMATERIALIZATION_H
+#define TIANCHENRV_PLUGIN_RVV_RVVBINARYMICROKERNELMATERIALIZATION_H
+
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
+#include "TianChenRV/Support/RuntimeABI.h"
+#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
+
+#include "mlir/IR/Operation.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+
+#include <optional>
+#include <string>
+
+namespace mlir {
+class OpBuilder;
+} // namespace mlir
+
+namespace tianchenrv::plugin::rvv {
+
+struct RVVBinaryMicrokernelMaterializationPlan {
+  RVVBinarySelectedPlan selectedPlan;
+
+  const target::rvv::RVVBinaryIntrinsicDescriptor &getDescriptor() const {
+    return selectedPlan.descriptor;
+  }
+
+  const target::rvv::RVVBinaryFamilyDescriptor &getFamily() const {
+    return *selectedPlan.family;
+  }
+
+  const target::rvv::RVVVectorShapeConfig &getShape() const {
+    return *selectedPlan.shape;
+  }
+};
+
+llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
+buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
+    tcrv::exec::VariantOp variant,
+    const target::rvv::RVVVectorShapeConfig &shape,
+    llvm::StringRef expectedDTypeID,
+    std::optional<std::string> selectedMABI = std::nullopt);
+
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
+buildRVVBinaryCallableRuntimeABIParameters(
+    tcrv::exec::KernelOp kernel,
+    const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor);
+
+const target::rvv::RVVBinaryFamilyDescriptor *
+getRVVBinaryMicrokernelFamilyForOp(mlir::Operation *op);
+
+llvm::Error rejectExistingRVVBinaryMicrokernelForSelectedPath(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    VariantEmissionRole role);
+
+llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role,
+    const RVVBinaryMicrokernelMaterializationPlan &plan);
+
+} // namespace tianchenrv::plugin::rvv
+
+#endif // TIANCHENRV_PLUGIN_RVV_RVVBINARYMICROKERNELMATERIALIZATION_H
