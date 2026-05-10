@@ -866,6 +866,24 @@ def parse_source_comment(source: str, field: str, *, required: bool) -> str:
     return value
 
 
+def parse_selected_kernel_from_source(source: str) -> str:
+    value = parse_source_comment(source, "selected_kernel", required=True)
+    return parse_symbol_value(value, "generated dispatch C source selected_kernel")
+
+
+def validate_expected_selected_kernel(args: argparse.Namespace, selected: str) -> None:
+    expected = str(getattr(args, "expect_selected_kernel", "")).strip()
+    if not expected:
+        return
+    reject_secret_like_text("expected selected kernel", expected)
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_.$-]*$", expected):
+        raise BridgeError(f"expected selected kernel is malformed: {expected}")
+    if selected != expected:
+        raise BridgeError(
+            f"selected kernel {selected} did not match expected {expected}"
+        )
+
+
 def parse_comment_key_values(source: str, field: str) -> dict[str, str]:
     return parse_comma_key_values(
         parse_source_comment(source, field, required=True), field
@@ -2903,6 +2921,8 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_vector_config = validate_library_dispatch_source(source_text)
+    selected_kernel = parse_selected_kernel_from_source(source_text)
+    validate_expected_selected_kernel(args, selected_kernel)
     generated_symbols = {
         "rvv_callable_symbol": parse_source_comment(
             source_text, "rvv_callable_symbol", required=True
@@ -3001,6 +3021,8 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "vector_shape": ACTIVE_VECTOR_SHAPE,
         "input": relative_to_repo(input_path, root),
+        "expected_selected_kernel": str(args.expect_selected_kernel),
+        "selected_kernel": selected_kernel,
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": planned_dispatch_pipeline,
         "bundle_export_mode": bundle_export_mode,
@@ -3204,6 +3226,8 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         timeout_seconds=args.timeout,
     )
     library_vector_config = validate_library_dispatch_source(library_source_text)
+    selected_kernel = parse_selected_kernel_from_source(library_source_text)
+    validate_expected_selected_kernel(args, selected_kernel)
     generated_symbols = {
         "rvv_callable_symbol": parse_source_comment(
             library_source_text, "rvv_callable_symbol", required=True
@@ -3326,6 +3350,8 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "vector_shape": ACTIVE_VECTOR_SHAPE,
         "input": relative_to_repo(input_path, root),
+        "expected_selected_kernel": str(args.expect_selected_kernel),
+        "selected_kernel": selected_kernel,
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_dispatch_pipeline": "tcrv-execution-planning-pipeline",
         "frontend_pipeline_command": command_display(
@@ -4285,6 +4311,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ssh-option", action="append", default=[])
     parser.add_argument("--evidence-note", default="")
     parser.add_argument(
+        "--expect-selected-kernel",
+        default="",
+        help="Require the compiler-emitted dispatch source to name this selected kernel",
+    )
+    parser.add_argument(
         "--use-target-artifact-bundle",
         action="store_true",
         help="Export and consume the registry-derived target artifact bundle",
@@ -4337,6 +4368,10 @@ def main(argv: list[str]) -> int:
                 "mode": evidence["mode"],
                 "status": evidence["status"],
                 "vector_shape": evidence.get("vector_shape", ""),
+                "expected_selected_kernel": evidence.get(
+                    "expected_selected_kernel", ""
+                ),
+                "selected_kernel": evidence.get("selected_kernel", ""),
                 "planned_dispatch_pipeline": evidence["planned_dispatch_pipeline"],
                 "fixture_free_frontend_pipeline": bool(
                     evidence.get("fixture_free_frontend_pipeline", False)

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, capability, plugin locality, and compute-free exec dialect constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary i64m1 descriptor, selected metadata, intrinsic, capability, and evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback finite i64 callable route ownership and ABI requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg frontend, selection, dispatch, runtime guard, and target-neutral planning contracts."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target artifact route, dispatch bundle, component metadata, and export preflight contracts."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV hardware evidence scope and forbidden interpretation boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit, C++ test, runner, bundle, and ssh evidence validation policy."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-finite-binary-descriptor-planning-contract/prd.md", "reason": "Prior completed RVV finite descriptor/family planning contract context."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-i64m1-frontdoor-linalg-ssh-evidence/prd.md", "reason": "Prior direct linalg i64-vadd RVV front-door ssh evidence context and non-goals."}

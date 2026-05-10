@@ -5,9 +5,24 @@
 #map = affine_map<(d0) -> (d0)>
 
 module {
+  tcrv.exec.capability @no_rvv_policy {
+    id = "generic.build.profile",
+    kind = "build-policy",
+    provides = ["build.policy.no_rvv"],
+    status = "available"
+  }
+
+  tcrv.exec.capability @scalar_fallback {
+    id = "scalar.fallback",
+    kind = "fallback",
+    status = "available"
+  }
+
   tcrv.exec.target @frontend_rvv_i64_profile {
     architecture = "riscv64",
     count = 64 : i64,
+    capability_providers = [@no_rvv_policy, @scalar_fallback],
+    conflicts = ["build.policy.no_rvv"],
     id = "rvv.profile.frontend.i64",
     isa_vector_hints = "rv64gcv_zvl128b",
     kind = "profile",
@@ -16,6 +31,7 @@ module {
     lmul = "m1",
     tail_policy = "agnostic",
     mask_policy = "agnostic",
+    selected_mabi = "lp64d",
     selected_march = "rv64gcv",
     status = "available",
     value = "rv64gcv"
@@ -76,14 +92,22 @@ module {
 // PIPE-SAME: tcrv_rvv.selected_vector_shape = "i64m1"
 // PIPE-SAME: tcrv_rvv.selected_vector_suffix = "i64m1"
 // PIPE-SAME: tcrv_rvv.selected_vector_type = "vint64m1_t"
-// PIPE: tcrv.exec.diagnostic
-// PIPE-SAME: reason = "variant-selected"
-// PIPE-SAME: selection_kind = "static-variant"
-// PIPE-SAME: target = @rvv_first_slice
+// PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+// PIPE-SAME: origin = "scalar-plugin"
+// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i64-vadd-microkernel.v1"
+// PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
+// PIPE-SAME: abi_role = "dispatch-availability-guard"
+// PIPE-SAME: c_name = "rvv_available"
+// PIPE-SAME: c_type = "int"
+// PIPE: tcrv.exec.dispatch
+// PIPE: tcrv.exec.case @rvv_first_slice
+// PIPE-SAME: runtime_guard = @abi_dispatch_availability_guard
+// PIPE-SAME: runtime_guard_required = true
+// PIPE: tcrv.exec.fallback @scalar_fallback_first_slice
 // PIPE: tcrv_rvv.lowering_boundary
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: required_capabilities = [@frontend_rvv_i64_profile]
-// PIPE-SAME: role = "direct variant"
+// PIPE-SAME: role = "dispatch case"
 // PIPE-SAME: selected_variant = @rvv_first_slice
 // PIPE-SAME: selected_vector_lmul = "m1"
 // PIPE-SAME: selected_vector_sew = 64 : i64
@@ -106,28 +130,53 @@ module {
 // PIPE-SAME: !tcrv_rvv.i64m1, !tcrv_rvv.i64m1, !tcrv_rvv.vl -> !tcrv_rvv.i64m1
 // PIPE: tcrv_rvv.i64_store
 // PIPE-SAME: !tcrv_rvv.i64m1, !tcrv_rvv.vl
+// PIPE: tcrv_scalar.lowering_boundary
+// PIPE-SAME: origin = "scalar-plugin"
+// PIPE-SAME: role = "dispatch fallback"
+// PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+// PIPE: tcrv_scalar.i64_vadd_microkernel
+// PIPE-SAME: element_count = 16 : i64
+// PIPE-SAME: selected_variant = @scalar_fallback_first_slice
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: artifact_kind = "runtime-callable-c-source"
 // PIPE-SAME: emission_kind = "rvv-explicit-i64-vadd-microkernel-c-source"
 // PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-i64-vadd-microkernel-c"
+// PIPE-SAME: role = "dispatch case"
 // PIPE-SAME: runtime_abi = "rvv-i64-vadd-runtime-callable-c-abi.v1"
 // PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // PIPE-SAME: runtime_abi_name = "rvv-i64-vadd-runtime-callable-c-function.v1"
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i64-vadd-function"
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
+// PIPE: tcrv.exec.diagnostic
+// PIPE-SAME: artifact_kind = "runtime-callable-c-source"
+// PIPE-SAME: emission_kind = "scalar-explicit-i64-vadd-microkernel-c-source"
+// PIPE-SAME: lowering_pipeline = "tcrv-export-scalar-i64-vadd-microkernel-c"
+// PIPE-SAME: role = "dispatch fallback"
+// PIPE-SAME: runtime_abi = "scalar-i64-vadd-runtime-callable-c-abi.v1"
+// PIPE-SAME: runtime_abi_name = "scalar-i64-vadd-runtime-callable-c-function.v1"
+// PIPE-SAME: status = "supported"
+// PIPE-SAME: target = @scalar_fallback_first_slice
 
-// SOURCE: /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
-// SOURCE: /* arithmetic_family: i64-vadd */
-// SOURCE: /* dtype: i64 */
-// SOURCE: /* active_route: tcrv-export-rvv-i64-vadd-microkernel-c */
-// SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_add -> tcrv_rvv.i64_store */
+// SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+// SOURCE: /* Scope: one selected RVV i64-vadd dispatch case plus one scalar i64-vadd dispatch fallback. */
+// SOURCE: /* selected_kernel: @frontend_i64_vadd */
+// SOURCE: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
+// SOURCE: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+// SOURCE: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
+// SOURCE: /* dispatch_runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
-// SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
-// SOURCE: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 // SOURCE: void tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
 // SOURCE: __riscv_vsetvl_e64m1
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vadd_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+// SOURCE: void tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
+// SOURCE: out[index] = lhs[index] + rhs[index];
+// SOURCE-LABEL: {{^}}void tcrv_dispatch_i64_vadd_frontend_i64_vadd
+// SOURCE: if (rvv_available)
+// SOURCE: tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(lhs, rhs, out, n);
+// SOURCE: return;
+// SOURCE: tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);

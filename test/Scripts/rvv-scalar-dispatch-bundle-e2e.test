@@ -15,6 +15,14 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/bundle_export_stdout.txt
 # RUN: not test -e %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/post_planning.mlir
 # RUN: FileCheck %s --check-prefix=PLAN-SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/command_summary.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=frontend_i64_vadd --run-id lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export --overwrite --input %S/../Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir | FileCheck %s --check-prefix=I64-VADD-FRONTDOOR-PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i64-vadd-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vadd-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i64-vadd-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=I64-VADD-FRONTDOOR-SOURCE --implicit-check-not=export_i64_vadd --implicit-check-not=rvv_i64_slice --implicit-check-not=rvv-i64-vadd-microkernel-external-abi.v1 --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i64-vadd-dispatch-c.c
+# RUN: FileCheck %s --check-prefix=I64-VADD-FRONTDOOR-CALLER --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not="lhs[index] * rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=I64-VADD-FRONTDOOR-INDEX --implicit-check-not=rvv-i64-vadd-microkernel-external-abi.v1 --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=I64-VADD-FRONTDOOR-EVIDENCE --implicit-check-not=export_i64_vadd --implicit-check-not=rvv_i64_slice --implicit-check-not=rvv-i64-vadd-microkernel-external-abi.v1 --implicit-check-not=rvv-scalar-i64-vsub-dispatch --implicit-check-not=rvv-scalar-i64-vmul-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/evidence.json
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --run-id lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export --overwrite --input %S/../Target/TargetArtifactBundleExport/plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir | FileCheck %s --check-prefix=VSUB-PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h
@@ -126,6 +134,68 @@
 
 # PLAN-SUMMARY: "name": "plan_and_export_target_artifact_bundle"
 # PLAN-SUMMARY-NOT: "name": "tcrv_opt_execution_planning_pipeline"
+
+# I64-VADD-FRONTDOOR-PLAN-DRY: "arithmetic_family": "i64-vadd"
+# I64-VADD-FRONTDOOR-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# I64-VADD-FRONTDOOR-PLAN-DRY: "expected_selected_kernel": "frontend_i64_vadd"
+# I64-VADD-FRONTDOOR-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# I64-VADD-FRONTDOOR-PLAN-DRY: "selected_kernel": "frontend_i64_vadd"
+# I64-VADD-FRONTDOOR-PLAN-DRY: "ssh_evidence": false
+# I64-VADD-FRONTDOOR-PLAN-DRY: "status": "success"
+# I64-VADD-FRONTDOOR-PLAN-DRY: "vector_shape": "i64m1"
+
+# I64-VADD-FRONTDOOR-SOURCE: /* Scope: one selected RVV i64-vadd dispatch case plus one scalar i64-vadd dispatch fallback. */
+# I64-VADD-FRONTDOOR-SOURCE: /* selected_kernel: @frontend_i64_vadd */
+# I64-VADD-FRONTDOOR-SOURCE: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
+# I64-VADD-FRONTDOOR-SOURCE: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
+# I64-VADD-FRONTDOOR-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice */
+# I64-VADD-FRONTDOOR-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice */
+# I64-VADD-FRONTDOOR-SOURCE: /* dispatch_runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# I64-VADD-FRONTDOOR-SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
+# I64-VADD-FRONTDOOR-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
+# I64-VADD-FRONTDOOR-SOURCE: __riscv_vadd_vv_i64m1
+# I64-VADD-FRONTDOOR-SOURCE: out[index] = lhs[index] + rhs[index];
+# I64-VADD-FRONTDOOR-SOURCE: void tcrv_dispatch_i64_vadd_frontend_i64_vadd
+
+# I64-VADD-FRONTDOOR-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
+# I64-VADD-FRONTDOOR-CALLER: tcrv_dispatch_i64_vadd_frontend_i64_vadd(lhs, rhs, out, runtime_n, rvv_available);
+# I64-VADD-FRONTDOOR-CALLER: out[index] != lhs[index] + rhs[index]
+# I64-VADD-FRONTDOOR-CALLER: run_dispatch_case(7, 0)
+# I64-VADD-FRONTDOOR-CALLER: run_dispatch_case(16, 1)
+# I64-VADD-FRONTDOOR-CALLER: tcrv_rvv_scalar_i64_vadd_bundle_external_abi_ok
+
+# I64-VADD-FRONTDOOR-INDEX: component_group: "rvv-scalar-i64-vadd-dispatch-external-abi.v1"
+# I64-VADD-FRONTDOOR-INDEX: component_role: "source"
+# I64-VADD-FRONTDOOR-INDEX: external_abi_name: "rvv-scalar-i64-vadd-dispatch-runtime-callable-c-function.v1"
+# I64-VADD-FRONTDOOR-INDEX: selected_surface: "dispatch"
+# I64-VADD-FRONTDOOR-INDEX: role: "dispatch case"
+# I64-VADD-FRONTDOOR-INDEX: role: "dispatch fallback"
+# I64-VADD-FRONTDOOR-INDEX: route: "tcrv-export-rvv-scalar-i64-vadd-dispatch-c"
+# I64-VADD-FRONTDOOR-INDEX: c_name: "lhs"
+# I64-VADD-FRONTDOOR-INDEX-NEXT: c_type: "const int64_t *"
+# I64-VADD-FRONTDOOR-INDEX: c_name: "out"
+# I64-VADD-FRONTDOOR-INDEX-NEXT: c_type: "int64_t *"
+# I64-VADD-FRONTDOOR-INDEX: c_name: "rvv_available"
+# I64-VADD-FRONTDOOR-INDEX-NEXT: c_type: "int"
+# I64-VADD-FRONTDOOR-INDEX: component_role: "header"
+# I64-VADD-FRONTDOOR-INDEX: route: "tcrv-export-rvv-scalar-i64-vadd-dispatch-header"
+# I64-VADD-FRONTDOOR-INDEX: component_role: "object"
+# I64-VADD-FRONTDOOR-INDEX: route: "tcrv-export-rvv-scalar-i64-vadd-dispatch-object"
+
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "arithmetic_family": "i64-vadd"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "input": "test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "selected_kernel": "frontend_i64_vadd"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "component_group": "rvv-scalar-i64-vadd-dispatch-external-abi.v1"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "route": "tcrv-export-rvv-scalar-i64-vadd-dispatch-c"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "route": "tcrv-export-rvv-scalar-i64-vadd-dispatch-header"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "route": "tcrv-export-rvv-scalar-i64-vadd-dispatch-object"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "selected_branch": "scalar-dispatch-fallback"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "selected_branch": "rvv-dispatch-case"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "guard_c_name": "rvv_available"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "runtime_guard": "abi_dispatch_availability_guard"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "pass_fail_result": "pass"
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "ssh_evidence": null
+# I64-VADD-FRONTDOOR-EVIDENCE-DAG: "status": "success"
 
 # VSUB-PLAN-DRY: "arithmetic_family": "i32-vsub"
 # VSUB-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"

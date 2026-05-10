@@ -3,7 +3,6 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-bundle-vsub --overwrite | FileCheck %s --check-prefix=VSUB-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --run-id lit-rvv-microkernel-bundle-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-VADD-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --run-id lit-rvv-microkernel-plan-bundle-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-VADD-PLAN-BUNDLE
-# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=frontend_i64_vadd --run-id lit-rvv-microkernel-plan-bundle-linalg-i64-vadd --overwrite --input %S/../Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-I64-VADD-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-plan-bundle-vmul --overwrite | FileCheck %s --check-prefix=VMUL-PLAN-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --expect-selected-kernel=frontend_i64_vmul --run-id lit-rvv-microkernel-plan-bundle-linalg-i64-vmul --overwrite --input %S/../Transforms/LinalgToExec/linalg-i64-vmul-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-I64-VMUL-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=frontend_i32_vsub --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2 --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-VSUB-M2-BUNDLE
@@ -14,8 +13,6 @@
 # RUN: FileCheck %s --check-prefix=I64-VADD-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-bundle-i64-vadd/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=I64-VADD-PLAN-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-i64-vadd/evidence.json
 # RUN: FileCheck %s --check-prefix=I64-VADD-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-i64-vadd/rvv_microkernel_external_caller.c
-# RUN: FileCheck %s --check-prefix=LINALG-I64-VADD-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vadd/evidence.json
-# RUN: FileCheck %s --check-prefix=LINALG-I64-VADD-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vadd/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul/evidence.json
 # RUN: FileCheck %s --check-prefix=VMUL-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=LINALG-I64-VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vmul/evidence.json
@@ -61,18 +58,6 @@
 # I64-VADD-PLAN-BUNDLE-NOT: throughput
 # I64-VADD-PLAN-BUNDLE-NOT: latency
 
-# LINALG-I64-VADD-BUNDLE: "arithmetic_family": "i64-vadd"
-# LINALG-I64-VADD-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vadd"
-# LINALG-I64-VADD-BUNDLE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
-# LINALG-I64-VADD-BUNDLE: "expected_selected_kernel": "frontend_i64_vadd"
-# LINALG-I64-VADD-BUNDLE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
-# LINALG-I64-VADD-BUNDLE: "selected_kernel": "frontend_i64_vadd"
-# LINALG-I64-VADD-BUNDLE: "ssh_evidence": false
-# LINALG-I64-VADD-BUNDLE: "status": "success"
-# LINALG-I64-VADD-BUNDLE: "vector_shape": "i64m1"
-# LINALG-I64-VADD-BUNDLE-NOT: int32_t
-# LINALG-I64-VADD-BUNDLE-NOT: throughput
-# LINALG-I64-VADD-BUNDLE-NOT: latency
 
 # VMUL-PLAN-BUNDLE: "arithmetic_family": "i32-vmul"
 # VMUL-PLAN-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vmul"
@@ -191,46 +176,6 @@
 # I64-VADD-CALLER-NOT: lhs[index] * rhs[index]
 # I64-VADD-CALLER-NOT: throughput
 # I64-VADD-CALLER-NOT: latency
-
-# LINALG-I64-VADD-EVIDENCE: "arithmetic_family": "i64-vadd"
-# LINALG-I64-VADD-EVIDENCE-DAG: "input": "test/Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir"
-# LINALG-I64-VADD-EVIDENCE-DAG: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
-# LINALG-I64-VADD-EVIDENCE-DAG: "component_group": "rvv-i64-vadd-microkernel-external-abi.v1"
-# LINALG-I64-VADD-EVIDENCE-DAG: "component_role": "source"
-# LINALG-I64-VADD-EVIDENCE-DAG: "external_abi_name": "rvv-i64-vadd-runtime-callable-c-function.v1"
-# LINALG-I64-VADD-EVIDENCE-DAG: "route": "tcrv-export-rvv-i64-vadd-microkernel-c"
-# LINALG-I64-VADD-EVIDENCE-DAG: "route": "tcrv-export-rvv-i64-vadd-microkernel-header"
-# LINALG-I64-VADD-EVIDENCE-DAG: "route": "tcrv-export-rvv-i64-vadd-microkernel-object"
-# LINALG-I64-VADD-EVIDENCE-DAG: "selected_kernel": "frontend_i64_vadd"
-# LINALG-I64-VADD-EVIDENCE-DAG: "selected_variant": "rvv_first_slice"
-# LINALG-I64-VADD-EVIDENCE-DAG: "c_type": "const int64_t *"
-# LINALG-I64-VADD-EVIDENCE-DAG: "c_type": "int64_t *"
-# LINALG-I64-VADD-EVIDENCE-DAG: "arithmetic_check": "lhs + rhs"
-# LINALG-I64-VADD-EVIDENCE-DAG: "success_marker": "tcrv_rvv_i64_vadd_microkernel_external_abi_ok"
-# LINALG-I64-VADD-EVIDENCE-DAG: "__riscv_vadd_vv_i64m1"
-# LINALG-I64-VADD-EVIDENCE-DAG: "selected_vector_shape_capabilities": "rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic"
-# LINALG-I64-VADD-EVIDENCE-DAG: "selected_vector_shape_config": "dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1"
-# LINALG-I64-VADD-EVIDENCE-DAG: "ssh_evidence": false
-# LINALG-I64-VADD-EVIDENCE-NOT: "selected_kernel": "export_i64_vadd"
-# LINALG-I64-VADD-EVIDENCE-NOT: "selected_variant": "rvv_i64_slice"
-# LINALG-I64-VADD-EVIDENCE-NOT: int32_t
-# LINALG-I64-VADD-EVIDENCE-NOT: rvv-i64-vsub-runtime-callable-c-function.v1
-# LINALG-I64-VADD-EVIDENCE-NOT: rvv-i64-vmul-runtime-callable-c-function.v1
-# LINALG-I64-VADD-EVIDENCE-NOT: lhs - rhs
-# LINALG-I64-VADD-EVIDENCE-NOT: lhs * rhs
-# LINALG-I64-VADD-EVIDENCE-NOT: throughput
-# LINALG-I64-VADD-EVIDENCE-NOT: latency
-
-# LINALG-I64-VADD-CALLER: #include "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i64-vadd-microkernel-header.h"
-# LINALG-I64-VADD-CALLER: tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(lhs, rhs, out, runtime_n)
-# LINALG-I64-VADD-CALLER: if (out[index] != lhs[index] + rhs[index])
-# LINALG-I64-VADD-CALLER: tcrv_rvv_i64_vadd_microkernel_external_abi_ok
-# LINALG-I64-VADD-CALLER-NOT: int32_t
-# LINALG-I64-VADD-CALLER-NOT: export_i64_vadd
-# LINALG-I64-VADD-CALLER-NOT: lhs[index] - rhs[index]
-# LINALG-I64-VADD-CALLER-NOT: lhs[index] * rhs[index]
-# LINALG-I64-VADD-CALLER-NOT: throughput
-# LINALG-I64-VADD-CALLER-NOT: latency
 
 # VMUL-EVIDENCE: "arithmetic_family": "i32-vmul"
 # VMUL-EVIDENCE: "component_group": "rvv-i32-vmul-microkernel-external-abi.v1"
