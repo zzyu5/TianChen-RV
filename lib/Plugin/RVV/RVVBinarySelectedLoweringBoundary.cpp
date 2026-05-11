@@ -25,6 +25,7 @@ constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kLoweringDescriptorAttrName(
     "tcrv_rvv.lowering_descriptor");
+constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
     "tcrv_rvv.smoke_probe_descriptor");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
@@ -415,6 +416,31 @@ buildRVVBinarySelectedMicrokernelMaterializationPlan(
   return std::move(plan);
 }
 
+llvm::Expected<RVVBinaryMicrokernelMaterializationPlan>
+buildDescriptorlessDefaultI32AddMicrokernelMaterializationPlan(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities,
+    const RVVBinaryCapabilityPropertyView &view) {
+  llvm::Expected<std::optional<std::string>> selectedMABI =
+      getOptionalSelectedMABI(capabilities);
+  if (!selectedMABI)
+    return selectedMABI.takeError();
+
+  llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
+      buildRVVBinarySelectedPlanFromTypedFamilyVariant(
+          variant, target::rvv::getI32VAddFamilyDescriptor(),
+          *view.selectedShape, "i32", std::move(*selectedMABI));
+  if (!selectedPlan)
+    return selectedPlan.takeError();
+
+  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
+    return std::move(error);
+
+  RVVBinaryMicrokernelMaterializationPlan plan;
+  plan.selectedPlan = std::move(*selectedPlan);
+  return plan;
+}
+
 llvm::Error materializeRVVBinarySelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out, llvm::StringRef originPlugin,
@@ -464,26 +490,42 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
 
   std::optional<RVVBinaryMicrokernelMaterializationPlan> i32MicrokernelPlan;
   std::optional<RVVBinaryMicrokernelMaterializationPlan> i64MicrokernelPlan;
-  if (variant->hasAttr(kLoweringDescriptorAttrName)) {
+  bool hasLoweringDescriptor = variant->hasAttr(kLoweringDescriptorAttrName);
+  bool hasSmokeProbeDescriptor =
+      variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
+  bool hasDescriptorlessDefaultI32Add =
+      !hasLoweringDescriptor && !hasSmokeProbeDescriptor &&
+      variant->hasAttr(kElementCountAttrName) &&
+      (*selectedConfig)->dtypeID == "i32";
+  if (hasLoweringDescriptor || hasDescriptorlessDefaultI32Add) {
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
         buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                             *selectedConfig);
     if (!propertyView)
       return propertyView.takeError();
 
-    llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-        plannedI32 = buildRVVBinarySelectedMicrokernelMaterializationPlan(
-            variant, request.getCapabilities(), *propertyView, "i32");
-    if (!plannedI32)
-      return plannedI32.takeError();
-    i32MicrokernelPlan = std::move(*plannedI32);
+    if (hasDescriptorlessDefaultI32Add) {
+      llvm::Expected<RVVBinaryMicrokernelMaterializationPlan> plannedI32 =
+          buildDescriptorlessDefaultI32AddMicrokernelMaterializationPlan(
+              variant, request.getCapabilities(), *propertyView);
+      if (!plannedI32)
+        return plannedI32.takeError();
+      i32MicrokernelPlan = std::move(*plannedI32);
+    } else {
+      llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
+          plannedI32 = buildRVVBinarySelectedMicrokernelMaterializationPlan(
+              variant, request.getCapabilities(), *propertyView, "i32");
+      if (!plannedI32)
+        return plannedI32.takeError();
+      i32MicrokernelPlan = std::move(*plannedI32);
 
-    llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-        plannedI64 = buildRVVBinarySelectedMicrokernelMaterializationPlan(
-            variant, request.getCapabilities(), *propertyView, "i64");
-    if (!plannedI64)
-      return plannedI64.takeError();
-    i64MicrokernelPlan = std::move(*plannedI64);
+      llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
+          plannedI64 = buildRVVBinarySelectedMicrokernelMaterializationPlan(
+              variant, request.getCapabilities(), *propertyView, "i64");
+      if (!plannedI64)
+        return plannedI64.takeError();
+      i64MicrokernelPlan = std::move(*plannedI64);
+    }
   }
 
   std::optional<RVVBinarySelectedEmissionAttachment>
@@ -539,7 +581,7 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
     llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
     if (!i64MicrokernelPlan && !i32Descriptor)
       return makeRVVBinarySelectedBoundaryError(
-          "selected RVV i32 callable microkernel requires descriptor-backed "
+          "selected RVV i32 callable microkernel requires typed-family "
           "runtime ABI metadata");
     auto countSpecs =
         i64MicrokernelPlan

@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, descriptor debt policy, and current extension-family ops to EmitC route."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Compiler implementation stack and Python boundary for this migration."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension-family locality and common EmitC route expectations."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Current RVV first-slice metadata, selected i32 family contract, and descriptor transition context."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering, emission, runtime, and descriptor-to-C debt boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Generated lowerable interface boundary and correct typed op to EmitC export route."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol and generic orchestration constraints."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry, emission readiness, lowering boundary, and common interface routing rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/C++ behavior test requirements and RVV evidence boundary."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-driven decision checklist for selected/export path changes."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that changes stay plugin-local or generic-interface based."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Prevent compute semantics from moving into core execution envelope or descriptors."}

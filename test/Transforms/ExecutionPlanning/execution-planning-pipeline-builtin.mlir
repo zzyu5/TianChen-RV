@@ -56,7 +56,6 @@ module {
     // PIPE-SAME: policy = "metadata_only_first_slice"
     // PIPE-SAME: requires = [@rvv]
     // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-    // PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
     // PIPE-SAME: tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
     // PIPE: tcrv.exec.variant @scalar_fallback_first_slice

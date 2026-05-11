@@ -41,7 +41,6 @@ module {
     // CHECK-SAME: requires = [@module_rvv_profile]
     // CHECK-SAME: tcrv_rvv.base_i32_m1_lanes = 8 : i64
     // CHECK-SAME: tcrv_rvv.element_count = 32 : i64
-    // CHECK-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
     // CHECK-SAME: tcrv_rvv.required_march = "rv64gcv"
     // CHECK-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
     // CHECK-SAME: tcrv_rvv.vlenb_bytes = 32 : i64

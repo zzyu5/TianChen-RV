@@ -729,6 +729,11 @@ bool RVVBinaryProposalPlan::hasCapacityMetadata() const {
   return capabilityView.vlenbBytes && capabilityView.i32M1LaneCount;
 }
 
+bool isI32VAddFamily(const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  return family.dtype == target::rvv::RVVBinaryDTypeKind::I32 &&
+         family.arithmetic == target::rvv::RVVBinaryArithmeticKind::Add;
+}
+
 const RVVSelectedVectorShapeMetadataNames &
 getRVVVariantSelectedVectorShapeMetadataNames() {
   static const RVVSelectedVectorShapeMetadataNames names{
@@ -1151,6 +1156,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
     const support::TargetCapabilitySet &capabilities,
     const target::rvv::RVVBinaryFamilyDescriptor &requestedFamily,
     const target::rvv::RVVVectorShapeConfig *directSelectedShape,
+    bool attachLoweringDescriptorAttr,
     llvm::StringRef diagnosticContext) {
   llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
       registeredFamily = getRegisteredRVVBinaryFamily(requestedFamily);
@@ -1195,6 +1201,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
   plan.condition = kProposalCondition.str();
   plan.guard = kProposalGuard.str();
   plan.policy = kProposalPolicy.str();
+  plan.attachLoweringDescriptorAttr = attachLoweringDescriptorAttr;
   return plan;
 }
 
@@ -1271,6 +1278,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     llvm::StringRef diagnosticContext) {
   return buildRVVBinaryProposalPlanForFamily(
       capabilities, family, /*directSelectedShape=*/nullptr,
+      /*attachLoweringDescriptorAttr=*/true,
       diagnosticContext);
 }
 
@@ -1302,7 +1310,9 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
           ? &target::rvv::getI64M1VectorShapeConfig()
           : nullptr;
   return buildRVVBinaryProposalPlanForFamily(
-      capabilities, *requestedFamily, requiredShape, diagnosticContext);
+      capabilities, *requestedFamily, requiredShape,
+      /*attachLoweringDescriptorAttr=*/!isI32VAddFamily(*requestedFamily),
+      diagnosticContext);
 }
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
@@ -1313,9 +1323,73 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
   if (!resolution)
     return resolution.takeError();
 
+  bool attachLoweringDescriptorAttr = true;
+  if (isI32VAddFamily(*resolution->family) &&
+      resolution->sourceKind != "direct-lowering-descriptor")
+    attachLoweringDescriptorAttr = false;
+
   return buildRVVBinaryProposalPlanForFamily(
       capabilities, *resolution->family, resolution->directSelectedShape,
-      diagnosticContext);
+      attachLoweringDescriptorAttr, diagnosticContext);
+}
+
+llvm::Expected<RVVBinarySelectedPlan>
+buildRVVBinarySelectedPlanFromTypedFamilyVariant(
+    tcrv::exec::VariantOp variant,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVVectorShapeConfig &shape,
+    llvm::StringRef expectedDTypeID,
+    std::optional<std::string> selectedMABI) {
+  if (!variant)
+    return makeRVVBinaryPlanningError(
+        "selected binary plan requires a materialized tcrv.exec.variant");
+
+  if (!expectedDTypeID.empty() && family.dtypeID != expectedDTypeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine("typed RVV binary family '") + family.familyID +
+        "' has dtype '" + family.dtypeID +
+        "' but the selected path requires dtype '" + expectedDTypeID + "'");
+
+  if (family.dtypeID != shape.dtypeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine("selected config mismatch: typed RVV binary family '") +
+        family.familyID + "' on variant @" + variant.getSymName() +
+        " has dtype '" + family.dtypeID + "' but selected vector-shape '" +
+        shape.shapeID + "' has dtype '" + getDTypeDiagnosticSpelling(shape) +
+        "'");
+
+  auto elementCountAttr =
+      variant->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
+  if (!elementCountAttr)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine("typed RVV binary family '") + family.familyID +
+        "' on variant @" + variant.getSymName() +
+        " requires integer attribute '" + kElementCountAttrName + "'");
+
+  std::int64_t elementCount = elementCountAttr.getInt();
+  if (elementCount <= 0 || elementCount > 64)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine("typed RVV binary family '") + family.familyID +
+        "' on variant @" + variant.getSymName() +
+        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
+
+  auto requiredMarch =
+      variant->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
+  if (!requiredMarch || requiredMarch.getValue().trim().empty())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine("typed RVV binary family '") + family.familyID +
+        "' on variant @" + variant.getSymName() +
+        " requires string 'tcrv_rvv.required_march' metadata");
+
+  llvm::Expected<RVVBinarySelectedPlan> plan =
+      buildRVVBinarySelectedPlan(family, shape, elementCount,
+                                 requiredMarch.getValue().trim(),
+                                 std::move(selectedMABI));
+  if (!plan)
+    return plan.takeError();
+  plan->selectedConfig.getContract().setSelectedPath(variant.getSymName(),
+                                                    llvm::StringRef());
+  return std::move(*plan);
 }
 
 llvm::Expected<std::optional<RVVBinarySelectedPlan>>
@@ -1361,44 +1435,11 @@ buildRVVBinarySelectedPlanFromVariant(
           descriptorContext, kLoweringDescriptorAttrName, descriptorValue))
     return std::move(error);
 
-  if (family->dtypeID != shape.dtypeID)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine("selected config mismatch: ") + family->descriptorNoun +
-        " on variant @" + variant.getSymName() + " has dtype '" +
-        family->dtypeID + "' but selected vector-shape '" + shape.shapeID +
-        "' has dtype '" + getDTypeDiagnosticSpelling(shape) + "'");
-
-  auto elementCountAttr =
-      variant->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
-  if (!elementCountAttr)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires integer attribute '" +
-        kElementCountAttrName + "'");
-
-  std::int64_t elementCount = elementCountAttr.getInt();
-  if (elementCount <= 0 || elementCount > 64)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() +
-        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
-
-  auto requiredMarch =
-      variant->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
-  if (!requiredMarch || requiredMarch.getValue().trim().empty())
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires string 'tcrv_rvv.required_march' "
-                               "metadata");
-
   llvm::Expected<RVVBinarySelectedPlan> plan =
-      buildRVVBinarySelectedPlan(*family, shape, elementCount,
-                                 requiredMarch.getValue().trim(),
-                                 std::move(selectedMABI));
+      buildRVVBinarySelectedPlanFromTypedFamilyVariant(
+          variant, *family, shape, expectedDTypeID, std::move(selectedMABI));
   if (!plan)
     return plan.takeError();
-  plan->selectedConfig.getContract().setSelectedPath(variant.getSymName(),
-                                                    llvm::StringRef());
   return std::move(*plan);
 }
 

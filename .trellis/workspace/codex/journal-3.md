@@ -99,6 +99,69 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 31: Descriptor exit from RVV i32 add default path
+
+**Date**: 2026-05-11
+**Task**: Descriptor exit from RVV i32 add default path
+**Branch**: `main`
+
+### Summary
+
+Closed the structural migration owner for the default RVV i32 add selected/export
+path. The production RVV first-slice proposal no longer emits
+`tcrv_rvv.lowering_descriptor` for default/frontend/direct typed i32 add paths;
+the lowering boundary now materializes the default i32 add microkernel from the
+typed RVV family descriptor plus selected vector-shape config, and the exported
+C source comes through the existing `TCRVEmitCLowerableRoute`/EmitC materializer
+over `tcrv_rvv.i32_*` family ops.
+
+### Main Changes
+
+- Added `RVVBinaryProposalPlan::attachLoweringDescriptorAttr` so the RVV plugin
+  can keep legacy descriptor metadata for non-default paths while omitting it
+  from default i32 add proposals and variants.
+- Added `buildRVVBinarySelectedPlanFromTypedFamilyVariant` to build selected
+  i32 add plans from typed family/config metadata and variant capacity/march
+  facts instead of reading `tcrv_rvv.lowering_descriptor`.
+- Rewired `materializeRVVBinarySelectedLoweringBoundary` so descriptorless
+  default i32 add variants materialize `tcrv_rvv.i32_vadd_microkernel` and then
+  flow through the common EmitC source route.
+- Updated plugin and lit tests so the default i32 add selected path asserts no
+  `tcrv_rvv.lowering_descriptor`, generated source still contains
+  `__riscv_vadd_vv_i32m1`, and generated source has no `lowering_descriptor`
+  text.
+- Existing descriptor/body mismatch coverage remains the cross-check for stale
+  descriptor data: conflicting descriptor metadata fails before artifact export
+  instead of overriding the typed RVV family body.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVPlugin tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- Focused lit for the repaired planning/pipeline cases:
+  `Plugin/rvv-extension-plugin.test`,
+  `Transforms/ExecutionPlanning/execution-planning-pipeline-module-target-profile.mlir`,
+  `Transforms/ExecutionPlanning/execution-planning-pipeline-builtin.mlir`,
+  `Scripts/rvv-probe-to-mlir.test`,
+  `Transforms/LoweringBoundary/rvv-i32-vadd-descriptor-missing-march.mlir`,
+  `Transforms/VariantMaterialization/plugin-variant-materialization-rvv-selected-shape.mlir`
+- Strengthened source/export lit:
+  `Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir`,
+  `Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -- -j2`:
+  206/206 tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 27: TCRV EmitC route MLIR materialization boundary
 
 **Date**: 2026-05-11

@@ -46,4 +46,4 @@ module {
 }
 
 // CHECK: selected RVV variant @rvv_first_slice failed plugin legality before boundary materialization
-// CHECK-SAME: finite RVV i32-vadd lowering descriptor on variant @rvv_first_slice requires string 'tcrv_rvv.required_march' metadata
+// CHECK-SAME: typed RVV binary family 'i32-vadd' on variant @rvv_first_slice requires string 'tcrv_rvv.required_march' metadata

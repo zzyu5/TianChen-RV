@@ -205,6 +205,17 @@ int expectProposalStringAttr(const VariantProposal &proposal,
                     " preserves expected value");
 }
 
+int expectProposalMissingAttr(const VariantProposal &proposal,
+                              llvm::StringRef attrName) {
+  return expect(!findProposalAttribute(proposal, attrName),
+                llvm::Twine("proposal does not carry attribute ") + attrName);
+}
+
+int expectMissingAttr(mlir::Operation *operation, llvm::StringRef attrName) {
+  return expect(operation && !operation->hasAttr(attrName),
+                llvm::Twine("operation does not carry attribute ") + attrName);
+}
+
 int expectProposalIntegerAttr(const VariantProposal &proposal,
                               llvm::StringRef attrName, int64_t expectedValue) {
   auto attr = llvm::dyn_cast_if_present<mlir::IntegerAttr>(
@@ -1936,10 +1947,17 @@ module {
             expect(proposals.size() == 1,
                    llvm::Twine("one RVV proposal for ") + kernelName))
       return result;
-    if (int result = expectProposalStringAttr(
-            proposals[0], "tcrv_rvv.lowering_descriptor",
-            family.loweringDescriptor))
-      return result;
+    if (family.arithmetic ==
+        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
+      if (int result = expectProposalMissingAttr(
+              proposals[0], "tcrv_rvv.lowering_descriptor"))
+        return result;
+    } else {
+      if (int result = expectProposalStringAttr(
+              proposals[0], "tcrv_rvv.lowering_descriptor",
+              family.loweringDescriptor))
+        return result;
+    }
 
     mlir::OpBuilder builder(&context);
     llvm::SmallVector<VariantOp, 1> materializedVariants;
@@ -1954,11 +1972,19 @@ module {
                        kernelName))
       return result;
     VariantOp variant = materializedVariants.front();
-    if (int result =
-            expectStringAttr(variant.getOperation(),
-                             "tcrv_rvv.lowering_descriptor",
-                             family.loweringDescriptor))
-      return result;
+    if (family.arithmetic ==
+        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
+      if (int result =
+              expectMissingAttr(variant.getOperation(),
+                                "tcrv_rvv.lowering_descriptor"))
+        return result;
+    } else {
+      if (int result =
+              expectStringAttr(variant.getOperation(),
+                               "tcrv_rvv.lowering_descriptor",
+                               family.loweringDescriptor))
+        return result;
+    }
 
     VariantLoweringBoundaryResult boundaryResult;
     {
@@ -3021,7 +3047,7 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 12,
+          expect(proposalAttributes.size() == 11,
                  "RVV proposal carries typed policy, selected vector-shape, "
                  "and property evidence attributes"))
     return result;
@@ -3037,10 +3063,8 @@ module {
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
     return result;
-  if (int result =
-          expectProposalStringAttr(proposals[0],
-                                   "tcrv_rvv.lowering_descriptor",
-                                   "i32-vadd-microkernel.v1"))
+  if (int result = expectProposalMissingAttr(
+          proposals[0], "tcrv_rvv.lowering_descriptor"))
     return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
@@ -3085,9 +3109,8 @@ module {
                  "plugin-owned property metadata"))
     return result;
   if (int result =
-          expectStringAttr(variant.getOperation(),
-                           "tcrv_rvv.lowering_descriptor",
-                           "i32-vadd-microkernel.v1"))
+          expectMissingAttr(variant.getOperation(),
+                            "tcrv_rvv.lowering_descriptor"))
     return result;
   if (int result = expectIntegerAttr(variant.getOperation(),
                                      "tcrv_rvv.element_count", 16))

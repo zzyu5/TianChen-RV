@@ -170,7 +170,6 @@ module {
 
   // CHECK: tcrv.exec.variant @rvv_first_slice
   // CHECK-SAME: requires = [@default_rvv, @default_rvv_i32_m1_sew32, @default_rvv_i32_m1_lmul_m1, @default_rvv_i32_m1_tail_agnostic, @default_rvv_i32_m1_mask_agnostic]
-  // CHECK-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
   // CHECK-SAME: tcrv_rvv.selected_setvl_suffix = "e32m1"
   // CHECK-SAME: tcrv_rvv.selected_vector_lmul = "m1"
   // CHECK-SAME: tcrv_rvv.selected_vector_shape = "i32m1"

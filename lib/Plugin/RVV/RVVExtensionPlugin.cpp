@@ -209,11 +209,13 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
                               kRVVSmokeProbeDescriptorValue));
     return proposal;
   }
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kRVVI32VAddLoweringDescriptorAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            plan->getLoweringDescriptor()));
+  if (plan->shouldAttachLoweringDescriptorAttr()) {
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              kRVVI32VAddLoweringDescriptorAttrName),
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              plan->getLoweringDescriptor()));
+  }
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVI32VAddElementCountAttrName),

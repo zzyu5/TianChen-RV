@@ -138,6 +138,7 @@ struct RVVBinaryProposalPlan {
   std::string condition;
   std::string guard;
   std::string policy;
+  bool attachLoweringDescriptorAttr = true;
 
   llvm::StringRef getFamilyID() const;
   llvm::StringRef getDTypeID() const;
@@ -149,6 +150,9 @@ struct RVVBinaryProposalPlan {
   llvm::StringRef getGuard() const;
   llvm::StringRef getPolicy() const;
   bool hasCapacityMetadata() const;
+  bool shouldAttachLoweringDescriptorAttr() const {
+    return attachLoweringDescriptorAttr;
+  }
 };
 
 struct RVVBinaryFamilyPlanningResolution {
@@ -240,6 +244,14 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
 llvm::Expected<std::optional<RVVBinarySelectedPlan>>
 buildRVVBinarySelectedPlanFromVariant(
     tcrv::exec::VariantOp variant,
+    const target::rvv::RVVVectorShapeConfig &shape,
+    llvm::StringRef expectedDTypeID = llvm::StringRef(),
+    std::optional<std::string> selectedMABI = std::nullopt);
+
+llvm::Expected<RVVBinarySelectedPlan>
+buildRVVBinarySelectedPlanFromTypedFamilyVariant(
+    tcrv::exec::VariantOp variant,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     llvm::StringRef expectedDTypeID = llvm::StringRef(),
     std::optional<std::string> selectedMABI = std::nullopt);

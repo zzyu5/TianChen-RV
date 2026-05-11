@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline --tcrv-check-emission-paths | FileCheck %s --check-prefix=READY
-// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_auto_microkernel_input {
   // The input intentionally has capabilities only: no hand-authored
@@ -64,7 +64,7 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: origin = "rvv-plugin"
 // IR-SAME: requires = [@rvv]
 // IR-SAME: tcrv_rvv.element_count = 16 : i64
-// IR-SAME: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
+// IR-NOT: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
 // IR-SAME: tcrv_rvv.required_march = "rv64gcv"
 // IR-NOT: tcrv.exec.dispatch
 // IR: tcrv.exec.diagnostic
