@@ -485,3 +485,80 @@ claim.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: RVV i32-vmul frontend-to-artifact ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV i32-vmul frontend-to-artifact ssh evidence slice
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded direct RVV `i32-vmul` linalg frontend evidence slice at the
+current `10b0b6d` lineage. The active C++/MLIR path already carried the marked
+`linalg.generic` input through selected RVV planning, lowering boundary,
+route-metadata-preflighted source/header/object helper export, and generated
+RVV C intrinsic source. This round added the missing focused script-lit
+regression and collected fresh `ssh rvv` external caller evidence.
+
+### Main Changes
+
+- Created and started Trellis task
+  `.trellis/tasks/05-11-rvv-i32-vmul-frontend-artifact-ssh-evidence/` with a
+  PRD and curated implement/check context.
+- Added a focused `rvv_microkernel_e2e.py` lit regression for
+  `i32-vmul` plus `--lower-linalg-frontend` using
+  `test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir`.
+- The new regression checks selected kernel `frontend_i32_vmul`,
+  source/header/object direct helper routes, runtime ABI name,
+  i32m1 selected vector-shape metadata, `__riscv_vmul_vv_i32m1`, and the
+  compile/export versus runtime evidence boundary.
+- No C++/MLIR source implementation change was needed.
+
+### Runtime Evidence
+
+- Evidence directory:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-i32-vmul-frontend-ssh-20260511/`.
+- Evidence JSON:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-i32-vmul-frontend-ssh-20260511/evidence.json`.
+- Command:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vmul
+  --lower-linalg-frontend --input
+  test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i32_vmul --run-id
+  codex-i32-vmul-frontend-ssh-20260511 --overwrite --timeout 120
+  --ssh-target rvv`
+- Result: `status=success`, `pass_fail_result=pass`,
+  `ssh_evidence.success=true`, `stdout_marker_observed=true`.
+- Both source-built and generated-object external caller paths compiled,
+  linked, ran, and observed
+  `tcrv_rvv_i32_vmul_microkernel_external_abi_ok`.
+- Runtime claim is limited to this generated RVV `i32-vmul` direct helper
+  artifact handoff plus header/object external caller correctness on `ssh rvv`.
+
+### Testing
+
+- Built focused tools/tests:
+  `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`.
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused source export probe through `tcrv-opt | tcrv-translate`
+- Focused lit:
+  `Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir`,
+  `Scripts/rvv-microkernel-e2e.test`, and
+  `Scripts/rvv-microkernel-bundle-e2e.test`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

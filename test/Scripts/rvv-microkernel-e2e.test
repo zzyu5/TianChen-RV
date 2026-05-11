@@ -3,6 +3,7 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-e2e-vsub --overwrite | FileCheck %s --check-prefix=VSUB-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id lit-rvv-microkernel-e2e-vsub-i32m2 --overwrite | FileCheck %s --check-prefix=VSUB-M2-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-e2e-vmul --overwrite | FileCheck %s --check-prefix=VMUL-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --lower-linalg-frontend --expect-selected-kernel=frontend_i32_vmul --run-id lit-rvv-microkernel-e2e-i32-vmul-frontend --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir | FileCheck %s --check-prefix=I32-VMUL-FRONTEND-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --run-id lit-rvv-microkernel-e2e-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --profile-replay-evidence-json %S/../Fixtures/rvv_probe/sanitized-success.json --run-id lit-rvv-microkernel-e2e-i64-profile-replay --overwrite | FileCheck %s --check-prefix=PROFILE-REPLAY-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vsub --profile-replay-evidence-json %S/../Fixtures/rvv_probe/sanitized-success.json --run-id lit-rvv-microkernel-e2e-i64-vsub-profile-replay --overwrite | FileCheck %s --check-prefix=PROFILE-VSUB-REPLAY-DRY
@@ -16,6 +17,7 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/profile_replay_input.mlir
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/rvv_microkernel.c
@@ -29,6 +31,7 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay/rvv_microkernel.h
@@ -49,6 +52,8 @@
 # RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/evidence.json
 # RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/evidence.json
+# RUN: FileCheck %s --check-prefix=I32-VMUL-FRONTEND-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/evidence.json
+# RUN: FileCheck %s --check-prefix=I32-VMUL-FRONTEND-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=I64-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/evidence.json
 # RUN: FileCheck %s --check-prefix=PROFILE-REPLAY-EVIDENCE < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/evidence.json
 # RUN: FileCheck %s --check-prefix=PROFILE-REPLAY-INPUT < %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/profile_replay_input.mlir
@@ -124,6 +129,22 @@
 # VMUL-DRY: "status": "success"
 # VMUL-DRY-NOT: live-token
 # VMUL-DRY-NOT: hunter2
+
+# I32-VMUL-FRONTEND-DRY: "arithmetic_family": "i32-vmul"
+# I32-VMUL-FRONTEND-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend"
+# I32-VMUL-FRONTEND-DRY: "expected_selected_kernel": "frontend_i32_vmul"
+# I32-VMUL-FRONTEND-DRY: "mode": "dry-run"
+# I32-VMUL-FRONTEND-DRY: "planned_pipeline": "tcrv-lower-linalg-rvv-binary-to-exec + tcrv-execution-planning-pipeline"
+# I32-VMUL-FRONTEND-DRY: "selected_kernel": "frontend_i32_vmul"
+# I32-VMUL-FRONTEND-DRY: "source_export_route": "tcrv-export-rvv-i32-vmul-microkernel-c"
+# I32-VMUL-FRONTEND-DRY: "ssh_evidence": false
+# I32-VMUL-FRONTEND-DRY: "status": "success"
+# I32-VMUL-FRONTEND-DRY: "vector_shape": "i32m1"
+# I32-VMUL-FRONTEND-DRY-NOT: i32-vadd
+# I32-VMUL-FRONTEND-DRY-NOT: i32-vsub
+# I32-VMUL-FRONTEND-DRY-NOT: runtime_success
+# I32-VMUL-FRONTEND-DRY-NOT: throughput
+# I32-VMUL-FRONTEND-DRY-NOT: latency
 
 # I64-DRY: "arithmetic_family": "i64-vadd"
 # I64-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd"
@@ -310,6 +331,38 @@
 # VMUL-EVIDENCE-NOT: __riscv_vsub_vv_i32m1
 # VMUL-EVIDENCE-NOT: live-token
 # VMUL-EVIDENCE-NOT: hunter2
+
+# I32-VMUL-FRONTEND-EVIDENCE: "arithmetic_family": "i32-vmul"
+# I32-VMUL-FRONTEND-EVIDENCE: "selected_kernel": "frontend_i32_vmul"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "header": "tcrv-export-rvv-i32-vmul-microkernel-header"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "object": "tcrv-export-rvv-i32-vmul-microkernel-object"
+# I32-VMUL-FRONTEND-EVIDENCE: "function_symbol": "tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice"
+# I32-VMUL-FRONTEND-EVIDENCE: "input": "test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir"
+# I32-VMUL-FRONTEND-EVIDENCE: "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"
+# I32-VMUL-FRONTEND-EVIDENCE: "planned_pipeline": "tcrv-lower-linalg-rvv-binary-to-exec + tcrv-execution-planning-pipeline"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "shape": "i32m1"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "__riscv_vsetvl_e32m1"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "__riscv_vle32_v_i32m1"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "__riscv_vmul_vv_i32m1"
+# I32-VMUL-FRONTEND-EVIDENCE-DAG: "__riscv_vse32_v_i32m1"
+# I32-VMUL-FRONTEND-EVIDENCE: "ssh_evidence": false
+# I32-VMUL-FRONTEND-EVIDENCE-NOT: i32-vadd
+# I32-VMUL-FRONTEND-EVIDENCE-NOT: i32-vsub
+# I32-VMUL-FRONTEND-EVIDENCE-NOT: runtime_success
+# I32-VMUL-FRONTEND-EVIDENCE-NOT: throughput
+# I32-VMUL-FRONTEND-EVIDENCE-NOT: latency
+
+# I32-VMUL-FRONTEND-SOURCE: /* selected_kernel: @frontend_i32_vmul */
+# I32-VMUL-FRONTEND-SOURCE: /* arithmetic_family: i32-vmul */
+# I32-VMUL-FRONTEND-SOURCE: /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
+# I32-VMUL-FRONTEND-SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+# I32-VMUL-FRONTEND-SOURCE: __riscv_vsetvl_e32m1
+# I32-VMUL-FRONTEND-SOURCE: __riscv_vle32_v_i32m1
+# I32-VMUL-FRONTEND-SOURCE: __riscv_vmul_vv_i32m1
+# I32-VMUL-FRONTEND-SOURCE: __riscv_vse32_v_i32m1
+# I32-VMUL-FRONTEND-SOURCE-NOT: __riscv_vadd_vv_i32m1
+# I32-VMUL-FRONTEND-SOURCE-NOT: __riscv_vsub_vv_i32m1
+# I32-VMUL-FRONTEND-SOURCE-NOT: runtime_success
 
 # I64-EVIDENCE: "arithmetic_family": "i64-vadd"
 # I64-EVIDENCE: "arithmetic_operator": "+"
