@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-3.md`
-- **Total Sessions**: 34
+- **Active File**: `journal-4.md`
+- **Total Sessions**: 35
 - **Last Active**: 2026-05-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-3.md` | ~1998 | Active |
+| `journal-4.md` | ~61 | Active |
+| `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
@@ -31,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 35 | 2026-05-12 | RVV selected emission descriptor exit | - | `main` |
 | 34 | 2026-05-12 | i64 binary IR-backed callable ABI authority | this commit | `main` |
 | 33 | 2026-05-12 | i32 binary IR-backed callable ABI authority | this commit | `main` |
 | 32 | 2026-05-12 | RVV source export common EmitC route authority | this commit | `main` |

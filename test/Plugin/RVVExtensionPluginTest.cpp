@@ -259,6 +259,17 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef name) {
   return kernel;
 }
 
+VariantOp findVariant(KernelOp kernel, llvm::StringRef name) {
+  VariantOp variant;
+  if (!kernel)
+    return variant;
+  kernel->walk([&](VariantOp candidate) {
+    if (candidate.getSymName() == name)
+      variant = candidate;
+  });
+  return variant;
+}
+
 I32VAddMicrokernelOp findRVVAddMicrokernel(
     KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
   I32VAddMicrokernelOp result;
@@ -2228,7 +2239,7 @@ module {
   I32VSubMicrokernelOp microkernel =
       findRVVSubMicrokernel(kernel, variant.getSymName());
   if (int result = expect(microkernel,
-                          "RVV i32m2 vsub descriptor materializes vsub op"))
+                          "RVV i32m2 vsub typed body materializes vsub op"))
     return result;
 
   SetVLOp setvl;
@@ -2277,8 +2288,8 @@ module {
                      plannerI32Plan.getRuntimeABIName() ==
                          tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
                              .runtimeABIName,
-                 "RVV i32 selected-emission planner preserves descriptor "
-                 "route and ABI identity"))
+                 "RVV i32 selected-emission planner preserves typed route "
+                 "and ABI identity"))
     return result;
   if (int result = expect(plannerI32Plan.requiredCapabilitySymbols.size() == 5 &&
                               plannerI32Plan.requiredCapabilitySymbols[1] ==
@@ -2326,6 +2337,26 @@ module {
           "RVV i32 selected-emission planner exposes runtime AVL/VL "
           "boundary metadata separately"))
     return result;
+
+  variant->setAttr("tcrv_rvv.lowering_descriptor",
+                   builder.getStringAttr("i32-vadd-microkernel.v1"));
+  llvm::Expected<
+      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
+      staleDescriptorPlan =
+          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+  if (staleDescriptorPlan)
+    return fail("stale i32 descriptor mirror must not change typed selected "
+                "emission plan");
+  if (int result = expectErrorContains(
+          staleDescriptorPlan.takeError(),
+          {"tcrv_rvv.lowering_descriptor 'i32-vadd-microkernel.v1'",
+           "requires tcrv_rvv.i32_vadd_microkernel",
+           "typed microkernel body is tcrv_rvv.i32_vsub_microkernel"}))
+    return result;
+  variant->removeAttr("tcrv_rvv.lowering_descriptor");
 
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(
@@ -2513,7 +2544,7 @@ module {
       findRVVI64Microkernel(kernel, variant.getSymName(),
                             family.microkernelOpName);
   if (int result = expect(microkernel,
-                          llvm::Twine("RVV i64 descriptor materializes ") +
+                          llvm::Twine("RVV i64 typed body materializes ") +
                               family.familyID + " op"))
     return result;
 
@@ -2596,7 +2627,7 @@ module {
                      plannerI64Plan.getRuntimeGlueRole() ==
                          family.runtimeGlueRole,
                  llvm::Twine("RVV i64 selected-emission planner preserves "
-                             "descriptor route and ABI for ") +
+                             "typed route and ABI for ") +
                      family.familyID))
     return result;
   if (int result = expect(plannerI64Plan.requiredCapabilitySymbols.size() == 5 &&
@@ -2663,6 +2694,37 @@ module {
           "metadata without descriptor authority"))
     return result;
 
+  const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &staleFamily =
+      family.arithmetic == tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add
+          ? tianchenrv::target::rvv::getI64VSubFamilyDescriptor()
+          : tianchenrv::target::rvv::getI64VAddFamilyDescriptor();
+  variant->setAttr("tcrv_rvv.lowering_descriptor",
+                   builder.getStringAttr(staleFamily.loweringDescriptor));
+  llvm::Expected<
+      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
+      staleDescriptorPlan =
+          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+  if (staleDescriptorPlan)
+    return fail("stale i64 descriptor mirror must not change typed selected "
+                "emission plan");
+  std::string staleDescriptorFragment =
+      (llvm::Twine("tcrv_rvv.lowering_descriptor '") +
+       staleFamily.loweringDescriptor + "'")
+          .str();
+  std::string staleRequiresFragment =
+      (llvm::Twine("requires ") + staleFamily.microkernelOpName).str();
+  std::string typedBodyFragment =
+      (llvm::Twine("typed microkernel body is ") + family.microkernelOpName)
+          .str();
+  if (int result = expectErrorContains(
+          staleDescriptorPlan.takeError(),
+          {staleDescriptorFragment, staleRequiresFragment, typedBodyFragment}))
+    return result;
+  variant->removeAttr("tcrv_rvv.lowering_descriptor");
+
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
@@ -2712,7 +2774,7 @@ module {
                     parameters[3].role == Role::RuntimeElementCount &&
                     parameters[3].ownership ==
                         Ownership::TargetExportABIOwned,
-                "RVV i64 emission plan carries descriptor-owned int64 "
+                "RVV i64 emission plan carries exec-IR-backed int64 "
                 "callable ABI params");
 }
 
@@ -2923,6 +2985,119 @@ module {
   return expect(
       reason.contains("typed tcrv_rvv.i64_vadd_microkernel body"),
       "quarantine decline requires typed RVV i64 microkernel authority");
+}
+
+int runDescriptorOnlySelectedEmissionFailsClosedTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @descriptor_only_i32 {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_i32_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+  }
+
+  tcrv.exec.kernel @descriptor_only_i64 {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_i64_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
+      tcrv_rvv.element_count = 8 : i64,
+      tcrv_rvv.selected_vector_shape = "i64m1",
+      tcrv_rvv.selected_vector_sew = 64 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint64m1_t",
+      tcrv_rvv.selected_vector_suffix = "i64m1",
+      tcrv_rvv.selected_setvl_suffix = "e64m1"
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse descriptor-only selected-emission module");
+
+  auto expectDescriptorOnlyRejected =
+      [&](llvm::StringRef kernelName, llvm::StringRef variantName,
+          llvm::StringRef dtype) -> int {
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    if (int result =
+            expect(kernel && variant,
+                   llvm::Twine("descriptor-only ") + dtype +
+                       " selected-emission test has kernel and variant"))
+      return result;
+
+    TargetCapabilitySet capabilities =
+        TargetCapabilitySet::buildFromKernel(kernel);
+    VariantEmissionRequest request(variant, kernel, capabilities,
+                                   VariantEmissionRole::DirectVariant);
+
+    llvm::Expected<
+        std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
+        plan = tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
+            request, tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+    if (!plan)
+      return fail(llvm::Twine("descriptor-only ") + dtype +
+                  " selected-emission planning should fail closed without "
+                  "descriptor parsing error: " +
+                  llvm::toString(plan.takeError()));
+    if (int result =
+            expect(!*plan,
+                   llvm::Twine("descriptor-only ") + dtype +
+                       " selected-emission planning produces no plan"))
+      return result;
+
+    llvm::Expected<std::optional<VariantEmissionStatus>> readiness =
+        tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionReadiness(
+            request, tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+    if (!readiness)
+      return fail(llvm::Twine("descriptor-only ") + dtype +
+                  " selected-emission readiness should fail closed without "
+                  "descriptor parsing error: " +
+                  llvm::toString(readiness.takeError()));
+    return expect(!*readiness,
+                  llvm::Twine("descriptor-only ") + dtype +
+                      " selected-emission readiness produces no status");
+  };
+
+  if (int result = expectDescriptorOnlyRejected("descriptor_only_i32",
+                                                "rvv_i32_slice", "i32"))
+    return result;
+  return expectDescriptorOnlyRejected("descriptor_only_i64", "rvv_i64_slice",
+                                      "i64");
 }
 
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
@@ -3370,6 +3545,8 @@ int main() {
   if (int result = runRVVI64VAddMissingCapabilityDeclinesTest(context))
     return result;
   if (int result = runRVVI64DirectDescriptorProposalQuarantineTest(context))
+    return result;
+  if (int result = runDescriptorOnlySelectedEmissionFailsClosedTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

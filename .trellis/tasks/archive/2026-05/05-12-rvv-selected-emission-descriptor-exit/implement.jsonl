@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and architecture invariants for descriptor-authority removal."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Defines unified RISC-V MLIR boundary and descriptor-driven computation as migration debt."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin-owned selected config, finite binary family metadata, and typed RVV family path constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Preserves typed extension family op to common EmitC route authority and descriptor boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines selected emission planning, runtime ABI mirror metadata, target artifact route, and fail-closed preflight contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation expectations for selected emission and target export behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-i64-binary-ir-backed-callable-abi-production-authority/prd.md", "reason": "Previous completed i64 exec-IR callable ABI authority behavior to preserve."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-i32-binary-ir-backed-callable-abi-production-authority/prd.md", "reason": "Previous completed i32 exec-IR callable ABI authority behavior to preserve."}

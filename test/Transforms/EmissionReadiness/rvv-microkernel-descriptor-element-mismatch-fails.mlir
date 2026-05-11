@@ -1,7 +1,7 @@
 // RUN: tcrv-opt %s --verify-diagnostics --tcrv-materialize-emission-plans
 
 module @rvv_microkernel_descriptor_mismatch_input {
-  // expected-error@+1 {{explicit RVV microkernel emission plan requires tcrv_rvv.i32_vadd_microkernel element_count to match selected variant finite descriptor metadata 'tcrv_rvv.element_count'}}
+  // expected-error@+1 {{optional selected RVV element_count mirror metadata 'tcrv_rvv.element_count' must match typed tcrv_rvv.i32_vadd_microkernel element_count before selected emission planning}}
   tcrv.exec.kernel @rvv_descriptor_microkernel_element_mismatch {
     tcrv.exec.capability @rvv {
       id = "rvv",
