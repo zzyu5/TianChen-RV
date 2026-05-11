@@ -300,6 +300,139 @@ bool expectRouteRuntimeABIParameters(
       "route '" + routeID.str() + "' contract parameters");
 }
 
+const TargetArtifactSelectedPlanMetadataRequirement *
+findRouteSelectedPlanRequirement(const TargetArtifactExporter &exporter,
+                                 llvm::StringRef name) {
+  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
+       exporter.getRouteMetadata().getSelectedPlanMetadataRequirements())
+    if (requirement.name == name)
+      return &requirement;
+  return nullptr;
+}
+
+const TargetArtifactRouteClaimField *
+findRouteClaimField(const TargetArtifactExporter &exporter,
+                    llvm::StringRef name) {
+  for (const TargetArtifactRouteClaimField &claim :
+       exporter.getRouteMetadata().getClaimFields())
+    if (claim.name == name)
+      return &claim;
+  return nullptr;
+}
+
+bool expectRouteDescriptorMetadata(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef expectedRuntimeABI, llvm::StringRef expectedRuntimeABIKind,
+    llvm::StringRef expectedRuntimeABIName,
+    llvm::StringRef expectedRuntimeGlueRole,
+    llvm::StringRef handoffRequirementName,
+    llvm::StringRef expectedHandoffRequirementValue,
+    llvm::StringRef expectedHandoffRequirementRole,
+    llvm::StringRef expectedNoClaimName) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for route descriptor metadata check\n";
+    return false;
+  }
+
+  const TargetArtifactRouteMetadata &metadata = exporter->getRouteMetadata();
+  if (metadata.getRuntimeABI() != expectedRuntimeABI ||
+      metadata.getRuntimeABIKind() != expectedRuntimeABIKind ||
+      metadata.getRuntimeABIName() != expectedRuntimeABIName ||
+      metadata.getRuntimeGlueRole() != expectedRuntimeGlueRole) {
+    llvm::errs() << "route '" << routeID
+                 << "' has malformed registered runtime ABI metadata\n";
+    return false;
+  }
+
+  const TargetArtifactSelectedPlanMetadataRequirement *handoff =
+      findRouteSelectedPlanRequirement(*exporter, handoffRequirementName);
+  if (!handoff || handoff->value != expectedHandoffRequirementValue ||
+      handoff->role != expectedHandoffRequirementRole) {
+    llvm::errs() << "route '" << routeID
+                 << "' lacks expected selected-plan handoff requirement\n";
+    return false;
+  }
+
+  const TargetArtifactRouteClaimField *claim =
+      findRouteClaimField(*exporter, expectedNoClaimName);
+  if (!claim || claim->value != "none") {
+    llvm::errs() << "route '" << routeID
+                 << "' lacks expected registered no-claim field\n";
+    return false;
+  }
+
+  return true;
+}
+
+bool expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for stale runtime ABI preflight test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate;
+  candidate.routeID = routeID.str();
+  candidate.artifactKind = exporter->getArtifactKind().str();
+  candidate.origin = exporter->getOriginPlugin().str();
+  candidate.emissionKind = exporter->getEmissionKind().str();
+  candidate.runtimeABI = exporter->getRouteMetadata().getRuntimeABI().str();
+  candidate.runtimeABIKind = "stale-runtime-abi-kind";
+  candidate.runtimeABIName =
+      exporter->getRouteMetadata().getRuntimeABIName().str();
+  candidate.runtimeGlueRole =
+      exporter->getRouteMetadata().getRuntimeGlueRole().str();
+
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale runtime ABI route descriptor preflight rejected",
+      {"route id", routeID, "registered for runtime_abi_kind",
+       "stale-runtime-abi-kind"});
+}
+
+bool expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef metadataName, llvm::StringRef staleValue) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for stale selected-plan metadata preflight test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate;
+  candidate.routeID = routeID.str();
+  candidate.artifactKind = exporter->getArtifactKind().str();
+  candidate.origin = exporter->getOriginPlugin().str();
+  candidate.emissionKind = exporter->getEmissionKind().str();
+  candidate.runtimeABI = exporter->getRouteMetadata().getRuntimeABI().str();
+  candidate.runtimeABIKind =
+      exporter->getRouteMetadata().getRuntimeABIKind().str();
+  candidate.runtimeABIName =
+      exporter->getRouteMetadata().getRuntimeABIName().str();
+  candidate.runtimeGlueRole =
+      exporter->getRouteMetadata().getRuntimeGlueRole().str();
+
+  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
+       exporter->getRouteMetadata().getSelectedPlanMetadataRequirements()) {
+    llvm::StringRef value =
+        requirement.name == metadataName ? staleValue : requirement.value;
+    candidate.selectedPlanMetadata.push_back(
+        {requirement.name, value.str(), requirement.role,
+         "route descriptor preflight test metadata"});
+  }
+
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "stale selected-plan route descriptor preflight rejected",
+      {"route id", routeID, "selected_plan_metadata", metadataName,
+       "must use value"});
+}
+
 bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                           llvm::StringRef routeID, llvm::StringRef artifactKind,
                           llvm::StringRef expectedOwner,
@@ -343,6 +476,19 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
                    "toy-template-metadata-route", 0,
                    /*expectedDirectHelperRoute=*/false,
                    "toy-lowering-template"))
+    return false;
+  if (!expectRouteDescriptorMetadata(
+          registry, toyRouteID, "toy-metadata-boundary.v1",
+          "toy-template-metadata", "toy-metadata-boundary.v1",
+          "metadata-only-toy-template-boundary", "toy_template_abi",
+          "toy-metadata-boundary.v1", "template-abi",
+          "runtime_execution_claim"))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(registry,
+                                                                 toyRouteID))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+          registry, toyRouteID, "toy_template_scope", "runtime-success"))
     return false;
   const TargetArtifactExporter *toyExporter = registry.lookup(toyRouteID);
   if (!toyExporter || !toyExporter->getCandidateValidationFn()) {
@@ -463,6 +609,22 @@ bool expectPluginOwnedOffloadDescriptorTargetExporterRegistration() {
                    "runtime-offload-handoff-descriptor", "offload-plugin",
                    "runtime-offload-handoff-descriptor", 4,
                    /*expectedDirectHelperRoute=*/false, "runtime-offload"))
+    return false;
+  if (!expectRouteDescriptorMetadata(
+          registry, descriptorRouteID,
+          "generic-runtime-offload-c-abi-handoff.v1",
+          "runtime-offload-c-abi-handoff",
+          "generic-runtime-offload-c-abi-handoff.v1",
+          "plugin-owned-runtime-offload-glue-boundary",
+          "runtime_offload_handoff_kind", "runtime-offload",
+          "runtime-offload-handoff", "hardware_execution_claim"))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+          registry, descriptorRouteID))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+          registry, descriptorRouteID, "runtime_offload_handoff_kind",
+          "custom-isa"))
     return false;
   if (!expectRouteRuntimeABIParameters(
           registry, descriptorRouteID,

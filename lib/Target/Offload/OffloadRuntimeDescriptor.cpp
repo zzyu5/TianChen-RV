@@ -56,6 +56,10 @@ constexpr llvm::StringLiteral kAdapterContract(
     "external-runtime-adapter-runtime-offload-descriptor.v1");
 constexpr llvm::StringLiteral kRuntimeOffloadABIKind(
     "runtime-offload-c-abi-handoff");
+constexpr llvm::StringLiteral kRuntimeOffloadABIName(
+    "generic-runtime-offload-c-abi-handoff.v1");
+constexpr llvm::StringLiteral kRuntimeOffloadGlueRole(
+    "plugin-owned-runtime-offload-glue-boundary");
 constexpr llvm::StringLiteral kSupportedStatus("supported");
 constexpr llvm::StringLiteral kMetadataOnlyStatus("metadata-only");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
@@ -82,6 +86,9 @@ constexpr llvm::StringLiteral kSelectedPlanDescriptorScopeName(
 constexpr llvm::StringLiteral kABIContractOwner("compiler-target-export");
 constexpr llvm::StringLiteral kABIContractSource(
     "tcrv.exec.mem_window + tcrv.exec.runtime_param");
+constexpr llvm::StringLiteral kDescriptorArtifactStatus(
+    "non-executable-runtime-offload-handoff-metadata");
+constexpr llvm::StringLiteral kNoClaimValue("none");
 
 struct SelectedPath {
   VariantOp variant;
@@ -1609,6 +1616,28 @@ void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
 
 } // namespace
 
+static TargetArtifactRouteMetadata
+buildOffloadRuntimeDescriptorRouteMetadata() {
+  TargetArtifactRouteMetadata metadata(kRuntimeOffloadABIName,
+                                       kRuntimeOffloadABIKind,
+                                       kRuntimeOffloadABIName,
+                                       kRuntimeOffloadGlueRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      kSelectedPlanRuntimeCapabilityIDName, "offload.runtime",
+      "capability-requirement");
+  metadata.addSelectedPlanMetadataRequirement(
+      kSelectedPlanHandoffKindName, kRuntimeOffloadHandoffKind,
+      "runtime-offload-handoff");
+  metadata.addSelectedPlanMetadataRequirement(
+      kSelectedPlanDescriptorScopeName, "descriptor-only", "evidence-scope");
+  metadata.addClaimField("artifact_status", kDescriptorArtifactStatus);
+  metadata.addClaimField("local_runtime_execution_claim", kNoClaimValue);
+  metadata.addClaimField("local_runtime_correctness_claim", kNoClaimValue);
+  metadata.addClaimField("hardware_execution_claim", kNoClaimValue);
+  metadata.addClaimField("performance_claim", kNoClaimValue);
+  return metadata;
+}
+
 llvm::Error exportOffloadRuntimeDescriptor(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
   llvm::Expected<DescriptorRecord> record = buildModuleRecord(module);
@@ -1632,7 +1661,9 @@ llvm::Error registerOffloadRuntimeDescriptorTargetExporters(
           tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor())
           .getCallableRoleRequirements(),
       /*directHelperRoute=*/false, kRuntimeOffloadHandoffKind,
-      validateOffloadDescriptorTargetArtifactRuntimeABIContract));
+      validateOffloadDescriptorTargetArtifactRuntimeABIContract,
+      /*componentGroup=*/{}, /*externalABIName=*/{},
+      buildOffloadRuntimeDescriptorRouteMetadata()));
 }
 
 llvm::Error registerOffloadRuntimeDescriptorPluginTargetExporterBundle(

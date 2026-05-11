@@ -496,6 +496,28 @@ void printSelectedPlanMetadata(
 
 } // namespace
 
+static TargetArtifactRouteMetadata buildToyMetadataArtifactRouteMetadata() {
+  TargetArtifactRouteMetadata metadata(
+      pluginToy::getToyExpectedTemplateABI(),
+      pluginToy::getToyMetadataRuntimeABIKind(),
+      pluginToy::getToyExpectedTemplateABI(),
+      pluginToy::getToyMetadataRuntimeGlueRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      "toy_template_capability_id", pluginToy::getToyTemplateCapabilityID(),
+      "capability-requirement");
+  metadata.addSelectedPlanMetadataRequirement(
+      "toy_template_abi", pluginToy::getToyExpectedTemplateABI(),
+      "template-abi");
+  metadata.addSelectedPlanMetadataRequirement("toy_template_scope",
+                                              "metadata-only",
+                                              "evidence-scope");
+  metadata.addClaimField("artifact_status", kArtifactStatus);
+  metadata.addClaimField("runtime_execution_claim", kNoRuntimeClaim);
+  metadata.addClaimField("correctness_claim", kNoRuntimeClaim);
+  metadata.addClaimField("performance_claim", kNoRuntimeClaim);
+  return metadata;
+}
+
 llvm::Error exportToyMetadataArtifact(mlir::ModuleOp module,
                                       llvm::raw_ostream &os) {
   llvm::Expected<TargetArtifactCandidate> candidate =
@@ -546,7 +568,9 @@ llvm::Error registerToyMetadataArtifactTargetExporters(
       pluginToy::getToyMetadataEmissionKind(), exportToyMetadataArtifact,
       /*requiredRuntimeABIParameters=*/{},
       /*directHelperRoute=*/false, pluginToy::getToyExpectedHandoffKind(),
-      validateToyMetadataCandidate));
+      validateToyMetadataCandidate,
+      /*componentGroup=*/{}, /*externalABIName=*/{},
+      buildToyMetadataArtifactRouteMetadata()));
 }
 
 llvm::Error registerToyMetadataArtifactPluginTargetExporterBundle(

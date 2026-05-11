@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "verify global project invariants after implementation"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "check route changes preserve plugin registry and emission-plan contracts"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "check plugin-owned target export route locality"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "check extension integration remains target-neutral and reusable"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check runtime ABI and artifact export preflight behavior"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "check offload descriptor route metadata and claim boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused validation coverage is adequate"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "review capability-first route metadata"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "review plugin locality and no target-specific core branches"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "review compute-free exec boundary"}

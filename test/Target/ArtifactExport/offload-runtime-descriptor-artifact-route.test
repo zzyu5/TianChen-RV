@@ -78,8 +78,7 @@
 # BAD-ABI-CONTRACT: offload descriptor target artifact preflight runtime ABI parameter role 'runtime-element-count' must mirror IR-backed callable ABI parameter c_name='n'
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-missing-selected-plan-metadata.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SELECTED-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
-# MISSING-SELECTED-PLAN: route id 'tcrv-export-offload-runtime-descriptor' target artifact candidate validation failed
-# MISSING-SELECTED-PLAN: offload descriptor requires selected-plan handoff metadata
+# MISSING-SELECTED-PLAN: route id 'tcrv-export-offload-runtime-descriptor' requires selected_plan_metadata 'runtime_offload_capability_id'
 
 # RUN: not tcrv-translate --tcrv-export-target-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE-PLAN --implicit-check-not=offload_runtime_handoff_descriptor
 # STALE-PLAN: stale emission-plan diagnostic is not selected by the current execution plan surface

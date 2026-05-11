@@ -254,6 +254,114 @@ bool containsForbiddenText(llvm::StringRef value) {
          normalized.contains("://");
 }
 
+llvm::Error validateRouteRegistryText(llvm::StringRef fieldName,
+                                      llvm::StringRef value) {
+  constexpr std::size_t kMaxTextLength = 512;
+  if (value.empty() || value.size() > kMaxTextLength)
+    return makeRegistryError(llvm::Twine(fieldName) +
+                             " must be bounded non-empty single-line "
+                             "metadata");
+
+  for (char character : value) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (character == '\n' || character == '\r' || byte == 0)
+      return makeRegistryError(llvm::Twine(fieldName) +
+                               " must be bounded non-empty single-line "
+                               "metadata");
+    if (byte < 0x20 && character != '\t')
+      return makeRegistryError(llvm::Twine(fieldName) +
+                               " must be bounded non-empty single-line "
+                               "metadata");
+  }
+
+  if (containsForbiddenText(value))
+    return makeRegistryError(llvm::Twine(fieldName) +
+                             " must not contain secret-like or raw credential "
+                             "text");
+  return llvm::Error::success();
+}
+
+llvm::Error
+validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
+  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+
+  if (metadata.hasRuntimeABIMetadata()) {
+    if (metadata.getRuntimeABI().trim().empty() ||
+        metadata.getRuntimeABIKind().trim().empty() ||
+        metadata.getRuntimeABIName().trim().empty() ||
+        metadata.getRuntimeGlueRole().trim().empty())
+      return makeRegistryError(
+          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          "' route metadata runtime ABI descriptor requires non-empty "
+          "runtime ABI, runtime ABI kind/name, and runtime glue role");
+
+    if (llvm::Error error =
+            validateRouteRegistryText("route metadata runtime ABI",
+                                      metadata.getRuntimeABI()))
+      return error;
+    if (llvm::Error error =
+            validateRouteRegistryText("route metadata runtime ABI kind",
+                                      metadata.getRuntimeABIKind()))
+      return error;
+    if (llvm::Error error =
+            validateRouteRegistryText("route metadata runtime ABI name",
+                                      metadata.getRuntimeABIName()))
+      return error;
+    if (llvm::Error error =
+            validateRouteRegistryText("route metadata runtime glue role",
+                                      metadata.getRuntimeGlueRole()))
+      return error;
+  }
+
+  llvm::StringSet<> seenSelectedPlanRequirements;
+  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
+       metadata.getSelectedPlanMetadataRequirements()) {
+    if (requirement.name.empty() || requirement.value.empty() ||
+        requirement.role.empty())
+      return makeRegistryError(
+          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          "' selected-plan metadata requirements must have non-empty name, "
+          "value, and role");
+    if (!seenSelectedPlanRequirements.insert(requirement.name).second)
+      return makeRegistryError(
+          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          "' has duplicate selected-plan metadata requirement '" +
+          requirement.name + "'");
+    if (llvm::Error error =
+            validateRouteRegistryText("selected-plan metadata requirement name",
+                                      requirement.name))
+      return error;
+    if (llvm::Error error = validateRouteRegistryText(
+            "selected-plan metadata requirement value", requirement.value))
+      return error;
+    if (llvm::Error error =
+            validateRouteRegistryText("selected-plan metadata requirement role",
+                                      requirement.role))
+      return error;
+  }
+
+  llvm::StringSet<> seenClaimFields;
+  for (const TargetArtifactRouteClaimField &claim :
+       metadata.getClaimFields()) {
+    if (claim.name.empty() || claim.value.empty())
+      return makeRegistryError(
+          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          "' route claim fields must have non-empty name and value");
+    if (!seenClaimFields.insert(claim.name).second)
+      return makeRegistryError(
+          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          "' has duplicate route claim field '" + claim.name + "'");
+    if (llvm::Error error =
+            validateRouteRegistryText("route claim field name", claim.name))
+      return error;
+    if (llvm::Error error =
+            validateRouteRegistryText("route claim field value", claim.value))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateBoundedText(KernelOp kernel, llvm::StringRef fieldName,
                                 llvm::StringRef value) {
   constexpr std::size_t kMaxTextLength = 512;
@@ -1262,6 +1370,9 @@ llvm::Error appendSingleCandidateBundleRecord(
                                      candidate.runtimeABIParameters.end());
   record.selectedPlanMetadata.append(candidate.selectedPlanMetadata.begin(),
                                      candidate.selectedPlanMetadata.end());
+  llvm::ArrayRef<TargetArtifactRouteClaimField> claimFields =
+      exporter->getRouteMetadata().getClaimFields();
+  record.routeClaimFields.append(claimFields.begin(), claimFields.end());
   record.handoffKind = exporter->getHandoffKind().str();
   record.componentGroup = exporter->getComponentGroup().str();
   if (!record.componentGroup.empty())
@@ -1397,6 +1508,34 @@ llvm::Error validateBundleRuntimeABIParameters(
           "' has duplicate runtime ABI parameter role '" + role + "'");
   }
 
+  return llvm::Error::success();
+}
+
+llvm::Error
+validateBundleRouteClaimFields(const TargetArtifactBundleRecord &record) {
+  llvm::StringSet<> seenNames;
+  for (auto [index, claim] : llvm::enumerate(record.routeClaimFields)) {
+    if (claim.name.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' route_claim[" + llvm::Twine(index) +
+          "] requires non-empty name");
+    if (claim.value.empty())
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' route_claim[" + llvm::Twine(index) +
+          "] requires non-empty value");
+    if (!seenNames.insert(claim.name).second)
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' duplicates route_claim name '" + claim.name + "'");
+    if (llvm::Error error =
+            validateBundleRecordText("route_claim name", claim.name))
+      return error;
+    if (llvm::Error error =
+            validateBundleRecordText("route_claim value", claim.value))
+      return error;
+  }
   return llvm::Error::success();
 }
 
@@ -1549,6 +1688,8 @@ llvm::Error validateTargetArtifactBundleComponentContract(
           "' expected role '" + expectedComponentRole + "'");
     if (llvm::Error error =
             validateBundleRecordText("component_role", record.componentRole))
+      return error;
+    if (llvm::Error error = validateBundleRouteClaimFields(record))
       return error;
     if (llvm::Error error = validateBundleSelectedPlanMetadata(record))
       return error;
@@ -1881,6 +2022,20 @@ void printBundleSelectedPlanMetadata(
   }
 }
 
+void printBundleRouteClaimFields(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<TargetArtifactRouteClaimField> claimFields) {
+  for (auto [index, claim] : llvm::enumerate(claimFields)) {
+    os << "  route_claim[" << index << "]:\n";
+    os << "    name: ";
+    printBundleQuoted(os, claim.name);
+    os << "\n";
+    os << "    value: ";
+    printBundleQuoted(os, claim.value);
+    os << "\n";
+  }
+}
+
 void printTargetArtifactBundleIndex(
     llvm::raw_ostream &os,
     llvm::ArrayRef<TargetArtifactBundleRecord> records,
@@ -1948,6 +2103,7 @@ void printTargetArtifactBundleIndex(
     os << "\n";
     printBundleRuntimeABIParameters(os, record.runtimeABIParameters);
     printBundleSelectedPlanMetadata(os, record.selectedPlanMetadata);
+    printBundleRouteClaimFields(os, record.routeClaimFields);
     if (!record.handoffKind.empty()) {
       os << "  handoff_kind: ";
       printBundleQuoted(os, record.handoffKind);
@@ -1957,6 +2113,77 @@ void printTargetArtifactBundleIndex(
     printBundleQuoted(os, record.evidenceRole);
     os << "\n";
   }
+}
+
+const SelectedPlanMetadataEntry *findSelectedPlanMetadataEntry(
+    llvm::ArrayRef<SelectedPlanMetadataEntry> metadata, llvm::StringRef name) {
+  for (const SelectedPlanMetadataEntry &entry : metadata)
+    if (entry.name == name)
+      return &entry;
+  return nullptr;
+}
+
+llvm::Error validateCandidateRouteMetadata(
+    const TargetArtifactCandidate &candidate,
+    const TargetArtifactExporter &exporter) {
+  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+  if (!metadata.getRuntimeABI().empty() &&
+      candidate.runtimeABI != metadata.getRuntimeABI())
+    return makeArtifactExportError(
+        candidate.kernel,
+        llvm::Twine("route id '") + candidate.routeID +
+            "' is registered for runtime_abi '" +
+            metadata.getRuntimeABI() +
+            "' but selected emission-plan runtime_abi is '" +
+            candidate.runtimeABI + "'");
+  if (!metadata.getRuntimeABIKind().empty() &&
+      candidate.runtimeABIKind != metadata.getRuntimeABIKind())
+    return makeArtifactExportError(
+        candidate.kernel,
+        llvm::Twine("route id '") + candidate.routeID +
+            "' is registered for runtime_abi_kind '" +
+            metadata.getRuntimeABIKind() +
+            "' but selected emission-plan runtime_abi_kind is '" +
+            candidate.runtimeABIKind + "'");
+  if (!metadata.getRuntimeABIName().empty() &&
+      candidate.runtimeABIName != metadata.getRuntimeABIName())
+    return makeArtifactExportError(
+        candidate.kernel,
+        llvm::Twine("route id '") + candidate.routeID +
+            "' is registered for runtime_abi_name '" +
+            metadata.getRuntimeABIName() +
+            "' but selected emission-plan runtime_abi_name is '" +
+            candidate.runtimeABIName + "'");
+  if (!metadata.getRuntimeGlueRole().empty() &&
+      candidate.runtimeGlueRole != metadata.getRuntimeGlueRole())
+    return makeArtifactExportError(
+        candidate.kernel,
+        llvm::Twine("route id '") + candidate.routeID +
+            "' is registered for runtime_glue_role '" +
+            metadata.getRuntimeGlueRole() +
+            "' but selected emission-plan runtime_glue_role is '" +
+            candidate.runtimeGlueRole + "'");
+
+  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
+       metadata.getSelectedPlanMetadataRequirements()) {
+    const SelectedPlanMetadataEntry *entry = findSelectedPlanMetadataEntry(
+        candidate.selectedPlanMetadata, requirement.name);
+    if (!entry)
+      return makeArtifactExportError(
+          candidate.kernel,
+          llvm::Twine("route id '") + candidate.routeID +
+              "' requires selected_plan_metadata '" + requirement.name + "'");
+
+    if (entry->value != requirement.value || entry->role != requirement.role)
+      return makeArtifactExportError(
+          candidate.kernel,
+          llvm::Twine("route id '") + candidate.routeID +
+              "' selected_plan_metadata '" + requirement.name +
+              "' must use value '" + requirement.value + "' and role '" +
+              requirement.role + "'");
+  }
+
+  return llvm::Error::success();
 }
 
 } // namespace
@@ -1995,6 +2222,9 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
         candidate.kernel,
         llvm::Twine("route id '") + candidate.routeID +
             "' has no registered export callback");
+
+  if (llvm::Error error = validateCandidateRouteMetadata(candidate, exporter))
+    return error;
 
   llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters =
       exporter.getRequiredRuntimeABIParameters();
@@ -2153,6 +2383,34 @@ llvm::Error exportTargetArtifactImpl(
 
 } // namespace
 
+TargetArtifactRouteClaimField::TargetArtifactRouteClaimField(
+    llvm::StringRef name, llvm::StringRef value)
+    : name(name.str()), value(value.str()) {}
+
+TargetArtifactSelectedPlanMetadataRequirement::
+    TargetArtifactSelectedPlanMetadataRequirement(llvm::StringRef name,
+                                                 llvm::StringRef value,
+                                                 llvm::StringRef role)
+    : name(name.str()), value(value.str()), role(role.str()) {}
+
+TargetArtifactRouteMetadata::TargetArtifactRouteMetadata(
+    llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole)
+    : runtimeABI(runtimeABI.str()), runtimeABIKind(runtimeABIKind.str()),
+      runtimeABIName(runtimeABIName.str()),
+      runtimeGlueRole(runtimeGlueRole.str()) {}
+
+void TargetArtifactRouteMetadata::addSelectedPlanMetadataRequirement(
+    llvm::StringRef name, llvm::StringRef value, llvm::StringRef role) {
+  selectedPlanMetadataRequirements.push_back(
+      TargetArtifactSelectedPlanMetadataRequirement(name, value, role));
+}
+
+void TargetArtifactRouteMetadata::addClaimField(llvm::StringRef name,
+                                                llvm::StringRef value) {
+  claimFields.push_back(TargetArtifactRouteClaimField(name, value));
+}
+
 TargetArtifactExporter::TargetArtifactExporter(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
     llvm::StringRef originPlugin, llvm::StringRef emissionKind,
@@ -2161,13 +2419,15 @@ TargetArtifactExporter::TargetArtifactExporter(
         requiredRuntimeABIParameters,
     bool directHelperRoute, llvm::StringRef handoffKind,
     TargetArtifactCandidateValidationFn candidateValidationFn,
-    llvm::StringRef componentGroup, llvm::StringRef externalABIName)
+    llvm::StringRef componentGroup, llvm::StringRef externalABIName,
+    const TargetArtifactRouteMetadata &routeMetadata)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
       exportFn(exportFn), directHelperRoute(directHelperRoute),
       handoffKind(handoffKind.str()), componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
-      candidateValidationFn(candidateValidationFn) {
+      candidateValidationFn(candidateValidationFn),
+      routeMetadata(routeMetadata) {
   this->requiredRuntimeABIParameters.append(
       requiredRuntimeABIParameters.begin(), requiredRuntimeABIParameters.end());
 }
@@ -2233,6 +2493,8 @@ llvm::Error TargetArtifactExporterRegistry::registerExporter(
     return makeRegistryError("exporter artifact kind must be non-empty");
   if (!exporter.getExportFn())
     return makeRegistryError("exporter callback must be non-null");
+  if (llvm::Error error = validateRouteMetadataShape(exporter))
+    return error;
 
   for (const TargetArtifactCompositeExporter &existing :
        compositeExporters) {

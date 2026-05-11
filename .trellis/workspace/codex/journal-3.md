@@ -129,6 +129,67 @@ emission, and real `ssh rvv` compile/link/run correctness.
 
 ---
 
+## Session 24: Extension plugin artifact route registration template
+
+**Date**: 2026-05-11
+**Task**: Extension plugin artifact route registration template
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded plugin-owned artifact route registration template by
+lifting route metadata into the C++ target artifact exporter registration
+contract and making generic target artifact preflight consume it.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `extension-plugin-artifact-route-registration-template` with a PRD aligned to
+  plugin-protocol, lowering-runtime, offload-plugin, and testing specs.
+- Added `TargetArtifactRouteMetadata` for route-level runtime ABI metadata,
+  selected-plan metadata requirements, and explicit conservative claim fields.
+- Extended generic target artifact preflight to reject stale registered runtime
+  ABI metadata and stale selected-plan/handoff metadata before route-local
+  export.
+- Registered descriptor metadata for both Toy metadata and offload runtime
+  descriptor plugin-owned target exporter bundles.
+- Emitted offload route claim fields in the generic target artifact bundle
+  index while preserving deterministic descriptor output and no-claim wording.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='(offload-runtime-descriptor-artifact-route|offload-runtime-descriptor-bundle|toy-metadata-artifact-route|toy-metadata-artifact-runtime-abi-kind-fails|target-artifact-export-registry)'`
+  from `artifacts/tmp/tianchenrv-build/test`: 5 focused lit tests passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-toy-extension-plugin-test tianchenrv-offload-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-toy-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-offload-extension-plugin-test`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-11-extension-plugin-artifact-route-registration-template`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+
+No runtime correctness, hardware execution, or performance evidence was
+claimed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
+
+---
+
 ## Session 23: Offload runtime plugin boundary template
 
 **Date**: 2026-05-11

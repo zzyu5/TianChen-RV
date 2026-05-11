@@ -67,7 +67,5 @@ module {
   }
 }
 
-// CHECK: target artifact candidate validation failed
-// CHECK-SAME: Toy metadata artifact export failed
-// CHECK-SAME: runtime ABI kind 'wrong-toy-template-metadata'
-// CHECK-SAME: expected 'toy-template-metadata'
+// CHECK: route id 'none-executable-toy-template-metadata' is registered for runtime_abi_kind 'toy-template-metadata'
+// CHECK-SAME: selected emission-plan runtime_abi_kind is 'wrong-toy-template-metadata'

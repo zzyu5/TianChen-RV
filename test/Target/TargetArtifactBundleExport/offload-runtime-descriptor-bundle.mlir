@@ -64,6 +64,15 @@ module @unused_offload_bundle_test_anchor {
 // INDEX: name: "runtime_offload_descriptor_scope"
 // INDEX: value: "descriptor-only"
 // INDEX: role: "evidence-scope"
+// INDEX: route_claim[0]:
+// INDEX: name: "artifact_status"
+// INDEX: value: "non-executable-runtime-offload-handoff-metadata"
+// INDEX: route_claim[1]:
+// INDEX: name: "local_runtime_execution_claim"
+// INDEX: value: "none"
+// INDEX: route_claim[4]:
+// INDEX: name: "performance_claim"
+// INDEX: value: "none"
 // INDEX: handoff_kind: "runtime-offload"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX-NOT: artifact[1]:

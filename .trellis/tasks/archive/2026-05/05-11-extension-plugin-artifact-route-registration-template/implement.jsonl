@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for TianChen-RV boundaries and implementation stack"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "extension plugin registry, emission readiness, and emission-plan interface contract"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin-owned versus core-owned responsibilities and no concrete extension branches in core orchestration"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "standard extension plugin integration and optional target artifact route expectations"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export, runtime ABI, handoff metadata, and manifest/bundle contracts"}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "offload runtime descriptor route and plugin-owned target exporter bundle requirements"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++/lit validation requirements for plugin routes and target artifact export"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability-driven design guardrails for route and runtime ABI metadata"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "review checklist for plugin-local route ownership"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "ensure no compute semantics are added to tcrv.exec"}

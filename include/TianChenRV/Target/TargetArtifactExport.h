@@ -45,6 +45,75 @@ using TargetArtifactCompositeRuntimeABIParametersFn =
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>> (*)(
         llvm::ArrayRef<TargetArtifactCandidate> candidates);
 
+struct TargetArtifactRouteClaimField {
+  TargetArtifactRouteClaimField() = default;
+  TargetArtifactRouteClaimField(llvm::StringRef name, llvm::StringRef value);
+
+  std::string name;
+  std::string value;
+};
+
+struct TargetArtifactSelectedPlanMetadataRequirement {
+  TargetArtifactSelectedPlanMetadataRequirement() = default;
+  TargetArtifactSelectedPlanMetadataRequirement(llvm::StringRef name,
+                                                llvm::StringRef value,
+                                                llvm::StringRef role);
+
+  std::string name;
+  std::string value;
+  std::string role;
+};
+
+class TargetArtifactRouteMetadata {
+public:
+  TargetArtifactRouteMetadata() = default;
+  TargetArtifactRouteMetadata(llvm::StringRef runtimeABI,
+                              llvm::StringRef runtimeABIKind,
+                              llvm::StringRef runtimeABIName,
+                              llvm::StringRef runtimeGlueRole);
+
+  llvm::StringRef getRuntimeABI() const { return runtimeABI; }
+  llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
+  llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
+  llvm::StringRef getRuntimeGlueRole() const { return runtimeGlueRole; }
+  llvm::ArrayRef<TargetArtifactSelectedPlanMetadataRequirement>
+  getSelectedPlanMetadataRequirements() const {
+    return selectedPlanMetadataRequirements;
+  }
+  llvm::ArrayRef<TargetArtifactRouteClaimField> getClaimFields() const {
+    return claimFields;
+  }
+
+  bool hasRuntimeABIMetadata() const {
+    return !runtimeABI.empty() || !runtimeABIKind.empty() ||
+           !runtimeABIName.empty() || !runtimeGlueRole.empty();
+  }
+
+  void setRuntimeABI(llvm::StringRef value) { runtimeABI = value.str(); }
+  void setRuntimeABIKind(llvm::StringRef value) {
+    runtimeABIKind = value.str();
+  }
+  void setRuntimeABIName(llvm::StringRef value) {
+    runtimeABIName = value.str();
+  }
+  void setRuntimeGlueRole(llvm::StringRef value) {
+    runtimeGlueRole = value.str();
+  }
+  void addSelectedPlanMetadataRequirement(llvm::StringRef name,
+                                          llvm::StringRef value,
+                                          llvm::StringRef role);
+  void addClaimField(llvm::StringRef name, llvm::StringRef value);
+
+private:
+  std::string runtimeABI;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string runtimeGlueRole;
+  llvm::SmallVector<TargetArtifactSelectedPlanMetadataRequirement, 4>
+      selectedPlanMetadataRequirements;
+  llvm::SmallVector<TargetArtifactRouteClaimField, 4> claimFields;
+};
+
 class TargetArtifactExporter {
 public:
   TargetArtifactExporter() = default;
@@ -60,7 +129,8 @@ public:
                          TargetArtifactCandidateValidationFn
                              candidateValidationFn = nullptr,
                          llvm::StringRef componentGroup = {},
-                         llvm::StringRef externalABIName = {});
+                         llvm::StringRef externalABIName = {},
+                         const TargetArtifactRouteMetadata &routeMetadata = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -78,6 +148,9 @@ public:
   TargetArtifactCandidateValidationFn getCandidateValidationFn() const {
     return candidateValidationFn;
   }
+  const TargetArtifactRouteMetadata &getRouteMetadata() const {
+    return routeMetadata;
+  }
 
 private:
   std::string routeID;
@@ -92,6 +165,7 @@ private:
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       requiredRuntimeABIParameters;
   TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
+  TargetArtifactRouteMetadata routeMetadata;
 };
 
 struct SelectedPlanMetadataEntry {
@@ -138,6 +212,7 @@ struct TargetArtifactBundleRecord {
   std::string runtimeABIName;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
   llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
+  llvm::SmallVector<TargetArtifactRouteClaimField, 4> routeClaimFields;
   std::string handoffKind;
   std::string evidenceRole;
 };
