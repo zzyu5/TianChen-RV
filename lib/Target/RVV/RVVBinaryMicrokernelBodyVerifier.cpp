@@ -409,7 +409,7 @@ llvm::Error requireGeneratedEmitCLowerableInterface(
         request,
         llvm::Twine("generated TCRVEmitCLowerableOpInterface source role '") +
             sourceOpRole +
-            "' must be 'compute' for bounded RVV i32 arithmetic ops");
+            "' must be 'compute' for bounded RVV arithmetic ops");
   return llvm::Error::success();
 }
 
@@ -607,6 +607,9 @@ llvm::Error validateI64DataflowBody(
   mlir::Value arithmeticRHS;
   mlir::Value arithmeticVL;
   mlir::Value arithmeticResult;
+  llvm::StringRef arithmeticSourceOpName;
+  llvm::StringRef arithmeticSourceOpRole = "compute";
+  llvm::StringRef arithmeticSourceOpInterface;
   RVVBinaryDataflowStepKind arithmeticStepKind =
       RVVBinaryDataflowStepKind::Mul;
   if (auto add = llvm::dyn_cast<I64AddOp>(ops[2])) {
@@ -652,6 +655,16 @@ llvm::Error validateI64DataflowBody(
             "' requires exactly tcrv_rvv.i64_load, tcrv_rvv.i64_load, " +
             request.descriptor.getRVVOperationName() +
             ", tcrv_rvv.i64_store before artifact export");
+
+  if (request.descriptor.family.familyID == "i64-vadd") {
+    if (llvm::Error error = requireGeneratedEmitCLowerableInterface(
+            request, ops[2], request.descriptor.getRVVOperationName(),
+            arithmeticSourceOpName, arithmeticSourceOpRole))
+      return error;
+    arithmeticSourceOpInterface = kEmitCLowerableOpInterfaceName;
+  } else {
+    arithmeticSourceOpName = ops[2]->getName().getStringRef();
+  }
 
   if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
       arithmeticVL != withVL.getVl() || store.getVl() != withVL.getVl())
@@ -720,8 +733,8 @@ llvm::Error validateI64DataflowBody(
   plan.steps.push_back(
       makeLoadStep(rhsLoad->getName().getStringRef(), *rhsRole,
                    RVVBinaryDataflowValue::RHSVector));
-  appendArithmeticStep(plan, ops[2]->getName().getStringRef(), "compute", "",
-                       arithmeticStepKind);
+  appendArithmeticStep(plan, arithmeticSourceOpName, arithmeticSourceOpRole,
+                       arithmeticSourceOpInterface, arithmeticStepKind);
   plan.steps.push_back(
       makeStoreStep(store->getName().getStringRef(), *storeRole,
                     RVVBinaryDataflowValue::ResultVector));

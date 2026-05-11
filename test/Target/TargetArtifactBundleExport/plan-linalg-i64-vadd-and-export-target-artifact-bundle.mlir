@@ -80,6 +80,12 @@ module @plan_linalg_i64_vadd_bundle_input {
 // IR: tcrv.exec.runtime_param @abi_runtime_element_count
 // IR-SAME: c_name = "n"
 // IR-SAME: c_type = "size_t"
+// IR: tcrv.exec.variant @rvv_first_slice
+// IR-SAME: origin = "rvv-plugin"
+// IR-NOT: tcrv_rvv.lowering_descriptor
+// IR: tcrv.exec.variant @scalar_fallback_first_slice
+// IR-SAME: origin = "scalar-plugin"
+// IR-NOT: tcrv_scalar.lowering_descriptor
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR-SAME: c_name = "rvv_available"
@@ -131,6 +137,10 @@ module @plan_linalg_i64_vadd_bundle_input {
 
 // SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // SOURCE: /* Scope: one selected RVV i64-vadd dispatch case plus one scalar i64-vadd dispatch fallback. */
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_family, value=i64-vadd, role=typed-rvv-binary-source
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i64_add, role=typed-rvv-emitc-source-op
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.selected_binary_family, value=i64-vadd, role=typed-scalar-binary-source
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_source_op, value=tcrv_scalar.i64_vadd_microkernel, role=typed-scalar-emitc-source-op
 // SOURCE: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
 // SOURCE: /* dispatch_runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */

@@ -351,7 +351,7 @@ inline void appendScalarBinarySelectedDescriptorMetadata(
                  getScalarRuntimeControlNameMetadataNote()});
 }
 
-inline void appendScalarI32SelectedTypedSourceMetadata(
+inline void appendScalarBinarySelectedTypedSourceMetadata(
     const RVVScalarBinaryFamilyDescriptor &family,
     llvm::StringRef runtimeElementCountCName,
     llvm::SmallVectorImpl<ScalarBinarySelectedPlanMetadataDescriptor> &out) {
@@ -381,8 +381,8 @@ inline void appendScalarI32VAddSelectedTypedSourceMetadata(
     const RVVScalarBinaryFamilyDescriptor &family,
     llvm::StringRef runtimeElementCountCName,
     llvm::SmallVectorImpl<ScalarBinarySelectedPlanMetadataDescriptor> &out) {
-  appendScalarI32SelectedTypedSourceMetadata(family,
-                                            runtimeElementCountCName, out);
+  appendScalarBinarySelectedTypedSourceMetadata(family,
+                                               runtimeElementCountCName, out);
 }
 
 inline const RVVScalarBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {

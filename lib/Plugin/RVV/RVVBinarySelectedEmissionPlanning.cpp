@@ -639,16 +639,20 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
       buildDescriptorSelectedPlanForEmission(request, "i64");
   if (!descriptorPlan)
     return descriptorPlan.takeError();
-  if (!*descriptorPlan)
-    return std::optional<RVVBinarySelectedEmissionAttachment>();
+  std::optional<RVVBinarySelectedPlan> selectedDescriptorPlan =
+      std::move(*descriptorPlan);
+  const RVVBinarySelectedPlan *descriptorSelectedPlan =
+      selectedDescriptorPlan ? &*selectedDescriptorPlan : nullptr;
 
-  const RVVBinarySelectedPlan &selectedPlan = **descriptorPlan;
   llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   auto variantRequiredMarch =
       variant->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
   unsigned matches = 0;
+  const RVVVectorShapeConfig *selectedShape = nullptr;
+  const RVVBinaryFamilyDescriptor *matchedFamily = nullptr;
+  mlir::Operation *matchedMicrokernel = nullptr;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
     const RVVBinaryFamilyDescriptor *microkernelFamily =
@@ -673,14 +677,22 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
           variant.getSymName() + " as " + expectedRole);
     }
 
-    if (microkernelFamily->familyID != selectedPlan.getFamilyID())
+    if (descriptorSelectedPlan &&
+        microkernelFamily->familyID != descriptorSelectedPlan->getFamilyID())
       return makeRVVBinarySelectedEmissionError(
           llvm::Twine("explicit RVV i64 microkernel emission plan for path @") +
           variant.getSymName() + " as " + expectedRole + " requires " +
-          selectedPlan.getMicrokernelOpName() + " but found " +
+          descriptorSelectedPlan->getMicrokernelOpName() + " but found " +
+          microkernelFamily->microkernelOpName);
+    if (!descriptorSelectedPlan && microkernelFamily->familyID != "i64-vadd")
+      return makeRVVBinarySelectedEmissionError(
+          llvm::Twine("descriptorless explicit RVV i64 microkernel emission "
+                      "plan is bounded to i64-vadd; found ") +
           microkernelFamily->microkernelOpName);
 
     ++matches;
+    matchedFamily = microkernelFamily;
+    matchedMicrokernel = &op;
     if (llvm::Error error =
             validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
                                             kernel.getSymName()))
@@ -697,7 +709,7 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
             variantRequires) {
       return makeRVVBinarySelectedEmissionError(
           llvm::Twine("explicit RVV i64 microkernel emission plan requires ") +
-          selectedPlan.getMicrokernelOpName() +
+          microkernelFamily->microkernelOpName +
           " required_capabilities to match selected variant requires metadata");
     }
 
@@ -725,21 +737,29 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
       return makeRVVBinarySelectedEmissionError(
           "explicit RVV i64 microkernel emission plan requires element_count "
           "in the bounded smoke range [1, 64]");
-    if (elementCount.getInt() != selectedPlan.elementCount)
+    if (descriptorSelectedPlan &&
+        elementCount.getInt() != descriptorSelectedPlan->elementCount)
       return makeRVVBinarySelectedEmissionError(
           llvm::Twine("explicit RVV i64 microkernel emission plan requires ") +
-          selectedPlan.getMicrokernelOpName() +
+          descriptorSelectedPlan->getMicrokernelOpName() +
           " element_count to match selected variant finite descriptor "
           "metadata 'tcrv_rvv.element_count'");
 
-    if (llvm::Error error =
-            validateRVVSelectedVectorShapeMetadata(
-                &op,
-                (llvm::Twine("explicit RVV i64 microkernel ") +
-                 selectedPlan.getMicrokernelOpName())
-                    .str(),
-                selectedPlan.getShape(),
-                getRVVBoundarySelectedVectorShapeMetadataNames()))
+    if (!selectedShape) {
+      llvm::Expected<const RVVVectorShapeConfig *> requiredShape =
+          getRVVBinaryVariantRequiredShapeConfig(variant,
+                                                 request.getCapabilities());
+      if (!requiredShape)
+        return requiredShape.takeError();
+      selectedShape = *requiredShape;
+    }
+
+    if (llvm::Error error = validateRVVSelectedVectorShapeMetadata(
+            &op,
+            (llvm::Twine("explicit RVV i64 microkernel ") +
+             microkernelFamily->microkernelOpName)
+                .str(),
+            *selectedShape, getRVVBoundarySelectedVectorShapeMetadataNames()))
       return std::move(error);
   }
 
@@ -752,8 +772,15 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
   if (matches == 0)
     return std::optional<RVVBinarySelectedEmissionAttachment>();
 
+  llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
+      buildSelectedPlanFromExplicitMicrokernel(
+          variant, request.getCapabilities(), *selectedShape,
+          matchedMicrokernel, *matchedFamily, std::move(selectedDescriptorPlan));
+  if (!selectedPlan)
+    return selectedPlan.takeError();
+
   RVVBinarySelectedEmissionAttachment attachment;
-  attachment.selectedPlan = std::move(**descriptorPlan);
+  attachment.selectedPlan = std::move(*selectedPlan);
   return attachment;
 }
 
@@ -895,12 +922,25 @@ void appendSelectedBinaryMetadata(
   llvm::SmallVector<
       target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
       descriptorMetadata;
-  if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32)
+  bool useTypedSourceMetadata =
+      contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
+      contract.getFamilyID() == "i64-vadd";
+  if (useTypedSourceMetadata)
     target::rvv::appendRVVBinarySelectedTypedSourceMetadata(contract,
                                                            descriptorMetadata);
-  if (includeDescriptorMetadata)
-    target::rvv::appendRVVBinarySelectedDescriptorMetadata(contract,
-                                                          descriptorMetadata);
+  if (includeDescriptorMetadata) {
+    if (useTypedSourceMetadata) {
+      descriptorMetadata.push_back(
+          {target::rvv::getRVVSelectedLoweringDescriptorMetadataName(),
+           contract.getLoweringDescriptor(),
+           target::rvv::getRVVSelectedBinaryDescriptorMetadataRole(),
+           target::rvv::getRVVSelectedBinaryDescriptorMetadataNote(),
+           "selected lowering descriptor"});
+    } else {
+      target::rvv::appendRVVBinarySelectedDescriptorMetadata(
+          contract, descriptorMetadata);
+    }
+  }
   for (const auto &entry : descriptorMetadata)
     metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
                         entry.note.str()});
@@ -999,7 +1039,7 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
     return std::move(error);
   appendRuntimeVLBoundaryMetadata(plan.selectedPlanMetadata);
   bool includeDescriptorMetadata =
-      plan.selectedPlan.family->dtype == RVVBinaryDTypeKind::I64;
+      request.getVariant()->hasAttr(kLoweringDescriptorAttrName);
   appendSelectedBinaryMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       includeDescriptorMetadata, plan.selectedPlanMetadata);

@@ -53,6 +53,12 @@ module {
   }
 }
 
+// IR: tcrv.exec.variant @rvv_first_slice
+// IR-SAME: origin = "rvv-plugin"
+// IR-NOT: tcrv_rvv.lowering_descriptor
+// IR: tcrv.exec.variant @scalar_fallback_first_slice
+// IR-SAME: origin = "scalar-plugin"
+// IR-NOT: tcrv_scalar.lowering_descriptor
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR-SAME: c_name = "rvv_available"
@@ -77,11 +83,22 @@ module {
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
 // IR: lowering_pipeline = "tcrv-export-scalar-i64-vadd-microkernel-c"
 // IR-SAME: runtime_abi_name = "scalar-i64-vadd-runtime-callable-c-function.v1"
+// IR-SAME: {name = "tcrv_scalar.selected_binary_family"
+// IR-SAME: role = "typed-scalar-binary-source"
+// IR-SAME: value = "i64-vadd"
+// IR-SAME: {name = "tcrv_scalar.emitc_lowerable_op_interface"
+// IR-SAME: value = "TCRVEmitCLowerableOpInterface"
 
 // GENERIC: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // GENERIC: /* Scope: one selected RVV i64-vadd dispatch case plus one scalar i64-vadd dispatch fallback. */
 // GENERIC: /* rvv_artifact_route_id: tcrv-export-rvv-i64-vadd-microkernel-c */
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_family, value=i64-vadd, role=typed-rvv-binary-source
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i64_add, role=typed-rvv-emitc-source-op
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // GENERIC: /* scalar_artifact_route_id: tcrv-export-scalar-i64-vadd-microkernel-c */
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.selected_binary_family, value=i64-vadd, role=typed-scalar-binary-source
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_source_op, value=tcrv_scalar.i64_vadd_microkernel, role=typed-scalar-emitc-source-op
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // GENERIC: /* dispatch_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int64_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
 // GENERIC: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
 // GENERIC: void tcrv_rvv_i64_vadd_microkernel_conflict_planned_i64_dispatch_rvv_first_slice

@@ -349,7 +349,8 @@ def I64LoadOp : TCRVRVV_Op<"i64_load", []> {
   let hasVerifier = 1;
 }
 
-def I64AddOp : TCRVRVV_Op<"i64_add", []> {
+def I64AddOp : TCRVRVV_Op<"i64_add",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i64 add dataflow op";
   let description = [{
     Records the finite plugin-local RVV i64 vector add in the current i64-vadd

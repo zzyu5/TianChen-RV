@@ -729,9 +729,10 @@ bool RVVBinaryProposalPlan::hasCapacityMetadata() const {
   return capabilityView.vlenbBytes && capabilityView.i32M1LaneCount;
 }
 
-bool isDescriptorlessDefaultI32Family(
+bool isDescriptorlessDefaultTypedFamily(
     const target::rvv::RVVBinaryFamilyDescriptor &family) {
-  return family.dtype == target::rvv::RVVBinaryDTypeKind::I32;
+  return family.dtype == target::rvv::RVVBinaryDTypeKind::I32 ||
+         family.familyID == "i64-vadd";
 }
 
 const RVVSelectedVectorShapeMetadataNames &
@@ -1312,7 +1313,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
   return buildRVVBinaryProposalPlanForFamily(
       capabilities, *requestedFamily, requiredShape,
       /*attachLoweringDescriptorAttr=*/
-      !isDescriptorlessDefaultI32Family(*requestedFamily),
+      !isDescriptorlessDefaultTypedFamily(*requestedFamily),
       diagnosticContext);
 }
 
@@ -1325,7 +1326,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     return resolution.takeError();
 
   bool attachLoweringDescriptorAttr = true;
-  if (isDescriptorlessDefaultI32Family(*resolution->family) &&
+  if (isDescriptorlessDefaultTypedFamily(*resolution->family) &&
       resolution->sourceKind != "direct-lowering-descriptor")
     attachLoweringDescriptorAttr = false;
 

@@ -1748,7 +1748,8 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
       expected;
   bool expectsTypedSource =
       contract.getFamily().dtype ==
-      tianchenrv::target::rvv::RVVBinaryDTypeKind::I32;
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      contract.getFamilyID() == "i64-vadd";
   if (expectsTypedSource)
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         contract, expected);
@@ -1951,7 +1952,8 @@ buildDispatchPairSelectedConfigContract(
     return metadataElementCount.takeError();
   bool expectsTypedSource =
       pair.family->rvvFamily->dtype ==
-      tianchenrv::target::rvv::RVVBinaryDTypeKind::I32;
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      pair.family->rvvFamily->familyID == "i64-vadd";
   if (*metadataElementCount) {
     if (expectsTypedSource)
       return makeDispatchError(
@@ -1961,7 +1963,7 @@ buildDispatchPairSelectedConfigContract(
                       "'" +
                       tianchenrv::target::rvv::
                           getRVVDescriptorElementCountMetadataName() +
-                      "' for typed i32 dispatch source metadata");
+                      "' for typed dispatch source metadata");
     if (selectedElementCount && **metadataElementCount != *selectedElementCount)
       return makeDispatchError(
           kernel, llvm::Twine("selected RVV dispatch candidate @") +

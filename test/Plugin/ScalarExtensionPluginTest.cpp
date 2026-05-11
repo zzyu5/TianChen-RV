@@ -1,4 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
@@ -34,6 +35,7 @@ using tianchenrv::plugin::VariantLoweringBoundaryRequest;
 using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
 using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
@@ -1160,7 +1162,7 @@ module {
            .scalar.microkernelOpName});
 }
 
-int runDescriptorBackedScalarI64VAddMaterializationTest(
+int runDescriptorlessScalarI64VAddMaterializationTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1185,20 +1187,20 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse scalar descriptor-backed i64-vadd module");
+    return fail("failed to parse scalar descriptorless i64-vadd module");
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "scalar_i64_vadd");
   if (int result =
           expect(highLevelOp && kernel,
-                 "scalar descriptor-backed i64-vadd test has anchors"))
+                 "scalar descriptorless i64-vadd test has anchors"))
     return result;
 
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
                             registry),
-                        "register scalar plugin for descriptor-backed i64-vadd"))
+                        "register scalar plugin for descriptorless i64-vadd"))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -1216,13 +1218,13 @@ module {
   bool hasDescriptor = false;
   for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
     if (attr.getName().getValue() == "tcrv_scalar.lowering_descriptor") {
-      auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
-      hasDescriptor = value && value.getValue() == family.loweringDescriptor;
+      hasDescriptor = true;
     }
   }
   if (int result =
-          expect(hasDescriptor,
-                 "scalar i64-vadd proposal consumes bridge lowering descriptor"))
+          expect(!hasDescriptor,
+                 "scalar i64-vadd proposal uses typed source metadata instead "
+                 "of a lowering descriptor"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1236,6 +1238,10 @@ module {
                           "one scalar i64-vadd variant is materialized"))
     return result;
   VariantOp variant = materializedVariants.front();
+  if (int result =
+          expect(!variant->hasAttr("tcrv_scalar.lowering_descriptor"),
+                 "scalar i64-vadd variant remains descriptorless"))
+    return result;
 
   VariantLoweringBoundaryResult boundaryResult;
   {
@@ -1247,18 +1253,25 @@ module {
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            "materialize descriptor-backed scalar i64-vadd boundary"))
+            "materialize descriptorless scalar i64-vadd boundary"))
       return result;
   }
   if (int result =
           expect(boundaryResult.isMaterialized(),
-                 "descriptor-backed scalar i64-vadd boundary materializes"))
+                 "descriptorless scalar i64-vadd boundary materializes"))
     return result;
   I64VAddMicrokernelOp microkernel =
       findScalarI64VAddMicrokernel(kernel, variant.getSymName());
   if (int result =
           expect(microkernel,
-                 "bridge-backed scalar i64-vadd descriptor materializes i64 op"))
+                 "typed scalar i64-vadd path materializes i64 op"))
+    return result;
+  if (int result =
+          expect(static_cast<bool>(
+                     llvm::isa<TCRVEmitCLowerableOpInterface>(
+                         microkernel.getOperation())),
+                 "scalar i64-vadd microkernel implements generated EmitC "
+                 "lowerable op interface"))
     return result;
   if (int result = expect(
           microkernel->getAttrOfType<mlir::StringAttr>("source_kernel")
@@ -1291,21 +1304,40 @@ module {
                          family.scalar.runtimeABIName &&
                      emissionPlan.getRuntimeGlueRole() ==
                          family.scalar.runtimeGlueRole,
-                 "scalar i64-vadd emission plan consumes bridge facts"))
+                 "scalar i64-vadd emission plan consumes typed family facts"))
+    return result;
+  auto hasSelectedPlanMetadata =
+      [&](llvm::StringRef name, llvm::StringRef value,
+          llvm::StringRef role) {
+        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
+          if (entry.name == name && entry.value == value && entry.role == role)
+            return true;
+        return false;
+      };
+  if (int result =
+          expect(hasSelectedPlanMetadata("tcrv_scalar.emitc_source_op",
+                                         family.scalar.microkernelOpName,
+                                         "typed-scalar-emitc-source-op") &&
+                     hasSelectedPlanMetadata(
+                         "tcrv_scalar.emitc_lowerable_op_interface",
+                         "TCRVEmitCLowerableOpInterface",
+                         "typed-scalar-emitc-source-op") &&
+                     !hasSelectedPlanMetadata(
+                         "tcrv_scalar.selected_lowering_descriptor",
+                         family.loweringDescriptor,
+                         "selected-scalar-binary-descriptor"),
+                 "scalar i64-vadd emission plan records typed EmitC source "
+                 "metadata without descriptor authority"))
     return result;
 
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToEnd(&kernel.getBody().front());
-    mlir::OperationState staleState(
-        variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
-    staleState.addAttribute(
-        "selected_variant",
-        mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                     variant.getSymName()));
-    staleState.addAttribute("role", builder.getStringAttr("direct variant"));
-    builder.create(staleState);
-  }
+  const RVVScalarBinaryFamilyDescriptor &staleDescriptorFamily =
+      tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor();
+  variant->setAttr("tcrv_scalar.lowering_descriptor",
+                   builder.getStringAttr(
+                       staleDescriptorFamily.loweringDescriptor));
+  variant->setAttr(
+      "tcrv_scalar.element_count",
+      builder.getI64IntegerAttr(16));
 
   VariantEmissionStatus staleStatus;
   return expectErrorContains(
@@ -1313,7 +1345,8 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           staleStatus),
-      {"descriptor requires", family.scalar.microkernelOpName});
+      {"selected variant descriptor requires",
+       staleDescriptorFamily.scalar.microkernelOpName});
 }
 
 int runDescriptorBackedScalarI64MaterializationCase(
@@ -1757,7 +1790,7 @@ int main() {
     return result;
   if (int result = runDescriptorBackedScalarMulMaterializationTest(context))
     return result;
-  if (int result = runDescriptorBackedScalarI64VAddMaterializationTest(context))
+  if (int result = runDescriptorlessScalarI64VAddMaterializationTest(context))
     return result;
   if (int result = runDescriptorBackedScalarI64MaterializationCase(
           context,

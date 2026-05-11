@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify descriptor exit remains aligned with global architecture invariants."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Verify RVV/scalar remain extension-family routes and descriptors do not define computation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify default i64 add export uses typed lowerable ops and common EmitC materialization."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI role layering and target artifact preflight behavior."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV i64 add behavior matches plugin-local typed microkernel contract."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar i64 add behavior matches plugin-local typed fallback microkernel contract."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify no new core family-specific semantic branch was introduced."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++ coverage matches the changed compiler behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-descriptor-exit-i64-add-default/prd.md", "reason": "Verify implementation satisfies this round's module-level PRD and acceptance criteria."}

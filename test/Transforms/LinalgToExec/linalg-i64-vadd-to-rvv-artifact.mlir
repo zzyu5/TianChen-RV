@@ -1,6 +1,9 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=tcrv_rvv.i32_vadd_microkernel --implicit-check-not=tcrv_rvv.i32_vsub_microkernel --implicit-check-not=tcrv_rvv.i32_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline > %t.post-planning.mlir
+// RUN: sed '0,/tcrv.exec.variant @rvv_first_slice attributes {/s//tcrv.exec.variant @rvv_first_slice attributes {tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1", /' %t.post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RVV-DESCRIPTOR --implicit-check-not=__riscv_vadd_vv_i64m1
+// RUN: sed '0,/tcrv.exec.variant @scalar_fallback_first_slice attributes {/s//tcrv.exec.variant @scalar_fallback_first_slice attributes {tcrv_scalar.lowering_descriptor = "i64-vsub-microkernel.v1", tcrv_scalar.element_count = 16 : i64, /' %t.post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR-DESCRIPTOR --implicit-check-not="out[index] = lhs[index] + rhs[index];"
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -84,7 +87,7 @@ module {
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_i64_profile]
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-SAME: tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1"
+// PIPE-NOT: tcrv_rvv.lowering_descriptor
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.selected_setvl_suffix = "e64m1"
 // PIPE-SAME: tcrv_rvv.selected_vector_lmul = "m1"
@@ -94,7 +97,7 @@ module {
 // PIPE-SAME: tcrv_rvv.selected_vector_type = "vint64m1_t"
 // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 // PIPE-SAME: origin = "scalar-plugin"
-// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i64-vadd-microkernel.v1"
+// PIPE-NOT: tcrv_scalar.lowering_descriptor
 // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // PIPE-SAME: abi_role = "dispatch-availability-guard"
 // PIPE-SAME: c_name = "rvv_available"
@@ -146,6 +149,13 @@ module {
 // PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
 // PIPE-SAME: runtime_abi_name = "rvv-i64-vadd-runtime-callable-c-function.v1"
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i64-vadd-function"
+// PIPE-SAME: {name = "tcrv_rvv.selected_binary_family"
+// PIPE-SAME: role = "typed-rvv-binary-source"
+// PIPE-SAME: value = "i64-vadd"
+// PIPE-SAME: {name = "tcrv_rvv.emitc_source_op"
+// PIPE-SAME: value = "tcrv_rvv.i64_add"
+// PIPE-SAME: {name = "tcrv_rvv.emitc_lowerable_op_interface"
+// PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 // PIPE: tcrv.exec.diagnostic
@@ -155,12 +165,25 @@ module {
 // PIPE-SAME: role = "dispatch fallback"
 // PIPE-SAME: runtime_abi = "scalar-i64-vadd-runtime-callable-c-abi.v1"
 // PIPE-SAME: runtime_abi_name = "scalar-i64-vadd-runtime-callable-c-function.v1"
+// PIPE-SAME: {name = "tcrv_scalar.selected_binary_family"
+// PIPE-SAME: role = "typed-scalar-binary-source"
+// PIPE-SAME: value = "i64-vadd"
+// PIPE-SAME: {name = "tcrv_scalar.emitc_source_op"
+// PIPE-SAME: value = "tcrv_scalar.i64_vadd_microkernel"
+// PIPE-SAME: {name = "tcrv_scalar.emitc_lowerable_op_interface"
+// PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @scalar_fallback_first_slice
 
 // SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // SOURCE: /* Scope: one selected RVV i64-vadd dispatch case plus one scalar i64-vadd dispatch fallback. */
 // SOURCE: /* selected_kernel: @frontend_i64_vadd */
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_family, value=i64-vadd, role=typed-rvv-binary-source
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i64_add, role=typed-rvv-emitc-source-op
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.selected_binary_family, value=i64-vadd, role=typed-scalar-binary-source
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_source_op, value=tcrv_scalar.i64_vadd_microkernel, role=typed-scalar-emitc-source-op
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // SOURCE: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
 // SOURCE: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
 // SOURCE: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
@@ -180,3 +203,9 @@ module {
 // SOURCE: tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(lhs, rhs, out, n);
 // SOURCE: return;
 // SOURCE: tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+
+// STALE-RVV-DESCRIPTOR: selected RVV dispatch case component body authority failed before RVV+scalar dispatch artifact emission
+// STALE-RVV-DESCRIPTOR-SAME: requires tcrv_rvv.i64_vsub_microkernel but found tcrv_rvv.i64_vadd_microkernel
+
+// STALE-SCALAR-DESCRIPTOR: selected scalar dispatch fallback component body authority failed before RVV+scalar dispatch artifact emission
+// STALE-SCALAR-DESCRIPTOR-SAME: selected scalar variant @scalar_fallback_first_slice descriptor 'i64-vsub-microkernel.v1' does not match materialized tcrv_scalar.i64_vadd_microkernel

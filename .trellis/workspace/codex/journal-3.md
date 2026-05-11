@@ -1444,3 +1444,57 @@ Migrated default RVV and scalar i32 sub/mul selected/export paths from descripto
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: Descriptor exit i64 add default
+
+**Date**: 2026-05-12
+**Task**: Descriptor exit i64 add default
+**Branch**: `main`
+
+### Summary
+
+Migrated default i64-vadd RVV/scalar selected-export path to typed family ops plus generated EmitC lowerable provenance and archived descriptor-exit-i64-add-default.
+
+### Main Changes
+
+### Main Changes
+
+- Added generated `TCRVEmitCLowerableOpInterface` to the bounded RVV and scalar i64 add source ops used by the default export path.
+- Rewired default RVV and scalar i64-vadd proposal/materialization/emission so descriptors are absent from default variants and typed selected-plan metadata carries family, source op, and lowerable-interface provenance.
+- Updated RVV, scalar, and RVV+scalar dispatch source-authority validation so descriptorless i64-vadd resolves from typed microkernel bodies, while stale/conflicting descriptors fail before source emission.
+- Preserved i64 sub/mul as legacy descriptor-backed paths; descriptorless i64 default export remains bounded to i64-vadd only.
+- Updated focused C++ and lit coverage for plugin planning, source export, dispatch, bundle source expectations, generated interface provenance, and stale descriptor fail-closed cases.
+- Archived `.trellis/tasks/archive/2026-05/05-11-descriptor-exit-i64-add-default/` after active and archived Trellis validation passed.
+
+### Testing
+
+- `git diff --check`
+- Focused build: `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-scalar-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- C++ tests: `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-scalar-extension-plugin-test`, `tianchenrv-rvv-binary-planning-test`, `tianchenrv-target-artifact-export-test`, `tianchenrv-emitc-lowerable-interface-test`
+- Focused FileCheck: `linalg-i64-vadd-to-rvv-artifact.mlir` LOWER/PIPE/SOURCE plus stale RVV/scalar descriptor negative checks
+- Focused FileCheck: `rvv-scalar-i64-vadd-dispatch-generic-route.mlir` IR/GENERIC and `rvv-microkernel-i64-vadd.mlir` SOURCE
+- Focused TargetArtifactBundleExport IR check passed; manual bundle object export was not run to completion because this shell lacks `clang` on PATH, matching the test's local object-clang feature requirement.
+- Full check: `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`, 206/206 passed.
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or performance claim was made.
+
+### Status
+
+[OK] Completed and archived.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

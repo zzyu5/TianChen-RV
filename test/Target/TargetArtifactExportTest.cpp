@@ -99,7 +99,8 @@ void appendRVVSelectedPlanMetadata(
                  << llvm::toString(contract.takeError()) << "\n";
     return;
   }
-  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32)
+  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      family.familyID == "i64-vadd")
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         *contract, metadata);
   else
@@ -122,9 +123,10 @@ void appendScalarSelectedPlanMetadata(
       6>
       metadata;
   if (family.rvvFamily->dtype ==
-      tianchenrv::target::rvv::RVVBinaryDTypeKind::I32) {
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      family.familyID == "i64-vadd") {
     tianchenrv::target::rvv_scalar::
-        appendScalarI32SelectedTypedSourceMetadata(
+        appendScalarBinarySelectedTypedSourceMetadata(
             family, getRuntimeElementCountCNameForTest(candidate), metadata);
   } else {
     tianchenrv::target::rvv_scalar::
@@ -570,7 +572,8 @@ bool expectRVVSourceRouteDescriptorMetadata(
     const TargetArtifactExporterRegistry &registry,
     const RVVBinaryFamilyDescriptor &family) {
   bool expectsTypedSource =
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32;
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      family.familyID == "i64-vadd";
   llvm::StringRef expectedRole =
       expectsTypedSource
           ? tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole()
@@ -671,7 +674,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
     const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
         &family) {
   llvm::StringRef expectedRole =
-      family.rvvFamily->dtypeID == "i32"
+      family.rvvFamily->dtypeID == "i32" || family.familyID == "i64-vadd"
           ? tianchenrv::target::rvv_scalar::
                 getScalarTypedBinarySourceMetadataRole()
           : tianchenrv::target::rvv_scalar::
@@ -698,7 +701,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
               getScalarSelectedBinaryOperatorMetadataName(),
           family.rvvFamily->arithmeticVerb, expectedRole))
     return false;
-  if (family.rvvFamily->dtypeID == "i32") {
+  if (family.rvvFamily->dtypeID == "i32" || family.familyID == "i64-vadd") {
     if (!expectRouteSelectedPlanExactRequirement(
             registry, family.scalar.routeID,
             tianchenrv::target::rvv_scalar::
@@ -719,7 +722,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
             *registry.lookup(family.scalar.routeID),
             tianchenrv::target::rvv_scalar::
                 getScalarSelectedLoweringDescriptorMetadataName())) {
-      llvm::errs() << "scalar i32 source route unexpectedly requires "
+      llvm::errs() << "scalar typed source route unexpectedly requires "
                       "selected lowering descriptor metadata\n";
       return false;
     }

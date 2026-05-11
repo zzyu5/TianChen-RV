@@ -146,7 +146,8 @@ def I32VMulMicrokernelOp : TCRVScalar_Op<"i32_vmul_microkernel",
   let hasVerifier = 1;
 }
 
-def I64VAddMicrokernelOp : TCRVScalar_Op<"i64_vadd_microkernel", []> {
+def I64VAddMicrokernelOp : TCRVScalar_Op<"i64_vadd_microkernel",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "explicit bounded scalar i64 vector-add source-export microkernel";
   let description = [{
     Records one plugin-local scalar i64 vector-add microkernel body for a

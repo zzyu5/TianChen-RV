@@ -1189,6 +1189,56 @@ llvm::Error validateSelectedDescriptorMatchesMicrokernelFamily(
   return llvm::Error::success();
 }
 
+llvm::Expected<const RVVBinaryFamilyDescriptor *>
+resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
+  if (auto descriptorAttr =
+          getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
+              kRVVLoweringDescriptorAttrName)) {
+    llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+    if (llvm::Error error =
+            validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+                                descriptor))
+      return std::move(error);
+
+    const RVVBinaryFamilyDescriptor *selectedFamily =
+        lookupRVVBinaryFamilyByLoweringDescriptor(descriptor);
+    if (selectedFamily && selectedFamily->dtype == RVVBinaryDTypeKind::I64)
+      return selectedFamily;
+    return nullptr;
+  }
+
+  const RVVBinaryFamilyDescriptor *matchedFamily = nullptr;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    const RVVBinaryFamilyDescriptor *candidateFamily =
+        getI64MicrokernelFamilyForOp(&op);
+    if (!candidateFamily)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    auto role = op.getAttrOfType<mlir::StringAttr>(
+        execDiagnostic::kRoleAttrName);
+    if (!selectedVariant || !role ||
+        selectedVariant.getValue() != getPathVariantSymbol(path) ||
+        role.getValue() != path.role)
+      continue;
+
+    if (candidateFamily->familyID != "i64-vadd")
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected RVV path @") +
+                      getPathVariantSymbol(path) + " as " + path.role +
+                      " contains descriptorless " +
+                      candidateFamily->microkernelOpName +
+                      "; descriptorless i64 default export is currently "
+                      "bounded to tcrv_rvv.i64_vadd_microkernel");
+
+    matchedFamily = candidateFamily;
+    break;
+  }
+
+  return matchedFamily;
+}
+
 llvm::Expected<const SelectedPlanMetadataEntry *>
 findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
     const TargetArtifactCandidate &candidate, llvm::StringRef name) {
@@ -1327,7 +1377,8 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
           *runtimeElementCountCName);
   if (!selectedConfig)
     return selectedConfig.takeError();
-  if (descriptor.family.dtype == RVVBinaryDTypeKind::I32)
+  if (descriptor.family.dtype == RVVBinaryDTypeKind::I32 ||
+      descriptor.family.familyID == "i64-vadd")
     appendRVVBinarySelectedTypedSourceMetadata(*selectedConfig, expected);
   else
     appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
@@ -2340,19 +2391,14 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                                   **selectedConfig, boundary))
     return std::move(error);
 
-  const RVVBinaryFamilyDescriptor *rvvBinaryFamily = nullptr;
-  if (auto descriptorAttr = getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-          kRVVLoweringDescriptorAttrName)) {
-    const RVVBinaryFamilyDescriptor *candidateFamily =
-        lookupRVVBinaryFamilyByLoweringDescriptor(
-        descriptorAttr.getValue().trim());
-    if (candidateFamily && candidateFamily->dtype == RVVBinaryDTypeKind::I64)
-      rvvBinaryFamily = candidateFamily;
-  }
+  llvm::Expected<const RVVBinaryFamilyDescriptor *> rvvBinaryFamily =
+      resolveSelectedI64FamilyForPath(kernel, path);
+  if (!rvvBinaryFamily)
+    return rvvBinaryFamily.takeError();
 
-  if (rvvBinaryFamily) {
+  if (*rvvBinaryFamily) {
     RVVBinaryIntrinsicDescriptor descriptor =
-        getRVVBinaryIntrinsicDescriptor(*rvvBinaryFamily, **selectedConfig);
+        getRVVBinaryIntrinsicDescriptor(**rvvBinaryFamily, **selectedConfig);
     if (descriptor.getDTypeID() != (*selectedConfig)->dtypeID)
       return makeMicrokernelError(
           kernel, llvm::Twine("selected RVV variant @") +
@@ -3435,7 +3481,8 @@ buildRVVMicrokernelSourceRouteMetadata(
       family.runtimeABI, family.runtimeABIKind, family.runtimeABIName,
       family.runtimeGlueRole);
 
-  if (family.dtype == RVVBinaryDTypeKind::I32) {
+  if (family.dtype == RVVBinaryDTypeKind::I32 ||
+      family.familyID == "i64-vadd") {
     llvm::StringRef typedRole = getRVVTypedBinarySourceMetadataRole();
     metadata.addSelectedPlanMetadataRequirement(
         getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, typedRole);
