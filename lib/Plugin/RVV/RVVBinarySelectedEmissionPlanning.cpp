@@ -480,7 +480,18 @@ buildSelectedPlanFromExplicitMicrokernel(
           family.microkernelOpName +
           " element_count to match selected variant finite descriptor "
           "metadata 'tcrv_rvv.element_count'");
-    return std::move(*descriptorPlan);
+    if (descriptorPlan->getFamilyID() != family.familyID)
+      return makeRVVBinarySelectedEmissionError(
+          llvm::Twine("explicit RVV microkernel emission plan requires ") +
+          family.microkernelOpName +
+          " typed body family to match optional legacy "
+          "tcrv_rvv.lowering_descriptor metadata");
+    if (descriptorPlan->getShape().shapeID != shape.shapeID)
+      return makeRVVBinarySelectedEmissionError(
+          llvm::Twine("explicit RVV microkernel emission plan requires ") +
+          family.microkernelOpName +
+          " selected vector-shape to match optional legacy "
+          "tcrv_rvv.lowering_descriptor planning metadata");
   }
 
   auto variantRequiredMarch =

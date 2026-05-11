@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-3.md`
-- **Total Sessions**: 29
+- **Total Sessions**: 30
 - **Last Active**: 2026-05-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-3.md` | ~1531 | Active |
+| `journal-3.md` | ~1650 | Active |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
@@ -31,6 +31,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 30 | 2026-05-12 | Descriptor exit for direct RVV i32-vadd planning | this commit | `main` |
 | 29 | 2026-05-12 | Descriptor exit i64 sub/mul defaults | this commit | `main` |
 | 28 | 2026-05-12 | Descriptor exit i64 add default | - | `main` |
 | 27 | 2026-05-11 | Descriptor exit i32 sub/mul defaults | - | `main` |

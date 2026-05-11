@@ -1,7 +1,7 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @rvv_descriptor_missing_march {
+  tcrv.exec.kernel @rvv_descriptor_only_i32_vadd {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -31,11 +31,12 @@ module {
       requires = [@rvv],
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
     } {
     }
     tcrv.exec.diagnostic {
-      message = "selected finite RVV i32-vadd descriptor fixture",
+      message = "legacy descriptor-only RVV i32-vadd fixture must be quarantined",
       reason = "variant-selected",
       selection_kind = "static-variant",
       severity = "note",
@@ -45,5 +46,5 @@ module {
   }
 }
 
-// CHECK: selected RVV variant @rvv_first_slice failed plugin legality before boundary materialization
-// CHECK-SAME: typed RVV binary family 'i32-vadd' on variant @rvv_first_slice requires string 'tcrv_rvv.required_march' metadata
+// CHECK: direct descriptor-only i32-vadd lowering-boundary materialization is legacy-quarantined
+// CHECK-SAME: add a typed tcrv_rvv.i32_vadd_microkernel body

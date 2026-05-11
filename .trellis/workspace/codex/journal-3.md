@@ -1617,3 +1617,49 @@ exact hash.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: Descriptor exit for direct RVV i32-vadd planning
+
+**Date**: 2026-05-12
+**Task**: Descriptor exit for direct RVV i32-vadd planning
+**Branch**: `main`
+
+### Summary
+
+Derived direct RVV i32-vadd selected planning/export from typed RVV microkernel body evidence, quarantined descriptor-only direct i32-vadd compute, updated focused C++/lit coverage, and passed check-tianchenrv.
+
+### Main Changes
+
+- Added typed direct RVV binary body resolution for the bounded `i32-vadd`
+  path, including family, selected shape, policy, control-plane, dataflow, ABI
+  role, and runtime element-count checks.
+- Rewired direct planning and selected emission so typed
+  `tcrv_rvv.i32_vadd_microkernel` evidence owns compute identity; optional
+  descriptor metadata is only a cross-check.
+- Quarantined descriptor-only direct `i32-vadd` planning and lowering-boundary
+  materialization as legacy instead of allowing descriptor-owned compute on the
+  default path.
+- Updated focused C++ and lit coverage, archived the Trellis task, and kept
+  Python usage to Trellis/test tooling only.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] focused RVV planning, extension plugin, selected lowering-boundary, and
+  target artifact export C++ tests
+- [OK] focused direct RVV lit/FileCheck filter: 8/8 selected tests passed
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`: 206/206 lit tests passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

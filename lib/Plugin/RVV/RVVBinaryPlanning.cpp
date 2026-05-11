@@ -1,9 +1,12 @@
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
+#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -64,6 +67,13 @@ constexpr llvm::StringLiteral kBoundarySelectedVectorSuffixAttrName(
     "selected_vector_suffix");
 constexpr llvm::StringLiteral kBoundarySelectedSetVLSuffixAttrName(
     "selected_setvl_suffix");
+constexpr llvm::StringLiteral kDirectTypedMicrokernelBodySourceKind(
+    "direct-typed-microkernel-body");
+constexpr llvm::StringLiteral kDirectLoweringDescriptorSourceKind(
+    "direct-lowering-descriptor");
+constexpr llvm::StringLiteral kDirectRVVBinaryDescriptorSourceKind(
+    "direct-rvv-binary-descriptor");
+constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 
 llvm::Error makeRVVBinaryPlanningError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -406,6 +416,427 @@ lookupRVVBinaryFamilyByMicrokernelOpName(llvm::StringRef opName) {
   return nullptr;
 }
 
+const target::rvv::RVVBinaryFamilyDescriptor *
+lookupRVVBinaryFamilyByArithmeticOpName(llvm::StringRef opName) {
+  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+       target::rvv::getRVVBinaryFamilyDescriptors()) {
+    if (family->arithmeticOpName == opName)
+      return family;
+  }
+  return nullptr;
+}
+
+llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
+resolveDirectSelectedShapeMetadata(
+    mlir::Operation *op,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const RVVSelectedVectorShapeMetadataNames &names,
+    llvm::StringRef context);
+
+bool isSameRVVBinaryFamily(const target::rvv::RVVBinaryFamilyDescriptor &lhs,
+                           const target::rvv::RVVBinaryFamilyDescriptor &rhs) {
+  return lhs.dtype == rhs.dtype && lhs.arithmetic == rhs.arithmetic;
+}
+
+bool isDirectTypedSourceKind(llvm::StringRef sourceKind) {
+  return sourceKind == kDirectTypedMicrokernelBodySourceKind;
+}
+
+std::string stringifyType(mlir::Type type) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  type.print(stream);
+  stream.flush();
+  return text;
+}
+
+llvm::StringRef stringifyTailPolicyValue(tcrv::rvv::TailPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::TailPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "unknown";
+}
+
+llvm::StringRef stringifyMaskPolicyValue(tcrv::rvv::MaskPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::MaskPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "unknown";
+}
+
+struct DirectTypedRVVBinaryBodyResolution {
+  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVVectorShapeConfig *bodyShape = nullptr;
+};
+
+llvm::Error requireDirectTypedVectorValue(
+    llvm::StringRef context, mlir::Value value, mlir::Type expectedType,
+    llvm::StringRef valueContext) {
+  if (value.getType() == expectedType)
+    return llvm::Error::success();
+  return makeRVVBinaryPlanningError(
+      llvm::Twine(context) + " " + valueContext +
+      " must use typed RVV vector token type '" + stringifyType(expectedType) +
+      "' from the selected setvl/with_vl config before descriptor fallback");
+}
+
+llvm::Error requireDirectTypedBufferRole(mlir::Operation *op,
+                                         llvm::StringRef context,
+                                         llvm::StringRef expectedRole,
+                                         llvm::StringRef roleContext) {
+  auto role = op->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
+  if (!role || role.getValue().trim().empty())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " " + roleContext +
+        " is missing typed buffer_role ABI metadata before descriptor "
+        "fallback");
+  llvm::StringRef value = role.getValue().trim();
+  if (llvm::Error error =
+          validateRVVPlanningText(context, kBufferRoleAttrName, value))
+    return error;
+  if (value != expectedRole)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " " + roleContext +
+        " buffer_role must be '" + expectedRole +
+        "' before descriptor fallback");
+  return llvm::Error::success();
+}
+
+mlir::Type getExpectedTypedBodyVectorType(
+    mlir::MLIRContext *context,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVVectorShapeConfig &shape) {
+  if (family.dtype == target::rvv::RVVBinaryDTypeKind::I32) {
+    if (shape.lmul == "m1")
+      return tcrv::rvv::I32M1VectorType::get(context);
+    if (shape.lmul == "m2")
+      return tcrv::rvv::I32M2VectorType::get(context);
+  }
+  if (family.dtype == target::rvv::RVVBinaryDTypeKind::I64 &&
+      shape.lmul == "m1")
+    return tcrv::rvv::I64M1VectorType::get(context);
+  return {};
+}
+
+llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
+resolveTypedBodyShapeFromControlPlane(
+    llvm::StringRef context,
+    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    tcrv::rvv::SetVLOp setvl, tcrv::rvv::WithVLOp withVL,
+    const target::rvv::RVVVectorShapeConfig *metadataShape) {
+  if (setvl.getPolicy().getTail() != tcrv::rvv::TailPolicy::Agnostic ||
+      setvl.getPolicy().getMask() != tcrv::rvv::MaskPolicy::Agnostic)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body setvl policy must be tail=agnostic, mask=agnostic "
+        "before descriptor fallback");
+
+  auto bodySew = withVL->getAttrOfType<mlir::IntegerAttr>("sew");
+  auto bodyLMUL = withVL->getAttrOfType<mlir::StringAttr>("lmul");
+  auto bodyPolicy = withVL->getAttrOfType<tcrv::rvv::PolicyAttr>("policy");
+  if (!bodySew || !bodyLMUL || !bodyPolicy)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body with_vl must carry SEW/LMUL/policy metadata before "
+        "descriptor fallback");
+  if (bodySew.getInt() != static_cast<std::int64_t>(setvl.getSew()) ||
+      bodyLMUL.getValue() != setvl.getLmul() ||
+      bodyPolicy != setvl.getPolicy())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body with_vl SEW/LMUL/policy must match setvl before "
+        "descriptor fallback");
+
+  const target::rvv::RVVVectorShapeConfig *bodyShape = nullptr;
+  llvm::StringRef tail = stringifyTailPolicyValue(setvl.getPolicy().getTail());
+  llvm::StringRef mask = stringifyMaskPolicyValue(setvl.getPolicy().getMask());
+  for (const target::rvv::RVVVectorShapeConfig *shape :
+       target::rvv::getRVVBinaryFamilyShapeConfigs(family)) {
+    if (shape->sewBits == static_cast<std::int64_t>(setvl.getSew()) &&
+        shape->lmul == setvl.getLmul() && shape->tailPolicy == tail &&
+        shape->maskPolicy == mask) {
+      bodyShape = shape;
+      break;
+    }
+  }
+  if (!bodyShape)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body setvl/with_vl config does not match a finite selected "
+        "RVV binary shape for family '" +
+        family.familyID + "'");
+  if (metadataShape && metadataShape->shapeID != bodyShape->shapeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " selected vector-shape metadata conflicts with typed body "
+        "setvl/with_vl config before descriptor fallback");
+  return bodyShape;
+}
+
+llvm::Expected<DirectTypedRVVBinaryBodyResolution>
+resolveDirectTypedRVVBinaryBody(mlir::Operation *op,
+                                llvm::StringRef context) {
+  DirectTypedRVVBinaryBodyResolution resolution;
+  const target::rvv::RVVBinaryFamilyDescriptor *opFamily =
+      lookupRVVBinaryFamilyByMicrokernelOpName(op->getName().getStringRef());
+  if (!opFamily)
+    return resolution;
+
+  if (op->getNumRegions() != 1 || op->getRegion(0).empty() ||
+      !llvm::hasSingleElement(op->getRegion(0)))
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed microkernel body must contain exactly one structured "
+        "control-plane block before descriptor fallback");
+
+  mlir::Block &controlBlock = op->getRegion(0).front();
+  if (controlBlock.getNumArguments() != 1 ||
+      !controlBlock.getArgument(0).getType().isIndex())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed microkernel body must expose exactly one index runtime "
+        "AVL/VL argument before descriptor fallback");
+
+  tcrv::rvv::SetVLOp setvl;
+  tcrv::rvv::WithVLOp withVL;
+  unsigned setvlCount = 0;
+  unsigned withVLCount = 0;
+  for (mlir::Operation &bodyOp : controlBlock) {
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::SetVLOp>(bodyOp)) {
+      setvl = candidate;
+      ++setvlCount;
+      continue;
+    }
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::WithVLOp>(bodyOp)) {
+      withVL = candidate;
+      ++withVLCount;
+      continue;
+    }
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed microkernel control-plane body may contain only "
+        "tcrv_rvv.setvl and tcrv_rvv.with_vl before descriptor fallback");
+  }
+  if (setvlCount != 1 || withVLCount != 1)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed microkernel control-plane body requires exactly one "
+        "tcrv_rvv.setvl and one tcrv_rvv.with_vl before descriptor fallback");
+  if (setvl.getAvl() != controlBlock.getArgument(0))
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body setvl AVL must come from the runtime index block "
+        "argument before descriptor fallback");
+  if (withVL.getVl() != setvl.getVl())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body with_vl must consume the !tcrv_rvv.vl token produced "
+        "by setvl before descriptor fallback");
+
+  mlir::Region &withVLBody = withVL.getBody();
+  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody) ||
+      withVLBody.front().getNumArguments() != 0)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed with_vl body must contain one zero-argument dataflow block "
+        "before descriptor fallback");
+
+  llvm::SmallVector<mlir::Operation *, 4> ops;
+  for (mlir::Operation &dataflowOp : withVLBody.front())
+    ops.push_back(&dataflowOp);
+  if (ops.size() != 4)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed dataflow body must contain exactly load, load, arithmetic, "
+        "store before descriptor fallback");
+
+  const target::rvv::RVVBinaryFamilyDescriptor *bodyFamily =
+      lookupRVVBinaryFamilyByArithmeticOpName(ops[2]->getName().getStringRef());
+  if (!bodyFamily)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed dataflow arithmetic op must be a registered finite RVV "
+        "binary family op before descriptor fallback");
+  if (!isSameRVVBinaryFamily(*opFamily, *bodyFamily))
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " typed microkernel op '" +
+        opFamily->microkernelOpName + "' body contains '" +
+        bodyFamily->arithmeticOpName +
+        "'; typed body and microkernel op family must agree before "
+        "descriptor fallback");
+
+  llvm::Expected<const target::rvv::RVVVectorShapeConfig *> metadataShape =
+      resolveDirectSelectedShapeMetadata(
+          op, *bodyFamily, getRVVBoundarySelectedVectorShapeMetadataNames(),
+          context);
+  if (!metadataShape)
+    return metadataShape.takeError();
+
+  llvm::Expected<const target::rvv::RVVVectorShapeConfig *> bodyShape =
+      resolveTypedBodyShapeFromControlPlane(context, *bodyFamily, setvl, withVL,
+                                            *metadataShape);
+  if (!bodyShape)
+    return bodyShape.takeError();
+
+  mlir::Type expectedVectorType =
+      getExpectedTypedBodyVectorType(op->getContext(), *bodyFamily, **bodyShape);
+  if (!expectedVectorType)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " typed body selected shape is unsupported for finite RVV binary "
+        "dataflow before descriptor fallback");
+
+  if (bodyFamily->dtype == target::rvv::RVVBinaryDTypeKind::I32) {
+    auto lhsLoad = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(ops[0]);
+    auto rhsLoad = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(ops[1]);
+    auto store = llvm::dyn_cast<tcrv::rvv::I32StoreOp>(ops[3]);
+    mlir::Value arithmeticLHS;
+    mlir::Value arithmeticRHS;
+    mlir::Value arithmeticVL;
+    mlir::Value arithmeticResult;
+    if (auto add = llvm::dyn_cast<tcrv::rvv::I32AddOp>(ops[2])) {
+      arithmeticLHS = add.getLhs();
+      arithmeticRHS = add.getRhs();
+      arithmeticVL = add.getVl();
+      arithmeticResult = add.getSum();
+    } else if (auto sub = llvm::dyn_cast<tcrv::rvv::I32SubOp>(ops[2])) {
+      arithmeticLHS = sub.getLhs();
+      arithmeticRHS = sub.getRhs();
+      arithmeticVL = sub.getVl();
+      arithmeticResult = sub.getDifference();
+    } else if (auto mul = llvm::dyn_cast<tcrv::rvv::I32MulOp>(ops[2])) {
+      arithmeticLHS = mul.getLhs();
+      arithmeticRHS = mul.getRhs();
+      arithmeticVL = mul.getVl();
+      arithmeticResult = mul.getProduct();
+    }
+    if (!lhsLoad || !rhsLoad || !store || !arithmeticResult)
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(context) +
+          " typed i32 dataflow body must be i32_load, i32_load, "
+          "i32_add/sub/mul, i32_store before descriptor fallback");
+    if (lhsLoad.getVl() != withVL.getVl() ||
+        rhsLoad.getVl() != withVL.getVl() || arithmeticVL != withVL.getVl() ||
+        store.getVl() != withVL.getVl())
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(context) +
+          " typed i32 dataflow ops must consume the with_vl token before "
+          "descriptor fallback");
+    if (arithmeticLHS != lhsLoad.getLoaded() ||
+        arithmeticRHS != rhsLoad.getLoaded() ||
+        store.getValue() != arithmeticResult)
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(context) +
+          " typed i32 dataflow SSA chain must be lhs-load,rhs-load -> "
+          "arithmetic -> store before descriptor fallback");
+    if (llvm::Error error =
+            requireDirectTypedVectorValue(context, lhsLoad.getLoaded(),
+                                          expectedVectorType,
+                                          "first i32_load result"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireDirectTypedVectorValue(context, rhsLoad.getLoaded(),
+                                          expectedVectorType,
+                                          "second i32_load result"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireDirectTypedVectorValue(context, arithmeticResult,
+                                          expectedVectorType,
+                                          "i32 arithmetic result"))
+      return std::move(error);
+    if (llvm::Error error = requireDirectTypedBufferRole(
+            lhsLoad.getOperation(), context, "lhs-input-buffer",
+            "first i32_load"))
+      return std::move(error);
+    if (llvm::Error error = requireDirectTypedBufferRole(
+            rhsLoad.getOperation(), context, "rhs-input-buffer",
+            "second i32_load"))
+      return std::move(error);
+    if (llvm::Error error = requireDirectTypedBufferRole(
+            store.getOperation(), context, "output-buffer", "i32_store"))
+      return std::move(error);
+  } else {
+    auto lhsLoad = llvm::dyn_cast<tcrv::rvv::I64LoadOp>(ops[0]);
+    auto rhsLoad = llvm::dyn_cast<tcrv::rvv::I64LoadOp>(ops[1]);
+    auto store = llvm::dyn_cast<tcrv::rvv::I64StoreOp>(ops[3]);
+    mlir::Value arithmeticLHS;
+    mlir::Value arithmeticRHS;
+    mlir::Value arithmeticVL;
+    mlir::Value arithmeticResult;
+    if (auto add = llvm::dyn_cast<tcrv::rvv::I64AddOp>(ops[2])) {
+      arithmeticLHS = add.getLhs();
+      arithmeticRHS = add.getRhs();
+      arithmeticVL = add.getVl();
+      arithmeticResult = add.getSum();
+    } else if (auto sub = llvm::dyn_cast<tcrv::rvv::I64SubOp>(ops[2])) {
+      arithmeticLHS = sub.getLhs();
+      arithmeticRHS = sub.getRhs();
+      arithmeticVL = sub.getVl();
+      arithmeticResult = sub.getDifference();
+    } else if (auto mul = llvm::dyn_cast<tcrv::rvv::I64MulOp>(ops[2])) {
+      arithmeticLHS = mul.getLhs();
+      arithmeticRHS = mul.getRhs();
+      arithmeticVL = mul.getVl();
+      arithmeticResult = mul.getProduct();
+    }
+    if (!lhsLoad || !rhsLoad || !store || !arithmeticResult)
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(context) +
+          " typed i64 dataflow body must be i64_load, i64_load, "
+          "i64_add/sub/mul, i64_store before descriptor fallback");
+    if (lhsLoad.getVl() != withVL.getVl() ||
+        rhsLoad.getVl() != withVL.getVl() || arithmeticVL != withVL.getVl() ||
+        store.getVl() != withVL.getVl())
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(context) +
+          " typed i64 dataflow ops must consume the with_vl token before "
+          "descriptor fallback");
+    if (arithmeticLHS != lhsLoad.getLoaded() ||
+        arithmeticRHS != rhsLoad.getLoaded() ||
+        store.getValue() != arithmeticResult)
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(context) +
+          " typed i64 dataflow SSA chain must be lhs-load,rhs-load -> "
+          "arithmetic -> store before descriptor fallback");
+    if (llvm::Error error =
+            requireDirectTypedVectorValue(context, lhsLoad.getLoaded(),
+                                          expectedVectorType,
+                                          "first i64_load result"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireDirectTypedVectorValue(context, rhsLoad.getLoaded(),
+                                          expectedVectorType,
+                                          "second i64_load result"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireDirectTypedVectorValue(context, arithmeticResult,
+                                          expectedVectorType,
+                                          "i64 arithmetic result"))
+      return std::move(error);
+    if (llvm::Error error = requireDirectTypedBufferRole(
+            lhsLoad.getOperation(), context, "lhs-input-buffer",
+            "first i64_load"))
+      return std::move(error);
+    if (llvm::Error error = requireDirectTypedBufferRole(
+            rhsLoad.getOperation(), context, "rhs-input-buffer",
+            "second i64_load"))
+      return std::move(error);
+    if (llvm::Error error = requireDirectTypedBufferRole(
+            store.getOperation(), context, "output-buffer", "i64_store"))
+      return std::move(error);
+  }
+
+  resolution.family = bodyFamily;
+  resolution.bodyShape = *bodyShape;
+  return resolution;
+}
+
 llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
 resolveDirectSelectedShapeMetadata(
     mlir::Operation *op,
@@ -482,8 +913,12 @@ llvm::Error mergeDirectRVVBinaryFamilyCandidate(
 
   if (!resolution.directSelectedShape)
     resolution.directSelectedShape = candidate.selectedShape;
-  if (resolution.sourceKind != candidate.source)
-    resolution.sourceKind = "direct-rvv-binary-descriptor";
+  if (resolution.sourceKind != candidate.source) {
+    if (isDirectTypedSourceKind(candidate.source))
+      resolution.sourceKind = candidate.source;
+    else if (!isDirectTypedSourceKind(resolution.sourceKind))
+      resolution.sourceKind = kDirectRVVBinaryDescriptorSourceKind.str();
+  }
   return llvm::Error::success();
 }
 
@@ -529,12 +964,12 @@ buildDirectDescriptorCandidateFromVariant(tcrv::exec::VariantOp variant) {
 
   candidate.family = family;
   candidate.selectedShape = *selectedShape;
-  candidate.source = "direct-lowering-descriptor";
+  candidate.source = kDirectLoweringDescriptorSourceKind.str();
   return candidate;
 }
 
 llvm::Expected<DirectRVVBinaryFamilyCandidate>
-buildDirectDescriptorCandidateFromMicrokernel(mlir::Operation *op) {
+buildDirectTypedBodyCandidateFromMicrokernel(mlir::Operation *op) {
   DirectRVVBinaryFamilyCandidate candidate;
   if (!op)
     return candidate;
@@ -548,16 +983,30 @@ buildDirectDescriptorCandidateFromMicrokernel(mlir::Operation *op) {
       (llvm::Twine("direct RVV binary microkernel '") +
        op->getName().getStringRef() + "'")
           .str();
+  llvm::Expected<DirectTypedRVVBinaryBodyResolution> typedBody =
+      resolveDirectTypedRVVBinaryBody(op, context);
+  if (!typedBody)
+    return typedBody.takeError();
+  if (!typedBody->family)
+    return candidate;
+
   llvm::Expected<const target::rvv::RVVVectorShapeConfig *> selectedShape =
       resolveDirectSelectedShapeMetadata(
-          op, *family, getRVVBoundarySelectedVectorShapeMetadataNames(),
+          op, *typedBody->family, getRVVBoundarySelectedVectorShapeMetadataNames(),
           context);
   if (!selectedShape)
     return selectedShape.takeError();
+  if (*selectedShape && typedBody->bodyShape &&
+      (*selectedShape)->shapeID != typedBody->bodyShape->shapeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) +
+        " selected vector-shape metadata conflicts with typed body "
+        "setvl/with_vl config before descriptor fallback");
 
-  candidate.family = family;
-  candidate.selectedShape = *selectedShape;
-  candidate.source = "direct-microkernel-descriptor";
+  candidate.family = typedBody->family;
+  candidate.selectedShape = typedBody->bodyShape ? typedBody->bodyShape
+                                                 : *selectedShape;
+  candidate.source = kDirectTypedMicrokernelBodySourceKind.str();
   return candidate;
 }
 
@@ -1238,32 +1687,61 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
     }
   }
 
-  RVVBinaryFamilyPlanningResolution directResolution;
+  RVVBinaryFamilyPlanningResolution typedBodyResolution;
+  RVVBinaryFamilyPlanningResolution descriptorResolution;
   if (!kernel.getBody().empty()) {
     for (mlir::Operation &operation : kernel.getBody().front()) {
-      if (auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(operation)) {
-        llvm::Expected<DirectRVVBinaryFamilyCandidate> candidate =
-            buildDirectDescriptorCandidateFromVariant(variant);
-        if (!candidate)
-          return candidate.takeError();
-        if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
-                directResolution, *candidate, diagnosticContext))
-          return std::move(error);
+      if (llvm::isa<tcrv::exec::VariantOp>(operation))
         continue;
-      }
 
       llvm::Expected<DirectRVVBinaryFamilyCandidate> candidate =
-          buildDirectDescriptorCandidateFromMicrokernel(&operation);
+          buildDirectTypedBodyCandidateFromMicrokernel(&operation);
       if (!candidate)
         return candidate.takeError();
       if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
-              directResolution, *candidate, diagnosticContext))
+              typedBodyResolution, *candidate, diagnosticContext))
+        return std::move(error);
+    }
+
+    for (mlir::Operation &operation : kernel.getBody().front()) {
+      auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(operation);
+      if (!variant)
+        continue;
+
+      llvm::Expected<DirectRVVBinaryFamilyCandidate> candidate =
+          buildDirectDescriptorCandidateFromVariant(variant);
+      if (!candidate)
+        return candidate.takeError();
+      if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
+              descriptorResolution, *candidate, diagnosticContext))
         return std::move(error);
     }
   }
 
-  if (directResolution.family)
-    return directResolution;
+  if (typedBodyResolution.family) {
+    if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
+            typedBodyResolution,
+            DirectRVVBinaryFamilyCandidate{descriptorResolution.family,
+                                           descriptorResolution.directSelectedShape,
+                                           descriptorResolution.sourceKind},
+            diagnosticContext))
+      return std::move(error);
+    typedBodyResolution.sourceKind =
+        kDirectTypedMicrokernelBodySourceKind.str();
+    return typedBodyResolution;
+  }
+
+  if (descriptorResolution.family) {
+    if (descriptorResolution.family->dtype == target::rvv::RVVBinaryDTypeKind::I32 &&
+        descriptorResolution.family->arithmetic ==
+            target::rvv::RVVBinaryArithmeticKind::Add)
+      return makeRVVBinaryPlanningError(
+          llvm::Twine(diagnosticContext) +
+          " direct descriptor-only i32-vadd planning is legacy-quarantined; "
+          "add a typed tcrv_rvv.i32_vadd_microkernel body so compute "
+          "identity comes from RVV family ops");
+    return descriptorResolution;
+  }
 
   RVVBinaryFamilyPlanningResolution defaultResolution;
   defaultResolution.family = &target::rvv::getI32VAddFamilyDescriptor();

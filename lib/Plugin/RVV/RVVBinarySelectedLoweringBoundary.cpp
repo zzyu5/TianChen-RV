@@ -509,13 +509,43 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
 
   std::optional<RVVBinaryMicrokernelMaterializationPlan> i32MicrokernelPlan;
   std::optional<RVVBinaryMicrokernelMaterializationPlan> i64MicrokernelPlan;
+  std::optional<RVVBinarySelectedEmissionAttachment>
+      existingSelectedEmissionAttachment;
+  VariantEmissionRequest emissionRequest(
+      variant, kernel, request.getCapabilities(), request.getRole());
+  llvm::Expected<std::optional<RVVBinarySelectedEmissionAttachment>>
+      explicitAttachment =
+          findRVVBinarySelectedEmissionAttachment(emissionRequest,
+                                                 originPlugin);
+  if (!explicitAttachment)
+    return explicitAttachment.takeError();
+  if (*explicitAttachment)
+    existingSelectedEmissionAttachment = std::move(**explicitAttachment);
+
   bool hasLoweringDescriptor = variant->hasAttr(kLoweringDescriptorAttrName);
   bool hasSmokeProbeDescriptor =
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
   bool hasDescriptorlessDefaultTyped =
       !hasLoweringDescriptor && !hasSmokeProbeDescriptor &&
       variant->hasAttr(kElementCountAttrName);
-  if (hasLoweringDescriptor || hasDescriptorlessDefaultTyped) {
+  if (!existingSelectedEmissionAttachment &&
+      (hasLoweringDescriptor || hasDescriptorlessDefaultTyped)) {
+    if (auto descriptorAttr =
+            variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName)) {
+      llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+      const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
+          target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(descriptor);
+      if (descriptorFamily &&
+          descriptorFamily->dtype == target::rvv::RVVBinaryDTypeKind::I32 &&
+          descriptorFamily->arithmetic ==
+              target::rvv::RVVBinaryArithmeticKind::Add)
+        return makeRVVBinarySelectedBoundaryError(
+            "direct descriptor-only i32-vadd lowering-boundary "
+            "materialization is legacy-quarantined; add a typed "
+            "tcrv_rvv.i32_vadd_microkernel body so compute identity comes "
+            "from RVV family ops");
+    }
+
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
         buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                             *selectedConfig);
@@ -549,24 +579,9 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
     }
   }
 
-  std::optional<RVVBinarySelectedEmissionAttachment>
-      existingSelectedEmissionAttachment;
   bool selectedPathHasCallableMicrokernel =
-      i32MicrokernelPlan.has_value() || i64MicrokernelPlan.has_value();
-  if (!selectedPathHasCallableMicrokernel) {
-    VariantEmissionRequest emissionRequest(
-        variant, kernel, request.getCapabilities(), request.getRole());
-    llvm::Expected<std::optional<RVVBinarySelectedEmissionAttachment>>
-        explicitAttachment =
-            findRVVBinarySelectedEmissionAttachment(emissionRequest,
-                                                   originPlugin);
-    if (!explicitAttachment)
-      return explicitAttachment.takeError();
-    if (*explicitAttachment) {
-      existingSelectedEmissionAttachment = std::move(**explicitAttachment);
-      selectedPathHasCallableMicrokernel = true;
-    }
-  }
+      i32MicrokernelPlan.has_value() || i64MicrokernelPlan.has_value() ||
+      existingSelectedEmissionAttachment.has_value();
 
   if (i32MicrokernelPlan || i64MicrokernelPlan)
     if (llvm::Error error = rejectExistingRVVBinaryMicrokernelForSelectedPath(

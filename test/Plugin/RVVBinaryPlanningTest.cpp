@@ -474,6 +474,7 @@ int runProposalPlanRequirementMetadataTest() {
 int runDirectDescriptorPlanningContractTest() {
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
+  dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
@@ -510,16 +511,36 @@ module {
     tcrv.exec.variant @rvv_i32_slice attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1",
-      tcrv_rvv.selected_vector_shape = "i32m2",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_lmul = "m2",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m2_t",
-      tcrv_rvv.selected_vector_suffix = "i32m2",
-      tcrv_rvv.selected_setvl_suffix = "e32m2"
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
     } {
+    }
+    tcrv_rvv.i32_vadd_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_i32_slice,
+      selected_vector_shape = "i32m2",
+      selected_vector_sew = 32 : i64,
+      selected_vector_lmul = "m2",
+      selected_tail_policy = "agnostic",
+      selected_mask_policy = "agnostic",
+      selected_vector_type = "vint32m2_t",
+      selected_vector_suffix = "i32m2",
+      selected_setvl_suffix = "e32m2",
+      source_kernel = "direct_i32m2_contract"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m2, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
     }
   }
 }
@@ -579,6 +600,21 @@ module {
     return result;
 
   KernelOp i32Kernel = findKernel(*module, "direct_i32m2_contract");
+  RVVBinaryFamilyPlanningResolution i32Resolution;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
+              i32Kernel, "unit direct i32 typed-body contract"),
+          i32Resolution, "resolve direct i32 typed-body contract"))
+    return result;
+  if (int result =
+          expect(i32Resolution.getFamilyID() == "i32-vadd" &&
+                     i32Resolution.getSourceKind() ==
+                         "direct-typed-microkernel-body" &&
+                     i32Resolution.getDirectSelectedShapeID() == "i32m2",
+                 "direct i32 typed body resolves family and shape without "
+                 "descriptor compute authority"))
+    return result;
+
   TargetCapabilitySet i32Capabilities;
   addBaseRVVFacts(i32Capabilities);
   addI32M2Facts(i32Capabilities);
@@ -586,20 +622,23 @@ module {
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
               i32Capabilities, i32Kernel, "unit direct i32m2 proposal"),
-          i32Plan, "build proposal from direct i32m2 descriptor contract"))
+          i32Plan, "build proposal from direct i32m2 typed-body contract"))
     return result;
-  return expect(i32Plan.getFamilyID() == "i32-vsub" &&
+  return expect(i32Plan.getFamilyID() == "i32-vadd" &&
                     i32Plan.getSelectedShape().shapeID == "i32m2" &&
+                    !i32Plan.shouldAttachLoweringDescriptorAttr() &&
                     i32Plan.getRequiredCapabilityIDs()[1] ==
                         "rvv.i32_m2.sew32" &&
                     i32Plan.getRequiredCapabilityIDs()[2] ==
                         "rvv.i32_m2.lmul_m2",
-                "direct i32 descriptor contract preserves i32m2 selection");
+                "direct i32 typed body preserves i32m2 selection without "
+                "reattaching descriptor compute authority");
 }
 
 int runDirectDescriptorPlanningContractNegativeTest() {
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
+  dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
@@ -640,6 +679,80 @@ module {
   if (int result =
           expectResolutionError(unknownDescriptor, "unknown_direct_descriptor",
                                 "registered finite RVV binary lowering"))
+    return result;
+
+  constexpr llvm::StringLiteral descriptorOnlyI32VAdd = R"mlir(
+module {
+  tcrv.exec.kernel @descriptor_only_i32_vadd {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_bad attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+  }
+}
+)mlir";
+  if (int result = expectResolutionError(
+          descriptorOnlyI32VAdd, "descriptor_only_i32_vadd",
+          "direct descriptor-only i32-vadd planning is legacy-quarantined"))
+    return result;
+
+  constexpr llvm::StringLiteral typedBodyDescriptorMismatch = R"mlir(
+module {
+  tcrv.exec.kernel @typed_body_descriptor_mismatch {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_bad attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+    tcrv_rvv.i32_vsub_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @rvv_bad,
+      selected_vector_shape = "i32m1",
+      selected_vector_sew = 32 : i64,
+      selected_vector_lmul = "m1",
+      selected_tail_policy = "agnostic",
+      selected_mask_policy = "agnostic",
+      selected_vector_type = "vint32m1_t",
+      selected_vector_suffix = "i32m1",
+      selected_setvl_suffix = "e32m1",
+      source_kernel = "typed_body_descriptor_mismatch"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %diff, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+  if (int result = expectResolutionError(
+          typedBodyDescriptorMismatch, "typed_body_descriptor_mismatch",
+          "ambiguous direct RVV binary descriptors"))
     return result;
 
   constexpr llvm::StringLiteral ambiguousDescriptors = R"mlir(
