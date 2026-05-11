@@ -13,6 +13,7 @@
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
+#include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
@@ -67,16 +68,37 @@ const I32BinaryRuntimeABIContract &getMulRuntimeABIContract() {
       tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor());
 }
 
-void appendRVVSelectedPlanMetadata(TargetArtifactCandidate &candidate,
-                                   const tianchenrv::target::rvv::
-                                       RVVVectorShapeConfig &shape) {
+llvm::StringRef getRuntimeElementCountCNameForTest(
+    const TargetArtifactCandidate &candidate) {
+  for (const RuntimeABIParameter &parameter : candidate.runtimeABIParameters)
+    if (parameter.role == RuntimeABIParameterRole::RuntimeElementCount)
+      return parameter.cName;
+  return "n";
+}
+
+void appendRVVSelectedPlanMetadata(
+    TargetArtifactCandidate &candidate,
+    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family,
+    const tianchenrv::target::rvv::RVVVectorShapeConfig &shape) {
   llvm::SmallVector<
-      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 24>
       metadata;
   tianchenrv::target::rvv::appendRVVVectorShapeSelectedPlanMetadata(shape,
                                                                    metadata);
   tianchenrv::target::rvv::appendRVVRuntimeVLBoundarySelectedPlanMetadata(
       metadata);
+  llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigContract>
+      contract = tianchenrv::target::rvv::buildRVVBinarySelectedConfigContract(
+          family, shape, candidate.selectedVariant, candidate.role,
+          /*descriptorElementCount=*/0,
+          getRuntimeElementCountCNameForTest(candidate));
+  if (!contract) {
+    llvm::errs() << "failed to build RVV selected config test metadata: "
+                 << llvm::toString(contract.takeError()) << "\n";
+    return;
+  }
+  tianchenrv::target::rvv::appendRVVBinarySelectedDescriptorMetadata(*contract,
+                                                                    metadata);
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name.str(), entry.value.str(), entry.role.str(),
@@ -366,6 +388,29 @@ bool expectRouteDescriptorMetadata(
   return true;
 }
 
+bool expectRouteSelectedPlanPresenceRequirement(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef requirementName, llvm::StringRef expectedRole) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for selected-plan presence requirement check\n";
+    return false;
+  }
+
+  const TargetArtifactSelectedPlanMetadataRequirement *requirement =
+      findRouteSelectedPlanRequirement(*exporter, requirementName);
+  if (!requirement || requirement->requireExactValue ||
+      !requirement->value.empty() || requirement->role != expectedRole) {
+    llvm::errs() << "route '" << routeID
+                 << "' lacks expected selected-plan presence requirement '"
+                 << requirementName << "'\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
@@ -442,6 +487,9 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                           llvm::StringRef expectedComponentGroup,
                           llvm::StringRef expectedExternalABIName,
                           bool expectedCandidateValidation);
+
+bool expectRVVSubRouteDescriptorRejectsMissingSelectedShapeMetadata(
+    const TargetArtifactExporterRegistry &registry);
 
 bool expectPluginOwnedToyTargetExporterRegistration() {
   constexpr llvm::StringLiteral toyRouteID(
@@ -776,6 +824,47 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
   if (!expectRouteRuntimeABIParameters(
           registry, legacyRVVSourceRouteID,
           getAddRuntimeABIContract().getCallableRoleRequirements()))
+    return false;
+  if (!expectRoute(registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+                   "runtime-callable-c-source", "rvv-plugin",
+                   "rvv-explicit-i32-vsub-microkernel-c-source", 4,
+                   /*expectedDirectHelperRoute=*/true,
+                   /*expectedHandoffKind=*/{},
+                   "rvv-i32-vsub-microkernel-external-abi.v1",
+                   "rvv-i32-vsub-runtime-callable-c-function.v1"))
+    return false;
+  if (!expectRouteDescriptorMetadata(
+          registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "rvv-i32-vsub-runtime-callable-c-abi.v1",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vsub-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vsub-function",
+          "tcrv_rvv.selected_binary_family", "i32-vsub",
+          "selected-rvv-binary-descriptor", "runtime_correctness_claim"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "tcrv_rvv.selected_vector_shape",
+          "selected-rvv-vector-shape-config"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "tcrv_rvv.selected_vector_lmul",
+          "selected-rvv-vector-shape-config"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "tcrv_rvv.runtime_element_count_c_name",
+          "rvv-runtime-control-name-boundary"))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+          registry, "tcrv-export-rvv-i32-vsub-microkernel-c"))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+          registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "tcrv_rvv.selected_binary_family", "i32-vadd"))
+    return false;
+  if (!expectRVVSubRouteDescriptorRejectsMissingSelectedShapeMetadata(registry))
     return false;
   if (!expectCompositeRoute(registry, legacyRVVHeaderRouteID,
                             "runtime-callable-c-header", "rvv-plugin",
@@ -2302,7 +2391,8 @@ TargetArtifactCandidate makeRVVDispatchCandidate(
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
   appendRVVSelectedPlanMetadata(
-      candidate, tianchenrv::target::rvv::getI32M1VectorShapeConfig());
+      candidate, tianchenrv::target::rvv::getI32VAddFamilyDescriptor(),
+      tianchenrv::target::rvv::getI32M1VectorShapeConfig());
   return candidate;
 }
 
@@ -2325,8 +2415,8 @@ TargetArtifactCandidate makeRVVSubDirectCandidate(
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
-  appendRVVSelectedPlanMetadata(
-      candidate, getDefaultRVVSelectedShapeForFamily(family));
+  appendRVVSelectedPlanMetadata(candidate, family,
+                                getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
 }
 
@@ -2349,8 +2439,8 @@ TargetArtifactCandidate makeRVVMulDirectCandidate(
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
       tianchenrv::support::getI32BinaryRuntimeABIParameters();
-  appendRVVSelectedPlanMetadata(
-      candidate, getDefaultRVVSelectedShapeForFamily(family));
+  appendRVVSelectedPlanMetadata(candidate, family,
+                                getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
 }
 
@@ -2375,8 +2465,8 @@ TargetArtifactCandidate makeRVVI64DirectCandidate(
   llvm::ArrayRef<RuntimeABIParameter> callable =
       contract.getCallableParameters();
   candidate.runtimeABIParameters.append(callable.begin(), callable.end());
-  appendRVVSelectedPlanMetadata(
-      candidate, getDefaultRVVSelectedShapeForFamily(family));
+  appendRVVSelectedPlanMetadata(candidate, family,
+                                getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
 }
 
@@ -2763,9 +2853,36 @@ bool expectRVVSubSourceRejectsStaleAddMetadata(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "stale add ABI metadata rejected by RVV vsub source route",
       {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
-       "target artifact candidate validation failed",
-       "supported RVV i32 microkernel family ABI metadata",
-       "runtime_abi_name 'rvv-i32-vsub-runtime-callable-c-function.v1'"});
+       "registered for runtime_abi",
+       "rvv-i32-vsub-runtime-callable-c-abi.v1",
+       "rvv-i32-vadd-runtime-callable-c-abi.v1"});
+}
+
+bool expectRVVSubRouteDescriptorRejectsMissingSelectedShapeMetadata(
+    const TargetArtifactExporterRegistry &registry) {
+  const TargetArtifactExporter *exporter =
+      registry.lookup("tcrv-export-rvv-i32-vsub-microkernel-c");
+  if (!exporter) {
+    llvm::errs() << "missing RVV vsub microkernel route for missing selected "
+                    "shape metadata test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate =
+      makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                "rvv_sub_slice");
+  if (!eraseSelectedPlanMetadataEntry(candidate,
+                                      "tcrv_rvv.selected_vector_shape")) {
+    llvm::errs() << "test candidate is missing selected_vector_shape "
+                    "metadata\n";
+    return false;
+  }
+
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "missing selected RVV shape rejected by registered route descriptor",
+      {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
+       "requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'"});
 }
 
 bool expectRVVI64SourceRejectsStaleI32AddMetadata(
@@ -3792,6 +3909,20 @@ int main() {
   if (!expectRouteRuntimeABIParameters(
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
           getSubRuntimeABIContract().getCallableRoleRequirements()))
+    return 1;
+  if (!expectRouteDescriptorMetadata(
+          builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "rvv-i32-vsub-runtime-callable-c-abi.v1",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vsub-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vsub-function",
+          "tcrv_rvv.selected_binary_family", "i32-vsub",
+          "selected-rvv-binary-descriptor", "runtime_correctness_claim"))
+    return 1;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
+          "tcrv_rvv.selected_vector_shape",
+          "selected-rvv-vector-shape-config"))
     return 1;
   if (!expectRoute(builtinRegistry, "tcrv-export-rvv-i32-vmul-microkernel-c",
                    "runtime-callable-c-source", "rvv-plugin",

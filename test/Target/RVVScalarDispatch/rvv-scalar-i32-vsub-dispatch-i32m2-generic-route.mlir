@@ -133,5 +133,5 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 
 // SHAPE-MISMATCH: selected vector-shape shape must be 'i32m2'
 // PLAN-METADATA-MISMATCH: selected_plan_metadata 'tcrv_rvv.selected_vector_suffix' vector suffix must be 'i32m2'
-// SELECTED-CONFIG-MISMATCH: selected_plan_metadata 'tcrv_rvv.selected_binary_family' selected binary family must be 'i32-vsub'
+// SELECTED-CONFIG-MISMATCH: route id 'tcrv-export-rvv-i32-vsub-microkernel-c' selected_plan_metadata 'tcrv_rvv.selected_binary_family' must use value 'i32-vsub'
 // RUNTIME-CONTROL-MISMATCH: selected_plan_metadata 'tcrv_rvv.runtime_element_count_c_name' runtime element-count C name must be 'n'

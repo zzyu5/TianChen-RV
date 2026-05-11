@@ -316,12 +316,12 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
   llvm::StringSet<> seenSelectedPlanRequirements;
   for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
        metadata.getSelectedPlanMetadataRequirements()) {
-    if (requirement.name.empty() || requirement.value.empty() ||
-        requirement.role.empty())
+    if (requirement.name.empty() || requirement.role.empty() ||
+        (requirement.requireExactValue && requirement.value.empty()))
       return makeRegistryError(
           llvm::Twine("exporter route id '") + exporter.getRouteID() +
-          "' selected-plan metadata requirements must have non-empty name, "
-          "value, and role");
+          "' selected-plan metadata requirements must have non-empty name and "
+          "role, plus non-empty value for exact-value requirements");
     if (!seenSelectedPlanRequirements.insert(requirement.name).second)
       return makeRegistryError(
           llvm::Twine("exporter route id '") + exporter.getRouteID() +
@@ -331,9 +331,16 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
             validateRouteRegistryText("selected-plan metadata requirement name",
                                       requirement.name))
       return error;
-    if (llvm::Error error = validateRouteRegistryText(
-            "selected-plan metadata requirement value", requirement.value))
-      return error;
+    if (requirement.requireExactValue) {
+      if (llvm::Error error = validateRouteRegistryText(
+              "selected-plan metadata requirement value", requirement.value))
+        return error;
+    } else if (!requirement.value.empty()) {
+      return makeRegistryError(
+          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          "' selected-plan metadata presence requirement '" +
+          requirement.name + "' must not carry an expected value");
+    }
     if (llvm::Error error =
             validateRouteRegistryText("selected-plan metadata requirement role",
                                       requirement.role))
@@ -2174,13 +2181,19 @@ llvm::Error validateCandidateRouteMetadata(
           llvm::Twine("route id '") + candidate.routeID +
               "' requires selected_plan_metadata '" + requirement.name + "'");
 
-    if (entry->value != requirement.value || entry->role != requirement.role)
+    if (entry->role != requirement.role)
       return makeArtifactExportError(
           candidate.kernel,
           llvm::Twine("route id '") + candidate.routeID +
               "' selected_plan_metadata '" + requirement.name +
-              "' must use value '" + requirement.value + "' and role '" +
-              requirement.role + "'");
+              "' must use role '" + requirement.role + "'");
+
+    if (requirement.requireExactValue && entry->value != requirement.value)
+      return makeArtifactExportError(
+          candidate.kernel,
+          llvm::Twine("route id '") + candidate.routeID +
+              "' selected_plan_metadata '" + requirement.name +
+              "' must use value '" + requirement.value + "'");
   }
 
   return llvm::Error::success();
@@ -2390,8 +2403,10 @@ TargetArtifactRouteClaimField::TargetArtifactRouteClaimField(
 TargetArtifactSelectedPlanMetadataRequirement::
     TargetArtifactSelectedPlanMetadataRequirement(llvm::StringRef name,
                                                  llvm::StringRef value,
-                                                 llvm::StringRef role)
-    : name(name.str()), value(value.str()), role(role.str()) {}
+                                                 llvm::StringRef role,
+                                                 bool requireExactValue)
+    : name(name.str()), value(value.str()), role(role.str()),
+      requireExactValue(requireExactValue) {}
 
 TargetArtifactRouteMetadata::TargetArtifactRouteMetadata(
     llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
@@ -2404,6 +2419,14 @@ void TargetArtifactRouteMetadata::addSelectedPlanMetadataRequirement(
     llvm::StringRef name, llvm::StringRef value, llvm::StringRef role) {
   selectedPlanMetadataRequirements.push_back(
       TargetArtifactSelectedPlanMetadataRequirement(name, value, role));
+}
+
+void TargetArtifactRouteMetadata::addSelectedPlanMetadataPresenceRequirement(
+    llvm::StringRef name, llvm::StringRef role) {
+  selectedPlanMetadataRequirements.push_back(
+      TargetArtifactSelectedPlanMetadataRequirement(
+          name, /*value=*/llvm::StringRef(), role,
+          /*requireExactValue=*/false));
 }
 
 void TargetArtifactRouteMetadata::addClaimField(llvm::StringRef name,

@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and source-of-truth rules"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry and route metadata ownership constraints"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keep RVV behavior plugin/target-owned and generic export target-neutral"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Extension artifact route integration and core/plugin boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected config, i32m2, runtime ABI, and evidence boundary contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact route, runtime ABI, selected-plan metadata, and bundle preflight contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++/lit/RVV evidence testing requirements"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Runtime correctness and ssh rvv evidence interpretation"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first route/export review checklist"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality guardrails for RVV target/export changes"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure tcrv.exec remains compute-free"}

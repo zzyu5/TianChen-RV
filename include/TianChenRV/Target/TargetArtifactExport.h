@@ -57,11 +57,13 @@ struct TargetArtifactSelectedPlanMetadataRequirement {
   TargetArtifactSelectedPlanMetadataRequirement() = default;
   TargetArtifactSelectedPlanMetadataRequirement(llvm::StringRef name,
                                                 llvm::StringRef value,
-                                                llvm::StringRef role);
+                                                llvm::StringRef role,
+                                                bool requireExactValue = true);
 
   std::string name;
   std::string value;
   std::string role;
+  bool requireExactValue = true;
 };
 
 class TargetArtifactRouteMetadata {
@@ -102,6 +104,8 @@ public:
   void addSelectedPlanMetadataRequirement(llvm::StringRef name,
                                           llvm::StringRef value,
                                           llvm::StringRef role);
+  void addSelectedPlanMetadataPresenceRequirement(llvm::StringRef name,
+                                                  llvm::StringRef role);
   void addClaimField(llvm::StringRef name, llvm::StringRef value);
 
 private:

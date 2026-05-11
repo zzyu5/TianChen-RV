@@ -14,6 +14,7 @@
 #include "TianChenRV/Target/RVV/RVVBinaryMicrokernelBodyVerifier.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
+#include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -1219,12 +1220,66 @@ resolveRVVMicrokernelCandidateSelectedShape(
   return metadataConfig;
 }
 
+llvm::Expected<llvm::StringRef>
+resolveRVVMicrokernelRuntimeElementCountCName(
+    const TargetArtifactCandidate &candidate) {
+  const support::RuntimeABIParameter *match = nullptr;
+  unsigned count = 0;
+  for (const support::RuntimeABIParameter &parameter :
+       candidate.runtimeABIParameters) {
+    if (parameter.role !=
+        support::RuntimeABIParameterRole::RuntimeElementCount)
+      continue;
+    match = &parameter;
+    ++count;
+  }
+
+  if (count == 0)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant +
+            " requires one runtime-element-count ABI parameter before "
+            "selected config metadata validation");
+  if (count > 1)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant +
+            " has duplicate runtime-element-count ABI parameters before "
+            "selected config metadata validation");
+  if (match->cName.empty())
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant +
+            " runtime-element-count ABI parameter requires a non-empty C "
+            "name");
+  return llvm::StringRef(match->cName);
+}
+
 llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 16> expected;
+    const RVVBinaryIntrinsicDescriptor &descriptor,
+    bool requireBinaryDescriptorMetadata) {
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 24> expected;
   appendRVVVectorShapeSelectedPlanMetadata(*descriptor.shape, expected);
   appendRVVRuntimeVLBoundarySelectedPlanMetadata(expected);
+  if (requireBinaryDescriptorMetadata) {
+    llvm::Expected<llvm::StringRef> runtimeElementCountCName =
+        resolveRVVMicrokernelRuntimeElementCountCName(candidate);
+    if (!runtimeElementCountCName)
+      return runtimeElementCountCName.takeError();
+
+    llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
+        buildRVVBinarySelectedConfigContract(
+            descriptor.family, *descriptor.shape, candidate.selectedVariant,
+            candidate.role, /*descriptorElementCount=*/0,
+            *runtimeElementCountCName);
+    if (!selectedConfig)
+      return selectedConfig.takeError();
+    appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
+  }
 
   for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
     if (llvm::Error error =
@@ -3043,9 +3098,84 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
                                                         sourceExporter))
     return error;
   if (llvm::Error error =
-          validateRVVMicrokernelSelectedPlanMetadata(candidate, descriptor))
+          validateRVVMicrokernelSelectedPlanMetadata(
+              candidate, descriptor,
+              family.familyID == getI32VSubFamilyDescriptor().familyID))
     return error;
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
+}
+
+TargetArtifactRouteMetadata
+buildRVVMicrokernelSourceRouteMetadata(
+    const RVVBinaryFamilyDescriptor &family) {
+  TargetArtifactRouteMetadata metadata(
+      family.runtimeABI, family.runtimeABIKind, family.runtimeABIName,
+      family.runtimeGlueRole);
+
+  llvm::StringRef descriptorRole = getRVVSelectedBinaryDescriptorMetadataRole();
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, descriptorRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedBinaryFamilyMetadataName(), family.familyID,
+      descriptorRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
+      descriptorRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedLoweringDescriptorMetadataName(),
+      family.loweringDescriptor, descriptorRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVRuntimeElementCountCNameMetadataName(),
+      getRVVRuntimeControlNameMetadataRole());
+
+  llvm::StringRef shapeRole = getSelectedRVVVectorShapeMetadataRole();
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorShapeAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorSEWAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorLMULAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedTailPolicyAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedMaskPolicyAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorTypeAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorSuffixAttrName(), shapeRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedSetVLSuffixAttrName(), shapeRole);
+
+  llvm::StringRef capabilityRole =
+      getSelectedRVVVectorShapeCapabilityMetadataRole();
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorSEWCapabilityAttrName(), capabilityRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedVectorLMULCapabilityAttrName(), capabilityRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedTailPolicyCapabilityAttrName(), capabilityRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedMaskPolicyCapabilityAttrName(), capabilityRole);
+
+  llvm::StringRef runtimeVLRole = getRVVRuntimeVLBoundaryMetadataRole();
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVRuntimeAVLSourceMetadataName(),
+      getRVVRuntimeAVLSourceMetadataValue(), runtimeVLRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVRuntimeAVLRoleMetadataName(), getRVVRuntimeAVLRoleMetadataValue(),
+      runtimeVLRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVRuntimeVLSourceMetadataName(), getRVVRuntimeVLSourceMetadataValue(),
+      runtimeVLRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVRuntimeVLScopeMetadataName(), getRVVRuntimeVLScopeMetadataValue(),
+      runtimeVLRole);
+
+  metadata.addClaimField("compile_export_claim", "compiler-artifact-only");
+  metadata.addClaimField("runtime_correctness_claim", "none");
+  metadata.addClaimField("hardware_execution_claim", "none");
+  metadata.addClaimField("performance_claim", "none");
+  return metadata;
 }
 
 llvm::Error validateRVVMicrokernelCallableCandidatePreflight(
@@ -3674,16 +3804,21 @@ llvm::Error registerRVVMicrokernelTargetExporters(
        getRVVMicrokernelDirectRouteManifest()) {
     const RVVBinaryFamilyDescriptor &family = *route.family;
     switch (route.routeKind) {
-    case RVVMicrokernelDirectRouteKind::Source:
+    case RVVMicrokernelDirectRouteKind::Source: {
+      TargetArtifactRouteMetadata routeMetadata;
+      if (family.familyID == getI32VSubFamilyDescriptor().familyID)
+        routeMetadata = buildRVVMicrokernelSourceRouteMetadata(family);
       if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
               route.getRouteID(), kMicrokernelArtifactKind, kRVVPluginName,
               family.emissionKind, exportRVVMicrokernelC,
               getRVVBinaryCallableRuntimeABIRoleRequirements(family),
               /*directHelperRoute=*/true, /*handoffKind=*/{},
               validateRVVMicrokernelSourceCandidate,
-              family.externalABIComponentGroup, family.runtimeABIName)))
+              family.externalABIComponentGroup, family.runtimeABIName,
+              routeMetadata)))
         return error;
       break;
+    }
     case RVVMicrokernelDirectRouteKind::Header:
       if (llvm::Error error =
               registry.registerCompositeExporter(TargetArtifactCompositeExporter(

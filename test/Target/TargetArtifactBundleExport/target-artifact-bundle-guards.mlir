@@ -95,6 +95,5 @@ module @target_artifact_bundle_guard_input {
 
 // VSUB-STALE-ABI: TianChen-RV target source artifact export failed for kernel @bundle_i32_vsub_stale_abi
 // VSUB-STALE-ABI-SAME: route id 'tcrv-export-rvv-i32-vsub-microkernel-c'
-// VSUB-STALE-ABI-SAME: target artifact candidate validation failed
-// VSUB-STALE-ABI-SAME: supported RVV i32 microkernel family ABI metadata
-// VSUB-STALE-ABI-SAME: runtime_abi_name 'rvv-i32-vsub-runtime-callable-c-function.v1'
+// VSUB-STALE-ABI-SAME: registered for runtime_abi 'rvv-i32-vsub-runtime-callable-c-abi.v1'
+// VSUB-STALE-ABI-SAME: selected emission-plan runtime_abi is 'rvv-i32-vadd-runtime-callable-c-abi.v1'
