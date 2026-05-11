@@ -60,6 +60,23 @@ the PRD first; do not choose an unrelated direction.
 - Detailed architecture rules live in the relevant Trellis specs; follow those
   specs instead of restating them here.
 
+## Structural Refactor Discipline
+
+When the active task is a migration or architecture cleanup, do not only add a
+replacement path beside the old one. Rewire the production/default path when
+the task requires it.
+
+Deleting or rewriting obsolete code and tests is allowed when they encode the
+old architecture. If a descriptor-driven path is being replaced, update or
+remove tests that require descriptor-driven behavior. Do not keep obsolete
+tests alive unless they are explicitly marked as legacy compatibility tests.
+
+A round that only adds helper code, metadata, coverage, or evidence is not
+sufficient for a migration task unless the new helper is used by the
+production path in the same round. For current TianChen-RV migration work,
+prefer extension family ops -> common EmitC route -> generated
+intrinsic/runtime C/C++ over descriptor -> direct C exporter.
+
 ## One-Round Trellis Flow
 
 Execute the current task through one coherent Trellis round:

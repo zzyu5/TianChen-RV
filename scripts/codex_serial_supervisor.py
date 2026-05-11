@@ -1293,7 +1293,9 @@ as newer than the base prompt, but not as proof of repository state.
 ## Review Job
 
 Decide exactly one of these internal cases. Do not ask Codex to choose among
-candidate tasks.
+candidate tasks. In `reason`, name the case and explain how the next owner will
+make a compiler path more real. If you cannot answer that, the task is too
+small and you must choose a larger owner.
 
 ```text
 continue current module: previous task is unfinished but direction is right
@@ -1319,6 +1321,26 @@ Tiny helpers, one-off negative tests, broad smoke matrices, metadata-only
 changes, wrapper-only work, status/report work, and standalone evidence
 packaging are not valid default owners. Use them only when they are the single
 named blocker for the chosen module.
+
+## Structural Migration Review
+
+For migration or refactor tasks, check whether the production/default path
+actually changed. Adding helper infrastructure, metadata, evidence, or tests is
+not enough if the old path remains the source of compute semantics. If a
+previous round built a replacement path, the next owner should usually switch
+the default path to it, delete or bypass obsolete code, or make the new route
+the production route instead of adding coverage for the old route.
+
+For architecture cleanup, Codex may delete, replace, or rewrite obsolete code
+and tests. Do not reward preserving descriptor-driven tests when the active
+task is to remove descriptor authority from the default path.
+
+For RVV migration work, prefer extension family ops as the source of truth,
+common EmitC route usage, production/default path rewiring, and deletion or
+quarantine of obsolete descriptor-driven behavior. Reject rounds that only add
+finite-family coverage, route metadata checks, helper-only tests, smoke tests,
+or ssh evidence as a standalone owner when the missing piece is structural
+migration. Descriptor-driven computation is invalid as long-term architecture.
 
 ## Anti-Stall Rule
 

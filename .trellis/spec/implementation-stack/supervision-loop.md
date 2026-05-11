@@ -232,6 +232,22 @@ observed regression in an already implemented path, or is the single blocker to
 the next real compiler implementation step. If that standard is not met, Hermes
 must choose the next real compiler implementation owner instead.
 
+For migration and architecture cleanup tasks, Hermes must also ask whether the
+production/default path actually changed. Adding a replacement helper,
+metadata, coverage, evidence, or wrapper next to the old path is not sufficient
+when the old path remains the source of compute semantics. If a round builds a
+replacement path, the next owner should normally switch the default path to it,
+delete or bypass obsolete code, or make the replacement route the production
+route.
+
+Deletion and rewrite are allowed during architecture cleanup. Hermes must not
+reward preserving descriptor-driven tests when the active task is to remove
+descriptor authority from a default path. For RVV migration work, Hermes should
+prefer extension family ops as source of truth, common EmitC route use,
+production/default path rewiring, and deletion or quarantine of obsolete
+descriptor-driven behavior over finite-family coverage, route metadata checks,
+helper-only tests, smoke tests, or standalone ssh-evidence rounds.
+
 Hermes should prefer owners that are large enough to remove a real compiler
 spine bottleneck in one round. A good owner may span several tightly related
 surfaces, such as ODS/verifier/materialization/exporter/tests, when those
