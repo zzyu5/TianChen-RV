@@ -83,11 +83,16 @@ module {
 
 // GENERIC: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // GENERIC: /* Scope: one selected RVV i64-vmul dispatch case plus one scalar i64-vmul dispatch fallback. */
-// GENERIC: /* selected_binary_config: dtype=i64, family=i64-vmul, operator=multiply, lowering_descriptor=i64-vmul-microkernel.v1, shape=i64m1, sew=64, lmul=m1
 // GENERIC: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-c */
 // GENERIC: /* dispatch_manifest_artifact_kind: runtime-callable-c-source */
 // GENERIC: /* rvv_artifact_route_id: tcrv-export-rvv-i64-vmul-microkernel-c */
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_family, value=i64-vmul, role=typed-rvv-binary-source
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i64_mul, role=typed-rvv-emitc-source-op
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // GENERIC: /* scalar_artifact_route_id: tcrv-export-scalar-i64-vmul-microkernel-c */
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.selected_binary_family, value=i64-vmul, role=typed-scalar-binary-source
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_source_op, value=tcrv_scalar.i64_vmul_microkernel, role=typed-scalar-emitc-source-op
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // GENERIC: void tcrv_rvv_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_rvv_first_slice
 // GENERIC: __riscv_vmul_vv_i64m1
 // GENERIC: void tcrv_scalar_i64_vmul_microkernel_conflict_planned_i64_vmul_dispatch_scalar_fallback_first_slice

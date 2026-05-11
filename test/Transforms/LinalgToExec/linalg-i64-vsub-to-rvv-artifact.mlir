@@ -68,7 +68,7 @@ module {
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_i64_profile]
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-SAME: tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1"
+// PIPE-NOT: tcrv_rvv.lowering_descriptor
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.selected_setvl_suffix = "e64m1"
 // PIPE-SAME: tcrv_rvv.selected_vector_lmul = "m1"
@@ -135,17 +135,18 @@ module {
 // PIPE-SAME: {name = "tcrv_rvv.runtime_vl_scope"
 // PIPE-SAME: value = "tcrv_rvv.with_vl"}
 // PIPE-SAME: {name = "tcrv_rvv.selected_binary_dtype"
+// PIPE-SAME: role = "typed-rvv-binary-source"
 // PIPE-SAME: value = "i64"}
 // PIPE-SAME: {name = "tcrv_rvv.selected_binary_family"
 // PIPE-SAME: value = "i64-vsub"}
 // PIPE-SAME: {name = "tcrv_rvv.selected_binary_operator"
 // PIPE-SAME: value = "subtract"}
-// PIPE-SAME: {name = "tcrv_rvv.selected_lowering_descriptor"
-// PIPE-SAME: value = "i64-vsub-microkernel.v1"}
+// PIPE-SAME: {name = "tcrv_rvv.emitc_source_op"
+// PIPE-SAME: value = "tcrv_rvv.i64_sub"}
+// PIPE-SAME: {name = "tcrv_rvv.emitc_lowerable_op_interface"
+// PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"}
 // PIPE-SAME: {name = "tcrv_rvv.runtime_element_count_c_name"
 // PIPE-SAME: value = "n"}
-// PIPE-SAME: {name = "tcrv_rvv.descriptor_element_count"
-// PIPE-SAME: value = "16"}]
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 
@@ -156,6 +157,8 @@ module {
 // SOURCE: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // SOURCE: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_sub -> tcrv_rvv.i64_store */
+// SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
+// SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */

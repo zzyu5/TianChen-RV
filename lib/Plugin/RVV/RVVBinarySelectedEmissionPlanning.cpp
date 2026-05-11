@@ -684,12 +684,6 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
           variant.getSymName() + " as " + expectedRole + " requires " +
           descriptorSelectedPlan->getMicrokernelOpName() + " but found " +
           microkernelFamily->microkernelOpName);
-    if (!descriptorSelectedPlan && microkernelFamily->familyID != "i64-vadd")
-      return makeRVVBinarySelectedEmissionError(
-          llvm::Twine("descriptorless explicit RVV i64 microkernel emission "
-                      "plan is bounded to i64-vadd; found ") +
-          microkernelFamily->microkernelOpName);
-
     ++matches;
     matchedFamily = microkernelFamily;
     matchedMicrokernel = &op;
@@ -924,7 +918,7 @@ void appendSelectedBinaryMetadata(
       descriptorMetadata;
   bool useTypedSourceMetadata =
       contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
-      contract.getFamilyID() == "i64-vadd";
+      contract.getFamily().dtype == RVVBinaryDTypeKind::I64;
   if (useTypedSourceMetadata)
     target::rvv::appendRVVBinarySelectedTypedSourceMetadata(contract,
                                                            descriptorMetadata);

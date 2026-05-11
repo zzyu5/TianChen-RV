@@ -1223,15 +1223,6 @@ resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
         role.getValue() != path.role)
       continue;
 
-    if (candidateFamily->familyID != "i64-vadd")
-      return makeMicrokernelError(
-          kernel, llvm::Twine("selected RVV path @") +
-                      getPathVariantSymbol(path) + " as " + path.role +
-                      " contains descriptorless " +
-                      candidateFamily->microkernelOpName +
-                      "; descriptorless i64 default export is currently "
-                      "bounded to tcrv_rvv.i64_vadd_microkernel");
-
     matchedFamily = candidateFamily;
     break;
   }
@@ -1378,7 +1369,7 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   if (!selectedConfig)
     return selectedConfig.takeError();
   if (descriptor.family.dtype == RVVBinaryDTypeKind::I32 ||
-      descriptor.family.familyID == "i64-vadd")
+      descriptor.family.dtype == RVVBinaryDTypeKind::I64)
     appendRVVBinarySelectedTypedSourceMetadata(*selectedConfig, expected);
   else
     appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
@@ -3482,7 +3473,7 @@ buildRVVMicrokernelSourceRouteMetadata(
       family.runtimeGlueRole);
 
   if (family.dtype == RVVBinaryDTypeKind::I32 ||
-      family.familyID == "i64-vadd") {
+      family.dtype == RVVBinaryDTypeKind::I64) {
     llvm::StringRef typedRole = getRVVTypedBinarySourceMetadataRole();
     metadata.addSelectedPlanMetadataRequirement(
         getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, typedRole);

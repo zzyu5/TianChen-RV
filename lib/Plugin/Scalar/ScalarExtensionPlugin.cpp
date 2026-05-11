@@ -306,7 +306,8 @@ bool isDescriptorlessDefaultScalarTypedFamily(
   return family.family->rvvFamily &&
          (family.family->rvvFamily->dtype ==
               tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-          family.family->familyID == "i64-vadd");
+          family.family->rvvFamily->dtype ==
+              tianchenrv::target::rvv::RVVBinaryDTypeKind::I64);
 }
 
 const ScalarMicrokernelFamilySpec *

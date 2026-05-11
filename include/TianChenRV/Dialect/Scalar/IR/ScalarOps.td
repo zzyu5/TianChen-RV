@@ -176,7 +176,8 @@ def I64VAddMicrokernelOp : TCRVScalar_Op<"i64_vadd_microkernel",
   let hasVerifier = 1;
 }
 
-def I64VSubMicrokernelOp : TCRVScalar_Op<"i64_vsub_microkernel", []> {
+def I64VSubMicrokernelOp : TCRVScalar_Op<"i64_vsub_microkernel",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "explicit bounded scalar i64 vector-subtract source-export microkernel";
   let description = [{
     Records one plugin-local scalar i64 vector-subtract microkernel body for a
@@ -205,7 +206,8 @@ def I64VSubMicrokernelOp : TCRVScalar_Op<"i64_vsub_microkernel", []> {
   let hasVerifier = 1;
 }
 
-def I64VMulMicrokernelOp : TCRVScalar_Op<"i64_vmul_microkernel", []> {
+def I64VMulMicrokernelOp : TCRVScalar_Op<"i64_vmul_microkernel",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "explicit bounded scalar i64 vector-multiply source-export microkernel";
   let description = [{
     Records one plugin-local scalar i64 vector-multiply microkernel body for a

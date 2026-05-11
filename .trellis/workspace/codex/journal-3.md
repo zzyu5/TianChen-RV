@@ -1498,3 +1498,63 @@ Migrated default i64-vadd RVV/scalar selected-export path to typed family ops pl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: Descriptor exit i64 sub/mul defaults
+
+**Date**: 2026-05-12
+**Task**: Descriptor exit i64 sub/mul defaults
+**Branch**: `main`
+
+### Summary
+
+Migrated default i64-vsub/i64-vmul RVV and scalar paths to typed extension-family ops plus generated EmitC lowerable provenance, then archived descriptor-exit-i64-sub-mul-defaults.
+
+### Main Changes
+
+- Added generated `TCRVEmitCLowerableOpInterface` to bounded RVV
+  `i64_sub`/`i64_mul` ops and scalar `i64_vsub`/`i64_vmul` microkernel ops.
+- Generalized default descriptorless typed handling from i64 add to all i64
+  binary add/sub/mul families across RVV planning, selected-boundary planning,
+  selected-emission planning, RVV/scalar source route metadata, and RVV+scalar
+  dispatch preflight.
+- Updated RVV body verification so i64 sub/mul arithmetic source ops must
+  expose the generated EmitC lowerable interface before artifact emission.
+- Updated C++ and lit coverage for typed i64 sub/mul selected-plan metadata,
+  `emitc_source_op`, `TCRVEmitCLowerableOpInterface`, family-correct RVV
+  intrinsics, portable scalar `int64_t` arithmetic, and fail-closed stale
+  descriptor behavior.
+- Archived `.trellis/tasks/archive/2026-05/05-12-descriptor-exit-i64-sub-mul-defaults/`
+  after active and archived Trellis validation passed.
+
+### Git Commits
+
+Included in the final session commit for this round; see `git log` for the
+exact hash.
+
+### Testing
+
+- `git diff --check`
+- Focused build: `cmake --build artifacts/tmp/tianchenrv-build --target
+  tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test
+  tianchenrv-scalar-extension-plugin-test tianchenrv-rvv-binary-planning-test
+  tianchenrv-target-artifact-export-test -j2`
+- C++ tests: `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-scalar-extension-plugin-test`,
+  `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-target-artifact-export-test`
+- Focused lit: i64 sub/mul LinalgToExec, RVVMicrokernel,
+  RVVScalarDispatch, and TargetArtifactBundleExport cases, 8/8 passed.
+- Trellis validation passed before archive and after archive.
+- Full check: `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`, 206/206 passed.
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or
+  performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -123,6 +123,10 @@ module @plan_linalg_i64_vmul_bundle_input {
 
 // SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // SOURCE: /* Scope: one selected RVV i64-vmul dispatch case plus one scalar i64-vmul dispatch fallback. */
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_family, value=i64-vmul, role=typed-rvv-binary-source
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i64_mul, role=typed-rvv-emitc-source-op
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.selected_binary_family, value=i64-vmul, role=typed-scalar-binary-source
+// SOURCE: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_source_op, value=tcrv_scalar.i64_vmul_microkernel, role=typed-scalar-emitc-source-op
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vmul_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1

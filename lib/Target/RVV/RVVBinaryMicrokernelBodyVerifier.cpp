@@ -656,15 +656,11 @@ llvm::Error validateI64DataflowBody(
             request.descriptor.getRVVOperationName() +
             ", tcrv_rvv.i64_store before artifact export");
 
-  if (request.descriptor.family.familyID == "i64-vadd") {
-    if (llvm::Error error = requireGeneratedEmitCLowerableInterface(
-            request, ops[2], request.descriptor.getRVVOperationName(),
-            arithmeticSourceOpName, arithmeticSourceOpRole))
-      return error;
-    arithmeticSourceOpInterface = kEmitCLowerableOpInterfaceName;
-  } else {
-    arithmeticSourceOpName = ops[2]->getName().getStringRef();
-  }
+  if (llvm::Error error = requireGeneratedEmitCLowerableInterface(
+          request, ops[2], request.descriptor.getRVVOperationName(),
+          arithmeticSourceOpName, arithmeticSourceOpRole))
+    return error;
+  arithmeticSourceOpInterface = kEmitCLowerableOpInterfaceName;
 
   if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
       arithmeticVL != withVL.getVl() || store.getVl() != withVL.getVl())

@@ -2447,7 +2447,6 @@ module {
           expect(proposals.size() == 1,
                  "finite i64m1 capability facts produce one proposal"))
     return result;
-  bool isTypedI64VAdd = family.familyID == "i64-vadd";
   if (int result = expect(
           proposals[0].getRequiredCapabilityIDs().size() == 5 &&
               proposals[0].getRequiredCapabilityIDs()[1] ==
@@ -2460,16 +2459,10 @@ module {
                   "rvv.i64_m1.mask_policy.agnostic",
           "RVV i64 proposal requires i64m1 config capability ids"))
     return result;
-  if (isTypedI64VAdd) {
-    if (int result = expectProposalMissingAttr(
-            proposals[0], "tcrv_rvv.lowering_descriptor"))
-      return result;
-  } else {
-    if (int result = expectProposalStringAttr(
-            proposals[0], "tcrv_rvv.lowering_descriptor",
-            family.loweringDescriptor))
-      return result;
-  }
+  if (int result =
+          expectProposalMissingAttr(proposals[0],
+                                    "tcrv_rvv.lowering_descriptor"))
+    return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
     return result;
@@ -2492,16 +2485,9 @@ module {
     return result;
   VariantOp variant = materializedVariants.front();
 
-  if (isTypedI64VAdd) {
-    if (int result = expectMissingAttr(variant.getOperation(),
-                                       "tcrv_rvv.lowering_descriptor"))
-      return result;
-  } else {
-    if (int result = expectStringAttr(variant.getOperation(),
-                                      "tcrv_rvv.lowering_descriptor",
-                                      family.loweringDescriptor))
-      return result;
-  }
+  if (int result = expectMissingAttr(variant.getOperation(),
+                                     "tcrv_rvv.lowering_descriptor"))
+    return result;
   if (int result = expectStringAttr(variant.getOperation(),
                                     "tcrv_rvv.selected_vector_shape", "i64m1"))
     return result;
@@ -2575,14 +2561,12 @@ module {
                      llvm::isa<I64M1VectorType>(arithmeticResult.getType()),
                  "RVV i64 materialization emits i64m1 arithmetic result"))
     return result;
-  if (isTypedI64VAdd) {
-    if (int result =
-            expect(arithmeticOp &&
-                       llvm::isa<TCRVEmitCLowerableOpInterface>(arithmeticOp),
-                   "RVV i64-vadd arithmetic op implements generated EmitC "
-                   "lowerable op interface"))
-      return result;
-  }
+  if (int result =
+          expect(arithmeticOp &&
+                     llvm::isa<TCRVEmitCLowerableOpInterface>(arithmeticOp),
+                 "RVV i64 arithmetic op implements generated EmitC "
+                 "lowerable op interface"))
+    return result;
 
   llvm::Expected<
       std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
@@ -2661,34 +2645,23 @@ module {
           "RVV i64 selected-emission planner exposes runtime AVL/VL "
           "boundary metadata separately"))
     return result;
-  if (isTypedI64VAdd) {
-    if (int result = expect(
-            hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                    "tcrv_rvv.emitc_source_op",
-                                    "tcrv_rvv.i64_add",
-                                    "typed-rvv-emitc-source-op") &&
-                hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                        "tcrv_rvv.emitc_lowerable_op_interface",
-                                        "TCRVEmitCLowerableOpInterface",
-                                        "typed-rvv-emitc-source-op") &&
-                !hasSelectedPlanMetadata(
-                    plannerI64Plan.selectedPlanMetadata,
-                    "tcrv_rvv.selected_lowering_descriptor",
-                    family.loweringDescriptor,
-                    "selected-rvv-binary-descriptor"),
-            "RVV i64-vadd selected-emission planner records typed EmitC "
-            "source metadata without descriptor authority"))
-      return result;
-  } else {
-    if (int result = expect(
-            hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                    "tcrv_rvv.selected_lowering_descriptor",
-                                    family.loweringDescriptor,
-                                    "selected-rvv-binary-descriptor"),
-            "RVV non-add i64 selected-emission planner keeps descriptor "
-            "metadata"))
-      return result;
-  }
+  if (int result = expect(
+          hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                  "tcrv_rvv.emitc_source_op",
+                                  family.arithmeticOpName,
+                                  "typed-rvv-emitc-source-op") &&
+              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_lowerable_op_interface",
+                                      "TCRVEmitCLowerableOpInterface",
+                                      "typed-rvv-emitc-source-op") &&
+              !hasSelectedPlanMetadata(
+                  plannerI64Plan.selectedPlanMetadata,
+                  "tcrv_rvv.selected_lowering_descriptor",
+                  family.loweringDescriptor,
+                  "selected-rvv-binary-descriptor"),
+          "RVV i64 selected-emission planner records typed EmitC source "
+          "metadata without descriptor authority"))
+    return result;
 
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(

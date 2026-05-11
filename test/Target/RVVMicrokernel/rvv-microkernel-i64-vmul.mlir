@@ -124,7 +124,8 @@ module @rvv_microkernel_i64_vmul_export_input {
 // SOURCE: /* arithmetic_c_operator: * */
 // SOURCE: /* active_route: tcrv-export-rvv-i64-vmul-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_mul -> tcrv_rvv.i64_store */
-// SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
+// SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
+// SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
 // SOURCE: /* intrinsic_config: vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1, tail_policy=agnostic, mask_policy=agnostic */

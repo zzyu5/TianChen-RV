@@ -1749,7 +1749,8 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
   bool expectsTypedSource =
       contract.getFamily().dtype ==
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      contract.getFamilyID() == "i64-vadd";
+      contract.getFamily().dtype ==
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
   if (expectsTypedSource)
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         contract, expected);
@@ -1953,7 +1954,8 @@ buildDispatchPairSelectedConfigContract(
   bool expectsTypedSource =
       pair.family->rvvFamily->dtype ==
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      pair.family->rvvFamily->familyID == "i64-vadd";
+      pair.family->rvvFamily->dtype ==
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
   if (*metadataElementCount) {
     if (expectsTypedSource)
       return makeDispatchError(

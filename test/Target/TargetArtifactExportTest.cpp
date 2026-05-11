@@ -100,7 +100,7 @@ void appendRVVSelectedPlanMetadata(
     return;
   }
   if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.familyID == "i64-vadd")
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         *contract, metadata);
   else
@@ -124,7 +124,8 @@ void appendScalarSelectedPlanMetadata(
       metadata;
   if (family.rvvFamily->dtype ==
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.familyID == "i64-vadd") {
+      family.rvvFamily->dtype ==
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64) {
     tianchenrv::target::rvv_scalar::
         appendScalarBinarySelectedTypedSourceMetadata(
             family, getRuntimeElementCountCNameForTest(candidate), metadata);
@@ -573,7 +574,7 @@ bool expectRVVSourceRouteDescriptorMetadata(
     const RVVBinaryFamilyDescriptor &family) {
   bool expectsTypedSource =
       family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.familyID == "i64-vadd";
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
   llvm::StringRef expectedRole =
       expectsTypedSource
           ? tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole()
@@ -674,7 +675,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
     const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
         &family) {
   llvm::StringRef expectedRole =
-      family.rvvFamily->dtypeID == "i32" || family.familyID == "i64-vadd"
+      family.rvvFamily->dtypeID == "i32" || family.rvvFamily->dtypeID == "i64"
           ? tianchenrv::target::rvv_scalar::
                 getScalarTypedBinarySourceMetadataRole()
           : tianchenrv::target::rvv_scalar::
@@ -701,7 +702,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
               getScalarSelectedBinaryOperatorMetadataName(),
           family.rvvFamily->arithmeticVerb, expectedRole))
     return false;
-  if (family.rvvFamily->dtypeID == "i32" || family.familyID == "i64-vadd") {
+  if (family.rvvFamily->dtypeID == "i32" || family.rvvFamily->dtypeID == "i64") {
     if (!expectRouteSelectedPlanExactRequirement(
             registry, family.scalar.routeID,
             tianchenrv::target::rvv_scalar::

@@ -84,8 +84,14 @@ module {
 // GENERIC: /* Scope: one selected RVV i64-vsub dispatch case plus one scalar i64-vsub dispatch fallback. */
 // GENERIC: /* rvv_artifact_route_id: tcrv-export-rvv-i64-vsub-microkernel-c */
 // GENERIC: /* rvv_runtime_abi_name: rvv-i64-vsub-runtime-callable-c-function.v1 */
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_family, value=i64-vsub, role=typed-rvv-binary-source
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i64_sub, role=typed-rvv-emitc-source-op
+// GENERIC: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // GENERIC: /* scalar_artifact_route_id: tcrv-export-scalar-i64-vsub-microkernel-c */
 // GENERIC: /* scalar_runtime_abi_name: scalar-i64-vsub-runtime-callable-c-function.v1 */
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.selected_binary_family, value=i64-vsub, role=typed-scalar-binary-source
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_source_op, value=tcrv_scalar.i64_vsub_microkernel, role=typed-scalar-emitc-source-op
+// GENERIC: /* scalar_selected_plan_metadata{{.*}}name=tcrv_scalar.emitc_lowerable_op_interface, value=TCRVEmitCLowerableOpInterface
 // GENERIC: /* dispatch_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int64_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
 // GENERIC: /* dispatch_mem_window[2]: symbol=@abi_output_buffer, abi_role=output-buffer, access=write, ownership=target-export-abi-owned, c_type=int64_t *, purpose=runtime-abi-buffer, binding=kernel-argument, memory_space=host */
 // GENERIC: /* dispatch_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */

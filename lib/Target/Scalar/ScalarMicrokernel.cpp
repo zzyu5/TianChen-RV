@@ -1439,7 +1439,7 @@ bool isScalarEmitCLowerableFamily(
     const ScalarI32MicrokernelFamilySpec &family) {
   return family.rvvFamily &&
          (family.rvvFamily->dtype == RVVBinaryDTypeKind::I32 ||
-          family.rvvFamily->familyID == "i64-vadd");
+          family.rvvFamily->dtype == RVVBinaryDTypeKind::I64);
 }
 
 std::string getScalarEmitCCallee(
@@ -1887,7 +1887,7 @@ public:
     if (!record.family || !isScalarEmitCLowerableFamily(*record.family))
       return makeModuleMicrokernelError(
           "scalar EmitC lowerable route is currently defined only for typed "
-          "i32 scalar binary microkernels and typed i64-vadd");
+          "scalar binary microkernels");
     if (record.emitcSourceOpName.empty() || record.emitcSourceOpRole.empty() ||
         record.emitcSourceOpInterface.empty())
       return makeModuleMicrokernelError(
@@ -2232,7 +2232,7 @@ TargetArtifactRouteMetadata buildScalarMicrokernelSourceRouteMetadata(
                                        family.runtimeABIName,
                                        family.runtimeGlueRole);
   if (family.rvvFamily->dtype == RVVBinaryDTypeKind::I32 ||
-      family.rvvFamily->familyID == "i64-vadd") {
+      family.rvvFamily->dtype == RVVBinaryDTypeKind::I64) {
     llvm::StringRef typedRole =
         tianchenrv::target::rvv_scalar::
             getScalarTypedBinarySourceMetadataRole();

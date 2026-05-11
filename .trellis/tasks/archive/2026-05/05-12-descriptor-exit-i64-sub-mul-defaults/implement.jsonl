@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation invariants for descriptor-exit migration."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V MLIR boundary and descriptor-compute prohibition."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Extension-family op to generated lowerable interface to common EmitC route contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI and artifact/source emission layering contract."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed microkernel body, selected route, and descriptor-debt rules."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin ownership, portable C source, and descriptor-debt rules."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension family locality and interface/plugin hook requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit evidence requirements for compiler/export behavior."}

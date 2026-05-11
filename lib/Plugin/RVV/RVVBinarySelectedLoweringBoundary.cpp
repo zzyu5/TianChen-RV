@@ -430,11 +430,11 @@ buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
   bool isTypedDefaultFamily =
       resolution->family &&
       (resolution->family->dtype == target::rvv::RVVBinaryDTypeKind::I32 ||
-       resolution->family->familyID == "i64-vadd");
+       resolution->family->dtype == target::rvv::RVVBinaryDTypeKind::I64);
   if (!isTypedDefaultFamily)
     return makeRVVBinarySelectedBoundaryError(
         llvm::Twine("descriptorless default RVV selected lowering boundary "
-                    "requires an i32 family or i64-vadd, got '") +
+                    "requires an i32 or i64 typed family, got '") +
         (resolution->family ? resolution->family->familyID
                             : llvm::StringRef("<none>")) +
         "'");

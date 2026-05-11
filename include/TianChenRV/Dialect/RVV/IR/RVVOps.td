@@ -372,7 +372,8 @@ def I64AddOp : TCRVRVV_Op<"i64_add",
   let hasVerifier = 1;
 }
 
-def I64SubOp : TCRVRVV_Op<"i64_sub", []> {
+def I64SubOp : TCRVRVV_Op<"i64_sub",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i64 subtract dataflow op";
   let description = [{
     Records the finite plugin-local RVV i64 vector subtract in the current
@@ -394,7 +395,8 @@ def I64SubOp : TCRVRVV_Op<"i64_sub", []> {
   let hasVerifier = 1;
 }
 
-def I64MulOp : TCRVRVV_Op<"i64_mul", []> {
+def I64MulOp : TCRVRVV_Op<"i64_mul",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i64 multiply dataflow op";
   let description = [{
     Records the finite plugin-local RVV i64 vector multiply in the current

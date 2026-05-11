@@ -732,7 +732,7 @@ bool RVVBinaryProposalPlan::hasCapacityMetadata() const {
 bool isDescriptorlessDefaultTypedFamily(
     const target::rvv::RVVBinaryFamilyDescriptor &family) {
   return family.dtype == target::rvv::RVVBinaryDTypeKind::I32 ||
-         family.familyID == "i64-vadd";
+         family.dtype == target::rvv::RVVBinaryDTypeKind::I64;
 }
 
 const RVVSelectedVectorShapeMetadataNames &
