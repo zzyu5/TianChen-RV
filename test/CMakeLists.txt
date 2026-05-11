@@ -326,7 +326,9 @@ target_link_libraries(tianchenrv-emitc-lowerable-interface-test
   TianChenRVConversionEmitC
   TianChenRVRVVDialect
   TianChenRVSupport
+  MLIREmitCDialect
   MLIRIR
+  MLIRParser
   MLIRSupport
 )
 

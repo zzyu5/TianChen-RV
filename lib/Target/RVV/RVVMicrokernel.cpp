@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
@@ -53,6 +54,8 @@ using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
+using tianchenrv::conversion::emitc::
+    verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -2947,10 +2950,15 @@ void printDataflowPlanMetadata(
 }
 
 void printEmitCRouteMetadata(llvm::raw_ostream &os,
-                             const TCRVEmitCLowerableRoute &route) {
+                             const TCRVEmitCLowerableRoute &route,
+                             llvm::StringRef functionName) {
   os << "/* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV "
         "intrinsic C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
+  os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
+        "emitc.include, emitc.func, and emitc.call_opaque before bounded "
+        "legacy C source output */\n";
+  os << "/* emitc_materialization_function: @" << functionName << " */\n";
   bool hasGeneratedOpInterface = llvm::any_of(
       route.getCallOpaqueSteps(), [](const TCRVEmitCCallOpaqueStep &step) {
         return !step.sourceOp.opInterface.empty();
@@ -3071,7 +3079,7 @@ void printRecordComment(llvm::raw_ostream &os,
         "store.buffer_role=output-buffer; runtime n remains the "
         "target/export-owned runtime element-count ABI parameter */\n";
   printDataflowPlanMetadata(os, record.dataflowPlan, record.descriptor);
-  printEmitCRouteMetadata(os, emitcRoute);
+  printEmitCRouteMetadata(os, emitcRoute, functionName);
   if (record.selectedShape) {
     os << "/* "
        << record.descriptor.formatSelectedVectorShapeConfigCommentBody()
@@ -3316,6 +3324,10 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
                                   record.runtimeABIParameters);
   if (!emitcRoute)
     return emitcRoute.takeError();
+  if (llvm::Error error =
+          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+              *emitcRoute, functionName, {"offset"}))
+    return error;
 
   os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "

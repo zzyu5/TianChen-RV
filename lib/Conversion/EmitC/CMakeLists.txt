@@ -1,4 +1,5 @@
 add_mlir_library(TianChenRVConversionEmitC
+  TCRVEmitCLowerableMaterializer.cpp
   TCRVEmitCLowerableOpInterface.cpp
   TCRVEmitCLowerableInterface.cpp
 
@@ -7,6 +8,7 @@ add_mlir_library(TianChenRVConversionEmitC
 
   LINK_LIBS PUBLIC
   TianChenRVSupport
+  MLIREmitCDialect
   MLIRIR
   MLIRSupport
 )

@@ -99,6 +99,69 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 27: TCRV EmitC route MLIR materialization boundary
+
+**Date**: 2026-05-11
+**Task**: `tcrv-emitc-route-to-mlir-emitc-rvv-i32-family`
+**Branch**: `main`
+
+### Summary
+
+Completed a new module task that adds a common C++/MLIR materialization
+boundary from verified `TCRVEmitCLowerableRoute` payloads to real MLIR EmitC
+IR, then wires the bounded RVV i32 add/sub/mul target/export path to verify
+that materialization before legacy C source output.
+
+### Main Changes
+
+- Created and started
+  `.trellis/tasks/05-11-tcrv-emitc-route-to-mlir-emitc-rvv-i32-family/`
+  with a PRD and curated implement/check spec context.
+- Added `TCRVEmitCLowerableMaterializer` in `Conversion/EmitC`.
+  It registers/uses `mlir::emitc::EmitCDialect`, materializes route headers as
+  `emitc.include`, ABI mappings as an `emitc.func` boundary, and each
+  `TCRVEmitCCallOpaqueStep` as `emitc.call_opaque`.
+- Added fail-closed materializer validation for compute steps without results,
+  unknown operand value names, duplicate result names, unsafe source
+  provenance text, and ABI C-name/value-name mismatches.
+- Kept RVV intrinsic names and vector suffixes target-owned; the common
+  materializer consumes only the already verified route payload.
+- Updated RVV source export so `printMicrokernelSource` verifies route-to-MLIR
+  EmitC materialization with the route function name before bounded legacy C
+  source emission.
+- Added C++ coverage for add/sub/mul-style materialization, parseable/walkable
+  EmitC IR, generated op-interface provenance, and malformed route rejection.
+- Added lit/FileCheck coverage showing the RVV/exported C evidence now records
+  the EmitC materialization boundary for direct RVV and frontend-selected vmul.
+- No descriptor-driven computation expansion was added; `tcrv.exec` stayed
+  compute-free.
+- No RVV runtime, correctness, throughput, latency, or performance claim was
+  made; no `ssh rvv` run was needed.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target MLIRTCRVEmitCLowerableOpInterfaceIncGen TianChenRVConversionEmitC TianChenRVRVVDialect TianChenRVRVVTarget tcrv-translate tianchenrv-emitc-lowerable-interface-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- focused lit filter: `rvv-microkernel-pipeline.mlir`, 1/1 passed
+- focused lit filter: `linalg-i32-vmul-to-rvv-artifact.mlir`, 1/1 passed
+- focused lit filters: `rvv-microkernel-family-sub.mlir` and
+  `rvv-microkernel-family-mul.mlir`, 2/2 passed
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-11-tcrv-emitc-route-to-mlir-emitc-rvv-i32-family`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  206/206 passed
+- `clang-format` was unavailable in PATH and `/usr/lib/llvm-20/bin`, so no
+  formatter run was possible in this environment.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 30: Generated EmitC lowerable op interface for RVV i32 family
 
 **Date**: 2026-05-11
