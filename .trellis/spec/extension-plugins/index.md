@@ -1,13 +1,17 @@
 # Extension Plugin Specs
 
-This layer defines planned extension plugins and their boundaries.
+This layer defines planned TCRV extension families and their plugin boundaries.
+RVV, IME, TensorExt, Offload, scalar fallback, and future vendor/custom
+families are parts of one unified TCRV RISC-V MLIR system, not independent
+backend dialects.
 
 ## Pre-Development Checklist
 
 - [ ] Is the target plugin classified correctly as ISA-vector, matrix-like ISA extension, runtime-offload, or future custom plugin?
-- [ ] Are extension ops execution ops, not high-level tensor ops?
+- [ ] Are extension family ops execution ops, not high-level tensor ops?
 - [ ] Does the plugin declare capability, legality, tuning, cost, and emission behavior?
 - [ ] Does the plugin rely on `tcrv.exec` for variant/dispatch/fallback structure?
+- [ ] Does the plugin use common TCRV interfaces and the common EmitC route where possible?
 - [ ] Are current hardware claims limited to verified environments?
 
 ## Guidelines Index

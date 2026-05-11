@@ -2,7 +2,9 @@
 
 ## Required Plugin Interfaces
 
-Each extension plugin should provide the following interface set.
+Each extension family plugin should provide the following interface set. A
+plugin contributes a family to the unified TCRV RISC-V MLIR system; it is not
+an independent backend.
 
 These interfaces are compiler interfaces. They must be implemented in C++ against MLIR/LLVM APIs and wired through CMake. Python may launch or audit plugin runs, but it must not implement plugin availability, dialect registration, variant generation, legality, cost, tuning, lowering, or emission.
 
@@ -23,7 +25,7 @@ Responsibilities:
 - declare implication and conflict relations;
 - expose target availability.
 
-### DialectProvider
+### FamilyProvider / DialectProvider
 
 ```cpp
 class DialectProvider {
@@ -34,17 +36,42 @@ public:
 
 Responsibilities:
 
-- RVV plugin registers the RVV extension dialect family. The current concrete
+- RVV plugin registers the RVV extension family. The current concrete
   MLIR namespace is `tcrv_rvv` because MLIR dialect namespaces cannot contain
   `.` characters; the architectural family remains `tcrv.rvv`;
-- scalar fallback registers the scalar extension metadata dialect family. The
+- scalar fallback registers the scalar extension metadata family. The
   current concrete MLIR namespace is `tcrv_scalar`; the architectural family
   remains `tcrv.scalar`. First-slice scalar operations are selected-boundary
   metadata only, and future scalar execution ops must stay plugin-local rather
   than being added to `tcrv.exec`;
-- IME plugin registers `tcrv.ime`;
-- offload plugin registers `tcrv.offload`;
-- future plugins register their own extension dialects.
+- IME plugin registers the `tcrv.ime` extension family;
+- TensorExt plugin registers the `tcrv.tensorext` extension family;
+- offload plugin registers the `tcrv.offload` extension family;
+- future plugins register their own TCRV extension families.
+
+Concrete ODS/C++ directory splits are implementation organization only. They
+must share TCRV capability, registry, common interfaces, common orchestration
+passes, and common EmitC route framework.
+
+### TCRV Common Operation Interfaces
+
+Long-term extension family ops should implement shared interfaces where
+applicable:
+
+```text
+TCRVExtensionOpInterface
+TCRVCapabilityOpInterface
+TCRVConfigOpInterface
+TCRVResourceOpInterface
+TCRVMemoryOpInterface
+TCRVComputeOpInterface
+TCRVEmitCLowerableInterface
+```
+
+Core/common passes use these interfaces to query required capability, config
+scope, resource kind, memory role, compute primitive kind, ABI mapping, and
+EmitC lowering mapping. They must not branch on RVV, IME, TensorExt, Offload,
+scalar fallback, vendor, intrinsic name, or fragment layout.
 
 ### VariantBuilder
 
@@ -61,15 +88,15 @@ public:
 Responsibilities:
 
 - decide whether the current planning anchor can be implemented by the plugin;
-- receive the relevant `tcrv.exec.kernel`, materialized variant,
-  selected-boundary surface, bounded descriptor, or future high-level
+- receive the relevant execution envelope, materialized variant,
+  selected-boundary surface, extension family ops, or future high-level
   `Operation *`, together with the generic `TargetCapabilitySet`;
 - propose compiler-visible variant metadata before IR materialization;
 - declare variant name, `origin`, required capability ids or symbol
   references, optional generic guard/policy metadata, and optional abstract
   fallback role metadata such as `ConservativeFallback`;
 - later generation slices may materialize `tcrv.exec.variant`, place extension
-  dialect ops in the variant body, and attach tuning/emission metadata.
+  family ops in the variant body, and attach tuning/emission metadata.
 
 ### LegalityVerifier
 
@@ -308,10 +335,13 @@ public:
 
 Responsibilities:
 
-- RVV emission to MLIR vector, LLVM scalable vector, RVV intrinsic, builtin, or inline asm;
-- IME emission to vendor intrinsic, inline asm, external stub, or backend adapter;
-- offload emission to vendor C ABI or runtime library calls;
-- future custom ISA emission to custom intrinsic, inline asm, backend patch, or object stub.
+- provide extension-local EmitC lowering mappings through
+  `TCRVEmitCLowerableInterface`;
+- declare required headers, intrinsic/runtime call names, operand/result
+  mapping, C type mapping, compiler flags, libraries, and runtime glue;
+- keep MLIR vector, LLVM scalable vector, LLVM RVV intrinsic IR, inline asm,
+  vendor backend patches, and backend adapters as optional future routes unless
+  promoted by a family spec and implementation evidence.
 
 ## Core Pass Usage
 
@@ -327,16 +357,19 @@ Core pass flow:
 7. Core selector chooses a static variant or dispatch set.
 8. Core emission-readiness check routes selected/direct/dispatch/fallback
    variants to their origin plugin and rejects missing or unsupported paths.
-9. Emission stage calls each selected plugin emission provider.
+9. Emission stage calls common EmitC lowering over extension family interfaces,
+   then target-owned emission/export helpers.
 ```
 
-Current planning anchors may be hand-written or test `tcrv.exec.kernel`
-regions, materialized `tcrv.exec.variant` operations, selected-boundary IR,
-`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or bounded
-plugin-specific descriptors. Future high-level `Operation *` analysis is an
-additional frontend integration surface, not a precondition for plugin
-integration today. When that frontend surface is selected as the owner,
-`linalg` is the preferred first high-level input family for handwritten tests.
+Current planning anchors may be hand-written or test execution envelopes,
+materialized `tcrv.exec.variant` operations, selected-boundary IR,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or extension family ops.
+Future high-level `Operation *` analysis is an additional frontend integration
+surface, not a precondition for plugin integration today. When that frontend
+surface is selected as the owner, `linalg` is the preferred first high-level
+input family for handwritten tests. Existing bounded descriptors are
+implementation debt for current slices, not an architecture input for new
+families.
 
 Correct core shape:
 
@@ -547,7 +580,8 @@ Each plugin registers:
 - plugin version;
 - provided capabilities;
 - required external toolchain/runtime;
-- extension dialects;
+- extension family ops/types/attrs and concrete MLIR namespace;
+- implemented TCRV common interfaces;
 - types, attributes, and operations;
 - supported current planning anchors and future high-level op classes;
 - variant generation hooks;

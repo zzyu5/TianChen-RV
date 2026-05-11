@@ -345,7 +345,7 @@ Use C++ tests for:
   for missing/unavailable fallback capability, conservative cost metadata,
   generic conservative fallback role metadata, finite
   `tcrv_scalar.lowering_descriptor` and descriptor-local element-count metadata,
-  descriptor-driven `tcrv_scalar.i32_vadd_microkernel` materialization, stable
+  bounded legacy `tcrv_scalar.i32_vadd_microkernel` materialization, stable
   metadata-only emission-plan fields when no matching microkernel exists, and
   supported source-export readiness/plan fields only when a matching scalar
   microkernel and scalar lowering boundary are present.

@@ -2,7 +2,8 @@
 
 ## Role
 
-Runtime offload plugin represents RISC-V host plus external or SoC accelerator execution.
+Runtime offload plugin represents the Offload extension family: RISC-V host
+plus external or SoC accelerator execution inside the unified TCRV system.
 
 For Sophgo-like environments, execution usually uses:
 
@@ -23,7 +24,7 @@ The first concrete C++ runtime-offload slice is intentionally bounded. It proves
 plugin identity, explicit capability gating, proposal metadata, legality
 routing, conservative preference metadata, selected lowering-boundary
 materialization, plugin-owned runtime ABI handoff metadata, emission manifest
-serialization, and target-owned descriptor artifact export through the existing
+serialization, and bounded legacy target-owned descriptor artifact export through the existing
 generic registry and target artifact interfaces.
 
 Stable first-slice names:
@@ -43,9 +44,14 @@ materialized requires form: requires = [@offload_runtime] for an exact
   `implies` id `offload.runtime`
 runtime ABI handoff id: generic-runtime-offload-c-abi-handoff.v1
 handoff kind: runtime-offload
-descriptor route id: tcrv-export-offload-runtime-descriptor
+legacy descriptor route id: tcrv-export-offload-runtime-descriptor
 descriptor artifact kind: runtime-offload-handoff-descriptor
 ```
+
+The descriptor route is a bounded transition artifact for the current first
+slice. It is not the long-term Offload family architecture; future executable
+offload lowering should follow the common extension family ops -> EmitC ->
+runtime C ABI route.
 
 The first slice may propose `@offload_runtime_first_slice` only when the kernel
 declares an available structured capability provider for id `offload.runtime`.

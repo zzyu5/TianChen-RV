@@ -5,6 +5,8 @@
 TianChen-RV MLIR must not become:
 
 - another high-level tensor/tile IR;
+- one independent backend dialect per hardware target;
+- a descriptor-driven microkernel/exporter framework;
 - a generic compute dialect with `tcrv.matmul`, `tcrv.softmax`, `tcrv.reduce`, `tcrv.generic_tile`, or `tcrv.generic_mma`;
 - a collection of hard-coded backend branches in core passes;
 - a claim that future hardware extensions require zero work;
@@ -55,8 +57,10 @@ AME must remain future/optional unless real hardware and toolchain evidence is a
 Use:
 
 ```text
-TianChen-RV is a capability-driven execution layer after high-level MLIR.
+TianChen-RV is a unified TCRV RISC-V MLIR for capability-scoped extension execution after high-level MLIR.
 Capability objects drive variant generation, legality, selection, dispatch, and emission.
+RVV, IME, TensorExt, Offload, and future vendor/custom targets are extension families inside one TCRV system.
+Current lowering route is extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++.
 Sophgo/offload is modeled as runtime-offload capability.
 IME is a later matrix-extension plugin used to evaluate plugin-local integration.
 Tuning is part of capability-aware variant selection and variant-local optimization.
@@ -66,6 +70,9 @@ Avoid:
 
 ```text
 TianChen-RV is a new tensor IR.
+RVV/IME/TensorExt/Offload are unrelated independent backend dialects.
+tcrv.exec.kernel is the hardware IR body.
+Descriptor-driven computation is the architecture.
 Sophgo is a RISC-V custom ISA extension.
 AME is the current primary hardware path.
 Any future extension can be added with zero core work.

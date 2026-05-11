@@ -6,6 +6,23 @@ Core pass does not implement extension-specific emission. Each plugin owns its l
 
 Variant selection and emission path must be represented in capability model and verified before final lowering.
 
+The current main route is:
+
+```text
+TCRV extension family ops
+  -> EmitC ops
+  -> C/C++ emitter
+  -> intrinsic / vendor builtin / runtime C ABI
+  -> native compiler
+```
+
+The default native compiler is clang/LLVM. GCC is a compatibility path.
+Vendor compilers are extension-specific compatibility paths.
+
+Direct descriptor-to-C string export is not the architecture. Existing
+descriptor-backed source/object/bundle helpers are bounded implementation debt
+that must not be used as the template for new extension work.
+
 ## Emission Readiness First Slice
 
 The first compiler-visible emission slice is a target-neutral readiness check.
@@ -943,47 +960,47 @@ Each plugin emission provider:
 
 ## RVV Emission
 
-### MLIR vector / LLVM scalable vector
+### Current EmitC RVV intrinsic route
 
 Path:
 
 ```text
-tcrv.rvv ops
-  -> MLIR vector dialect / LLVM dialect
-  -> LLVM scalable vector
-  -> LLVM RISC-V backend
-  -> RVV machine code
+TCRV RVV family ops
+  -> EmitC ops
+  -> RVV intrinsic C/C++
+  -> clang default, gcc compatible
 ```
 
-Use for ordinary arithmetic, load/store, and reductions that LLVM reliably lowers.
+Use this as the current main RVV route.
 
-### RVV intrinsic / inline asm / builtin
+### Optional future routes
 
-Path:
+Possible future routes:
 
 ```text
-tcrv.rvv ops
-  -> LLVM RVV intrinsic / compiler builtin / inline asm
-  -> native compile
+MLIR vector dialect / LLVM dialect
+LLVM scalable vector
+LLVM RVV intrinsic IR
+compiler builtin
+inline asm
 ```
 
-Use for precise `vsetvl`, mask/tail policy, segment/strided ops, or key kernels where LLVM vector lowering is not stable enough.
+These are optional future routes. They are not the current default system
+definition and should not be used to justify bypassing the EmitC route.
 
 ## IME Emission
 
 Possible paths:
 
 ```text
-vendor intrinsic
-compiler builtin
-inline asm
-external assembly stub
-patched LLVM/backend adapter
+TCRV IME family ops
+  -> EmitC
+  -> IME/vendor intrinsic C/C++
 ```
 
 Rules:
 
-- IME-specific emission stays inside IME plugin.
+- IME-specific emission stays inside IME extension family plugin.
 - Core only knows that the variant has an emission path.
 - Capability model records toolchain support.
 - If emission is unavailable, verifier rejects the variant or preserves it as disabled diagnostic.
@@ -995,8 +1012,9 @@ Offload emission is runtime glue generation, not instruction generation.
 Path:
 
 ```text
-tcrv.offload ops
-  -> C ABI call / vendor runtime call
+TCRV Offload family ops
+  -> EmitC
+  -> runtime C ABI / vendor runtime call
   -> link vendor runtime library
   -> runtime dispatch / sync / buffer management
 ```

@@ -170,7 +170,7 @@ tcrv.exec.runtime_param @abi_runtime_element_count
 ```
 
 This pass does not invent capabilities, propose variants, select variants,
-materialize extension dialect ops, lower to LLVM/RISC-V, emit artifacts, or
+materialize extension family ops, lower to EmitC/RISC-V artifacts, or
 claim runtime correctness or performance. Capability facts must still come from
 structured `tcrv.exec.target` / capability providers, and all RVV/scalar
 realization remains owned by the existing plugin planning pipeline. Unsupported
@@ -457,7 +457,7 @@ The materialization slice is intentionally bounded:
   variant attributes.
 
 This helper does not select variants, build dispatch, run tuning, lower
-extension dialects, emit runtime glue, or implement extension-specific
+extension families, emit runtime glue, or implement extension-specific
 semantics. Core materialization must remain free of target-family branches.
 
 The public compiler pass surface for this slice is
@@ -618,7 +618,7 @@ planner may turn direct `tcrv.exec.variant` children into an explicit compiler
 decision plan. This planner consumes real MLIR ops, a `tcrv.exec.kernel`, the
 generic `TargetCapabilitySet`, and `ExtensionPluginRegistry` ranking output. It
 does not collect proposals, materialize variants, verify plugin-local legality,
-lower extension dialects, emit runtime glue, run hardware probes, or implement
+lower extension families, emit runtime glue, run hardware probes, or implement
 target-specific selection semantics.
 
 ### 2. Signatures
@@ -850,7 +850,7 @@ pass boundary must preserve plugin-owned cost semantics:
   `tcrv.exec.diagnostic` marker plus a missing-fallback diagnostic when the plan
   intentionally has no conservative fallback candidate.
 - Static, fallback-only, and no-direct-variant plans do not erase variants,
-  lower extension dialects, or inject target-specific IR.
+  lower extension families, or inject target-specific IR.
 - Tests should cover injected-registry pass execution, public `tcrv-opt`
   built-in plugin routing, and generic diagnostics for missing origin plugins.
 
@@ -871,7 +871,7 @@ variant name
 origin plugin
 required capabilities
 shape/dtype/layout preconditions
-extension dialect ops
+extension family ops
 cost/tuning metadata
 emission path
 fallback or dispatch relation

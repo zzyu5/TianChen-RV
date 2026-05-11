@@ -2,7 +2,9 @@
 
 ## Role
 
-IME plugin is the later K3/IME extension path. Its primary value is to validate plugin-local matrix-extension integration.
+IME plugin is the later K3/IME extension family path inside the unified TCRV
+system. Its primary value is to validate plugin-local matrix-extension
+integration without turning IME into an independent backend.
 
 Expected system behavior when IME is available:
 
@@ -30,7 +32,7 @@ IME plugin must understand:
 - RVV vector register resources;
 - VLEN impact on fragment shape;
 - dtype and accumulator policy;
-- vendor intrinsic, inline asm, or toolchain path.
+- EmitC mapping to IME/vendor intrinsic C/C++ and the required toolchain path.
 
 ## Capability Fields
 
@@ -58,9 +60,9 @@ Reference attribute:
           vlen_dependent = true>
 ```
 
-## Dialect
+## Extension Family
 
-Dialect name:
+Architectural family name:
 
 ```text
 tcrv.ime
@@ -122,7 +124,9 @@ IME plugin checks:
 - accumulator type is supported;
 - layout and packing requirements are satisfied;
 - toolchain supports selected IME emission path;
-- inline asm or vendor intrinsic is available when required.
+- IME/vendor intrinsic C/C++ route is available when required. Inline asm or
+  backend adapter routes are optional future compatibility paths, not the
+  current default.
 
 ## Tuning Space
 
@@ -143,17 +147,17 @@ Tuning metadata must stay variant-local and must not pollute high-level semantic
 
 ## Emission Paths
 
-IME emission may use:
+IME emission currently follows:
 
 ```text
-vendor intrinsic
-compiler builtin
-inline asm
-external assembly stub
-patched LLVM/backend adapter
+TCRV IME family ops
+  -> EmitC
+  -> IME/vendor intrinsic C/C++
 ```
 
-All IME-specific emission logic belongs inside the IME plugin.
+All IME-specific emission logic belongs inside the IME plugin. Compiler
+builtin, inline asm, external assembly stub, or patched backend adapter routes
+are future optional compatibility paths.
 
 ## Plugin Evaluation
 

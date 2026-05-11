@@ -39,6 +39,20 @@ the PRD first; do not choose an unrelated direction.
 - Do not implement compiler core, dialects, passes, plugin registry,
   capability model, lowering, or emission as Python data structures.
 - Do not bypass the MLIR/C++/TableGen/CMake stack.
+- TianChen-RV is a unified RISC-V MLIR. RVV, IME, TensorExt, Offload, scalar
+  fallback, and future vendor/custom targets are TCRV extension families, not
+  one independent backend dialect per hardware target.
+- Common passes should work through TCRV interfaces. Do not add family-specific
+  semantic branches in core orchestration when a shared interface or plugin hook
+  is the right boundary.
+- Current main lowering route is extension family ops -> EmitC -> intrinsic /
+  vendor builtin / runtime C/C++ -> native compiler. Clang/LLVM is the default
+  native compiler; GCC is a compatibility path.
+- Descriptor-driven computation is invalid as long-term architecture. Do not
+  add computation semantics through descriptors or direct descriptor-to-C
+  export.
+- New extension work should follow the Extension Manifest / Extension Family
+  Plugin Template in the Trellis specs.
 - Do not treat prompt edits, reports, helper-only changes, guardrails, or broad
   smoke tests as the main achievement.
 - RVV runtime, correctness, or performance claims require real `ssh rvv`

@@ -2,11 +2,14 @@
 
 ## Scope
 
-`tcrv.exec` is the stable core dialect. It organizes RISC-V AI kernel execution variants. It does not express generic computation.
+`tcrv.exec` is the stable core execution-envelope family. It organizes
+capability-scoped RISC-V extension execution variants. It does not express
+generic computation, hardware operation bodies, or extension-family execution
+semantics.
 
 Textual MLIR operation names should remain in the `tcrv.exec.*` family. Because MLIR resolves the dialect namespace from the segment before the first dot, an implementation may register the concrete MLIR dialect namespace as `tcrv` and define ODS operation mnemonics such as `exec.kernel`, `exec.variant`, and `exec.dispatch`. This is an implementation compatibility detail only: the architectural contract and review boundary remain the `tcrv.exec` core execution dialect family.
 
-It owns only execution organization:
+It owns only execution envelope and organization:
 
 ```text
 kernel
@@ -22,6 +25,8 @@ dispatch
 case
 fallback
 diagnostics
+selected route
+ABI envelope
 ```
 
 It does not own:
@@ -33,9 +38,17 @@ generic reduce
 generic tensor tile
 algorithm-level compute semantics
 extension-specific registers, fragments, buffers, or ops
+RVV vector add/load/store
+IME mma
+TensorExt tensor op
+offload runtime call semantics
 ```
 
-Concrete computation belongs to extension dialects or extension op families, for example `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, or future plugin dialects.
+Concrete computation belongs to TCRV extension families such as RVV, IME,
+TensorExt, Offload, or future vendor/custom families. The implementation may
+place those families in separate ODS/C++ files or concrete MLIR namespaces such
+as `tcrv_rvv`, but architecturally they are part of one unified TCRV dialect
+suite rather than independent backend dialects.
 
 ## Implementation Stack
 
@@ -54,7 +67,7 @@ Do not implement `tcrv.exec` as Python classes, Python dictionaries, JSON-only s
 tcrv.exec.kernel
   -> tcrv.exec.variant
        -> tcrv.exec.hart_parallel / tcrv.exec.region
-            -> extension dialect ops
+            -> TCRV extension family ops
 ```
 
 ## Core Ops
@@ -63,6 +76,8 @@ tcrv.exec.kernel
 
 Responsibilities:
 
+- represent a callable execution plan envelope, not a mathematical kernel,
+  high-level operator container, compute IR, or hardware IR body;
 - define callable kernel inputs and outputs;
 - bind target capability, either through kernel-local capability providers or
   an explicit module-level `tcrv.exec.target` reference;
@@ -83,6 +98,12 @@ tcrv.exec.kernel @matmul attributes { target = @rvv_profile } {
   ... variants ...
 }
 ```
+
+The operation name is historical and practical. Reviews should read it as
+`execution envelope`. Future lowering work that needs finer granularity should
+prefer `tcrv.exec.region`, `tcrv.exec.variant`, `tcrv.exec.case`, and selected
+extension boundaries as the main units rather than making `kernel` a high-level
+compute center.
 
 ### `tcrv.exec.target` / target attachment
 
@@ -148,7 +169,8 @@ Rules:
 Responsibilities:
 
 - declare required capabilities;
-- contain extension dialect ops;
+- contain or reference TCRV extension family ops / selected extension
+  boundaries;
 - carry generic decision metadata plus cost, tuning, and dispatch metadata;
 - record origin plugin;
 - be checked by capability and plugin verifiers.

@@ -14,11 +14,12 @@
 
 | Spec | Description |
 |---|---|
+| [Unified TCRV RISC-V MLIR](./unified-riscv-mlir.md) | 统一 RISC-V extension IR、extension family、EmitC 主路线和 descriptor 边界 |
 | [System Positioning](./system-positioning.md) | 系统定位、研究贡献、模块边界 |
 | [Design Boundaries](./design-boundaries.md) | 禁止方向、硬件路线口径、论文表述边界 |
 
 ## Quality Check
 
-- 系统叙事必须能用一句话复述为：capability-driven RISC-V execution layer。
+- 系统叙事必须能用一句话复述为：unified TCRV RISC-V MLIR for capability-scoped extension execution。
 - 任何新增核心概念必须说明它属于 capability、variant、plugin、dispatch、fallback 之一，或解释为什么需要扩展核心 interface。
-- 文档或代码中出现 high-level compute core op 时，必须视为 architecture violation，除非它明确属于 extension dialect 内部执行 op。
+- 文档或代码中出现 high-level compute core op 时，必须视为 architecture violation，除非它明确属于 TCRV extension family 内部执行 op。

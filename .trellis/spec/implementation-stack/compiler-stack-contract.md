@@ -17,7 +17,7 @@ This stack is mandatory for:
 
 - core IR and dialect implementation;
 - `tcrv.exec` operation definitions and verifiers;
-- extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, and future plugin dialects;
+- TCRV extension families such as RVV, IME, TensorExt, Offload, and future vendor/custom families;
 - compiler passes;
 - plugin registry and interfaces;
 - capability model compiler objects;

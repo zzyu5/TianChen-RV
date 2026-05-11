@@ -2,7 +2,9 @@
 
 ## Role
 
-RVV plugin is the current primary real hardware path for TianChen-RV MLIR.
+RVV plugin is the current primary real hardware extension family for
+TianChen-RV MLIR. It is part of the unified TCRV system, not an independent
+backend dialect.
 
 Environment:
 
@@ -1024,13 +1026,21 @@ matching microkernel op remains unsupported/deferred for executable RVV kernel
 emission. Generic manifest export and core orchestration must not add
 RVV-specific branches for this microkernel path.
 
-### MLIR vector / LLVM scalable vector
+### Current EmitC RVV intrinsic route
 
-Use for ordinary vector arithmetic, load/store, and reductions that LLVM reliably lowers.
+The current main route is:
 
-### RVV intrinsic / inline asm / builtin
+```text
+TCRV RVV family ops
+  -> EmitC
+  -> RVV intrinsic C/C++
+  -> clang default, gcc compatible
+```
 
-Use when precise `vsetvl`, mask/tail policy, segment/strided ops, or key-kernel stability requires explicit control.
+MLIR vector, LLVM scalable vector, LLVM RVV intrinsic IR, inline asm, and
+backend patches are optional future routes. They are not the current RVV system
+definition and should not be described as the mainline until promoted by a
+separate spec and implementation evidence.
 
 ## Hart Parallelism
 

@@ -14,6 +14,8 @@ offload, or hardware-specific evidence.
 The first scalar fallback C++ slice is intentionally bounded. It proves that a
 fallback implementation can participate through the same plugin protocol as RVV
 without adding extension-specific branches to core orchestration.
+Its descriptor fields are bounded implementation debt, not the architecture for
+adding new computation.
 
 Stable first-slice names:
 

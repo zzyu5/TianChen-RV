@@ -2,7 +2,7 @@
 
 ## Role
 
-TianChen-RV MLIR 是 high-level MLIR 之后的 RISC-V AI kernel execution layer。它不重新表达算法语义，而是组织 RISC-V target capabilities、execution variants、extension plugins、dispatch 和 fallback。
+TianChen-RV MLIR 是 high-level MLIR 之后的 unified TCRV RISC-V MLIR。它不重新表达算法语义，不把每个硬件做成互不相关的 backend dialect，而是在一个 TCRV dialect suite 内组织 RISC-V target capabilities、execution variants、extension families、dispatch、fallback 和 ABI/lowering route。
 
 长期数据流：
 
@@ -17,7 +17,10 @@ TianChen-RV realization generation
 TianChen-RV MLIR dialect suite
         |
         v
-RVV / IME / runtime offload / future custom ISA emission
+TCRV extension family ops
+        |
+        v
+EmitC -> intrinsic / vendor builtin / runtime C ABI
 ```
 
 ## Core Contribution Boundaries
@@ -56,7 +59,7 @@ linalg.matmul -> tcrv.matmul -> target-specific lowering
 
 ### Plugin-local extension integration
 
-新增扩展通过 plugin 提供 capability、dialect、variant builder、legality verifier、tuning space、cost model、emission/runtime glue。核心 pass 通过 registry/interface 调用，不写 extension-specific branch。
+新增扩展通过 plugin 向统一 TCRV 系统贡献 extension family：capability、ops/types/attrs、interfaces、variant builder、legality verifier、tuning space、cost model、EmitC lowering mapping 和 emission/runtime glue。核心 pass 通过 registry/interface 调用，不写 extension-specific branch。
 
 ### Capability-aware variant selection and tuning
 
@@ -73,11 +76,11 @@ Examples:
 | Module | Stable Responsibility |
 |---|---|
 | Capability model | target object、capability relation、query、verification input |
-| `tcrv.exec` | kernel、target、capability、variant、requires、region、hart_parallel、mem_window、dispatch、fallback、diagnostics |
-| Plugin protocol | registry、interfaces、local extension boundary |
-| RVV plugin | current real hardware path and first complete plugin |
-| IME plugin | later K3/IME matrix-extension plugin validation |
-| Offload plugin | runtime-offload capability for vendor accelerator paths |
+| `tcrv.exec` | execution envelope: kernel、target、capability、variant、requires、region、hart_parallel、mem_window、dispatch、fallback、diagnostics |
+| Plugin protocol | registry、interfaces、extension family template、local extension boundary |
+| RVV extension family | current real hardware path and first complete family |
+| IME extension family | later K3/IME matrix-extension family validation |
+| Offload extension family | runtime-offload capability for vendor accelerator paths |
 | Variant pipeline | plugin proposal、legality、selection、dispatch、tuning |
-| Lowering/runtime | plugin-owned emission and runtime glue |
+| Lowering/runtime | common EmitC route plus family-owned mappings and runtime glue |
 | Experiment reference | validation framing only |

@@ -1309,7 +1309,7 @@ submodule. Good owners make one of these more real:
 TianChen-RV MLIR -> selected boundary -> plugin-owned lowering/emission -> artifact/runtime evidence
 an IR boundary modeled and consumed by pass/exporter
 a selected variant materialized to extension ops
-a plugin-owned lowering or emission path completed
+a plugin-owned extension family lowering or EmitC emission path completed
 a runtime ABI boundary carried from IR to artifact
 a bounded RVV kernel carried from IR to generated artifact and ssh rvv evidence
 an extension plugin template that makes future plugin integration clearer
@@ -1342,8 +1342,13 @@ Keep the audit concise, but block or redirect if the worker:
 ```text
 implements compiler internals in Python;
 bypasses the C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck stack;
-adds compute semantics to tcrv.exec;
-puts extension-specific semantic branches in core passes instead of plugin interfaces;
+adds compute semantics to tcrv.exec or treats tcrv.exec.kernel as a mathematical kernel/hardware IR body;
+treats RVV, IME, TensorExt, Offload, scalar fallback, or future vendor targets as independent backend dialects instead of TCRV extension families;
+puts extension-specific semantic branches in core passes instead of TCRV common interfaces and plugin hooks;
+adds computation semantics through descriptors or direct descriptor-to-C exporters;
+routes new executable lowering around extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++;
+implements a new plugin without the Extension Manifest / Extension Family Plugin Template discipline;
+claims GCC or vendor compilers are the default route instead of clang/LLVM default with compatibility paths;
 confuses hardware facts, compile-time variant config, runtime SSA/control values, or descriptor-local parameters;
 claims RVV runtime/correctness/performance without ssh rvv evidence;
 treats prompt/report/smoke/helper work as the main result.

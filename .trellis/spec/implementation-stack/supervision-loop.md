@@ -170,7 +170,11 @@ Each review must check whether the worker preserved the TianChen-RV project boun
 - The primary engineering stack remains C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck.
 - Python remains limited to runner, supervisor, remote probe, artifact parsing, and helper tooling.
 - `tcrv.exec` remains focused on execution organization, capability, variants, dispatch, fallback, and diagnostics.
-- Concrete computation stays in extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, scalar fallback, or future plugin dialects.
+- Concrete computation stays in TCRV extension families such as RVV, IME,
+  TensorExt, Offload, scalar fallback, or future vendor/custom families.
+- The current main route is extension family ops -> EmitC -> intrinsic/vendor
+  builtin/runtime C/C++; descriptor-driven computation and direct descriptor-to-C
+  export are implementation debt, not architecture.
 - Capability objects participate in compiler decisions rather than appearing only as comments or strings.
 - RVV hardware facts, compile-time variant config, runtime SSA/control values,
   and descriptor-local bounded parameters remain explicitly separated.

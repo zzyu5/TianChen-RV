@@ -6,18 +6,20 @@ step-by-step task script.
 
 ## Meaning
 
-An extension plugin is an extension realization provider inside the
-TianChen-RV backend. It is not a completely independent backend and it must not
-rewrite TianChen-RV core orchestration.
+An extension plugin is an extension family realization provider inside the
+unified TCRV RISC-V MLIR system. It is not a completely independent backend,
+not a separate backend dialect family, and it must not rewrite TianChen-RV core
+orchestration.
 
 A new extension plugin normally provides:
 
 - capability provider;
-- dialect, operation, type, and attribute registration;
+- extension family operation, type, and attribute registration;
+- TCRV interface implementations;
 - variant proposal or selected-boundary materialization;
 - legality verification;
 - cost or preference hook when supported by the interface;
-- plugin-owned lowering and emission route;
+- plugin-owned EmitC lowering mapping and emission route;
 - optional target artifact route;
 - tests.
 
@@ -42,7 +44,11 @@ Valid current inputs include:
 - selected lowering-boundary IR;
 - `tcrv.exec.mem_window`;
 - `tcrv.exec.runtime_param`;
-- plugin-specific descriptors or bounded selected-boundary surfaces.
+- bounded selected-boundary surfaces.
+
+Existing descriptor-based slices may remain as implementation debt for current
+tests and evidence, but a descriptor is not a valid architecture input for new
+extension-family design.
 
 High-level op analysis becomes necessary for frontend lowering from `linalg`,
 `stablehlo`, `tosa`, or other high-level MLIR. Backend and extension plugin
@@ -57,13 +63,14 @@ For a future `TensorExt`, `IME`, or similar extension, the standard path is:
 
 ```text
 define extension capability ids, such as tensorext or tensorext.fp16
-  -> define extension dialect or op family, such as tcrv_tensorext.*
-  -> register dialects and capabilities through the plugin
+  -> define extension family ops/types/attrs, such as tcrv_tensorext.*
+  -> implement TCRV extension/config/resource/memory/compute/EmitC interfaces
+  -> register family ops and capabilities through the plugin
   -> connect variant proposal, legality, selected-boundary materialization,
      cost, lowering, and emission hooks through the plugin registry
   -> materialize a plugin-owned lowering boundary or extension ops when selected
-  -> generate intrinsic, inline asm, LLVM, C ABI, runtime call, or object
-     artifact through plugin-owned lowering/emission
+  -> generate EmitC, then intrinsic, vendor builtin, runtime C ABI, or object
+     artifact through plugin-owned mapping and target-owned emission
   -> reuse tcrv.exec.variant, requires, dispatch, fallback, mem_window,
      runtime_param, runtime ABI, and artifact-route mechanisms
 ```
@@ -82,8 +89,9 @@ tcrv.exec selected variant
   -> plugin-owned lowering boundary or extension op family
   -> plugin-owned config attrs and runtime ABI metadata
   -> plugin-owned emission plan route
-  -> target-owned exporter or MLIR conversion pattern
-  -> intrinsic / inline asm / LLVM / C ABI / runtime call / object artifact
+  -> common tcrv-lower-extension-to-emitc pass through TCRVEmitCLowerableInterface
+  -> EmitC ops
+  -> intrinsic / vendor builtin / runtime C ABI / object artifact
 ```
 
 The selected-boundary operation is a handoff from core selection to plugin
@@ -116,7 +124,7 @@ Core passes should not know about:
 - extension-specific fragment layouts;
 - extension-specific dtype, tile, or microkernel legality details.
 
-Those details belong in the extension plugin, extension dialect, or
+Those details belong in the extension family plugin, family ops/interfaces, or
 target-owned lowering/export path.
 
 ## Expected File Changes For A New Plugin
@@ -124,7 +132,7 @@ target-owned lowering/export path.
 Usually allowed:
 
 - new plugin directories;
-- new extension dialect directories;
+- new extension family op/type/attr directories;
 - new target/exporter directories when needed;
 - CMake registration and link entries;
 - built-in plugin registration aggregation if the current architecture needs it;
@@ -178,3 +186,7 @@ When adding a plugin, prefer a small set of tests that proves real integration:
 
 These tests should validate plugin integration and compiler behavior. They
 should not turn into broad smoke matrices or helper-only progress.
+
+See [Extension Family Plugin Template](./extension-family-plugin-template.md)
+for the manifest, interface, common pass, EmitC mapping, directory, and test
+template expected for new families.
