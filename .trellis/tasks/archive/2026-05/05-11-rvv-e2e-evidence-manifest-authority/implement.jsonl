@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary and source-of-truth rules"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission manifest, runtime ABI, target artifact export, and parameter layering contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/Python runner evidence coverage and RVV e2e evidence boundaries"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "ssh rvv evidence interpretation and forbidden broad claims"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned vector config, descriptor, and runtime ABI metadata boundaries"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin-owned descriptor and runtime ABI boundaries"}

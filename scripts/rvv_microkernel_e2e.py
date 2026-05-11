@@ -1021,33 +1021,177 @@ def parse_manifest_value(raw: str) -> str:
     return value
 
 
-def parse_manifest_paths(manifest_text: str) -> list[dict[str, str]]:
-    paths: list[dict[str, str]] = []
+def parse_manifest_paths(manifest_text: str) -> list[dict[str, Any]]:
+    paths: list[dict[str, Any]] = []
     current_kernel = ""
-    current_path: dict[str, str] | None = None
+    current_path: dict[str, Any] | None = None
+    current_path_parameter: dict[str, str] | None = None
+    current_artifact: dict[str, Any] | None = None
+    current_artifact_component: dict[str, str] | None = None
+    current_artifact_parameter: dict[str, str] | None = None
+    current_artifact_metadata: dict[str, str] | None = None
+    in_path_parameters = False
+    in_target_artifacts = False
     for line in manifest_text.splitlines():
         if line.startswith("kernel @"):
             current_kernel = line.removeprefix("kernel @").strip()
             current_path = None
+            current_path_parameter = None
+            current_artifact = None
+            current_artifact_component = None
+            current_artifact_parameter = None
+            current_artifact_metadata = None
+            in_path_parameters = False
+            in_target_artifacts = False
             continue
         if re.match(r"^  path\[[0-9]+\]:$", line):
-            current_path = {"kernel": current_kernel}
+            current_path = {
+                "kernel": current_kernel,
+                "runtime_abi_parameters": [],
+                "target_artifacts": [],
+            }
             paths.append(current_path)
+            current_path_parameter = None
+            current_artifact = None
+            current_artifact_component = None
+            current_artifact_parameter = None
+            current_artifact_metadata = None
+            in_path_parameters = False
+            in_target_artifacts = False
             continue
         if current_path is None:
             continue
+
+        if line.startswith("    runtime_abi_parameters:"):
+            in_path_parameters = True
+            in_target_artifacts = False
+            current_path_parameter = None
+            current_artifact = None
+            current_artifact_component = None
+            current_artifact_parameter = None
+            current_artifact_metadata = None
+            continue
+
+        if in_path_parameters:
+            parameter_match = re.match(r"^      parameter\[([0-9]+)\]:$", line)
+            if parameter_match:
+                current_path_parameter = {"index": parameter_match.group(1)}
+                current_path["runtime_abi_parameters"].append(
+                    current_path_parameter
+                )
+                continue
+            field_match = re.match(r"^        ([A-Za-z0-9_]+):\s*(.*)$", line)
+            if field_match and current_path_parameter is not None:
+                key, raw_value = field_match.groups()
+                current_path_parameter[key] = parse_manifest_value(raw_value)
+                continue
+            if not line.startswith("      "):
+                in_path_parameters = False
+                current_path_parameter = None
+
+        if line.startswith("    target_artifacts:"):
+            in_target_artifacts = True
+            in_path_parameters = False
+            current_artifact = None
+            current_artifact_component = None
+            current_artifact_parameter = None
+            current_artifact_metadata = None
+            continue
+
+        if in_target_artifacts:
+            artifact_match = re.match(r"^      artifact\[([0-9]+)\]:$", line)
+            if artifact_match:
+                current_artifact = {
+                    "index": artifact_match.group(1),
+                    "kernel": current_kernel,
+                    "components": [],
+                    "runtime_abi_parameters": [],
+                    "selected_plan_metadata": [],
+                }
+                current_path["target_artifacts"].append(current_artifact)
+                current_artifact_component = None
+                current_artifact_parameter = None
+                current_artifact_metadata = None
+                continue
+
+            if current_artifact is None:
+                continue
+
+            component_match = re.match(r"^        component\[([0-9]+)\]:$", line)
+            if component_match:
+                current_artifact_component = {"index": component_match.group(1)}
+                current_artifact["components"].append(current_artifact_component)
+                current_artifact_parameter = None
+                current_artifact_metadata = None
+                continue
+
+            parameter_match = re.match(
+                r"^        runtime_abi_parameter\[([0-9]+)\]:$", line
+            )
+            if parameter_match:
+                current_artifact_parameter = {"index": parameter_match.group(1)}
+                current_artifact["runtime_abi_parameters"].append(
+                    current_artifact_parameter
+                )
+                current_artifact_component = None
+                current_artifact_metadata = None
+                continue
+
+            metadata_match = re.match(
+                r"^        selected_plan_metadata\[([0-9]+)\]:$", line
+            )
+            if metadata_match:
+                current_artifact_metadata = {"index": metadata_match.group(1)}
+                current_artifact["selected_plan_metadata"].append(
+                    current_artifact_metadata
+                )
+                current_artifact_component = None
+                current_artifact_parameter = None
+                continue
+
+            nested_field_match = re.match(
+                r"^          ([A-Za-z0-9_]+):\s*(.*)$", line
+            )
+            if nested_field_match:
+                key, raw_value = nested_field_match.groups()
+                value = parse_manifest_value(raw_value)
+                if current_artifact_component is not None:
+                    current_artifact_component[key] = value
+                    continue
+                if current_artifact_parameter is not None:
+                    current_artifact_parameter[key] = value
+                    continue
+                if current_artifact_metadata is not None:
+                    current_artifact_metadata[key] = value
+                    continue
+
+            field_match = re.match(r"^        ([A-Za-z0-9_]+):\s*(.*)$", line)
+            if field_match:
+                key, raw_value = field_match.groups()
+                current_artifact[key] = parse_manifest_value(raw_value)
+                current_artifact_component = None
+                current_artifact_parameter = None
+                current_artifact_metadata = None
+                continue
+
+            if not line.startswith("      "):
+                in_target_artifacts = False
+                current_artifact = None
+                current_artifact_component = None
+                current_artifact_parameter = None
+                current_artifact_metadata = None
+
         match = re.match(r"^    ([A-Za-z0-9_]+):\s*(.*)$", line)
         if not match:
             continue
         key, raw_value = match.groups()
         if key == "preference":
-            current_path = None
             continue
         current_path[key] = parse_manifest_value(raw_value)
     return paths
 
 
-def find_supported_handoff(manifest_text: str) -> dict[str, str]:
+def find_supported_handoff(manifest_text: str) -> dict[str, Any]:
     reject_secret_like_text("emission manifest", manifest_text)
     matches: list[dict[str, str]] = []
     required_handoff = make_required_handoff(ACTIVE_ARITHMETIC_FAMILY)
@@ -1078,6 +1222,217 @@ def find_supported_handoff(manifest_text: str) -> dict[str, str]:
             f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']} microkernel handoff"
         )
     return matches[0]
+
+
+def require_manifest_field(
+    record: dict[str, Any], field: str, context: str
+) -> str:
+    value = str(record.get(field, "")).strip()
+    if not value:
+        raise BridgeError(f"{context} missing generated manifest field {field}")
+    reject_secret_like_text(f"{context} manifest field {field}", value)
+    return value
+
+
+def manifest_metadata_value(
+    record: dict[str, Any], name: str, context: str
+) -> str:
+    entries = record.get("selected_plan_metadata", [])
+    if not isinstance(entries, list):
+        raise BridgeError(f"{context} selected_plan_metadata must be a list")
+    matches = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("name") == name
+    ]
+    if len(matches) != 1:
+        raise BridgeError(
+            f"{context} requires exactly one generated selected_plan_metadata "
+            f"entry named {name}; found {len(matches)}"
+        )
+    value = str(matches[0].get("value", "")).strip()
+    if not value:
+        raise BridgeError(
+            f"{context} selected_plan_metadata {name} must have non-empty value"
+        )
+    reject_secret_like_text(f"{context} selected_plan_metadata {name}", value)
+    return value
+
+
+def normalize_runtime_abi_parameters(
+    parameters: Any, context: str
+) -> list[dict[str, str]]:
+    if not isinstance(parameters, list) or not parameters:
+        raise BridgeError(f"{context} requires generated runtime ABI parameters")
+    normalized: list[dict[str, str]] = []
+    for index, raw_parameter in enumerate(parameters):
+        if not isinstance(raw_parameter, dict):
+            raise BridgeError(
+                f"{context} runtime_abi_parameter[{index}] must be a dictionary"
+            )
+        parameter = {
+            "c_name": str(raw_parameter.get("c_name", "")).strip(),
+            "c_type": str(raw_parameter.get("c_type", "")).strip(),
+            "role": str(raw_parameter.get("role", "")).strip(),
+            "ownership": str(raw_parameter.get("ownership", "")).strip(),
+        }
+        for field, value in parameter.items():
+            if not value:
+                raise BridgeError(
+                    f"{context} runtime_abi_parameter[{index}] missing {field}"
+                )
+            reject_secret_like_text(
+                f"{context} runtime_abi_parameter[{index}] {field}", value
+            )
+        normalized.append(parameter)
+    return normalized
+
+
+def require_direct_manifest_artifacts(
+    path: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    artifacts = path.get("target_artifacts", [])
+    if not isinstance(artifacts, list) or not artifacts:
+        raise BridgeError(
+            "emission manifest supported handoff must publish generated "
+            "target_artifacts for direct RVV evidence authority"
+        )
+
+    selected_variant = require_manifest_field(path, "selected_variant", "manifest path")
+    selected_role = require_manifest_field(path, "role", "manifest path")
+    selected_family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    selected_shape = str(ACTIVE_VECTOR_SHAPE["shape"])
+    selected: dict[str, dict[str, Any]] = {}
+    for component_role in ("source", "header", "object"):
+        matches = [
+            artifact
+            for artifact in artifacts
+            if isinstance(artifact, dict)
+            and artifact.get("component_role") == component_role
+        ]
+        if len(matches) != 1:
+            raise BridgeError(
+                "emission manifest direct RVV handoff must contain exactly one "
+                f"{component_role} target_artifact record; found {len(matches)}"
+            )
+        record = matches[0]
+        context = f"manifest {component_role} target_artifact"
+        if require_manifest_field(record, "selected_variant", context) != selected_variant:
+            raise BridgeError(
+                f"{context} selected_variant does not match selected path "
+                f"{selected_variant}"
+            )
+        if require_manifest_field(record, "role", context) != selected_role:
+            raise BridgeError(
+                f"{context} role does not match selected path {selected_role}"
+            )
+        if require_manifest_field(record, "runtime_abi_kind", context) != require_manifest_field(
+            path, "runtime_abi_kind", "manifest path"
+        ):
+            raise BridgeError(
+                f"{context} runtime_abi_kind does not match selected path"
+            )
+        if require_manifest_field(record, "runtime_abi_name", context) != require_manifest_field(
+            path, "runtime_abi_name", "manifest path"
+        ):
+            raise BridgeError(
+                f"{context} runtime_abi_name does not match selected path"
+            )
+        manifest_signature = normalize_runtime_abi_parameters(
+            record.get("runtime_abi_parameters"), context
+        )
+        if manifest_signature != normalize_runtime_abi_parameters(
+            path.get("runtime_abi_parameters"), "manifest path"
+        ):
+            raise BridgeError(
+                f"{context} runtime ABI signature does not match selected path"
+            )
+        if (
+            manifest_metadata_value(
+                record, "tcrv_rvv.selected_binary_family", context
+            )
+            != selected_family
+        ):
+            raise BridgeError(
+                f"{context} selected binary family does not match requested "
+                f"{selected_family}"
+            )
+        if (
+            manifest_metadata_value(
+                record, "tcrv_rvv.selected_vector_shape", context
+            )
+            != selected_shape
+        ):
+            raise BridgeError(
+                f"{context} selected vector shape does not match requested "
+                f"{selected_shape}"
+            )
+        selected[component_role] = record
+    return selected
+
+
+def build_manifest_artifact_authority(
+    artifacts: dict[str, dict[str, Any]],
+    *,
+    root: Path,
+    artifact_paths: dict[str, Path],
+    hashes: dict[str, str],
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    hash_keys = {
+        "source": "rvv_microkernel_c_sha256",
+        "header": "rvv_microkernel_h_sha256",
+        "object": "rvv_microkernel_o_sha256",
+    }
+    for component_role, record in artifacts.items():
+        path = artifact_paths.get(component_role)
+        route_id = require_manifest_field(
+            record, "route", f"manifest {component_role} target_artifact"
+        )
+        summary[component_role] = {
+            "route_metadata_source": "emission-manifest-target-artifact",
+            "route_id": route_id,
+            "artifact_kind": require_manifest_field(
+                record, "artifact_kind", f"manifest {component_role} target_artifact"
+            ),
+            "component_group": require_manifest_field(
+                record, "component_group", f"manifest {component_role} target_artifact"
+            ),
+            "component_role": require_manifest_field(
+                record, "component_role", f"manifest {component_role} target_artifact"
+            ),
+            "external_abi_name": require_manifest_field(
+                record, "external_abi_name", f"manifest {component_role} target_artifact"
+            ),
+            "owner": require_manifest_field(
+                record, "owner", f"manifest {component_role} target_artifact"
+            ),
+            "runtime_abi_kind": require_manifest_field(
+                record, "runtime_abi_kind", f"manifest {component_role} target_artifact"
+            ),
+            "runtime_abi_name": require_manifest_field(
+                record, "runtime_abi_name", f"manifest {component_role} target_artifact"
+            ),
+            "runtime_abi_parameters": normalize_runtime_abi_parameters(
+                record.get("runtime_abi_parameters"),
+                f"manifest {component_role} target_artifact",
+            ),
+            "selected_plan_metadata": record.get("selected_plan_metadata", []),
+            "evidence_role": require_manifest_field(
+                record, "evidence_role", f"manifest {component_role} target_artifact"
+            ),
+            "artifact_path": relative_to_repo(path, root) if path else "",
+            "artifact_sha256": hashes.get(hash_keys[component_role], ""),
+            "artifact_path_source": (
+                "runner-copied-generated-command-output" if path else "not-emitted"
+            ),
+            "artifact_hash_source": (
+                "runner-sha256-generated-artifact"
+                if hashes.get(hash_keys[component_role], "")
+                else "not-emitted"
+            ),
+        }
+    return summary
 
 
 def parse_source_comment(source: str, field: str, *, required: bool) -> str:
@@ -3246,6 +3601,16 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     manifest_path = artifact_dir / "emission_manifest.txt"
     write_generated_text(manifest_path, "emission manifest", manifest_text)
     manifest_handoff = find_supported_handoff(manifest_text)
+    uses_direct_family_helpers = not args.generic_route and not use_harness
+    uses_direct_manifest_authority = (
+        uses_direct_family_helpers
+        and ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"] == "i32-vmul"
+    )
+    direct_manifest_artifacts: dict[str, dict[str, Any]] = {}
+    if uses_direct_manifest_authority:
+        direct_manifest_artifacts = require_direct_manifest_artifacts(
+            manifest_handoff
+        )
 
     if args.generic_route:
         source_export_flag = "--tcrv-export-target-source-artifact"
@@ -3255,14 +3620,24 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         source_export_flag = "--tcrv-export-rvv-microkernel-self-check-c"
         source_export_name = "export_rvv_microkernel_self_check_c"
         source_export_route = "direct-rvv-microkernel-self-check-harness"
+    elif uses_direct_manifest_authority:
+        source_export_route = require_manifest_field(
+            direct_manifest_artifacts["source"],
+            "route",
+            "manifest source target_artifact",
+        )
+        source_export_flag = direct_helper_flag(source_export_route)
+        source_export_name = command_name_for_route(source_export_route)
     else:
-        source_export_route = str(ACTIVE_ARITHMETIC_FAMILY["source_route"])
-        source_export_flag = direct_helper_flag(
-            direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, "source")
+        direct_family_routes = direct_helper_routes_for_family(
+            ACTIVE_ARITHMETIC_FAMILY
         )
-        source_export_name = command_name_for_route(
-            direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, "source")
+        source_export_route = direct_family_routes["source"]
+        source_export_translation_route = direct_helper_translation_route(
+            ACTIVE_ARITHMETIC_FAMILY, "source"
         )
+        source_export_flag = direct_helper_flag(source_export_translation_route)
+        source_export_name = command_name_for_route(source_export_route)
     source_text, _, _ = run_command(
         source_export_name,
         [
@@ -3296,13 +3671,21 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         role: direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, role)
         for role in ("source", "header", "object")
     }
-    uses_direct_family_helpers = not args.generic_route and not use_harness
+    if uses_direct_manifest_authority:
+        direct_helper_routes = {
+            role: require_manifest_field(
+                direct_manifest_artifacts[role],
+                "route",
+                f"manifest {role} target_artifact",
+            )
+            for role in ("source", "header", "object")
+        }
+        direct_helper_translation_routes = dict(direct_helper_routes)
     direct_helper_artifacts: dict[str, str] = {}
     if uses_direct_family_helpers:
         direct_helper_artifacts["source"] = relative_to_repo(source_path, root)
     should_export_direct_header = uses_direct_family_helpers
     if should_export_direct_header:
-        header_route = direct_helper_routes["header"]
         header_translation_route = direct_helper_translation_routes["header"]
         header_text, _, _ = run_command(
             command_name_for_route(header_translation_route),
@@ -3377,6 +3760,75 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 "rvv_microkernel_external_caller_c_sha256": caller_sha256,
             }
         )
+    manifest_authority_artifact_paths: dict[str, Path] = {}
+    if uses_direct_manifest_authority:
+        manifest_authority_artifact_paths["source"] = source_path
+        if should_export_direct_header:
+            manifest_authority_artifact_paths["header"] = header_path
+        if not args.dry_run and not use_harness:
+            manifest_authority_artifact_paths["object"] = object_path
+    manifest_authority = {
+        "authority_source": "emission-manifest",
+        "selected_kernel": require_manifest_field(
+            manifest_handoff, "kernel", "manifest path"
+        ),
+        "selected_variant": require_manifest_field(
+            manifest_handoff, "selected_variant", "manifest path"
+        ),
+        "selected_role": require_manifest_field(
+            manifest_handoff, "role", "manifest path"
+        ),
+        "origin": require_manifest_field(
+            manifest_handoff, "origin", "manifest path"
+        ),
+        "emission_kind": require_manifest_field(
+            manifest_handoff, "emission_kind", "manifest path"
+        ),
+        "lowering_pipeline": require_manifest_field(
+            manifest_handoff, "lowering_pipeline", "manifest path"
+        ),
+        "runtime_abi": require_manifest_field(
+            manifest_handoff, "runtime_abi", "manifest path"
+        ),
+        "runtime_abi_kind": require_manifest_field(
+            manifest_handoff, "runtime_abi_kind", "manifest path"
+        ),
+        "runtime_abi_name": require_manifest_field(
+            manifest_handoff, "runtime_abi_name", "manifest path"
+        ),
+        "runtime_glue_role": require_manifest_field(
+            manifest_handoff, "runtime_glue_role", "manifest path"
+        ),
+        "runtime_abi_parameters": normalize_runtime_abi_parameters(
+            manifest_handoff.get("runtime_abi_parameters"), "manifest path"
+        ),
+        "target_artifacts": (
+            build_manifest_artifact_authority(
+                direct_manifest_artifacts,
+                root=root,
+                artifact_paths=manifest_authority_artifact_paths,
+                hashes=hashes,
+            )
+            if uses_direct_manifest_authority
+            else {}
+        ),
+    }
+    if (
+        manifest_authority["runtime_abi_parameters"]
+        != source_flags["runtime_abi_parameters"]
+    ):
+        raise BridgeError(
+            "emission manifest runtime ABI signature does not match generated "
+            "source metadata"
+        )
+    if (
+        manifest_authority["selected_kernel"]
+        != source_flags["compiler_path_context"]["selected_kernel"]
+    ):
+        raise BridgeError(
+            "emission manifest selected kernel does not match generated "
+            "source metadata"
+        )
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "runner": SCRIPT_NAME,
@@ -3385,12 +3837,14 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "status": "success",
         "repo_commit": current_git_commit(root),
         "arithmetic_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
+        "selected_kernel": manifest_authority["selected_kernel"],
         "function_symbol": source_flags["compiler_path_context"]["microkernel_function"],
         "input": relative_to_repo(input_path, root),
         "artifact_dir": relative_to_repo(artifact_dir, root),
         "planned_pipeline": selected_planning_pipeline_label(args),
         "manifest_handoff": True,
         "manifest_record": manifest_handoff,
+        "manifest_authority": manifest_authority,
         "rvv_config": source_flags["vector_config"],
         "source_export_flag": source_export_flag,
         "source_export_route": source_export_route,
@@ -3625,6 +4079,223 @@ kernel @rvv_microkernel_manifest
         record["kernel"] == "rvv_microkernel_manifest",
         "supported handoff parser lost kernel name",
     )
+    rich_direct_manifest = """
+tianchenrv.emission_manifest.version: 1
+module: "self_test"
+kernel_count: 1
+kernel @rvv_microkernel_manifest
+  selected_surface: selected-marker
+  path[0]:
+    selected_variant: @rvv_first_slice
+    role: "direct variant"
+    origin: "rvv-plugin"
+    emission_status: "supported"
+    emission_kind: "rvv-explicit-i32-vadd-microkernel-c-source"
+    lowering_pipeline: "tcrv-export-rvv-microkernel-c"
+    lowering_boundary: "tcrv_rvv.lowering_boundary"
+    runtime_abi: "rvv-i32-vadd-runtime-callable-c-abi.v1"
+    runtime_abi_kind: "rvv-runtime-callable-c-abi"
+    runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+    runtime_abi_parameters:
+      parameter[0]:
+        c_name: "lhs"
+        c_type: "const int32_t *"
+        role: "lhs-input-buffer"
+        ownership: "target-export-abi-owned"
+      parameter[1]:
+        c_name: "rhs"
+        c_type: "const int32_t *"
+        role: "rhs-input-buffer"
+        ownership: "target-export-abi-owned"
+      parameter[2]:
+        c_name: "out"
+        c_type: "int32_t *"
+        role: "output-buffer"
+        ownership: "target-export-abi-owned"
+      parameter[3]:
+        c_name: "n"
+        c_type: "size_t"
+        role: "runtime-element-count"
+        ownership: "target-export-abi-owned"
+    runtime_glue_role: "runtime-callable-i32-vadd-function"
+    artifact_kind: "runtime-callable-c-source"
+    required_capabilities: [@rvv]
+    explanation: "bounded"
+    target_artifacts:
+      artifact[0]:
+        component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
+        component_role: "source"
+        external_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+        selected_variant: @rvv_first_slice
+        role: "direct variant"
+        artifact_kind: "runtime-callable-c-source"
+        route: "tcrv-export-rvv-microkernel-c"
+        owner: "rvv-plugin"
+        runtime_abi_kind: "rvv-runtime-callable-c-abi"
+        runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+        runtime_abi_parameter[0]:
+          c_name: "lhs"
+          c_type: "const int32_t *"
+          role: "lhs-input-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[1]:
+          c_name: "rhs"
+          c_type: "const int32_t *"
+          role: "rhs-input-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[2]:
+          c_name: "out"
+          c_type: "int32_t *"
+          role: "output-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[3]:
+          c_name: "n"
+          c_type: "size_t"
+          role: "runtime-element-count"
+          ownership: "target-export-abi-owned"
+        selected_plan_metadata[0]:
+          name: "tcrv_rvv.selected_vector_shape"
+          value: "i32m1"
+          role: "selected-rvv-vector-shape-config"
+          note: "bounded"
+        selected_plan_metadata[1]:
+          name: "tcrv_rvv.selected_binary_family"
+          value: "i32-vadd"
+          role: "selected-rvv-binary-descriptor"
+          note: "bounded"
+        evidence_role: "compiler-artifact"
+      artifact[1]:
+        component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
+        component_role: "header"
+        external_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+        selected_variant: @rvv_first_slice
+        role: "direct variant"
+        artifact_kind: "runtime-callable-c-header"
+        route: "tcrv-export-rvv-microkernel-header"
+        owner: "rvv-plugin"
+        runtime_abi_kind: "rvv-runtime-callable-c-abi"
+        runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+        runtime_abi_parameter[0]:
+          c_name: "lhs"
+          c_type: "const int32_t *"
+          role: "lhs-input-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[1]:
+          c_name: "rhs"
+          c_type: "const int32_t *"
+          role: "rhs-input-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[2]:
+          c_name: "out"
+          c_type: "int32_t *"
+          role: "output-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[3]:
+          c_name: "n"
+          c_type: "size_t"
+          role: "runtime-element-count"
+          ownership: "target-export-abi-owned"
+        selected_plan_metadata[0]:
+          name: "tcrv_rvv.selected_vector_shape"
+          value: "i32m1"
+          role: "selected-rvv-vector-shape-config"
+          note: "bounded"
+        selected_plan_metadata[1]:
+          name: "tcrv_rvv.selected_binary_family"
+          value: "i32-vadd"
+          role: "selected-rvv-binary-descriptor"
+          note: "bounded"
+        evidence_role: "header-declaration"
+      artifact[2]:
+        component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
+        component_role: "object"
+        external_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+        selected_variant: @rvv_first_slice
+        role: "direct variant"
+        artifact_kind: "riscv-elf-relocatable-object"
+        route: "tcrv-export-rvv-microkernel-object"
+        owner: "rvv-plugin"
+        runtime_abi_kind: "rvv-runtime-callable-c-abi"
+        runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+        runtime_abi_parameter[0]:
+          c_name: "lhs"
+          c_type: "const int32_t *"
+          role: "lhs-input-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[1]:
+          c_name: "rhs"
+          c_type: "const int32_t *"
+          role: "rhs-input-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[2]:
+          c_name: "out"
+          c_type: "int32_t *"
+          role: "output-buffer"
+          ownership: "target-export-abi-owned"
+        runtime_abi_parameter[3]:
+          c_name: "n"
+          c_type: "size_t"
+          role: "runtime-element-count"
+          ownership: "target-export-abi-owned"
+        selected_plan_metadata[0]:
+          name: "tcrv_rvv.selected_vector_shape"
+          value: "i32m1"
+          role: "selected-rvv-vector-shape-config"
+          note: "bounded"
+        selected_plan_metadata[1]:
+          name: "tcrv_rvv.selected_binary_family"
+          value: "i32-vadd"
+          role: "selected-rvv-binary-descriptor"
+          note: "bounded"
+        evidence_role: "relocatable-object"
+""".strip()
+    rich_record = find_supported_handoff(rich_direct_manifest)
+    rich_artifacts = require_direct_manifest_artifacts(rich_record)
+    assert_self_test(
+        rich_artifacts["source"]["route"] == "tcrv-export-rvv-microkernel-c",
+        "direct manifest authority lost source route",
+    )
+    assert_self_test(
+        rich_artifacts["object"]["artifact_kind"] == "riscv-elf-relocatable-object",
+        "direct manifest authority lost object artifact kind",
+    )
+    try:
+        require_direct_manifest_artifacts(
+            find_supported_handoff(
+                rich_direct_manifest.replace(
+                    'value: "i32-vadd"', 'value: "i32-vsub"', 1
+                )
+            )
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "selected binary family" in str(error),
+            "direct manifest stale family diagnostic changed",
+        )
+        print(
+            "rvv_microkernel_e2e direct fail-closed stale selected family: "
+            + sanitize_text(str(error))
+        )
+    else:
+        raise AssertionError("direct manifest stale selected family was accepted")
+    try:
+        missing_runtime_record = dict(rich_record)
+        missing_runtime_record["target_artifacts"] = [
+            dict(artifact) for artifact in rich_record["target_artifacts"]
+        ]
+        missing_runtime_record["target_artifacts"][0].pop("runtime_abi_name", None)
+        require_direct_manifest_artifacts(missing_runtime_record)
+    except BridgeError as error:
+        assert_self_test(
+            "runtime_abi_name" in str(error),
+            "direct manifest missing runtime ABI diagnostic changed",
+        )
+        print(
+            "rvv_microkernel_e2e direct fail-closed missing runtime_abi_name: "
+            + sanitize_text(str(error))
+        )
+    else:
+        raise AssertionError("direct manifest missing runtime ABI was accepted")
 
     missing_manifest = supported_manifest.replace(
         'emission_status: "supported"', 'emission_status: "unsupported"'
@@ -4430,8 +5101,11 @@ def main(argv: list[str]) -> int:
                 "manifest_handoff": evidence.get("manifest_handoff", False),
                 "planned_pipeline": evidence.get("planned_pipeline", ""),
                 "profile_replay": bool(evidence.get("profile_replay")),
-                "selected_kernel": evidence.get("compiler_path_context", {}).get(
-                    "selected_kernel", ""
+                "selected_kernel": evidence.get(
+                    "selected_kernel",
+                    evidence.get("compiler_path_context", {}).get(
+                        "selected_kernel", ""
+                    ),
                 ),
                 "expected_selected_kernel": evidence.get(
                     "expected_selected_kernel", ""

@@ -1772,6 +1772,68 @@ def require_dispatch_runtime_abi_signature(record: dict[str, Any]) -> list[dict[
     return parameters
 
 
+def require_bundle_selected_metadata(
+    record: dict[str, Any], name: str, context: str
+) -> str:
+    metadata = record.get("selected_plan_metadata")
+    if not isinstance(metadata, list) or not metadata:
+        raise BridgeError(
+            f"{context} must publish generated selected_plan_metadata entries"
+        )
+    matches = [
+        entry
+        for entry in metadata
+        if isinstance(entry, dict) and entry.get("name") == name
+    ]
+    if len(matches) != 1:
+        raise BridgeError(
+            f"{context} requires exactly one generated selected_plan_metadata "
+            f"entry named {name}; found {len(matches)}"
+        )
+    value = str(matches[0].get("value", "")).strip()
+    if not value:
+        raise BridgeError(
+            f"{context} selected_plan_metadata {name} must have non-empty value"
+        )
+    reject_secret_like_text(f"{context} selected_plan_metadata {name}", value)
+    return value
+
+
+def validate_dispatch_bundle_manifest_authority(record: dict[str, Any]) -> None:
+    context = f"bundle record route {record.get('route')}"
+    selected_family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    if (
+        require_bundle_selected_metadata(
+            record, "tcrv_rvv.selected_binary_family", context
+        )
+        != selected_family
+    ):
+        raise BridgeError(
+            f"{context} generated RVV selected family does not match requested "
+            f"{selected_family}"
+        )
+    if (
+        require_bundle_selected_metadata(
+            record, "tcrv_scalar.selected_binary_family", context
+        )
+        != selected_family
+    ):
+        raise BridgeError(
+            f"{context} generated scalar selected family does not match "
+            f"requested {selected_family}"
+        )
+    if (
+        require_bundle_selected_metadata(
+            record, "tcrv_rvv.selected_vector_shape", context
+        )
+        != ACTIVE_VECTOR_SHAPE
+    ):
+        raise BridgeError(
+            f"{context} generated RVV vector shape does not match requested "
+            f"{ACTIVE_VECTOR_SHAPE}"
+        )
+
+
 def require_dispatch_component_roles(record: dict[str, Any]) -> None:
     if record.get("selected_surface") != "dispatch":
         raise BridgeError(
@@ -1821,6 +1883,7 @@ def select_dispatch_bundle_records(
                 )
         require_dispatch_component_roles(record)
         require_dispatch_runtime_abi_signature(record)
+        validate_dispatch_bundle_manifest_authority(record)
         artifact_path = bundle_dir / str(record["file_name"])
         if not artifact_path.exists() or artifact_path.stat().st_size == 0:
             raise BridgeError(
@@ -1856,6 +1919,63 @@ def select_dispatch_bundle_records(
             "selected dispatch bundle records must share the compiler-emitted runtime ABI parameter signature"
         )
     return selected
+
+
+def build_dispatch_bundle_manifest_authority(
+    selected_records: dict[str, dict[str, Any]],
+    selected_paths: dict[str, Path],
+    hashes: dict[str, str],
+    runtime_glue_roles: dict[str, str],
+    *,
+    root: Path,
+    selected_kernel: str,
+) -> dict[str, Any]:
+    hash_keys = {
+        "source": "bundle_dispatch_source_sha256",
+        "header": "bundle_dispatch_header_sha256",
+        "object": "bundle_dispatch_object_sha256",
+    }
+    artifact_records: dict[str, Any] = {}
+    for label in ("source", "header", "object"):
+        record = selected_records[label]
+        artifact_records[label] = {
+            "route_metadata_source": "target-artifact-bundle-index",
+            "route_id": str(record["route"]),
+            "artifact_kind": str(record["artifact_kind"]),
+            "component_group": str(record["component_group"]),
+            "component_role": str(record["component_role"]),
+            "external_abi_name": str(record["external_abi_name"]),
+            "owner": str(record["owner"]),
+            "selected_surface": str(record.get("selected_surface", "")),
+            "components": record.get("components", []),
+            "runtime_abi_kind": str(record["runtime_abi_kind"]),
+            "runtime_abi_name": str(record["runtime_abi_name"]),
+            "runtime_abi_parameters": require_dispatch_runtime_abi_signature(
+                record
+            ),
+            "selected_plan_metadata": record.get("selected_plan_metadata", []),
+            "evidence_role": str(record["evidence_role"]),
+            "artifact_path": relative_to_repo(selected_paths[label], root),
+            "artifact_sha256": hashes[hash_keys[label]],
+            "artifact_path_source": "target-artifact-bundle-index",
+            "artifact_hash_source": "runner-sha256-generated-artifact",
+        }
+    source_record = selected_records["source"]
+    return {
+        "authority_source": "target-artifact-bundle-index-and-generated-source",
+        "selected_kernel": selected_kernel,
+        "selected_kernel_source": "generated-dispatch-source-comment",
+        "selected_family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
+        "selected_family_source": "bundle-index-selected-plan-metadata",
+        "vector_shape": require_bundle_selected_metadata(
+            source_record,
+            "tcrv_rvv.selected_vector_shape",
+            "dispatch bundle source record",
+        ),
+        "runtime_glue_roles": runtime_glue_roles,
+        "runtime_glue_role_source": "generated-dispatch-source-comments",
+        "artifacts": artifact_records,
+    }
 
 
 def bundle_records_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2934,6 +3054,14 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             source_text, "dispatch_runtime_callable_abi", required=True
         ),
     }
+    runtime_glue_roles = {
+        "rvv": parse_source_comment(
+            source_text, "rvv_runtime_glue_role", required=True
+        ),
+        "scalar": parse_source_comment(
+            source_text, "scalar_runtime_glue_role", required=True
+        ),
+    }
     source_flags = {
         "selected_march": parse_source_comment(source_text, "selected_march", required=True),
         "selected_mabi": parse_source_comment(source_text, "selected_mabi", required=False),
@@ -2997,6 +3125,14 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         fixture_free_frontend_pipeline=fixture_free_frontend_pipeline,
         pipeline_front_door=planned_dispatch_pipeline,
     )
+    manifest_authority = build_dispatch_bundle_manifest_authority(
+        selected_records,
+        selected_paths,
+        hashes,
+        runtime_glue_roles,
+        root=root,
+        selected_kernel=selected_kernel,
+    )
     artifacts = {
         "bundle_export_stdout": relative_to_repo(bundle_stdout_path, root),
         "bundle_dir": relative_to_repo(bundle_dir, root),
@@ -3040,7 +3176,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             label: bundle_records_summary([record])[0]
             for label, record in selected_records.items()
         },
+        "manifest_authority": manifest_authority,
         "generated_symbols": generated_symbols,
+        "runtime_glue_roles": runtime_glue_roles,
         "dispatch_runtime_guard": dispatch_ir_linkage["runtime_guard"],
         "dispatch_fallback": dispatch_ir_linkage["fallback"],
         "dispatch_runtime_element_count": dispatch_ir_linkage[
@@ -3962,6 +4100,26 @@ artifact[2]:
     ownership: "target-export-abi-owned"
   evidence_role: "relocatable-object"
 """.strip()
+    authority_metadata = """
+  selected_plan_metadata[0]:
+    name: "tcrv_rvv.selected_vector_shape"
+    value: "i32m1"
+    role: "selected-rvv-vector-shape-config"
+    note: "bounded"
+  selected_plan_metadata[1]:
+    name: "tcrv_rvv.selected_binary_family"
+    value: "i32-vadd"
+    role: "selected-rvv-binary-descriptor"
+    note: "bounded"
+  selected_plan_metadata[2]:
+    name: "tcrv_scalar.selected_binary_family"
+    value: "i32-vadd"
+    role: "selected-scalar-binary-descriptor"
+    note: "bounded"
+""".rstrip()
+    sample_bundle_index = sample_bundle_index.replace(
+        "  evidence_role:", authority_metadata + "\n  evidence_role:"
+    )
     bundle_records = parse_target_artifact_bundle_index(sample_bundle_index)
     assert_self_test(len(bundle_records) == 3, "bundle index parser lost records")
     assert_self_test(
@@ -4034,6 +4192,63 @@ artifact[2]:
             branch_coverage["overrun_behavior_checked"],
             "dispatch overrun validation contract was not recorded",
         )
+        try:
+            select_dispatch_bundle_records(
+                [
+                    dict(
+                        record,
+                        selected_plan_metadata=[
+                            dict(entry, value="i32-vsub")
+                            if entry.get("name")
+                            == "tcrv_rvv.selected_binary_family"
+                            else entry
+                            for entry in record.get(
+                                "selected_plan_metadata", []
+                            )
+                        ],
+                    )
+                    for record in bundle_records
+                ],
+                bundle_dir,
+            )
+        except BridgeError as error:
+            assert_self_test(
+                "selected family" in str(error),
+                "dispatch bundle stale selected family error changed",
+            )
+            print(
+                "rvv_scalar_dispatch_e2e dispatch bundle fail-closed stale "
+                "selected family: "
+                + sanitize_text(str(error))
+            )
+        else:
+            raise AssertionError(
+                "dispatch bundle stale selected family was accepted"
+            )
+        try:
+            select_dispatch_bundle_records(
+                [
+                    dict(record, selected_plan_metadata=[])
+                    if record.get("component_role") == "source"
+                    else record
+                    for record in bundle_records
+                ],
+                bundle_dir,
+            )
+        except BridgeError as error:
+            assert_self_test(
+                "selected_plan_metadata" in str(error),
+                "dispatch bundle missing selected metadata error changed",
+            )
+            print(
+                "rvv_scalar_dispatch_e2e dispatch bundle fail-closed missing "
+                "selected_plan_metadata: "
+                + sanitize_text(str(error))
+            )
+        else:
+            raise AssertionError(
+                "dispatch bundle missing selected metadata was accepted"
+            )
         fake_commands = [
             {
                 "name": "ssh_compile_bundle_external_caller_object",

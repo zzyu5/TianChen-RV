@@ -75,6 +75,8 @@
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id lit-rvv-microkernel-m2-reject-m1 --overwrite --input %S/../Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir 2>&1 | FileCheck %s --check-prefix=M2-REJECT-M1
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --run-id lit-rvv-microkernel-secret --overwrite --input %S/../Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
+# SELF: rvv_microkernel_e2e direct fail-closed stale selected family
+# SELF: rvv_microkernel_e2e direct fail-closed missing runtime_abi_name
 # SELF: rvv_microkernel_e2e self-test passed
 
 # DRY: "arithmetic_family": "i32-vadd"
@@ -338,7 +340,17 @@
 # I32-VMUL-FRONTEND-EVIDENCE-DAG: "object": "tcrv-export-rvv-i32-vmul-microkernel-object"
 # I32-VMUL-FRONTEND-EVIDENCE: "function_symbol": "tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice"
 # I32-VMUL-FRONTEND-EVIDENCE: "input": "test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir"
+# I32-VMUL-FRONTEND-EVIDENCE: "manifest_authority": {
+# I32-VMUL-FRONTEND-EVIDENCE: "authority_source": "emission-manifest"
+# I32-VMUL-FRONTEND-EVIDENCE: "runtime_abi_kind": "rvv-runtime-callable-c-abi"
 # I32-VMUL-FRONTEND-EVIDENCE: "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"
+# I32-VMUL-FRONTEND-EVIDENCE: "runtime_glue_role": "runtime-callable-i32-vmul-function"
+# I32-VMUL-FRONTEND-EVIDENCE: "target_artifacts": {
+# I32-VMUL-FRONTEND-EVIDENCE: "artifact_hash_source": "runner-sha256-generated-artifact"
+# I32-VMUL-FRONTEND-EVIDENCE: "artifact_path_source": "runner-copied-generated-command-output"
+# I32-VMUL-FRONTEND-EVIDENCE: "route_metadata_source": "emission-manifest-target-artifact"
+# I32-VMUL-FRONTEND-EVIDENCE: "name": "tcrv_rvv.selected_binary_family"
+# I32-VMUL-FRONTEND-EVIDENCE: "value": "i32-vmul"
 # I32-VMUL-FRONTEND-EVIDENCE: "planned_pipeline": "tcrv-lower-linalg-rvv-binary-to-exec + tcrv-execution-planning-pipeline"
 # I32-VMUL-FRONTEND-EVIDENCE-DAG: "shape": "i32m1"
 # I32-VMUL-FRONTEND-EVIDENCE-DAG: "__riscv_vsetvl_e32m1"

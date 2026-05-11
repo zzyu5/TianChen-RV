@@ -49,6 +49,8 @@
 # RUN: FileCheck %s --check-prefix=I64-VMUL-FRONTEND-EVIDENCE --implicit-check-not=int32_t --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vmul-frontend-dispatch-e2e/evidence.json
 # RUN: not python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --run-id lit-rvv-scalar-dispatch-secret --overwrite --input %S/../Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir --evidence-note TOKEN=live-token 2>&1 | FileCheck %s --check-prefix=SECRET
 
+# SELF: rvv_scalar_dispatch_e2e dispatch bundle fail-closed stale selected family
+# SELF: rvv_scalar_dispatch_e2e dispatch bundle fail-closed missing selected_plan_metadata
 # SELF: rvv_scalar_dispatch_e2e self-test passed
 
 # DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-dispatch-e2e"
@@ -204,6 +206,25 @@
 # VMUL-BUNDLE-EVIDENCE: "claim_scope": "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
 # VMUL-BUNDLE-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32_vmul_rvv_first_slice"
 # VMUL-BUNDLE-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32_vmul_scalar_fallback_first_slice"
+# VMUL-BUNDLE-EVIDENCE: "manifest_authority": {
+# VMUL-BUNDLE-EVIDENCE: "artifact_hash_source": "runner-sha256-generated-artifact"
+# VMUL-BUNDLE-EVIDENCE: "artifact_path_source": "target-artifact-bundle-index"
+# VMUL-BUNDLE-EVIDENCE: "route_metadata_source": "target-artifact-bundle-index"
+# VMUL-BUNDLE-EVIDENCE: "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi"
+# VMUL-BUNDLE-EVIDENCE: "runtime_abi_name": "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"
+# VMUL-BUNDLE-EVIDENCE: "name": "tcrv_rvv.selected_vector_shape"
+# VMUL-BUNDLE-EVIDENCE: "value": "i32m1"
+# VMUL-BUNDLE-EVIDENCE: "name": "tcrv_rvv.selected_binary_family"
+# VMUL-BUNDLE-EVIDENCE: "value": "i32-vmul"
+# VMUL-BUNDLE-EVIDENCE: "name": "tcrv_scalar.selected_binary_family"
+# VMUL-BUNDLE-EVIDENCE: "value": "i32-vmul"
+# VMUL-BUNDLE-EVIDENCE: "authority_source": "target-artifact-bundle-index-and-generated-source"
+# VMUL-BUNDLE-EVIDENCE: "runtime_glue_role_source": "generated-dispatch-source-comments"
+# VMUL-BUNDLE-EVIDENCE: "runtime_glue_roles": {
+# VMUL-BUNDLE-EVIDENCE: "rvv": "runtime-callable-i32-vmul-function"
+# VMUL-BUNDLE-EVIDENCE: "scalar": "runtime-callable-i32-vmul-fallback-function"
+# VMUL-BUNDLE-EVIDENCE: "selected_family_source": "bundle-index-selected-plan-metadata"
+# VMUL-BUNDLE-EVIDENCE: "selected_kernel_source": "generated-dispatch-source-comment"
 # VMUL-BUNDLE-EVIDENCE: "mode": "dry-run"
 # VMUL-BUNDLE-EVIDENCE: "bundle_object_path_checked_by_live_run": false
 # VMUL-BUNDLE-EVIDENCE: "source_built_object_path_checked_by_live_run": false
