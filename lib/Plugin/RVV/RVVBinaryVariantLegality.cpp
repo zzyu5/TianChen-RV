@@ -324,18 +324,14 @@ llvm::Error verifyRVVBinaryVariantLegality(
             verifyOptionalCapacityAttrs(variant, *propertyView))
       return error;
 
-    llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-        microkernelPlan =
-            buildRVVBinarySelectedMicrokernelMaterializationPlan(
-                variant, request.getCapabilities(), *propertyView, "i32");
-    if (!microkernelPlan)
-      return microkernelPlan.takeError();
-    llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-        i64MicrokernelPlan =
-            buildRVVBinarySelectedMicrokernelMaterializationPlan(
-                variant, request.getCapabilities(), *propertyView, "i64");
-    if (!i64MicrokernelPlan)
-      return i64MicrokernelPlan.takeError();
+    if (llvm::Error error =
+            validateLegacyRVVBinarySelectedDescriptorMetadata(
+                variant, *propertyView, "i32"))
+      return error;
+    if (llvm::Error error =
+            validateLegacyRVVBinarySelectedDescriptorMetadata(
+                variant, *propertyView, "i64"))
+      return error;
   }
 
   return llvm::Error::success();

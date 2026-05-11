@@ -16,10 +16,8 @@ namespace tianchenrv::plugin::rvv {
 using RVVBinaryVariantLegalityVerifier =
     llvm::function_ref<llvm::Error(const VariantLegalityRequest &)>;
 
-llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-buildRVVBinarySelectedMicrokernelMaterializationPlan(
+llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
     tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
     const RVVBinaryCapabilityPropertyView &view,
     llvm::StringRef expectedDTypeID);
 

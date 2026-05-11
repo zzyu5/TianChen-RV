@@ -390,32 +390,6 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
 
 } // namespace
 
-llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-buildRVVBinarySelectedMicrokernelMaterializationPlan(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
-    const RVVBinaryCapabilityPropertyView &view,
-    llvm::StringRef expectedDTypeID) {
-  llvm::Expected<std::optional<std::string>> selectedMABI =
-      getOptionalSelectedMABI(capabilities);
-  if (!selectedMABI)
-    return selectedMABI.takeError();
-
-  llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>> plan =
-      buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
-          variant, *view.selectedShape, expectedDTypeID,
-          std::move(*selectedMABI));
-  if (!plan)
-    return plan.takeError();
-  if (!*plan)
-    return std::optional<RVVBinaryMicrokernelMaterializationPlan>();
-
-  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
-    return std::move(error);
-
-  return std::move(plan);
-}
-
 llvm::Expected<RVVBinaryMicrokernelMaterializationPlan>
 buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
     tcrv::exec::KernelOp kernel,
@@ -458,6 +432,118 @@ buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
   RVVBinaryMicrokernelMaterializationPlan plan;
   plan.selectedPlan = std::move(*selectedPlan);
   return plan;
+}
+
+llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
+    tcrv::exec::VariantOp variant, const RVVBinaryCapabilityPropertyView &view,
+    llvm::StringRef expectedDTypeID) {
+  if (!variant)
+    return makeRVVBinarySelectedBoundaryError(
+        "legacy RVV binary descriptor metadata validation requires a "
+        "materialized tcrv.exec.variant");
+
+  auto descriptorAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
+  if (!descriptorAttr)
+    return llvm::Error::success();
+
+  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+  if (descriptor.empty())
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() + " requires non-empty string attribute '" +
+        kLoweringDescriptorAttrName + "'");
+  if (llvm::Error error = validateRVVPropertyText(
+          "legacy RVV binary descriptor metadata",
+          kLoweringDescriptorAttrName, descriptor))
+    return error;
+
+  const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+          descriptor);
+  if (!descriptorFamily)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() + " descriptor '" + descriptor +
+        "' must be one registered finite RVV binary lowering registration");
+
+  if (!expectedDTypeID.empty() && descriptorFamily->dtypeID != expectedDTypeID)
+    return llvm::Error::success();
+
+  if (!view.selectedShape)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() +
+        " requires a selected vector-shape capability for mirror validation");
+
+  if (descriptorFamily->dtypeID != view.selectedShape->dtypeID)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() + " descriptor family '" +
+        descriptorFamily->familyID +
+        "' conflicts with selected vector-shape '" +
+        view.selectedShape->shapeID + "'");
+
+  auto elementCount =
+      variant->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
+  if (!elementCount)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() + " requires integer attribute '" +
+        kElementCountAttrName + "' for bounded mirror validation");
+  if (elementCount.getInt() <= 0 || elementCount.getInt() > 64)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() +
+        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
+
+  auto requiredMarch =
+      variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
+  if (!requiredMarch || requiredMarch.getValue().trim().empty())
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
+        variant.getSymName() +
+        " requires string 'tcrv_rvv.required_march' metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error rejectLegacyDescriptorOnlyMicrokernelMaterialization(
+    tcrv::exec::VariantOp variant) {
+  auto descriptorAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
+  if (!descriptorAttr || descriptorAttr.getValue().trim().empty())
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("direct legacy-registration-only RVV binary "
+                    "lowering-boundary materialization requires non-empty "
+                    "string attribute '") +
+        kLoweringDescriptorAttrName + "'");
+
+  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+  if (llvm::Error error = validateRVVPropertyText(
+          "direct legacy-registration-only RVV binary lowering-boundary "
+          "materialization",
+          kLoweringDescriptorAttrName, descriptor))
+    return error;
+
+  const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+          descriptor);
+  if (!descriptorFamily)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("direct legacy-registration-only RVV binary "
+                    "lowering-boundary materialization descriptor '") +
+        descriptor +
+        "' must be one registered finite RVV binary lowering registration");
+
+  return makeRVVBinarySelectedBoundaryError(
+      llvm::Twine("direct legacy-registration-only RVV binary "
+                  "lowering-boundary materialization for family '") +
+      descriptorFamily->familyID +
+      "' is legacy-quarantined; add a typed " +
+      descriptorFamily->microkernelOpName +
+      " body or use frontend-derived typed family lowering so compute identity "
+      "comes from RVV family ops");
 }
 
 llvm::Error materializeRVVBinarySelectedLoweringBoundary(
@@ -528,56 +614,25 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
   bool hasDescriptorlessDefaultTyped =
       !hasLoweringDescriptor && !hasSmokeProbeDescriptor &&
       variant->hasAttr(kElementCountAttrName);
-  if (!existingSelectedEmissionAttachment &&
-      (hasLoweringDescriptor || hasDescriptorlessDefaultTyped)) {
-    if (auto descriptorAttr =
-            variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName)) {
-      llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-      const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
-          target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
-              descriptor);
-      if (descriptorFamily && isTypedSourceRVVBinaryFamily(*descriptorFamily))
-        return makeRVVBinarySelectedBoundaryError(
-            llvm::Twine("direct legacy-registration-only RVV binary "
-                        "lowering-boundary materialization for family '") +
-            descriptorFamily->familyID +
-            "' is legacy-quarantined; add a typed " +
-            descriptorFamily->microkernelOpName +
-            " body or use frontend-derived typed family lowering so compute "
-            "identity comes from RVV family ops");
-    }
+  if (!existingSelectedEmissionAttachment && hasLoweringDescriptor)
+    return rejectLegacyDescriptorOnlyMicrokernelMaterialization(variant);
 
+  if (!existingSelectedEmissionAttachment && hasDescriptorlessDefaultTyped) {
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
         buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                             *selectedConfig);
     if (!propertyView)
       return propertyView.takeError();
 
-    if (hasDescriptorlessDefaultTyped) {
-      llvm::Expected<RVVBinaryMicrokernelMaterializationPlan> planned =
-          buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
-              kernel, variant, request.getCapabilities(), *propertyView);
-      if (!planned)
-        return planned.takeError();
-      if (planned->selectedPlan.family->dtype == RVVBinaryDTypeKind::I32)
-        i32MicrokernelPlan = std::move(*planned);
-      else
-        i64MicrokernelPlan = std::move(*planned);
-    } else {
-      llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-          plannedI32 = buildRVVBinarySelectedMicrokernelMaterializationPlan(
-              variant, request.getCapabilities(), *propertyView, "i32");
-      if (!plannedI32)
-        return plannedI32.takeError();
-      i32MicrokernelPlan = std::move(*plannedI32);
-
-      llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-          plannedI64 = buildRVVBinarySelectedMicrokernelMaterializationPlan(
-              variant, request.getCapabilities(), *propertyView, "i64");
-      if (!plannedI64)
-        return plannedI64.takeError();
-      i64MicrokernelPlan = std::move(*plannedI64);
-    }
+    llvm::Expected<RVVBinaryMicrokernelMaterializationPlan> planned =
+        buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
+            kernel, variant, request.getCapabilities(), *propertyView);
+    if (!planned)
+      return planned.takeError();
+    if (planned->selectedPlan.family->dtype == RVVBinaryDTypeKind::I32)
+      i32MicrokernelPlan = std::move(*planned);
+    else
+      i64MicrokernelPlan = std::move(*planned);
   }
 
   bool selectedPathHasCallableMicrokernel =

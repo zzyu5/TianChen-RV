@@ -241,13 +241,6 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     tcrv::exec::KernelOp kernel,
     llvm::StringRef diagnosticContext = "RVV binary proposal");
 
-llvm::Expected<std::optional<RVVBinarySelectedPlan>>
-buildRVVBinarySelectedPlanFromVariant(
-    tcrv::exec::VariantOp variant,
-    const target::rvv::RVVVectorShapeConfig &shape,
-    llvm::StringRef expectedDTypeID = llvm::StringRef(),
-    std::optional<std::string> selectedMABI = std::nullopt);
-
 llvm::Expected<RVVBinarySelectedPlan>
 buildRVVBinarySelectedPlanFromTypedFamilyVariant(
     tcrv::exec::VariantOp variant,

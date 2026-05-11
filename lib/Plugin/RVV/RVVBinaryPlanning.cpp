@@ -1882,57 +1882,6 @@ buildRVVBinarySelectedPlanFromTypedFamilyVariant(
   return std::move(*plan);
 }
 
-llvm::Expected<std::optional<RVVBinarySelectedPlan>>
-buildRVVBinarySelectedPlanFromVariant(
-    tcrv::exec::VariantOp variant,
-    const target::rvv::RVVVectorShapeConfig &shape,
-    llvm::StringRef expectedDTypeID,
-    std::optional<std::string> selectedMABI) {
-  if (!variant)
-    return makeRVVBinaryPlanningError(
-        "selected binary plan requires a materialized tcrv.exec.variant");
-
-  mlir::Attribute rawDescriptor = variant->getAttr(kLoweringDescriptorAttrName);
-  if (!rawDescriptor)
-    return std::optional<RVVBinarySelectedPlan>();
-
-  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-  if (!descriptor || descriptor.getValue().trim().empty())
-    return makeRVVBinaryPlanningError(
-        llvm::Twine("finite RVV binary microkernel lowering registration on "
-                    "variant @") +
-        variant.getSymName() + " requires string attribute '" +
-        kLoweringDescriptorAttrName + "'");
-
-  llvm::StringRef descriptorValue = descriptor.getValue().trim();
-  const target::rvv::RVVBinaryFamilyDescriptor *family =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptorValue);
-  if (!family)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine("finite RVV binary microkernel lowering registration on "
-                    "variant @") +
-        variant.getSymName() +
-        " must be one registered RVV binary lowering descriptor");
-
-  if (!expectedDTypeID.empty() && family->dtypeID != expectedDTypeID)
-    return std::optional<RVVBinarySelectedPlan>();
-
-  std::string descriptorContext =
-      (llvm::Twine("variant @") + variant.getSymName() + " " +
-       family->descriptorNoun)
-          .str();
-  if (llvm::Error error = validateRVVPlanningText(
-          descriptorContext, kLoweringDescriptorAttrName, descriptorValue))
-    return std::move(error);
-
-  llvm::Expected<RVVBinarySelectedPlan> plan =
-      buildRVVBinarySelectedPlanFromTypedFamilyVariant(
-          variant, *family, shape, expectedDTypeID, std::move(selectedMABI));
-  if (!plan)
-    return plan.takeError();
-  return std::move(*plan);
-}
-
 void addRVVSelectedVectorShapeMetadataToProposal(
     VariantProposal &proposal, mlir::MLIRContext *context,
     const target::rvv::RVVVectorShapeConfig &shape) {

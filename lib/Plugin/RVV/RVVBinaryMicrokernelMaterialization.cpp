@@ -151,25 +151,6 @@ llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
 
 } // namespace
 
-llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
-    tcrv::exec::VariantOp variant,
-    const target::rvv::RVVVectorShapeConfig &shape,
-    llvm::StringRef expectedDTypeID,
-    std::optional<std::string> selectedMABI) {
-  llvm::Expected<std::optional<RVVBinarySelectedPlan>> selectedPlan =
-      buildRVVBinarySelectedPlanFromVariant(
-          variant, shape, expectedDTypeID, std::move(selectedMABI));
-  if (!selectedPlan)
-    return selectedPlan.takeError();
-  if (!*selectedPlan)
-    return std::optional<RVVBinaryMicrokernelMaterializationPlan>();
-
-  RVVBinaryMicrokernelMaterializationPlan plan;
-  plan.selectedPlan = std::move(**selectedPlan);
-  return plan;
-}
-
 llvm::Expected<RVVBinaryVLDataflowMaterialization>
 buildRVVBinaryVLDataflowMaterialization(
     mlir::MLIRContext *context, const RVVBinarySelectedPlan &selectedPlan) {

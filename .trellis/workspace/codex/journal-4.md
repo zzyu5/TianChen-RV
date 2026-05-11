@@ -109,6 +109,58 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 performance claim was made.
 
 
+## Session 39: RVV i64 binary descriptor-exit closure
+
+**Date**: 2026-05-12
+**Task**: rvv-i64-binary-descriptor-exit-closure
+**Branch**: `main`
+
+### Summary
+
+Closed a real RVV descriptor-driven materialization escape hatch for the
+bounded i64-vsub/i64-vmul default route. Descriptor-only finite RVV binary
+variants can no longer build selected microkernel materialization plans; the
+selected lowering boundary now requires typed RVV microkernel authority or the
+descriptorless typed-family frontend/default path.
+
+### Main Changes
+
+- Removed the public descriptor-to-selected-plan/materialization helper chain:
+  `buildRVVBinarySelectedPlanFromVariant`,
+  `buildRVVBinaryMicrokernelMaterializationPlanFromVariant`, and
+  `buildRVVBinarySelectedMicrokernelMaterializationPlan`.
+- Rewired RVV selected lowering-boundary materialization so
+  `tcrv_rvv.lowering_descriptor` without a typed microkernel attachment fails
+  closed as legacy-registration-only before any source/export path can use it.
+- Replaced descriptor-derived materialization validation in RVV variant
+  legality with bounded legacy descriptor mirror validation.
+- Added i64-vsub and i64-vmul lit coverage for descriptor-only selected
+  lowering-boundary quarantine.
+
+### Testing
+
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- Focused lit filter for i64-vsub/i64-vmul lowering-boundary quarantine,
+  frontend/direct RVV export, microkernel export, RVV+scalar dispatch export,
+  and bundle export: 10/10 passed.
+- `git diff --check`
+- `git diff --cached --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed and ready to archive. Descriptor authority remains absent from
+the default i64-vsub/i64-vmul selected RVV/scalar production route; no `ssh rvv`
+runtime, correctness, or performance claim was made.
+
+
 ## Session 38: RVV i64-vadd default EmitC route
 
 **Date**: 2026-05-12

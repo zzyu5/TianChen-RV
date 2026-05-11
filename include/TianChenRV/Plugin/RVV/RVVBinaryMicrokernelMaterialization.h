@@ -57,13 +57,6 @@ struct RVVBinaryVLDataflowMaterialization {
   std::int64_t descriptorElementCount = 0;
 };
 
-llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
-buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
-    tcrv::exec::VariantOp variant,
-    const target::rvv::RVVVectorShapeConfig &shape,
-    llvm::StringRef expectedDTypeID,
-    std::optional<std::string> selectedMABI = std::nullopt);
-
 llvm::Expected<RVVBinaryVLDataflowMaterialization>
 buildRVVBinaryVLDataflowMaterialization(
     mlir::MLIRContext *context, const RVVBinarySelectedPlan &selectedPlan);
