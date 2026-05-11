@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
@@ -11,6 +12,7 @@
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "llvm/Support/Errc.h"
@@ -92,6 +94,22 @@ llvm::Error registerToyExtensionBundle(ExtensionBundleRegistry &registry) {
   return registry.registerBundle(bundle);
 }
 
+llvm::Error registerTemplateExtensionBundle(
+    ExtensionBundleRegistry &registry) {
+  ExtensionBundle bundle(
+      "template-extension-bundle",
+      plugin::template_ext::getTemplateExtensionPluginName(),
+      plugin::registerTemplateExtensionPlugin);
+  bundle.addRequiredDialectName("tcrv_template");
+  bundle.addLoweringBoundaryOp("tcrv_template.lowering_boundary");
+  bundle.setTargetArtifactExporterBundleRegistrationFn(
+      template_ext::registerTemplateMetadataArtifactPluginTargetExporterBundle);
+  bundle.addTargetArtifactRouteMetadataRequirement(
+      plugin::template_ext::getTemplateMetadataRouteID(),
+      plugin::template_ext::getTemplateMetadataArtifactKind());
+  return registry.registerBundle(bundle);
+}
+
 llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   ExtensionBundle bundle("scalar-extension-bundle",
                          plugin::scalar::getScalarExtensionPluginName(),
@@ -111,6 +129,8 @@ llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
   if (llvm::Error error = registerOffloadExtensionBundle(registry))
     return error;
   if (llvm::Error error = registerToyExtensionBundle(registry))
+    return error;
+  if (llvm::Error error = registerTemplateExtensionBundle(registry))
     return error;
   return registerScalarExtensionBundle(registry);
 }

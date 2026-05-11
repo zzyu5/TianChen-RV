@@ -247,6 +247,7 @@ No offload runtime, hardware correctness, or performance evidence was claimed.
 ### Next Steps
 
 - None - task complete.
+
 ---
 
 ## Session 25: Extension bundle registration frontdoor
@@ -310,6 +311,58 @@ claimed.
 | Hash | Message |
 |------|---------|
 | `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
+
+---
+
+## Session 26: Template extension zero-core integration slice
+
+**Date**: 2026-05-11
+**Task**: Template extension zero-core integration slice
+**Branch**: `main`
+
+### Summary
+
+Added a new built-in Template extension as a bounded future-extension
+integration proof through the existing `ExtensionBundle` frontdoor.
+
+### Main Changes
+
+- Added `template-plugin`, `template.extension`, `tcrv_template`, and
+  `tcrv_template.lowering_boundary` as a non-executable future-extension
+  template path.
+- Added a target-owned Template manifest exporter and route metadata for
+  `template-extension-zero-core-manifest`.
+- Registered Template through built-in extension bundles without adding
+  Template semantic branches to generic core passes, `tcrv-opt`, or
+  `tcrv-translate`.
+- Added C++ and lit/FileCheck coverage for proposal/selection/boundary/export
+  success, missing capability, stale runtime ABI metadata, stale handoff
+  metadata, missing route metadata, duplicate bundle/plugin ids, and unknown
+  route behavior.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-template-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-template-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit set covering Template plus Toy/Offload/RVV route regressions:
+  11/11 passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-11-template-extension-zero-core-integration-slice`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  first run exposed one stale RVV built-in plugin-count assertion; after repair,
+  205/205 tests passed.
+
+No runtime correctness, hardware execution, or performance evidence was
+claimed.
 
 ### Status
 

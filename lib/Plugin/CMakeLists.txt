@@ -11,5 +11,6 @@ add_mlir_library(TianChenRVPlugin
 add_subdirectory(RVV)
 add_subdirectory(Offload)
 add_subdirectory(Scalar)
+add_subdirectory(Template)
 add_subdirectory(Toy)
 add_subdirectory(Builtin)

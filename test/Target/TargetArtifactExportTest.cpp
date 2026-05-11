@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
+#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
@@ -19,6 +20,7 @@
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
+#include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "mlir/IR/DialectRegistry.h"
@@ -530,8 +532,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (!expectSuccess(registerBuiltinExtensionBundles(bundles),
                      "register built-in extension bundles"))
     return false;
-  if (bundles.size() != 4) {
-    llvm::errs() << "built-in extension bundle registry expected 4 bundles\n";
+  if (bundles.size() != 5) {
+    llvm::errs() << "built-in extension bundle registry expected 5 bundles\n";
     return false;
   }
 
@@ -556,6 +558,29 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     return false;
   }
 
+  const ExtensionBundle *templateBundle =
+      bundles.lookupPluginBundle(
+          tianchenrv::plugin::template_ext::
+              getTemplateExtensionPluginName());
+  if (!templateBundle) {
+    llvm::errs() << "missing Template extension bundle frontdoor\n";
+    return false;
+  }
+  if (templateBundle->getBundleID() != "template-extension-bundle" ||
+      !containsString(templateBundle->getRequiredDialectNames(),
+                      "tcrv_template") ||
+      !containsString(templateBundle->getLoweringBoundaryOps(),
+                      "tcrv_template.lowering_boundary") ||
+      !templateBundle->getPluginRegistrationFn() ||
+      !templateBundle->getTargetArtifactExporterBundleRegistrationFn() ||
+      !templateBundle->requiresTargetArtifactRouteMetadata() ||
+      templateBundle->getTargetArtifactRouteMetadata().size() != 1 ||
+      templateBundle->getTargetArtifactRouteMetadata().front().routeID !=
+          tianchenrv::plugin::template_ext::getTemplateMetadataRouteID()) {
+    llvm::errs() << "Template extension bundle frontdoor is malformed\n";
+    return false;
+  }
+
   const ExtensionBundle *rvvBundle =
       bundles.lookupPluginBundle(
           tianchenrv::plugin::rvv::getRVVExtensionPluginName());
@@ -571,6 +596,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     return false;
   if (!plugins.lookupPlugin(
           tianchenrv::plugin::toy::getToyExtensionPluginName()) ||
+      !plugins.lookupPlugin(tianchenrv::plugin::template_ext::
+                                getTemplateExtensionPluginName()) ||
       !plugins.lookupPlugin(
           tianchenrv::plugin::offload::getOffloadExtensionPluginName()) ||
       !plugins.lookupPlugin(
@@ -608,6 +635,31 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
           registry, toyRouteID, "toy_template_abi",
           "stale-toy-metadata-boundary"))
+    return false;
+
+  constexpr llvm::StringLiteral templateRouteID(
+      "template-extension-zero-core-manifest");
+  if (!expectRoute(registry, templateRouteID,
+                   "template-extension-handoff-manifest", "template-plugin",
+                   "template-extension-manifest-route", 0,
+                   /*expectedDirectHelperRoute=*/false,
+                   "template-extension-lowering-boundary"))
+    return false;
+  if (!expectRouteDescriptorMetadata(
+          registry, templateRouteID, "template-zero-core-handoff.v1",
+          "template-extension-handoff", "template-zero-core-handoff.v1",
+          "metadata-only-template-extension-handoff",
+          "template_extension_integration_contract",
+          "template-zero-core-handoff.v1", "integration-contract",
+          "hardware_execution_claim"))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+          registry, templateRouteID))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+          registry, templateRouteID,
+          "template_extension_integration_contract",
+          "stale-template-zero-core-handoff"))
     return false;
 
   const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
@@ -4131,8 +4183,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 15) {
-    llvm::errs() << "expected exactly 15 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 16) {
+    llvm::errs() << "expected exactly 16 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }

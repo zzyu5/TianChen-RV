@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify Template-owned integration and absence of generic core semantic branches"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify artifact metadata, route preflight, and unsupported runtime/performance claim boundary"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify tcrv.exec remains compute-free"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++ and lit coverage expectations"}

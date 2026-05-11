@@ -437,9 +437,11 @@ int runRegistrationAndCapabilityMetadataTest() {
                          nullptr &&
                      builtinRegistry.lookupPlugin("scalar-plugin") != nullptr &&
                      builtinRegistry.lookupPlugin("toy-plugin") != nullptr &&
-                     builtinRegistry.size() == 4,
-                 "built-in registration owns safe RVV, offload, scalar, and "
-                 "Toy plugin lifetimes"))
+                     builtinRegistry.lookupPlugin("template-plugin") !=
+                         nullptr &&
+                     builtinRegistry.size() == 5,
+                 "built-in registration owns safe RVV, offload, scalar, Toy, "
+                 "and Template plugin lifetimes"))
     return result;
   if (int result = expectErrorContains(
           tianchenrv::plugin::registerBuiltinExtensionPlugins(builtinRegistry),

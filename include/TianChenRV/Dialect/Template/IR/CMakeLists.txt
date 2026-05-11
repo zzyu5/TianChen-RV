@@ -1,0 +1,6 @@
+set(LLVM_TARGET_DEFINITIONS TemplateOps.td)
+mlir_tablegen(TemplateOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_template)
+mlir_tablegen(TemplateOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_template)
+mlir_tablegen(TemplateOps.h.inc -gen-op-decls)
+mlir_tablegen(TemplateOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRTemplateOpsIncGen)

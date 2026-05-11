@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Extension plugin interfaces, registry routing, selected-boundary and emission-plan contracts"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin locality and generic core boundary rules"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Expected future plugin integration flow and file ownership boundaries"}
+{"file": ".trellis/spec/extension-plugins/future-plugins.md", "reason": "Future extension admission checklist"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact route metadata, and no-claim artifact boundary"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec compute-free core dialect boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck coverage"}
