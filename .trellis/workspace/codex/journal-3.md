@@ -247,3 +247,74 @@ No offload runtime, hardware correctness, or performance evidence was claimed.
 ### Next Steps
 
 - None - task complete.
+---
+
+## Session 25: Extension bundle registration frontdoor
+
+**Date**: 2026-05-11
+**Task**: Extension bundle registration frontdoor
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded extension-bundle registration frontdoor by adding a C++
+bundle registry that aggregates built-in plugin registration, dialect/lowering
+dependency metadata, and plugin-owned target artifact route metadata
+registration.
+
+### Main Changes
+
+- Created Trellis task `extension-bundle-registration-frontdoor` with a PRD
+  aligned to plugin-protocol, lowering-runtime, and testing specs.
+- Added `ExtensionBundle` / `ExtensionBundleRegistry` to the target artifact
+  registration layer. Bundles record plugin id, plugin callback, required
+  dialect names, lowering-boundary ops, target exporter bundle callback, and
+  route metadata requirements.
+- Reworked built-in target artifact registration so RVV, Offload, Toy, and
+  Scalar built-ins are aggregated through extension bundles. Toy is the proof
+  extension, and the RVV `i32-vsub` source route remains a route metadata
+  regression consumer.
+- Updated `tcrv-opt` and `tcrv-translate` to populate built-in plugin
+  registries through the bundle plugin frontdoor before dialect registration,
+  planning, and export setup.
+- Added C++ fail-closed coverage for duplicate bundle/plugin ids, duplicate
+  route registration through a bundle, missing route metadata declaration, route
+  registration without required `TargetArtifactRouteMetadata`, and stale Toy
+  route runtime/selected-plan metadata.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-toy-extension-plugin-test tianchenrv-offload-extension-plugin-test tianchenrv-rvv-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-toy-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-offload-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Plugin/toy-extension-plugin.test Target/ToyMetadataArtifact/toy-metadata-artifact-route.mlir Target/ToyMetadataArtifact/toy-metadata-artifact-runtime-abi-kind-fails.mlir Target/ArtifactExport/target-artifact-export-registry.test Target/ArtifactExport/offload-runtime-descriptor-artifact-route.test Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-i32m2-generic-route.mlir`
+  from `artifacts/tmp/tianchenrv-build/test`: 6 focused lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-11-extension-bundle-registration-frontdoor`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+
+Self-repair: split the bundle callback function pointer type from concrete
+exporter registration, qualified the RVV route manifest type, and reran focused
+lit from the build test directory after the source-tree invocation lacked
+site-config variables. `clang-format` was unavailable in the environment.
+
+No runtime correctness, hardware execution, or performance evidence was
+claimed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.

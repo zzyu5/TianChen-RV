@@ -22,6 +22,7 @@ namespace tianchenrv::target {
 
 struct TargetArtifactCandidate;
 class TargetArtifactExporterRegistry;
+class PluginTargetArtifactExporterRegistry;
 
 } // namespace tianchenrv::target
 
@@ -37,6 +38,10 @@ using TargetArtifactCandidateValidationFn = llvm::Error (*)(
     const TargetArtifactCandidate &candidate);
 using PluginTargetArtifactExporterRegistrationFn =
     llvm::Error (*)(TargetArtifactExporterRegistry &registry);
+using PluginTargetArtifactExporterBundleRegistrationFn =
+    llvm::Error (*)(PluginTargetArtifactExporterRegistry &registry);
+using ExtensionPluginRegistrationFn =
+    llvm::Error (*)(plugin::ExtensionPluginRegistry &registry);
 using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
     llvm::ArrayRef<TargetArtifactCandidate> candidates);
 using TargetArtifactCompositeCandidateValidationFn = llvm::Error (*)(
@@ -358,6 +363,92 @@ public:
 private:
   llvm::StringMap<llvm::SmallVector<PluginTargetArtifactExporterBundle, 2>>
       bundlesByPlugin;
+};
+
+struct ExtensionBundleTargetArtifactRouteMetadata {
+  ExtensionBundleTargetArtifactRouteMetadata() = default;
+  ExtensionBundleTargetArtifactRouteMetadata(llvm::StringRef routeID,
+                                             llvm::StringRef artifactKind,
+                                             bool requireRouteMetadata = true);
+
+  std::string routeID;
+  std::string artifactKind;
+  bool requireRouteMetadata = true;
+};
+
+class ExtensionBundle {
+public:
+  ExtensionBundle() = default;
+  ExtensionBundle(llvm::StringRef bundleID, llvm::StringRef pluginName,
+                  ExtensionPluginRegistrationFn pluginRegistrationFn);
+
+  llvm::StringRef getBundleID() const { return bundleID; }
+  llvm::StringRef getPluginName() const { return pluginName; }
+  ExtensionPluginRegistrationFn getPluginRegistrationFn() const {
+    return pluginRegistrationFn;
+  }
+  llvm::ArrayRef<std::string> getRequiredDialectNames() const {
+    return requiredDialectNames;
+  }
+  llvm::ArrayRef<std::string> getLoweringBoundaryOps() const {
+    return loweringBoundaryOps;
+  }
+  PluginTargetArtifactExporterBundleRegistrationFn
+  getTargetArtifactExporterBundleRegistrationFn() const {
+    return targetArtifactExporterBundleRegistrationFn;
+  }
+  bool requiresTargetArtifactRouteMetadata() const {
+    return requireTargetArtifactRouteMetadata;
+  }
+  llvm::ArrayRef<ExtensionBundleTargetArtifactRouteMetadata>
+  getTargetArtifactRouteMetadata() const {
+    return targetArtifactRouteMetadata;
+  }
+
+  void addRequiredDialectName(llvm::StringRef dialectName);
+  void addLoweringBoundaryOp(llvm::StringRef opName);
+  void setTargetArtifactExporterBundleRegistrationFn(
+      PluginTargetArtifactExporterBundleRegistrationFn registrationFn);
+  void setRequiresTargetArtifactRouteMetadata(bool required = true) {
+    requireTargetArtifactRouteMetadata = required;
+  }
+  void addTargetArtifactRouteMetadataRequirement(
+      llvm::StringRef routeID, llvm::StringRef artifactKind,
+      bool requireRouteMetadata = true);
+
+private:
+  std::string bundleID;
+  std::string pluginName;
+  ExtensionPluginRegistrationFn pluginRegistrationFn = nullptr;
+  llvm::SmallVector<std::string, 2> requiredDialectNames;
+  llvm::SmallVector<std::string, 2> loweringBoundaryOps;
+  PluginTargetArtifactExporterBundleRegistrationFn
+      targetArtifactExporterBundleRegistrationFn = nullptr;
+  bool requireTargetArtifactRouteMetadata = false;
+  llvm::SmallVector<ExtensionBundleTargetArtifactRouteMetadata, 2>
+      targetArtifactRouteMetadata;
+};
+
+class ExtensionBundleRegistry {
+public:
+  llvm::Error registerBundle(const ExtensionBundle &bundle);
+
+  const ExtensionBundle *lookupBundle(llvm::StringRef bundleID) const;
+  const ExtensionBundle *lookupPluginBundle(llvm::StringRef pluginName) const;
+  llvm::ArrayRef<ExtensionBundle> getBundles() const { return bundles; }
+  std::size_t size() const { return bundles.size(); }
+
+  llvm::Error
+  registerExtensionPlugins(plugin::ExtensionPluginRegistry &plugins) const;
+
+  llvm::Error registerTargetArtifactExportersForEnabledPlugins(
+      const plugin::ExtensionPluginRegistry &plugins,
+      TargetArtifactExporterRegistry &registry) const;
+
+private:
+  llvm::SmallVector<ExtensionBundle, 4> bundles;
+  llvm::StringMap<std::size_t> bundleIndicesByID;
+  llvm::StringMap<std::size_t> bundleIndicesByPlugin;
 };
 
 llvm::Error collectTargetArtifactCandidates(

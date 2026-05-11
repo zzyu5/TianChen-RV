@@ -1,5 +1,4 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVLoweringBoundary.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
@@ -100,9 +99,10 @@ int main(int argc, char **argv) {
   tianchenrv::target::TargetArtifactExporterRegistry targetExporters;
   if (useBuiltinPlugins) {
     if (llvm::Error error =
-            tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+            tianchenrv::target::registerBuiltinExtensionBundlePlugins(
+                plugins)) {
       llvm::errs() << "failed to register TianChen-RV built-in extension "
-                      "plugins: "
+                      "bundle plugins: "
                    << llvm::toString(std::move(error)) << "\n";
       return 1;
     }

@@ -1,5 +1,4 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
@@ -41,7 +40,7 @@ mlir::LogicalResult populateBuiltinPlanningRegistries(
     mlir::ModuleOp module, tianchenrv::plugin::ExtensionPluginRegistry &plugins,
     tianchenrv::target::TargetArtifactExporterRegistry &exporters) {
   if (llvm::Error error =
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+          tianchenrv::target::registerBuiltinExtensionBundlePlugins(plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -63,10 +62,10 @@ void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
 
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
   if (llvm::Error error =
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+          tianchenrv::target::registerBuiltinExtensionBundlePlugins(plugins)) {
     llvm::report_fatal_error(
         llvm::Twine("failed to register TianChen-RV built-in extension "
-                    "plugins for tcrv-translate: ") +
+                    "bundle plugins for tcrv-translate: ") +
         llvm::toString(std::move(error)));
   }
   tianchenrv::registerPluginDialects(plugins, registry);
@@ -76,7 +75,7 @@ mlir::LogicalResult exportEmissionManifest(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
   if (llvm::Error error =
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+          tianchenrv::target::registerBuiltinExtensionBundlePlugins(plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

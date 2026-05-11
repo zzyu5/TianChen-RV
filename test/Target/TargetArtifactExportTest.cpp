@@ -157,6 +157,46 @@ llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
   return llvm::Error::success();
 }
 
+constexpr llvm::StringLiteral kBundleTestNoMetadataRouteID(
+    "bundle-test-no-metadata-route");
+constexpr llvm::StringLiteral kBundleTestDuplicateRouteID(
+    "bundle-test-duplicate-route");
+
+llvm::Error registerNoMetadataToyTargetExporter(
+    TargetArtifactExporterRegistry &registry) {
+  return registry.registerExporter(TargetArtifactExporter(
+      kBundleTestNoMetadataRouteID, "metadata-diagnostic",
+      tianchenrv::plugin::toy::getToyExtensionPluginName(),
+      tianchenrv::plugin::toy::getToyMetadataEmissionKind(), noopExporter));
+}
+
+llvm::Error registerNoMetadataToyPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      tianchenrv::plugin::toy::getToyExtensionPluginName(),
+      registerNoMetadataToyTargetExporter));
+}
+
+llvm::Error registerDuplicateToyTargetExporters(
+    TargetArtifactExporterRegistry &registry) {
+  if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+          kBundleTestDuplicateRouteID, "metadata-diagnostic",
+          tianchenrv::plugin::toy::getToyExtensionPluginName(),
+          tianchenrv::plugin::toy::getToyMetadataEmissionKind(), noopExporter)))
+    return error;
+  return registry.registerExporter(TargetArtifactExporter(
+      kBundleTestDuplicateRouteID, "metadata-diagnostic",
+      tianchenrv::plugin::toy::getToyExtensionPluginName(),
+      tianchenrv::plugin::toy::getToyMetadataEmissionKind(), noopExporter));
+}
+
+llvm::Error registerDuplicateToyPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      tianchenrv::plugin::toy::getToyExtensionPluginName(),
+      registerDuplicateToyTargetExporters));
+}
+
 class DisabledToyTargetExporterPlugin final : public ExtensionPlugin {
 public:
   llvm::StringRef getName() const override {
@@ -476,6 +516,234 @@ bool expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
       "stale selected-plan route descriptor preflight rejected",
       {"route id", routeID, "selected_plan_metadata", metadataName,
        "must use value"});
+}
+
+bool containsString(llvm::ArrayRef<std::string> values,
+                    llvm::StringRef expected) {
+  return llvm::any_of(values, [&](const std::string &value) {
+    return llvm::StringRef(value) == expected;
+  });
+}
+
+bool expectBuiltinExtensionBundleFrontDoorRegistration() {
+  ExtensionBundleRegistry bundles;
+  if (!expectSuccess(registerBuiltinExtensionBundles(bundles),
+                     "register built-in extension bundles"))
+    return false;
+  if (bundles.size() != 4) {
+    llvm::errs() << "built-in extension bundle registry expected 4 bundles\n";
+    return false;
+  }
+
+  const ExtensionBundle *toyBundle =
+      bundles.lookupPluginBundle(
+          tianchenrv::plugin::toy::getToyExtensionPluginName());
+  if (!toyBundle) {
+    llvm::errs() << "missing Toy extension bundle frontdoor\n";
+    return false;
+  }
+  if (toyBundle->getBundleID() != "toy-extension-bundle" ||
+      !containsString(toyBundle->getRequiredDialectNames(), "tcrv_toy") ||
+      !containsString(toyBundle->getLoweringBoundaryOps(),
+                      "tcrv_toy.lowering_boundary") ||
+      !toyBundle->getPluginRegistrationFn() ||
+      !toyBundle->getTargetArtifactExporterBundleRegistrationFn() ||
+      !toyBundle->requiresTargetArtifactRouteMetadata() ||
+      toyBundle->getTargetArtifactRouteMetadata().size() != 1 ||
+      toyBundle->getTargetArtifactRouteMetadata().front().routeID !=
+          tianchenrv::plugin::toy::getToyMetadataRouteID()) {
+    llvm::errs() << "Toy extension bundle frontdoor is malformed\n";
+    return false;
+  }
+
+  const ExtensionBundle *rvvBundle =
+      bundles.lookupPluginBundle(
+          tianchenrv::plugin::rvv::getRVVExtensionPluginName());
+  if (!rvvBundle || !rvvBundle->requiresTargetArtifactRouteMetadata()) {
+    llvm::errs() << "RVV extension bundle frontdoor does not preserve route "
+                    "metadata regression ownership\n";
+    return false;
+  }
+
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
+                     "register extension plugins through bundle frontdoor"))
+    return false;
+  if (!plugins.lookupPlugin(
+          tianchenrv::plugin::toy::getToyExtensionPluginName()) ||
+      !plugins.lookupPlugin(
+          tianchenrv::plugin::offload::getOffloadExtensionPluginName()) ||
+      !plugins.lookupPlugin(
+          tianchenrv::plugin::rvv::getRVVExtensionPluginName()) ||
+      !plugins.lookupPlugin(
+          tianchenrv::plugin::scalar::getScalarExtensionPluginName())) {
+    llvm::errs() << "bundle frontdoor did not register all built-in plugins\n";
+    return false;
+  }
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(
+          bundles.registerTargetArtifactExportersForEnabledPlugins(plugins,
+                                                                   registry),
+          "register target artifact exporters through bundle frontdoor"))
+    return false;
+
+  constexpr llvm::StringLiteral toyRouteID(
+      "none-executable-toy-template-metadata");
+  if (!expectRoute(registry, toyRouteID, "metadata-diagnostic", "toy-plugin",
+                   "toy-template-metadata-route", 0,
+                   /*expectedDirectHelperRoute=*/false,
+                   "toy-lowering-template"))
+    return false;
+  if (!expectRouteDescriptorMetadata(
+          registry, toyRouteID, "toy-metadata-boundary.v1",
+          "toy-template-metadata", "toy-metadata-boundary.v1",
+          "metadata-only-toy-template-boundary", "toy_template_abi",
+          "toy-metadata-boundary.v1", "template-abi",
+          "runtime_execution_claim"))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(registry,
+                                                                 toyRouteID))
+    return false;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+          registry, toyRouteID, "toy_template_abi",
+          "stale-toy-metadata-boundary"))
+    return false;
+
+  const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
+      *vsubSourceRoute =
+      tianchenrv::target::rvv::lookupRVVMicrokernelDirectRoute(
+          tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
+          tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source);
+  if (!vsubSourceRoute) {
+    llvm::errs() << "missing RVV vsub source route for bundle regression\n";
+    return false;
+  }
+  const TargetArtifactExporter *rvvExporter =
+      registry.lookup(vsubSourceRoute->getRouteID());
+  if (!rvvExporter ||
+      !rvvExporter->getRouteMetadata().hasRuntimeABIMetadata()) {
+    llvm::errs() << "bundle frontdoor did not preserve RVV executable route "
+                    "metadata registration\n";
+    return false;
+  }
+
+  return true;
+}
+
+bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
+  {
+    ExtensionBundleRegistry registry;
+    ExtensionBundle first(
+        "toy-extension-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    if (!expectSuccess(registry.registerBundle(first),
+                       "register first Toy extension bundle"))
+      return false;
+
+    ExtensionBundle duplicateID(
+        "toy-extension-bundle", "toy-plugin-duplicate-id",
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    if (!expectErrorContains(registry.registerBundle(duplicateID),
+                             "duplicate extension bundle id rejected",
+                             {"duplicate extension bundle id",
+                              "toy-extension-bundle"}))
+      return false;
+  }
+
+  {
+    ExtensionBundleRegistry registry;
+    ExtensionBundle first(
+        "toy-extension-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    if (!expectSuccess(registry.registerBundle(first),
+                       "register first Toy extension plugin id"))
+      return false;
+
+    ExtensionBundle duplicatePlugin(
+        "toy-extension-bundle-duplicate-plugin",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    if (!expectErrorContains(registry.registerBundle(duplicatePlugin),
+                             "duplicate extension bundle plugin id rejected",
+                             {"duplicate extension bundle plugin id",
+                              "toy-plugin"}))
+      return false;
+  }
+
+  {
+    ExtensionBundleRegistry registry;
+    ExtensionBundle missingRouteMetadata(
+        "toy-missing-route-metadata-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    missingRouteMetadata.setTargetArtifactExporterBundleRegistrationFn(
+        registerNoMetadataToyPluginTargetExporterBundle);
+    missingRouteMetadata.setRequiresTargetArtifactRouteMetadata();
+    if (!expectErrorContains(
+            registry.registerBundle(missingRouteMetadata),
+            "missing bundle route metadata requirement rejected",
+            {"requires target artifact route metadata",
+             "declares no target artifact route metadata requirements"}))
+      return false;
+  }
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle noMetadataRoute(
+        "toy-no-metadata-route-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    noMetadataRoute.setTargetArtifactExporterBundleRegistrationFn(
+        registerNoMetadataToyPluginTargetExporterBundle);
+    noMetadataRoute.addTargetArtifactRouteMetadataRequirement(
+        kBundleTestNoMetadataRouteID, "metadata-diagnostic");
+    if (!expectSuccess(bundles.registerBundle(noMetadataRoute),
+                       "register no-metadata-route bundle"))
+      return false;
+
+    ExtensionPluginRegistry plugins;
+    if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
+                       "register plugins for no-metadata-route bundle"))
+      return false;
+    TargetArtifactExporterRegistry exporters;
+    if (!expectErrorContains(
+            bundles.registerTargetArtifactExportersForEnabledPlugins(
+                plugins, exporters),
+            "registered route without TargetArtifactRouteMetadata rejected",
+            {"target artifact route", kBundleTestNoMetadataRouteID,
+             "requires registered TargetArtifactRouteMetadata"}))
+      return false;
+  }
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle duplicateRoute(
+        "toy-duplicate-route-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    duplicateRoute.setTargetArtifactExporterBundleRegistrationFn(
+        registerDuplicateToyPluginTargetExporterBundle);
+    if (!expectSuccess(bundles.registerBundle(duplicateRoute),
+                       "register duplicate-route bundle"))
+      return false;
+
+    ExtensionPluginRegistry plugins;
+    if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
+                       "register plugins for duplicate-route bundle"))
+      return false;
+    TargetArtifactExporterRegistry exporters;
+    if (!expectErrorContains(
+            bundles.registerTargetArtifactExportersForEnabledPlugins(
+                plugins, exporters),
+            "duplicate route through bundle rejected",
+            {"duplicate exporter route id", kBundleTestDuplicateRouteID}))
+      return false;
+  }
+
+  return true;
 }
 
 bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
@@ -3829,6 +4097,10 @@ int main() {
   if (!expectTargetArtifactBundleFileNames())
     return 1;
   if (!expectTargetArtifactBundleComponentContractValidation())
+    return 1;
+  if (!expectBuiltinExtensionBundleFrontDoorRegistration())
+    return 1;
+  if (!expectExtensionBundleFrontDoorFailClosedDiagnostics())
     return 1;
   if (!expectPluginOwnedToyTargetExporterRegistration())
     return 1;

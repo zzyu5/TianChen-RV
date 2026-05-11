@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines C++ plugin registry interfaces and generic routing boundaries for bundle registration."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Constrains plugin-owned behavior and forbids extension-specific core pass branches."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Defines standard extension integration flow and expected plugin/target file ownership."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact export routing, metadata validation, and emission/runtime claim boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck and C++ coverage for plugin and target artifact behavior."}

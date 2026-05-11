@@ -2711,6 +2711,71 @@ bool hasEnabledBundleDependencies(
                       });
 }
 
+llvm::Error makeExtensionBundleRegistryError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV extension bundle registry failed: ") + message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::Error validateExtensionBundleRegistryText(llvm::StringRef fieldName,
+                                                llvm::StringRef value) {
+  if (llvm::Error error = validateRouteRegistryText(fieldName, value))
+    return makeExtensionBundleRegistryError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Error validateUniqueTextList(llvm::StringRef bundleID,
+                                   llvm::StringRef fieldName,
+                                   llvm::ArrayRef<std::string> values) {
+  llvm::StringSet<> seen;
+  for (llvm::StringRef value : values) {
+    if (llvm::Error error =
+            validateExtensionBundleRegistryText(fieldName, value))
+      return error;
+    if (!seen.insert(value).second)
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundleID +
+          "' has duplicate " + fieldName + " '" + value + "'");
+  }
+  return llvm::Error::success();
+}
+
+bool hasRegisteredRouteMetadata(const TargetArtifactExporter &exporter) {
+  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+  return metadata.hasRuntimeABIMetadata() ||
+         !metadata.getSelectedPlanMetadataRequirements().empty() ||
+         !metadata.getClaimFields().empty();
+}
+
+llvm::Error validateExtensionBundleRouteMetadataRequirements(
+    const ExtensionBundle &bundle,
+    const TargetArtifactExporterRegistry &registry) {
+  for (const ExtensionBundleTargetArtifactRouteMetadata &route :
+       bundle.getTargetArtifactRouteMetadata()) {
+    const TargetArtifactExporter *exporter = registry.lookup(route.routeID);
+    if (!exporter)
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundle.getBundleID() +
+          "' for plugin '" + bundle.getPluginName() +
+          "' expected target artifact route '" + route.routeID +
+          "' to be registered");
+    if (!route.artifactKind.empty() &&
+        exporter->getArtifactKind() != route.artifactKind)
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundle.getBundleID() +
+          "' expected target artifact route '" + route.routeID +
+          "' artifact kind '" + route.artifactKind +
+          "' but registered artifact kind is '" +
+          exporter->getArtifactKind() + "'");
+    if (route.requireRouteMetadata && !hasRegisteredRouteMetadata(*exporter))
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundle.getBundleID() +
+          "' target artifact route '" + route.routeID +
+          "' requires registered TargetArtifactRouteMetadata");
+  }
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Error PluginTargetArtifactExporterRegistry::
@@ -2781,6 +2846,182 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerExportersForPlugin(
           llvm::Twine("plugin '") + pluginName +
           "' failed to register target artifact exporters: " + message);
     }
+  }
+
+  return llvm::Error::success();
+}
+
+ExtensionBundleTargetArtifactRouteMetadata::
+    ExtensionBundleTargetArtifactRouteMetadata(
+        llvm::StringRef routeID, llvm::StringRef artifactKind,
+        bool requireRouteMetadata)
+    : routeID(routeID.str()), artifactKind(artifactKind.str()),
+      requireRouteMetadata(requireRouteMetadata) {}
+
+ExtensionBundle::ExtensionBundle(
+    llvm::StringRef bundleID, llvm::StringRef pluginName,
+    ExtensionPluginRegistrationFn pluginRegistrationFn)
+    : bundleID(bundleID.str()), pluginName(pluginName.str()),
+      pluginRegistrationFn(pluginRegistrationFn) {}
+
+void ExtensionBundle::addRequiredDialectName(llvm::StringRef dialectName) {
+  requiredDialectNames.push_back(dialectName.str());
+}
+
+void ExtensionBundle::addLoweringBoundaryOp(llvm::StringRef opName) {
+  loweringBoundaryOps.push_back(opName.str());
+}
+
+void ExtensionBundle::setTargetArtifactExporterBundleRegistrationFn(
+    PluginTargetArtifactExporterBundleRegistrationFn registrationFn) {
+  targetArtifactExporterBundleRegistrationFn = registrationFn;
+}
+
+void ExtensionBundle::addTargetArtifactRouteMetadataRequirement(
+    llvm::StringRef routeID, llvm::StringRef artifactKind,
+    bool requireRouteMetadata) {
+  targetArtifactRouteMetadata.push_back(
+      ExtensionBundleTargetArtifactRouteMetadata(routeID, artifactKind,
+                                                 requireRouteMetadata));
+  if (requireRouteMetadata)
+    requireTargetArtifactRouteMetadata = true;
+}
+
+llvm::Error ExtensionBundleRegistry::registerBundle(
+    const ExtensionBundle &bundle) {
+  if (llvm::Error error = validateExtensionBundleRegistryText(
+          "extension bundle id", bundle.getBundleID()))
+    return error;
+  if (llvm::Error error = validateExtensionBundleRegistryText(
+          "extension bundle plugin name", bundle.getPluginName()))
+    return error;
+  if (!bundle.getPluginRegistrationFn())
+    return makeExtensionBundleRegistryError(
+        llvm::Twine("extension bundle '") + bundle.getBundleID() +
+        "' must have a non-null extension plugin registration callback");
+  if (bundleIndicesByID.count(bundle.getBundleID()))
+    return makeExtensionBundleRegistryError(
+        llvm::Twine("duplicate extension bundle id '") +
+        bundle.getBundleID() + "'");
+  if (bundleIndicesByPlugin.count(bundle.getPluginName()))
+    return makeExtensionBundleRegistryError(
+        llvm::Twine("duplicate extension bundle plugin id '") +
+        bundle.getPluginName() + "'");
+
+  if (llvm::Error error =
+          validateUniqueTextList(bundle.getBundleID(), "required dialect",
+                                 bundle.getRequiredDialectNames()))
+    return error;
+  if (llvm::Error error = validateUniqueTextList(
+          bundle.getBundleID(), "lowering boundary op",
+          bundle.getLoweringBoundaryOps()))
+    return error;
+
+  if (bundle.requiresTargetArtifactRouteMetadata() &&
+      !bundle.getTargetArtifactExporterBundleRegistrationFn())
+    return makeExtensionBundleRegistryError(
+        llvm::Twine("extension bundle '") + bundle.getBundleID() +
+        "' requires target artifact route metadata but has no target artifact "
+        "exporter bundle registration callback");
+  if (bundle.requiresTargetArtifactRouteMetadata() &&
+      bundle.getTargetArtifactRouteMetadata().empty())
+    return makeExtensionBundleRegistryError(
+        llvm::Twine("extension bundle '") + bundle.getBundleID() +
+        "' requires target artifact route metadata but declares no target "
+        "artifact route metadata requirements");
+
+  llvm::StringSet<> seenRoutes;
+  for (const ExtensionBundleTargetArtifactRouteMetadata &route :
+       bundle.getTargetArtifactRouteMetadata()) {
+    if (llvm::Error error = validateExtensionBundleRegistryText(
+            "extension bundle target artifact route id", route.routeID))
+      return error;
+    if (llvm::Error error = validateExtensionBundleRegistryText(
+            "extension bundle target artifact kind", route.artifactKind))
+      return error;
+    if (!seenRoutes.insert(route.routeID).second)
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundle.getBundleID() +
+          "' has duplicate target artifact route metadata requirement '" +
+          route.routeID + "'");
+  }
+
+  std::size_t index = bundles.size();
+  bundles.push_back(bundle);
+  bundleIndicesByID[bundles.back().getBundleID()] = index;
+  bundleIndicesByPlugin[bundles.back().getPluginName()] = index;
+  return llvm::Error::success();
+}
+
+const ExtensionBundle *
+ExtensionBundleRegistry::lookupBundle(llvm::StringRef bundleID) const {
+  auto it = bundleIndicesByID.find(bundleID);
+  if (it == bundleIndicesByID.end())
+    return nullptr;
+  return &bundles[it->getValue()];
+}
+
+const ExtensionBundle *
+ExtensionBundleRegistry::lookupPluginBundle(llvm::StringRef pluginName) const {
+  auto it = bundleIndicesByPlugin.find(pluginName);
+  if (it == bundleIndicesByPlugin.end())
+    return nullptr;
+  return &bundles[it->getValue()];
+}
+
+llvm::Error ExtensionBundleRegistry::registerExtensionPlugins(
+    plugin::ExtensionPluginRegistry &plugins) const {
+  for (const ExtensionBundle &bundle : bundles) {
+    if (llvm::Error error = bundle.getPluginRegistrationFn()(plugins)) {
+      std::string message = llvm::toString(std::move(error));
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundle.getBundleID() +
+          "' failed to register extension plugin '" +
+          bundle.getPluginName() + "': " + message);
+    }
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionBundleRegistry::
+    registerTargetArtifactExportersForEnabledPlugins(
+        const plugin::ExtensionPluginRegistry &plugins,
+        TargetArtifactExporterRegistry &registry) const {
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  for (const ExtensionBundle &bundle : bundles) {
+    PluginTargetArtifactExporterBundleRegistrationFn registrationFn =
+        bundle.getTargetArtifactExporterBundleRegistrationFn();
+    if (!registrationFn)
+      continue;
+
+    if (llvm::Error error = registrationFn(pluginExporters)) {
+      std::string message = llvm::toString(std::move(error));
+      return makeExtensionBundleRegistryError(
+          llvm::Twine("extension bundle '") + bundle.getBundleID() +
+          "' failed to register plugin-owned target artifact exporter "
+          "bundle: " +
+          message);
+    }
+  }
+
+  if (llvm::Error error =
+          pluginExporters.registerExportersForEnabledPlugins(plugins,
+                                                             registry)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeExtensionBundleRegistryError(
+        llvm::Twine("failed to populate target artifact exporters from "
+                    "extension bundles: ") +
+        message);
+  }
+
+  for (const ExtensionBundle &bundle : bundles) {
+    const plugin::ExtensionPlugin *plugin =
+        plugins.lookupPlugin(bundle.getPluginName());
+    if (!plugin || !plugin->isEnabled())
+      continue;
+    if (llvm::Error error =
+            validateExtensionBundleRouteMetadataRequirements(bundle, registry))
+      return error;
   }
 
   return llvm::Error::success();
