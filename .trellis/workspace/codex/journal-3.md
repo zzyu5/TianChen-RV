@@ -99,6 +99,72 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 27: Common EmitC lowerable interface with RVV i32-add consumer
+
+**Date**: 2026-05-11
+**Task**: Common TCRV EmitC lowerable interface with RVV i32-add first consumer
+**Branch**: `main`
+
+### Summary
+
+Added the first common C++ `TCRVEmitCLowerableInterface` boundary under
+`Conversion/EmitC` and adapted the direct RVV i32-add microkernel source route
+to build its `emitc.call_opaque` callee/provenance route through that common
+interface. The generated arithmetic call is now driven by verified typed
+`tcrv_rvv.i32_add` body provenance plus the common route object, while the
+descriptor remains a selected-config and mismatch cross-check surface.
+
+### Main Changes
+
+- Added `include/TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h`
+  and `lib/Conversion/EmitC/TCRVEmitCLowerableInterface.cpp`, with CMake
+  wiring through `TianChenRVConversionEmitC`.
+- Added a generic lowerable route object carrying headers, C type mappings,
+  runtime ABI mappings, source-op provenance, and `emitc.call_opaque`
+  construction inputs.
+- Updated the RVV binary body verifier to preserve concrete source op names
+  from verified typed dataflow body ops.
+- Replaced the RVV-local route object in `RVVMicrokernel.cpp` with an adapter
+  implementing `TCRVEmitCLowerableInterface`.
+- Added focused C++ coverage for the common interface and lit/FileCheck
+  coverage for direct i32-add route provenance plus descriptor/body mismatch
+  fail-closed behavior.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  TianChenRVConversionEmitC TianChenRVRVVTarget tcrv-translate
+  tianchenrv-emitc-lowerable-interface-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- Focused lit filter:
+  `rvv-microkernel-pipeline|rvv-microkernel-i32-add-descriptor-body-mismatch-fails`
+  passed, 2/2.
+- Focused lit filter:
+  `rvv-microkernel-family-(sub|mul)|rvv-microkernel-auto-materialization`
+  passed, 5/5.
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/archive/2026-05/05-11-tcrv-emitc-lowerable-interface-rvv-i32-add`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  206/206 tests passed.
+
+No `ssh rvv` run was required or performed because this round made a structural
+compiler/export-route claim only, not a runtime correctness, hardware
+execution, throughput, latency, or performance claim.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional follow-up: attach the common boundary as a generated ODS op
+  interface once the TableGen interface target and RVV op declarations are
+  ready to move together.
+
+
 ## Session 29: RVV direct i32-vmul EmitC ssh evidence
 
 **Date**: 2026-05-11

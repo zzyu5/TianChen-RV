@@ -136,31 +136,37 @@ llvm::Error validateVectorValueType(
                    "artifact export");
 }
 
-RVVBinaryDataflowStep makeLoadStep(RuntimeABIParameterRole role,
+RVVBinaryDataflowStep makeLoadStep(llvm::StringRef sourceOpName,
+                                   RuntimeABIParameterRole role,
                                    RVVBinaryDataflowValue result) {
   RVVBinaryDataflowStep step;
   step.kind = RVVBinaryDataflowStepKind::Load;
+  step.sourceOpName = sourceOpName.str();
   step.bufferRole = role;
   step.result = result;
   return step;
 }
 
-RVVBinaryDataflowStep makeArithmeticStep(RVVBinaryDataflowStepKind kind,
+RVVBinaryDataflowStep makeArithmeticStep(llvm::StringRef sourceOpName,
+                                         RVVBinaryDataflowStepKind kind,
                                          RVVBinaryDataflowValue lhs,
                                          RVVBinaryDataflowValue rhs,
                                          RVVBinaryDataflowValue result) {
   RVVBinaryDataflowStep step;
   step.kind = kind;
+  step.sourceOpName = sourceOpName.str();
   step.lhs = lhs;
   step.rhs = rhs;
   step.result = result;
   return step;
 }
 
-RVVBinaryDataflowStep makeStoreStep(RuntimeABIParameterRole role,
+RVVBinaryDataflowStep makeStoreStep(llvm::StringRef sourceOpName,
+                                    RuntimeABIParameterRole role,
                                     RVVBinaryDataflowValue value) {
   RVVBinaryDataflowStep step;
   step.kind = RVVBinaryDataflowStepKind::Store;
+  step.sourceOpName = sourceOpName.str();
   step.bufferRole = role;
   step.value = value;
   return step;
@@ -349,14 +355,10 @@ llvm::Expected<RVVIntrinsicConfig> buildIntrinsicConfig(
 }
 
 void appendArithmeticStep(RVVBinaryDataflowEmissionPlan &plan,
-                          RVVBinaryArithmeticKind arithmetic) {
-  RVVBinaryDataflowStepKind kind = RVVBinaryDataflowStepKind::Mul;
-  if (arithmetic == RVVBinaryArithmeticKind::Add)
-    kind = RVVBinaryDataflowStepKind::Add;
-  else if (arithmetic == RVVBinaryArithmeticKind::Sub)
-    kind = RVVBinaryDataflowStepKind::Sub;
+                          llvm::StringRef sourceOpName,
+                          RVVBinaryDataflowStepKind kind) {
   plan.steps.push_back(makeArithmeticStep(
-      kind, RVVBinaryDataflowValue::LHSVector,
+      sourceOpName, kind, RVVBinaryDataflowValue::LHSVector,
       RVVBinaryDataflowValue::RHSVector,
       RVVBinaryDataflowValue::ResultVector));
 }
@@ -394,6 +396,8 @@ llvm::Error validateI32DataflowBody(
   mlir::Value arithmeticRHS;
   mlir::Value arithmeticVL;
   mlir::Value arithmeticResult;
+  RVVBinaryDataflowStepKind arithmeticStepKind =
+      RVVBinaryDataflowStepKind::Mul;
   if (auto add = llvm::dyn_cast<I32AddOp>(ops[2])) {
     if (request.descriptor.family.arithmetic != RVVBinaryArithmeticKind::Add)
       return makeBodyVerifierError(
@@ -404,6 +408,7 @@ llvm::Error validateI32DataflowBody(
     arithmeticRHS = add.getRhs();
     arithmeticVL = add.getVl();
     arithmeticResult = add.getSum();
+    arithmeticStepKind = RVVBinaryDataflowStepKind::Add;
   } else if (auto sub = llvm::dyn_cast<I32SubOp>(ops[2])) {
     if (request.descriptor.family.arithmetic != RVVBinaryArithmeticKind::Sub)
       return makeBodyVerifierError(
@@ -414,6 +419,7 @@ llvm::Error validateI32DataflowBody(
     arithmeticRHS = sub.getRhs();
     arithmeticVL = sub.getVl();
     arithmeticResult = sub.getDifference();
+    arithmeticStepKind = RVVBinaryDataflowStepKind::Sub;
   } else if (auto mul = llvm::dyn_cast<I32MulOp>(ops[2])) {
     if (request.descriptor.family.arithmetic != RVVBinaryArithmeticKind::Mul)
       return makeBodyVerifierError(
@@ -424,6 +430,7 @@ llvm::Error validateI32DataflowBody(
     arithmeticRHS = mul.getRhs();
     arithmeticVL = mul.getVl();
     arithmeticResult = mul.getProduct();
+    arithmeticStepKind = RVVBinaryDataflowStepKind::Mul;
   }
 
   if (!lhsLoad || !rhsLoad || !arithmeticResult || !store)
@@ -497,12 +504,16 @@ llvm::Error validateI32DataflowBody(
 
   plan.steps.clear();
   plan.steps.push_back(
-      makeLoadStep(*lhsRole, RVVBinaryDataflowValue::LHSVector));
+      makeLoadStep(lhsLoad->getName().getStringRef(), *lhsRole,
+                   RVVBinaryDataflowValue::LHSVector));
   plan.steps.push_back(
-      makeLoadStep(*rhsRole, RVVBinaryDataflowValue::RHSVector));
-  appendArithmeticStep(plan, request.descriptor.family.arithmetic);
+      makeLoadStep(rhsLoad->getName().getStringRef(), *rhsRole,
+                   RVVBinaryDataflowValue::RHSVector));
+  appendArithmeticStep(plan, ops[2]->getName().getStringRef(),
+                       arithmeticStepKind);
   plan.steps.push_back(
-      makeStoreStep(*storeRole, RVVBinaryDataflowValue::ResultVector));
+      makeStoreStep(store->getName().getStringRef(), *storeRole,
+                    RVVBinaryDataflowValue::ResultVector));
   return llvm::Error::success();
 }
 
@@ -539,6 +550,8 @@ llvm::Error validateI64DataflowBody(
   mlir::Value arithmeticRHS;
   mlir::Value arithmeticVL;
   mlir::Value arithmeticResult;
+  RVVBinaryDataflowStepKind arithmeticStepKind =
+      RVVBinaryDataflowStepKind::Mul;
   if (auto add = llvm::dyn_cast<I64AddOp>(ops[2])) {
     if (request.descriptor.family.arithmetic != RVVBinaryArithmeticKind::Add)
       return makeBodyVerifierError(
@@ -549,6 +562,7 @@ llvm::Error validateI64DataflowBody(
     arithmeticRHS = add.getRhs();
     arithmeticVL = add.getVl();
     arithmeticResult = add.getSum();
+    arithmeticStepKind = RVVBinaryDataflowStepKind::Add;
   } else if (auto sub = llvm::dyn_cast<I64SubOp>(ops[2])) {
     if (request.descriptor.family.arithmetic != RVVBinaryArithmeticKind::Sub)
       return makeBodyVerifierError(
@@ -559,6 +573,7 @@ llvm::Error validateI64DataflowBody(
     arithmeticRHS = sub.getRhs();
     arithmeticVL = sub.getVl();
     arithmeticResult = sub.getDifference();
+    arithmeticStepKind = RVVBinaryDataflowStepKind::Sub;
   } else if (auto mul = llvm::dyn_cast<I64MulOp>(ops[2])) {
     if (request.descriptor.family.arithmetic != RVVBinaryArithmeticKind::Mul)
       return makeBodyVerifierError(
@@ -569,6 +584,7 @@ llvm::Error validateI64DataflowBody(
     arithmeticRHS = mul.getRhs();
     arithmeticVL = mul.getVl();
     arithmeticResult = mul.getProduct();
+    arithmeticStepKind = RVVBinaryDataflowStepKind::Mul;
   }
 
   if (!lhsLoad || !rhsLoad || !arithmeticResult || !store)
@@ -642,12 +658,16 @@ llvm::Error validateI64DataflowBody(
 
   plan.steps.clear();
   plan.steps.push_back(
-      makeLoadStep(*lhsRole, RVVBinaryDataflowValue::LHSVector));
+      makeLoadStep(lhsLoad->getName().getStringRef(), *lhsRole,
+                   RVVBinaryDataflowValue::LHSVector));
   plan.steps.push_back(
-      makeLoadStep(*rhsRole, RVVBinaryDataflowValue::RHSVector));
-  appendArithmeticStep(plan, request.descriptor.family.arithmetic);
+      makeLoadStep(rhsLoad->getName().getStringRef(), *rhsRole,
+                   RVVBinaryDataflowValue::RHSVector));
+  appendArithmeticStep(plan, ops[2]->getName().getStringRef(),
+                       arithmeticStepKind);
   plan.steps.push_back(
-      makeStoreStep(*storeRole, RVVBinaryDataflowValue::ResultVector));
+      makeStoreStep(store->getName().getStringRef(), *storeRole,
+                    RVVBinaryDataflowValue::ResultVector));
   return llvm::Error::success();
 }
 

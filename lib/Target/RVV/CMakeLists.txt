@@ -4,6 +4,7 @@ add_mlir_library(TianChenRVRVVTarget
   RVVSmokeProbe.cpp
 
   LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
   TianChenRVExecDialect
   TianChenRVRVVDialect
   TianChenRVSupport

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global project stack and architecture invariants"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified extension-family route and descriptor boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC lowerable route contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export and runtime ABI boundary"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "TCRV common interface expectations"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin/common boundary and lowering template"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first consumer and typed family-op contract"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "keep tcrv.exec compute-free"}

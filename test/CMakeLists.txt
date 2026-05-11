@@ -317,6 +317,17 @@ target_link_libraries(tianchenrv-capability-model-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-emitc-lowerable-interface-test
+  Conversion/EmitC/TCRVEmitCLowerableInterfaceTest.cpp
+)
+
+target_link_libraries(tianchenrv-emitc-lowerable-interface-test
+  PRIVATE
+  TianChenRVConversionEmitC
+  TianChenRVSupport
+  MLIRSupport
+)
+
 add_executable(tianchenrv-target-artifact-export-test
   Target/TargetArtifactExportTest.cpp
 )
@@ -356,6 +367,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-rvv-binary-planning-test
   tianchenrv-rvv-selected-lowering-boundary-test
   tianchenrv-emission-readiness-test
+  tianchenrv-emitc-lowerable-interface-test
   tianchenrv-i32-binary-family-registry-test
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test

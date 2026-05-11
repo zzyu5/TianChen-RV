@@ -35,6 +35,7 @@ enum class RVVBinaryDataflowValue {
 
 struct RVVBinaryDataflowStep {
   RVVBinaryDataflowStepKind kind = RVVBinaryDataflowStepKind::Load;
+  std::string sourceOpName;
   support::RuntimeABIParameterRole bufferRole =
       support::RuntimeABIParameterRole::LHSInputBuffer;
   RVVBinaryDataflowValue result = RVVBinaryDataflowValue::None;
