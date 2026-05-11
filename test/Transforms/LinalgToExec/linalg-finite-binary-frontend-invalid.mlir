@@ -160,6 +160,133 @@ module {
     }
     return
   }
+
+}
+
+// -----
+
+#map = affine_map<(d0) -> (d0)>
+
+module {
+  tcrv.exec.target @frontend_i64_profile {
+    architecture = "riscv64",
+    count = 64 : i64,
+    id = "rvv.profile.frontend.invalid.i64.legacy.rvv",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    kind = "profile",
+    provides = ["rvv", "rvv.hart_count", "rvv.i64_m1.sew64", "rvv.i64_m1.lmul_m1", "rvv.i64_m1.tail_policy.agnostic", "rvv.i64_m1.mask_policy.agnostic", "rvv.probe.compile_run"],
+    sew_bits = 64 : i64,
+    lmul = "m1",
+    tail_policy = "agnostic",
+    mask_policy = "agnostic",
+    selected_march = "rv64gcv",
+    status = "available"
+  }
+
+  func.func @bad_i64_legacy_rvv_descriptor(%lhs: memref<?xi64>, %rhs: memref<?xi64>, %out: memref<?xi64>)
+      attributes {
+        tcrv_frontend_kernel = "bad_i64_legacy_rvv_descriptor_kernel",
+        tcrv_frontend_target = @frontend_i64_profile
+      } {
+    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'tcrv_rvv.lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
+    linalg.generic {
+        indexing_maps = [#map, #map, #map],
+        iterator_types = ["parallel"],
+        tcrv_frontend_lowering = "i64-vadd",
+        tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1"
+      }
+      ins(%lhs, %rhs : memref<?xi64>, memref<?xi64>)
+      outs(%out : memref<?xi64>) {
+    ^bb0(%a: i64, %b: i64, %old: i64):
+      %sum = arith.addi %a, %b : i64
+      linalg.yield %sum : i64
+    }
+    return
+  }
+}
+
+// -----
+
+#map = affine_map<(d0) -> (d0)>
+
+module {
+  tcrv.exec.target @frontend_i64_profile {
+    architecture = "riscv64",
+    count = 64 : i64,
+    id = "rvv.profile.frontend.invalid.i64.legacy.scalar",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    kind = "profile",
+    provides = ["rvv", "rvv.hart_count", "rvv.i64_m1.sew64", "rvv.i64_m1.lmul_m1", "rvv.i64_m1.tail_policy.agnostic", "rvv.i64_m1.mask_policy.agnostic", "rvv.probe.compile_run"],
+    sew_bits = 64 : i64,
+    lmul = "m1",
+    tail_policy = "agnostic",
+    mask_policy = "agnostic",
+    selected_march = "rv64gcv",
+    status = "available"
+  }
+
+  func.func @bad_i64_legacy_scalar_descriptor(%lhs: memref<?xi64>, %rhs: memref<?xi64>, %out: memref<?xi64>)
+      attributes {
+        tcrv_frontend_kernel = "bad_i64_legacy_scalar_descriptor_kernel",
+        tcrv_frontend_target = @frontend_i64_profile
+      } {
+    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'tcrv_scalar.lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
+    linalg.generic {
+        indexing_maps = [#map, #map, #map],
+        iterator_types = ["parallel"],
+        tcrv_frontend_lowering = "i64-vadd",
+        tcrv_scalar.lowering_descriptor = "i64-vsub-microkernel.v1"
+      }
+      ins(%lhs, %rhs : memref<?xi64>, memref<?xi64>)
+      outs(%out : memref<?xi64>) {
+    ^bb0(%a: i64, %b: i64, %old: i64):
+      %sum = arith.addi %a, %b : i64
+      linalg.yield %sum : i64
+    }
+    return
+  }
+}
+
+// -----
+
+#map = affine_map<(d0) -> (d0)>
+
+module {
+  tcrv.exec.target @frontend_i64_profile {
+    architecture = "riscv64",
+    count = 64 : i64,
+    id = "rvv.profile.frontend.invalid.i64.selected",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    kind = "profile",
+    provides = ["rvv", "rvv.hart_count", "rvv.i64_m1.sew64", "rvv.i64_m1.lmul_m1", "rvv.i64_m1.tail_policy.agnostic", "rvv.i64_m1.mask_policy.agnostic", "rvv.probe.compile_run"],
+    sew_bits = 64 : i64,
+    lmul = "m1",
+    tail_policy = "agnostic",
+    mask_policy = "agnostic",
+    selected_march = "rv64gcv",
+    status = "available"
+  }
+
+  func.func @bad_i64_selected_descriptor(%lhs: memref<?xi64>, %rhs: memref<?xi64>, %out: memref<?xi64>)
+      attributes {
+        tcrv_frontend_kernel = "bad_i64_selected_descriptor_kernel",
+        tcrv_frontend_target = @frontend_i64_profile
+      } {
+    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'selected_lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
+    linalg.generic {
+        indexing_maps = [#map, #map, #map],
+        iterator_types = ["parallel"],
+        selected_lowering_descriptor = "i64-vsub-microkernel.v1",
+        tcrv_frontend_lowering = "i64-vadd"
+      }
+      ins(%lhs, %rhs : memref<?xi64>, memref<?xi64>)
+      outs(%out : memref<?xi64>) {
+    ^bb0(%a: i64, %b: i64, %old: i64):
+      %sum = arith.addi %a, %b : i64
+      linalg.yield %sum : i64
+    }
+    return
+  }
 }
 
 // -----

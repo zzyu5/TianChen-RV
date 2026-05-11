@@ -109,6 +109,49 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 performance claim was made.
 
 
+## Session 38: RVV i64-vadd default EmitC route
+
+**Date**: 2026-05-12
+**Task**: rvv-i64-vadd-default-emitc-route
+**Branch**: `main`
+
+### Summary
+
+Validated the bounded i64-vadd production/default route as typed frontend/body
+identity -> RVV/scalar selected family ops -> common EmitC/export route, with
+descriptors limited to optional legacy mirror/cross-check metadata.
+
+### Main Changes
+
+- Created the Trellis task and PRD for the i64-vadd default EmitC route.
+- Confirmed current HEAD already carries i64-vadd through typed frontend
+  inference, descriptorless RVV/scalar selected plans, typed
+  `tcrv_rvv.i64_vadd_microkernel` / `tcrv_scalar.i64_vadd_microkernel`
+  materialization, and selected-plan metadata consumed by direct and dispatch
+  export routes.
+- Added explicit i64-vadd frontend negative coverage for stale
+  `tcrv_rvv.lowering_descriptor`, `tcrv_scalar.lowering_descriptor`, and
+  `selected_lowering_descriptor` input metadata.
+
+### Testing
+
+- `artifacts/tmp/tianchenrv-build/bin/tcrv-opt test/Transforms/LinalgToExec/linalg-finite-binary-frontend-invalid.mlir --split-input-file --verify-diagnostics --tcrv-lower-linalg-rvv-binary-to-exec`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-i64-vadd-default-emitc-route`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  207/207 passed.
+
+### Status
+
+[OK] Completed and ready to archive. Descriptor authority is absent from the
+default i64-vadd selected RVV/scalar production route; no `ssh rvv` runtime,
+correctness, or performance claim was made.
+
+
 ## Session 38: I32 runtime ABI compatibility wrapper removal
 
 **Date**: 2026-05-12

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V extension-family boundary and descriptor-driven computation red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-boundary, typed family-op body, and EmitC intrinsic route contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback selected-boundary, typed microkernel, and common EmitC source route contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC lowerable op-interface boundary and descriptor boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact export, runtime ABI, and route registration contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg RVV binary frontend and execution-planning pipeline contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ validation requirements for i64-vadd frontend, selected boundary, and artifact routes"}
