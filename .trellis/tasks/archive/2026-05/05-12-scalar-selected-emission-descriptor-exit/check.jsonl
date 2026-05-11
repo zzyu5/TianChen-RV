@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global spec index and invariants"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified RISC-V architecture and descriptor boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback selected emission and typed microkernel contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route authority"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission readiness plan and artifact route contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused validation contract"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-scalar-selected-emission-descriptor-exit/prd.md", "reason": "current scalar descriptor exit acceptance criteria"}

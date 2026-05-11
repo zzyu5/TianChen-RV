@@ -29,4 +29,4 @@ module {
 }
 
 // CHECK: selected scalar fallback variant @scalar_fallback_first_slice failed plugin legality before boundary materialization
-// CHECK-SAME: finite scalar i32-vadd lowering descriptor on variant @scalar_fallback_first_slice requires tcrv_scalar.element_count in the bounded smoke range [1, 64]
+// CHECK-SAME: optional scalar element_count mirror metadata on variant @scalar_fallback_first_slice requires tcrv_scalar.element_count in the bounded smoke range [1, 64]

@@ -1,5 +1,7 @@
 module @scalar_i64_vmul_microkernel_source_input {
-  tcrv.exec.kernel @scalar_i64_vmul_microkernel_export {
+  tcrv.exec.kernel @scalar_i64_vmul_microkernel_export attributes {
+    tcrv_frontend_lowering = "i64-vmul"
+  } {
     tcrv.exec.capability @rv64 {
       id = "rv64",
       kind = "isa-scalar",
@@ -61,9 +63,7 @@ module @scalar_i64_vmul_microkernel_source_input {
       fallback_role = "conservative",
       origin = "scalar-plugin",
       policy = "portable_scalar_fallback_first_slice",
-      requires = [@scalar_fallback],
-      tcrv_scalar.element_count = 16 : i64,
-      tcrv_scalar.lowering_descriptor = "i64-vmul-microkernel.v1"
+      requires = [@scalar_fallback]
     } {
     }
     tcrv.exec.diagnostic {

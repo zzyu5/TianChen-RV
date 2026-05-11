@@ -4292,7 +4292,7 @@ module @dispatch_component_authority_input {
     tcrv.exec.runtime_param @abi_dispatch_availability_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
     tcrv.exec.variant @rvv_first_slice attributes {condition = "rvv_capability_properties_available", guard = "plugin_local_rvv_property_evidence", origin = "rvv-plugin", policy = "metadata_only_first_slice", requires = [@rvv], tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, tcrv_rvv.required_march = "rv64gcv"} {
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback], tcrv_scalar.element_count = 16 : i64, tcrv_scalar.lowering_descriptor = "i32-vmul-microkernel.v1"} {
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
     tcrv.exec.dispatch {
       tcrv.exec.case @rvv_first_slice {condition = "rvv_available", runtime_guard = @abi_dispatch_availability_guard, runtime_guard_required = true}
@@ -4372,7 +4372,43 @@ bool expectDispatchComponentAuthorityValidators() {
           tianchenrv::target::scalar::validateScalarMicrokernelSourceAuthority(
               *validModule, family.scalar, "scalar_fallback_first_slice",
               "dispatch fallback"),
-          "valid dispatch scalar component body authority accepted"))
+          "valid descriptorless dispatch scalar component body authority "
+          "accepted"))
+    return false;
+
+  std::string staleScalarDescriptorSource =
+      makeDispatchComponentAuthorityFixture();
+  std::string scalarVariantHeader =
+      "tcrv.exec.variant @scalar_fallback_first_slice attributes "
+      "{fallback_role = \"conservative\", origin = \"scalar-plugin\", policy = "
+      "\"portable_scalar_fallback_first_slice\", requires = "
+      "[@scalar_fallback]}";
+  std::string staleScalarDescriptorHeader =
+      "tcrv.exec.variant @scalar_fallback_first_slice attributes "
+      "{fallback_role = \"conservative\", origin = \"scalar-plugin\", policy = "
+      "\"portable_scalar_fallback_first_slice\", requires = "
+      "[@scalar_fallback], tcrv_scalar.lowering_descriptor = "
+      "\"i32-vadd-microkernel.v1\", tcrv_scalar.element_count = 16 : i64}";
+  if (!replaceFirst(staleScalarDescriptorSource, scalarVariantHeader,
+                    staleScalarDescriptorHeader)) {
+    llvm::errs() << "failed to build stale scalar descriptor authority "
+                    "fixture\n";
+    return false;
+  }
+  mlir::OwningOpRef<mlir::ModuleOp> staleScalarDescriptorModule =
+      parseDispatchComponentAuthorityFixture(
+          context, staleScalarDescriptorSource,
+          "stale scalar descriptor authority fixture");
+  if (!staleScalarDescriptorModule)
+    return false;
+  if (!expectErrorContains(
+          tianchenrv::target::scalar::validateScalarMicrokernelSourceAuthority(
+              *staleScalarDescriptorModule, family.scalar,
+              "scalar_fallback_first_slice", "dispatch fallback"),
+          "stale scalar descriptor authority rejected after typed source",
+          {"selected scalar variant @scalar_fallback_first_slice descriptor "
+           "'i32-vadd-microkernel.v1'",
+           "does not match materialized tcrv_scalar.i32_vmul_microkernel"}))
     return false;
 
   std::string staleRVVSource = makeDispatchComponentAuthorityFixture();
@@ -4414,9 +4450,9 @@ bool expectDispatchComponentAuthorityValidators() {
               *staleScalarModule, family.scalar,
               "scalar_fallback_first_slice", "dispatch fallback"),
           "stale scalar dispatch component body authority rejected",
-          {"selected scalar variant @scalar_fallback_first_slice descriptor "
-           "'i32-vmul-microkernel.v1'",
-           "materialized tcrv_scalar.i32_vadd_microkernel"}))
+          {"selected scalar component authority",
+           "requires tcrv_scalar.i32_vmul_microkernel",
+           "typed scalar record is tcrv_scalar.i32_vadd_microkernel"}))
     return false;
 
   return true;

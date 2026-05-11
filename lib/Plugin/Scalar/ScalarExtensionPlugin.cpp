@@ -358,23 +358,31 @@ struct ScalarMicrokernelMaterializationPlan {
   std::int64_t elementCount = 0;
 };
 
-llvm::Expected<std::optional<ScalarMicrokernelMaterializationPlan>>
-buildScalarMicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
+llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
+    tcrv::exec::VariantOp variant) {
   mlir::Attribute rawDescriptor =
       variant->getAttr(kScalarLoweringDescriptorAttrName);
   if (!rawDescriptor) {
-    if (variant->hasAttr(kScalarElementCountAttrName))
-      return makeScalarPluginError(
-          llvm::Twine("finite scalar lowering descriptor on variant @") +
-          variant.getSymName() + " requires string attribute '" +
-          kScalarLoweringDescriptorAttrName + "'");
-    return std::optional<ScalarMicrokernelMaterializationPlan>();
+    if (mlir::Attribute rawElementCount =
+            variant->getAttr(kScalarElementCountAttrName)) {
+      auto elementCount = llvm::dyn_cast<mlir::IntegerAttr>(rawElementCount);
+      if (!elementCount || elementCount.getInt() <= 0 ||
+          elementCount.getInt() > 64)
+        return makeScalarPluginError(
+            llvm::Twine("optional scalar element_count mirror metadata on "
+                        "variant @") +
+            variant.getSymName() +
+            " requires tcrv_scalar.element_count in the bounded smoke range "
+            "[1, 64]");
+    }
+    return llvm::Error::success();
   }
 
   auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
   if (!descriptor || descriptor.getValue().trim().empty())
     return makeScalarPluginError(
-        llvm::Twine("finite scalar lowering descriptor on variant @") +
+        llvm::Twine("optional legacy scalar descriptor mirror metadata on "
+                    "variant @") +
         variant.getSymName() + " requires string attribute '" +
         kScalarLoweringDescriptorAttrName + "'");
 
@@ -382,7 +390,8 @@ buildScalarMicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
       lookupScalarMicrokernelFamilyByDescriptor(descriptor.getValue());
   if (!family)
     return makeScalarPluginError(
-        llvm::Twine("finite scalar lowering descriptor on variant @") +
+        llvm::Twine("optional legacy scalar descriptor mirror metadata on "
+                    "variant @") +
         variant.getSymName() + " must be '" +
         getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
         getI32VSubFamilySpec().getLoweringDescriptor() + "' or '" +
@@ -393,33 +402,77 @@ buildScalarMicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
-       " " + family->descriptorNoun)
+       " optional legacy scalar descriptor mirror")
           .str();
   if (llvm::Error error = validateScalarMetadataText(
           descriptorContext, kScalarLoweringDescriptorAttrName,
           descriptor.getValue().trim()))
     return std::move(error);
 
+  if (mlir::Attribute rawElementCount =
+          variant->getAttr(kScalarElementCountAttrName)) {
+    auto elementCount = llvm::dyn_cast<mlir::IntegerAttr>(rawElementCount);
+    if (!elementCount || elementCount.getInt() <= 0 ||
+        elementCount.getInt() > 64)
+      return makeScalarPluginError(
+          llvm::Twine("optional scalar element_count mirror metadata on "
+                      "variant @") +
+          variant.getSymName() +
+          " requires tcrv_scalar.element_count in the bounded smoke range "
+          "[1, 64]");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateLegacyScalarDescriptorMirrorAfterTypedPlan(
+    tcrv::exec::VariantOp variant,
+    const ScalarMicrokernelFamilySpec &typedFamily,
+    std::int64_t typedElementCount) {
+  if (!variant)
+    return makeScalarPluginError(
+        "explicit scalar microkernel emission plan requires selected variant "
+        "metadata for legacy mirror validation");
+
+  if (llvm::Error error = validateLegacyScalarDescriptorMetadataSyntax(variant))
+    return std::move(error);
+
+  if (mlir::Attribute rawDescriptor =
+          variant->getAttr(kScalarLoweringDescriptorAttrName)) {
+    auto descriptor = llvm::cast<mlir::StringAttr>(rawDescriptor);
+    llvm::StringRef descriptorValue = descriptor.getValue().trim();
+    const ScalarMicrokernelFamilySpec *descriptorFamily =
+        lookupScalarMicrokernelFamilyByDescriptor(descriptorValue);
+    if (!descriptorFamily)
+      return makeScalarPluginError(
+          llvm::Twine("optional legacy scalar descriptor mirror metadata "
+                      "tcrv_scalar.lowering_descriptor '") +
+          descriptorValue +
+          "' must name a registered finite scalar binary descriptor");
+
+    if (descriptorFamily->family->familyID != typedFamily.family->familyID)
+      return makeScalarPluginError(
+          llvm::Twine("optional legacy scalar descriptor mirror metadata "
+                      "tcrv_scalar.lowering_descriptor '") +
+          descriptorValue + "' requires " +
+          descriptorFamily->getScalar().microkernelOpName +
+          " but typed scalar microkernel body is " +
+          typedFamily.getScalar().microkernelOpName);
+  }
+
   auto elementCountAttr =
       variant->getAttrOfType<mlir::IntegerAttr>(kScalarElementCountAttrName);
   if (!elementCountAttr)
-    return makeScalarPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires integer attribute '" +
-        kScalarElementCountAttrName + "'");
+    return llvm::Error::success();
 
-  std::int64_t elementCount = elementCountAttr.getInt();
-  if (elementCount <= 0 || elementCount > 64)
+  if (elementCountAttr.getInt() != typedElementCount)
     return makeScalarPluginError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() +
-        " requires tcrv_scalar.element_count in the bounded smoke range "
-        "[1, 64]");
+        llvm::Twine("optional selected scalar element_count mirror metadata "
+                    "'tcrv_scalar.element_count' must match typed ") +
+        typedFamily.getScalar().microkernelOpName +
+        " element_count before selected emission planning");
 
-  ScalarMicrokernelMaterializationPlan plan;
-  plan.family = family;
-  plan.elementCount = elementCount;
-  return plan;
+  return llvm::Error::success();
 }
 
 std::optional<ScalarMicrokernelMaterializationPlan>
@@ -608,13 +661,9 @@ findMatchingExplicitMicrokernelFamily(
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
-  llvm::Expected<std::optional<ScalarMicrokernelMaterializationPlan>>
-      descriptorPlan = buildScalarMicrokernelMaterializationPlan(variant);
-  if (!descriptorPlan)
-    return descriptorPlan.takeError();
-
   unsigned matches = 0;
   const ScalarMicrokernelFamilySpec *matchedFamily = nullptr;
+  std::int64_t matchedElementCount = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
     const ScalarMicrokernelFamilySpec *family =
         getScalarMicrokernelFamilyForOp(&op);
@@ -638,14 +687,6 @@ findMatchingExplicitMicrokernelFamily(
           " is not the selected scalar emission plan path @" +
           variant.getSymName() + " as " + expectedRole);
     }
-
-    if (*descriptorPlan && (*descriptorPlan)->family != family)
-      return makeScalarPluginError(
-          llvm::Twine("selected scalar emission plan path @") +
-          variant.getSymName() + " as " + expectedRole + " has " +
-          family->getScalar().microkernelOpName +
-          " but selected variant descriptor requires " +
-          (*descriptorPlan)->family->getScalar().microkernelOpName);
 
     ++matches;
     matchedFamily = family;
@@ -680,14 +721,7 @@ findMatchingExplicitMicrokernelFamily(
       return makeScalarPluginError(
           "explicit scalar microkernel emission plan requires element_count in "
           "the bounded smoke range [1, 64]");
-
-    if (*descriptorPlan &&
-        elementCount.getInt() != (*descriptorPlan)->elementCount)
-      return makeScalarPluginError(
-          llvm::Twine("explicit scalar microkernel emission plan requires ") +
-          family->getScalar().microkernelOpName +
-          " element_count to match selected variant finite descriptor "
-          "tcrv_scalar.element_count");
+    matchedElementCount = elementCount.getInt();
   }
 
   if (matches > 1)
@@ -698,6 +732,10 @@ findMatchingExplicitMicrokernelFamily(
 
   if (matches == 0)
     return static_cast<const ScalarMicrokernelFamilySpec *>(nullptr);
+
+  if (llvm::Error error = validateLegacyScalarDescriptorMirrorAfterTypedPlan(
+          variant, *matchedFamily, matchedElementCount))
+    return std::move(error);
 
   if (!requireBoundary)
     return matchedFamily;
@@ -953,10 +991,9 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
 
   if (variant->hasAttr(kScalarLoweringDescriptorAttrName) ||
       variant->hasAttr(kScalarElementCountAttrName)) {
-    llvm::Expected<std::optional<ScalarMicrokernelMaterializationPlan>>
-        microkernelPlan = buildScalarMicrokernelMaterializationPlan(variant);
-    if (!microkernelPlan)
-      return microkernelPlan.takeError();
+    if (llvm::Error error =
+            validateLegacyScalarDescriptorMetadataSyntax(variant))
+      return error;
   }
 
   return llvm::Error::success();
@@ -1099,14 +1136,8 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
           request.getKernel(), request.getVariant()))
     return error;
 
-  llvm::Expected<std::optional<ScalarMicrokernelMaterializationPlan>>
-      microkernelPlan =
-          buildScalarMicrokernelMaterializationPlan(request.getVariant());
-  if (!microkernelPlan)
-    return microkernelPlan.takeError();
-
-  const ScalarMicrokernelFamilySpec *callableMicrokernelFamily =
-      microkernelPlan->has_value() ? (*microkernelPlan)->family : nullptr;
+  std::optional<ScalarMicrokernelMaterializationPlan> microkernelPlan;
+  const ScalarMicrokernelFamilySpec *callableMicrokernelFamily = nullptr;
   bool selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
   if (!selectedPathHasCallableMicrokernel) {
     VariantEmissionRequest emissionRequest(request.getVariant(),
@@ -1123,15 +1154,15 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   }
 
   if (!selectedPathHasCallableMicrokernel)
-    *microkernelPlan = buildDescriptorlessDefaultScalarTypedMaterializationPlan(
+    microkernelPlan = buildDescriptorlessDefaultScalarTypedMaterializationPlan(
         request.getKernel(), request.getVariant());
 
-  if (*microkernelPlan) {
-    callableMicrokernelFamily = (*microkernelPlan)->family;
+  if (microkernelPlan) {
+    callableMicrokernelFamily = microkernelPlan->family;
     selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
   }
 
-  if (*microkernelPlan)
+  if (microkernelPlan)
     if (llvm::Error error = rejectExistingScalarMicrokernelForSelectedPath(
             request.getKernel(), request.getVariant(), request.getRole()))
       return error;
@@ -1159,10 +1190,10 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
       request.getBuilder(), request.getKernel(), request.getVariant(),
       request.getRole());
-  if (*microkernelPlan)
+  if (microkernelPlan)
     materializeScalarMicrokernelOp(
         request.getBuilder(), request.getKernel(), request.getVariant(),
-        request.getRole(), **microkernelPlan);
+        request.getRole(), *microkernelPlan);
 
   out = VariantLoweringBoundaryResult::getMaterialized(
       kScalarPluginName, request.getKernel().getSymName(),

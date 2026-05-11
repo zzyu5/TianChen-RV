@@ -678,7 +678,8 @@ module {
       findScalarMicrokernel(kernel, variant.getSymName());
   if (int result =
           expect(scalarMicrokernel,
-                 "scalar fallback descriptor materializes a microkernel"))
+                 "descriptorless scalar fallback materializes a typed "
+                 "microkernel"))
     return result;
   if (int result =
           expect(scalarMicrokernel->getParentOp() == kernel.getOperation(),
@@ -804,7 +805,7 @@ module {
   return 0;
 }
 
-int runDescriptorBackedScalarSubMaterializationTest(
+int runDescriptorlessScalarSubMaterializationTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -829,20 +830,20 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse scalar descriptor-backed vsub module");
+    return fail("failed to parse scalar descriptorless vsub module");
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "scalar_vsub");
   if (int result =
           expect(highLevelOp && kernel,
-                 "scalar descriptor-backed vsub test has anchors"))
+                 "scalar descriptorless vsub test has anchors"))
     return result;
 
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
                             registry),
-                        "register scalar plugin for descriptor-backed vsub"))
+                        "register scalar plugin for descriptorless vsub"))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -892,16 +893,16 @@ module {
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            "materialize descriptor-backed scalar vsub boundary"))
+            "materialize descriptorless scalar vsub boundary"))
       return result;
   }
   if (int result =
           expect(boundaryResult.isMaterialized(),
-                 "descriptor-backed scalar vsub boundary materializes"))
+                 "descriptorless scalar vsub boundary materializes"))
     return result;
   if (int result =
           expect(findScalarSubMicrokernel(kernel, variant.getSymName()),
-                 "registry-backed scalar vsub descriptor materializes vsub op"))
+                 "typed-source scalar vsub path materializes vsub op"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -968,12 +969,15 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           staleStatus),
-      {"descriptor requires",
+      {"optional legacy scalar descriptor mirror metadata",
+       "tcrv_scalar.lowering_descriptor",
        tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
-           .scalar.microkernelOpName});
+           .loweringDescriptor,
+       "typed scalar microkernel body is",
+       family.scalar.microkernelOpName});
 }
 
-int runDescriptorBackedScalarMulMaterializationTest(
+int runDescriptorlessScalarMulMaterializationTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -998,20 +1002,20 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse scalar descriptor-backed vmul module");
+    return fail("failed to parse scalar descriptorless vmul module");
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "scalar_vmul");
   if (int result =
           expect(highLevelOp && kernel,
-                 "scalar descriptor-backed vmul test has anchors"))
+                 "scalar descriptorless vmul test has anchors"))
     return result;
 
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
                             registry),
-                        "register scalar plugin for descriptor-backed vmul"))
+                        "register scalar plugin for descriptorless vmul"))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -1061,16 +1065,16 @@ module {
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            "materialize descriptor-backed scalar vmul boundary"))
+            "materialize descriptorless scalar vmul boundary"))
       return result;
   }
   if (int result =
           expect(boundaryResult.isMaterialized(),
-                 "descriptor-backed scalar vmul boundary materializes"))
+                 "descriptorless scalar vmul boundary materializes"))
     return result;
   if (int result =
           expect(findScalarMulMicrokernel(kernel, variant.getSymName()),
-                 "registry-backed scalar vmul descriptor materializes vmul op"))
+                 "typed-source scalar vmul path materializes vmul op"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -1137,9 +1141,12 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           staleStatus),
-      {"descriptor requires",
+      {"optional legacy scalar descriptor mirror metadata",
+       "tcrv_scalar.lowering_descriptor",
        tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
-           .scalar.microkernelOpName});
+           .loweringDescriptor,
+       "typed scalar microkernel body is",
+       family.scalar.microkernelOpName});
 }
 
 int runDescriptorlessScalarI64MaterializationCase(
@@ -1349,8 +1356,11 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           staleStatus),
-      {"selected variant descriptor requires",
-       staleDescriptorFamily->scalar.microkernelOpName});
+      {"optional legacy scalar descriptor mirror metadata",
+       "tcrv_scalar.lowering_descriptor",
+       staleDescriptorFamily->loweringDescriptor,
+       "typed scalar microkernel body is",
+       family.scalar.microkernelOpName});
 }
 
 int runDescriptorlessScalarI64VAddMaterializationTest(
@@ -1372,6 +1382,137 @@ int runDescriptorlessScalarI64VMulMaterializationTest(
   return runDescriptorlessScalarI64MaterializationCase(
       context, tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor(),
       "i64-vmul");
+}
+
+int runDescriptorOnlySelectedEmissionFailsClosedCase(
+    mlir::MLIRContext &context,
+    const RVVScalarBinaryFamilyDescriptor &family,
+    llvm::StringRef diagnosticLabel) {
+  std::string kernelName =
+      (llvm::Twine("descriptor_only_scalar_") + family.scalar.functionStem)
+          .str();
+  std::string source =
+      (llvm::Twine(R"mlir(
+module {
+  tcrv.exec.kernel @)mlir") +
+       kernelName + R"mlir( {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.variant @scalar_descriptor_only attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback],
+      tcrv_scalar.lowering_descriptor = ")mlir" +
+       family.loweringDescriptor + R"mlir(",
+      tcrv_scalar.element_count = 16 : i64
+    } {
+    }
+  }
+}
+)mlir")
+          .str();
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail(llvm::Twine("failed to parse descriptor-only scalar ") +
+                diagnosticLabel + " module");
+
+  KernelOp kernel = findKernel(*module, kernelName);
+  VariantOp variant = findVariant(kernel, "scalar_descriptor_only");
+  if (int result =
+          expect(kernel && variant,
+                 llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+                     " test has kernel and variant"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+                            registry),
+                        llvm::Twine("register scalar plugin for "
+                                    "descriptor-only ") +
+                            diagnosticLabel))
+    return result;
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  VariantEmissionRequest request(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant);
+
+  VariantEmissionStatus readiness;
+  if (int result = expectSuccess(
+          registry.checkVariantEmissionReadiness(request, readiness),
+          llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+              " readiness fails closed without descriptor-derived support"))
+    return result;
+  if (int result =
+          expect(readiness.isMetadataOnly() && !readiness.isSupported() &&
+                     readiness.getEmissionPath() ==
+                         "portable-scalar-fallback-non-executable-metadata-route",
+                 llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+                     " readiness is metadata-only, not supported source"))
+    return result;
+
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(request, plan),
+          llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+              " emission plan fails closed without descriptor-derived support"))
+    return result;
+  if (int result =
+          expect(plan.isMetadataOnly() && !plan.isSupported() &&
+                     plan.getLoweringPipeline() ==
+                         "none-executable-metadata-only" &&
+                     plan.getArtifactKind() == "metadata-diagnostic",
+                 llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+                     " produces only metadata diagnostic plan"))
+    return result;
+
+  mlir::OpBuilder builder(&context);
+  VariantLoweringBoundaryResult boundaryResult;
+  {
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToEnd(&kernel.getBody().front());
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                boundaryResult),
+            llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+                " boundary materializes metadata-only path"))
+      return result;
+  }
+  if (int result =
+          expect(boundaryResult.isMaterialized(),
+                 llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+                     " keeps only selected boundary metadata"))
+    return result;
+  if (int result = expect(
+          !findScalarMicrokernelOperationByName(
+              kernel, variant.getSymName(), family.scalar.microkernelOpName),
+          llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
+              " does not materialize descriptor-derived typed microkernel"))
+    return result;
+
+  return 0;
+}
+
+int runDescriptorOnlySelectedEmissionFailsClosedTest(
+    mlir::MLIRContext &context) {
+  const RVVScalarBinaryFamilyDescriptor *families[] = {
+      &tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI32VSubFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI32VMulFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor()};
+  for (const RVVScalarBinaryFamilyDescriptor *family : families)
+    if (int result = runDescriptorOnlySelectedEmissionFailsClosedCase(
+            context, *family, family->familyID))
+      return result;
+  return 0;
 }
 
 int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
@@ -1635,15 +1776,17 @@ int main() {
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
     return result;
-  if (int result = runDescriptorBackedScalarSubMaterializationTest(context))
+  if (int result = runDescriptorlessScalarSubMaterializationTest(context))
     return result;
-  if (int result = runDescriptorBackedScalarMulMaterializationTest(context))
+  if (int result = runDescriptorlessScalarMulMaterializationTest(context))
     return result;
   if (int result = runDescriptorlessScalarI64VAddMaterializationTest(context))
     return result;
   if (int result = runDescriptorlessScalarI64VSubMaterializationTest(context))
     return result;
   if (int result = runDescriptorlessScalarI64VMulMaterializationTest(context))
+    return result;
+  if (int result = runDescriptorOnlySelectedEmissionFailsClosedTest(context))
     return result;
   if (int result = runBoundaryMaterializationRejectionTest(context))
     return result;
