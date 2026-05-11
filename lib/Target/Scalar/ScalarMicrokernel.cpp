@@ -1703,6 +1703,32 @@ llvm::Expected<ScalarMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module)
   return std::move(records.front());
 }
 
+bool isSameScalarMicrokernelFamily(
+    const ScalarI32MicrokernelFamilySpec &lhs,
+    const ScalarI32MicrokernelFamilySpec &rhs) {
+  return lhs.rvvFamily && rhs.rvvFamily &&
+         lhs.rvvFamily->familyID == rhs.rvvFamily->familyID &&
+         lhs.microkernelOpName == rhs.microkernelOpName &&
+         lhs.routeID == rhs.routeID &&
+         lhs.emissionKind == rhs.emissionKind &&
+         lhs.runtimeABI == rhs.runtimeABI &&
+         lhs.runtimeABIKind == rhs.runtimeABIKind &&
+         lhs.runtimeABIName == rhs.runtimeABIName &&
+         lhs.runtimeGlueRole == rhs.runtimeGlueRole;
+}
+
+llvm::Error requireScalarSourceAuthorityField(llvm::StringRef fieldName,
+                                              llvm::StringRef actual,
+                                              llvm::StringRef expected,
+                                              llvm::StringRef selectedVariant) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeModuleMicrokernelError(
+      llvm::Twine("selected scalar component authority expected ") +
+      fieldName + " '" + expected + "' for @" + selectedVariant +
+      ", got '" + actual + "'");
+}
+
 std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   std::string result;
   result.reserve(std::min<std::size_t>(value.size(), 64));
@@ -2353,6 +2379,36 @@ llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
     return error;
   stream.flush();
   os << source;
+  return llvm::Error::success();
+}
+
+llvm::Error validateScalarMicrokernelSourceAuthority(
+    mlir::ModuleOp module,
+    const rvv_scalar::ScalarBinaryMicrokernelDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role) {
+  llvm::Expected<ScalarMicrokernelRecord> record = buildModuleRecord(module);
+  if (!record)
+    return record.takeError();
+
+  if (llvm::Error error = requireScalarSourceAuthorityField(
+          "selected variant", record->variantSymbol, selectedVariant,
+          selectedVariant))
+    return error;
+  if (llvm::Error error = requireScalarSourceAuthorityField(
+          "role", record->role, role, selectedVariant))
+    return error;
+
+  if (!record->family ||
+      !isSameScalarMicrokernelFamily(*record->family, family)) {
+    llvm::StringRef actual =
+        record->family ? llvm::StringRef(record->family->microkernelOpName)
+                       : llvm::StringRef("<missing>");
+    return makeModuleMicrokernelError(
+        llvm::Twine("selected scalar component authority for @") +
+        selectedVariant + " requires " + family.microkernelOpName +
+        " but typed scalar record is " + actual);
+  }
+
   return llvm::Error::success();
 }
 

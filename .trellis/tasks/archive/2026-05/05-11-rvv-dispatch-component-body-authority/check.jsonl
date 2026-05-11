@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify source ownership, stack, and compute-free exec boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV component authority remains plugin/target-owned and selected vector config remains compile-time metadata"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar fallback component authority remains explicit and is not invented by dispatch export"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify exporter preflight, component candidate validation, runtime ABI role mirroring, and source/header/object route reuse"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected descriptor and frontend family facts agree without adding compute semantics"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/lit/full-check coverage and no fake bundle/runtime claims"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify any ssh rvv claim is bounded and absent if no fresh runtime run occurred"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-structured-body-export-authority/prd.md", "reason": "Verify this round treats prior direct RVV body authority as completed context"}

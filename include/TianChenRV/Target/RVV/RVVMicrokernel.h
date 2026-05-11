@@ -71,6 +71,11 @@ llvm::Error exportRVVMicrokernelCForFamily(
     mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,
     llvm::raw_ostream &os);
 
+llvm::Error validateRVVMicrokernelSourceAuthority(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID);
+
 llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
                                            llvm::raw_ostream &os);
 

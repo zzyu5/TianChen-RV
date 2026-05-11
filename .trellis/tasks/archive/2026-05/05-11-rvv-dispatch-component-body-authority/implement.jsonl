@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth, stack, plugin, and compute-free exec boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of vector config, descriptor, typed body, runtime ABI, and bounded i32 add/sub/mul facts"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback ownership of finite callable fallback descriptors, runtime ABI metadata, and fallback materialization boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, composite helper preflight, runtime ABI role mirroring, and hardware/config/runtime layering contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Frontend-selected binary family and selected plan facts that must feed dispatch export without adding tcrv.exec compute"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit expectations for RVV+scalar host dispatch source/header/object/bundle routes"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Bounded ssh rvv evidence interpretation and forbidden generic runtime/performance claims"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-structured-body-export-authority/prd.md", "reason": "Completed direct RVV body-authority context to reuse rather than reopen"}

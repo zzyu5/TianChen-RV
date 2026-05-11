@@ -161,6 +161,8 @@ resolveDispatchDescriptorElementCountMetadata(
 llvm::Error validateEmbeddedRVVSourceSelectedShape(
     const DispatchPair &pair, llvm::StringRef rvvSource);
 
+llvm::Error validateDispatchPairComponentAuthorities(const DispatchPair &pair);
+
 struct TemporaryFile {
   llvm::SmallString<128> path;
 
@@ -2064,6 +2066,117 @@ llvm::Error validateEmbeddedRVVSourceSelectedShape(
   return llvm::Error::success();
 }
 
+llvm::Error requireEmbeddedScalarSourceSnippet(const DispatchPair &pair,
+                                               llvm::StringRef scalarSource,
+                                               llvm::StringRef snippet,
+                                               llvm::StringRef context) {
+  if (scalarSource.contains(snippet))
+    return llvm::Error::success();
+  return makeDispatchError(
+      pair.scalar.kernel,
+      llvm::Twine("embedded selected scalar source for dispatch fallback @") +
+          pair.scalar.selectedVariant +
+          " is inconsistent with target-owned scalar component authority: "
+          "missing " +
+          context + " '" + snippet + "'");
+}
+
+const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor *
+lookupDispatchPairFamilyDescriptor(const DispatchI32FamilySpec &family) {
+  for (const auto *descriptor :
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
+    if (isSameDispatchFamily(descriptor->dispatch, family))
+      return descriptor;
+  return nullptr;
+}
+
+llvm::Error validateEmbeddedScalarSourceAuthority(
+    const DispatchPair &pair, llvm::StringRef scalarSource) {
+  const auto *familyDescriptor =
+      lookupDispatchPairFamilyDescriptor(*pair.family);
+  if (!familyDescriptor)
+    return makeDispatchError(
+        pair.scalar.kernel,
+        llvm::Twine("selected scalar dispatch fallback @") +
+            pair.scalar.selectedVariant +
+            " requires a manifest-backed scalar component family descriptor");
+
+  std::string expectedFunction = makeScalarFunctionName(pair);
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, expectedFunction, "microkernel function"))
+    return error;
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, familyDescriptor->scalar.microkernelOpName,
+          "typed scalar microkernel op"))
+    return error;
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, pair.scalar.selectedVariant,
+          "selected scalar variant"))
+    return error;
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, pair.scalar.role, "selected scalar role"))
+    return error;
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, familyDescriptor->scalar.runtimeABIKind,
+          "runtime ABI kind"))
+    return error;
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, familyDescriptor->scalar.runtimeABIName,
+          "runtime ABI name"))
+    return error;
+  if (llvm::Error error = requireEmbeddedScalarSourceSnippet(
+          pair, scalarSource, familyDescriptor->scalar.runtimeGlueRole,
+          "runtime glue role"))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Error wrapComponentAuthorityError(const DispatchPair &pair,
+                                        llvm::StringRef component,
+                                        llvm::Error error) {
+  std::string message = llvm::toString(std::move(error));
+  return makeDispatchError(
+      pair.rvv.kernel,
+      llvm::Twine("selected ") + component +
+          " component body authority failed before RVV+scalar dispatch "
+          "artifact emission: " +
+          message);
+}
+
+llvm::Error validateDispatchPairComponentAuthorities(const DispatchPair &pair) {
+  mlir::ModuleOp module = pair.rvv.kernel->getParentOfType<mlir::ModuleOp>();
+  if (!module)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "requires enclosing builtin.module before component body authority "
+        "validation");
+
+  if (llvm::Error error =
+          rvv::validateRVVMicrokernelSourceAuthority(
+              module, *pair.family->rvvFamily, pair.rvv.selectedVariant,
+              pair.rvv.role, pair.family->rvvRouteID))
+    return wrapComponentAuthorityError(pair, "RVV dispatch case",
+                                       std::move(error));
+
+  const auto *familyDescriptor =
+      lookupDispatchPairFamilyDescriptor(*pair.family);
+  if (!familyDescriptor)
+    return makeDispatchError(
+        pair.scalar.kernel,
+        llvm::Twine("selected scalar dispatch fallback @") +
+            pair.scalar.selectedVariant +
+            " requires a manifest-backed scalar component family descriptor");
+
+  if (llvm::Error error =
+          scalar::validateScalarMicrokernelSourceAuthority(
+              module, familyDescriptor->scalar, pair.scalar.selectedVariant,
+              pair.scalar.role))
+    return wrapComponentAuthorityError(pair, "scalar dispatch fallback",
+                                       std::move(error));
+
+  return llvm::Error::success();
+}
+
 llvm::Error requireSafeCompileStringAttr(KernelOp kernel, mlir::Operation *op,
                                          llvm::StringRef attrName,
                                          llvm::StringRef context,
@@ -2328,6 +2441,9 @@ llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
                                          std::string &rvvSource,
                                          std::string &scalarSource) {
   mlir::ModuleOp module = pair.rvv.kernel->getParentOfType<mlir::ModuleOp>();
+  if (llvm::Error error = validateDispatchPairComponentAuthorities(pair))
+    return error;
+
   llvm::raw_string_ostream rvvStream(rvvSource);
   if (llvm::Error error = rvv::exportRVVMicrokernelC(module, rvvStream))
     return error;
@@ -2340,6 +2456,9 @@ llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
   if (llvm::Error error = scalar::exportScalarMicrokernelC(module, scalarStream))
     return error;
   scalarStream.flush();
+  if (llvm::Error error =
+          validateEmbeddedScalarSourceAuthority(pair, scalarSource))
+    return error;
   return llvm::Error::success();
 }
 

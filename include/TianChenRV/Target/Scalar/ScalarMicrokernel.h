@@ -2,6 +2,7 @@
 #define TIANCHENRV_TARGET_SCALAR_SCALARMICROKERNEL_H
 
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -13,10 +14,19 @@ class TargetArtifactExporterRegistry;
 class PluginTargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
 
+namespace tianchenrv::target::rvv_scalar {
+struct ScalarBinaryMicrokernelDescriptor;
+} // namespace tianchenrv::target::rvv_scalar
+
 namespace tianchenrv::target::scalar {
 
 llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
                                      llvm::raw_ostream &os);
+
+llvm::Error validateScalarMicrokernelSourceAuthority(
+    mlir::ModuleOp module,
+    const rvv_scalar::ScalarBinaryMicrokernelDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role);
 
 llvm::Error exportScalarMicrokernelHeader(mlir::ModuleOp module,
                                           llvm::raw_ostream &os);

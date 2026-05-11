@@ -2575,6 +2575,19 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecordForRVVBinaryFamily(
   return std::move(*record);
 }
 
+llvm::Error requireRVVSourceAuthorityField(llvm::StringRef fieldName,
+                                           llvm::StringRef actual,
+                                           llvm::StringRef expected,
+                                           llvm::StringRef routeID,
+                                           llvm::StringRef selectedVariant) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeModuleMicrokernelError(
+      llvm::Twine("selected RVV component authority for route '") + routeID +
+      "' expected " + fieldName + " '" + expected + "' for @" +
+      selectedVariant + ", got '" + actual + "'");
+}
+
 std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   std::string result;
   result.reserve(std::min<std::size_t>(value.size(), 64));
@@ -3748,6 +3761,37 @@ llvm::Error exportRVVMicrokernelCForFamily(
     return error;
   stream.flush();
   os << source;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVMicrokernelSourceAuthority(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID) {
+  llvm::Expected<RVVMicrokernelRecord> record =
+      buildModuleRecordForRVVBinaryFamily(module, family, routeID);
+  if (!record)
+    return record.takeError();
+
+  if (llvm::Error error = requireRVVSourceAuthorityField(
+          "selected variant", record->variantSymbol, selectedVariant, routeID,
+          selectedVariant))
+    return error;
+  if (llvm::Error error = requireRVVSourceAuthorityField(
+          "role", record->role, role, routeID, selectedVariant))
+    return error;
+  if (llvm::Error error = requireRVVSourceAuthorityField(
+          "active route", record->activeRouteID, routeID, routeID,
+          selectedVariant))
+    return error;
+
+  if (record->descriptor.getRVVMicrokernelOpName() !=
+      family.microkernelOpName)
+    return makeModuleMicrokernelError(
+        llvm::Twine("selected RVV component authority for route '") +
+        routeID + "' requires " + family.microkernelOpName +
+        " but typed RVV record is " +
+        record->descriptor.getRVVMicrokernelOpName());
   return llvm::Error::success();
 }
 
