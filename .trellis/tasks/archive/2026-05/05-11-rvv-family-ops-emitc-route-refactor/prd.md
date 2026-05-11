@@ -74,19 +74,37 @@ EmitC.
 
 ## Acceptance Criteria
 
-- [ ] A concrete finite RVV slice uses RVV family ops as the compiler-visible
+- [x] A concrete finite RVV slice uses RVV family ops as the compiler-visible
       compute semantics rather than descriptor metadata.
-- [ ] The slice has an EmitC lowering path from RVV family ops to RVV intrinsic
+- [x] The slice has an EmitC lowering path from RVV family ops to RVV intrinsic
       C/C++.
-- [ ] Tests prove RVV family ops exist and are consumed by the EmitC route.
-- [ ] Tests prove generated C/C++ contains RVV intrinsic usage when that route
+- [x] Tests prove RVV family ops exist and are consumed by the EmitC route.
+- [x] Tests prove generated C/C++ contains RVV intrinsic usage when that route
       is claimed.
-- [ ] Tests prove the chosen slice no longer depends on descriptor metadata as
+- [x] Tests prove the chosen slice no longer depends on descriptor metadata as
       its computation semantics source.
-- [ ] Core pass changes, if any, are generic interface/route infrastructure,
+- [x] Core pass changes, if any, are generic interface/route infrastructure,
       not RVV semantic branches.
-- [ ] Descriptor-dependent paths are not expanded; any remaining descriptor
+- [x] Descriptor-dependent paths are not expanded; any remaining descriptor
       logic is explicitly bounded legacy.
+
+## Round Outcome
+
+Completed for the finite RVV i32 add slice.
+
+- `tcrv_rvv.i32_vadd_microkernel` remains the compiler-visible executable
+  family-op body, with `setvl`, `with_vl`, `i32_load`, `i32_add`, and
+  `i32_store` verified before export.
+- RVV source export now builds an explicit `RVVEmitCIntrinsicRoute` from the
+  verified family-op dataflow plan before emitting intrinsic C/C++.
+- Generated source records the route as
+  `tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++`.
+- Focused lit coverage proves the auto-materialized i32 add body feeds the
+  EmitC intrinsic route and emits `__riscv_vadd_vv_i32m1`.
+- No core orchestration code gained RVV semantic branches.
+- No `ssh rvv` run was required or performed because this round makes only
+  compiler/export source-route claims, not runtime correctness, hardware
+  execution, throughput, latency, or performance claims.
 
 ## Non-Goals
 

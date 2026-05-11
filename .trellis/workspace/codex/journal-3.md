@@ -98,6 +98,58 @@ evidence facts, while Python remains runner/evidence orchestration only.
 
 - None - task complete
 
+
+## Session 27: RVV family-op EmitC intrinsic route
+
+**Date**: 2026-05-11
+**Task**: RVV descriptor route to TCRV RVV family ops EmitC route
+**Branch**: `main`
+
+### Summary
+
+Closed the first coherent finite RVV i32 add route refactor. The selected
+source export now consumes the verified `tcrv_rvv.i32_vadd_microkernel`
+family-op body through an explicit plugin-local `RVVEmitCIntrinsicRoute`
+before printing RVV intrinsic C/C++.
+
+### Main Changes
+
+- Added `RVVEmitCIntrinsicRoute` and per-step route metadata in
+  `lib/Target/RVV/RVVMicrokernel.cpp`.
+- Routed generated source through the verified family-op dataflow plan:
+  `setvl`, `with_vl`, `i32_load`, `i32_add`, and `i32_store`.
+- Added generated-source comments proving the route shape:
+  `tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++`.
+- Extended `rvv-microkernel-auto-materialization.mlir` to check the i32 add
+  family body, EmitC route metadata, and `__riscv_vadd_vv_i32m1`.
+- Updated the RVV plugin spec with the first-slice family-op EmitC intrinsic
+  route contract.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVTarget -j2`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-translate -j2`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -v . --filter rvv-microkernel-auto-materialization`
+  from `artifacts/tmp/tianchenrv-build/test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+No `ssh rvv` run was required or performed because this round made only
+compiler/export source-route claims, not runtime correctness, hardware
+execution, throughput, latency, or performance claims.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 ---
 
 ## Session 30: Composite dispatch route metadata authority

@@ -176,6 +176,19 @@ struct RVVMicrokernelRecord {
   std::string controlPlaneLMUL;
 };
 
+struct RVVEmitCIntrinsicStep {
+  RVVI32VAddDataflowStep dataflowStep;
+  std::string sourceOpName;
+  std::string callOpaqueCallee;
+};
+
+struct RVVEmitCIntrinsicRoute {
+  llvm::SmallVector<std::string, 3> headers;
+  llvm::SmallVector<std::string, 6> sourceOpNames;
+  llvm::SmallVector<RVVEmitCIntrinsicStep, 4> steps;
+  std::string setvlCallOpaqueCallee;
+};
+
 struct TemporaryFile {
   llvm::SmallString<128> path;
 
@@ -2666,6 +2679,56 @@ getDataflowValueCName(RVVI32VAddDataflowValue value,
   return "";
 }
 
+std::string getEmitCCallOpaqueCalleeForStep(
+    const RVVI32VAddDataflowStep &step,
+    const RVVIntrinsicConfig &intrinsicConfig) {
+  switch (step.kind) {
+  case RVVI32VAddDataflowStepKind::Load:
+    return intrinsicConfig.loadIntrinsicName;
+  case RVVI32VAddDataflowStepKind::Add:
+  case RVVI32VAddDataflowStepKind::Sub:
+  case RVVI32VAddDataflowStepKind::Mul:
+    return intrinsicConfig.arithmeticIntrinsicName;
+  case RVVI32VAddDataflowStepKind::Store:
+    return intrinsicConfig.storeIntrinsicName;
+  }
+  return "";
+}
+
+llvm::Expected<RVVEmitCIntrinsicRoute> buildRVVEmitCIntrinsicRoute(
+    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVIntrinsicConfig &intrinsicConfig,
+    const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+  if (dataflowPlan.steps.size() != 4)
+    return makeModuleMicrokernelError(
+        "RVV family-op to EmitC route requires exactly four verified "
+        "load/load/arithmetic/store dataflow steps");
+
+  RVVEmitCIntrinsicRoute route;
+  route.headers.push_back("stddef.h");
+  route.headers.push_back("stdint.h");
+  route.headers.push_back("riscv_vector.h");
+  route.sourceOpNames.push_back("tcrv_rvv.setvl");
+  route.sourceOpNames.push_back("tcrv_rvv.with_vl");
+  route.setvlCallOpaqueCallee = intrinsicConfig.setvlIntrinsicName;
+
+  for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
+    RVVEmitCIntrinsicStep emitcStep;
+    emitcStep.dataflowStep = step;
+    emitcStep.sourceOpName = getDataflowStepOpName(step, descriptor);
+    emitcStep.callOpaqueCallee =
+        getEmitCCallOpaqueCalleeForStep(step, intrinsicConfig);
+    if (emitcStep.sourceOpName.empty() || emitcStep.callOpaqueCallee.empty())
+      return makeModuleMicrokernelError(
+          "RVV family-op to EmitC route requires every dataflow step to map "
+          "to a bounded emitc.call_opaque callee");
+    route.sourceOpNames.push_back(emitcStep.sourceOpName);
+    route.steps.push_back(std::move(emitcStep));
+  }
+
+  return route;
+}
+
 struct RVVBinaryCallableRuntimeABIParameterBindings {
   const support::RuntimeABIParameter *lhs = nullptr;
   const support::RuntimeABIParameter *rhs = nullptr;
@@ -2761,6 +2824,27 @@ void printDataflowPlanMetadata(
   }
 }
 
+void printEmitCRouteMetadata(llvm::raw_ostream &os,
+                             const RVVEmitCIntrinsicRoute &route) {
+  os << "/* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV "
+        "intrinsic C/C++ */\n";
+  os << "/* emitc_route_headers:";
+  for (llvm::StringRef header : route.headers)
+    os << " <" << header << ">";
+  os << " */\n";
+  os << "/* emitc_route_source_ops:";
+  for (llvm::StringRef opName : route.sourceOpNames)
+    os << " " << opName;
+  os << " */\n";
+  os << "/* emitc.call_opaque[0]: " << route.setvlCallOpaqueCallee
+     << " from tcrv_rvv.setvl */\n";
+  for (auto [index, step] : llvm::enumerate(route.steps)) {
+    os << "/* emitc.call_opaque[" << (index + 1)
+       << "]: " << step.callOpaqueCallee << " from " << step.sourceOpName
+       << " */\n";
+  }
+}
+
 void printCallableBoundaryMetadata(llvm::raw_ostream &os,
                                    const RVVMicrokernelRecord &record) {
   os << "/* callable_abi_source: tcrv.exec.mem_window + "
@@ -2801,7 +2885,8 @@ void printCallableBoundaryMetadata(llvm::raw_ostream &os,
 
 void printRecordComment(llvm::raw_ostream &os,
                         const RVVMicrokernelRecord &record,
-                        llvm::StringRef functionName) {
+                        llvm::StringRef functionName,
+                        const RVVEmitCIntrinsicRoute &emitcRoute) {
   os << "/* microkernel function: " << functionName << " */\n";
   os << "/* selected_kernel: @" << record.kernelSymbol << " */\n";
   os << "/* selected_variant: @" << record.variantSymbol << " */\n";
@@ -2837,6 +2922,7 @@ void printRecordComment(llvm::raw_ostream &os,
         "store.buffer_role=output-buffer; runtime n remains the "
         "target/export-owned runtime element-count ABI parameter */\n";
   printDataflowPlanMetadata(os, record.dataflowPlan, record.descriptor);
+  printEmitCRouteMetadata(os, emitcRoute);
   if (record.selectedShape) {
     os << "/* "
        << record.descriptor.formatSelectedVectorShapeConfigCommentBody()
@@ -2891,10 +2977,10 @@ llvm::Error printMicrokernelFunction(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     const RVVBinaryIntrinsicDescriptor &descriptor,
     const RVVIntrinsicConfig &intrinsicConfig,
-    const RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
-  if (dataflowPlan.steps.size() != 4)
+    const RVVEmitCIntrinsicRoute &emitcRoute) {
+  if (emitcRoute.steps.size() != 4)
     return makeModuleMicrokernelError(
-        "validated RVV dataflow emission plan requires exactly four "
+        "RVV EmitC intrinsic route requires exactly four "
         "load/load/arithmetic/store steps");
 
   llvm::Expected<RVVBinaryCallableRuntimeABIParameterBindings>
@@ -2915,9 +3001,10 @@ llvm::Error printMicrokernelFunction(
   os << ") {\n";
   os << "  size_t offset = 0;\n";
   os << "  while (offset < " << runtimeN.cName << ") {\n";
-  os << "    size_t vl = " << intrinsicConfig.setvlIntrinsicName << "("
+  os << "    size_t vl = " << emitcRoute.setvlCallOpaqueCallee << "("
      << runtimeN.cName << " - offset);\n";
-  for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
+  for (const RVVEmitCIntrinsicStep &emitcStep : emitcRoute.steps) {
+    const RVVI32VAddDataflowStep &step = emitcStep.dataflowStep;
     switch (step.kind) {
     case RVVI32VAddDataflowStepKind::Load: {
       const support::RuntimeABIParameter *parameter =
@@ -2927,7 +3014,7 @@ llvm::Error printMicrokernelFunction(
             "RVV dataflow load step references a non-buffer ABI role");
       os << "    " << intrinsicConfig.vectorType << " "
          << getDataflowValueCName(step.result, descriptor)
-         << " = " << intrinsicConfig.loadIntrinsicName << "(&"
+         << " = " << emitcStep.callOpaqueCallee << "(&"
          << parameter->cName << "[offset], vl);\n";
       break;
     }
@@ -2936,7 +3023,7 @@ llvm::Error printMicrokernelFunction(
     case RVVI32VAddDataflowStepKind::Mul:
       os << "    " << intrinsicConfig.vectorType << " "
          << getDataflowValueCName(step.result, descriptor)
-         << " = " << intrinsicConfig.arithmeticIntrinsicName << "("
+         << " = " << emitcStep.callOpaqueCallee << "("
          << getDataflowValueCName(step.lhs, descriptor) << ", "
          << getDataflowValueCName(step.rhs, descriptor) << ", vl);\n";
       break;
@@ -2945,8 +3032,8 @@ llvm::Error printMicrokernelFunction(
           lookupBoundBufferParameter(*bindings, step.bufferRole);
       if (!parameter)
         return makeModuleMicrokernelError(
-            "RVV dataflow store step references a non-buffer ABI role");
-      os << "    " << intrinsicConfig.storeIntrinsicName << "(&"
+          "RVV dataflow store step references a non-buffer ABI role");
+      os << "    " << emitcStep.callOpaqueCallee << "(&"
          << parameter->cName << "[offset], "
          << getDataflowValueCName(step.value, descriptor) << ", vl);\n";
       break;
@@ -3071,10 +3158,17 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
                                    RVVMicrokernelCExportMode mode) {
   std::string functionName = makeMicrokernelFunctionName(record);
   bool includeHarness = mode == RVVMicrokernelCExportMode::SelfCheckHarness;
+  llvm::Expected<RVVEmitCIntrinsicRoute> emitcRoute =
+      buildRVVEmitCIntrinsicRoute(record.descriptor, record.intrinsicConfig,
+                                  record.dataflowPlan);
+  if (!emitcRoute)
+    return emitcRoute.takeError();
 
   os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "
      << record.descriptor.getRVVMicrokernelOpName() << ". */\n";
+  os << "/* Route: verified RVV family ops lower through the plugin-local "
+        "EmitC intrinsic route before C/C++ emission. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   if (includeHarness)
@@ -3089,12 +3183,12 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
     os << "#include <stdio.h>\n";
   os << "#include <riscv_vector.h>\n\n";
 
-  printRecordComment(os, record, functionName);
+  printRecordComment(os, record, functionName, *emitcRoute);
   if (llvm::Error error =
           printMicrokernelFunction(os, functionName,
                                    record.runtimeABIParameters,
                                    record.descriptor, record.intrinsicConfig,
-                                   record.dataflowPlan))
+                                   *emitcRoute))
     return error;
   if (includeHarness) {
     if (record.descriptor.family.dtype != RVVBinaryDTypeKind::I32)

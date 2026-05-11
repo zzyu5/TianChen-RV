@@ -1042,6 +1042,88 @@ backend patches are optional future routes. They are not the current RVV system
 definition and should not be described as the mainline until promoted by a
 separate spec and implementation evidence.
 
+### Scenario: RVV finite binary family-op EmitC intrinsic route
+
+#### 1. Scope / Trigger
+
+This scenario applies when a selected finite RVV binary microkernel path exports
+runtime-callable C/C++ source. The route must consume the verified
+`tcrv_rvv.*` family-op body and lower it through an explicit EmitC intrinsic
+route before printing RVV intrinsic C/C++.
+
+#### 2. Signatures
+
+- Source family body:
+  `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.<dtype>_load ->
+  tcrv_rvv.<dtype>_load -> tcrv_rvv.<dtype>_<add|sub|mul> ->
+  tcrv_rvv.<dtype>_store`.
+- Route plan: `RVVEmitCIntrinsicRoute`, with standard headers, source op
+  names, `emitc.call_opaque` callee names, and one setvl callee.
+- Exported route metadata comments must include `emitc_route`,
+  `emitc_route_headers`, `emitc_route_source_ops`, and indexed
+  `emitc.call_opaque[...]` entries.
+
+#### 3. Contracts
+
+- The computation op is the RVV family op in the verified body, not the
+  lowering descriptor string.
+- Descriptor/config metadata may select the bounded family, dtype, shape, and
+  intrinsic spelling, but it must not replace body verification.
+- `emitc.call_opaque` callees map from verified family ops:
+  setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
+  to the selected RVV load, arithmetic, and store intrinsics.
+- Runtime `n` remains the IR-backed runtime-element-count ABI parameter.
+- Generated source comments are compile/export evidence only; they are not
+  runtime correctness, hardware execution, throughput, latency, or performance
+  evidence.
+
+#### 4. Validation & Error Matrix
+
+- Missing or duplicate family-op body step -> fail before source output.
+- Body arithmetic op disagrees with selected bounded family -> fail before
+  source output.
+- Missing `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` control surface -> fail before
+  source output.
+- Missing route callee for any body step -> fail before source output.
+- Stale runtime ABI role/name/type/ownership mirror -> fail before source
+  output through the target artifact preflight.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: auto-materialized i32 add emits `tcrv_rvv.i32_add`, the route records
+  `emitc.call_opaque` for `__riscv_vadd_vv_i32m1`, and generated C calls that
+  intrinsic.
+- Base: a hand-authored bounded RVV microkernel with the same verified body can
+  use the same route after selected-path and ABI preflight pass.
+- Bad: a selected descriptor says i32 add but the body contains
+  `tcrv_rvv.i32_sub`; export must fail instead of printing vadd C from the
+  descriptor.
+
+#### 6. Tests Required
+
+- lit/FileCheck must show auto materialization creates the RVV family body.
+- lit/FileCheck must show generated source includes the EmitC route metadata
+  and the expected RVV intrinsic call.
+- Negative coverage must keep stale body, stale descriptor, missing boundary,
+  and malformed ABI cases fail-closed before source output.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+selected descriptor -> direct C string intrinsic emission
+```
+
+Correct:
+
+```text
+selected descriptor/config metadata
+  -> verified tcrv_rvv family-op body
+  -> RVVEmitCIntrinsicRoute / emitc.call_opaque mapping
+  -> RVV intrinsic C/C++ source
+```
+
 ## Hart Parallelism
 
 RVV plugin does not define a thread/block model. Multi-core execution is organized by `tcrv.exec.hart_parallel`.

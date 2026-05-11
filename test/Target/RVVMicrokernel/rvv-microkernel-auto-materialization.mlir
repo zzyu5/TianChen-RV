@@ -118,6 +118,7 @@ module @rvv_auto_microkernel_input {
 
 // EXPORT: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // EXPORT: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
+// EXPORT: /* Route: verified RVV family ops lower through the plugin-local EmitC intrinsic route before C/C++ emission. */
 // EXPORT: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 // EXPORT: #include <riscv_vector.h>
 // EXPORT-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice */
@@ -134,6 +135,11 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 // EXPORT: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 // EXPORT: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
+// EXPORT: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+// EXPORT: /* emitc_route_headers: <stddef.h> <stdint.h> <riscv_vector.h> */
+// EXPORT: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */
+// EXPORT: /* emitc.call_opaque[0]: __riscv_vsetvl_e32m1 from tcrv_rvv.setvl */
+// EXPORT: /* emitc.call_opaque[3]: __riscv_vadd_vv_i32m1 from tcrv_rvv.i32_add */
 // EXPORT: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // EXPORT: /* intrinsic_config_source: validated tcrv_rvv.setvl and tcrv_rvv.with_vl SEW/LMUL/policy metadata */
 // EXPORT: /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
