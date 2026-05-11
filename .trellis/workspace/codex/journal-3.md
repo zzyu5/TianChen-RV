@@ -1793,3 +1793,63 @@ Derived direct RVV i32-vadd selected planning/export from typed RVV microkernel 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: RVV source export common EmitC route authority
+
+**Date**: 2026-05-12
+**Task**: Make RVV source export use common EmitC route authority
+**Branch**: `main`
+
+### Summary
+
+Migrated the bounded RVV runtime-callable source exporter so the production C
+function body is rendered from the typed-body-derived
+`TCRVEmitCLowerableRoute`, not from the former RVV-only dataflow body printer.
+
+### Main Changes
+
+- Added common `renderTCRVEmitCLowerableRouteAsCFunction` support in the EmitC
+  conversion layer. It consumes route ABI mappings and ordered
+  `emitc.call_opaque` steps, derives the bounded runtime `n` loop from the
+  route's runtime-element-count ABI mapping, and fails closed for malformed
+  loop shape, unknown values, duplicate values, missing compute results, or
+  missing generated op-interface provenance.
+- Buffered route-to-C rendering so malformed routes return an error without
+  emitting partial C source to the final artifact output stream.
+- Rewired RVV production source emission so `printMicrokernelFunction`
+  delegates to the common renderer; the old RVV-only switch over dataflow
+  load/arithmetic/store step kinds no longer authors the emitted function body.
+- Kept RVV target ownership of route construction, intrinsic names, vector
+  suffixes, selected ABI identity, comments, headers, object helpers, and
+  self-check harness generation.
+- Updated source comments and FileCheck expectations from bounded legacy
+  output to route-authored production C source authority.
+- Added C++ coverage for route-to-C rendering success and fail-closed route
+  provenance/order/value diagnostics.
+
+### Testing
+
+- `git diff --check`
+- Focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-emitc-lowerable-interface-test`,
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-rvv-binary-planning-test`, and
+  `tianchenrv-rvv-selected-lowering-boundary-test`
+- C++ tests: EmitC lowerable interface, target artifact export, RVV binary
+  planning, RVV selected lowering-boundary, and RVV extension plugin
+- Focused lit: RVV microkernel source, auto-materialization,
+  frontend/default `i32-vadd`, frontend `i32-vmul`, descriptor-only
+  quarantine, and descriptor/body mismatch paths
+- Full check: `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`, 206/206 passed
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or
+  performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

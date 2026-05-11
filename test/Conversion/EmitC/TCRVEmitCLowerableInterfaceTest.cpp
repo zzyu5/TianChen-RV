@@ -209,7 +209,9 @@ makeMinimalMaterializerRoute(llvm::StringRef arithmeticSourceOp,
                              std::optional<llvm::StringRef> resultName,
                              llvm::StringRef lhsOperand = "lhs",
                              llvm::StringRef setVLResultName = "vl",
-                             llvm::StringRef lhsValueName = "lhs") {
+                             llvm::StringRef lhsValueName = "lhs",
+                             llvm::StringRef sourceOpInterface =
+                                 kEmitCLowerableOpInterfaceName) {
   TCRVEmitCLowerableRoute route(
       "tcrv-export-rvv-microkernel-c",
       "extension-family-ops-to-emitc-call-opaque");
@@ -227,7 +229,7 @@ makeMinimalMaterializerRoute(llvm::StringRef arithmeticSourceOp,
 
   TCRVEmitCCallOpaqueStep arithmetic;
   arithmetic.sourceOp = {arithmeticSourceOp.str(), arithmeticRole.str(),
-                         kEmitCLowerableOpInterfaceName.str()};
+                         sourceOpInterface.str()};
   arithmetic.callee = callee;
   arithmetic.operands.push_back({lhsOperand.str(), "const int32_t *"});
   arithmetic.operands.push_back({"rhs", "const int32_t *"});
@@ -235,6 +237,34 @@ makeMinimalMaterializerRoute(llvm::StringRef arithmeticSourceOp,
   if (resultName)
     arithmetic.result =
         TCRVEmitCCallOpaqueResult{resultName->str(), "vint32m1_t"};
+  route.addCallOpaqueStep(std::move(arithmetic));
+  return route;
+}
+
+TCRVEmitCLowerableRoute makeRouteWithNonAVLFirstStep() {
+  TCRVEmitCLowerableRoute route(
+      "tcrv-export-rvv-microkernel-c",
+      "extension-family-ops-to-emitc-call-opaque");
+  route.addHeader("riscv_vector.h");
+  route.addTypeMapping("!tcrv_rvv.vl", "size_t");
+  addStandardABI(route);
+
+  TCRVEmitCCallOpaqueStep load;
+  load.sourceOp = {"tcrv_rvv.i32_load", "buffer-load"};
+  load.callee = "__riscv_vle32_v_i32m1";
+  load.operands.push_back({"&lhs[offset]", "const int32_t *"});
+  load.operands.push_back({"n", "size_t"});
+  load.result = TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"};
+  route.addCallOpaqueStep(std::move(load));
+
+  TCRVEmitCCallOpaqueStep arithmetic;
+  arithmetic.sourceOp = {"tcrv_rvv.i32_add", "compute",
+                         kEmitCLowerableOpInterfaceName.str()};
+  arithmetic.callee = "__riscv_vadd_vv_i32m1";
+  arithmetic.operands.push_back({"lhs_vec", "vint32m1_t"});
+  arithmetic.operands.push_back({"lhs_vec", "vint32m1_t"});
+  arithmetic.operands.push_back({"n", "size_t"});
+  arithmetic.result = TCRVEmitCCallOpaqueResult{"sum_vec", "vint32m1_t"};
   route.addCallOpaqueStep(std::move(arithmetic));
   return route;
 }
@@ -334,6 +364,74 @@ int expectMaterializationFails(const TCRVEmitCLowerableRoute &route,
                     "'");
 }
 
+int expectRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
+                              llvm::StringRef functionName,
+                              llvm::StringRef arithmeticCallee,
+                              llvm::StringRef resultName) {
+  TCRVEmitCSourceRenderOptions options;
+  options.functionName = functionName.str();
+  options.loopIndexName = "offset";
+  std::string source;
+  llvm::raw_string_ostream os(source);
+  if (llvm::Error error =
+          renderTCRVEmitCLowerableRouteAsCFunction(route, os, options))
+    return fail(llvm::Twine("expected route to render C source: ") +
+                llvm::toString(std::move(error)));
+  os.flush();
+
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("void ") + functionName + "(").str()),
+                 "route-rendered source contains function signature"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains("while (offset < n)"),
+                 "route-rendered source uses runtime element-count ABI bound"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("size_t vl = __riscv_vsetvl_e32m1("
+                                  "n - offset)")
+                          .str())),
+                 "route-rendered source emits setvl from call_opaque step"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(arithmeticCallee),
+                 "route-rendered source emits arithmetic callee from route"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("vint32m1_t ") + resultName + " =").str()),
+                 "route-rendered source emits route result binding"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains("offset += vl;"),
+                 "route-rendered source advances by route VL result"))
+    return result;
+  return 0;
+}
+
+int expectRouteRenderingFails(const TCRVEmitCLowerableRoute &route,
+                              llvm::StringRef expectedDiagnostic) {
+  TCRVEmitCSourceRenderOptions options;
+  options.functionName = "tcrv_emitc_bad_render";
+  std::string source;
+  llvm::raw_string_ostream os(source);
+  llvm::Error error =
+      renderTCRVEmitCLowerableRouteAsCFunction(route, os, options);
+  if (!error)
+    return fail("expected route C source rendering to fail closed");
+  os.flush();
+  if (int result =
+          expect(source.empty(),
+                 "failed route rendering does not emit partial C source"))
+    return result;
+  std::string message = llvm::toString(std::move(error));
+  return expect(llvm::StringRef(message).contains(expectedDiagnostic),
+                llvm::Twine("route renderer diagnostic contains '") +
+                    expectedDiagnostic + "'");
+}
+
 } // namespace
 
 int main() {
@@ -414,6 +512,9 @@ int main() {
           context, *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1",
           "tcrv_rvv.i32_add"))
     return result;
+  if (int result = expectRouteRendersCSource(
+          *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1", "sum_vec"))
+    return result;
 
   auto subLowerable = llvm::cast<TCRVEmitCLowerableOpInterface>(subOp);
   GeneratedRVVArithmeticLowerable validSub(
@@ -427,6 +528,11 @@ int main() {
           context, *subRoute, "tcrv_emitc_test_sub", "__riscv_vsub_vv_i32m1",
           "tcrv_rvv.i32_sub"))
     return result;
+  if (int result =
+          expectRouteRendersCSource(*subRoute, "tcrv_emitc_test_sub",
+                                    "__riscv_vsub_vv_i32m1",
+                                    "difference_vec"))
+    return result;
 
   auto mulLowerable = llvm::cast<TCRVEmitCLowerableOpInterface>(mulOp);
   GeneratedRVVArithmeticLowerable validMul(
@@ -439,6 +545,10 @@ int main() {
   if (int result = expectRouteMaterializes(
           context, *mulRoute, "tcrv_emitc_test_mul", "__riscv_vmul_vv_i32m1",
           "tcrv_rvv.i32_mul"))
+    return result;
+  if (int result =
+          expectRouteRendersCSource(*mulRoute, "tcrv_emitc_test_mul",
+                                    "__riscv_vmul_vv_i32m1", "product_vec"))
     return result;
 
   if (int result = expectMaterializationFails(
@@ -467,6 +577,21 @@ int main() {
                                        "__riscv_vadd_vv_i32m1", "sum_vec",
                                        "lhs", "vl", "lhs_value"),
           "ABI value mapping"))
+    return result;
+  if (int result = expectRouteRenderingFails(
+          makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
+                                       "__riscv_vadd_vv_i32m1", "sum_vec",
+                                       "lhs", "vl", "lhs", ""),
+          "requires generated op-interface provenance"))
+    return result;
+  if (int result = expectRouteRenderingFails(makeRouteWithNonAVLFirstStep(),
+                                             "first call_opaque step"))
+    return result;
+  if (int result = expectRouteRenderingFails(
+          makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
+                                       "__riscv_vadd_vv_i32m1", "sum_vec",
+                                       "missing_vec"),
+          "unknown value name"))
     return result;
 
   InvalidMissingCalleeLowerable invalid;

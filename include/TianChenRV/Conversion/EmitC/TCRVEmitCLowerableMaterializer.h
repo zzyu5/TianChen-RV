@@ -12,12 +12,22 @@
 
 #include <string>
 
+namespace llvm {
+class raw_ostream;
+} // namespace llvm
+
 namespace tianchenrv::conversion::emitc {
 
 struct TCRVEmitCMaterializationOptions {
   std::string functionName = "tcrv_emitc_route";
   llvm::SmallVector<std::string, 4> implicitValueNames;
   bool verifyModule = true;
+};
+
+struct TCRVEmitCSourceRenderOptions {
+  std::string functionName = "tcrv_emitc_route";
+  std::string loopIndexName = "offset";
+  bool requireInterfaceBackedCompute = true;
 };
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
@@ -28,6 +38,10 @@ materializeTCRVEmitCLowerableRoute(
 llvm::Error verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
     const TCRVEmitCLowerableRoute &route, llvm::StringRef functionName,
     llvm::ArrayRef<llvm::StringRef> implicitValueNames = {});
+
+llvm::Error renderTCRVEmitCLowerableRouteAsCFunction(
+    const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
+    const TCRVEmitCSourceRenderOptions &options = {});
 
 } // namespace tianchenrv::conversion::emitc
 

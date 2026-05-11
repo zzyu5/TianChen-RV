@@ -123,8 +123,9 @@ module @rvv_microkernel_input {
 // LIB: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // LIB: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 // LIB: /* emitc_lowerable_interface: TCRVEmitCLowerableInterface */
-// LIB: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, and emitc.call_opaque before bounded legacy C source output */
+// LIB: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, and emitc.call_opaque before route-authored production C source output */
 // LIB: /* emitc_materialization_function: @tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
+// LIB: /* emitc_c_source_authority: production function body rendered from TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque steps */
 // LIB: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // LIB: /* emitc_route_id: tcrv-export-rvv-microkernel-c, route_kind=extension-family-ops-to-emitc-call-opaque */
 // LIB: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */

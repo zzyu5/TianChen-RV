@@ -118,7 +118,7 @@ module @rvv_auto_microkernel_input {
 
 // EXPORT: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // EXPORT: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
-// EXPORT: /* Route: verified RVV family ops lower through the plugin-local EmitC intrinsic route before C/C++ emission. */
+// EXPORT: /* Route: verified RVV family ops build the common EmitC lowerable route that renders the production C function body. */
 // EXPORT: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 // EXPORT: #include <riscv_vector.h>
 // EXPORT-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice */

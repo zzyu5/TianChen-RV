@@ -353,6 +353,238 @@ private:
   llvm::StringSet<> implicitValues;
 };
 
+llvm::Error makeSourceRendererError(llvm::StringRef routeID,
+                                    llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "TianChen-RV EmitC C source renderer";
+  if (!routeID.empty())
+    os << " for route '" << routeID << "'";
+  os << " failed: ";
+  message.print(os);
+  os.flush();
+  return llvm::createStringError(llvm::errc::invalid_argument, text);
+}
+
+class RouteCSourceRenderer {
+public:
+  RouteCSourceRenderer(const TCRVEmitCLowerableRoute &route,
+                       llvm::raw_ostream &os,
+                       const TCRVEmitCSourceRenderOptions &options)
+      : route(route), os(os), options(options) {}
+
+  llvm::Error run() {
+    if (llvm::Error error = route.verify())
+      return error;
+    if (llvm::Error error = validateOptions())
+      return error;
+    if (llvm::Error error = initializeABIValues())
+      return error;
+
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
+        route.getCallOpaqueSteps();
+    if (steps.size() < 2)
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "requires a runtime-avl-to-vl step followed by at least one "
+          "body call_opaque step");
+
+    const TCRVEmitCCallOpaqueStep &firstStep = steps.front();
+    if (firstStep.sourceOp.role != "runtime-avl-to-vl" || !firstStep.result)
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "first call_opaque step must map runtime AVL to a VL result before "
+          "bounded-loop C source rendering");
+    if (firstStep.result->cType != "size_t")
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "runtime-avl-to-vl result must use C type 'size_t' before "
+          "bounded-loop C source rendering");
+
+    std::string rendered;
+    llvm::raw_string_ostream renderedOS(rendered);
+    printFunctionHeader(renderedOS);
+    renderedOS << "  size_t " << options.loopIndexName << " = 0;\n";
+    renderedOS << "  while (" << options.loopIndexName << " < "
+               << runtimeElementCountValueName << ") {\n";
+
+    bool sawInterfaceBackedCompute = false;
+    for (const TCRVEmitCCallOpaqueStep &step : steps) {
+      if (llvm::Error error =
+              renderStep(step, sawInterfaceBackedCompute, renderedOS))
+        return error;
+    }
+
+    if (options.requireInterfaceBackedCompute && !sawInterfaceBackedCompute)
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "requires at least one interface-backed compute call_opaque step "
+          "before C source rendering");
+
+    renderedOS << "    " << options.loopIndexName << " += "
+               << firstStep.result->name << ";\n";
+    renderedOS << "  }\n";
+    renderedOS << "}\n\n";
+    renderedOS.flush();
+    os << rendered;
+    return llvm::Error::success();
+  }
+
+private:
+  llvm::Error validateOptions() {
+    if (llvm::Error error =
+            validateSafeIdentifier(route.getRouteID(), "C function name",
+                                   options.functionName))
+      return error;
+    if (llvm::Error error =
+            validateSafeIdentifier(route.getRouteID(), "C loop index name",
+                                   options.loopIndexName))
+      return error;
+    knownValues.insert(options.loopIndexName);
+    return llvm::Error::success();
+  }
+
+  llvm::Error initializeABIValues() {
+    unsigned runtimeElementCountMatches = 0;
+    for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings()) {
+      llvm::StringRef cName = mapping.parameter.cName;
+      llvm::StringRef valueName = mapping.valueName;
+      if (llvm::Error error =
+              validateSafeIdentifier(route.getRouteID(), "ABI C name", cName))
+        return error;
+      if (llvm::Error error = validateSafeIdentifier(
+              route.getRouteID(), "ABI value mapping name", valueName))
+        return error;
+      if (cName != valueName)
+        return makeSourceRendererError(
+            route.getRouteID(),
+            llvm::Twine("ABI value mapping for C parameter '") + cName +
+                "' must use the same function-boundary value name, got '" +
+                valueName + "'");
+      if (!knownValues.insert(valueName).second)
+        return makeSourceRendererError(
+            route.getRouteID(),
+            llvm::Twine("duplicate C source value name '") + valueName + "'");
+      if (mapping.parameter.role ==
+          support::RuntimeABIParameterRole::RuntimeElementCount) {
+        runtimeElementCountValueName = valueName.str();
+        ++runtimeElementCountMatches;
+      }
+    }
+
+    if (runtimeElementCountMatches != 1)
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "requires exactly one runtime-element-count ABI mapping before "
+          "bounded-loop C source rendering");
+    return llvm::Error::success();
+  }
+
+  llvm::Error validateOperandExpression(
+      const TCRVEmitCCallOpaqueOperand &operand) const {
+    llvm::StringRef expression = operand.expression;
+    if (!isSafeExpressionText(expression))
+      return makeSourceRendererError(
+          route.getRouteID(),
+          llvm::Twine("operand expression '") + expression +
+              "' contains unsafe text before C source rendering");
+
+    llvm::SmallVector<llvm::StringRef, 4> identifiers;
+    collectExpressionIdentifiers(expression, identifiers);
+    for (llvm::StringRef identifier : identifiers) {
+      if (knownValues.contains(identifier))
+        continue;
+      return makeSourceRendererError(
+          route.getRouteID(),
+          llvm::Twine("operand expression '") + expression +
+              "' references unknown value name '" + identifier + "'");
+    }
+    return llvm::Error::success();
+  }
+
+  llvm::Error renderStep(const TCRVEmitCCallOpaqueStep &step,
+                         bool &sawInterfaceBackedCompute,
+                         llvm::raw_ostream &targetOS) {
+    if (llvm::Error error = validateSafeProvenance(route, step.sourceOp))
+      return error;
+    if (llvm::Error error =
+            validateSafeIdentifier(route.getRouteID(), "call_opaque callee",
+                                   step.callee))
+      return error;
+    if (step.sourceOp.role == "compute") {
+      if (!step.result)
+        return makeSourceRendererError(
+            route.getRouteID(),
+            llvm::Twine("compute step from source op '") +
+                step.sourceOp.opName + "' requires a result value before C "
+                "source rendering");
+      if (options.requireInterfaceBackedCompute &&
+          step.sourceOp.opInterface.empty())
+        return makeSourceRendererError(
+            route.getRouteID(),
+            llvm::Twine("compute step from source op '") +
+                step.sourceOp.opName +
+                "' requires generated op-interface provenance before C "
+                "source rendering");
+      sawInterfaceBackedCompute = true;
+    }
+
+    for (const TCRVEmitCCallOpaqueOperand &operand : step.operands)
+      if (llvm::Error error = validateOperandExpression(operand))
+        return error;
+
+    if (step.result) {
+      if (llvm::Error error = validateSafeIdentifier(
+              route.getRouteID(), "call_opaque result name",
+              step.result->name))
+        return error;
+      if (knownValues.contains(step.result->name))
+        return makeSourceRendererError(
+            route.getRouteID(),
+            llvm::Twine("duplicate C source value name '") +
+                step.result->name + "'");
+
+      targetOS << "    " << step.result->cType << " " << step.result->name
+               << " = " << step.callee << "(";
+      printOperandList(step, targetOS);
+      targetOS << ");\n";
+      knownValues.insert(step.result->name);
+      return llvm::Error::success();
+    }
+
+    targetOS << "    " << step.callee << "(";
+    printOperandList(step, targetOS);
+    targetOS << ");\n";
+    return llvm::Error::success();
+  }
+
+  void printFunctionHeader(llvm::raw_ostream &targetOS) {
+    targetOS << "void " << options.functionName << "(";
+    for (auto [index, mapping] : llvm::enumerate(route.getABIMappings())) {
+      if (index != 0)
+        targetOS << ", ";
+      support::printRuntimeABIParameterCDeclaration(targetOS,
+                                                    mapping.parameter);
+    }
+    targetOS << ") {\n";
+  }
+
+  void printOperandList(const TCRVEmitCCallOpaqueStep &step,
+                        llvm::raw_ostream &targetOS) {
+    for (auto [index, operand] : llvm::enumerate(step.operands)) {
+      if (index != 0)
+        targetOS << ", ";
+      targetOS << operand.expression;
+    }
+  }
+
+  const TCRVEmitCLowerableRoute &route;
+  llvm::raw_ostream &os;
+  const TCRVEmitCSourceRenderOptions &options;
+  llvm::StringSet<> knownValues;
+  std::string runtimeElementCountValueName;
+};
+
 } // namespace
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
@@ -376,6 +608,12 @@ llvm::Error verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
   if (!module)
     return module.takeError();
   return llvm::Error::success();
+}
+
+llvm::Error renderTCRVEmitCLowerableRouteAsCFunction(
+    const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
+    const TCRVEmitCSourceRenderOptions &options) {
+  return RouteCSourceRenderer(route, os, options).run();
 }
 
 } // namespace tianchenrv::conversion::emitc
