@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack and compute-boundary invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV ownership, selected i32m2 config, VL dataflow, and ssh evidence claim scope"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback operator/type correctness"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check dispatch selection and guard linkage remain target-neutral"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target/export route, ABI, and dispatch bundle coherence"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required focused tests and real RVV evidence are present"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Check evidence interpretation avoids unsupported performance or generic-RVV claims"}

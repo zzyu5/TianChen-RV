@@ -35,6 +35,7 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o
 # RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
 # RUN: FileCheck %s --check-prefix=VSUB-M2-CALLER --implicit-check-not="lhs[index] + rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=VSUB-M2-INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
 # RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vsub-i32m2-dispatch-bundle-plan-and-export/evidence.json
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vsub --expect-selected-kernel=frontend_bundle_i64_vsub --run-id lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=I64-VSUB-PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i64-vsub-dispatch-c.c
@@ -234,14 +235,22 @@
 # VSUB-M2-PLAN-DRY: "vector_shape": "i32m2"
 
 # VSUB-M2-SOURCE: /* selected_kernel: @frontend_bundle_i32m2_vsub */
+# VSUB-M2-SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, lowering_descriptor=i32-vsub-microkernel.v1, shape=i32m2, sew=32, lmul=m2
+# VSUB-M2-SOURCE-SAME: runtime_element_count_c_name=n
+# VSUB-M2-SOURCE-SAME: dispatch_availability_c_name=rvv_available
+# VSUB-M2-SOURCE-SAME: descriptor_element_count=16
 # VSUB-M2-SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
 # VSUB-M2-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_rvv_first_slice */
+# VSUB-M2-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_scalar_fallback_first_slice */
+# VSUB-M2-SOURCE: /* dispatch_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+# VSUB-M2-SOURCE: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
 # VSUB-M2-SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
 # VSUB-M2-SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 # VSUB-M2-SOURCE: __riscv_vsetvl_e32m2
 # VSUB-M2-SOURCE: __riscv_vle32_v_i32m2
 # VSUB-M2-SOURCE: __riscv_vsub_vv_i32m2
 # VSUB-M2-SOURCE: __riscv_vse32_v_i32m2
+# VSUB-M2-SOURCE: out[index] = lhs[index] - rhs[index];
 # VSUB-M2-SOURCE: void tcrv_dispatch_i32_vsub_frontend_bundle_i32m2_vsub
 
 # VSUB-M2-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
@@ -250,6 +259,29 @@
 # VSUB-M2-CALLER: run_dispatch_case(7, 0)
 # VSUB-M2-CALLER: run_dispatch_case(16, 1)
 # VSUB-M2-CALLER: tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok
+
+# VSUB-M2-INDEX: component_group: "rvv-scalar-i32-vsub-dispatch-external-abi.v1"
+# VSUB-M2-INDEX: selected_surface: "dispatch"
+# VSUB-M2-INDEX: role: "dispatch case"
+# VSUB-M2-INDEX: role: "dispatch fallback"
+# VSUB-M2-INDEX: route: "tcrv-export-rvv-scalar-i32-vsub-dispatch-c"
+# VSUB-M2-INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
+# VSUB-M2-INDEX: c_name: "n"
+# VSUB-M2-INDEX-NEXT: c_type: "size_t"
+# VSUB-M2-INDEX-NEXT: role: "runtime-element-count"
+# VSUB-M2-INDEX: c_name: "rvv_available"
+# VSUB-M2-INDEX-NEXT: c_type: "int"
+# VSUB-M2-INDEX-NEXT: role: "dispatch-availability-guard"
+# VSUB-M2-INDEX: name: "tcrv_rvv.selected_vector_shape"
+# VSUB-M2-INDEX-NEXT: value: "i32m2"
+# VSUB-M2-INDEX: name: "tcrv_rvv.selected_vector_lmul"
+# VSUB-M2-INDEX-NEXT: value: "m2"
+# VSUB-M2-INDEX: name: "tcrv_rvv.selected_binary_family"
+# VSUB-M2-INDEX-NEXT: value: "i32-vsub"
+# VSUB-M2-INDEX: name: "tcrv_rvv.selected_binary_operator"
+# VSUB-M2-INDEX-NEXT: value: "subtract"
+# VSUB-M2-INDEX: name: "tcrv_rvv.runtime_element_count_c_name"
+# VSUB-M2-INDEX-NEXT: value: "n"
 
 # VSUB-M2-EVIDENCE: "arithmetic_family": "i32-vsub"
 # VSUB-M2-EVIDENCE-DAG: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
@@ -260,6 +292,14 @@
 # VSUB-M2-EVIDENCE-DAG: "vector_suffix": "i32m2"
 # VSUB-M2-EVIDENCE-DAG: "selected_plan_metadata": [
 # VSUB-M2-EVIDENCE-DAG: "value": "i32m2"
+# VSUB-M2-EVIDENCE-DAG: "guard_parameter": "rvv_available"
+# VSUB-M2-EVIDENCE-DAG: "selected_branch": "scalar-dispatch-fallback"
+# VSUB-M2-EVIDENCE-DAG: "selected_branch": "rvv-dispatch-case"
+# VSUB-M2-EVIDENCE-DAG: "runtime_element_counts": [
+# VSUB-M2-EVIDENCE-DAG: 7
+# VSUB-M2-EVIDENCE-DAG: 16
+# VSUB-M2-EVIDENCE-DAG: "arithmetic_output_checked": true
+# VSUB-M2-EVIDENCE-DAG: "overrun_behavior_checked": true
 # VSUB-M2-EVIDENCE-DAG: "pass_fail_result": "pass"
 # VSUB-M2-EVIDENCE-DAG: "ssh_evidence": null
 # VSUB-M2-EVIDENCE-DAG: "status": "success"

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundary, stack ownership, and source-of-truth invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected config, i32m2, VL dataflow, and remote evidence boundaries"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback i32-vsub callable source/export contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Front-door lowering, proposal, selection, dispatch, and runtime guard contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, RVV+scalar dispatch route, bundle, ABI, and evidence runner boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/script/ssh rvv evidence requirements"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "RVV hardware evidence interpretation and forbidden claims"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-selected-config-boundary-family-contract/prd.md", "reason": "Prior selected-config contract producer/consumer context"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-selected-config-vl-dataflow-materialization/prd.md", "reason": "Immediate previous selected-config to VL dataflow completion context"}

@@ -58,3 +58,71 @@ No `ssh rvv` evidence was collected and no runtime correctness or performance cl
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 22: RVV i32m2 selected VL dispatch ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV i32m2 selected VL dispatch ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Proved the non-m1 `i32-vsub` / `i32m2` selected-config path through
+plan-and-export target artifact bundle generation, RVV+scalar dispatch wrapper
+emission, and real `ssh rvv` compile/link/run correctness.
+
+### Main Changes
+
+- Created Trellis task
+  `rvv-i32m2-selected-vl-dispatch-ssh-evidence` and wrote the PRD.
+- Strengthened `test/Scripts/rvv-scalar-dispatch-bundle-e2e.test` for the
+  i32m2 vsub bundle path: selected binary config, runtime `n`, dispatch guard
+  `rvv_available`, descriptor-local i32-vsub metadata, bundle index ABI,
+  scalar subtract source, and branch evidence are now FileChecked.
+- Confirmed the C++/MLIR/plugin/target path already carries
+  `frontend_bundle_i32m2_vsub` through selected-config/VL dataflow into the
+  generated dispatch source and bundle object.
+
+### Evidence
+
+- Real RVV evidence:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-20260511-i32m2-vsub-bundle-ssh/evidence.json`
+- `ssh rvv` host facts: `riscv64`, `/usr/bin/clang`, Ubuntu clang 18.1.3.
+- Generated RVV source uses `__riscv_vsetvl_e32m2`,
+  `__riscv_vle32_v_i32m2`, `__riscv_vsub_vv_i32m2`, and
+  `__riscv_vse32_v_i32m2`.
+- Runtime checks covered `rvv_available=0` and `rvv_available=1` with counts
+  `7` and `16`, and observed
+  `tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok runtime_counts=7,16
+  branches=scalar_and_rvv`.
+
+### Testing
+
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --lower-linalg-frontend --run-id codex-20260511-i32m2-vsub-dispatch-dry --overwrite --expect-selected-kernel frontend_dispatch_i32m2_vsub`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id codex-20260511-i32m2-vsub-bundle-dry --overwrite --expect-selected-kernel frontend_bundle_i32m2_vsub`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id codex-20260511-i32m2-vsub-bundle-ssh --overwrite --expect-selected-kernel frontend_bundle_i32m2_vsub --timeout 180 --connect-timeout 20`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Focused lit:
+  `rvv-scalar-i32-vsub-dispatch-i32m2-generic-route.mlir`,
+  `linalg-i32-vsub-to-rvv-artifact.mlir`,
+  `rvv-scalar-dispatch-e2e.test`,
+  `rvv-scalar-dispatch-bundle-e2e.test`,
+  `i32m2-dataflow.mlir`, and `rvv-microkernel-e2e.test`.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
