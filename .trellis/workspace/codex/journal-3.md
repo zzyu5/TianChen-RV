@@ -1909,3 +1909,63 @@ function body is rendered from the typed-body-derived
 ### Next Steps
 
 - None - task complete
+
+
+## Session 33: i32 binary IR-backed callable ABI authority
+
+**Date**: 2026-05-12
+**Task**: i32 binary IR-backed callable ABI authority
+**Branch**: `main`
+
+### Summary
+
+Rewired bounded i32 RVV/scalar callable ABI parameter authority to exec IR backed shared plan.
+
+### Main Changes
+
+### Summary
+
+Rewired bounded i32 RVV direct callable and scalar fallback callable source/export planning so production runtime ABI parameters come from `tcrv.exec.mem_window` and `tcrv.exec.runtime_param` through the shared `RuntimeABICallablePlan` support API.
+
+### Main Changes
+
+- Routed RVV i32 direct emission-plan parameter construction and RVV source export ABI plan construction through `support::buildI32BinaryCallableABIPlan`.
+- Routed scalar i32 fallback emission planning and scalar source/header/object/bundle mirror validation through the same shared i32 binary callable ABI plan.
+- Removed the scalar i32 production path's lenient descriptor/default ABI fallback by propagating missing/stale exec IR ABI boundary errors.
+- Added support-level C++ coverage for valid exec IR ABI boundaries, missing and duplicate roles, stale runtime type/ownership, and mirror metadata drift.
+- Added focused lit/FileCheck coverage for RVV and scalar source export fail-closed behavior while preserving common EmitC route provenance.
+
+### Testing
+
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- [OK] focused lit filter: `runtime-abi-callable-plan|rvv-microkernel-runtime-abi-role-binding|scalar-target-source-artifact-routes`, 3/3 selected tests passed
+- [OK] `git diff --check`
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`, 207/207 passed
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

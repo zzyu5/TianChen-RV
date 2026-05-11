@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-3.md`
-- **Total Sessions**: 32
+- **Total Sessions**: 33
 - **Last Active**: 2026-05-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-3.md` | ~1853 | Active |
+| `journal-3.md` | ~1971 | Active |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
@@ -31,6 +31,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 33 | 2026-05-12 | i32 binary IR-backed callable ABI authority | this commit | `main` |
 | 32 | 2026-05-12 | RVV source export common EmitC route authority | this commit | `main` |
 | 31 | 2026-05-12 | Quarantine RVV descriptor-only production export | `b5b193d` | `main` |
 | 30 | 2026-05-12 | Descriptor exit for direct RVV i32-vadd planning | this commit | `main` |

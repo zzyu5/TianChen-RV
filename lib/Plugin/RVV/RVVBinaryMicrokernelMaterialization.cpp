@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVBinaryMicrokernelMaterialization.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 
@@ -246,6 +247,23 @@ llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildRVVBinaryCallableRuntimeABIParameters(
     tcrv::exec::KernelOp kernel,
     const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor) {
+  if (descriptor.family.dtype == target::rvv::RVVBinaryDTypeKind::I32) {
+    const target::i32_binary::I32BinaryFamilyDescriptor *family =
+        target::i32_binary::lookupI32BinaryFamilyByID(
+            descriptor.getArithmeticFamilyID());
+    if (!family)
+      return makeRVVBinaryMicrokernelMaterializationError(
+          llvm::Twine("RVV i32 binary callable ABI requires shared i32 "
+                      "binary family descriptor for '") +
+          descriptor.getArithmeticFamilyID() + "'");
+
+    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+        support::buildI32BinaryCallableABIPlan(kernel, *family);
+    if (!callablePlan)
+      return callablePlan.takeError();
+    return std::move(callablePlan->parameters);
+  }
+
   llvm::SmallVector<tcrv::exec::MemWindowOp, 3> windows;
   if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
           kernel, descriptor.getBufferMemWindowSpecs(), windows))

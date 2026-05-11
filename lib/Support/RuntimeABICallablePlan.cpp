@@ -101,6 +101,13 @@ makeParameterFromRuntimeParam(KernelOp kernel, RuntimeParamOp param,
 
   llvm::StringRef cName =
       getStringAttr(param.getOperation(), kRuntimeParamCNameAttrName);
+  if (cName.trim().empty())
+    return makeCallablePlanError(
+        kernel, &contract,
+        llvm::Twine("tcrv.exec.runtime_param @") + param.getSymName() +
+            " requires non-empty C parameter name for ABI role '" +
+            stringifyRuntimeABIParameterRole(expectedRole) + "'");
+
   llvm::StringRef cType =
       getStringAttr(param.getOperation(), kRuntimeParamCTypeAttrName);
   llvm::StringRef ownership =

@@ -52,6 +52,13 @@
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "n", c_type = "long", ownership = "target-export-abi-owned", role = "runtime-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-ABI-PREFLIGHT --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
 # SCALAR-ABI-PREFLIGHT: route id 'tcrv-export-scalar-microkernel-c' runtime ABI parameter role 'runtime-element-count' must use c type 'size_t'
 
+# RUN: sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/d' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-MISSING-MEM-WINDOW --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
+# SCALAR-MISSING-MEM-WINDOW: runtime ABI mem_window validation failed
+# SCALAR-MISSING-MEM-WINDOW-SAME: requires exactly one tcrv.exec.mem_window with ABI role 'lhs-input-buffer'
+
+# RUN: sed '/tcrv.exec.runtime_param @abi_runtime_element_count/ s/c_name = "n", //' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-MISSING-RUNTIME-CNAME --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
+# SCALAR-MISSING-RUNTIME-CNAME: 'tcrv.exec.runtime_param' op requires non-empty string attribute 'c_name'
+
 # RUN: sed 's/tcrv.exec.variant @scalar_fallback_first_slice attributes {/tcrv.exec.variant @scalar_fallback_first_slice attributes {tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1", tcrv_scalar.element_count = 16 : i64, /' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR-DESCRIPTOR --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
 # STALE-SCALAR-DESCRIPTOR: selected scalar variant @scalar_fallback_first_slice descriptor 'i32-vsub-microkernel.v1' does not match materialized tcrv_scalar.i32_vadd_microkernel
 

@@ -474,6 +474,21 @@ llvm::Error validateScalarCallableABIParameterMirror(
     llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
     const ScalarI32MicrokernelFamilySpec &family) {
+  if (family.rvvFamily &&
+      family.rvvFamily->dtype == RVVBinaryDTypeKind::I32) {
+    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
+        *i32Family = tianchenrv::target::i32_binary::
+            lookupI32BinaryFamilyByID(family.rvvFamily->familyID);
+    if (!i32Family)
+      return makeMicrokernelError(
+          kernel, llvm::Twine("scalar i32 binary callable ABI requires "
+                              "shared i32 binary family descriptor for ") +
+                      family.microkernelOpName);
+    return support::validateI32BinaryCallableABIParameterMirror(
+        kernel, metadataParameters, irBackedParameters, metadataSource,
+        *i32Family);
+  }
+
   if (metadataParameters.empty())
     return makeMicrokernelError(
         kernel, llvm::Twine(metadataSource) +
@@ -1598,6 +1613,28 @@ buildScalarCallableABIPlan(KernelOp kernel,
   if (!kernel || kernel.getBody().empty())
     return makeMicrokernelError(
         kernel, "requires a materialized tcrv.exec.kernel body");
+
+  if (family.rvvFamily && family.rvvFamily->dtype == RVVBinaryDTypeKind::I32) {
+    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
+        *i32Family = tianchenrv::target::i32_binary::
+            lookupI32BinaryFamilyByID(family.rvvFamily->familyID);
+    if (!i32Family)
+      return makeMicrokernelError(
+          kernel, llvm::Twine("scalar i32 binary callable ABI requires "
+                              "shared i32 binary family descriptor for ") +
+                      family.microkernelOpName);
+
+    llvm::Expected<support::I32BinaryCallableABIPlan> i32Plan =
+        support::buildI32BinaryCallableABIPlan(kernel, *i32Family);
+    if (!i32Plan)
+      return i32Plan.takeError();
+
+    ScalarCallableABIPlan plan;
+    plan.parameters = std::move(i32Plan->parameters);
+    plan.bufferWindows = std::move(i32Plan->bufferWindows);
+    plan.runtimeElementCountParam = i32Plan->runtimeElementCountParam;
+    return plan;
+  }
 
   ScalarCallableABIPlan plan;
   auto windowSpecs =

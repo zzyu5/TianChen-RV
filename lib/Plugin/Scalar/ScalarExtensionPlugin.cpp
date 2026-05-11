@@ -55,6 +55,8 @@ using ScalarBinaryFamilyDescriptor =
 using ScalarBinaryMicrokernelDescriptor =
     tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelDescriptor;
 
+llvm::Error makeScalarPluginError(llvm::Twine message);
+
 struct ScalarMicrokernelFamilySpec {
   const ScalarBinaryFamilyDescriptor *family;
   llvm::StringRef descriptorNoun;
@@ -173,9 +175,28 @@ getScalarFamilySpec(const ScalarBinaryFamilyDescriptor &family) {
   return nullptr;
 }
 
-llvm::SmallVector<support::RuntimeABIParameter, 4>
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildScalarEmissionRuntimeABIParameters(
     tcrv::exec::KernelOp kernel, const ScalarBinaryFamilyDescriptor &family) {
+  if (family.rvvFamily &&
+      family.rvvFamily->dtype ==
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32) {
+    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
+        *i32Family = tianchenrv::target::i32_binary::
+            lookupI32BinaryFamilyByID(family.familyID);
+    if (!i32Family)
+      return makeScalarPluginError(
+          llvm::Twine("scalar i32 binary callable ABI requires shared i32 "
+                      "binary family descriptor for '") +
+          family.familyID + "'");
+
+    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+        support::buildI32BinaryCallableABIPlan(kernel, *i32Family);
+    if (!callablePlan)
+      return callablePlan.takeError();
+    return std::move(callablePlan->parameters);
+  }
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
       tianchenrv::target::rvv_scalar::
           getRVVScalarBinaryCallableRuntimeABIParameters(family);
@@ -1088,12 +1109,15 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind(family.getScalar().runtimeABIKind);
     out.setRuntimeABIName(family.getScalar().runtimeABIName);
     out.setRuntimeGlueRole(family.getScalar().runtimeGlueRole);
-    llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters =
+    llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
+        runtimeABIParameters =
         buildScalarEmissionRuntimeABIParameters(request.getKernel(),
                                                 *family.family);
+    if (!runtimeABIParameters)
+      return runtimeABIParameters.takeError();
     llvm::StringRef runtimeElementCountCName =
-        getScalarRuntimeElementCountCName(runtimeABIParameters);
-    out.addRuntimeABIParameters(runtimeABIParameters);
+        getScalarRuntimeElementCountCName(*runtimeABIParameters);
+    out.addRuntimeABIParameters(*runtimeABIParameters);
     bool useTypedSourceMetadata =
         isDescriptorlessDefaultScalarTypedFamily(family);
     if (useTypedSourceMetadata)

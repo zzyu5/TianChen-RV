@@ -2123,6 +2123,31 @@ llvm::Error buildRVVBinaryCallableABIPlanFromIR(
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &parameters,
     llvm::SmallVectorImpl<MemWindowOp> &bufferWindows,
     RuntimeParamOp &runtimeElementCountParam) {
+  if (descriptor.family.dtype == RVVBinaryDTypeKind::I32) {
+    const i32_binary::I32BinaryFamilyDescriptor *family =
+        i32_binary::lookupI32BinaryFamilyByID(
+            descriptor.getArithmeticFamilyID());
+    if (!family)
+      return makeMicrokernelError(
+          kernel, llvm::Twine("RVV i32 binary callable ABI requires shared "
+                              "i32 binary family descriptor for '") +
+                      descriptor.getArithmeticFamilyID() + "'");
+
+    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
+        support::buildI32BinaryCallableABIPlan(kernel, *family);
+    if (!callablePlan)
+      return callablePlan.takeError();
+
+    parameters.clear();
+    parameters.append(callablePlan->parameters.begin(),
+                      callablePlan->parameters.end());
+    bufferWindows.clear();
+    bufferWindows.append(callablePlan->bufferWindows.begin(),
+                         callablePlan->bufferWindows.end());
+    runtimeElementCountParam = callablePlan->runtimeElementCountParam;
+    return llvm::Error::success();
+  }
+
   llvm::SmallVector<MemWindowOp, 3> windows;
   if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
           kernel, descriptor.getBufferMemWindowSpecs(), windows))
