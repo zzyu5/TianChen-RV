@@ -25,13 +25,13 @@ struct RuntimeABIDispatchIdentity {
 };
 
 // Single support-layer owner for the current bounded i32 binary callable ABI.
-// It centralizes shared ABI parameter shape and descriptor-derived ABI
+// It centralizes shared ABI parameter shape and registration-scoped ABI
 // identities only; route ids, artifact kinds, hardware facts, descriptor
 // metadata, bundle records, and evidence data stay with their owners.
 class I32BinaryRuntimeABIContract {
 public:
   const target::i32_binary::I32BinaryFamilyDescriptor &
-  getFamilyDescriptor() const {
+  getFamilyRegistrationRecord() const {
     return *family;
   }
 
@@ -109,7 +109,7 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
 
 using I32VAddRuntimeABIContract = I32BinaryRuntimeABIContract;
 
-// Temporary compatibility wrapper for the add descriptor.
+// Temporary compatibility wrapper for the add registration record.
 const I32VAddRuntimeABIContract &getI32VAddRuntimeABIContract();
 
 } // namespace tianchenrv::support

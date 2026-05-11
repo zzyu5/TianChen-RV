@@ -231,7 +231,7 @@ getRVVBinaryMicrokernelFamilyForOp(mlir::Operation *op) {
 
   llvm::StringRef opName = op->getName().getStringRef();
   for (const target::rvv::RVVBinaryFamilyDescriptor *family :
-       target::rvv::getRVVBinaryFamilyDescriptors()) {
+       target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (family->microkernelOpName == opName)
       return family;
   }

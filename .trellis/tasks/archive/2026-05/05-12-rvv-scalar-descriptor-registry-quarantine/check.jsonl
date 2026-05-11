@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global compiler stack, Python, and descriptor boundary invariants"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check unified extension-family architecture and tcrv.exec compute-free boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check production artifacts remain on extension-family ops to common EmitC route"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact export and runtime ABI authority boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin finite descriptor quarantine behavior"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar plugin finite descriptor quarantine behavior"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check plugin locality and no core family-specific branch regression"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test and evidence discipline"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-scalar-descriptor-registry-quarantine/prd.md", "reason": "Check implementation against this task's module-level requirements"}

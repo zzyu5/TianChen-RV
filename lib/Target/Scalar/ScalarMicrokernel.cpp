@@ -114,27 +114,27 @@ using ScalarI32MicrokernelFamilySpec =
     tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelDescriptor;
 
 const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI32VSubFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI32VSubFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI32VMulFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI32VMulFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI64VAddFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI64VSubFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord().scalar;
 }
 
 const ScalarI32MicrokernelFamilySpec &getI64VMulFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().scalar;
+  return tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord().scalar;
 }
 
 llvm::ArrayRef<const ScalarI32MicrokernelFamilySpec *>
@@ -1339,7 +1339,7 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
 
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
     if (!tianchenrv::target::rvv_scalar::
-            lookupRVVScalarBinaryFamilyByLoweringDescriptor(descriptorValue))
+            lookupRVVScalarBinaryRegistrationByLegacyLoweringDescriptor(descriptorValue))
       return makeMicrokernelError(
           kernel, llvm::Twine("selected scalar variant @") +
                       variant.getSymName() + " attribute '" +
@@ -2108,7 +2108,7 @@ TargetArtifactRouteMetadata buildScalarMicrokernelSourceRouteMetadata(
   } else {
     llvm::StringRef descriptorRole =
         tianchenrv::target::rvv_scalar::
-            getScalarSelectedBinaryDescriptorMetadataRole();
+            getScalarLegacyDescriptorMirrorMetadataRole();
     metadata.addSelectedPlanMetadataRequirement(
         tianchenrv::target::rvv_scalar::
             getScalarSelectedBinaryDTypeMetadataName(),
@@ -2237,7 +2237,7 @@ llvm::Error validateScalarMicrokernelSourceCandidate(
       tianchenrv::target::rvv_scalar::
           getRVVScalarBinaryCallableRuntimeABIRoleRequirements(
               *tianchenrv::target::rvv_scalar::
-                  lookupRVVScalarBinaryFamilyByScalarRouteID(
+                  lookupRVVScalarBinaryRegistrationByScalarRouteID(
                       family->routeID)),
       /*directHelperRoute=*/false, /*handoffKind=*/{},
       /*candidateValidationFn=*/nullptr, /*componentGroup=*/{},

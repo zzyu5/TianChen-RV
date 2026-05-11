@@ -46,5 +46,5 @@ module {
   }
 }
 
-// CHECK: direct descriptor-only RVV binary lowering-boundary materialization for family 'i32-vadd' is legacy-quarantined
+// CHECK: direct legacy-registration-only RVV binary lowering-boundary materialization for family 'i32-vadd' is legacy-quarantined
 // CHECK-SAME: add a typed tcrv_rvv.i32_vadd_microkernel body

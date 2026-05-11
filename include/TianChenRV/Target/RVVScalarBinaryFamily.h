@@ -16,6 +16,9 @@
 
 namespace tianchenrv::target::rvv_scalar {
 
+// Scalar route registration/compatibility metadata derived from the finite RVV
+// family table. Production scalar artifacts must establish typed selected-plan
+// authority before consulting this metadata.
 struct ScalarBinaryMicrokernelDescriptor {
   const rvv::RVVBinaryFamilyDescriptor *rvvFamily = nullptr;
   std::string microkernelOpName;
@@ -34,6 +37,9 @@ struct ScalarBinaryMicrokernelDescriptor {
   std::string cOperator;
 };
 
+// RVV+scalar dispatch route registration/compatibility metadata. Dispatch
+// source, ABI, component group, and external ABI identity are derived from
+// selected component plans before this metadata may be used for route checks.
 struct DispatchBinaryFamilyDescriptor {
   const rvv::RVVBinaryFamilyDescriptor *rvvFamily = nullptr;
   std::string diagnosticName;
@@ -64,6 +70,8 @@ struct DispatchBinaryFamilyDescriptor {
   std::string dispatchExternalABIComponentGroup;
 };
 
+// Bridge registration metadata for the bounded finite RVV+scalar family set.
+// This is not a descriptor-to-C path or selected family authority.
 struct RVVScalarBinaryFamilyDescriptor {
   const rvv::RVVBinaryFamilyDescriptor *rvvFamily = nullptr;
   std::string familyID;
@@ -109,19 +117,18 @@ inline llvm::StringRef getScalarEmitCLowerableOpInterfaceMetadataName() {
   return "tcrv_scalar.emitc_lowerable_op_interface";
 }
 
-inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataRole() {
-  return "selected-scalar-binary-descriptor";
+inline llvm::StringRef getScalarLegacyDescriptorMirrorMetadataRole() {
+  return "legacy-scalar-binary-descriptor-mirror";
 }
 
 inline llvm::StringRef getScalarTypedBinarySourceMetadataRole() {
   return "typed-scalar-binary-source";
 }
 
-inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataNote() {
-  return "descriptor-local finite scalar binary dtype/operator metadata "
-         "selected by the scalar plugin; not a runtime trip count, RVV "
-         "vector-shape config, hardware execution proof, or performance "
-         "evidence";
+inline llvm::StringRef getScalarLegacyDescriptorMirrorMetadataNote() {
+  return "legacy finite scalar descriptor mirror metadata checked after typed "
+         "selected-plan authority is established; not compute, ABI, source, "
+         "runtime trip-count, hardware execution, or performance authority";
 }
 
 inline llvm::StringRef getScalarTypedBinarySourceMetadataNote() {
@@ -154,37 +161,28 @@ inline llvm::StringRef getScalarRuntimeControlNameMetadataNote() {
          "element_count, a tensor shape, or hardware evidence";
 }
 
-inline std::string hyphenatedFamilyID(const rvv::RVVBinaryFamilyDescriptor &family) {
-  return family.familyID.str();
-}
-
-inline std::string underscoredFunctionStem(
-    const rvv::RVVBinaryFamilyDescriptor &family) {
-  return family.functionStem.str();
-}
-
-inline std::string makeScalarMicrokernelOpName(
+inline std::string makeScalarRegistrationMicrokernelOpName(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("tcrv_scalar.") + family.functionStem +
           "_microkernel")
       .str();
 }
 
-inline std::string makeOperationNoun(
+inline std::string makeRegistrationOperationNoun(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine(family.dtypeID) + " vector-" +
           family.arithmeticVerb)
       .str();
 }
 
-inline std::string makeScalarEmissionKind(
+inline std::string makeScalarRegistrationEmissionKind(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("scalar-explicit-") + family.familyID +
           "-microkernel-c-source")
       .str();
 }
 
-inline std::string makeScalarRouteID(
+inline std::string makeScalarCompatibilityRouteID(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   if (family.familyID == "i32-vadd")
     return "tcrv-export-scalar-microkernel-c";
@@ -193,7 +191,7 @@ inline std::string makeScalarRouteID(
       .str();
 }
 
-inline std::string makeScalarHeaderRouteID(
+inline std::string makeScalarCompatibilityHeaderRouteID(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   if (family.familyID == "i32-vadd")
     return "tcrv-export-scalar-microkernel-header";
@@ -202,7 +200,7 @@ inline std::string makeScalarHeaderRouteID(
       .str();
 }
 
-inline std::string makeScalarObjectRouteID(
+inline std::string makeScalarCompatibilityObjectRouteID(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   if (family.familyID == "i32-vadd")
     return "tcrv-export-scalar-microkernel-object";
@@ -211,56 +209,56 @@ inline std::string makeScalarObjectRouteID(
       .str();
 }
 
-inline std::string makeScalarRuntimeABI(
+inline std::string makeScalarCompatibilityRuntimeABI(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("scalar-") + family.familyID +
           "-runtime-callable-c-abi.v1")
       .str();
 }
 
-inline std::string makeScalarRuntimeABIName(
+inline std::string makeScalarCompatibilityRuntimeABIName(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("scalar-") + family.familyID +
           "-runtime-callable-c-function.v1")
       .str();
 }
 
-inline std::string makeScalarRuntimeGlueRole(
+inline std::string makeScalarCompatibilityRuntimeGlueRole(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("runtime-callable-") + family.familyID +
           "-fallback-function")
       .str();
 }
 
-inline std::string makeDispatchRouteID(
+inline std::string makeDispatchRegistrationRouteID(
     const rvv::RVVBinaryFamilyDescriptor &family, llvm::StringRef suffix) {
   return (llvm::Twine("tcrv-export-rvv-scalar-") + family.familyID +
           "-dispatch-" + suffix)
       .str();
 }
 
-inline std::string makeDispatchRuntimeABIName(
+inline std::string makeDispatchRegistrationRuntimeABIName(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("rvv-scalar-") + family.familyID +
           "-dispatch-runtime-callable-c-function.v1")
       .str();
 }
 
-inline std::string makeDispatchExternalABIComponentGroup(
+inline std::string makeDispatchRegistrationExternalABIComponentGroup(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("rvv-scalar-") + family.familyID +
           "-dispatch-external-abi.v1")
       .str();
 }
 
-inline std::string makeDispatchSelfCheckSuccessMarker(
+inline std::string makeDispatchRegistrationSelfCheckSuccessMarker(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   return (llvm::Twine("tcrv_rvv_scalar_") + family.functionStem +
           "_dispatch_self_check_ok")
       .str();
 }
 
-inline RVVScalarBinaryFamilyDescriptor makeFamilyDescriptor(
+inline RVVScalarBinaryFamilyDescriptor makeFamilyRegistrationRecord(
     const rvv::RVVBinaryFamilyDescriptor &family) {
   RVVScalarBinaryFamilyDescriptor descriptor;
   descriptor.rvvFamily = &family;
@@ -273,29 +271,29 @@ inline RVVScalarBinaryFamilyDescriptor makeFamilyDescriptor(
           .str();
 
   descriptor.scalar.rvvFamily = &family;
-  descriptor.scalar.microkernelOpName = makeScalarMicrokernelOpName(family);
-  descriptor.scalar.operationNoun = makeOperationNoun(family);
+  descriptor.scalar.microkernelOpName = makeScalarRegistrationMicrokernelOpName(family);
+  descriptor.scalar.operationNoun = makeRegistrationOperationNoun(family);
   descriptor.scalar.functionStem = family.functionStem.str();
   descriptor.scalar.headerGuardStem = family.headerGuardStem.str();
   descriptor.scalar.descriptor = family.loweringDescriptor.str();
-  descriptor.scalar.emissionKind = makeScalarEmissionKind(family);
-  descriptor.scalar.routeID = makeScalarRouteID(family);
-  descriptor.scalar.headerRouteID = makeScalarHeaderRouteID(family);
-  descriptor.scalar.objectRouteID = makeScalarObjectRouteID(family);
-  descriptor.scalar.runtimeABI = makeScalarRuntimeABI(family);
+  descriptor.scalar.emissionKind = makeScalarRegistrationEmissionKind(family);
+  descriptor.scalar.routeID = makeScalarCompatibilityRouteID(family);
+  descriptor.scalar.headerRouteID = makeScalarCompatibilityHeaderRouteID(family);
+  descriptor.scalar.objectRouteID = makeScalarCompatibilityObjectRouteID(family);
+  descriptor.scalar.runtimeABI = makeScalarCompatibilityRuntimeABI(family);
   descriptor.scalar.runtimeABIKind = "scalar-runtime-callable-c-abi";
-  descriptor.scalar.runtimeABIName = makeScalarRuntimeABIName(family);
-  descriptor.scalar.runtimeGlueRole = makeScalarRuntimeGlueRole(family);
+  descriptor.scalar.runtimeABIName = makeScalarCompatibilityRuntimeABIName(family);
+  descriptor.scalar.runtimeGlueRole = makeScalarCompatibilityRuntimeGlueRole(family);
   descriptor.scalar.cOperator = family.cOperator.str();
 
   descriptor.dispatch.rvvFamily = &family;
   descriptor.dispatch.diagnosticName = family.familyID.str();
-  descriptor.dispatch.operationNoun = makeOperationNoun(family);
+  descriptor.dispatch.operationNoun = makeRegistrationOperationNoun(family);
   descriptor.dispatch.functionStem = family.functionStem.str();
   descriptor.dispatch.headerGuardStem = family.headerGuardStem.str();
   descriptor.dispatch.cOperator = family.cOperator.str();
   descriptor.dispatch.selfCheckSuccessMarker =
-      makeDispatchSelfCheckSuccessMarker(family);
+      makeDispatchRegistrationSelfCheckSuccessMarker(family);
   descriptor.dispatch.rvvRouteID = family.routeID.str();
   descriptor.dispatch.rvvEmissionKind = family.emissionKind.str();
   descriptor.dispatch.rvvRuntimeABI = family.runtimeABI.str();
@@ -310,32 +308,32 @@ inline RVVScalarBinaryFamilyDescriptor makeFamilyDescriptor(
   descriptor.dispatch.scalarRuntimeGlueRole =
       descriptor.scalar.runtimeGlueRole;
   descriptor.dispatch.dispatchSourceRouteID =
-      makeDispatchRouteID(family, "c");
+      makeDispatchRegistrationRouteID(family, "c");
   descriptor.dispatch.dispatchHeaderRouteID =
-      makeDispatchRouteID(family, "header");
+      makeDispatchRegistrationRouteID(family, "header");
   descriptor.dispatch.dispatchObjectRouteID =
-      makeDispatchRouteID(family, "object");
+      makeDispatchRegistrationRouteID(family, "object");
   descriptor.dispatch.dispatchSelfCheckSourceRouteID =
-      makeDispatchRouteID(family, "self-check-c");
+      makeDispatchRegistrationRouteID(family, "self-check-c");
   descriptor.dispatch.dispatchSelfCheckObjectRouteID =
-      makeDispatchRouteID(family, "self-check-object");
+      makeDispatchRegistrationRouteID(family, "self-check-object");
   descriptor.dispatch.dispatchRuntimeABIKind =
       "rvv-scalar-dispatch-runtime-callable-c-abi";
   descriptor.dispatch.dispatchRuntimeABIName =
-      makeDispatchRuntimeABIName(family);
+      makeDispatchRegistrationRuntimeABIName(family);
   descriptor.dispatch.dispatchExternalABIComponentGroup =
-      makeDispatchExternalABIComponentGroup(family);
+      makeDispatchRegistrationExternalABIComponentGroup(family);
   return descriptor;
 }
 
-inline void appendScalarBinarySelectedDescriptorMetadata(
+inline void appendScalarBinaryLegacyDescriptorMirrorMetadata(
     const RVVScalarBinaryFamilyDescriptor &family,
     llvm::StringRef runtimeElementCountCName,
     llvm::SmallVectorImpl<ScalarBinarySelectedPlanMetadataDescriptor> &out) {
   llvm::StringRef descriptorRole =
-      getScalarSelectedBinaryDescriptorMetadataRole();
+      getScalarLegacyDescriptorMirrorMetadataRole();
   llvm::StringRef descriptorNote =
-      getScalarSelectedBinaryDescriptorMetadataNote();
+      getScalarLegacyDescriptorMirrorMetadataNote();
   out.push_back({getScalarSelectedBinaryDTypeMetadataName(),
                  family.rvvFamily->dtypeID, descriptorRole, descriptorNote});
   out.push_back({getScalarSelectedBinaryFamilyMetadataName(),
@@ -385,88 +383,88 @@ inline void appendScalarI32VAddSelectedTypedSourceMetadata(
                                                runtimeElementCountCName, out);
 }
 
-inline const RVVScalarBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
+inline const RVVScalarBinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
   static const RVVScalarBinaryFamilyDescriptor descriptor =
-      makeFamilyDescriptor(rvv::getI32VAddFamilyDescriptor());
+      makeFamilyRegistrationRecord(rvv::getI32VAddFamilyRegistrationRecord());
   return descriptor;
 }
 
-inline const RVVScalarBinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
+inline const RVVScalarBinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
   static const RVVScalarBinaryFamilyDescriptor descriptor =
-      makeFamilyDescriptor(rvv::getI32VSubFamilyDescriptor());
+      makeFamilyRegistrationRecord(rvv::getI32VSubFamilyRegistrationRecord());
   return descriptor;
 }
 
-inline const RVVScalarBinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
+inline const RVVScalarBinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
   static const RVVScalarBinaryFamilyDescriptor descriptor =
-      makeFamilyDescriptor(rvv::getI32VMulFamilyDescriptor());
+      makeFamilyRegistrationRecord(rvv::getI32VMulFamilyRegistrationRecord());
   return descriptor;
 }
 
-inline const RVVScalarBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
+inline const RVVScalarBinaryFamilyDescriptor &getI64VAddFamilyRegistrationRecord() {
   static const RVVScalarBinaryFamilyDescriptor descriptor =
-      makeFamilyDescriptor(rvv::getI64VAddFamilyDescriptor());
+      makeFamilyRegistrationRecord(rvv::getI64VAddFamilyRegistrationRecord());
   return descriptor;
 }
 
-inline const RVVScalarBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
+inline const RVVScalarBinaryFamilyDescriptor &getI64VSubFamilyRegistrationRecord() {
   static const RVVScalarBinaryFamilyDescriptor descriptor =
-      makeFamilyDescriptor(rvv::getI64VSubFamilyDescriptor());
+      makeFamilyRegistrationRecord(rvv::getI64VSubFamilyRegistrationRecord());
   return descriptor;
 }
 
-inline const RVVScalarBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
+inline const RVVScalarBinaryFamilyDescriptor &getI64VMulFamilyRegistrationRecord() {
   static const RVVScalarBinaryFamilyDescriptor descriptor =
-      makeFamilyDescriptor(rvv::getI64VMulFamilyDescriptor());
+      makeFamilyRegistrationRecord(rvv::getI64VMulFamilyRegistrationRecord());
   return descriptor;
 }
 
 inline llvm::ArrayRef<const RVVScalarBinaryFamilyDescriptor *>
-getRVVScalarBinaryFamilyDescriptors() {
+getRVVScalarBinaryRegistrationRecords() {
   static const RVVScalarBinaryFamilyDescriptor *families[] = {
-      &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor(),
-      &getI32VMulFamilyDescriptor(), &getI64VAddFamilyDescriptor(),
-      &getI64VSubFamilyDescriptor(), &getI64VMulFamilyDescriptor()};
+      &getI32VAddFamilyRegistrationRecord(), &getI32VSubFamilyRegistrationRecord(),
+      &getI32VMulFamilyRegistrationRecord(), &getI64VAddFamilyRegistrationRecord(),
+      &getI64VSubFamilyRegistrationRecord(), &getI64VMulFamilyRegistrationRecord()};
   return llvm::ArrayRef(families);
 }
 
 inline const RVVScalarBinaryFamilyDescriptor *
-lookupRVVScalarBinaryFamilyByID(llvm::StringRef familyID) {
+lookupRVVScalarBinaryRegistrationByID(llvm::StringRef familyID) {
   familyID = familyID.trim();
   for (const RVVScalarBinaryFamilyDescriptor *descriptor :
-       getRVVScalarBinaryFamilyDescriptors())
+       getRVVScalarBinaryRegistrationRecords())
     if (descriptor->familyID == familyID)
       return descriptor;
   return nullptr;
 }
 
 inline const RVVScalarBinaryFamilyDescriptor *
-lookupRVVScalarBinaryFamilyByFrontendLowering(
+lookupRVVScalarBinaryRegistrationByFrontendLowering(
     llvm::StringRef frontendLowering) {
   frontendLowering = frontendLowering.trim();
   for (const RVVScalarBinaryFamilyDescriptor *descriptor :
-       getRVVScalarBinaryFamilyDescriptors())
+       getRVVScalarBinaryRegistrationRecords())
     if (descriptor->frontendLowering == frontendLowering)
       return descriptor;
   return nullptr;
 }
 
 inline const RVVScalarBinaryFamilyDescriptor *
-lookupRVVScalarBinaryFamilyByLoweringDescriptor(
+lookupRVVScalarBinaryRegistrationByLegacyLoweringDescriptor(
     llvm::StringRef loweringDescriptor) {
   loweringDescriptor = loweringDescriptor.trim();
   for (const RVVScalarBinaryFamilyDescriptor *descriptor :
-       getRVVScalarBinaryFamilyDescriptors())
+       getRVVScalarBinaryRegistrationRecords())
     if (descriptor->loweringDescriptor == loweringDescriptor)
       return descriptor;
   return nullptr;
 }
 
 inline const RVVScalarBinaryFamilyDescriptor *
-lookupRVVScalarBinaryFamilyByScalarRouteID(llvm::StringRef routeID) {
+lookupRVVScalarBinaryRegistrationByScalarRouteID(llvm::StringRef routeID) {
   routeID = routeID.trim();
   for (const RVVScalarBinaryFamilyDescriptor *descriptor :
-       getRVVScalarBinaryFamilyDescriptors())
+       getRVVScalarBinaryRegistrationRecords())
     if (descriptor->scalar.routeID == routeID)
       return descriptor;
   return nullptr;

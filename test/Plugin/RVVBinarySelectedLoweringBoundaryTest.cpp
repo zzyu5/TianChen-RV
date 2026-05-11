@@ -402,7 +402,7 @@ module {
 
   mlir::Operation *microkernel = findSelectedOpByName(
       kernel, variant.getSymName(),
-      tianchenrv::target::rvv::getI32VSubFamilyDescriptor().microkernelOpName);
+      tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord().microkernelOpName);
   if (int status = expect(microkernel,
                           "i32 selected module materializes vsub microkernel"))
     return status;
@@ -531,7 +531,7 @@ module {
 
   mlir::Operation *microkernel = findSelectedOpByName(
       kernel, variant.getSymName(),
-      tianchenrv::target::rvv::getI32VAddFamilyDescriptor().microkernelOpName);
+      tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord().microkernelOpName);
   if (int status =
           expect(microkernel,
                  "default descriptorless path materializes typed i32-vadd "
@@ -748,10 +748,10 @@ int main() {
           runDefaultI32VAddSelectedLoweringBoundaryModuleTest(context))
     return result;
   if (int result = runI64SelectedLoweringBoundaryModuleTest(
-          context, tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
+          context, tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()))
     return result;
   if (int result = runI64SelectedLoweringBoundaryModuleTest(
-          context, tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+          context, tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
     return result;
 
   llvm::outs() << "RVV binary selected lowering-boundary tests passed\n";

@@ -123,7 +123,7 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerScalarBuiltinTargetArtifactExporterBundles);
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
-       rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+       rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
     bundle.addTargetArtifactRouteMetadataRequirement(
         family->scalar.routeID, "runtime-callable-c-source");
   }

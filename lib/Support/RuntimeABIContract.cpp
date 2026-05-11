@@ -201,17 +201,17 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
   switch (family.kind) {
   case Kind::Add: {
     static const I32BinaryRuntimeABIContract contract(
-        target::i32_binary::getI32VAddFamilyDescriptor());
+        target::i32_binary::getI32VAddFamilyRegistrationRecord());
     return contract;
   }
   case Kind::Sub: {
     static const I32BinaryRuntimeABIContract contract(
-        target::i32_binary::getI32VSubFamilyDescriptor());
+        target::i32_binary::getI32VSubFamilyRegistrationRecord());
     return contract;
   }
   case Kind::Mul: {
     static const I32BinaryRuntimeABIContract contract(
-        target::i32_binary::getI32VMulFamilyDescriptor());
+        target::i32_binary::getI32VMulFamilyRegistrationRecord());
     return contract;
   }
   }
@@ -224,20 +224,20 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
   switch (kind) {
   case Kind::Add:
     return getI32BinaryRuntimeABIContract(
-        target::i32_binary::getI32VAddFamilyDescriptor());
+        target::i32_binary::getI32VAddFamilyRegistrationRecord());
   case Kind::Sub:
     return getI32BinaryRuntimeABIContract(
-        target::i32_binary::getI32VSubFamilyDescriptor());
+        target::i32_binary::getI32VSubFamilyRegistrationRecord());
   case Kind::Mul:
     return getI32BinaryRuntimeABIContract(
-        target::i32_binary::getI32VMulFamilyDescriptor());
+        target::i32_binary::getI32VMulFamilyRegistrationRecord());
   }
   llvm_unreachable("unknown i32 binary family kind");
 }
 
 const I32VAddRuntimeABIContract &getI32VAddRuntimeABIContract() {
   return getI32BinaryRuntimeABIContract(
-      target::i32_binary::getI32VAddFamilyDescriptor());
+      target::i32_binary::getI32VAddFamilyRegistrationRecord());
 }
 
 void appendI32BinaryRuntimeABIParameters(

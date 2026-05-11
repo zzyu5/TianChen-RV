@@ -21,6 +21,10 @@ enum class RVVBinaryArithmeticKind {
   Mul,
 };
 
+// Finite RVV binary family registration metadata. This table is allowed to
+// register bounded routes and compatibility names, but typed selected plans,
+// exec-IR ABI boundaries, and EmitC route metadata remain production
+// authority for source/ABI emission.
 struct RVVBinaryFamilyDescriptor {
   RVVBinaryDTypeKind dtype = RVVBinaryDTypeKind::I32;
   RVVBinaryArithmeticKind arithmetic = RVVBinaryArithmeticKind::Add;
@@ -53,7 +57,7 @@ struct RVVBinaryFamilyDescriptor {
   const support::FiniteBinaryFrontendContract *frontendContract = nullptr;
 };
 
-inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
+inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
   static const RVVBinaryFamilyDescriptor descriptor{
       RVVBinaryDTypeKind::I32,
       RVVBinaryArithmeticKind::Add,
@@ -87,7 +91,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
   return descriptor;
 }
 
-inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
+inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
   static const RVVBinaryFamilyDescriptor descriptor{
       RVVBinaryDTypeKind::I32,
       RVVBinaryArithmeticKind::Sub,
@@ -121,7 +125,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
   return descriptor;
 }
 
-inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
+inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
   static const RVVBinaryFamilyDescriptor descriptor{
       RVVBinaryDTypeKind::I32,
       RVVBinaryArithmeticKind::Mul,
@@ -155,7 +159,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
   return descriptor;
 }
 
-inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
+inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyRegistrationRecord() {
   static const RVVBinaryFamilyDescriptor descriptor{
       RVVBinaryDTypeKind::I64,
       RVVBinaryArithmeticKind::Add,
@@ -189,7 +193,7 @@ inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
   return descriptor;
 }
 
-inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
+inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyRegistrationRecord() {
   static const RVVBinaryFamilyDescriptor descriptor{
       RVVBinaryDTypeKind::I64,
       RVVBinaryArithmeticKind::Sub,
@@ -223,7 +227,7 @@ inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
   return descriptor;
 }
 
-inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
+inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyRegistrationRecord() {
   static const RVVBinaryFamilyDescriptor descriptor{
       RVVBinaryDTypeKind::I64,
       RVVBinaryArithmeticKind::Mul,
@@ -258,19 +262,19 @@ inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
 }
 
 inline llvm::ArrayRef<const RVVBinaryFamilyDescriptor *>
-getRVVBinaryFamilyDescriptors() {
+getRVVBinaryFamilyRegistrationRecords() {
   static const RVVBinaryFamilyDescriptor *families[] = {
-      &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor(),
-      &getI32VMulFamilyDescriptor(), &getI64VAddFamilyDescriptor(),
-      &getI64VSubFamilyDescriptor(), &getI64VMulFamilyDescriptor()};
+      &getI32VAddFamilyRegistrationRecord(), &getI32VSubFamilyRegistrationRecord(),
+      &getI32VMulFamilyRegistrationRecord(), &getI64VAddFamilyRegistrationRecord(),
+      &getI64VSubFamilyRegistrationRecord(), &getI64VMulFamilyRegistrationRecord()};
   return llvm::ArrayRef(families);
 }
 
 inline const RVVBinaryFamilyDescriptor *
-lookupRVVBinaryFamilyByID(llvm::StringRef familyID) {
+lookupRVVBinaryFamilyRegistrationByID(llvm::StringRef familyID) {
   familyID = familyID.trim();
   for (const RVVBinaryFamilyDescriptor *descriptor :
-       getRVVBinaryFamilyDescriptors()) {
+       getRVVBinaryFamilyRegistrationRecords()) {
     if (descriptor->familyID == familyID)
       return descriptor;
   }
@@ -278,10 +282,10 @@ lookupRVVBinaryFamilyByID(llvm::StringRef familyID) {
 }
 
 inline const RVVBinaryFamilyDescriptor *
-lookupRVVBinaryFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
+lookupRVVBinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowering) {
   frontendLowering = frontendLowering.trim();
   for (const RVVBinaryFamilyDescriptor *descriptor :
-       getRVVBinaryFamilyDescriptors()) {
+       getRVVBinaryFamilyRegistrationRecords()) {
     if (descriptor->frontendLowering == frontendLowering)
       return descriptor;
   }
@@ -289,10 +293,10 @@ lookupRVVBinaryFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
 }
 
 inline const RVVBinaryFamilyDescriptor *
-lookupRVVBinaryFamilyByLoweringDescriptor(llvm::StringRef loweringDescriptor) {
+lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(llvm::StringRef loweringDescriptor) {
   loweringDescriptor = loweringDescriptor.trim();
   for (const RVVBinaryFamilyDescriptor *descriptor :
-       getRVVBinaryFamilyDescriptors()) {
+       getRVVBinaryFamilyRegistrationRecords()) {
     if (descriptor->loweringDescriptor == loweringDescriptor)
       return descriptor;
   }

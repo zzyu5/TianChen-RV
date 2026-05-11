@@ -534,10 +534,11 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
             variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName)) {
       llvm::StringRef descriptor = descriptorAttr.getValue().trim();
       const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
-          target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(descriptor);
+          target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+              descriptor);
       if (descriptorFamily && isTypedSourceRVVBinaryFamily(*descriptorFamily))
         return makeRVVBinarySelectedBoundaryError(
-            llvm::Twine("direct descriptor-only RVV binary "
+            llvm::Twine("direct legacy-registration-only RVV binary "
                         "lowering-boundary materialization for family '") +
             descriptorFamily->familyID +
             "' is legacy-quarantined; add a typed " +

@@ -75,7 +75,7 @@ struct ScalarMicrokernelFamilySpec {
 
 const ScalarMicrokernelFamilySpec &getI32VAddFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord(),
       "finite scalar i32-vadd lowering descriptor",
       "scalar-explicit-i32-vadd-microkernel-c-source-export",
       "explicit scalar i32 vector-add microkernel C source export is "
@@ -89,7 +89,7 @@ const ScalarMicrokernelFamilySpec &getI32VAddFamilySpec() {
 
 const ScalarMicrokernelFamilySpec &getI32VSubFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VSubFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord(),
       "finite scalar i32-vsub lowering descriptor",
       "scalar-explicit-i32-vsub-microkernel-c-source-export",
       "explicit scalar i32 vector-subtract microkernel C source export is "
@@ -103,7 +103,7 @@ const ScalarMicrokernelFamilySpec &getI32VSubFamilySpec() {
 
 const ScalarMicrokernelFamilySpec &getI32VMulFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VMulFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord(),
       "finite scalar i32-vmul lowering descriptor",
       "scalar-explicit-i32-vmul-microkernel-c-source-export",
       "explicit scalar i32 vector-multiply microkernel C source export is "
@@ -117,7 +117,7 @@ const ScalarMicrokernelFamilySpec &getI32VMulFamilySpec() {
 
 const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord(),
       "finite scalar i64-vadd lowering descriptor",
       "scalar-explicit-i64-vadd-microkernel-c-source-export",
       "explicit scalar i64 vector-add microkernel C source export is "
@@ -131,7 +131,7 @@ const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
 
 const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord(),
       "finite scalar i64-vsub lowering descriptor",
       "scalar-explicit-i64-vsub-microkernel-c-source-export",
       "explicit scalar i64 vector-subtract microkernel C source export is "
@@ -145,7 +145,7 @@ const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
 
 const ScalarMicrokernelFamilySpec &getI64VMulFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor(),
+      &tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord(),
       "finite scalar i64-vmul lowering descriptor",
       "scalar-explicit-i64-vmul-microkernel-c-source-export",
       "explicit scalar i64 vector-multiply microkernel C source export is "
@@ -198,7 +198,7 @@ llvm::StringRef getScalarRuntimeElementCountCName(
   return "n";
 }
 
-void appendScalarSelectedDescriptorMetadata(
+void appendScalarSelectedLegacyDescriptorMirrorMetadata(
     VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family,
     llvm::StringRef runtimeElementCountCName) {
   llvm::SmallVector<
@@ -207,23 +207,23 @@ void appendScalarSelectedDescriptorMetadata(
       5>
       metadata;
   tianchenrv::target::rvv_scalar::
-      appendScalarBinarySelectedDescriptorMetadata(
+      appendScalarBinaryLegacyDescriptorMirrorMetadata(
           family, runtimeElementCountCName, metadata);
   for (const auto &entry : metadata)
     plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
                                  entry.note);
 }
 
-void appendScalarSelectedDescriptorCrossCheckMetadata(
+void appendScalarSelectedLegacyDescriptorCrossCheckMetadata(
     VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family) {
   plan.addSelectedPlanMetadata(
       tianchenrv::target::rvv_scalar::
           getScalarSelectedLoweringDescriptorMetadataName(),
       family.loweringDescriptor,
       tianchenrv::target::rvv_scalar::
-          getScalarSelectedBinaryDescriptorMetadataRole(),
+          getScalarLegacyDescriptorMirrorMetadataRole(),
       tianchenrv::target::rvv_scalar::
-          getScalarSelectedBinaryDescriptorMetadataNote());
+          getScalarLegacyDescriptorMirrorMetadataNote());
 }
 
 void appendScalarSelectedTypedSourceMetadata(
@@ -252,10 +252,11 @@ bool isDescriptorlessDefaultScalarTypedFamily(
 }
 
 const ScalarMicrokernelFamilySpec *
-lookupScalarMicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
+lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
+    llvm::StringRef descriptor) {
   const ScalarBinaryFamilyDescriptor *family =
       tianchenrv::target::rvv_scalar::
-          lookupRVVScalarBinaryFamilyByLoweringDescriptor(descriptor);
+          lookupRVVScalarBinaryRegistrationByLegacyLoweringDescriptor(descriptor);
   if (!family)
     return nullptr;
   return getScalarFamilySpec(*family);
@@ -266,7 +267,7 @@ lookupScalarMicrokernelFamilyByFrontendLowering(
     llvm::StringRef frontendLowering) {
   const ScalarBinaryFamilyDescriptor *family =
       tianchenrv::target::rvv_scalar::
-          lookupRVVScalarBinaryFamilyByFrontendLowering(frontendLowering);
+          lookupRVVScalarBinaryRegistrationByFrontendLowering(frontendLowering);
   if (!family)
     return nullptr;
   return getScalarFamilySpec(*family);
@@ -387,7 +388,8 @@ llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
         kScalarLoweringDescriptorAttrName + "'");
 
   const ScalarMicrokernelFamilySpec *family =
-      lookupScalarMicrokernelFamilyByDescriptor(descriptor.getValue());
+      lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
+          descriptor.getValue());
   if (!family)
     return makeScalarPluginError(
         llvm::Twine("optional legacy scalar descriptor mirror metadata on "
@@ -442,7 +444,7 @@ llvm::Error validateLegacyScalarDescriptorMirrorAfterTypedPlan(
     auto descriptor = llvm::cast<mlir::StringAttr>(rawDescriptor);
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
     const ScalarMicrokernelFamilySpec *descriptorFamily =
-        lookupScalarMicrokernelFamilyByDescriptor(descriptorValue);
+        lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(descriptorValue);
     if (!descriptorFamily)
       return makeScalarPluginError(
           llvm::Twine("optional legacy scalar descriptor mirror metadata "
@@ -1081,10 +1083,11 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
       appendScalarSelectedTypedSourceMetadata(out, *family.family,
                                              runtimeElementCountCName);
     if (!useTypedSourceMetadata)
-      appendScalarSelectedDescriptorMetadata(out, *family.family,
-                                             runtimeElementCountCName);
+      appendScalarSelectedLegacyDescriptorMirrorMetadata(
+          out, *family.family, runtimeElementCountCName);
     else if (request.getVariant()->hasAttr(kScalarLoweringDescriptorAttrName))
-      appendScalarSelectedDescriptorCrossCheckMetadata(out, *family.family);
+      appendScalarSelectedLegacyDescriptorCrossCheckMetadata(out,
+                                                            *family.family);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;

@@ -582,7 +582,7 @@ llvm::Error validateLegacyDescriptorMirrorAfterTypedPlan(
       return error;
 
     const RVVBinaryFamilyDescriptor *descriptorFamily =
-        target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
+        target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
             descriptorValue);
     if (!descriptorFamily)
       return makeRVVBinarySelectedEmissionError(
@@ -1037,39 +1037,39 @@ llvm::Error bindSelectedConfigRuntimeControlNames(
 
 void appendSelectedBinaryMetadata(
     const target::rvv::RVVBinarySelectedConfigContract &contract,
-    bool includeDescriptorMetadata,
+    bool includeLegacyDescriptorMirrorMetadata,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
       target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
-      descriptorMetadata;
+      legacyMirrorMetadata;
   bool useTypedSourceMetadata =
       contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype == RVVBinaryDTypeKind::I64;
   if (useTypedSourceMetadata)
     target::rvv::appendRVVBinarySelectedTypedSourceMetadata(contract,
-                                                           descriptorMetadata);
-  if (includeDescriptorMetadata) {
+                                                           legacyMirrorMetadata);
+  if (includeLegacyDescriptorMirrorMetadata) {
     if (useTypedSourceMetadata) {
-      descriptorMetadata.push_back(
+      legacyMirrorMetadata.push_back(
           {target::rvv::getRVVSelectedLoweringDescriptorMetadataName(),
            contract.getLoweringDescriptor(),
-           target::rvv::getRVVSelectedBinaryDescriptorMetadataRole(),
-           target::rvv::getRVVSelectedBinaryDescriptorMetadataNote(),
+           target::rvv::getRVVLegacyDescriptorMirrorMetadataRole(),
+           target::rvv::getRVVLegacyDescriptorMirrorMetadataNote(),
            "selected lowering descriptor"});
     } else {
-      target::rvv::appendRVVBinarySelectedDescriptorMetadata(
-          contract, descriptorMetadata);
+      target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
+          contract, legacyMirrorMetadata);
     }
   }
-  for (const auto &entry : descriptorMetadata)
+  for (const auto &entry : legacyMirrorMetadata)
     metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
                         entry.note.str()});
-  if (includeDescriptorMetadata && contract.getDescriptorElementCount() > 0) {
+  if (includeLegacyDescriptorMirrorMetadata && contract.getDescriptorElementCount() > 0) {
     metadata.push_back({
         target::rvv::getRVVDescriptorElementCountMetadataName().str(),
         std::to_string(contract.getDescriptorElementCount()),
-        target::rvv::getRVVSelectedBinaryDescriptorMetadataRole().str(),
-        target::rvv::getRVVSelectedBinaryDescriptorMetadataNote().str()});
+        target::rvv::getRVVLegacyDescriptorMirrorMetadataRole().str(),
+        target::rvv::getRVVLegacyDescriptorMirrorMetadataNote().str()});
   }
 }
 
@@ -1158,11 +1158,11 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
           request.getVariant(), plan.selectedPlanMetadata))
     return std::move(error);
   appendRuntimeVLBoundaryMetadata(plan.selectedPlanMetadata);
-  bool includeDescriptorMetadata =
+  bool includeLegacyDescriptorMirrorMetadata =
       request.getVariant()->hasAttr(kLoweringDescriptorAttrName);
   appendSelectedBinaryMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
-      includeDescriptorMetadata, plan.selectedPlanMetadata);
+      includeLegacyDescriptorMirrorMetadata, plan.selectedPlanMetadata);
   return plan;
 }
 

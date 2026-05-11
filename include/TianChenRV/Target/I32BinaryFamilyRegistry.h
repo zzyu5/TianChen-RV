@@ -78,6 +78,9 @@ struct DispatchI32FamilyDescriptor {
   llvm::StringRef dispatchExternalABIComponentGroup;
 };
 
+// Legacy finite i32 route-registration metadata. It exists for compatibility
+// tests and route registration only; it is not compute, source rendering, or
+// callable ABI authority for migrated production paths.
 struct I32BinaryFamilyDescriptor {
   I32BinaryFamilyKind kind;
   llvm::StringRef familyID;
@@ -89,7 +92,7 @@ struct I32BinaryFamilyDescriptor {
   DispatchI32FamilyDescriptor dispatch;
 };
 
-inline const I32BinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
+inline const I32BinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
   static const I32BinaryFamilyDescriptor descriptor{
       I32BinaryFamilyKind::Add,
       "i32-vadd",
@@ -156,7 +159,7 @@ inline const I32BinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
   return descriptor;
 }
 
-inline const I32BinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
+inline const I32BinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
   static const I32BinaryFamilyDescriptor descriptor{
       I32BinaryFamilyKind::Sub,
       "i32-vsub",
@@ -223,7 +226,7 @@ inline const I32BinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
   return descriptor;
 }
 
-inline const I32BinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
+inline const I32BinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
   static const I32BinaryFamilyDescriptor descriptor{
       I32BinaryFamilyKind::Mul,
       "i32-vmul",
@@ -291,18 +294,18 @@ inline const I32BinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
 }
 
 inline llvm::ArrayRef<const I32BinaryFamilyDescriptor *>
-getI32BinaryFamilyDescriptors() {
+getI32BinaryFamilyRegistrationRecords() {
   static const I32BinaryFamilyDescriptor *families[] = {
-      &getI32VAddFamilyDescriptor(), &getI32VSubFamilyDescriptor(),
-      &getI32VMulFamilyDescriptor()};
+      &getI32VAddFamilyRegistrationRecord(), &getI32VSubFamilyRegistrationRecord(),
+      &getI32VMulFamilyRegistrationRecord()};
   return llvm::ArrayRef(families);
 }
 
 inline const I32BinaryFamilyDescriptor *
-lookupI32BinaryFamilyByID(llvm::StringRef familyID) {
+lookupI32BinaryFamilyRegistrationByID(llvm::StringRef familyID) {
   familyID = familyID.trim();
   for (const I32BinaryFamilyDescriptor *descriptor :
-       getI32BinaryFamilyDescriptors()) {
+       getI32BinaryFamilyRegistrationRecords()) {
     if (descriptor->familyID == familyID)
       return descriptor;
   }
@@ -310,10 +313,10 @@ lookupI32BinaryFamilyByID(llvm::StringRef familyID) {
 }
 
 inline const I32BinaryFamilyDescriptor *
-lookupI32BinaryFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
+lookupI32BinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowering) {
   frontendLowering = frontendLowering.trim();
   for (const I32BinaryFamilyDescriptor *descriptor :
-       getI32BinaryFamilyDescriptors()) {
+       getI32BinaryFamilyRegistrationRecords()) {
     if (descriptor->frontendLowering == frontendLowering)
       return descriptor;
   }
@@ -321,10 +324,10 @@ lookupI32BinaryFamilyByFrontendLowering(llvm::StringRef frontendLowering) {
 }
 
 inline const I32BinaryFamilyDescriptor *
-lookupI32BinaryFamilyByLoweringDescriptor(llvm::StringRef loweringDescriptor) {
+lookupI32BinaryFamilyRegistrationByLegacyLoweringDescriptor(llvm::StringRef loweringDescriptor) {
   loweringDescriptor = loweringDescriptor.trim();
   for (const I32BinaryFamilyDescriptor *descriptor :
-       getI32BinaryFamilyDescriptors()) {
+       getI32BinaryFamilyRegistrationRecords()) {
     if (descriptor->loweringDescriptor == loweringDescriptor)
       return descriptor;
   }

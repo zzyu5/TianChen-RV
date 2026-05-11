@@ -280,7 +280,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
           variant->getAttrOfType<mlir::StringAttr>(
               kRVVI32VAddLoweringDescriptorAttrName)) {
     if (const RVVBinaryFamilyDescriptor *binaryFamily =
-            target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
+            target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
                 loweringDescriptor.getValue())) {
       if ((*requiredConfig)->dtypeID != binaryFamily->dtypeID)
         return makeRVVBinaryVariantLegalityError(

@@ -170,7 +170,7 @@ int runI32SelectedPlanTest() {
   RVVBinarySelectedPlan plan;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-              tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
+              tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
               tianchenrv::target::rvv::getI32M2VectorShapeConfig(), 32,
               "rv64gcv", std::string("lp64d")),
           plan, "build i32-vsub i32m2 selected plan"))
@@ -265,7 +265,7 @@ int runI64SelectedPlanTest() {
                 plan.getRuntimeABIKind() == family.runtimeABIKind &&
                 plan.getRuntimeABIName() == family.runtimeABIName &&
                 plan.getRuntimeGlueRole() == family.runtimeGlueRole,
-            "i64 selected plan exposes descriptor-owned runtime ABI identity"))
+            "i64 selected plan exposes selected-plan route-registration runtime ABI mirror"))
       return result;
 
     llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
@@ -289,7 +289,7 @@ int runI64SelectedPlanTest() {
                 parameters[3].cType == "size_t" &&
                 parameters[3].role == Role::RuntimeElementCount &&
                 parameters[3].ownership == Ownership::TargetExportABIOwned,
-            "i64 selected plan exposes descriptor-owned callable ABI "
+            "i64 selected plan exposes selected-plan callable ABI "
             "parameters"))
       return result;
 
@@ -319,20 +319,20 @@ int runI64SelectedPlanTest() {
   };
 
   if (int result =
-          expectI64Family(tianchenrv::target::rvv::getI64VAddFamilyDescriptor()))
+          expectI64Family(tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord()))
     return result;
   if (int result =
-          expectI64Family(tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
+          expectI64Family(tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()))
     return result;
   return expectI64Family(
-      tianchenrv::target::rvv::getI64VMulFamilyDescriptor());
+      tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord());
 }
 
 int runEmissionIdentityTest() {
   RVVBinaryEmissionIdentity i32Identity;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryEmissionIdentity(
-              tianchenrv::target::rvv::getI32VAddFamilyDescriptor()),
+              tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord()),
           i32Identity, "build i32-vadd emission identity"))
     return result;
   if (int result =
@@ -353,12 +353,12 @@ int runEmissionIdentityTest() {
   RVVBinaryEmissionIdentity i64VMulIdentity;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryEmissionIdentity(
-              tianchenrv::target::rvv::getI64VMulFamilyDescriptor()),
+              tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()),
           i64VMulIdentity, "build i64-vmul emission identity"))
     return result;
 
   const auto &dispatchFamily =
-      tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().dispatch;
+      tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord().dispatch;
   if (int result = expect(
           llvm::StringRef(dispatchFamily.rvvRouteID) ==
               i64VMulIdentity.getRouteID(),
@@ -465,7 +465,7 @@ int runProposalPlanRequirementMetadataTest() {
     return result;
 
   const auto &dispatchFamily =
-      tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor().dispatch;
+      tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord().dispatch;
   if (int result =
           expect(llvm::StringRef(dispatchFamily.rvvRouteID) ==
                      i64Plan.selectedPlan.getRouteID(),
@@ -818,7 +818,7 @@ module {
 )mlir";
 	  if (int result = expectResolutionError(
 	          descriptorOnlyI32VAdd, "descriptor_only_i32_vadd",
-	          "direct descriptor-only RVV binary planning for family 'i32-vadd' "
+	          "direct legacy-registration-only RVV binary planning for family 'i32-vadd' "
 	          "is legacy-quarantined"))
 	    return result;
 
@@ -843,7 +843,7 @@ module {
 	)mlir";
 	  if (int result = expectResolutionError(
 	          descriptorOnlyI64VSub, "descriptor_only_i64_vsub",
-	          "direct descriptor-only RVV binary planning for family 'i64-vsub' "
+	          "direct legacy-registration-only RVV binary planning for family 'i64-vsub' "
 	          "is legacy-quarantined"))
 	    return result;
 
@@ -894,7 +894,7 @@ module {
 )mlir";
   if (int result = expectResolutionError(
           typedBodyDescriptorMismatch, "typed_body_descriptor_mismatch",
-          "ambiguous direct RVV binary descriptors"))
+          "ambiguous direct RVV binary registration records"))
     return result;
 
   constexpr llvm::StringLiteral ambiguousDescriptors = R"mlir(
@@ -922,7 +922,7 @@ module {
 )mlir";
   if (int result = expectResolutionError(
           ambiguousDescriptors, "ambiguous_direct_descriptors",
-          "ambiguous direct RVV binary descriptors"))
+          "ambiguous direct RVV binary registration records"))
     return result;
 
   constexpr llvm::StringLiteral shapeMismatch = R"mlir(
@@ -952,13 +952,13 @@ module {
 )mlir";
   return expectResolutionError(
       shapeMismatch, "descriptor_shape_mismatch",
-      "does not belong to finite RVV binary descriptor family 'i64-vadd'");
+      "does not belong to finite RVV binary registration family 'i64-vadd'");
 }
 
 int runNegativeSelectedPlanTest() {
   llvm::Expected<RVVBinarySelectedPlan> plan =
       tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-          tianchenrv::target::rvv::getI64VAddFamilyDescriptor(),
+          tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord(),
           tianchenrv::target::rvv::getI32M1VectorShapeConfig(), 16,
           "rv64gcv");
   if (plan)
@@ -1022,7 +1022,7 @@ int runSelectedConfigVLDataflowMaterializationTest() {
   RVVBinarySelectedPlan i32Plan;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-              tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
+              tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
               tianchenrv::target::rvv::getI32M2VectorShapeConfig(), 32,
               "rv64gcv", std::string("lp64d")),
           i32Plan,
@@ -1059,7 +1059,7 @@ int runSelectedConfigVLDataflowMaterializationTest() {
   RVVBinarySelectedPlan i64Plan;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-              tianchenrv::target::rvv::getI64VMulFamilyDescriptor(),
+              tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord(),
               tianchenrv::target::rvv::getI64M1VectorShapeConfig(), 16,
               "rv64gcv", std::string("lp64d")),
           i64Plan,
@@ -1090,7 +1090,7 @@ int runSelectedConfigVLDataflowMaterializationTest() {
   RVVBinarySelectedPlan staleDescriptorPlan = i32Plan;
   staleDescriptorPlan.descriptor =
       tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-          tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
+          tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
           tianchenrv::target::rvv::getI32M1VectorShapeConfig());
   llvm::Expected<tianchenrv::plugin::rvv::
                      RVVBinaryVLDataflowMaterialization>
@@ -1106,10 +1106,10 @@ int runSelectedConfigVLDataflowMaterializationTest() {
 
   RVVBinarySelectedPlan missingContractPlan;
   missingContractPlan.family =
-      &tianchenrv::target::rvv::getI64VMulFamilyDescriptor();
+      &tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord();
   missingContractPlan.descriptor =
       tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-          tianchenrv::target::rvv::getI64VMulFamilyDescriptor(),
+          tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord(),
           tianchenrv::target::rvv::getI64M1VectorShapeConfig());
   missingContractPlan.elementCount = 16;
   llvm::Expected<tianchenrv::plugin::rvv::

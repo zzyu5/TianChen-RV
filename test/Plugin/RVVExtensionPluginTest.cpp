@@ -977,7 +977,7 @@ module {
 
   mlir::Operation *i64Microkernel = findRVVI64Microkernel(
       i64Kernel, i64Variant.getSymName(),
-      tianchenrv::target::rvv::getI64VAddFamilyDescriptor().microkernelOpName);
+      tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord().microkernelOpName);
   if (int result =
           expect(i64Microkernel,
                  "profile-derived RVV i64 path materializes i64 vadd op"))
@@ -994,10 +994,10 @@ module {
   if (int result =
           expect(i64Plan.isSupported() &&
                      i64Plan.getLoweringPipeline() ==
-                         tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
+                         tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord()
                              .routeID &&
                      i64Plan.getRuntimeABIName() ==
-                         tianchenrv::target::rvv::getI64VAddFamilyDescriptor()
+                         tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord()
                              .runtimeABIName,
                  "profile-derived RVV i64 path reaches supported emission "
                  "plan"))
@@ -2051,15 +2051,15 @@ module {
 
   if (int result = expectFamily(
           "registry_rvv_vadd",
-          tianchenrv::target::rvv::getI32VAddFamilyDescriptor()))
+          tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord()))
     return result;
   if (int result = expectFamily(
           "registry_rvv_vsub",
-          tianchenrv::target::rvv::getI32VSubFamilyDescriptor()))
+          tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()))
     return result;
   if (int result = expectFamily(
           "registry_rvv_vmul",
-          tianchenrv::target::rvv::getI32VMulFamilyDescriptor()))
+          tianchenrv::target::rvv::getI32VMulFamilyRegistrationRecord()))
     return result;
 
   return 0;
@@ -2283,10 +2283,10 @@ module {
   if (int result =
           expect(plannerI32Plan.getFamilyID() == "i32-vsub" &&
                      plannerI32Plan.getLoweringPipeline() ==
-                         tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+                         tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()
                              .routeID &&
                      plannerI32Plan.getRuntimeABIName() ==
-                         tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+                         tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()
                              .runtimeABIName,
                  "RVV i32 selected-emission planner preserves typed route "
                  "and ABI identity"))
@@ -2368,7 +2368,7 @@ module {
     return result;
   return expect(emissionPlan.isSupported() &&
                     emissionPlan.getLoweringPipeline() ==
-                        tianchenrv::target::rvv::getI32VSubFamilyDescriptor()
+                        tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()
                             .routeID,
                 "RVV i32m2 emission plan preserves vsub route");
 }
@@ -2689,15 +2689,15 @@ module {
                   plannerI64Plan.selectedPlanMetadata,
                   "tcrv_rvv.selected_lowering_descriptor",
                   family.loweringDescriptor,
-                  "selected-rvv-binary-descriptor"),
+                  "legacy-rvv-binary-descriptor-mirror"),
           "RVV i64 selected-emission planner records typed EmitC source "
           "metadata without descriptor authority"))
     return result;
 
   const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &staleFamily =
       family.arithmetic == tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add
-          ? tianchenrv::target::rvv::getI64VSubFamilyDescriptor()
-          : tianchenrv::target::rvv::getI64VAddFamilyDescriptor();
+          ? tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()
+          : tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord();
   variant->setAttr("tcrv_rvv.lowering_descriptor",
                    builder.getStringAttr(staleFamily.loweringDescriptor));
   llvm::Expected<
@@ -2780,17 +2780,17 @@ module {
 
 int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {
   return runRVVI64BinaryFamilyProposalMaterializationTest(
-      context, tianchenrv::target::rvv::getI64VAddFamilyDescriptor());
+      context, tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord());
 }
 
 int runRVVI64VSubProposalMaterializationTest(mlir::MLIRContext &context) {
   return runRVVI64BinaryFamilyProposalMaterializationTest(
-      context, tianchenrv::target::rvv::getI64VSubFamilyDescriptor());
+      context, tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord());
 }
 
 int runRVVI64VMulProposalMaterializationTest(mlir::MLIRContext &context) {
   return runRVVI64BinaryFamilyProposalMaterializationTest(
-      context, tianchenrv::target::rvv::getI64VMulFamilyDescriptor());
+      context, tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord());
 }
 
 int runRVVI64VAddMissingCapabilityDeclinesTest(mlir::MLIRContext &context) {
@@ -2975,8 +2975,10 @@ module {
   llvm::StringRef reason = declines.front().getReason();
   if (int result = expect(
           reason.contains(
-              "direct descriptor-only RVV binary planning for family 'i64-vadd'"),
-          "quarantine decline names the descriptor-only RVV i64 family"))
+              "direct legacy-registration-only RVV binary planning for family "
+              "'i64-vadd'"),
+          "quarantine decline names the legacy-registration-only RVV i64 "
+          "family"))
     return result;
   if (int result =
           expect(reason.contains("legacy-quarantined"),

@@ -162,11 +162,11 @@ getI32BinaryFamilyDescriptorForRVV(
   using Kind = i32_binary::I32BinaryFamilyKind;
   switch (family.kind) {
   case Kind::Add:
-    return i32_binary::getI32VAddFamilyDescriptor();
+    return i32_binary::getI32VAddFamilyRegistrationRecord();
   case Kind::Sub:
-    return i32_binary::getI32VSubFamilyDescriptor();
+    return i32_binary::getI32VSubFamilyRegistrationRecord();
   case Kind::Mul:
-    return i32_binary::getI32VMulFamilyDescriptor();
+    return i32_binary::getI32VMulFamilyRegistrationRecord();
   }
   llvm_unreachable("unknown RVV i32 binary family");
 }
@@ -177,11 +177,11 @@ getI32BinaryFamilyDescriptorForDispatch(
   using Kind = i32_binary::I32BinaryFamilyKind;
   switch (family.kind) {
   case Kind::Add:
-    return i32_binary::getI32VAddFamilyDescriptor();
+    return i32_binary::getI32VAddFamilyRegistrationRecord();
   case Kind::Sub:
-    return i32_binary::getI32VSubFamilyDescriptor();
+    return i32_binary::getI32VSubFamilyRegistrationRecord();
   case Kind::Mul:
-    return i32_binary::getI32VMulFamilyDescriptor();
+    return i32_binary::getI32VMulFamilyRegistrationRecord();
   }
   llvm_unreachable("unknown RVV+scalar dispatch i32 binary family");
 }

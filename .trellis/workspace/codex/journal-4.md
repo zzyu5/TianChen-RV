@@ -109,6 +109,61 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 performance claim was made.
 
 
+## Session 38: finite descriptor registry quarantine
+
+**Date**: 2026-05-12
+**Task**: rvv-scalar-descriptor-registry-quarantine
+**Branch**: `main`
+
+### Summary
+
+Quarantined finite RVV/scalar/i32/RVV+scalar descriptor registries as
+registration, compatibility naming, and legacy mirror validation surfaces after
+the selected EmitC route migration.
+
+### Main Changes
+
+- Renamed public registry lookup/getter surfaces from descriptor-shaped names
+  to `RegistrationRecord`, `RegistrationBy...`, and
+  `Legacy...Mirror` names across RVV, scalar, i32, and RVV+scalar dispatch
+  boundaries.
+- Retagged selected descriptor mirror metadata as
+  `legacy-rvv-binary-descriptor-mirror` and
+  `legacy-scalar-binary-descriptor-mirror`; typed RVV/scalar source metadata
+  remains the production authority for default artifact export.
+- Kept direct RVV descriptor-only planning and selected lowering-boundary paths
+  fail-closed, with diagnostics now saying legacy-registration-only rather
+  than descriptor fallback.
+- Added target artifact export regression coverage that rejects legacy mirror
+  roles when route preflight requires typed selected-plan metadata.
+- Updated registry/planning/plugin/artifact-export/lit tests to assert
+  registration/mirror scope and stale descriptor quarantine.
+
+### Testing
+
+- Focused C++ build and runs:
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-i32-binary-family-registry-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-scalar-extension-plugin-test`,
+  `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-runtime-abi-callable-plan-test`.
+- Focused lit over direct RVV/scalar export, RVV+scalar dispatch, bundle,
+  dry-run, and lowering-boundary quarantine routes, 62/62 passed after
+  rebuilding `tcrv-opt`.
+- `git diff --check`
+- `git diff --cached --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-scalar-descriptor-registry-quarantine`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  207/207 passed after updating one stale registry FileCheck expectation.
+
+### Status
+
+[OK] Completed and ready to archive. Python stayed tooling-only, `tcrv.exec`
+stayed compute-free, and no `ssh rvv` runtime, correctness, or performance
+claim was made.
+
+
 ## Session 37: RVV+scalar dispatch descriptor exit
 
 **Date**: 2026-05-12

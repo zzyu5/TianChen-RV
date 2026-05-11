@@ -135,50 +135,50 @@ int expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
 }
 
 int expectFamilyDescriptorShape(const I32BinaryFamilyDescriptor &family) {
-  if (int result = expect(lookupI32BinaryFamilyByID(family.familyID) == &family,
-                          "lookup by family id returns descriptor"))
+  if (int result = expect(lookupI32BinaryFamilyRegistrationByID(family.familyID) == &family,
+                          "lookup by family id returns registration record"))
     return result;
   if (int result =
-          expect(lookupI32BinaryFamilyByFrontendLowering(
+          expect(lookupI32BinaryFamilyRegistrationByFrontendLowering(
                      family.frontendLowering) == &family,
-                 "lookup by frontend lowering returns descriptor"))
+                 "lookup by frontend lowering returns registration record"))
     return result;
   if (int result =
-          expect(lookupI32BinaryFamilyByLoweringDescriptor(
+          expect(lookupI32BinaryFamilyRegistrationByLegacyLoweringDescriptor(
                      family.loweringDescriptor) == &family,
-                 "lookup by lowering descriptor returns descriptor"))
+                 "legacy descriptor mirror lookup returns registration record"))
     return result;
 
   if (int result =
           expect(family.rvv.kind == family.kind &&
                      family.scalar.kind == family.kind &&
                      family.dispatch.kind == family.kind,
-                 "family sub-descriptors preserve common kind"))
+                 "family sub-registrations preserve common kind"))
     return result;
   if (int result = expect(family.rvv.routeID ==
                               family.dispatch.rvvRouteID,
-                          "dispatch RVV route mirrors RVV descriptor"))
+                          "dispatch RVV route mirrors RVV route registration"))
     return result;
   if (int result = expect(family.rvv.emissionKind ==
                               family.dispatch.rvvEmissionKind,
-                          "dispatch RVV emission kind mirrors RVV descriptor"))
+                          "dispatch RVV emission kind mirrors RVV route registration"))
     return result;
   if (int result =
           expect(family.rvv.runtimeABI == family.dispatch.rvvRuntimeABI,
-                 "dispatch RVV ABI mirrors RVV descriptor"))
+                 "dispatch RVV ABI mirrors RVV route registration"))
     return result;
   if (int result =
           expect(family.scalar.routeID == family.dispatch.scalarRouteID,
-                 "dispatch scalar route mirrors scalar descriptor"))
+                 "dispatch scalar route mirrors scalar route registration"))
     return result;
   if (int result =
           expect(family.scalar.emissionKind ==
                      family.dispatch.scalarEmissionKind,
-                 "dispatch scalar emission kind mirrors scalar descriptor"))
+                 "dispatch scalar emission kind mirrors scalar route registration"))
     return result;
   if (int result =
           expect(family.scalar.runtimeABI == family.dispatch.scalarRuntimeABI,
-                 "dispatch scalar ABI mirrors scalar descriptor"))
+                 "dispatch scalar ABI mirrors scalar route registration"))
     return result;
   return expect(!family.dispatch.selfCheckSuccessMarker.empty(),
                 "dispatch self-check marker is present");
@@ -324,7 +324,7 @@ int expectDispatchManifestRoute(
 int expectDispatchRouteManifest() {
   using RouteKind = rvv_scalar::RVVScalarDispatchRouteKind;
   llvm::ArrayRef<const rvv_scalar::RVVScalarBinaryFamilyDescriptor *> families =
-      rvv_scalar::getRVVScalarBinaryFamilyDescriptors();
+      rvv_scalar::getRVVScalarBinaryRegistrationRecords();
   llvm::ArrayRef<rvv_scalar::RVVScalarDispatchRouteManifestEntry> routes =
       rvv_scalar::getRVVScalarDispatchRouteManifest();
   llvm::ArrayRef<RouteKind> routeKinds =
@@ -435,9 +435,9 @@ int expectDispatchRouteManifest() {
 }
 
 int expectStaleFamilyMismatchGuards() {
-  const I32BinaryFamilyDescriptor &add = getI32VAddFamilyDescriptor();
-  const I32BinaryFamilyDescriptor &sub = getI32VSubFamilyDescriptor();
-  const I32BinaryFamilyDescriptor &mul = getI32VMulFamilyDescriptor();
+  const I32BinaryFamilyDescriptor &add = getI32VAddFamilyRegistrationRecord();
+  const I32BinaryFamilyDescriptor &sub = getI32VSubFamilyRegistrationRecord();
+  const I32BinaryFamilyDescriptor &mul = getI32VMulFamilyRegistrationRecord();
   for (const I32BinaryFamilyDescriptor *lhs : {&add, &sub, &mul}) {
     for (const I32BinaryFamilyDescriptor *rhs : {&add, &sub, &mul}) {
       if (lhs == rhs)
@@ -549,7 +549,7 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
     tianchenrv::target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(
         *config, metadata);
     if (int result = expect(metadata.size() == 12,
-                            "finite RVV descriptor owns selected-plan "
+                            "finite RVV shape config records selected-plan "
                             "metadata field count"))
       return result;
     if (int result = expect(
@@ -560,28 +560,28 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
                 metadata.front().role ==
                     tianchenrv::target::rvv::
                         getSelectedRVVI32VectorShapeMetadataRole(),
-            "finite RVV descriptor owns selected shape metadata"))
+            "finite RVV shape config records selected shape metadata"))
       return result;
     if (int result = expect(
             metadata[5].name ==
                     tianchenrv::target::rvv::
                         getRVVSelectedVectorTypeAttrName() &&
                 metadata[5].value == config->vectorType,
-            "finite RVV descriptor owns vector type metadata"))
+            "finite RVV shape config records vector type metadata"))
       return result;
     if (int result = expect(
             metadata[6].name ==
                     tianchenrv::target::rvv::
                         getRVVSelectedVectorSuffixAttrName() &&
                 metadata[6].value == config->vectorSuffix,
-            "finite RVV descriptor owns vector suffix metadata"))
+            "finite RVV shape config records vector suffix metadata"))
       return result;
     if (int result = expect(
             metadata[7].name ==
                     tianchenrv::target::rvv::
                         getRVVSelectedSetVLSuffixAttrName() &&
                 metadata[7].value == config->setvlSuffix,
-            "finite RVV descriptor owns setvl suffix metadata"))
+            "finite RVV shape config records setvl suffix metadata"))
       return result;
     if (int result = expect(
             metadata[8].name ==
@@ -591,21 +591,21 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
                 metadata[8].role ==
                     tianchenrv::target::rvv::
                         getSelectedRVVVectorShapeCapabilityMetadataRole(),
-            "finite RVV descriptor owns selected SEW capability metadata"))
+            "finite RVV shape config records selected SEW capability metadata"))
       return result;
     if (int result = expect(
             metadata[9].name ==
                     tianchenrv::target::rvv::
                         getRVVSelectedVectorLMULCapabilityAttrName() &&
                 metadata[9].value == config->lmulCapabilityID,
-            "finite RVV descriptor owns selected LMUL capability metadata"))
+            "finite RVV shape config records selected LMUL capability metadata"))
       return result;
     if (int result = expect(
             metadata[10].name ==
                     tianchenrv::target::rvv::
                         getRVVSelectedTailPolicyCapabilityAttrName() &&
                 metadata[10].value == config->tailPolicyCapabilityID,
-            "finite RVV descriptor owns selected tail-policy capability "
+            "finite RVV shape config records selected tail-policy capability "
             "metadata"))
       return result;
     if (int result = expect(
@@ -613,7 +613,7 @@ int expectFiniteRVVVectorShapeDescriptorShape() {
                     tianchenrv::target::rvv::
                         getRVVSelectedMaskPolicyCapabilityAttrName() &&
                 metadata[11].value == config->maskPolicyCapabilityID,
-            "finite RVV descriptor owns selected mask-policy capability "
+            "finite RVV shape config records selected mask-policy capability "
             "metadata"))
       return result;
   }
@@ -628,7 +628,7 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
   using tianchenrv::target::rvv::getRVVI32BinaryIntrinsicDescriptor;
 
   for (const I32BinaryFamilyDescriptor *family :
-       getI32BinaryFamilyDescriptors()) {
+       getI32BinaryFamilyRegistrationRecords()) {
     for (const tianchenrv::target::rvv::RVVI32VectorShapeConfig *shape :
          tianchenrv::target::rvv::getFiniteI32VectorShapeConfigs()) {
       tianchenrv::target::rvv::RVVI32BinaryIntrinsicDescriptor descriptor =
@@ -641,16 +641,16 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
         return result;
       if (int result = expect(descriptor.getArithmeticFamilyID() ==
                                   family->familyID,
-                              "RVV i32 binary descriptor reports family id"))
+                              "RVV i32 selected intrinsic helper reports family id"))
         return result;
       if (int result = expect(descriptor.getLoweringDescriptor() ==
                                   family->loweringDescriptor,
-                              "RVV i32 binary descriptor reports lowering "
+                              "RVV i32 selected intrinsic helper reports lowering "
                               "descriptor"))
         return result;
       if (int result = expect(descriptor.getRVVOperationName() ==
                                   family->rvv.arithmeticOpName,
-                              "RVV i32 binary descriptor reports typed RVV "
+                              "RVV i32 selected intrinsic helper reports typed RVV "
                               "operation label"))
         return result;
       if (int result = expect(descriptor.getVectorType() == shape->vectorType &&
@@ -658,7 +658,7 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
                                       shape->vectorSuffix &&
                                   descriptor.getSetVLSuffix() ==
                                       shape->setvlSuffix,
-                              "RVV i32 binary descriptor reports selected "
+                              "RVV i32 selected intrinsic helper reports selected "
                               "vector shape spellings"))
         return result;
 
@@ -668,28 +668,28 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
               .str();
       if (int result = expect(descriptor.getArithmeticIntrinsicName() ==
                                   expectedIntrinsic,
-                              "RVV i32 binary descriptor derives full "
+                              "RVV i32 selected intrinsic helper derives full "
                               "arithmetic intrinsic from family and shape"))
         return result;
       if (int result = expect(descriptor.getSetVLIntrinsicName() ==
                                   (llvm::Twine("__riscv_vsetvl_") +
                                    shape->setvlSuffix)
                                       .str(),
-                              "RVV i32 binary descriptor derives vsetvl "
+                              "RVV i32 selected intrinsic helper derives vsetvl "
                               "intrinsic from shape"))
         return result;
       if (int result = expect(descriptor.getLoadIntrinsicName() ==
                                   (llvm::Twine("__riscv_vle32_v_") +
                                    shape->vectorSuffix)
                                       .str(),
-                              "RVV i32 binary descriptor derives load "
+                              "RVV i32 selected intrinsic helper derives load "
                               "intrinsic from shape"))
         return result;
       if (int result = expect(descriptor.getStoreIntrinsicName() ==
                                   (llvm::Twine("__riscv_vse32_v_") +
                                    shape->vectorSuffix)
                                       .str(),
-                              "RVV i32 binary descriptor derives store "
+                              "RVV i32 selected intrinsic helper derives store "
                               "intrinsic from shape"))
         return result;
 
@@ -700,7 +700,7 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
       if (int result = expect(descriptor.getCArithmeticCheckExpression(
                                   "lhs[index]", "rhs[index]") ==
                                   expectedCheck,
-                              "RVV i32 binary descriptor derives C arithmetic "
+                              "RVV i32 selected intrinsic helper derives C arithmetic "
                               "check expression"))
         return result;
 
@@ -712,7 +712,7 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
                          capabilityIDs[1] == shape->lmulCapabilityID &&
                          capabilityIDs[2] == shape->tailPolicyCapabilityID &&
                          capabilityIDs[3] == shape->maskPolicyCapabilityID,
-                     "RVV i32 binary descriptor reports selected shape "
+                     "RVV i32 selected intrinsic helper reports selected shape "
                      "capability ids"))
         return result;
 
@@ -728,7 +728,7 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
                                           .dispatchExternalABIComponentGroup &&
                                   descriptor.getDispatchRuntimeABIName() ==
                                       family->dispatch.dispatchRuntimeABIName,
-                              "RVV i32 binary descriptor reports route, "
+                              "RVV i32 selected intrinsic helper reports route, "
                               "component group, and ABI names"))
         return result;
 
@@ -750,18 +750,18 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
           shape->shapeID == "i32m2") {
         if (int result = expect(descriptor.getArithmeticIntrinsicName() ==
                                     "__riscv_vmul_vv_i32m2",
-                                "RVV descriptor derives vmul i32m2 "
+                                "RVV selected intrinsic helper derives vmul i32m2 "
                                 "intrinsic"))
           return result;
         if (int result = expect(descriptor.getCArithmeticCheckExpression(
                                     "lhs[index]", "rhs[index]") ==
                                     "lhs[index] * rhs[index]",
-                                "RVV descriptor derives vmul caller check"))
+                                "RVV selected intrinsic helper derives vmul caller check"))
           return result;
         if (int result = expect(descriptor.getDispatchSourceRouteID() ==
                                     "tcrv-export-rvv-scalar-i32-vmul-"
                                     "dispatch-c",
-                                "RVV descriptor derives vmul dispatch route"))
+                                "RVV selected intrinsic helper derives vmul dispatch route"))
           return result;
       }
     }
@@ -774,34 +774,34 @@ int expectRVVBinaryFamilyRegistryShape() {
   namespace rvv = tianchenrv::target::rvv;
 
   llvm::ArrayRef<const rvv::RVVBinaryFamilyDescriptor *> families =
-      rvv::getRVVBinaryFamilyDescriptors();
+      rvv::getRVVBinaryFamilyRegistrationRecords();
   if (int result = expect(families.size() == 6,
                           "RVV registry contains six binary families"))
     return result;
   if (int result =
-          expect(families[0] == &rvv::getI32VAddFamilyDescriptor() &&
-                     families[1] == &rvv::getI32VSubFamilyDescriptor() &&
-                     families[2] == &rvv::getI32VMulFamilyDescriptor() &&
-                     families[3] == &rvv::getI64VAddFamilyDescriptor() &&
-                     families[4] == &rvv::getI64VSubFamilyDescriptor() &&
-                     families[5] == &rvv::getI64VMulFamilyDescriptor(),
+          expect(families[0] == &rvv::getI32VAddFamilyRegistrationRecord() &&
+                     families[1] == &rvv::getI32VSubFamilyRegistrationRecord() &&
+                     families[2] == &rvv::getI32VMulFamilyRegistrationRecord() &&
+                     families[3] == &rvv::getI64VAddFamilyRegistrationRecord() &&
+                     families[4] == &rvv::getI64VSubFamilyRegistrationRecord() &&
+                     families[5] == &rvv::getI64VMulFamilyRegistrationRecord(),
                  "RVV registry preserves finite family order"))
     return result;
 
   for (const rvv::RVVBinaryFamilyDescriptor *family : families) {
     if (int result =
-            expect(rvv::lookupRVVBinaryFamilyByID(family->familyID) == family,
-                   "RVV registry lookup by family id returns descriptor"))
+            expect(rvv::lookupRVVBinaryFamilyRegistrationByID(family->familyID) == family,
+                   "RVV registry lookup by family id returns registration record"))
       return result;
     if (int result = expect(
-            rvv::lookupRVVBinaryFamilyByFrontendLowering(
+            rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(
                 family->frontendLowering) == family,
-            "RVV registry lookup by frontend lowering returns descriptor"))
+            "RVV registry lookup by frontend lowering returns registration record"))
       return result;
     if (int result = expect(
-            rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
+            rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
                 family->loweringDescriptor) == family,
-            "RVV registry lookup by lowering descriptor returns descriptor"))
+            "RVV registry legacy descriptor mirror lookup returns registration record"))
       return result;
 
     llvm::ArrayRef<const rvv::RVVVectorShapeConfig *> shapeConfigs =
@@ -818,7 +818,7 @@ int expectRVVBinaryFamilyRegistryShape() {
       if (int result =
               expect(rvv::lookupRVVBinaryFamilyShapeConfigByID(
                          *family, shape->shapeID) == shape,
-                     "RVV family shape lookup returns descriptor"))
+                     "RVV family shape lookup returns registration record"))
         return result;
 
       rvv::RVVBinaryIntrinsicDescriptor descriptor =
@@ -831,7 +831,7 @@ int expectRVVBinaryFamilyRegistryShape() {
                   capabilityIDs[1] == shape->lmulCapabilityID &&
                   capabilityIDs[2] == shape->tailPolicyCapabilityID &&
                   capabilityIDs[3] == shape->maskPolicyCapabilityID,
-              "RVV descriptor reports selected shape capability hooks"))
+              "RVV selected intrinsic helper reports selected shape capability hooks"))
         return result;
     }
 
@@ -856,30 +856,30 @@ int expectRVVBinaryFamilyRegistryShape() {
   }
 
   if (int result = expect(
-          rvv::lookupRVVBinaryFamilyByFrontendLowering("i32-vsub")->routeID ==
+          rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering("i32-vsub")->routeID ==
               "tcrv-export-rvv-i32-vsub-microkernel-c",
           "RVV registry owns i32-vsub route id"))
     return result;
   if (int result = expect(
-          rvv::lookupRVVBinaryFamilyByLoweringDescriptor(
+          rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
               "i32-vmul-microkernel.v1")
                   ->runtimeABIName ==
               "rvv-i32-vmul-runtime-callable-c-function.v1",
           "RVV registry owns i32-vmul runtime ABI name"))
     return result;
   if (int result = expect(
-          rvv::lookupRVVBinaryFamilyByFrontendLowering("i64-vadd")
+          rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering("i64-vadd")
               ->scalarCType == "int64_t",
           "RVV registry owns i64-vadd scalar C type"))
     return result;
   if (int result = expect(
-          rvv::lookupRVVBinaryFamilyByFrontendLowering("i64-vsub")
+          rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering("i64-vsub")
                   ->runtimeABIName ==
               "rvv-i64-vsub-runtime-callable-c-function.v1",
           "RVV registry owns i64-vsub runtime ABI name"))
     return result;
   return expect(
-      rvv::lookupRVVBinaryFamilyByFrontendLowering("i64-vmul")->routeID ==
+      rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering("i64-vmul")->routeID ==
           "tcrv-export-rvv-i64-vmul-microkernel-c",
       "RVV registry owns i64-vmul route id");
 }
@@ -888,15 +888,15 @@ int expectRVVBinaryI64DescriptorShape() {
   namespace rvv = tianchenrv::target::rvv;
 
   using tianchenrv::target::rvv::getI64M1VectorShapeConfig;
-  using tianchenrv::target::rvv::getI64VAddFamilyDescriptor;
+  using tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord;
   using tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor;
-  using tianchenrv::target::rvv::getI64VSubFamilyDescriptor;
+  using tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord;
   using tianchenrv::target::rvv::getI64VSubIntrinsicDescriptor;
-  using tianchenrv::target::rvv::getI64VMulFamilyDescriptor;
+  using tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord;
   using tianchenrv::target::rvv::getI64VMulIntrinsicDescriptor;
   using tianchenrv::target::rvv::lookupFiniteI64VectorShapeConfigByShapeID;
-  using tianchenrv::target::rvv::lookupRVVBinaryFamilyByFrontendLowering;
-  using tianchenrv::target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor;
+  using tianchenrv::target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering;
+  using tianchenrv::target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor;
 
   const auto &shape = getI64M1VectorShapeConfig();
   struct Case {
@@ -904,9 +904,9 @@ int expectRVVBinaryI64DescriptorShape() {
     rvv::RVVBinaryIntrinsicDescriptor descriptor;
   };
   const Case cases[] = {
-      {&getI64VAddFamilyDescriptor(), getI64VAddIntrinsicDescriptor()},
-      {&getI64VSubFamilyDescriptor(), getI64VSubIntrinsicDescriptor()},
-      {&getI64VMulFamilyDescriptor(), getI64VMulIntrinsicDescriptor()},
+      {&getI64VAddFamilyRegistrationRecord(), getI64VAddIntrinsicDescriptor()},
+      {&getI64VSubFamilyRegistrationRecord(), getI64VSubIntrinsicDescriptor()},
+      {&getI64VMulFamilyRegistrationRecord(), getI64VMulIntrinsicDescriptor()},
   };
 
   if (int result = expect(lookupFiniteI64VectorShapeConfigByShapeID("i64m1") ==
@@ -945,11 +945,11 @@ int expectRVVBinaryI64DescriptorShape() {
                                         .str(),
                             "RVV i64 family exposes dtype and descriptor"))
       return result;
-    if (int result = expect(lookupRVVBinaryFamilyByFrontendLowering(
+    if (int result = expect(lookupRVVBinaryFamilyRegistrationByFrontendLowering(
                                 caseFamily.frontendLowering) == &caseFamily,
                             "RVV binary lookup accepts i64 frontend lowering"))
       return result;
-    if (int result = expect(lookupRVVBinaryFamilyByLoweringDescriptor(
+    if (int result = expect(lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
                                 caseFamily.loweringDescriptor) == &caseFamily,
                             "RVV binary lookup accepts i64 lowering descriptor"))
       return result;
@@ -960,7 +960,7 @@ int expectRVVBinaryI64DescriptorShape() {
                                     "const int64_t *" &&
                                 descriptor.getOutputPointerCType() ==
                                     "int64_t *",
-                            "RVV i64 descriptor owns int64 ABI types"))
+                            "RVV i64 selected intrinsic helper records int64 ABI types"))
       return result;
     if (int result = expect(descriptor.getSetVLIntrinsicName() ==
                                     "__riscv_vsetvl_e64m1" &&
@@ -970,12 +970,12 @@ int expectRVVBinaryI64DescriptorShape() {
                                     expectedArithmeticIntrinsic &&
                                 descriptor.getStoreIntrinsicName() ==
                                     "__riscv_vse64_v_i64m1",
-                            "RVV i64 descriptor derives SEW64 intrinsics"))
+                            "RVV i64 selected intrinsic helper derives SEW64 intrinsics"))
       return result;
     if (int result = expect(descriptor.getRVVRouteID() == caseFamily.routeID &&
                                 descriptor.getRVVRuntimeABIName() ==
                                     caseFamily.runtimeABIName,
-                            "RVV i64 descriptor owns source route and ABI"))
+                            "RVV i64 selected intrinsic helper records source route and ABI"))
       return result;
 
     llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
@@ -985,7 +985,7 @@ int expectRVVBinaryI64DescriptorShape() {
                                 parameters[1].cType == "const int64_t *" &&
                                 parameters[2].cType == "int64_t *" &&
                                 parameters[3].cType == "size_t",
-                            "RVV i64 descriptor derives callable ABI"))
+                            "RVV i64 selected intrinsic helper derives callable ABI"))
       return result;
 
     llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
@@ -997,7 +997,7 @@ int expectRVVBinaryI64DescriptorShape() {
                                     "rvv.i64_m1.tail_policy.agnostic" &&
                                 capabilityIDs[3] ==
                                     "rvv.i64_m1.mask_policy.agnostic",
-                            "RVV i64 descriptor reports i64m1 capability ids"))
+                            "RVV i64 selected intrinsic helper reports i64m1 capability ids"))
       return result;
   }
   return 0;
@@ -1007,40 +1007,40 @@ int expectRVVScalarBinaryBridgeShape() {
   namespace bridge = tianchenrv::target::rvv_scalar;
 
   llvm::ArrayRef<const bridge::RVVScalarBinaryFamilyDescriptor *> families =
-      bridge::getRVVScalarBinaryFamilyDescriptors();
+      bridge::getRVVScalarBinaryRegistrationRecords();
   if (int result = expect(families.size() == 6,
                           "RVV+scalar bridge exposes three i32 families plus three i64 families"))
     return result;
   if (int result = expect(
-          families[0] == &bridge::getI32VAddFamilyDescriptor() &&
-              families[1] == &bridge::getI32VSubFamilyDescriptor() &&
-              families[2] == &bridge::getI32VMulFamilyDescriptor() &&
-              families[3] == &bridge::getI64VAddFamilyDescriptor() &&
-              families[4] == &bridge::getI64VSubFamilyDescriptor() &&
-              families[5] == &bridge::getI64VMulFamilyDescriptor(),
+          families[0] == &bridge::getI32VAddFamilyRegistrationRecord() &&
+              families[1] == &bridge::getI32VSubFamilyRegistrationRecord() &&
+              families[2] == &bridge::getI32VMulFamilyRegistrationRecord() &&
+              families[3] == &bridge::getI64VAddFamilyRegistrationRecord() &&
+              families[4] == &bridge::getI64VSubFamilyRegistrationRecord() &&
+              families[5] == &bridge::getI64VMulFamilyRegistrationRecord(),
           "RVV+scalar bridge preserves bounded family order"))
     return result;
 
   for (const bridge::RVVScalarBinaryFamilyDescriptor *family : families) {
     if (int result =
-            expect(bridge::lookupRVVScalarBinaryFamilyByID(family->familyID) ==
+            expect(bridge::lookupRVVScalarBinaryRegistrationByID(family->familyID) ==
                        family,
-                   "RVV+scalar bridge lookup by family id returns descriptor"))
+                   "RVV+scalar bridge lookup by family id returns registration record"))
       return result;
     if (int result = expect(
-            bridge::lookupRVVScalarBinaryFamilyByFrontendLowering(
+            bridge::lookupRVVScalarBinaryRegistrationByFrontendLowering(
                 family->frontendLowering) == family,
-            "RVV+scalar bridge lookup by frontend lowering returns descriptor"))
+            "RVV+scalar bridge lookup by frontend lowering returns registration record"))
       return result;
     if (int result = expect(
-            bridge::lookupRVVScalarBinaryFamilyByLoweringDescriptor(
+            bridge::lookupRVVScalarBinaryRegistrationByLegacyLoweringDescriptor(
                 family->loweringDescriptor) == family,
-            "RVV+scalar bridge lookup by lowering descriptor returns descriptor"))
+            "RVV+scalar bridge legacy descriptor mirror lookup returns registration record"))
       return result;
     if (int result = expect(
-            bridge::lookupRVVScalarBinaryFamilyByScalarRouteID(
+            bridge::lookupRVVScalarBinaryRegistrationByScalarRouteID(
                 family->scalar.routeID) == family,
-            "RVV+scalar bridge lookup by scalar route returns descriptor"))
+            "RVV+scalar bridge lookup by scalar route returns registration record"))
       return result;
 
     if (int result = expect(family->rvvFamily &&
@@ -1068,9 +1068,9 @@ int expectRVVScalarBinaryBridgeShape() {
     llvm::StringRef cOperator;
   };
   const I64BridgeCase i64Cases[] = {
-      {&bridge::getI64VAddFamilyDescriptor(), "i64_vadd", "+"},
-      {&bridge::getI64VSubFamilyDescriptor(), "i64_vsub", "-"},
-      {&bridge::getI64VMulFamilyDescriptor(), "i64_vmul", "*"},
+      {&bridge::getI64VAddFamilyRegistrationRecord(), "i64_vadd", "+"},
+      {&bridge::getI64VSubFamilyRegistrationRecord(), "i64_vsub", "-"},
+      {&bridge::getI64VMulFamilyRegistrationRecord(), "i64_vmul", "*"},
   };
 
   for (const I64BridgeCase &entry : i64Cases) {
@@ -1113,7 +1113,7 @@ int expectRVVScalarBinaryBridgeShape() {
   }
 
   const bridge::RVVScalarBinaryFamilyDescriptor &i64 =
-      bridge::getI64VSubFamilyDescriptor();
+      bridge::getI64VSubFamilyRegistrationRecord();
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5> parameters =
       bridge::getRVVScalarDispatchRuntimeABIParameters(i64);
@@ -1140,28 +1140,28 @@ int expectRVVScalarBinaryBridgeShape() {
 
 int main() {
   llvm::ArrayRef<const I32BinaryFamilyDescriptor *> families =
-      getI32BinaryFamilyDescriptors();
+      getI32BinaryFamilyRegistrationRecords();
   if (int result =
           expect(families.size() == 3,
                  "registry contains exactly three i32 binary families"))
     return result;
   if (int result =
-          expect(families[0] == &getI32VAddFamilyDescriptor(),
+          expect(families[0] == &getI32VAddFamilyRegistrationRecord(),
                  "registry preserves vadd descriptor order"))
     return result;
   if (int result =
-          expect(families[1] == &getI32VSubFamilyDescriptor(),
+          expect(families[1] == &getI32VSubFamilyRegistrationRecord(),
                  "registry preserves vsub descriptor order"))
     return result;
   if (int result =
-          expect(families[2] == &getI32VMulFamilyDescriptor(),
+          expect(families[2] == &getI32VMulFamilyRegistrationRecord(),
                  "registry preserves vmul descriptor order"))
     return result;
-  if (int result = expect(lookupI32BinaryFamilyByID("i32-vmul") ==
-                              &getI32VMulFamilyDescriptor(),
+  if (int result = expect(lookupI32BinaryFamilyRegistrationByID("i32-vmul") ==
+                              &getI32VMulFamilyRegistrationRecord(),
                           "registry accepts vmul family descriptor"))
     return result;
-  if (int result = expect(!lookupI32BinaryFamilyByID("i32-vdiv"),
+  if (int result = expect(!lookupI32BinaryFamilyRegistrationByID("i32-vdiv"),
                           "registry rejects unsupported families"))
     return result;
 
@@ -1215,7 +1215,7 @@ int main() {
             /*expectedDirectHelperRoute=*/true))
       return result;
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
-       rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
+       rvv_scalar::getRVVScalarBinaryRegistrationRecords())
     if (int result = expectRoute(
             registry, family->scalar.routeID,
             kRuntimeCallableCSourceArtifactKind, kScalarPluginName,
@@ -1224,7 +1224,7 @@ int main() {
             /*expectedDirectHelperRoute=*/false))
       return result;
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
-       rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+       rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
     if (int result = expectCompositeRoute(
             registry, family->scalar.headerRouteID,
             kRuntimeCallableCHeaderArtifactKind, kScalarPluginName,
@@ -1241,10 +1241,10 @@ int main() {
       return result;
   }
   for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
-       rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
+       rvv_scalar::getRVVScalarBinaryRegistrationRecords())
     if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
       return result;
 
-  llvm::outs() << "i32 binary family descriptor registry test passed\n";
+  llvm::outs() << "i32 binary family registration registry test passed\n";
   return 0;
 }

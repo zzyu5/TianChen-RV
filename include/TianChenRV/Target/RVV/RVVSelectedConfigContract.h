@@ -50,18 +50,18 @@ inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataName() {
   return "tcrv_rvv.emitc_lowerable_op_interface";
 }
 
-inline llvm::StringRef getRVVSelectedBinaryDescriptorMetadataRole() {
-  return "selected-rvv-binary-descriptor";
+inline llvm::StringRef getRVVLegacyDescriptorMirrorMetadataRole() {
+  return "legacy-rvv-binary-descriptor-mirror";
 }
 
 inline llvm::StringRef getRVVTypedBinarySourceMetadataRole() {
   return "typed-rvv-binary-source";
 }
 
-inline llvm::StringRef getRVVSelectedBinaryDescriptorMetadataNote() {
-  return "descriptor-local finite RVV binary dtype/operator metadata selected "
-         "by the RVV plugin; not a runtime AVL/VL value or hardware capacity "
-         "fact";
+inline llvm::StringRef getRVVLegacyDescriptorMirrorMetadataNote() {
+  return "legacy finite RVV descriptor mirror metadata checked after typed "
+         "selected-plan authority is established; not compute, ABI, source, "
+         "runtime AVL/VL, hardware capacity, or performance authority";
 }
 
 inline llvm::StringRef getRVVTypedBinarySourceMetadataNote() {
@@ -363,13 +363,13 @@ buildRVVBinarySelectedConfigContract(
   return contract;
 }
 
-inline void appendRVVBinarySelectedDescriptorMetadata(
+inline void appendRVVBinaryLegacyDescriptorMirrorMetadata(
     const RVVBinarySelectedConfigContract &contract,
     llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
   llvm::StringRef descriptorRole =
-      getRVVSelectedBinaryDescriptorMetadataRole();
+      getRVVLegacyDescriptorMirrorMetadataRole();
   llvm::StringRef descriptorNote =
-      getRVVSelectedBinaryDescriptorMetadataNote();
+      getRVVLegacyDescriptorMirrorMetadataNote();
   out.push_back({getRVVSelectedBinaryDTypeMetadataName(),
                  contract.getDTypeID(), descriptorRole, descriptorNote,
                  "selected binary dtype"});

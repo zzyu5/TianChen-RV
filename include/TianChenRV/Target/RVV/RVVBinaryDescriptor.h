@@ -63,7 +63,7 @@ public:
         family.outputPointerCType));
   }
 
-  const RVVBinaryFamilyDescriptor &getFamilyDescriptor() const {
+  const RVVBinaryFamilyDescriptor &getFamilyRegistrationRecord() const {
     return *family;
   }
 
@@ -142,17 +142,17 @@ getRVVBinaryRuntimeABIContract(const RVVBinaryFamilyDescriptor &family) {
     switch (family.arithmetic) {
     case RVVBinaryArithmeticKind::Add: {
       static const RVVBinaryRuntimeABIContract contract(
-          getI32VAddFamilyDescriptor());
+          getI32VAddFamilyRegistrationRecord());
       return contract;
     }
     case RVVBinaryArithmeticKind::Sub: {
       static const RVVBinaryRuntimeABIContract contract(
-          getI32VSubFamilyDescriptor());
+          getI32VSubFamilyRegistrationRecord());
       return contract;
     }
     case RVVBinaryArithmeticKind::Mul: {
       static const RVVBinaryRuntimeABIContract contract(
-          getI32VMulFamilyDescriptor());
+          getI32VMulFamilyRegistrationRecord());
       return contract;
     }
     }
@@ -161,17 +161,17 @@ getRVVBinaryRuntimeABIContract(const RVVBinaryFamilyDescriptor &family) {
     switch (family.arithmetic) {
     case RVVBinaryArithmeticKind::Add: {
       static const RVVBinaryRuntimeABIContract contract(
-          getI64VAddFamilyDescriptor());
+          getI64VAddFamilyRegistrationRecord());
       return contract;
     }
     case RVVBinaryArithmeticKind::Sub: {
       static const RVVBinaryRuntimeABIContract contract(
-          getI64VSubFamilyDescriptor());
+          getI64VSubFamilyRegistrationRecord());
       return contract;
     }
     case RVVBinaryArithmeticKind::Mul: {
       static const RVVBinaryRuntimeABIContract contract(
-          getI64VMulFamilyDescriptor());
+          getI64VMulFamilyRegistrationRecord());
       return contract;
     }
     }
@@ -370,33 +370,33 @@ inline RVVBinaryIntrinsicDescriptor getRVVBinaryIntrinsicDescriptor(
 }
 
 inline RVVBinaryIntrinsicDescriptor getI64VAddIntrinsicDescriptor() {
-  return getRVVBinaryIntrinsicDescriptor(getI64VAddFamilyDescriptor(),
+  return getRVVBinaryIntrinsicDescriptor(getI64VAddFamilyRegistrationRecord(),
                                          getI64M1VectorShapeConfig());
 }
 
 inline RVVBinaryIntrinsicDescriptor getI64VSubIntrinsicDescriptor() {
-  return getRVVBinaryIntrinsicDescriptor(getI64VSubFamilyDescriptor(),
+  return getRVVBinaryIntrinsicDescriptor(getI64VSubFamilyRegistrationRecord(),
                                          getI64M1VectorShapeConfig());
 }
 
 inline RVVBinaryIntrinsicDescriptor getI64VMulIntrinsicDescriptor() {
-  return getRVVBinaryIntrinsicDescriptor(getI64VMulFamilyDescriptor(),
+  return getRVVBinaryIntrinsicDescriptor(getI64VMulFamilyRegistrationRecord(),
                                          getI64M1VectorShapeConfig());
 }
 
 inline RVVBinaryIntrinsicDescriptor getI32VAddIntrinsicDescriptor(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
-  return getRVVBinaryIntrinsicDescriptor(getI32VAddFamilyDescriptor(), shape);
+  return getRVVBinaryIntrinsicDescriptor(getI32VAddFamilyRegistrationRecord(), shape);
 }
 
 inline RVVBinaryIntrinsicDescriptor getI32VSubIntrinsicDescriptor(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
-  return getRVVBinaryIntrinsicDescriptor(getI32VSubFamilyDescriptor(), shape);
+  return getRVVBinaryIntrinsicDescriptor(getI32VSubFamilyRegistrationRecord(), shape);
 }
 
 inline RVVBinaryIntrinsicDescriptor getI32VMulIntrinsicDescriptor(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
-  return getRVVBinaryIntrinsicDescriptor(getI32VMulFamilyDescriptor(), shape);
+  return getRVVBinaryIntrinsicDescriptor(getI32VMulFamilyRegistrationRecord(), shape);
 }
 
 } // namespace tianchenrv::target::rvv

@@ -161,7 +161,7 @@ llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigContract>
 buildDispatchPairSelectedConfigContract(
     const DispatchPair &pair, const DispatchRVVVectorShapeConfig &shape);
 
-llvm::Error validateDispatchSelectedDescriptorMetadata(
+llvm::Error validateDispatchLegacyDescriptorMirrorMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract);
 
@@ -243,32 +243,32 @@ llvm::Error makeModuleDispatchHeaderError(llvm::Twine message) {
 }
 
 const DispatchI32FamilySpec &getI32VAddDispatchFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
+  return tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()
       .dispatch;
 }
 
 const DispatchI32FamilySpec &getI32VSubDispatchFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI32VSubFamilyDescriptor()
+  return tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord()
       .dispatch;
 }
 
 const DispatchI32FamilySpec &getI32VMulDispatchFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI32VMulFamilyDescriptor()
+  return tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord()
       .dispatch;
 }
 
 const DispatchI32FamilySpec &getI64VAddDispatchFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI64VAddFamilyDescriptor()
+  return tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord()
       .dispatch;
 }
 
 const DispatchI32FamilySpec &getI64VSubDispatchFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI64VSubFamilyDescriptor()
+  return tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord()
       .dispatch;
 }
 
 const DispatchI32FamilySpec &getI64VMulDispatchFamilySpec() {
-  return tianchenrv::target::rvv_scalar::getI64VMulFamilyDescriptor()
+  return tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord()
       .dispatch;
 }
 
@@ -472,7 +472,7 @@ bool isScalarCallableCandidateForFamily(
 }
 
 const DispatchI32FamilySpec *
-lookupDispatchFamilyByRVVRouteID(llvm::StringRef routeID) {
+lookupDispatchFamilyRegistrationByRVVRouteID(llvm::StringRef routeID) {
   if (const rvv::RVVMicrokernelDirectRouteManifestEntry *route =
           rvv::lookupRVVMicrokernelDirectRoute(routeID))
     if (route->routeKind ==
@@ -480,7 +480,7 @@ lookupDispatchFamilyByRVVRouteID(llvm::StringRef routeID) {
         route->family)
       for (const auto *descriptor :
            tianchenrv::target::rvv_scalar::
-               getRVVScalarBinaryFamilyDescriptors()) {
+               getRVVScalarBinaryRegistrationRecords()) {
         const DispatchI32FamilySpec &family = descriptor->dispatch;
         if (family.rvvFamily == route->family)
           return &family;
@@ -489,9 +489,9 @@ lookupDispatchFamilyByRVVRouteID(llvm::StringRef routeID) {
 }
 
 const DispatchI32FamilySpec *
-lookupDispatchFamilyByScalarRouteID(llvm::StringRef routeID) {
+lookupDispatchFamilyRegistrationByScalarRouteID(llvm::StringRef routeID) {
   for (const auto *descriptor :
-       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
     const DispatchI32FamilySpec &family = descriptor->dispatch;
     if (family.scalarRouteID == routeID)
       return &family;
@@ -502,7 +502,7 @@ lookupDispatchFamilyByScalarRouteID(llvm::StringRef routeID) {
 const DispatchI32FamilySpec *
 getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
   if (const DispatchI32FamilySpec *family =
-          lookupDispatchFamilyByRVVRouteID(candidate.routeID))
+          lookupDispatchFamilyRegistrationByRVVRouteID(candidate.routeID))
     if (isRVVCallableCandidateForFamily(candidate, *family))
       return family;
   return nullptr;
@@ -511,7 +511,7 @@ getRVVCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
 const DispatchI32FamilySpec *
 getScalarCallableCandidateFamily(const TargetArtifactCandidate &candidate) {
   for (const auto *descriptor :
-       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
     const DispatchI32FamilySpec &family = descriptor->dispatch;
     if (isScalarCallableCandidateForFamily(candidate, family))
       return &family;
@@ -1165,13 +1165,13 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
 
     if (candidate.role == kDispatchCaseRole) {
       if (const DispatchI32FamilySpec *family =
-              lookupDispatchFamilyByRVVRouteID(candidate.routeID))
+              lookupDispatchFamilyRegistrationByRVVRouteID(candidate.routeID))
         return validateRVVCallableCandidateShapeForFamily(candidate, *family);
     }
 
     if (candidate.role == kDispatchFallbackRole) {
       if (const DispatchI32FamilySpec *family =
-              lookupDispatchFamilyByScalarRouteID(candidate.routeID))
+              lookupDispatchFamilyRegistrationByScalarRouteID(candidate.routeID))
         return validateScalarCallableCandidateShapeForFamily(candidate,
                                                             *family);
     }
@@ -1228,7 +1228,7 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
     return selectedConfig.takeError();
   pair.selectedConfig = std::move(*selectedConfig);
   if (llvm::Error error =
-          validateDispatchSelectedDescriptorMetadata(pair.rvv,
+          validateDispatchLegacyDescriptorMirrorMetadata(pair.rvv,
                                                      pair.selectedConfig))
     return std::move(error);
   if (llvm::Error error =
@@ -1258,7 +1258,7 @@ llvm::Expected<bool> matchRVVScalarDispatchCandidatesForFamily(
   for (const TargetArtifactCandidate &candidate : candidates) {
     if (candidate.role == kDispatchCaseRole) {
       if (const DispatchI32FamilySpec *routeFamily =
-              lookupDispatchFamilyByRVVRouteID(candidate.routeID)) {
+              lookupDispatchFamilyRegistrationByRVVRouteID(candidate.routeID)) {
         if (llvm::Error error =
                 validateRVVCallableCandidateShapeForFamily(candidate,
                                                            *routeFamily))
@@ -1276,7 +1276,7 @@ llvm::Expected<bool> matchRVVScalarDispatchCandidatesForFamily(
 
     if (candidate.role == kDispatchFallbackRole) {
       if (const DispatchI32FamilySpec *routeFamily =
-              lookupDispatchFamilyByScalarRouteID(candidate.routeID)) {
+              lookupDispatchFamilyRegistrationByScalarRouteID(candidate.routeID)) {
         if (llvm::Error error =
                 validateScalarCallableCandidateShapeForFamily(candidate,
                                                               *routeFamily))
@@ -1759,7 +1759,7 @@ llvm::Error validateDispatchSelectedPlanMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error validateDispatchSelectedDescriptorMetadata(
+llvm::Error validateDispatchLegacyDescriptorMirrorMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract) {
   llvm::SmallVector<
@@ -1774,7 +1774,7 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         contract, expected);
   else
-    tianchenrv::target::rvv::appendRVVBinarySelectedDescriptorMetadata(
+    tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
         contract, expected);
   for (const auto &entry : expected)
     if (llvm::Error error =
@@ -1799,7 +1799,7 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
               "' descriptor element count must be '" + expectedCount + "'");
     if ((*metadata)->role !=
         tianchenrv::target::rvv::
-            getRVVSelectedBinaryDescriptorMetadataRole())
+            getRVVLegacyDescriptorMirrorMetadataRole())
       return makeDispatchError(
           candidate.kernel,
           llvm::Twine("selected RVV dispatch candidate @") +
@@ -1808,11 +1808,11 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
                   getRVVDescriptorElementCountMetadataName() +
               "' role must be '" +
               tianchenrv::target::rvv::
-                  getRVVSelectedBinaryDescriptorMetadataRole() +
+                  getRVVLegacyDescriptorMirrorMetadataRole() +
               "'");
     if ((*metadata)->note !=
         tianchenrv::target::rvv::
-            getRVVSelectedBinaryDescriptorMetadataNote())
+            getRVVLegacyDescriptorMirrorMetadataNote())
       return makeDispatchError(
           candidate.kernel,
           llvm::Twine("selected RVV dispatch candidate @") +
@@ -1821,7 +1821,7 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
                   getRVVDescriptorElementCountMetadataName() +
               "' note must be '" +
               tianchenrv::target::rvv::
-                  getRVVSelectedBinaryDescriptorMetadataNote() +
+                  getRVVLegacyDescriptorMirrorMetadataNote() +
               "'");
   }
   return llvm::Error::success();
@@ -2126,9 +2126,9 @@ llvm::Error requireEmbeddedScalarSourceSnippet(const DispatchPair &pair,
 }
 
 const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor *
-lookupDispatchPairFamilyDescriptor(const DispatchI32FamilySpec &family) {
+lookupDispatchPairFamilyRegistration(const DispatchI32FamilySpec &family) {
   for (const auto *descriptor :
-       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors())
+       tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords())
     if (isSameDispatchFamily(descriptor->dispatch, family))
       return descriptor;
   return nullptr;
@@ -2137,7 +2137,7 @@ lookupDispatchPairFamilyDescriptor(const DispatchI32FamilySpec &family) {
 llvm::Error validateEmbeddedScalarSourceAuthority(
     const DispatchPair &pair, llvm::StringRef scalarSource) {
   const auto *familyDescriptor =
-      lookupDispatchPairFamilyDescriptor(*pair.family);
+      lookupDispatchPairFamilyRegistration(*pair.family);
   if (!familyDescriptor)
     return makeDispatchError(
         pair.scalar.kernel,
@@ -2203,7 +2203,7 @@ llvm::Error validateDispatchPairComponentAuthorities(const DispatchPair &pair) {
                                        std::move(error));
 
   const auto *familyDescriptor =
-      lookupDispatchPairFamilyDescriptor(*pair.family);
+      lookupDispatchPairFamilyRegistration(*pair.family);
   if (!familyDescriptor)
     return makeDispatchError(
         pair.scalar.kernel,
@@ -3185,7 +3185,7 @@ getRVVScalarDispatchRouteKinds() {
 }
 
 std::size_t getRVVScalarDispatchRouteCount() {
-  return getRVVScalarBinaryFamilyDescriptors().size() *
+  return getRVVScalarBinaryRegistrationRecords().size() *
          getRVVScalarDispatchRouteKinds().size();
 }
 
@@ -3196,7 +3196,7 @@ getRVVScalarDispatchRouteManifest() {
         llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 32> result;
         result.reserve(getRVVScalarDispatchRouteCount());
         for (const RVVScalarBinaryFamilyDescriptor *descriptor :
-             getRVVScalarBinaryFamilyDescriptors()) {
+             getRVVScalarBinaryRegistrationRecords()) {
           for (RVVScalarDispatchRouteKind routeKind :
                getRVVScalarDispatchRouteKinds())
             result.push_back(makeRVVScalarDispatchRouteManifestEntry(
