@@ -183,6 +183,19 @@ int runI32SelectedPlanTest() {
                  "i32 selected plan exposes source artifact kind"))
     return result;
   if (int result = expect(
+          plan.getSelectedConfig().getContract().getFamilyID() == "i32-vsub" &&
+              plan.getSelectedConfig().getContract().getDTypeID() == "i32" &&
+              plan.getSelectedConfig().getContract().getShapeID() == "i32m2" &&
+              plan.getSelectedConfig().getContract().getVectorType() ==
+                  "vint32m2_t" &&
+              plan.getSelectedConfig()
+                      .getContract()
+                      .getRuntimeElementCountCName() == "n" &&
+              plan.getSelectedConfig().getContract().getDescriptorElementCount() ==
+                  32,
+          "i32 selected plan owns the selected-config contract boundary"))
+    return result;
+  if (int result = expect(
           plan.getSupportedMessage() ==
               "explicit RVV i32 vector-subtract microkernel C source export "
               "provides a library-style runtime-callable C ABI function for "
@@ -269,6 +282,20 @@ int runI64SelectedPlanTest() {
                         "i64m1")
                            .str(),
                    "i64 selected plan owns RVV C intrinsic spelling"))
+      return result;
+    if (int result = expect(
+            plan.getSelectedConfig().getContract().getFamilyID() ==
+                    family.familyID &&
+                plan.getSelectedConfig().getContract().getDTypeID() == "i64" &&
+                plan.getSelectedConfig().getContract().getShapeID() ==
+                    "i64m1" &&
+                plan.getSelectedConfig().getContract().getSEWBits() == 64 &&
+                plan.getSelectedConfig().getContract().getVectorSuffix() ==
+                    "i64m1" &&
+                plan.getSelectedConfig()
+                        .getContract()
+                        .getDescriptorElementCount() == 16,
+            "i64 selected plan owns the i64m1 selected-config contract"))
       return result;
     return expect(plan.getStoreIntrinsicName() == "__riscv_vse64_v_i64m1",
                   "i64 selected plan owns store intrinsic spelling");
@@ -679,7 +706,7 @@ int runNegativeSelectedPlanTest() {
           "rv64gcv");
   if (plan)
     return fail("expected dtype/shape mismatch error");
-  return expectErrorContains(plan.takeError(), "selected vector-shape dtype");
+  return expectErrorContains(plan.takeError(), "selected config mismatch");
 }
 
 int runSelectedShapeMetadataTest() {

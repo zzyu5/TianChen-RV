@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Operation.h"
@@ -58,40 +59,39 @@ struct RVVBinaryCapabilityPropertyView {
 };
 
 struct RVVBinarySelectedConfig {
-  const target::rvv::RVVVectorShapeConfig *shape = nullptr;
+  target::rvv::RVVBinarySelectedConfigContract contract;
 
-  bool isValid() const { return shape != nullptr; }
+  bool isValid() const { return contract.isValid(); }
   const target::rvv::RVVVectorShapeConfig &getShape() const {
-    return *shape;
+    return contract.getShape();
   }
-  llvm::StringRef getShapeID() const { return shape ? shape->shapeID : ""; }
-  llvm::StringRef getDTypeID() const { return shape ? shape->dtypeID : ""; }
-  std::int64_t getSEWBits() const { return shape ? shape->sewBits : 0; }
-  llvm::StringRef getLMUL() const { return shape ? shape->lmul : ""; }
+  const target::rvv::RVVBinarySelectedConfigContract &getContract() const {
+    return contract;
+  }
+  target::rvv::RVVBinarySelectedConfigContract &getContract() {
+    return contract;
+  }
+  llvm::StringRef getShapeID() const { return contract.getShapeID(); }
+  llvm::StringRef getDTypeID() const { return contract.getDTypeID(); }
+  std::int64_t getSEWBits() const { return contract.getSEWBits(); }
+  llvm::StringRef getLMUL() const { return contract.getLMUL(); }
   llvm::StringRef getTailPolicy() const {
-    return shape ? shape->tailPolicy : "";
+    return contract.getTailPolicy();
   }
   llvm::StringRef getMaskPolicy() const {
-    return shape ? shape->maskPolicy : "";
+    return contract.getMaskPolicy();
   }
   llvm::StringRef getVectorType() const {
-    return shape ? shape->vectorType : "";
+    return contract.getVectorType();
   }
   llvm::StringRef getVectorSuffix() const {
-    return shape ? shape->vectorSuffix : "";
+    return contract.getVectorSuffix();
   }
   llvm::StringRef getSetVLSuffix() const {
-    return shape ? shape->setvlSuffix : "";
+    return contract.getSetVLSuffix();
   }
   llvm::SmallVector<llvm::StringRef, 4> getCapabilityIDs() const {
-    llvm::SmallVector<llvm::StringRef, 4> ids;
-    if (!shape)
-      return ids;
-    ids.push_back(shape->sewCapabilityID);
-    ids.push_back(shape->lmulCapabilityID);
-    ids.push_back(shape->tailPolicyCapabilityID);
-    ids.push_back(shape->maskPolicyCapabilityID);
-    return ids;
+    return contract.getSelectedShapeCapabilityIDs();
   }
 };
 

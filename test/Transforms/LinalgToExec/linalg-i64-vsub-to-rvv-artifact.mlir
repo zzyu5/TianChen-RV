@@ -133,7 +133,19 @@ module {
 // PIPE-SAME: {name = "tcrv_rvv.runtime_vl_source"
 // PIPE-SAME: value = "tcrv_rvv.setvl"}
 // PIPE-SAME: {name = "tcrv_rvv.runtime_vl_scope"
-// PIPE-SAME: value = "tcrv_rvv.with_vl"}]
+// PIPE-SAME: value = "tcrv_rvv.with_vl"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_binary_dtype"
+// PIPE-SAME: value = "i64"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_binary_family"
+// PIPE-SAME: value = "i64-vsub"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_binary_operator"
+// PIPE-SAME: value = "subtract"}
+// PIPE-SAME: {name = "tcrv_rvv.selected_lowering_descriptor"
+// PIPE-SAME: value = "i64-vsub-microkernel.v1"}
+// PIPE-SAME: {name = "tcrv_rvv.runtime_element_count_c_name"
+// PIPE-SAME: value = "n"}
+// PIPE-SAME: {name = "tcrv_rvv.descriptor_element_count"
+// PIPE-SAME: value = "16"}]
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 

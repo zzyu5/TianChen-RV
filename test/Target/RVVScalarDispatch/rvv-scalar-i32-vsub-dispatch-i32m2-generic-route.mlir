@@ -5,6 +5,8 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_shape = "i32m2"/s//tcrv_rvv.selected_vector_shape = "i32m1"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=SHAPE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text = sys.stdin.read(); pattern = r"\{name = \"tcrv_rvv\.selected_vector_suffix\"([^}]*)value = \"i32m2\"\}"; text, count = re.subn(pattern, lambda m: "{name = \"tcrv_rvv.selected_vector_suffix\"" + m.group(1) + "value = \"i32m1\"}", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=PLAN-METADATA-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text = sys.stdin.read(); pattern = r"\{name = \"tcrv_rvv\.selected_binary_family\"([^}]*)value = \"i32-vsub\"\}"; text, count = re.subn(pattern, lambda m: "{name = \"tcrv_rvv.selected_binary_family\"" + m.group(1) + "value = \"i64-vsub\"}", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=SELECTED-CONFIG-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text = sys.stdin.read(); pattern = r"\{name = \"tcrv_rvv\.runtime_element_count_c_name\"([^}]*)value = \"n\"\}"; text, count = re.subn(pattern, lambda m: "{name = \"tcrv_rvv.runtime_element_count_c_name\"" + m.group(1) + "value = \"16\"}", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=RUNTIME-CONTROL-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -89,6 +91,7 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 
 // SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 // SOURCE: /* selected_kernel: @frontend_dispatch_i32m2_vsub */
+// SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, lowering_descriptor=i32-vsub-microkernel.v1, shape=i32m2, sew=32, lmul=m2
 // SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.selected_vector_sew_capability, value=rvv.i32_m2.sew32, role=selected-rvv-vector-shape-capability
@@ -130,3 +133,5 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 
 // SHAPE-MISMATCH: selected vector-shape shape must be 'i32m2'
 // PLAN-METADATA-MISMATCH: selected_plan_metadata 'tcrv_rvv.selected_vector_suffix' vector suffix must be 'i32m2'
+// SELECTED-CONFIG-MISMATCH: selected_plan_metadata 'tcrv_rvv.selected_binary_family' selected binary family must be 'i32-vsub'
+// RUNTIME-CONTROL-MISMATCH: selected_plan_metadata 'tcrv_rvv.runtime_element_count_c_name' runtime element-count C name must be 'n'

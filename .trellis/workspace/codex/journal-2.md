@@ -602,6 +602,61 @@ Exposed the bounded linalg frontend lowering as an RVV binary pass, kept i32 ali
 
 [OK] **Completed**
 
+## Session 34: RVV selected config boundary family contract
+
+**Date**: 2026-05-11
+**Task**: RVV selected config boundary family contract
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task and PRD from the Hermes brief, then added an explicit
+compiler-owned selected RVV binary config contract consumed by planning,
+selected emission metadata, and RVV+scalar dispatch export.
+
+### Main Changes
+
+- Added `RVVBinarySelectedConfigContract` under `Target/RVV` for finite binary
+  dtype/family/operator descriptor metadata, selected RVV vector shape
+  configuration, selected variant identity, descriptor-local element_count, and
+  runtime control C names.
+- Routed `RVVBinarySelectedPlan` through the contract for both i32m2 and i64m1
+  selected paths.
+- Materialized selected-plan metadata from the contract in RVV selected
+  emission planning, keeping runtime control name metadata distinct from
+  descriptor-local element_count.
+- Validated and printed dispatch export selected config through the same
+  contract, including fail-closed checks for stale shape metadata, descriptor
+  family mismatch, descriptor element_count mismatch, and runtime-control name
+  mismatch.
+- Kept the changes in C++/MLIR target/plugin code and tests; no generic core
+  pass gained RVV family branching and `tcrv.exec` remained compute-free.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused selected-config lit filter: 10/10 selected tests passed.
+- Focused i32-vadd dispatch/export regression lit filter: 5/5 selected tests
+  passed.
+- Focused runtime-control mismatch lit check: 1/1 selected test passed.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-selected-config-boundary-family-contract`: passed.
+
+No new `ssh rvv` evidence was collected and no new runtime correctness or
+performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
 ## Session 35: RVV i64m1 vmul front-door dispatch ssh evidence
 
 **Date**: 2026-05-11

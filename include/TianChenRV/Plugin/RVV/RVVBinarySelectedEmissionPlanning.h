@@ -36,7 +36,7 @@ struct RVVBinarySelectedEmissionPlan {
   RVVBinarySelectedPlan selectedPlan;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   llvm::SmallVector<std::string, 5> requiredCapabilitySymbols;
-  llvm::SmallVector<VariantSelectedPlanMetadata, 14> selectedPlanMetadata;
+  llvm::SmallVector<VariantSelectedPlanMetadata, 20> selectedPlanMetadata;
 
   llvm::StringRef getFamilyID() const { return selectedPlan.getFamilyID(); }
   llvm::StringRef getEmissionKind() const {

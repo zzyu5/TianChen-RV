@@ -864,6 +864,50 @@ void appendRuntimeVLBoundaryMetadata(
                         entry.note.str()});
 }
 
+llvm::Error bindSelectedConfigRuntimeControlNames(
+    RVVBinarySelectedPlan &selectedPlan,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
+  llvm::StringRef runtimeElementCountCName;
+  unsigned runtimeElementCountCount = 0;
+  for (const support::RuntimeABIParameter &parameter : runtimeABIParameters) {
+    if (parameter.role != support::RuntimeABIParameterRole::RuntimeElementCount)
+      continue;
+    runtimeElementCountCName = parameter.cName;
+    ++runtimeElementCountCount;
+  }
+
+  if (runtimeElementCountCount != 1)
+    return makeRVVBinarySelectedEmissionError(
+        llvm::Twine("selected RVV binary config contract for family '") +
+        selectedPlan.getFamilyID() +
+        "' requires exactly one runtime-element-count ABI parameter");
+
+  selectedPlan.selectedConfig.getContract().setRuntimeElementCountCName(
+      runtimeElementCountCName);
+  return target::rvv::validateRVVBinarySelectedConfigContract(
+      selectedPlan.getSelectedConfig().getContract());
+}
+
+void appendSelectedBinaryDescriptorMetadata(
+    const target::rvv::RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
+  llvm::SmallVector<
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
+      descriptorMetadata;
+  target::rvv::appendRVVBinarySelectedDescriptorMetadata(contract,
+                                                        descriptorMetadata);
+  for (const auto &entry : descriptorMetadata)
+    metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
+                        entry.note.str()});
+  if (contract.getDescriptorElementCount() > 0) {
+    metadata.push_back({
+        target::rvv::getRVVDescriptorElementCountMetadataName().str(),
+        std::to_string(contract.getDescriptorElementCount()),
+        target::rvv::getRVVSelectedBinaryDescriptorMetadataRole().str(),
+        target::rvv::getRVVSelectedBinaryDescriptorMetadataNote().str()});
+  }
+}
+
 } // namespace
 
 VariantEmissionStatus RVVBinarySelectedEmissionPlan::buildReadinessStatus(
@@ -940,12 +984,18 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
   plan.selectedPlan = std::move((*attachment)->selectedPlan);
   plan.runtimeABIParameters = std::move(*runtimeABIParameters);
   plan.requiredCapabilitySymbols = std::move(*requiredSymbols);
+  if (llvm::Error error = bindSelectedConfigRuntimeControlNames(
+          plan.selectedPlan, plan.runtimeABIParameters))
+    return std::move(error);
   appendSelectedVectorShapeMetadata(plan.selectedPlan.getShape(),
                                     plan.selectedPlanMetadata);
   if (llvm::Error error = appendSelectedCapacityMetadata(
           request.getVariant(), plan.selectedPlanMetadata))
     return std::move(error);
   appendRuntimeVLBoundaryMetadata(plan.selectedPlanMetadata);
+  appendSelectedBinaryDescriptorMetadata(
+      plan.selectedPlan.getSelectedConfig().getContract(),
+      plan.selectedPlanMetadata);
   return plan;
 }
 

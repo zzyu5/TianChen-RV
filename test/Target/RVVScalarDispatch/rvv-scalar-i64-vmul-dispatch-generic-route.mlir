@@ -83,6 +83,7 @@ module {
 
 // GENERIC: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // GENERIC: /* Scope: one selected RVV i64-vmul dispatch case plus one scalar i64-vmul dispatch fallback. */
+// GENERIC: /* selected_binary_config: dtype=i64, family=i64-vmul, operator=multiply, lowering_descriptor=i64-vmul-microkernel.v1, shape=i64m1, sew=64, lmul=m1
 // GENERIC: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-c */
 // GENERIC: /* dispatch_manifest_artifact_kind: runtime-callable-c-source */
 // GENERIC: /* rvv_artifact_route_id: tcrv-export-rvv-i64-vmul-microkernel-c */

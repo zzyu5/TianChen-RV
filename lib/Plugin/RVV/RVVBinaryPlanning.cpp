@@ -1102,9 +1102,10 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
 
   if (family.dtypeID != shape.dtypeID) {
     return makeRVVBinaryPlanningError(
-        llvm::Twine(family.descriptorNoun) +
-        " requires selected vector-shape dtype '" + family.dtypeID +
-        "' but got '" + shape.dtypeID + "'");
+        llvm::Twine("selected config mismatch: finite binary family '") +
+        family.familyID + "' has dtype '" + family.dtypeID +
+        "' but selected vector-shape '" + shape.shapeID + "' has dtype '" +
+        shape.dtypeID + "'");
   }
 
   if (elementCount <= 0 || elementCount > 64)
@@ -1127,9 +1128,16 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
       return std::move(error);
   }
 
+  llvm::Expected<target::rvv::RVVBinarySelectedConfigContract> selectedConfig =
+      target::rvv::buildRVVBinarySelectedConfigContract(
+          family, shape, /*selectedVariantSymbol=*/llvm::StringRef(),
+          /*selectedRole=*/llvm::StringRef(), elementCount);
+  if (!selectedConfig)
+    return selectedConfig.takeError();
+
   RVVBinarySelectedPlan plan;
   plan.family = &family;
-  plan.selectedConfig.shape = &shape;
+  plan.selectedConfig.contract = std::move(*selectedConfig);
   plan.descriptor = target::rvv::getRVVBinaryIntrinsicDescriptor(family, shape);
   plan.elementCount = elementCount;
   plan.requiredMarch = trimmedMarch.str();
@@ -1155,11 +1163,12 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
                                 **registeredFamily);
   if (requiredShape && requiredShape->dtypeID != (*registeredFamily)->dtypeID)
     return makeRVVBinaryPlanningError(
-        llvm::Twine(diagnosticContext) + " finite RVV binary family '" +
-        (*registeredFamily)->familyID +
-        "' requires selected vector-shape dtype '" +
-        (*registeredFamily)->dtypeID + "' but got '" +
-        requiredShape->dtypeID + "'");
+        llvm::Twine(diagnosticContext) +
+        " selected config mismatch: finite binary family '" +
+        (*registeredFamily)->familyID + "' has dtype '" +
+        (*registeredFamily)->dtypeID + "' but selected vector-shape '" +
+        requiredShape->shapeID + "' has dtype '" + requiredShape->dtypeID +
+        "'");
 
   llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
       buildRVVBinaryCapabilityPropertyView(capabilities, requiredShape);
@@ -1181,7 +1190,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
   plan.capabilityView = std::move(*propertyView);
   plan.requiredCapabilityIDs.push_back(kRVVCapabilityID.str());
   for (llvm::StringRef capabilityID :
-       plan.selectedPlan.descriptor.getSelectedShapeCapabilityIDs())
+       plan.selectedPlan.getSelectedConfig().getCapabilityIDs())
     plan.requiredCapabilityIDs.push_back(capabilityID.str());
   plan.condition = kProposalCondition.str();
   plan.guard = kProposalGuard.str();
@@ -1354,10 +1363,10 @@ buildRVVBinarySelectedPlanFromVariant(
 
   if (family->dtypeID != shape.dtypeID)
     return makeRVVBinaryPlanningError(
-        llvm::Twine(family->descriptorNoun) + " on variant @" +
-        variant.getSymName() + " requires finite " +
-        getDTypeDiagnosticSpelling(shape) +
-        " vector-shape config capability ids");
+        llvm::Twine("selected config mismatch: ") + family->descriptorNoun +
+        " on variant @" + variant.getSymName() + " has dtype '" +
+        family->dtypeID + "' but selected vector-shape '" + shape.shapeID +
+        "' has dtype '" + getDTypeDiagnosticSpelling(shape) + "'");
 
   auto elementCountAttr =
       variant->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
@@ -1382,9 +1391,15 @@ buildRVVBinarySelectedPlanFromVariant(
         variant.getSymName() + " requires string 'tcrv_rvv.required_march' "
                                "metadata");
 
-  return buildRVVBinarySelectedPlan(*family, shape, elementCount,
-                                    requiredMarch.getValue().trim(),
-                                    std::move(selectedMABI));
+  llvm::Expected<RVVBinarySelectedPlan> plan =
+      buildRVVBinarySelectedPlan(*family, shape, elementCount,
+                                 requiredMarch.getValue().trim(),
+                                 std::move(selectedMABI));
+  if (!plan)
+    return plan.takeError();
+  plan->selectedConfig.getContract().setSelectedPath(variant.getSymName(),
+                                                    llvm::StringRef());
+  return std::move(*plan);
 }
 
 void addRVVSelectedVectorShapeMetadataToProposal(
