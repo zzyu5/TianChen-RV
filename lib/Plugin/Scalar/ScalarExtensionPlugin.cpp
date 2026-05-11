@@ -249,6 +249,30 @@ buildScalarEmissionRuntimeABIParameters(
   return parameters;
 }
 
+llvm::StringRef getScalarRuntimeElementCountCName(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  for (const support::RuntimeABIParameter &parameter : parameters)
+    if (parameter.role == support::RuntimeABIParameterRole::RuntimeElementCount)
+      return parameter.cName;
+  return "n";
+}
+
+void appendScalarSelectedDescriptorMetadata(
+    VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family,
+    llvm::StringRef runtimeElementCountCName) {
+  llvm::SmallVector<
+      tianchenrv::target::rvv_scalar::
+          ScalarBinarySelectedPlanMetadataDescriptor,
+      5>
+      metadata;
+  tianchenrv::target::rvv_scalar::
+      appendScalarBinarySelectedDescriptorMetadata(
+          family, runtimeElementCountCName, metadata);
+  for (const auto &entry : metadata)
+    plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
+                                 entry.note);
+}
+
 const ScalarMicrokernelFamilySpec *
 lookupScalarMicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
   const ScalarBinaryFamilyDescriptor *family =
@@ -1000,9 +1024,14 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     out.setRuntimeABIKind(family.getScalar().runtimeABIKind);
     out.setRuntimeABIName(family.getScalar().runtimeABIName);
     out.setRuntimeGlueRole(family.getScalar().runtimeGlueRole);
-    out.addRuntimeABIParameters(
+    llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters =
         buildScalarEmissionRuntimeABIParameters(request.getKernel(),
-                                                *family.family));
+                                                *family.family);
+    llvm::StringRef runtimeElementCountCName =
+        getScalarRuntimeElementCountCName(runtimeABIParameters);
+    out.addRuntimeABIParameters(runtimeABIParameters);
+    appendScalarSelectedDescriptorMetadata(out, *family.family,
+                                           runtimeElementCountCName);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;

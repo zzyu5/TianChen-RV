@@ -9,6 +9,7 @@
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
+#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -121,6 +122,11 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.addLoweringBoundaryOp("tcrv_scalar.lowering_boundary");
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerScalarBuiltinTargetArtifactExporterBundles);
+  for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
+       rvv_scalar::getRVVScalarBinaryFamilyDescriptors()) {
+    bundle.addTargetArtifactRouteMetadataRequirement(
+        family->scalar.routeID, "runtime-callable-c-source");
+  }
   return registry.registerBundle(bundle);
 }
 

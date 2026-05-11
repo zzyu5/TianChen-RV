@@ -1931,6 +1931,110 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
   return llvm::Error::success();
 }
 
+TargetArtifactRouteMetadata buildScalarMicrokernelSourceRouteMetadata(
+    const ScalarI32MicrokernelFamilySpec &family) {
+  TargetArtifactRouteMetadata metadata(family.runtimeABI,
+                                       family.runtimeABIKind,
+                                       family.runtimeABIName,
+                                       family.runtimeGlueRole);
+  llvm::StringRef descriptorRole =
+      tianchenrv::target::rvv_scalar::
+          getScalarSelectedBinaryDescriptorMetadataRole();
+  metadata.addSelectedPlanMetadataRequirement(
+      tianchenrv::target::rvv_scalar::
+          getScalarSelectedBinaryDTypeMetadataName(),
+      family.rvvFamily->dtypeID, descriptorRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      tianchenrv::target::rvv_scalar::
+          getScalarSelectedBinaryFamilyMetadataName(),
+      family.rvvFamily->familyID, descriptorRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      tianchenrv::target::rvv_scalar::
+          getScalarSelectedBinaryOperatorMetadataName(),
+      family.rvvFamily->arithmeticVerb, descriptorRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      tianchenrv::target::rvv_scalar::
+          getScalarSelectedLoweringDescriptorMetadataName(),
+      family.descriptor, descriptorRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      tianchenrv::target::rvv_scalar::
+          getScalarRuntimeElementCountCNameMetadataName(),
+      tianchenrv::target::rvv_scalar::
+          getScalarRuntimeControlNameMetadataRole());
+  metadata.addClaimField("compile_export_claim", "compiler-artifact-only");
+  metadata.addClaimField("runtime_correctness_claim", "none");
+  metadata.addClaimField("hardware_execution_claim", "none");
+  metadata.addClaimField("performance_claim", "none");
+  return metadata;
+}
+
+llvm::Expected<const SelectedPlanMetadataEntry *>
+findUniqueScalarSelectedPlanMetadataEntry(
+    const TargetArtifactCandidate &candidate, llvm::StringRef name) {
+  const SelectedPlanMetadataEntry *match = nullptr;
+  for (const SelectedPlanMetadataEntry &metadata :
+       candidate.selectedPlanMetadata) {
+    if (metadata.name != name)
+      continue;
+    if (match)
+      return makeModuleMicrokernelError(
+          llvm::Twine("target artifact route '") + candidate.routeID +
+          "' has duplicate selected_plan_metadata '" + name + "'");
+    match = &metadata;
+  }
+  if (!match)
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' requires selected_plan_metadata '" + name + "'");
+  return match;
+}
+
+llvm::Expected<llvm::StringRef>
+resolveScalarRuntimeElementCountCName(
+    const TargetArtifactCandidate &candidate) {
+  const support::RuntimeABIParameter *runtimeElementCount = nullptr;
+  for (const support::RuntimeABIParameter &parameter :
+       candidate.runtimeABIParameters) {
+    if (parameter.role != support::RuntimeABIParameterRole::RuntimeElementCount)
+      continue;
+    if (runtimeElementCount)
+      return makeModuleMicrokernelError(
+          llvm::Twine("target artifact route '") + candidate.routeID +
+          "' has duplicate runtime element-count ABI parameters");
+    runtimeElementCount = &parameter;
+  }
+  if (!runtimeElementCount)
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' requires one runtime element-count ABI parameter");
+  return llvm::StringRef(runtimeElementCount->cName);
+}
+
+llvm::Error validateScalarSelectedPlanMetadata(
+    const TargetArtifactCandidate &candidate,
+    const ScalarI32MicrokernelFamilySpec &family) {
+  llvm::Expected<llvm::StringRef> runtimeElementCountCName =
+      resolveScalarRuntimeElementCountCName(candidate);
+  if (!runtimeElementCountCName)
+    return runtimeElementCountCName.takeError();
+  llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
+      findUniqueScalarSelectedPlanMetadataEntry(
+          candidate, tianchenrv::target::rvv_scalar::
+                         getScalarRuntimeElementCountCNameMetadataName());
+  if (!metadata)
+    return metadata.takeError();
+  if ((*metadata)->value != *runtimeElementCountCName)
+    return makeModuleMicrokernelError(
+        llvm::Twine("target artifact route '") + candidate.routeID +
+        "' selected_plan_metadata '" +
+        tianchenrv::target::rvv_scalar::
+            getScalarRuntimeElementCountCNameMetadataName() +
+        "' runtime element-count C name must be '" +
+        *runtimeElementCountCName + "' for scalar family '" +
+        family.rvvFamily->familyID + "'");
+  return llvm::Error::success();
+}
+
 bool isScalarMicrokernelSourceCandidateForFamily(
     const tianchenrv::target::TargetArtifactCandidate &candidate,
     const ScalarI32MicrokernelFamilySpec &family) {
@@ -1966,9 +2070,13 @@ llvm::Error validateScalarMicrokernelSourceCandidate(
                   lookupRVVScalarBinaryFamilyByScalarRouteID(
                       family->routeID)),
       /*directHelperRoute=*/false, /*handoffKind=*/{},
-      /*candidateValidationFn=*/nullptr);
-  return validateTargetArtifactCandidateAgainstExporter(candidate,
-                                                        sourceExporter);
+      /*candidateValidationFn=*/nullptr, /*componentGroup=*/{},
+      /*externalABIName=*/{}, buildScalarMicrokernelSourceRouteMetadata(*family));
+  if (llvm::Error error =
+          validateTargetArtifactCandidateAgainstExporter(candidate,
+                                                        sourceExporter))
+    return error;
+  return validateScalarSelectedPlanMetadata(candidate, *family);
 }
 
 llvm::Error validateScalarMicrokernelCallableCandidatePreflight(
@@ -2311,7 +2419,9 @@ llvm::Error registerScalarMicrokernelTargetExporters(
                 getRVVBinaryCallableRuntimeABIRoleRequirements(
                     *family->rvvFamily),
             /*directHelperRoute=*/false, /*handoffKind=*/{},
-            validateScalarMicrokernelSourceCandidate)))
+            validateScalarMicrokernelSourceCandidate, /*componentGroup=*/{},
+            /*externalABIName=*/{},
+            buildScalarMicrokernelSourceRouteMetadata(*family))))
       return error;
 
     TargetArtifactCompositeMatchFn matchFn =

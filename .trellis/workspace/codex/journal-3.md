@@ -426,3 +426,62 @@ claim.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: Scalar finite source route metadata coverage
+
+**Date**: 2026-05-11
+**Task**: Scalar finite source route metadata coverage
+**Branch**: `main`
+
+### Summary
+
+Added descriptor-derived route metadata and generic preflight coverage for all finite scalar source routes; updated Scalar bundle requirements plus focused C++/lit coverage; archived Trellis task after full check-tianchenrv passed.
+
+### Main Changes
+
+- Added shared scalar selected-plan metadata helper names, roles, notes, and
+  descriptor appenders for finite scalar binary source routes.
+- Made scalar-plugin emission plans publish scalar dtype, family, operator,
+  lowering descriptor, and runtime element-count C-name metadata from the
+  selected finite scalar descriptor and runtime ABI boundary.
+- Registered descriptor-derived `TargetArtifactRouteMetadata` on every finite
+  scalar source route and made the Scalar built-in bundle declare route
+  metadata requirements for those routes.
+- Extended source-route validation so generic preflight checks runtime ABI and
+  selected-plan metadata first, while scalar-local validation still checks the
+  runtime element-count C-name against the typed ABI parameter.
+- Added C++ and lit/FileCheck coverage for all finite scalar source routes,
+  stale/missing metadata failures, conservative claim fields, and non-legacy
+  `i32-vmul` deterministic source export evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- Focused scalar source/header/object, emission readiness, dispatch, artifact
+  export, offload, bundle guard, execution planning, and linalg-to-exec lit
+  coverage from `artifacts/tmp/tianchenrv-build/test`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/archive/2026-05/05-11-05-11-scalar-finite-source-route-metadata-coverage`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+No `ssh rvv` run was required or performed because the task made no new RVV
+runtime correctness, hardware execution, throughput, latency, or performance
+claim.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

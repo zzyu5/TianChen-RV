@@ -108,6 +108,25 @@ void appendRVVSelectedPlanMetadata(
   }
 }
 
+void appendScalarSelectedPlanMetadata(
+    TargetArtifactCandidate &candidate,
+    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
+        &family) {
+  llvm::SmallVector<
+      tianchenrv::target::rvv_scalar::
+          ScalarBinarySelectedPlanMetadataDescriptor,
+      5>
+      metadata;
+  tianchenrv::target::rvv_scalar::
+      appendScalarBinarySelectedDescriptorMetadata(
+          family, getRuntimeElementCountCNameForTest(candidate), metadata);
+  for (const auto &entry : metadata) {
+    candidate.selectedPlanMetadata.push_back(
+        {entry.name.str(), entry.value.str(), entry.role.str(),
+         entry.note.str()});
+  }
+}
+
 bool setSelectedPlanMetadataValue(TargetArtifactCandidate &candidate,
                                   llvm::StringRef name,
                                   llvm::StringRef value) {
@@ -554,6 +573,72 @@ bool expectRVVSourceRouteDescriptorMetadata(
   return true;
 }
 
+bool expectScalarSourceRouteDescriptorMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
+        &family) {
+  if (!expectRouteDescriptorMetadata(
+          registry, family.scalar.routeID, family.scalar.runtimeABI,
+          family.scalar.runtimeABIKind, family.scalar.runtimeABIName,
+          family.scalar.runtimeGlueRole,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryFamilyMetadataName(),
+          family.familyID,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryDescriptorMetadataRole(),
+          "runtime_correctness_claim"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.scalar.routeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryDTypeMetadataName(),
+          family.rvvFamily->dtypeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryDescriptorMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.scalar.routeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryOperatorMetadataName(),
+          family.rvvFamily->arithmeticVerb,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryDescriptorMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.scalar.routeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedLoweringDescriptorMetadataName(),
+          family.loweringDescriptor,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryDescriptorMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.scalar.routeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarRuntimeElementCountCNameMetadataName(),
+          tianchenrv::target::rvv_scalar::
+              getScalarRuntimeControlNameMetadataRole()))
+    return false;
+
+  const TargetArtifactExporter *exporter =
+      registry.lookup(family.scalar.routeID);
+  const TargetArtifactRouteClaimField *compileClaim =
+      findRouteClaimField(*exporter, "compile_export_claim");
+  const TargetArtifactRouteClaimField *hardwareClaim =
+      findRouteClaimField(*exporter, "hardware_execution_claim");
+  const TargetArtifactRouteClaimField *performanceClaim =
+      findRouteClaimField(*exporter, "performance_claim");
+  if (!compileClaim || compileClaim->value != "compiler-artifact-only" ||
+      !hardwareClaim || hardwareClaim->value != "none" || !performanceClaim ||
+      performanceClaim->value != "none") {
+    llvm::errs() << "scalar source route '" << family.scalar.routeID
+                 << "' lacks conservative route claim fields\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
@@ -761,6 +846,45 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     }
   }
 
+  const ExtensionBundle *scalarBundle =
+      bundles.lookupPluginBundle(
+          tianchenrv::plugin::scalar::getScalarExtensionPluginName());
+  if (!scalarBundle || !scalarBundle->requiresTargetArtifactRouteMetadata()) {
+    llvm::errs() << "Scalar extension bundle frontdoor does not preserve "
+                    "route metadata ownership\n";
+    return false;
+  }
+  const auto scalarFamilies =
+      tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors();
+  const std::size_t scalarSourceRouteCount = scalarFamilies.size();
+  if (scalarBundle->getTargetArtifactRouteMetadata().size() !=
+      scalarSourceRouteCount) {
+    llvm::errs() << "Scalar extension bundle frontdoor expected "
+                 << scalarSourceRouteCount
+                 << " finite source route metadata requirements, got "
+                 << scalarBundle->getTargetArtifactRouteMetadata().size()
+                 << "\n";
+    return false;
+  }
+  for (const auto *family : scalarFamilies) {
+    bool found = false;
+    for (const ExtensionBundleTargetArtifactRouteMetadata &metadata :
+         scalarBundle->getTargetArtifactRouteMetadata()) {
+      if (metadata.routeID == family->scalar.routeID &&
+          metadata.artifactKind == "runtime-callable-c-source" &&
+          metadata.requireRouteMetadata) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      llvm::errs() << "Scalar extension bundle frontdoor is missing finite "
+                      "source route metadata requirement for "
+                   << family->familyID << "\n";
+      return false;
+    }
+  }
+
   ExtensionPluginRegistry plugins;
   if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
                      "register extension plugins through bundle frontdoor"))
@@ -836,6 +960,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   for (const RVVBinaryFamilyDescriptor *family :
        tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors())
     if (!expectRVVSourceRouteDescriptorMetadata(registry, *family))
+      return false;
+  for (const auto *family :
+       tianchenrv::target::rvv_scalar::
+           getRVVScalarBinaryFamilyDescriptors())
+    if (!expectScalarSourceRouteDescriptorMetadata(registry, *family))
       return false;
 
   return true;
@@ -2999,23 +3128,26 @@ TargetArtifactCandidate makeRVVMulDispatchCandidate(
 
 TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant) {
-  const tianchenrv::support::RuntimeABICallableIdentity &abi =
-      getAddRuntimeABIContract().getScalarCallableIdentity();
+  const auto &descriptor =
+      tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor();
+  const auto &family = descriptor.scalar;
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
   candidate.selectedVariant = selectedVariant.str();
   candidate.role = "dispatch fallback";
   candidate.origin = "scalar-plugin";
-  candidate.routeID = "tcrv-export-scalar-microkernel-c";
-  candidate.emissionKind = "scalar-explicit-i32-vadd-microkernel-c-source";
+  candidate.routeID = family.routeID;
+  candidate.emissionKind = family.emissionKind;
   candidate.artifactKind = "runtime-callable-c-source";
   candidate.loweringBoundary = "tcrv_scalar.lowering_boundary";
-  candidate.runtimeABI = abi.runtimeABI.str();
-  candidate.runtimeABIKind = abi.runtimeABIKind.str();
-  candidate.runtimeABIName = abi.runtimeABIName.str();
-  candidate.runtimeGlueRole = abi.runtimeGlueRole.str();
+  candidate.runtimeABI = family.runtimeABI;
+  candidate.runtimeABIKind = family.runtimeABIKind;
+  candidate.runtimeABIName = family.runtimeABIName;
+  candidate.runtimeGlueRole = family.runtimeGlueRole;
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32BinaryRuntimeABIParameters();
+      tianchenrv::target::rvv_scalar::
+          getRVVScalarBinaryCallableRuntimeABIParameters(descriptor);
+  appendScalarSelectedPlanMetadata(candidate, descriptor);
   return candidate;
 }
 
@@ -3040,6 +3172,7 @@ TargetArtifactCandidate makeScalarDirectCandidate(
   candidate.runtimeABIParameters =
       tianchenrv::target::rvv_scalar::
           getRVVScalarBinaryCallableRuntimeABIParameters(descriptor);
+  appendScalarSelectedPlanMetadata(candidate, descriptor);
   return candidate;
 }
 
@@ -3639,9 +3772,9 @@ bool expectScalarSubSourceRejectsStaleAddMetadata(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "stale add ABI metadata rejected by scalar vsub source route",
       {"route id 'tcrv-export-scalar-i32-vsub-microkernel-c'",
-       "target artifact candidate validation failed",
-       "supported scalar microkernel family ABI metadata",
-       "runtime_abi_name 'scalar-i32-vsub-runtime-callable-c-function.v1'"});
+       "registered for runtime_abi",
+       "scalar-i32-vsub-runtime-callable-c-abi.v1",
+       "scalar-i32-vadd-runtime-callable-c-abi.v1"});
 }
 
 bool expectCompositeCandidateValidationRejects(
@@ -4514,6 +4647,44 @@ int main() {
             builtinRegistry, family->scalar.routeID,
             tianchenrv::target::rvv_scalar::
                 getRVVScalarBinaryCallableRuntimeABIRoleRequirements(*family)))
+      return 1;
+  }
+  for (const auto *family :
+       tianchenrv::target::rvv_scalar::
+           getRVVScalarBinaryFamilyDescriptors()) {
+    if (!expectScalarSourceRouteDescriptorMetadata(builtinRegistry, *family))
+      return 1;
+    llvm::StringRef staleDType =
+        family->rvvFamily->dtypeID == "i32" ? "i64" : "i32";
+    llvm::StringRef staleFamily =
+        family->familyID == "i32-vadd" ? "i32-vsub" : "i32-vadd";
+    llvm::StringRef staleOperator =
+        family->rvvFamily->arithmeticVerb == "add" ? "subtract" : "add";
+    if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+            builtinRegistry, family->scalar.routeID))
+      return 1;
+    if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+            builtinRegistry, family->scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarSelectedBinaryDTypeMetadataName(),
+            staleDType))
+      return 1;
+    if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+            builtinRegistry, family->scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarSelectedBinaryFamilyMetadataName(),
+            staleFamily))
+      return 1;
+    if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+            builtinRegistry, family->scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarSelectedBinaryOperatorMetadataName(),
+            staleOperator))
+      return 1;
+    if (!expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
+            builtinRegistry, family->scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarRuntimeElementCountCNameMetadataName()))
       return 1;
   }
   if (!expectRoute(builtinRegistry,

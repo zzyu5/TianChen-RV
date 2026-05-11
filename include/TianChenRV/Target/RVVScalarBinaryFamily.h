@@ -74,6 +74,54 @@ struct RVVScalarBinaryFamilyDescriptor {
   DispatchBinaryFamilyDescriptor dispatch;
 };
 
+struct ScalarBinarySelectedPlanMetadataDescriptor {
+  llvm::StringRef name;
+  llvm::StringRef value;
+  llvm::StringRef role;
+  llvm::StringRef note;
+};
+
+inline llvm::StringRef getScalarSelectedBinaryDTypeMetadataName() {
+  return "tcrv_scalar.selected_binary_dtype";
+}
+
+inline llvm::StringRef getScalarSelectedBinaryFamilyMetadataName() {
+  return "tcrv_scalar.selected_binary_family";
+}
+
+inline llvm::StringRef getScalarSelectedBinaryOperatorMetadataName() {
+  return "tcrv_scalar.selected_binary_operator";
+}
+
+inline llvm::StringRef getScalarSelectedLoweringDescriptorMetadataName() {
+  return "tcrv_scalar.selected_lowering_descriptor";
+}
+
+inline llvm::StringRef getScalarRuntimeElementCountCNameMetadataName() {
+  return "tcrv_scalar.runtime_element_count_c_name";
+}
+
+inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataRole() {
+  return "selected-scalar-binary-descriptor";
+}
+
+inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataNote() {
+  return "descriptor-local finite scalar binary dtype/operator metadata "
+         "selected by the scalar plugin; not a runtime trip count, RVV "
+         "vector-shape config, hardware execution proof, or performance "
+         "evidence";
+}
+
+inline llvm::StringRef getScalarRuntimeControlNameMetadataRole() {
+  return "scalar-runtime-control-name-boundary";
+}
+
+inline llvm::StringRef getScalarRuntimeControlNameMetadataNote() {
+  return "runtime ABI/control C name resolved from tcrv.exec runtime boundary "
+         "for the scalar callable source route; not descriptor-local "
+         "element_count, a tensor shape, or hardware evidence";
+}
+
 inline std::string hyphenatedFamilyID(const rvv::RVVBinaryFamilyDescriptor &family) {
   return family.familyID.str();
 }
@@ -246,6 +294,29 @@ inline RVVScalarBinaryFamilyDescriptor makeFamilyDescriptor(
   descriptor.dispatch.dispatchExternalABIComponentGroup =
       makeDispatchExternalABIComponentGroup(family);
   return descriptor;
+}
+
+inline void appendScalarBinarySelectedDescriptorMetadata(
+    const RVVScalarBinaryFamilyDescriptor &family,
+    llvm::StringRef runtimeElementCountCName,
+    llvm::SmallVectorImpl<ScalarBinarySelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef descriptorRole =
+      getScalarSelectedBinaryDescriptorMetadataRole();
+  llvm::StringRef descriptorNote =
+      getScalarSelectedBinaryDescriptorMetadataNote();
+  out.push_back({getScalarSelectedBinaryDTypeMetadataName(),
+                 family.rvvFamily->dtypeID, descriptorRole, descriptorNote});
+  out.push_back({getScalarSelectedBinaryFamilyMetadataName(),
+                 family.familyID, descriptorRole, descriptorNote});
+  out.push_back({getScalarSelectedBinaryOperatorMetadataName(),
+                 family.rvvFamily->arithmeticVerb, descriptorRole,
+                 descriptorNote});
+  out.push_back({getScalarSelectedLoweringDescriptorMetadataName(),
+                 family.loweringDescriptor, descriptorRole, descriptorNote});
+  out.push_back({getScalarRuntimeElementCountCNameMetadataName(),
+                 runtimeElementCountCName,
+                 getScalarRuntimeControlNameMetadataRole(),
+                 getScalarRuntimeControlNameMetadataNote()});
 }
 
 inline const RVVScalarBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {

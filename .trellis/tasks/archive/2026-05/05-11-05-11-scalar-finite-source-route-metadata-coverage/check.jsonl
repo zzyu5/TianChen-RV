@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariants for final check"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "verify scalar route behavior and evidence boundaries"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "verify generic core did not gain scalar semantic branches"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify target artifact preflight and runtime ABI boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify focused C++ and lit/FileCheck coverage"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "plugin locality review checklist"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "compute boundary review checklist"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-05-11-scalar-finite-source-route-metadata-coverage/prd.md", "reason": "task acceptance criteria for validation"}

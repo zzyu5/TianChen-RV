@@ -5,6 +5,7 @@
 # SCALAR-VMUL: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-VMUL: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vmul_microkernel. */
 # SCALAR-VMUL: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
+# SCALAR-VMUL: /* This is a bounded fallback library artifact; it is not generic lowering, runtime integration, or performance evidence. */
 # SCALAR-VMUL: #include <stddef.h>
 # SCALAR-VMUL: #include <stdint.h>
 # SCALAR-VMUL: /* selected_kernel: @scalar_vmul_microkernel_export */
@@ -28,4 +29,19 @@
 # SCALAR-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
 # SCALAR-PLAN-SAME: runtime_abi_name = "scalar-i32-vmul-runtime-callable-c-function.v1"
 # SCALAR-PLAN-SAME: runtime_glue_role = "runtime-callable-i32-vmul-fallback-function"
+# SCALAR-PLAN-SAME: selected_plan_metadata = [{name = "tcrv_scalar.selected_binary_dtype"
+# SCALAR-PLAN-SAME: role = "selected-scalar-binary-descriptor"
+# SCALAR-PLAN-SAME: value = "i32"
+# SCALAR-PLAN-SAME: {name = "tcrv_scalar.selected_binary_family"
+# SCALAR-PLAN-SAME: role = "selected-scalar-binary-descriptor"
+# SCALAR-PLAN-SAME: value = "i32-vmul"
+# SCALAR-PLAN-SAME: {name = "tcrv_scalar.selected_binary_operator"
+# SCALAR-PLAN-SAME: role = "selected-scalar-binary-descriptor"
+# SCALAR-PLAN-SAME: value = "multiply"
+# SCALAR-PLAN-SAME: {name = "tcrv_scalar.selected_lowering_descriptor"
+# SCALAR-PLAN-SAME: role = "selected-scalar-binary-descriptor"
+# SCALAR-PLAN-SAME: value = "i32-vmul-microkernel.v1"
+# SCALAR-PLAN-SAME: {name = "tcrv_scalar.runtime_element_count_c_name"
+# SCALAR-PLAN-SAME: role = "scalar-runtime-control-name-boundary"
+# SCALAR-PLAN-SAME: value = "n"
 # SCALAR-PLAN-SAME: status = "supported"
