@@ -8,6 +8,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVOpsDialect.h.inc"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVEnums.h.inc"

@@ -120,13 +120,14 @@ module @rvv_microkernel_input {
 // LIB: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 // LIB: /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
 // LIB: /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
-// LIB: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
+// LIB: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // LIB: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 // LIB: /* emitc_lowerable_interface: TCRVEmitCLowerableInterface */
+// LIB: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // LIB: /* emitc_route_id: tcrv-export-rvv-microkernel-c, route_kind=extension-family-ops-to-emitc-call-opaque */
 // LIB: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */
 // LIB: /* emitc.call_opaque[3]: __riscv_vadd_vv_i32m1 from tcrv_rvv.i32_add */
-// LIB: /* emitc.call_opaque_boundary[3]: source_role=compute, operands=3, result=sum_vec:vint32m1_t */
+// LIB: /* emitc.call_opaque_boundary[3]: source_role=compute, operands=3, result=sum_vec:vint32m1_t, op_interface=TCRVEmitCLowerableOpInterface */
 // LIB: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // LIB: /* artifact_kind: runtime-callable-c-source */
 // LIB: /* element_count: 16 */

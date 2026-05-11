@@ -139,6 +139,11 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
     if (llvm::Error error =
             validateText(routeID, "source op role", step.sourceOp.role))
       return error;
+    if (!step.sourceOp.opInterface.empty())
+      if (llvm::Error error =
+              validateText(routeID, "source op interface",
+                           step.sourceOp.opInterface))
+        return error;
     for (const TCRVEmitCCallOpaqueOperand &operand : step.operands) {
       if (llvm::Error error =
               validateText(routeID, "call_opaque operand expression",

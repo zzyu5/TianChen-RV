@@ -4,6 +4,7 @@
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
+include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td"
 
 def TCRV_RVV_Dialect : Dialect {
   let name = "tcrv_rvv";
@@ -222,7 +223,8 @@ def I32LoadOp : TCRVRVV_Op<"i32_load", []> {
   let hasVerifier = 1;
 }
 
-def I32AddOp : TCRVRVV_Op<"i32_add", []> {
+def I32AddOp : TCRVRVV_Op<"i32_add",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i32 add dataflow op";
   let description = [{
     Records the finite plugin-local RVV i32 vector add in the current i32-vadd
@@ -247,7 +249,8 @@ def I32AddOp : TCRVRVV_Op<"i32_add", []> {
   let hasVerifier = 1;
 }
 
-def I32SubOp : TCRVRVV_Op<"i32_sub", []> {
+def I32SubOp : TCRVRVV_Op<"i32_sub",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i32 subtract dataflow op";
   let description = [{
     Records the finite plugin-local RVV i32 vector subtract in the current
@@ -272,7 +275,8 @@ def I32SubOp : TCRVRVV_Op<"i32_sub", []> {
   let hasVerifier = 1;
 }
 
-def I32MulOp : TCRVRVV_Op<"i32_mul", []> {
+def I32MulOp : TCRVRVV_Op<"i32_mul",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i32 multiply dataflow op";
   let description = [{
     Records the finite plugin-local RVV i32 vector multiply in the current

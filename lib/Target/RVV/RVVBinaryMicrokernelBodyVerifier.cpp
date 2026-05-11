@@ -1,5 +1,7 @@
 #include "TianChenRV/Target/RVV/RVVBinaryMicrokernelBodyVerifier.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -15,6 +17,7 @@ namespace tianchenrv::target::rvv {
 namespace {
 
 using tianchenrv::support::RuntimeABIParameterRole;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::rvv::I32AddOp;
 using tianchenrv::tcrv::rvv::I32LoadOp;
@@ -40,6 +43,8 @@ constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 llvm::StringRef stringifyTailPolicyValue(TailPolicy policy) {
   switch (policy) {
@@ -148,6 +153,8 @@ RVVBinaryDataflowStep makeLoadStep(llvm::StringRef sourceOpName,
 }
 
 RVVBinaryDataflowStep makeArithmeticStep(llvm::StringRef sourceOpName,
+                                         llvm::StringRef sourceOpRole,
+                                         llvm::StringRef sourceOpInterface,
                                          RVVBinaryDataflowStepKind kind,
                                          RVVBinaryDataflowValue lhs,
                                          RVVBinaryDataflowValue rhs,
@@ -155,6 +162,8 @@ RVVBinaryDataflowStep makeArithmeticStep(llvm::StringRef sourceOpName,
   RVVBinaryDataflowStep step;
   step.kind = kind;
   step.sourceOpName = sourceOpName.str();
+  step.sourceOpRole = sourceOpRole.str();
+  step.sourceOpInterface = sourceOpInterface.str();
   step.lhs = lhs;
   step.rhs = rhs;
   step.result = result;
@@ -356,11 +365,52 @@ llvm::Expected<RVVIntrinsicConfig> buildIntrinsicConfig(
 
 void appendArithmeticStep(RVVBinaryDataflowEmissionPlan &plan,
                           llvm::StringRef sourceOpName,
+                          llvm::StringRef sourceOpRole,
+                          llvm::StringRef sourceOpInterface,
                           RVVBinaryDataflowStepKind kind) {
   plan.steps.push_back(makeArithmeticStep(
-      sourceOpName, kind, RVVBinaryDataflowValue::LHSVector,
+      sourceOpName, sourceOpRole, sourceOpInterface, kind,
+      RVVBinaryDataflowValue::LHSVector,
       RVVBinaryDataflowValue::RHSVector,
       RVVBinaryDataflowValue::ResultVector));
+}
+
+llvm::Error requireGeneratedEmitCLowerableInterface(
+    const RVVBinaryMicrokernelBodyValidationRequest &request,
+    mlir::Operation *op, llvm::StringRef expectedSourceOpName,
+    llvm::StringRef &sourceOpName, llvm::StringRef &sourceOpRole) {
+  auto lowerable = llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(op);
+  if (!lowerable)
+    return makeBodyVerifierError(
+        request,
+        llvm::Twine("finite dataflow arithmetic op '") +
+            op->getName().getStringRef() +
+            "' must implement generated TCRVEmitCLowerableOpInterface "
+            "before the RVV EmitC route is constructed");
+
+  sourceOpName = lowerable.getTCRVEmitCLowerableSourceOpName();
+  sourceOpRole = lowerable.getTCRVEmitCLowerableSourceRole();
+  if (llvm::Error error =
+          validateBoundedText(request, "EmitC lowerable source op",
+                              sourceOpName))
+    return error;
+  if (llvm::Error error =
+          validateBoundedText(request, "EmitC lowerable source role",
+                              sourceOpRole))
+    return error;
+  if (sourceOpName != expectedSourceOpName)
+    return makeBodyVerifierError(
+        request,
+        llvm::Twine("generated TCRVEmitCLowerableOpInterface source op '") +
+            sourceOpName + "' must match selected RVV family operation '" +
+            expectedSourceOpName + "' before artifact export");
+  if (sourceOpRole != "compute")
+    return makeBodyVerifierError(
+        request,
+        llvm::Twine("generated TCRVEmitCLowerableOpInterface source role '") +
+            sourceOpRole +
+            "' must be 'compute' for bounded RVV i32 arithmetic ops");
+  return llvm::Error::success();
 }
 
 llvm::Error validateI32DataflowBody(
@@ -396,6 +446,8 @@ llvm::Error validateI32DataflowBody(
   mlir::Value arithmeticRHS;
   mlir::Value arithmeticVL;
   mlir::Value arithmeticResult;
+  llvm::StringRef arithmeticSourceOpName;
+  llvm::StringRef arithmeticSourceOpRole;
   RVVBinaryDataflowStepKind arithmeticStepKind =
       RVVBinaryDataflowStepKind::Mul;
   if (auto add = llvm::dyn_cast<I32AddOp>(ops[2])) {
@@ -441,6 +493,11 @@ llvm::Error validateI32DataflowBody(
             "' requires exactly tcrv_rvv.i32_load, tcrv_rvv.i32_load, " +
             request.descriptor.getRVVOperationName() +
             ", tcrv_rvv.i32_store before artifact export");
+
+  if (llvm::Error error = requireGeneratedEmitCLowerableInterface(
+          request, ops[2], request.descriptor.getRVVOperationName(),
+          arithmeticSourceOpName, arithmeticSourceOpRole))
+    return error;
 
   if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
       arithmeticVL != withVL.getVl() || store.getVl() != withVL.getVl())
@@ -509,8 +566,8 @@ llvm::Error validateI32DataflowBody(
   plan.steps.push_back(
       makeLoadStep(rhsLoad->getName().getStringRef(), *rhsRole,
                    RVVBinaryDataflowValue::RHSVector));
-  appendArithmeticStep(plan, ops[2]->getName().getStringRef(),
-                       arithmeticStepKind);
+  appendArithmeticStep(plan, arithmeticSourceOpName, arithmeticSourceOpRole,
+                       kEmitCLowerableOpInterfaceName, arithmeticStepKind);
   plan.steps.push_back(
       makeStoreStep(store->getName().getStringRef(), *storeRole,
                     RVVBinaryDataflowValue::ResultVector));
@@ -663,7 +720,7 @@ llvm::Error validateI64DataflowBody(
   plan.steps.push_back(
       makeLoadStep(rhsLoad->getName().getStringRef(), *rhsRole,
                    RVVBinaryDataflowValue::RHSVector));
-  appendArithmeticStep(plan, ops[2]->getName().getStringRef(),
+  appendArithmeticStep(plan, ops[2]->getName().getStringRef(), "compute", "",
                        arithmeticStepKind);
   plan.steps.push_back(
       makeStoreStep(store->getName().getStringRef(), *storeRole,

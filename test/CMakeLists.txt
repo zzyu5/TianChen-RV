@@ -324,7 +324,9 @@ add_executable(tianchenrv-emitc-lowerable-interface-test
 target_link_libraries(tianchenrv-emitc-lowerable-interface-test
   PRIVATE
   TianChenRVConversionEmitC
+  TianChenRVRVVDialect
   TianChenRVSupport
+  MLIRIR
   MLIRSupport
 )
 

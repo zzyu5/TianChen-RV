@@ -1,5 +1,10 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -8,6 +13,9 @@
 using namespace tianchenrv::conversion::emitc;
 
 namespace {
+
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 int fail(llvm::Twine message) {
   llvm::errs() << "FAIL: " << message << "\n";
@@ -20,8 +28,47 @@ int expect(bool condition, llvm::Twine message) {
   return fail(message);
 }
 
-class ValidRVVAddLowerable final : public TCRVEmitCLowerableInterface {
+mlir::Operation *createRVVArithmeticOp(mlir::OpBuilder &builder,
+                                       mlir::Location loc,
+                                       llvm::StringRef opName,
+                                       mlir::Value lhs, mlir::Value rhs,
+                                       mlir::Value vl,
+                                       mlir::Type resultType) {
+  mlir::OperationState state(loc, opName);
+  state.addOperands({lhs, rhs, vl});
+  state.addTypes(resultType);
+  return builder.create(state);
+}
+
+int expectRVVArithmeticOpInterface(mlir::Operation *op,
+                                   llvm::StringRef expectedOpName) {
+  auto lowerable = llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(op);
+  if (!lowerable)
+    return fail(llvm::Twine(expectedOpName) +
+                " must implement generated TCRVEmitCLowerableOpInterface");
+  if (int result = expect(lowerable.getTCRVEmitCLowerableSourceOpName() ==
+                              expectedOpName,
+                          llvm::Twine(expectedOpName) +
+                              " reports generated-interface source op name"))
+    return result;
+  if (int result = expect(lowerable.getTCRVEmitCLowerableSourceRole() ==
+                              "compute",
+                          llvm::Twine(expectedOpName) +
+                              " reports generated-interface source role"))
+    return result;
+  return 0;
+}
+
+class GeneratedRVVArithmeticLowerable final
+    : public TCRVEmitCLowerableInterface {
 public:
+  GeneratedRVVArithmeticLowerable(TCRVEmitCLowerableOpInterface sourceOp,
+                                  llvm::StringRef callee,
+                                  llvm::StringRef resultName)
+      : sourceOpName(sourceOp.getTCRVEmitCLowerableSourceOpName().str()),
+        sourceOpRole(sourceOp.getTCRVEmitCLowerableSourceRole().str()),
+        callee(callee.str()), resultName(resultName.str()) {}
+
   llvm::Expected<TCRVEmitCLowerableRoute>
   buildEmitCLowerableRoute() const override {
     using tianchenrv::support::RuntimeABIParameter;
@@ -64,17 +111,24 @@ public:
     setvl.result = TCRVEmitCCallOpaqueResult{"vl", "size_t"};
     route.addCallOpaqueStep(std::move(setvl));
 
-    TCRVEmitCCallOpaqueStep add;
-    add.sourceOp = {"tcrv_rvv.i32_add", "compute"};
-    add.callee = "__riscv_vadd_vv_i32m1";
-    add.operands.push_back({"lhs_vec", "vint32m1_t"});
-    add.operands.push_back({"rhs_vec", "vint32m1_t"});
-    add.operands.push_back({"vl", "size_t"});
-    add.result = TCRVEmitCCallOpaqueResult{"sum_vec", "vint32m1_t"};
-    route.addCallOpaqueStep(std::move(add));
+    TCRVEmitCCallOpaqueStep arithmetic;
+    arithmetic.sourceOp = {sourceOpName, sourceOpRole,
+                           kEmitCLowerableOpInterfaceName.str()};
+    arithmetic.callee = callee;
+    arithmetic.operands.push_back({"lhs_vec", "vint32m1_t"});
+    arithmetic.operands.push_back({"rhs_vec", "vint32m1_t"});
+    arithmetic.operands.push_back({"vl", "size_t"});
+    arithmetic.result = TCRVEmitCCallOpaqueResult{resultName, "vint32m1_t"};
+    route.addCallOpaqueStep(std::move(arithmetic));
 
     return route;
   }
+
+private:
+  std::string sourceOpName;
+  std::string sourceOpRole;
+  std::string callee;
+  std::string resultName;
 };
 
 class InvalidMissingCalleeLowerable final : public TCRVEmitCLowerableInterface {
@@ -95,7 +149,43 @@ public:
 } // namespace
 
 int main() {
-  ValidRVVAddLowerable valid;
+  mlir::MLIRContext context;
+  context.getOrLoadDialect<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
+
+  mlir::Location loc = mlir::UnknownLoc::get(&context);
+  mlir::Block block;
+  mlir::Type vectorType =
+      tianchenrv::tcrv::rvv::I32M1VectorType::get(&context);
+  mlir::Type vlType = tianchenrv::tcrv::rvv::VLType::get(&context);
+  mlir::Value lhs = block.addArgument(vectorType, loc);
+  mlir::Value rhs = block.addArgument(vectorType, loc);
+  mlir::Value vl = block.addArgument(vlType, loc);
+  mlir::OpBuilder builder(&context);
+  builder.setInsertionPointToEnd(&block);
+
+  mlir::Operation *addOp =
+      createRVVArithmeticOp(builder, loc, "tcrv_rvv.i32_add", lhs, rhs, vl,
+                            vectorType);
+  mlir::Operation *subOp =
+      createRVVArithmeticOp(builder, loc, "tcrv_rvv.i32_sub", lhs, rhs, vl,
+                            vectorType);
+  mlir::Operation *mulOp =
+      createRVVArithmeticOp(builder, loc, "tcrv_rvv.i32_mul", lhs, rhs, vl,
+                            vectorType);
+
+  if (int result =
+          expectRVVArithmeticOpInterface(addOp, "tcrv_rvv.i32_add"))
+    return result;
+  if (int result =
+          expectRVVArithmeticOpInterface(subOp, "tcrv_rvv.i32_sub"))
+    return result;
+  if (int result =
+          expectRVVArithmeticOpInterface(mulOp, "tcrv_rvv.i32_mul"))
+    return result;
+
+  auto addLowerable = llvm::cast<TCRVEmitCLowerableOpInterface>(addOp);
+  GeneratedRVVArithmeticLowerable valid(addLowerable,
+                                        "__riscv_vadd_vv_i32m1", "sum_vec");
   llvm::Expected<TCRVEmitCLowerableRoute> route =
       buildTCRVEmitCLowerableRoute(valid);
   if (!route)
@@ -121,6 +211,11 @@ int main() {
   if (int result = expect(route->getCallOpaqueSteps()[1].sourceOp.opName ==
                               "tcrv_rvv.i32_add",
                           "common route records typed source op provenance"))
+    return result;
+  if (int result =
+          expect(route->getCallOpaqueSteps()[1].sourceOp.opInterface ==
+                     kEmitCLowerableOpInterfaceName.str(),
+                 "common route records generated op-interface provenance"))
     return result;
   if (int result =
           expect(route->getCallOpaqueSteps()[1].callee ==

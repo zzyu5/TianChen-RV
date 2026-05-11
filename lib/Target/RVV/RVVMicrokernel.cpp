@@ -2818,6 +2818,7 @@ public:
       TCRVEmitCCallOpaqueStep emitcStep;
       emitcStep.sourceOp.opName = getDataflowStepOpName(step, descriptor);
       emitcStep.sourceOp.role = getRouteSourceRole(step).str();
+      emitcStep.sourceOp.opInterface = step.sourceOpInterface;
       emitcStep.callee =
           getEmitCCallOpaqueCalleeForStep(step, intrinsicConfig);
       if (emitcStep.sourceOp.opName.empty() || emitcStep.callee.empty())
@@ -2881,6 +2882,8 @@ public:
 
 private:
   static llvm::StringRef getRouteSourceRole(const RVVI32VAddDataflowStep &step) {
+    if (!step.sourceOpRole.empty())
+      return step.sourceOpRole;
     switch (step.kind) {
     case RVVI32VAddDataflowStepKind::Load:
       return "buffer-load";
@@ -2929,6 +2932,9 @@ void printDataflowPlanMetadata(
       os << ", lhs=" << getDataflowValueCName(step.lhs, descriptor)
          << ", rhs=" << getDataflowValueCName(step.rhs, descriptor)
          << ", result=" << getDataflowValueCName(step.result, descriptor);
+      if (!step.sourceOpInterface.empty())
+        os << ", interface=" << step.sourceOpInterface
+           << ", source_role=" << step.sourceOpRole;
       break;
     case RVVI32VAddDataflowStepKind::Store:
       os << ", role="
@@ -2945,6 +2951,19 @@ void printEmitCRouteMetadata(llvm::raw_ostream &os,
   os << "/* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV "
         "intrinsic C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
+  bool hasGeneratedOpInterface = llvm::any_of(
+      route.getCallOpaqueSteps(), [](const TCRVEmitCCallOpaqueStep &step) {
+        return !step.sourceOp.opInterface.empty();
+      });
+  if (hasGeneratedOpInterface) {
+    for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps()) {
+      if (step.sourceOp.opInterface.empty())
+        continue;
+      os << "/* emitc_lowerable_op_interface: "
+         << step.sourceOp.opInterface << " */\n";
+      break;
+    }
+  }
   os << "/* emitc_route_id: " << route.getRouteID()
      << ", route_kind=" << route.getRouteKind() << " */\n";
   os << "/* emitc_route_headers:";
@@ -2969,6 +2988,8 @@ void printEmitCRouteMetadata(llvm::raw_ostream &os,
       os << ", result=" << step.result->name << ":" << step.result->cType;
     else
       os << ", result=void";
+    if (!step.sourceOp.opInterface.empty())
+      os << ", op_interface=" << step.sourceOp.opInterface;
     os << " */\n";
   }
 }

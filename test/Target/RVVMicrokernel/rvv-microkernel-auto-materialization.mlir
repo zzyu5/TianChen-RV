@@ -134,8 +134,9 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
 // EXPORT: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 // EXPORT: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
-// EXPORT: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec */
+// EXPORT: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // EXPORT: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+// EXPORT: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // EXPORT: /* emitc_route_headers: <stddef.h> <stdint.h> <riscv_vector.h> */
 // EXPORT: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */
 // EXPORT: /* emitc.call_opaque[0]: __riscv_vsetvl_e32m1 from tcrv_rvv.setvl */

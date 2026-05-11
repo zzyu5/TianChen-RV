@@ -99,6 +99,69 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 30: Generated EmitC lowerable op interface for RVV i32 family
+
+**Date**: 2026-05-11
+**Task**: Generated TCRV EmitC lowerable op interface for RVV i32 family ops
+**Branch**: `main`
+
+### Summary
+
+Closed the ODS follow-up to the common EmitC lowerable route. Added a generated
+`TCRVEmitCLowerableOpInterface`, attached it to bounded
+`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, and `tcrv_rvv.i32_mul`, and changed
+the RVV body verifier/export path to query that generated interface before
+building the existing `TCRVEmitCLowerableRoute` payload. Descriptor metadata
+remains selected-config/ABI/legacy cross-check data and does not define
+arithmetic semantics.
+
+### Main Changes
+
+- Added TableGen/CMake generation for
+  `TCRVEmitCLowerableOpInterface` under `Conversion/EmitC`.
+- Kept the hand-written `TCRVEmitCLowerableInterface` as the C++ route-builder
+  adapter and recorded the naming decision in the task PRD and
+  `.trellis/spec/lowering-runtime/emitc-route.md`.
+- Extended route provenance with `opInterface` and surfaced
+  `emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface` in exported C
+  metadata.
+- Updated focused C++ and lit/FileCheck coverage for add/sub/mul,
+  linalg-to-RVV frontend artifact paths, and e2e dry-run evidence text.
+- No RVV runtime/correctness/performance claim was made; no fresh `ssh rvv`
+  evidence was required.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  MLIRTCRVEmitCLowerableOpInterfaceIncGen MLIRRVVOpsIncGen
+  TianChenRVConversionEmitC TianChenRVRVVDialect TianChenRVRVVTarget
+  tcrv-translate tianchenrv-emitc-lowerable-interface-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- Focused lit:
+  `rvv-microkernel-pipeline|rvv-microkernel-i32-add-descriptor-body-mismatch-fails|rvv-microkernel-family-(sub|mul)`,
+  6/6 passed.
+- Failure repair: full check first exposed stale FileCheck expectations in
+  linalg i32 sub/mul frontend artifact tests, auto-materialization, and
+  `rvv-microkernel-e2e.test`; updated those expectations to the new
+  generated-interface provenance.
+- Focused failing rerun:
+  `linalg-i32-vmul-to-rvv-artifact|linalg-i32-vsub-to-rvv-artifact|rvv-microkernel-auto-materialization|rvv-microkernel-e2e.test`,
+  4/4 passed after repair.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-tcrv-emitc-ods-lowerable-interface-rvv-i32-family`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  206/206 tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 27: Common EmitC lowerable interface with RVV i32-add consumer
 
 **Date**: 2026-05-11

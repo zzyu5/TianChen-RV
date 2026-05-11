@@ -30,6 +30,7 @@ struct TCRVEmitCABIValueMapping {
 struct TCRVEmitCSourceOpProvenance {
   std::string opName;
   std::string role;
+  std::string opInterface;
 };
 
 struct TCRVEmitCCallOpaqueOperand {
