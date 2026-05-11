@@ -99,6 +99,85 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 29: RVV direct i32-vmul EmitC ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV family EmitC direct ssh evidence
+**Branch**: `main`
+
+### Summary
+
+Closed the direct typed RVV `i32-vmul` family-op EmitC evidence task. This
+round did not change C++ lowering architecture; it tightened the evidence
+runner so direct `i32-vmul` evidence is accepted only when the generated source
+and manifest are tied to the selected `i32-vmul-microkernel.v1` descriptor,
+the typed `tcrv_rvv.i32_vmul_microkernel` body, and the
+`RVVEmitCIntrinsicRoute` / `emitc.call_opaque` mapping to
+`__riscv_vmul_vv_i32m1`.
+
+### Main Changes
+
+- Created Trellis task
+  `.trellis/tasks/05-11-rvv-family-emitc-direct-ssh-evidence/` with PRD and
+  curated implement/check context.
+- Added direct `i32-vmul` runner validation for manifest selected descriptor
+  authority, including `tcrv_rvv.selected_lowering_descriptor =
+  i32-vmul-microkernel.v1`.
+- Added source EmitC route provenance validation for
+  `emitc_route`, `emitc_route_headers`, `emitc_route_source_ops`, and indexed
+  `emitc.call_opaque` mappings, including
+  `emitc.call_opaque[3]: __riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul`.
+- Extended `rvv-microkernel-e2e.test` to assert the new direct `i32-vmul`
+  evidence JSON authority fields.
+
+### Runtime Evidence
+
+- Evidence directory:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-i32-vmul-emitc-ssh/`.
+- Evidence JSON:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-i32-vmul-emitc-ssh/evidence.json`.
+- Command:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vmul
+  --run-id codex-i32-vmul-emitc-ssh --overwrite --timeout 120 --ssh-target rvv`
+- Result: `status=success`, `pass_fail_result=pass`, `ssh_evidence=true`,
+  `stdout_marker_observed=true`.
+- Both source-built and generated-object external caller paths compiled,
+  linked, ran, and observed
+  `tcrv_rvv_i32_vmul_microkernel_external_abi_ok`.
+- Claim is limited to bounded correctness for this generated direct RVV
+  `i32-vmul` helper artifact handoff plus header/object external caller route
+  on `ssh rvv`. No performance or generic RVV lowering claim was made.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVTarget
+  tcrv-opt tcrv-translate -j2`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run
+  --arithmetic-family=i32-vmul --run-id codex-i32-vmul-emitc-direct-dryrun
+  --overwrite`
+- Focused lit filter:
+  `rvv-microkernel-family-mul.mlir|rvv-microkernel-e2e.test`, 2/2 passed.
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-family-emitc-direct-ssh-evidence`
+- `python3 ./.trellis/scripts/task.py validate` on both referenced archived
+  parent task paths passed.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 27: RVV family-op EmitC intrinsic route
 
 **Date**: 2026-05-11

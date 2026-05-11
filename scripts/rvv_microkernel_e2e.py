@@ -99,6 +99,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "diagnostic_name": "i32-vmul",
         "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir"),
         "default_vector_shape": "i32m1",
+        "lowering_descriptor": "i32-vmul-microkernel.v1",
         "selected_variant": "rvv_mul_slice",
         "microkernel_op_name": "tcrv_rvv.i32_vmul_microkernel",
         "arithmetic_op_name": "tcrv_rvv.i32_mul",
@@ -1357,6 +1358,19 @@ def require_direct_manifest_artifacts(
                 f"{context} selected binary family does not match requested "
                 f"{selected_family}"
             )
+        expected_lowering_descriptor = str(
+            ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
+        )
+        if expected_lowering_descriptor and (
+            manifest_metadata_value(
+                record, "tcrv_rvv.selected_lowering_descriptor", context
+            )
+            != expected_lowering_descriptor
+        ):
+            raise BridgeError(
+                f"{context} selected lowering descriptor does not match "
+                f"requested {expected_lowering_descriptor}"
+            )
         if (
             manifest_metadata_value(
                 record, "tcrv_rvv.selected_vector_shape", context
@@ -1369,6 +1383,41 @@ def require_direct_manifest_artifacts(
             )
         selected[component_role] = record
     return selected
+
+
+def build_selected_binary_descriptor_authority(
+    record: dict[str, Any], context: str
+) -> dict[str, str]:
+    descriptor_names = [
+        "tcrv_rvv.selected_binary_dtype",
+        "tcrv_rvv.selected_binary_family",
+        "tcrv_rvv.selected_binary_operator",
+        "tcrv_rvv.selected_lowering_descriptor",
+    ]
+    authority = {
+        name.removeprefix("tcrv_rvv."): manifest_metadata_value(
+            record, name, context
+        )
+        for name in descriptor_names
+    }
+    selected_family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    if authority["selected_binary_family"] != selected_family:
+        raise BridgeError(
+            f"{context} selected binary family does not match requested "
+            f"{selected_family}"
+        )
+    expected_lowering_descriptor = str(
+        ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
+    )
+    if (
+        expected_lowering_descriptor
+        and authority["selected_lowering_descriptor"] != expected_lowering_descriptor
+    ):
+        raise BridgeError(
+            f"{context} selected lowering descriptor does not match requested "
+            f"{expected_lowering_descriptor}"
+        )
+    return authority
 
 
 def build_manifest_artifact_authority(
@@ -1573,6 +1622,9 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "/* executable_microkernel: "
         + str(ACTIVE_ARITHMETIC_FAMILY["microkernel_op_name"])
         + " */",
+        "/* arithmetic_family: "
+        + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+        + " */",
         "/* arithmetic_c_operator: " + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"]),
         "/* selected_vector_shape_config:",
         "/* selected_vector_shape_capabilities:",
@@ -1673,6 +1725,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         raise BridgeError("selected_march from generated source must contain RVV vector evidence")
     vector_config = validate_vector_shape_metadata(source)
     provenance = validate_dataflow_provenance(source)
+    emitc_route_provenance = validate_emitc_route_provenance(source)
     compiler_path_context = validate_compiler_path_context(source)
     runtime_abi_parameters = validate_runtime_abi_signature(
         parse_runtime_abi_parameters_from_source(source), ACTIVE_ARITHMETIC_FAMILY
@@ -1683,6 +1736,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "arithmetic_operator": arithmetic_operator,
         "vector_config": vector_config,
         "dataflow_provenance": provenance,
+        "emitc_route_provenance": emitc_route_provenance,
         "compiler_path_context": compiler_path_context,
         "runtime_abi_parameters": runtime_abi_parameters,
     }
@@ -1811,6 +1865,111 @@ def validate_dataflow_provenance(source: str) -> dict[str, str]:
             )
         provenance[field] = value
     return provenance
+
+
+def validate_emitc_route_provenance(source: str) -> dict[str, str]:
+    if str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]) != "i32-vmul":
+        return {}
+
+    dtype = family_dtype(ACTIVE_ARITHMETIC_FAMILY)
+    expected_route = "tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++"
+    expected_source_ops = (
+        "tcrv_rvv.setvl tcrv_rvv.with_vl "
+        + "tcrv_rvv."
+        + dtype
+        + "_load tcrv_rvv."
+        + dtype
+        + "_load "
+        + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+        + " tcrv_rvv."
+        + dtype
+        + "_store"
+    )
+    expected_calls = {
+        "emitc.call_opaque[0]": setvl_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE)
+        + " from tcrv_rvv.setvl",
+        "emitc.call_opaque[1]": load_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE)
+        + " from tcrv_rvv."
+        + dtype
+        + "_load",
+        "emitc.call_opaque[2]": load_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE)
+        + " from tcrv_rvv."
+        + dtype
+        + "_load",
+        "emitc.call_opaque[3]": arithmetic_intrinsic_for_family(
+            ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE
+        )
+        + " from "
+        + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"]),
+        "emitc.call_opaque[4]": store_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE)
+        + " from tcrv_rvv."
+        + dtype
+        + "_store",
+    }
+
+    observed_route = parse_source_comment(source, "emitc_route", required=True)
+    if observed_route != expected_route:
+        raise BridgeError(
+            "generated RVV i32-vmul source emitc_route does not match the "
+            "family-op to emitc.call_opaque intrinsic route"
+        )
+    observed_headers = parse_source_comment(
+        source, "emitc_route_headers", required=True
+    )
+    for required_header in ("<stddef.h>", "<stdint.h>", "<riscv_vector.h>"):
+        if required_header not in observed_headers:
+            raise BridgeError(
+                "generated RVV i32-vmul source emitc_route_headers missing "
+                + required_header
+            )
+    observed_source_ops = parse_source_comment(
+        source, "emitc_route_source_ops", required=True
+    )
+    if observed_source_ops != expected_source_ops:
+        raise BridgeError(
+            "generated RVV i32-vmul source emitc_route_source_ops does not "
+            "match the verified typed family-op body"
+        )
+
+    authority = {
+        "emitc_route": observed_route,
+        "emitc_route_headers": observed_headers,
+        "emitc_route_source_ops": observed_source_ops,
+        "executable_microkernel": parse_source_comment(
+            source, "executable_microkernel", required=True
+        ),
+        "arithmetic_family": parse_source_comment(
+            source, "arithmetic_family", required=True
+        ),
+        "dataflow_body": parse_source_comment(source, "dataflow_body", required=True),
+    }
+    if authority["executable_microkernel"] != str(
+        ACTIVE_ARITHMETIC_FAMILY["microkernel_op_name"]
+    ):
+        raise BridgeError(
+            "generated RVV i32-vmul source executable_microkernel does not "
+            "match the selected typed family body"
+        )
+    if authority["arithmetic_family"] != str(
+        ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]
+    ):
+        raise BridgeError(
+            "generated RVV i32-vmul source arithmetic_family does not match "
+            "the requested direct route"
+        )
+
+    for field, expected in expected_calls.items():
+        observed = parse_source_comment(source, field, required=True)
+        if observed != expected:
+            raise BridgeError(
+                "generated RVV i32-vmul source "
+                + field
+                + " does not match expected EmitC call mapping "
+                + expected
+            )
+        authority[field] = observed
+    authority["emitc_arithmetic_call"] = authority["emitc.call_opaque[3]"]
+    return authority
 
 
 def normalize_c_parameter_list(parameter_text: str) -> str:
@@ -3607,9 +3766,16 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         and ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"] == "i32-vmul"
     )
     direct_manifest_artifacts: dict[str, dict[str, Any]] = {}
+    selected_binary_descriptor_authority: dict[str, str] = {}
     if uses_direct_manifest_authority:
         direct_manifest_artifacts = require_direct_manifest_artifacts(
             manifest_handoff
+        )
+        selected_binary_descriptor_authority = (
+            build_selected_binary_descriptor_authority(
+                direct_manifest_artifacts["source"],
+                "manifest source target_artifact",
+            )
         )
 
     if args.generic_route:
@@ -3864,6 +4030,8 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             ),
         ],
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
+        "source_emitc_route_provenance": source_flags["emitc_route_provenance"],
+        "selected_binary_descriptor_authority": selected_binary_descriptor_authority,
         "compiler_path_context": source_flags["compiler_path_context"],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_operator": source_flags["arithmetic_operator"],
@@ -4599,6 +4767,14 @@ void f(void) {
 /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=product_vec */
+/* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+/* emitc_route_headers: <stddef.h> <stdint.h> <riscv_vector.h> */
+/* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_mul tcrv_rvv.i32_store */
+/* emitc.call_opaque[0]: __riscv_vsetvl_e32m1 from tcrv_rvv.setvl */
+/* emitc.call_opaque[1]: __riscv_vle32_v_i32m1 from tcrv_rvv.i32_load */
+/* emitc.call_opaque[2]: __riscv_vle32_v_i32m1 from tcrv_rvv.i32_load */
+/* emitc.call_opaque[3]: __riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul */
+/* emitc.call_opaque[4]: __riscv_vse32_v_i32m1 from tcrv_rvv.i32_store */
 /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
@@ -4621,6 +4797,26 @@ void f(void) {
         == "op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec",
         "dataflow provenance parser lost multiply step",
     )
+    assert_self_test(
+        vmul_flags["emitc_route_provenance"]["emitc_arithmetic_call"]
+        == "__riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul",
+        "vmul EmitC arithmetic call provenance was not preserved",
+    )
+    try:
+        validate_generated_source(
+            sample_vmul_source.replace(
+                "__riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul",
+                "__riscv_vmul_vv_i32m1 from tcrv_rvv.i32_add",
+            ),
+            require_harness=False,
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "emitc.call_opaque[3]" in str(error),
+            "stale vmul EmitC call mapping diagnostic changed",
+        )
+    else:
+        raise AssertionError("stale vmul EmitC call mapping was accepted")
     vmul_caller = build_external_caller_source(
         "tcrv_rvv_i32_vmul_microkernel_self_test",
         "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vmul-microkernel-header.h",

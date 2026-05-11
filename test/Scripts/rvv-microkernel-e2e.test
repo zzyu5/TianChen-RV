@@ -325,8 +325,22 @@
 # VMUL-EVIDENCE: "emission_kind": "rvv-explicit-i32-vmul-microkernel-c-source"
 # VMUL-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vmul-microkernel-c"
 # VMUL-EVIDENCE: "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"
+# VMUL-EVIDENCE: "selected_binary_descriptor_authority": {
+# VMUL-EVIDENCE-DAG: "selected_binary_dtype": "i32"
+# VMUL-EVIDENCE-DAG: "selected_binary_family": "i32-vmul"
+# VMUL-EVIDENCE-DAG: "selected_binary_operator": "multiply"
+# VMUL-EVIDENCE-DAG: "selected_lowering_descriptor": "i32-vmul-microkernel.v1"
 # VMUL-EVIDENCE: "dataflow_emission_step[2]": "op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec"
 # VMUL-EVIDENCE: "dataflow_emission_step[3]": "op=tcrv_rvv.i32_store, role=output-buffer, value=product_vec"
+# VMUL-EVIDENCE: "source_emitc_route_provenance": {
+# VMUL-EVIDENCE-DAG: "arithmetic_family": "i32-vmul"
+# VMUL-EVIDENCE-DAG: "dataflow_body": "tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store"
+# VMUL-EVIDENCE-DAG: "emitc.call_opaque[3]": "__riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul"
+# VMUL-EVIDENCE-DAG: "emitc_arithmetic_call": "__riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul"
+# VMUL-EVIDENCE-DAG: "emitc_route": "tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++"
+# VMUL-EVIDENCE-DAG: "emitc_route_headers": "<stddef.h> <stdint.h> <riscv_vector.h>"
+# VMUL-EVIDENCE-DAG: "emitc_route_source_ops": "tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_mul tcrv_rvv.i32_store"
+# VMUL-EVIDENCE-DAG: "executable_microkernel": "tcrv_rvv.i32_vmul_microkernel"
 # VMUL-EVIDENCE-NOT: rvv-explicit-i32-vadd-microkernel-c-source
 # VMUL-EVIDENCE-NOT: rvv-explicit-i32-vsub-microkernel-c-source
 # VMUL-EVIDENCE-NOT: __riscv_vadd_vv_i32m1
