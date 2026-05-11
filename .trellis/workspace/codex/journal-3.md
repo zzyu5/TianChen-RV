@@ -371,3 +371,58 @@ claimed.
 ### Next Steps
 
 - None - task complete.
+
+
+## Session 24: RVV finite source route metadata coverage
+
+**Date**: 2026-05-11
+**Task**: RVV finite source route metadata coverage
+**Branch**: `main`
+
+### Summary
+
+Generalized descriptor-driven RVV TargetArtifactRouteMetadata registration and generic source-route preflight across all finite RVV binary source routes; updated focused C++/lit coverage and archived the Trellis task.
+
+### Main Changes
+
+- Replaced the RVV `i32-vsub`-only source-route metadata proof with
+  descriptor-driven `TargetArtifactRouteMetadata` registration for every
+  finite RVV binary source route in the direct-route manifest.
+- Made RVV source candidate validation consume selected binary descriptor,
+  vector-shape, capability mirror, runtime AVL/VL boundary, runtime
+  element-count C-name, and runtime ABI metadata before route-local emission.
+- Generalized the built-in RVV extension bundle frontdoor so all finite RVV
+  source routes register metadata requirements through generic preflight.
+- Added C++ and lit/FileCheck coverage for all finite RVV source routes,
+  selected-plan stale/missing metadata failures, stale runtime ABI failures,
+  unknown route behavior, and non-`i32-vsub` source-route export evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- Focused RVV scalar dispatch, bundle, artifact export, RVV microkernel, and
+  linalg-to-exec lit coverage from `artifacts/tmp/tianchenrv-build/test`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-11-rvv-finite-source-route-metadata-coverage`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+No fresh `ssh rvv` run was required or performed because the task made no new
+runtime correctness, hardware execution, throughput, latency, or performance
+claim.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

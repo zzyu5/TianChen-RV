@@ -453,6 +453,107 @@ bool expectRouteSelectedPlanPresenceRequirement(
   return true;
 }
 
+bool expectRouteSelectedPlanExactRequirement(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef requirementName, llvm::StringRef expectedValue,
+    llvm::StringRef expectedRole) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for selected-plan exact requirement check\n";
+    return false;
+  }
+
+  const TargetArtifactSelectedPlanMetadataRequirement *requirement =
+      findRouteSelectedPlanRequirement(*exporter, requirementName);
+  if (!requirement || !requirement->requireExactValue ||
+      requirement->value != expectedValue || requirement->role != expectedRole) {
+    llvm::errs() << "route '" << routeID
+                 << "' lacks expected selected-plan exact requirement '"
+                 << requirementName << "'\n";
+    return false;
+  }
+
+  return true;
+}
+
+bool expectRVVSourceRouteDescriptorMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  if (!expectRouteDescriptorMetadata(
+          registry, family.routeID, family.runtimeABI, family.runtimeABIKind,
+          family.runtimeABIName, family.runtimeGlueRole,
+          "tcrv_rvv.selected_binary_family", family.familyID,
+          "selected-rvv-binary-descriptor", "runtime_correctness_claim"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_binary_dtype",
+          family.dtypeID, "selected-rvv-binary-descriptor"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_binary_operator",
+          family.arithmeticVerb, "selected-rvv-binary-descriptor"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_lowering_descriptor",
+          family.loweringDescriptor, "selected-rvv-binary-descriptor"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID, "tcrv_rvv.runtime_element_count_c_name",
+          "rvv-runtime-control-name-boundary"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_vector_shape",
+          "selected-rvv-vector-shape-config"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_vector_lmul",
+          "selected-rvv-vector-shape-config"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_vector_sew_capability",
+          "selected-rvv-vector-shape-capability"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID, "tcrv_rvv.selected_vector_lmul_capability",
+          "selected-rvv-vector-shape-capability"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.runtime_avl_source",
+          "runtime-element-count-abi-parameter",
+          "rvv-runtime-vl-avl-boundary"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.runtime_avl_role",
+          "runtime-element-count", "rvv-runtime-vl-avl-boundary"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.runtime_vl_source",
+          "tcrv_rvv.setvl", "rvv-runtime-vl-avl-boundary"))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID, "tcrv_rvv.runtime_vl_scope",
+          "tcrv_rvv.with_vl", "rvv-runtime-vl-avl-boundary"))
+    return false;
+
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  const TargetArtifactRouteClaimField *compileClaim =
+      findRouteClaimField(*exporter, "compile_export_claim");
+  const TargetArtifactRouteClaimField *hardwareClaim =
+      findRouteClaimField(*exporter, "hardware_execution_claim");
+  const TargetArtifactRouteClaimField *performanceClaim =
+      findRouteClaimField(*exporter, "performance_claim");
+  if (!compileClaim || compileClaim->value != "compiler-artifact-only" ||
+      !hardwareClaim || hardwareClaim->value != "none" || !performanceClaim ||
+      performanceClaim->value != "none") {
+    llvm::errs() << "RVV source route '" << family.routeID
+                 << "' lacks conservative route claim fields\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
   const TargetArtifactExporter *exporter = registry.lookup(routeID);
@@ -506,10 +607,10 @@ bool expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
 
   for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
        exporter->getRouteMetadata().getSelectedPlanMetadataRequirements()) {
-    llvm::StringRef value =
-        requirement.name == metadataName ? staleValue : requirement.value;
+    std::string value =
+        requirement.name == metadataName ? staleValue.str() : requirement.value;
     candidate.selectedPlanMetadata.push_back(
-        {requirement.name, value.str(), requirement.role,
+        {requirement.name, value, requirement.role,
          "route descriptor preflight test metadata"});
   }
 
@@ -518,6 +619,46 @@ bool expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
       "stale selected-plan route descriptor preflight rejected",
       {"route id", routeID, "selected_plan_metadata", metadataName,
        "must use value"});
+}
+
+bool expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef metadataName) {
+  const TargetArtifactExporter *exporter = registry.lookup(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing exporter route '" << routeID
+                 << "' for missing selected-plan metadata preflight test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate;
+  candidate.routeID = routeID.str();
+  candidate.artifactKind = exporter->getArtifactKind().str();
+  candidate.origin = exporter->getOriginPlugin().str();
+  candidate.emissionKind = exporter->getEmissionKind().str();
+  candidate.runtimeABI = exporter->getRouteMetadata().getRuntimeABI().str();
+  candidate.runtimeABIKind =
+      exporter->getRouteMetadata().getRuntimeABIKind().str();
+  candidate.runtimeABIName =
+      exporter->getRouteMetadata().getRuntimeABIName().str();
+  candidate.runtimeGlueRole =
+      exporter->getRouteMetadata().getRuntimeGlueRole().str();
+
+  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
+       exporter->getRouteMetadata().getSelectedPlanMetadataRequirements()) {
+    if (requirement.name == metadataName)
+      continue;
+    std::string value =
+        requirement.requireExactValue ? requirement.value : "present";
+    candidate.selectedPlanMetadata.push_back(
+        {requirement.name, value, requirement.role,
+         "route descriptor missing-field preflight test metadata"});
+  }
+
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "missing selected-plan route descriptor preflight rejected",
+      {"route id", routeID, "requires selected_plan_metadata", metadataName});
 }
 
 bool containsString(llvm::ArrayRef<std::string> values,
@@ -588,6 +729,36 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     llvm::errs() << "RVV extension bundle frontdoor does not preserve route "
                     "metadata regression ownership\n";
     return false;
+  }
+  const std::size_t rvvSourceRouteCount =
+      tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors().size();
+  if (rvvBundle->getTargetArtifactRouteMetadata().size() !=
+      rvvSourceRouteCount) {
+    llvm::errs() << "RVV extension bundle frontdoor expected "
+                 << rvvSourceRouteCount
+                 << " finite source route metadata requirements, got "
+                 << rvvBundle->getTargetArtifactRouteMetadata().size()
+                 << "\n";
+    return false;
+  }
+  for (const RVVBinaryFamilyDescriptor *family :
+       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors()) {
+    bool found = false;
+    for (const ExtensionBundleTargetArtifactRouteMetadata &metadata :
+         rvvBundle->getTargetArtifactRouteMetadata()) {
+      if (metadata.routeID == family->routeID &&
+          metadata.artifactKind == "runtime-callable-c-source" &&
+          metadata.requireRouteMetadata) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      llvm::errs() << "RVV extension bundle frontdoor is missing finite "
+                      "source route metadata requirement for "
+                   << family->familyID << "\n";
+      return false;
+    }
   }
 
   ExtensionPluginRegistry plugins;
@@ -662,23 +833,10 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
           "stale-template-zero-core-handoff"))
     return false;
 
-  const tianchenrv::target::rvv::RVVMicrokernelDirectRouteManifestEntry
-      *vsubSourceRoute =
-      tianchenrv::target::rvv::lookupRVVMicrokernelDirectRoute(
-          tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
-          tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind::Source);
-  if (!vsubSourceRoute) {
-    llvm::errs() << "missing RVV vsub source route for bundle regression\n";
-    return false;
-  }
-  const TargetArtifactExporter *rvvExporter =
-      registry.lookup(vsubSourceRoute->getRouteID());
-  if (!rvvExporter ||
-      !rvvExporter->getRouteMetadata().hasRuntimeABIMetadata()) {
-    llvm::errs() << "bundle frontdoor did not preserve RVV executable route "
-                    "metadata registration\n";
-    return false;
-  }
+  for (const RVVBinaryFamilyDescriptor *family :
+       tianchenrv::target::rvv::getRVVBinaryFamilyDescriptors())
+    if (!expectRVVSourceRouteDescriptorMetadata(registry, *family))
+      return false;
 
   return true;
 }
@@ -2239,6 +2397,39 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
                      << route.getRouteID() << "\n";
         return false;
       }
+      if (!expectRVVSourceRouteDescriptorMetadata(registry, *route.family))
+        return false;
+      llvm::StringRef staleDType =
+          route.family->dtypeID == "i32" ? "i64" : "i32";
+      llvm::StringRef staleFamily =
+          route.family->familyID == "i32-vadd" ? "i32-vsub" : "i32-vadd";
+      llvm::StringRef staleOperator =
+          route.family->arithmeticVerb == "add" ? "subtract" : "add";
+      if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+              registry, route.getRouteID()))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+              registry, route.getRouteID(), "tcrv_rvv.selected_binary_dtype",
+              staleDType))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+              registry, route.getRouteID(), "tcrv_rvv.selected_binary_family",
+              staleFamily))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+              registry, route.getRouteID(), "tcrv_rvv.selected_binary_operator",
+              staleOperator))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
+              registry, route.getRouteID(), "tcrv_rvv.selected_vector_shape"))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
+              registry, route.getRouteID(),
+              "tcrv_rvv.selected_vector_lmul_capability"))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
+              registry, route.getRouteID(), "tcrv_rvv.runtime_avl_source"))
+        return false;
     } else if (!registry.lookupComposite(route.getRouteID())) {
       llvm::errs() << "RVV direct composite route was not contributed: "
                    << route.getRouteID() << "\n";
@@ -3232,9 +3423,8 @@ bool expectRVVI64SourceRejectsStaleI32AddMetadata(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "stale i32 add ABI metadata rejected by RVV i64 source route",
       {"route id '" + family.routeID.str() + "'",
-       "target artifact candidate validation failed",
-       "supported RVV i64 microkernel ABI metadata",
-       "runtime_abi_name '" + family.runtimeABIName.str() + "'"});
+       "registered for runtime_abi", family.runtimeABI.str(),
+       addFamily.runtimeABI.str()});
 }
 
 bool expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
@@ -3250,11 +3440,16 @@ bool expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
 
   TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
       tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
-  candidate.selectedPlanMetadata.clear();
+  if (!eraseSelectedPlanMetadataEntry(candidate,
+                                      "tcrv_rvv.selected_vector_shape")) {
+    llvm::errs() << "test candidate is missing selected_vector_shape "
+                    "metadata\n";
+    return false;
+  }
   return expectErrorContains(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "missing selected RVV config metadata rejected by RVV i64 source route",
-      {"target artifact candidate validation failed",
+      {"route id '" + family.routeID.str() + "'",
        "requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'"});
 }
 
@@ -3281,7 +3476,7 @@ bool expectRVVI64SourceRejectsMissingSelectedCapabilityMetadata(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "missing selected RVV capability metadata rejected by RVV i64 source "
       "route",
-      {"target artifact candidate validation failed",
+      {"route id '" + family.routeID.str() + "'",
        "requires selected_plan_metadata "
        "'tcrv_rvv.selected_vector_sew_capability'"});
 }
@@ -3415,9 +3610,9 @@ bool expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
   return expectErrorContains(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "stale runtime AVL metadata rejected by RVV i64 source route",
-      {"target artifact candidate validation failed",
-       "selected_plan_metadata 'tcrv_rvv.runtime_avl_role' runtime AVL role "
-       "must be 'runtime-element-count'"});
+      {"route id '" + family.routeID.str() + "'",
+       "selected_plan_metadata 'tcrv_rvv.runtime_avl_role'",
+       "must use value 'runtime-element-count'"});
 }
 
 bool expectScalarSubSourceRejectsStaleAddMetadata(

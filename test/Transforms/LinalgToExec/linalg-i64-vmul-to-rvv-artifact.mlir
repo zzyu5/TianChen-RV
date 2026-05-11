@@ -139,4 +139,4 @@ module {
 // STALE-SEW: selected_plan_metadata 'tcrv_rvv.selected_vector_sew'
 // STALE-SEW-SAME: sew must be '64'
 // STALE-AVL: selected_plan_metadata 'tcrv_rvv.runtime_avl_role'
-// STALE-AVL-SAME: runtime AVL role must be 'runtime-element-count'
+// STALE-AVL-SAME: must use value 'runtime-element-count'

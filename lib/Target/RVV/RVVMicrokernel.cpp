@@ -1260,26 +1260,23 @@ resolveRVVMicrokernelRuntimeElementCountCName(
 
 llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryIntrinsicDescriptor &descriptor,
-    bool requireBinaryDescriptorMetadata) {
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
   llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 24> expected;
   appendRVVVectorShapeSelectedPlanMetadata(*descriptor.shape, expected);
   appendRVVRuntimeVLBoundarySelectedPlanMetadata(expected);
-  if (requireBinaryDescriptorMetadata) {
-    llvm::Expected<llvm::StringRef> runtimeElementCountCName =
-        resolveRVVMicrokernelRuntimeElementCountCName(candidate);
-    if (!runtimeElementCountCName)
-      return runtimeElementCountCName.takeError();
+  llvm::Expected<llvm::StringRef> runtimeElementCountCName =
+      resolveRVVMicrokernelRuntimeElementCountCName(candidate);
+  if (!runtimeElementCountCName)
+    return runtimeElementCountCName.takeError();
 
-    llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
-        buildRVVBinarySelectedConfigContract(
-            descriptor.family, *descriptor.shape, candidate.selectedVariant,
-            candidate.role, /*descriptorElementCount=*/0,
-            *runtimeElementCountCName);
-    if (!selectedConfig)
-      return selectedConfig.takeError();
-    appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
-  }
+  llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
+      buildRVVBinarySelectedConfigContract(
+          descriptor.family, *descriptor.shape, candidate.selectedVariant,
+          candidate.role, /*descriptorElementCount=*/0,
+          *runtimeElementCountCName);
+  if (!selectedConfig)
+    return selectedConfig.takeError();
+  appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
 
   for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
     if (llvm::Error error =
@@ -3051,6 +3048,10 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   return llvm::Error::success();
 }
 
+TargetArtifactRouteMetadata
+buildRVVMicrokernelSourceRouteMetadata(
+    const RVVBinaryFamilyDescriptor &family);
+
 llvm::Error validateRVVMicrokernelSourceCandidate(
     const TargetArtifactCandidate &candidate) {
   const RVVMicrokernelDirectRouteManifestEntry *route =
@@ -3092,15 +3093,14 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
       getRVVBinaryCallableRuntimeABIRoleRequirements(family),
       /*directHelperRoute=*/true,
       /*handoffKind=*/{}, /*candidateValidationFn=*/nullptr,
-      family.externalABIComponentGroup, family.runtimeABIName);
+      family.externalABIComponentGroup, family.runtimeABIName,
+      buildRVVMicrokernelSourceRouteMetadata(family));
   if (llvm::Error error =
           validateTargetArtifactCandidateAgainstExporter(candidate,
                                                         sourceExporter))
     return error;
   if (llvm::Error error =
-          validateRVVMicrokernelSelectedPlanMetadata(
-              candidate, descriptor,
-              family.familyID == getI32VSubFamilyDescriptor().familyID))
+          validateRVVMicrokernelSelectedPlanMetadata(candidate, descriptor))
     return error;
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
 }
@@ -3805,9 +3805,8 @@ llvm::Error registerRVVMicrokernelTargetExporters(
     const RVVBinaryFamilyDescriptor &family = *route.family;
     switch (route.routeKind) {
     case RVVMicrokernelDirectRouteKind::Source: {
-      TargetArtifactRouteMetadata routeMetadata;
-      if (family.familyID == getI32VSubFamilyDescriptor().familyID)
-        routeMetadata = buildRVVMicrokernelSourceRouteMetadata(family);
+      TargetArtifactRouteMetadata routeMetadata =
+          buildRVVMicrokernelSourceRouteMetadata(family);
       if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
               route.getRouteID(), kMicrokernelArtifactKind, kRVVPluginName,
               family.emissionKind, exportRVVMicrokernelC,

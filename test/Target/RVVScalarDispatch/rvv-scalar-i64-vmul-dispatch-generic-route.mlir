@@ -121,5 +121,5 @@ module {
 // I64-VADD-ROUTE-MISMATCH: TianChen-RV RVV+scalar binary dispatch C export failed
 // I64-VADD-ROUTE-MISMATCH-SAME: self-check export route expected i64-vadd dispatch artifacts, got i64-vmul
 
-// STALE-AVL: selected RVV target artifact candidate @rvv_first_slice
-// STALE-AVL-SAME: selected_plan_metadata 'tcrv_rvv.runtime_avl_role' runtime AVL role must be 'runtime-element-count'
+// STALE-AVL: route id 'tcrv-export-rvv-i64-vmul-microkernel-c'
+// STALE-AVL-SAME: selected_plan_metadata 'tcrv_rvv.runtime_avl_role' must use value 'runtime-element-count'

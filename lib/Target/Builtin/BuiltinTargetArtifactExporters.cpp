@@ -51,16 +51,19 @@ llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       rvv::registerRVVMicrokernelPluginTargetExporterBundle);
 
-  const rvv::RVVMicrokernelDirectRouteManifestEntry *vsubSourceRoute =
-      rvv::lookupRVVMicrokernelDirectRoute(
-          rvv::getI32VSubFamilyDescriptor(),
-          rvv::RVVMicrokernelDirectRouteKind::Source);
-  if (!vsubSourceRoute)
+  bool sawSourceRoute = false;
+  for (const rvv::RVVMicrokernelDirectRouteManifestEntry &route :
+       rvv::getRVVMicrokernelDirectRouteManifest()) {
+    if (route.routeKind != rvv::RVVMicrokernelDirectRouteKind::Source)
+      continue;
+    sawSourceRoute = true;
+    bundle.addTargetArtifactRouteMetadataRequirement(route.getRouteID(),
+                                                     route.getArtifactKind());
+  }
+  if (!sawSourceRoute)
     return makeBuiltinExtensionBundleError(
-        "missing bounded RVV i32-vsub source route for route metadata "
-        "regression registration");
-  bundle.addTargetArtifactRouteMetadataRequirement(
-      vsubSourceRoute->getRouteID(), vsubSourceRoute->getArtifactKind());
+        "missing finite RVV binary source routes for route metadata "
+        "registration");
 
   return registry.registerBundle(bundle);
 }
