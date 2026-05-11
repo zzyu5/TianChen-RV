@@ -955,3 +955,54 @@ regression and collected fresh `ssh rvv` external caller evidence.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: RVV i32 sub/mul EmitC route closure
+
+**Date**: 2026-05-11
+**Task**: RVV i32 sub/mul EmitC route closure
+**Branch**: `main`
+
+### Summary
+
+Closed the continuation of the RVV descriptor route to typed tcrv_rvv family ops to EmitC route owner for bounded i32 sub/mul by adding explicit EmitC route FileCheck coverage and a vsub-descriptor/vmul-body fail-closed regression.
+
+### Main Changes
+
+- Created continuation task `.trellis/tasks/05-11-05-11-rvv-family-ops-emitc-route-refactor-i32-binary-complete/` from archived parent `05-11-rvv-family-ops-emitc-route-refactor`.
+- Confirmed current C++ route is already family-shaped for i32 add/sub/mul: registry descriptors, typed `tcrv_rvv` microkernel ops, materializer, body verifier, direct route manifest, and C source emission consume verified typed bodies rather than descriptor computation semantics.
+- Strengthened `rvv-microkernel-family-sub.mlir` and `rvv-microkernel-family-mul.mlir` to assert `RVVEmitCIntrinsicRoute` metadata, source op lists, and arithmetic `emitc.call_opaque` mapping for `__riscv_vsub_vv_i32m1` and `__riscv_vmul_vv_i32m1`.
+- Added a negative `i32-vsub-microkernel.v1` descriptor plus typed `tcrv_rvv.i32_vmul_microkernel` body mismatch case that fails before RVV source output.
+- No runtime, correctness, throughput, latency, or performance claim was made; no `ssh rvv` run was needed.
+
+Testing:
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVTarget tcrv-translate -j2`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- focused lit filter: `rvv-microkernel-family-(sub|mul).mlir`, 2/2 passed
+- focused lit filter: `rvv-microkernel-auto-materialization.mlir|rvv-microkernel-e2e.test`, 2/2 passed
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id codex-i32-vmul-continuation-dryrun --overwrite`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-11-05-11-rvv-family-ops-emitc-route-refactor-i32-binary-complete`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`: 205/205 passed
+
+
+### Git Commits
+
+- Included in the final session commit for this round; see `git log` for the
+  exact hash after the amend.
+
+### Testing
+
+- [OK] Focused builds, focused C++ tests, focused lit, vmul dry-run,
+  Trellis validation, `git diff --check`, and full `check-tianchenrv` passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

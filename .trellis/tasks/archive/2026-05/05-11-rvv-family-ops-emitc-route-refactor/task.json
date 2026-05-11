@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "05-11-05-11-rvv-family-ops-emitc-route-refactor-i32-binary-complete"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",

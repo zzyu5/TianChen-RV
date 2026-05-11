@@ -4,6 +4,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not="__riscv" --implicit-check-not=riscv_vector --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-i32-vsub-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-VSUB --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1"/s//tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"/' | not tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-DESCRIPTOR --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1"/s//tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1"/' | not tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-VSUB-DESCRIPTOR --implicit-check-not="#include <riscv_vector.h>"
 
 module @rvv_microkernel_i32_vmul_export_input {
   tcrv.exec.kernel @export_i32_vmul {
@@ -81,6 +82,9 @@ module @rvv_microkernel_i32_vmul_export_input {
 // SOURCE: /* active_route: tcrv-export-rvv-i32-vmul-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
+// SOURCE: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+// SOURCE: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_mul tcrv_rvv.i32_store */
+// SOURCE: /* emitc.call_opaque[3]: __riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul */
 // SOURCE: /* intrinsic_config_source: validated tcrv_rvv.setvl and tcrv_rvv.with_vl SEW/LMUL/policy metadata */
 // SOURCE: /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -103,3 +107,6 @@ module @rvv_microkernel_i32_vmul_export_input {
 
 // STALE-DESCRIPTOR: tcrv_rvv.lowering_descriptor 'i32-vadd-microkernel.v1' requires tcrv_rvv.i32_vadd_microkernel
 // STALE-DESCRIPTOR-SAME: typed microkernel body is tcrv_rvv.i32_vmul_microkernel
+
+// STALE-VSUB-DESCRIPTOR: tcrv_rvv.lowering_descriptor 'i32-vsub-microkernel.v1' requires tcrv_rvv.i32_vsub_microkernel
+// STALE-VSUB-DESCRIPTOR-SAME: typed microkernel body is tcrv_rvv.i32_vmul_microkernel

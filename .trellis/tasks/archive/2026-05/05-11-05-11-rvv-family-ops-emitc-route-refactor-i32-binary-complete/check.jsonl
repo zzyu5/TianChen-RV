@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and no overclaim evidence policy"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route validation expectations"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "descriptor/config/runtime ABI layering and artifact export checks"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV hardware/runtime claim boundaries"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir", "reason": "focused sub route FileCheck"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir", "reason": "focused mul route and mismatch FileCheck"}
+{"file": "test/Scripts/rvv-microkernel-e2e.test", "reason": "direct i32-vmul dry-run coverage"}

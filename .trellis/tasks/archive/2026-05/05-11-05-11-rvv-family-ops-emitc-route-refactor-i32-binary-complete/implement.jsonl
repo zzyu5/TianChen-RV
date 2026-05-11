@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "global unified TCRV and descriptor-driven computation boundaries"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified RISC-V extension-family architecture"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "extension family ops to EmitC/intrinsic route contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact export, runtime ABI, descriptor/config layering, and evidence boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite i32 add/sub/mul plugin and capability contract"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "plugin-local family op and EmitC mapping rules"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-family-ops-emitc-route-refactor/prd.md", "reason": "archived parent task and completed i32 add slice context"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "typed RVV i32 sub/mul family ops and microkernel bodies"}
+{"file": "include/TianChenRV/Target/RVV/RVVBinaryMicrokernelBodyVerifier.h", "reason": "verified dataflow plan shape consumed by EmitC route"}
+{"file": "lib/Target/RVV/RVVBinaryMicrokernelBodyVerifier.cpp", "reason": "typed body validation and descriptor/body mismatch diagnostics"}
+{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "RVVEmitCIntrinsicRoute construction and direct source/header/object routes"}
+{"file": "lib/Plugin/RVV/RVVBinaryMicrokernelMaterialization.cpp", "reason": "family-shaped materialization of sub/mul microkernel bodies"}
+{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "family selected-plan and descriptor metadata contracts"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir", "reason": "focused i32 sub direct route coverage"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir", "reason": "focused i32 mul direct route and mismatch coverage"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir", "reason": "baseline auto materialization route coverage"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "route registry and descriptor/body fail-closed C++ coverage"}
+{"file": "test/Plugin/RVVBinaryPlanningTest.cpp", "reason": "RVV binary family planning coverage"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "RVV plugin family microkernel materialization coverage"}
