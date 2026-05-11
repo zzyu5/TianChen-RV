@@ -1570,7 +1570,7 @@ tianchenrv::support::getI32BinaryRuntimeABIContract(
 ```
 
 The contract owns only reusable runtime ABI metadata for the bounded i32 binary
-callable shape and descriptor-derived identity fields:
+callable shape and registration-scoped identity fields:
 
 - ordered callable C parameters:
   `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, `size_t n`;
@@ -1580,21 +1580,17 @@ callable shape and descriptor-derived identity fields:
   dispatch availability guard;
 - stable runtime ABI identity strings for the selected add/sub/mul RVV
   callable, scalar callable, and RVV+scalar dispatch callable surfaces, derived
-  from `I32BinaryFamilyDescriptor` or its RVV/scalar/dispatch subdescriptors.
+  from `I32BinaryFamilyDescriptor` registration records or their
+  RVV/scalar/dispatch subrecords.
 
-Existing wrapper APIs such as `getI32VAddRuntimeABIContract`,
-`getI32VAddRuntimeABIParameters`,
-`getI32VAddRuntimeABIRoleRequirements`,
-`getI32VAddDispatchRuntimeABIParameters`,
-`getI32VAddBufferMemWindowSpecs`,
-`getI32VAddRuntimeElementCountParamSpec`,
-`getI32VAddDispatchAvailabilityGuardParamSpec`, and
-`buildI32VAddCallableABIPlan` may remain as temporary compatibility entry
-points for the add descriptor, but they must delegate to the support-layer
-i32 binary contract instead of rebuilding separate literal lists. Active RVV,
-scalar, dispatch, offload descriptor, and target artifact exporter code that
-handles add/sub/mul must consume the `I32Binary*` APIs directly when it needs
-ABI shape, ABI identity, or callable-plan validation.
+The temporary add-only runtime ABI compatibility APIs have been retired. Active
+RVV, scalar, dispatch, offload descriptor, and target artifact exporter code
+that handles add/sub/mul must consume the `I32Binary*` APIs directly when it
+needs ABI shape, ABI identity, mem-window specs, runtime-param specs, dispatch
+guard specs, role binding, or callable-plan validation. Reintroducing
+`I32VAdd*` ABI wrappers would reopen the obsolete add-only compatibility
+surface and should be treated as a descriptor-exit regression unless a future
+spec explicitly re-establishes such an API for a non-compatibility purpose.
 
 The contract must not own target artifact route ids, artifact kinds, source vs
 header vs object selection policy, bundle metadata, descriptor-local metadata,

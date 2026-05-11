@@ -56,21 +56,6 @@ getI32BinaryDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName = "n",
                                       llvm::StringRef guardCName =
                                           "rvv_available");
 
-// Temporary compatibility wrappers around the i32 binary ABI param helpers.
-RuntimeABIParamSpec getI32VAddRuntimeElementCountParamSpec(
-    llvm::StringRef cName = "n");
-
-RuntimeABIParamSpec getI32VAddDispatchAvailabilityGuardParamSpec(
-    llvm::StringRef cName = "rvv_available");
-
-llvm::SmallVector<RuntimeABIParamSpec, 1>
-getI32VAddRuntimeElementCountParamSpecs(llvm::StringRef cName = "n");
-
-llvm::SmallVector<RuntimeABIParamSpec, 2>
-getI32VAddDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName = "n",
-                                    llvm::StringRef guardCName =
-                                        "rvv_available");
-
 llvm::Error ensureRuntimeABIParams(
     tcrv::exec::KernelOp kernel, mlir::OpBuilder &builder,
     llvm::ArrayRef<RuntimeABIParamSpec> specs);

@@ -56,9 +56,6 @@ struct I32BinaryCallableRuntimeABIParameterBindings {
   const RuntimeABIParameter *runtimeElementCount = nullptr;
 };
 
-using I32VAddCallableRuntimeABIParameterBindings =
-    I32BinaryCallableRuntimeABIParameterBindings;
-
 inline llvm::StringRef stringifyRuntimeABIParameterRole(
     RuntimeABIParameterRole role) {
   switch (role) {
@@ -150,34 +147,6 @@ inline void appendI32BinaryDispatchRuntimeABIParameters(
 llvm::SmallVector<RuntimeABIParameter, 5>
 getI32BinaryDispatchRuntimeABIParameters();
 
-// Temporary compatibility wrappers around the descriptor-backed i32 binary ABI
-// API. New add/sub/mul owners must use the I32Binary-named entry points.
-void appendI32VAddRuntimeABIParameters(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out);
-
-llvm::SmallVector<RuntimeABIParameter, 4>
-getI32VAddRuntimeABIParameters();
-
-void appendI32VAddRuntimeABIRoleRequirements(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out);
-
-llvm::SmallVector<RuntimeABIParameter, 4>
-getI32VAddRuntimeABIRoleRequirements();
-
-RuntimeABIParameter makeI32VAddDispatchAvailabilityGuard(
-    llvm::StringRef cName = "rvv_available");
-
-inline void appendI32VAddDispatchRuntimeABIParameters(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
-    llvm::ArrayRef<RuntimeABIParameter> callableParameters,
-    const RuntimeABIParameter &guardParameter) {
-  appendI32BinaryDispatchRuntimeABIParameters(out, callableParameters,
-                                             guardParameter);
-}
-
-llvm::SmallVector<RuntimeABIParameter, 5>
-getI32VAddDispatchRuntimeABIParameters();
-
 inline bool runtimeABIParametersEqual(
     llvm::ArrayRef<RuntimeABIParameter> lhs,
     llvm::ArrayRef<RuntimeABIParameter> rhs) {
@@ -197,12 +166,6 @@ llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
 
 llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
 bindI32BinaryCallableRuntimeABIParametersByRole(
-    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context);
-
-// Temporary compatibility wrapper around
-// bindI32BinaryCallableRuntimeABIParametersByRole.
-llvm::Expected<I32VAddCallableRuntimeABIParameterBindings>
-bindI32VAddCallableRuntimeABIParametersByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context);
 
 inline void printRuntimeABIParameterCDeclaration(

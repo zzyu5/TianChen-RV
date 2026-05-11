@@ -347,21 +347,4 @@ llvm::Error validateI32BinaryCallableABIParameterMirror(
       getI32BinaryRuntimeABIContract(family));
 }
 
-llvm::Expected<I32VAddCallableABIPlan>
-buildI32VAddCallableABIPlan(KernelOp kernel) {
-  return buildI32BinaryCallableABIPlan(
-      kernel, getI32BinaryRuntimeABIContract(
-                  target::i32_binary::I32BinaryFamilyKind::Add));
-}
-
-llvm::Error validateI32VAddCallableABIParameterMirror(
-    KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
-    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource) {
-  return validateI32BinaryCallableABIParameterMirror(
-      kernel, metadataParameters, irBackedParameters, metadataSource,
-      getI32BinaryRuntimeABIContract(
-          target::i32_binary::I32BinaryFamilyKind::Add));
-}
-
 } // namespace tianchenrv::support

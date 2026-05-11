@@ -109,6 +109,49 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 performance claim was made.
 
 
+## Session 38: I32 runtime ABI compatibility wrapper removal
+
+**Date**: 2026-05-12
+**Task**: remove-i32-vadd-runtime-abi-compat-wrappers
+**Branch**: `main`
+
+### Summary
+
+Removed the obsolete add-only `I32VAdd*` runtime ABI compatibility wrapper API
+surface after production owners had moved to the family-aware
+`I32BinaryRuntimeABIContract`.
+
+### Main Changes
+
+- Deleted temporary `I32VAdd*` runtime ABI wrapper declarations from support
+  headers and their definitions from support sources.
+- Kept the real i32-vadd family registration, dialect, route, and microkernel
+  support intact; only the runtime ABI compatibility API was removed.
+- Added support test coverage proving add/sub/mul use the same family-aware
+  callable ABI shape while preserving per-family RVV/scalar/dispatch ABI
+  identities.
+- Updated the lowering-runtime spec so it states the temporary add-only ABI
+  wrappers are retired and active owners must use `I32Binary*` APIs directly.
+
+### Testing
+
+- Wrapper-name `rg` check over `include`, `lib`, `test`, and relevant spec
+  files found no deleted compatibility wrapper names.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-remove-i32-vadd-runtime-abi-compat-wrappers`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-runtime-abi-callable-plan-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  207/207 passed.
+
+### Status
+
+[OK] Completed and ready to archive. No `ssh rvv` runtime, correctness, or
+performance claim was made.
+
+
 ## Session 38: finite descriptor registry quarantine
 
 **Date**: 2026-05-12

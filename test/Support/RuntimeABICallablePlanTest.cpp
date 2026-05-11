@@ -24,9 +24,13 @@ using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterRole;
 using tianchenrv::support::buildFiniteBinaryCallableABIPlan;
 using tianchenrv::support::buildI32BinaryCallableABIPlan;
+using tianchenrv::support::getI32BinaryRuntimeABIContract;
+using tianchenrv::support::runtimeABIParametersEqual;
 using tianchenrv::support::validateFiniteBinaryCallableABIParameterMirror;
 using tianchenrv::support::validateI32BinaryCallableABIParameterMirror;
+using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
 using tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord;
+using tianchenrv::target::i32_binary::getI32VMulFamilyRegistrationRecord;
 using tianchenrv::target::i32_binary::getI32VSubFamilyRegistrationRecord;
 using tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord;
 using tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord;
@@ -406,6 +410,53 @@ int runValidPlanTest(mlir::MLIRContext &context) {
       "valid runtime ABI mirror");
 }
 
+int runI32BinaryFamilyContractCoverageTest() {
+  const I32BinaryFamilyDescriptor *families[] = {
+      &getI32VAddFamilyRegistrationRecord(),
+      &getI32VSubFamilyRegistrationRecord(),
+      &getI32VMulFamilyRegistrationRecord()};
+  llvm::ArrayRef<RuntimeABIParameter> baselineParameters =
+      getI32BinaryRuntimeABIContract(*families[0]).getCallableParameters();
+  for (const I32BinaryFamilyDescriptor *family : families) {
+    const tianchenrv::support::I32BinaryRuntimeABIContract &contract =
+        getI32BinaryRuntimeABIContract(*family);
+    if (int result = expect(&contract.getFamilyRegistrationRecord() == family,
+                            "i32 binary runtime ABI contract preserves family "
+                            "registration record identity"))
+      return result;
+    if (int result = expect(contract.getCallableParameters().size() == 4,
+                            "i32 binary contract has four callable params"))
+      return result;
+    if (int result = expect(contract.getCallableRoleRequirements().size() == 4,
+                            "i32 binary contract has four role requirements"))
+      return result;
+    if (int result = expect(contract.getBufferMemWindowSpecs().size() == 3,
+                            "i32 binary contract has three mem windows"))
+      return result;
+    if (int result = expect(
+            contract.getRVVCallableIdentity().runtimeABIName ==
+                family->rvv.runtimeABIName,
+            "RVV callable ABI identity comes from selected family record"))
+      return result;
+    if (int result = expect(
+            contract.getScalarCallableIdentity().runtimeABIName ==
+                family->scalar.runtimeABIName,
+            "scalar callable ABI identity comes from selected family record"))
+      return result;
+    if (int result =
+            expect(contract.getDispatchIdentity().runtimeABIName ==
+                       family->dispatch.dispatchRuntimeABIName,
+                   "dispatch ABI identity comes from selected family record"))
+      return result;
+    if (int result = expect(
+            runtimeABIParametersEqual(contract.getCallableParameters(),
+                                      baselineParameters),
+            "i32 add/sub/mul share the callable ABI parameter shape"))
+      return result;
+  }
+  return 0;
+}
+
 int runValidI64FamilyPlanTests(mlir::MLIRContext &context) {
   const RVVBinaryFamilyDescriptor *families[] = {
       &getI64VAddFamilyRegistrationRecord(), &getI64VSubFamilyRegistrationRecord(),
@@ -708,6 +759,8 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runValidPlanTest(context))
+    return result;
+  if (int result = runI32BinaryFamilyContractCoverageTest())
     return result;
   if (int result = runValidI64FamilyPlanTests(context))
     return result;

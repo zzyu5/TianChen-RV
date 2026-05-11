@@ -107,11 +107,6 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
 const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
     target::i32_binary::I32BinaryFamilyKind kind);
 
-using I32VAddRuntimeABIContract = I32BinaryRuntimeABIContract;
-
-// Temporary compatibility wrapper for the add registration record.
-const I32VAddRuntimeABIContract &getI32VAddRuntimeABIContract();
-
 } // namespace tianchenrv::support
 
 #endif // TIANCHENRV_SUPPORT_RUNTIMEABICONTRACT_H

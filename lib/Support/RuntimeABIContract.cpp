@@ -235,11 +235,6 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
   llvm_unreachable("unknown i32 binary family kind");
 }
 
-const I32VAddRuntimeABIContract &getI32VAddRuntimeABIContract() {
-  return getI32BinaryRuntimeABIContract(
-      target::i32_binary::getI32VAddFamilyRegistrationRecord());
-}
-
 void appendI32BinaryRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
   llvm::ArrayRef<RuntimeABIParameter> parameters =
@@ -283,35 +278,6 @@ getI32BinaryDispatchRuntimeABIParameters() {
   return getI32BinaryRuntimeABIContract(
              target::i32_binary::I32BinaryFamilyKind::Add)
       .getDispatchRuntimeABIParameters();
-}
-
-void appendI32VAddRuntimeABIParameters(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
-  appendI32BinaryRuntimeABIParameters(out);
-}
-
-llvm::SmallVector<RuntimeABIParameter, 4> getI32VAddRuntimeABIParameters() {
-  return getI32BinaryRuntimeABIParameters();
-}
-
-void appendI32VAddRuntimeABIRoleRequirements(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
-  appendI32BinaryRuntimeABIRoleRequirements(out);
-}
-
-llvm::SmallVector<RuntimeABIParameter, 4>
-getI32VAddRuntimeABIRoleRequirements() {
-  return getI32BinaryRuntimeABIRoleRequirements();
-}
-
-RuntimeABIParameter
-makeI32VAddDispatchAvailabilityGuard(llvm::StringRef cName) {
-  return makeI32BinaryDispatchAvailabilityGuard(cName);
-}
-
-llvm::SmallVector<RuntimeABIParameter, 5>
-getI32VAddDispatchRuntimeABIParameters() {
-  return getI32BinaryDispatchRuntimeABIParameters();
 }
 
 llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
@@ -393,12 +359,6 @@ bindI32BinaryCallableRuntimeABIParametersByRole(
   return bindings;
 }
 
-llvm::Expected<I32VAddCallableRuntimeABIParameterBindings>
-bindI32VAddCallableRuntimeABIParametersByRole(
-    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context) {
-  return bindI32BinaryCallableRuntimeABIParametersByRole(parameters, context);
-}
-
 llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
 getI32BinaryBufferMemWindowSpecs() {
   llvm::ArrayRef<RuntimeABIMemWindowSpec> specs =
@@ -436,32 +396,6 @@ getI32BinaryDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName,
   return getI32BinaryRuntimeABIContract(
              target::i32_binary::I32BinaryFamilyKind::Add)
       .getDispatchRuntimeParamSpecs(runtimeCountCName, guardCName);
-}
-
-llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
-getI32VAddBufferMemWindowSpecs() {
-  return getI32BinaryBufferMemWindowSpecs();
-}
-
-RuntimeABIParamSpec
-getI32VAddRuntimeElementCountParamSpec(llvm::StringRef cName) {
-  return getI32BinaryRuntimeElementCountParamSpec(cName);
-}
-
-RuntimeABIParamSpec
-getI32VAddDispatchAvailabilityGuardParamSpec(llvm::StringRef cName) {
-  return getI32BinaryDispatchAvailabilityGuardParamSpec(cName);
-}
-
-llvm::SmallVector<RuntimeABIParamSpec, 1>
-getI32VAddRuntimeElementCountParamSpecs(llvm::StringRef cName) {
-  return getI32BinaryRuntimeElementCountParamSpecs(cName);
-}
-
-llvm::SmallVector<RuntimeABIParamSpec, 2>
-getI32VAddDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName,
-                                    llvm::StringRef guardCName) {
-  return getI32BinaryDispatchRuntimeParamSpecs(runtimeCountCName, guardCName);
 }
 
 } // namespace tianchenrv::support

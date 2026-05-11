@@ -21,7 +21,6 @@ struct FiniteBinaryCallableABIPlan {
 };
 
 using I32BinaryCallableABIPlan = FiniteBinaryCallableABIPlan;
-using I32VAddCallableABIPlan = I32BinaryCallableABIPlan;
 
 // Bounded bridge for the current finite binary callable ABI. It is not a
 // general ABI subsystem.
@@ -72,17 +71,6 @@ llvm::Error validateI32BinaryCallableABIParameterMirror(
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
     const target::i32_binary::I32BinaryFamilyDescriptor &family);
-
-// Temporary compatibility wrappers around the descriptor-backed i32 binary ABI
-// API. New add/sub/mul owners must use the I32Binary-named entry points.
-llvm::Expected<I32VAddCallableABIPlan>
-buildI32VAddCallableABIPlan(tcrv::exec::KernelOp kernel);
-
-llvm::Error validateI32VAddCallableABIParameterMirror(
-    tcrv::exec::KernelOp kernel,
-    llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
-    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource);
 
 } // namespace tianchenrv::support
 
