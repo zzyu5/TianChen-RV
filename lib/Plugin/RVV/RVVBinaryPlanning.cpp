@@ -1182,7 +1182,7 @@ bool RVVBinaryProposalPlan::hasCapacityMetadata() const {
   return capabilityView.vlenbBytes && capabilityView.i32M1LaneCount;
 }
 
-bool isDescriptorlessDefaultTypedFamily(
+bool isTypedSourceRVVBinaryFamily(
     const target::rvv::RVVBinaryFamilyDescriptor &family) {
   return family.dtype == target::rvv::RVVBinaryDTypeKind::I32 ||
          family.dtype == target::rvv::RVVBinaryDTypeKind::I64;
@@ -1738,13 +1738,14 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
   }
 
   if (descriptorResolution.family) {
-    if (descriptorResolution.family->dtype == target::rvv::RVVBinaryDTypeKind::I32 &&
-        descriptorResolution.family->arithmetic ==
-            target::rvv::RVVBinaryArithmeticKind::Add)
+    if (isTypedSourceRVVBinaryFamily(*descriptorResolution.family))
       return makeRVVBinaryPlanningError(
           llvm::Twine(diagnosticContext) +
-          " direct descriptor-only i32-vadd planning is legacy-quarantined; "
-          "add a typed tcrv_rvv.i32_vadd_microkernel body so compute "
+          " direct descriptor-only RVV binary planning for family '" +
+          descriptorResolution.family->familyID +
+          "' is legacy-quarantined; add a typed " +
+          descriptorResolution.family->microkernelOpName +
+          " body or use frontend-derived typed family lowering so compute "
           "identity comes from RVV family ops");
     return descriptorResolution;
   }
@@ -1761,7 +1762,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     llvm::StringRef diagnosticContext) {
   return buildRVVBinaryProposalPlanForFamily(
       capabilities, family, /*directSelectedShape=*/nullptr,
-      /*attachLoweringDescriptorAttr=*/true,
+      /*attachLoweringDescriptorAttr=*/!isTypedSourceRVVBinaryFamily(family),
       diagnosticContext);
 }
 
@@ -1795,7 +1796,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
   return buildRVVBinaryProposalPlanForFamily(
       capabilities, *requestedFamily, requiredShape,
       /*attachLoweringDescriptorAttr=*/
-      !isDescriptorlessDefaultTypedFamily(*requestedFamily),
+      !isTypedSourceRVVBinaryFamily(*requestedFamily),
       diagnosticContext);
 }
 
@@ -1808,7 +1809,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     return resolution.takeError();
 
   bool attachLoweringDescriptorAttr = true;
-  if (isDescriptorlessDefaultTypedFamily(*resolution->family) &&
+  if (isTypedSourceRVVBinaryFamily(*resolution->family) &&
       !isDescriptorOwnedSourceKind(resolution->sourceKind))
     attachLoweringDescriptorAttr = false;
 

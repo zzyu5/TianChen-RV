@@ -99,6 +99,65 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 31: Quarantine RVV descriptor-only production export
+
+**Date**: 2026-05-12
+**Task**: rvv-descriptor-only-production-quarantine
+**Branch**: `main`
+
+### Summary
+
+Quarantined descriptor-only selected planning/materialization for finite
+typed-source RVV binary families. Supported selected export now requires typed
+RVV microkernel body authority or frontend/default typed-family authority before
+the common EmitC-backed artifact route can report support.
+
+### Main Changes
+
+- Added a shared typed-source RVV binary family predicate and used it to reject
+  descriptor-only direct `i32`/`i64` add/sub/mul proposal authority.
+- Rewired selected lowering-boundary materialization so a direct
+  `tcrv_rvv.lowering_descriptor` cannot manufacture a supported typed
+  microkernel attachment by itself for typed-source finite RVV families.
+- Kept legacy descriptor metadata as a fail-closed compatibility check when a
+  typed body exists, including stale descriptor/body mismatch coverage.
+- Moved direct i32 sub/mul and i64 add/sub/mul export fixtures to
+  frontend-derived typed-family authority and kept descriptor-only behavior
+  explicitly named as quarantine/legacy.
+- Self-repaired the plugin quarantine test to assert recoverable decline
+  semantics, and repaired the i64 missing-cap fixture to use typed-source
+  selected config requirements rather than descriptor authority.
+
+### Git Commits
+
+Included in the final session commit for this round; see `git log` for the
+exact hash.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`, RVV planning,
+  selected-lowering-boundary, extension-plugin, and target-artifact-export
+  targets
+- [OK] focused C++ tests: RVV binary planning, RVV selected lowering-boundary,
+  RVV extension plugin, and target artifact export
+- [OK] focused descriptor quarantine/direct typed microkernel lit: 7/7 passed
+- [OK] focused frontend-derived linalg-to-artifact typed route lit: 4/4 passed
+- [OK] focused i64 missing-cap lit: 1/1 passed
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`: 206/206 lit tests passed
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or
+  performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 31: Descriptor exit for default RVV i32-vadd typed body materialization
 
 **Date**: 2026-05-12

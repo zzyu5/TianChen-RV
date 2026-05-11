@@ -257,7 +257,9 @@ llvm::Error validateWithModuleAPI(
 int runI32SelectedLoweringBoundaryModuleTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @rvv_i32_vsub_boundary attributes {} {
+	  tcrv.exec.kernel @rvv_i32_vsub_boundary attributes {
+	    tcrv_frontend_lowering = "i32-vsub"
+	  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -325,9 +327,8 @@ module {
       requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1",
-      tcrv_rvv.element_count = 32 : i64,
+	      tcrv_rvv.required_march = "rv64gcv",
+	      tcrv_rvv.element_count = 32 : i64,
       tcrv_rvv.vlenb_bytes = 32 : i64,
       tcrv_rvv.base_i32_m1_lanes = 8 : i64,
       tcrv_rvv.selected_vector_shape = "i32m1",
@@ -580,7 +581,9 @@ int runI64SelectedLoweringBoundaryModuleTest(
       (llvm::Twine("rvv_") + family.functionStem + "_boundary").str();
   std::string source = R"mlir(
 module {
-  tcrv.exec.kernel @rvv_i64_vmul_boundary attributes {} {
+	  tcrv.exec.kernel @rvv_i64_vmul_boundary attributes {
+	    tcrv_frontend_lowering = "i64-vmul"
+	  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -636,9 +639,8 @@ module {
       requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i64-vmul-microkernel.v1",
-      tcrv_rvv.element_count = 16 : i64,
+	      tcrv_rvv.required_march = "rv64gcv",
+	      tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_vector_shape = "i64m1",
       tcrv_rvv.selected_vector_sew = 64 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -653,6 +655,7 @@ module {
 }
 )mlir";
   replaceAll(source, "rvv_i64_vmul_boundary", kernelSymbol);
+  replaceAll(source, "i64-vmul", family.frontendLowering);
   replaceAll(source, "i64-vmul-microkernel.v1", family.loweringDescriptor);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);

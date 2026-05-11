@@ -3,7 +3,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/,+8 s/c_type = "const int64_t \*"/c_type = "const int32_t *"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=BAD-I64-MEM-WINDOW --implicit-check-not="void tcrv_rvv_i64_vsub_microkernel" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
 
 module @rvv_microkernel_i64_vsub_export_input {
-  tcrv.exec.kernel @export_i64_vsub {
+  tcrv.exec.kernel @export_i64_vsub attributes {
+    tcrv_frontend_lowering = "i64-vsub"
+  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -48,7 +50,6 @@ module @rvv_microkernel_i64_vsub_export_input {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.element_count = 8 : i64,
-      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.selected_mask_policy = "agnostic",

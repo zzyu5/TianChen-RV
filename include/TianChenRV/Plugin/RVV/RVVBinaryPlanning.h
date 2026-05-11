@@ -276,6 +276,9 @@ llvm::Error validateRVVSelectedVectorShapeMetadata(
 bool hasAnyRVVSelectedVectorShapeMetadata(
     mlir::Operation *op, const RVVSelectedVectorShapeMetadataNames &names);
 
+bool isTypedSourceRVVBinaryFamily(
+    const target::rvv::RVVBinaryFamilyDescriptor &family);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVBINARYPLANNING_H

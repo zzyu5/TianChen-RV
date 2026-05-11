@@ -2814,7 +2814,7 @@ module {
                 "RVV i64 proposal fails closed without i64m1 capability facts");
 }
 
-int runRVVI64DirectDescriptorProposalInferenceTest(
+int runRVVI64DirectDescriptorProposalQuarantineTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -2897,36 +2897,32 @@ module {
   VariantProposalRequest request =
       makeRequest(highLevelOp.getOperation(), kernel, capabilities);
   llvm::SmallVector<VariantProposal, 1> proposals;
-  if (int result =
-          expectSuccess(registry.collectVariantProposals(request, proposals),
-                        "collect RVV proposal inferred from direct i64 "
-                        "descriptor"))
+  llvm::SmallVector<VariantProposalDecline, 1> declines;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(request, proposals, &declines),
+          "collect quarantined descriptor-only RVV i64 proposal"))
     return result;
-  if (int result =
-          expect(proposals.size() == 1,
-                 "direct i64 descriptor inference produces one proposal"))
+  if (int result = expect(proposals.empty(),
+                          "quarantined descriptor-only RVV i64 proposal "
+                          "does not materialize a production candidate"))
     return result;
+  if (int result = expect(declines.size() == 1,
+                          "quarantined descriptor-only RVV i64 proposal "
+                          "records one recoverable decline"))
+    return result;
+  llvm::StringRef reason = declines.front().getReason();
   if (int result = expect(
-          proposals[0].getRequiredCapabilityIDs().size() == 5 &&
-              proposals[0].getRequiredCapabilityIDs()[1] ==
-                  "rvv.i64_m1.sew64" &&
-              proposals[0].getRequiredCapabilityIDs()[2] ==
-                  "rvv.i64_m1.lmul_m1" &&
-              proposals[0].getRequiredCapabilityIDs()[3] ==
-                  "rvv.i64_m1.tail_policy.agnostic" &&
-              proposals[0].getRequiredCapabilityIDs()[4] ==
-                  "rvv.i64_m1.mask_policy.agnostic",
-          "direct i64 descriptor inference requires i64m1 config ids"))
+          reason.contains(
+              "direct descriptor-only RVV binary planning for family 'i64-vadd'"),
+          "quarantine decline names the descriptor-only RVV i64 family"))
     return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.lowering_descriptor",
-          "i64-vadd-microkernel.v1"))
+  if (int result =
+          expect(reason.contains("legacy-quarantined"),
+                 "quarantine decline reports legacy-quarantined status"))
     return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
-    return result;
-  return expectProposalStringAttr(proposals[0],
-                                  "tcrv_rvv.selected_setvl_suffix", "e64m1");
+  return expect(
+      reason.contains("typed tcrv_rvv.i64_vadd_microkernel body"),
+      "quarantine decline requires typed RVV i64 microkernel authority");
 }
 
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
@@ -3373,7 +3369,7 @@ int main() {
     return result;
   if (int result = runRVVI64VAddMissingCapabilityDeclinesTest(context))
     return result;
-  if (int result = runRVVI64DirectDescriptorProposalInferenceTest(context))
+  if (int result = runRVVI64DirectDescriptorProposalQuarantineTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

@@ -535,15 +535,15 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
       llvm::StringRef descriptor = descriptorAttr.getValue().trim();
       const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
           target::rvv::lookupRVVBinaryFamilyByLoweringDescriptor(descriptor);
-      if (descriptorFamily &&
-          descriptorFamily->dtype == target::rvv::RVVBinaryDTypeKind::I32 &&
-          descriptorFamily->arithmetic ==
-              target::rvv::RVVBinaryArithmeticKind::Add)
+      if (descriptorFamily && isTypedSourceRVVBinaryFamily(*descriptorFamily))
         return makeRVVBinarySelectedBoundaryError(
-            "direct descriptor-only i32-vadd lowering-boundary "
-            "materialization is legacy-quarantined; add a typed "
-            "tcrv_rvv.i32_vadd_microkernel body so compute identity comes "
-            "from RVV family ops");
+            llvm::Twine("direct descriptor-only RVV binary "
+                        "lowering-boundary materialization for family '") +
+            descriptorFamily->familyID +
+            "' is legacy-quarantined; add a typed " +
+            descriptorFamily->microkernelOpName +
+            " body or use frontend-derived typed family lowering so compute "
+            "identity comes from RVV family ops");
     }
 
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =

@@ -2,7 +2,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vsub_vv_i64m1 --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_microkernel_i64_vmul_export_input {
-  tcrv.exec.kernel @export_i64_vmul {
+  tcrv.exec.kernel @export_i64_vmul attributes {
+    tcrv_frontend_lowering = "i64-vmul"
+  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -47,7 +49,6 @@ module @rvv_microkernel_i64_vmul_export_input {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.element_count = 8 : i64,
-      tcrv_rvv.lowering_descriptor = "i64-vmul-microkernel.v1",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.selected_mask_policy = "agnostic",

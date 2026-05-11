@@ -7,7 +7,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-VMUL --implicit-check-not="#include <riscv_vector.h>"
 
 module @rvv_microkernel_i32_vsub_export_input {
-  tcrv.exec.kernel @export_i32_vsub {
+  tcrv.exec.kernel @export_i32_vsub attributes {
+    tcrv_frontend_lowering = "i32-vsub"
+  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -52,7 +54,6 @@ module @rvv_microkernel_i32_vsub_export_input {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.element_count = 16 : i64,
-      tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv"
     } {

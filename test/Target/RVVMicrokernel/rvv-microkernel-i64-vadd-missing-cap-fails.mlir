@@ -1,17 +1,38 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not="emission_plan" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_microkernel_i64_vadd_missing_cap_input {
-  tcrv.exec.kernel @export_i64_vadd_missing_i64_caps {
+  tcrv.exec.kernel @export_i64_vadd_missing_i64_caps attributes {
+    tcrv_frontend_lowering = "i64-vadd"
+  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_sew64 {
+      id = "rvv.i64_m1.sew64",
+      kind = "isa-vector-config",
+      sew_bits = 64 : i64,
+      status = "unavailable"
+    }
+    tcrv.exec.capability @rvv_i64_m1_lmul_m1 {
+      id = "rvv.i64_m1.lmul_m1",
+      kind = "isa-vector-config",
+      lmul = "m1",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_tail_agnostic {
+      id = "rvv.i64_m1.tail_policy.agnostic",
+      kind = "isa-vector-config",
+      tail_policy = "agnostic",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_i64_m1_mask_agnostic {
+      id = "rvv.i64_m1.mask_policy.agnostic",
+      kind = "isa-vector-config",
+      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.capability @rvv_hart_count {
@@ -32,9 +53,8 @@ module @rvv_microkernel_i64_vadd_missing_cap_input {
       guard = "plugin_local_rvv_property_evidence",
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
-      requires = [@rvv],
+      requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
       tcrv_rvv.element_count = 8 : i64,
-      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.selected_mask_policy = "agnostic",
@@ -59,4 +79,4 @@ module @rvv_microkernel_i64_vadd_missing_cap_input {
   }
 }
 
-// CHECK: requires finite i64m1 vector-shape config capability ids
+// CHECK: RVV property decision requires available capability id 'rvv.i64_m1.sew64'

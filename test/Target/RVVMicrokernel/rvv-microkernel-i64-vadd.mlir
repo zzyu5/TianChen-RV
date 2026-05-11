@@ -6,7 +6,9 @@
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
 
 module @rvv_microkernel_i64_vadd_export_input {
-  tcrv.exec.kernel @export_i64_vadd {
+  tcrv.exec.kernel @export_i64_vadd attributes {
+    tcrv_frontend_lowering = "i64-vadd"
+  } {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -51,7 +53,6 @@ module @rvv_microkernel_i64_vadd_export_input {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.element_count = 8 : i64,
-      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.selected_mask_policy = "agnostic",

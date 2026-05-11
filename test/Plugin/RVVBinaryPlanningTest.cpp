@@ -570,21 +570,50 @@ module {
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_i64_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
-      tcrv_rvv.selected_vector_shape = "i64m1",
-      tcrv_rvv.selected_vector_sew = 64 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
+	    tcrv.exec.variant @rvv_i64_slice attributes {
+	      origin = "rvv-plugin",
+	      requires = [@rvv],
+	      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
+	      tcrv_rvv.element_count = 16 : i64,
+	      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+	      tcrv_rvv.required_march = "rv64gcv",
+	      tcrv_rvv.selected_vector_shape = "i64m1",
+	      tcrv_rvv.selected_vector_sew = 64 : i64,
+	      tcrv_rvv.selected_vector_lmul = "m1",
       tcrv_rvv.selected_tail_policy = "agnostic",
       tcrv_rvv.selected_mask_policy = "agnostic",
       tcrv_rvv.selected_vector_type = "vint64m1_t",
       tcrv_rvv.selected_vector_suffix = "i64m1",
       tcrv_rvv.selected_setvl_suffix = "e64m1"
-    } {
-    }
-  }
+	    } {
+	    }
+	    tcrv_rvv.i64_vadd_microkernel attributes {
+	      element_count = 16 : i64,
+	      origin = "rvv-plugin",
+	      required_capabilities = [@rvv],
+	      required_march = "rv64gcv",
+	      role = "direct variant",
+	      selected_variant = @rvv_i64_slice,
+	      selected_vector_shape = "i64m1",
+	      selected_vector_sew = 64 : i64,
+	      selected_vector_lmul = "m1",
+	      selected_tail_policy = "agnostic",
+	      selected_mask_policy = "agnostic",
+	      selected_vector_type = "vint64m1_t",
+	      selected_vector_suffix = "i64m1",
+	      selected_setvl_suffix = "e64m1",
+	      source_kernel = "direct_i64_contract"
+	    } {
+	    ^bb0(%runtime_n: index):
+	      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
+	      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} {
+	        %lhs = tcrv_rvv.i64_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1
+	        %rhs = tcrv_rvv.i64_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1
+	        %sum = tcrv_rvv.i64_add %lhs, %rhs, %vl : !tcrv_rvv.i64m1, !tcrv_rvv.i64m1, !tcrv_rvv.vl -> !tcrv_rvv.i64m1
+	        tcrv_rvv.i64_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i64m1, !tcrv_rvv.vl
+	      } : !tcrv_rvv.vl
+	    }
+	  }
 
   tcrv.exec.kernel @direct_i32m2_contract {
     tcrv.exec.capability @rvv {
@@ -641,15 +670,16 @@ module {
               i64Kernel, "unit direct i64 descriptor contract"),
           i64Resolution, "resolve direct i64 descriptor contract"))
     return result;
-  if (int result =
-          expect(i64Resolution.getFamilyID() == "i64-vadd" &&
-                     i64Resolution.getLoweringDescriptor() ==
-                         "i64-vadd-microkernel.v1" &&
-                     i64Resolution.getSourceKind() ==
-                         "direct-lowering-descriptor" &&
-                     i64Resolution.getDirectSelectedShapeID() == "i64m1",
-                 "direct i64 descriptor contract resolves family and shape"))
-    return result;
+	  if (int result =
+	          expect(i64Resolution.getFamilyID() == "i64-vadd" &&
+	                     i64Resolution.getLoweringDescriptor() ==
+	                         "i64-vadd-microkernel.v1" &&
+	                     i64Resolution.getSourceKind() ==
+	                         "direct-typed-microkernel-body" &&
+	                     i64Resolution.getDirectSelectedShapeID() == "i64m1",
+	                 "direct i64 typed body with optional descriptor resolves "
+	                 "family and shape"))
+	    return result;
 
   llvm::SmallVector<llvm::StringRef, 4> i64CapabilityIDs =
       i64Resolution.getDirectSelectedCapabilityIDs();
@@ -669,19 +699,21 @@ module {
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
               i64Capabilities, i64Kernel, "unit direct i64 proposal"),
-          i64Plan, "build proposal from direct i64 descriptor contract"))
-    return result;
-  if (int result =
-          expect(i64Plan.getFamilyID() == "i64-vadd" &&
-                     i64Plan.getSelectedShape().shapeID == "i64m1" &&
-                     i64Plan.getRequiredCapabilityIDs().size() == 5 &&
-                     i64Plan.getRequiredCapabilityIDs()[1] ==
-                         "rvv.i64_m1.sew64" &&
+	          i64Plan,
+	          "build proposal from direct i64 typed body compatibility contract"))
+	    return result;
+	  if (int result =
+	          expect(i64Plan.getFamilyID() == "i64-vadd" &&
+	                     i64Plan.getSelectedShape().shapeID == "i64m1" &&
+	                     !i64Plan.shouldAttachLoweringDescriptorAttr() &&
+	                     i64Plan.getRequiredCapabilityIDs().size() == 5 &&
+	                     i64Plan.getRequiredCapabilityIDs()[1] ==
+	                         "rvv.i64_m1.sew64" &&
                      i64Plan.getRequiredCapabilityIDs()[4] ==
                          "rvv.i64_m1.mask_policy.agnostic",
-                 "direct i64 proposal uses centralized contract capability "
-                 "ids"))
-    return result;
+	                 "direct i64 proposal uses centralized contract capability "
+	                 "ids without reattaching descriptor compute authority"))
+	    return result;
 
   KernelOp i32Kernel = findKernel(*module, "direct_i32m2_contract");
   RVVBinaryFamilyPlanningResolution i32Resolution;
@@ -784,10 +816,36 @@ module {
   }
 }
 )mlir";
-  if (int result = expectResolutionError(
-          descriptorOnlyI32VAdd, "descriptor_only_i32_vadd",
-          "direct descriptor-only i32-vadd planning is legacy-quarantined"))
-    return result;
+	  if (int result = expectResolutionError(
+	          descriptorOnlyI32VAdd, "descriptor_only_i32_vadd",
+	          "direct descriptor-only RVV binary planning for family 'i32-vadd' "
+	          "is legacy-quarantined"))
+	    return result;
+
+	  constexpr llvm::StringLiteral descriptorOnlyI64VSub = R"mlir(
+	module {
+	  tcrv.exec.kernel @descriptor_only_i64_vsub {
+	    tcrv.exec.capability @rvv {
+	      id = "rvv",
+	      kind = "isa-vector",
+	      status = "available"
+	    }
+	    tcrv.exec.variant @rvv_bad attributes {
+	      origin = "rvv-plugin",
+	      requires = [@rvv],
+	      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
+	      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+	      tcrv_rvv.required_march = "rv64gcv"
+	    } {
+	    }
+	  }
+	}
+	)mlir";
+	  if (int result = expectResolutionError(
+	          descriptorOnlyI64VSub, "descriptor_only_i64_vsub",
+	          "direct descriptor-only RVV binary planning for family 'i64-vsub' "
+	          "is legacy-quarantined"))
+	    return result;
 
   constexpr llvm::StringLiteral typedBodyDescriptorMismatch = R"mlir(
 module {
