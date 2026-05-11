@@ -201,6 +201,17 @@ struct TargetArtifactCandidate {
   llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
 };
 
+struct TargetArtifactCompositeBundleMetadata {
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string componentGroup;
+  std::string externalABIName;
+};
+
+using TargetArtifactCompositeBundleMetadataFn =
+    llvm::Expected<TargetArtifactCompositeBundleMetadata> (*)(
+        llvm::ArrayRef<TargetArtifactCandidate> candidates);
+
 struct TargetArtifactBundleRecord {
   tcrv::exec::KernelOp kernel;
   std::string selectedVariant;
@@ -242,7 +253,9 @@ public:
                                   TargetArtifactCompositeCandidateValidationFn
                                       candidateValidationFn = nullptr,
                                   const TargetArtifactRouteMetadata
-                                      &routeMetadata = {});
+                                      &routeMetadata = {},
+                                  TargetArtifactCompositeBundleMetadataFn
+                                      bundleMetadataFn = nullptr);
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
       TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
@@ -253,7 +266,8 @@ public:
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
           nullptr,
-      const TargetArtifactRouteMetadata &routeMetadata = {});
+      const TargetArtifactRouteMetadata &routeMetadata = {},
+      TargetArtifactCompositeBundleMetadataFn bundleMetadataFn = nullptr);
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
       TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
@@ -264,7 +278,8 @@ public:
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
           nullptr,
-      const TargetArtifactRouteMetadata &routeMetadata = {});
+      const TargetArtifactRouteMetadata &routeMetadata = {},
+      TargetArtifactCompositeBundleMetadataFn bundleMetadataFn = nullptr);
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -287,6 +302,9 @@ public:
   TargetArtifactCompositeCandidateValidationFn getCandidateValidationFn() const {
     return candidateValidationFn;
   }
+  TargetArtifactCompositeBundleMetadataFn getBundleMetadataFn() const {
+    return bundleMetadataFn;
+  }
   const TargetArtifactRouteMetadata &getRouteMetadata() const {
     return routeMetadata;
   }
@@ -306,6 +324,7 @@ private:
   TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn =
       nullptr;
   TargetArtifactCompositeCandidateValidationFn candidateValidationFn = nullptr;
+  TargetArtifactCompositeBundleMetadataFn bundleMetadataFn = nullptr;
   TargetArtifactRouteMetadata routeMetadata;
 };
 

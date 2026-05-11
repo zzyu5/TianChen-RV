@@ -246,6 +246,16 @@ int expectDispatchFamilyExporterRoutes(
           family.dispatch.dispatchExternalABIComponentGroup,
           family.dispatch.dispatchRuntimeABIName))
     return result;
+  const TargetArtifactCompositeExporter *source =
+      registry.lookupComposite(family.dispatch.dispatchSourceRouteID);
+  if (int result =
+          expect(source && source->getRuntimeABIParametersFn() &&
+                     source->getBundleMetadataFn() &&
+                     source->getCandidateValidationFn(),
+                 llvm::Twine("dispatch source route derives runtime ABI and "
+                             "bundle metadata from selected components for ") +
+                     family.familyID))
+    return result;
 
   if (int result = expectCompositeRoute(
           registry, family.dispatch.dispatchHeaderRouteID,

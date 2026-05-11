@@ -38,6 +38,7 @@ namespace tianchenrv::target::rvv_scalar {
 namespace {
 
 using tianchenrv::target::TargetArtifactCandidate;
+using tianchenrv::target::TargetArtifactCompositeBundleMetadata;
 using tianchenrv::target::TargetArtifactCompositeExporter;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
@@ -137,6 +138,16 @@ struct DispatchPair {
   const DispatchI32FamilySpec *family = nullptr;
   const DispatchRVVVectorShapeConfig *selectedShape = nullptr;
   tianchenrv::target::rvv::RVVBinarySelectedConfigContract selectedConfig;
+  struct CompositeIdentity {
+    std::string diagnosticName;
+    std::string functionStem;
+    std::string headerGuardStem;
+    std::string runtimeABIKind;
+    std::string runtimeABIName;
+    std::string componentGroup;
+    std::string externalABIName;
+    std::string selfCheckSuccessMarker;
+  } composite;
   TargetArtifactCandidate rvv;
   TargetArtifactCandidate scalar;
   DispatchIRLink irLink;
@@ -153,6 +164,10 @@ buildDispatchPairSelectedConfigContract(
 llvm::Error validateDispatchSelectedDescriptorMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract);
+
+llvm::Expected<DispatchPair::CompositeIdentity>
+deriveDispatchCompositeIdentityFromSelectedComponents(
+    const DispatchPair &pair);
 
 llvm::Expected<std::optional<std::int64_t>>
 resolveDispatchDescriptorElementCountMetadata(
@@ -1188,6 +1203,11 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
   pair.family = rvvFamily;
   pair.rvv = *rvvCandidate;
   pair.scalar = *scalarCandidate;
+  llvm::Expected<DispatchPair::CompositeIdentity> composite =
+      deriveDispatchCompositeIdentityFromSelectedComponents(pair);
+  if (!composite)
+    return composite.takeError();
+  pair.composite = std::move(*composite);
   llvm::Expected<DispatchIRLink> irLink = resolveDispatchIRLinkForPair(pair);
   if (!irLink)
     return irLink.takeError();
@@ -1354,6 +1374,26 @@ resolveRVVScalarDispatchRuntimeABIParameters(
   return std::move(pair->abiPlan.parameters);
 }
 
+TargetArtifactCompositeBundleMetadata
+deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
+  TargetArtifactCompositeBundleMetadata metadata;
+  metadata.runtimeABIKind = pair.composite.runtimeABIKind;
+  metadata.runtimeABIName = pair.composite.runtimeABIName;
+  metadata.componentGroup = pair.composite.componentGroup;
+  metadata.externalABIName = pair.composite.externalABIName;
+  return metadata;
+}
+
+llvm::Expected<TargetArtifactCompositeBundleMetadata>
+resolveRVVScalarDispatchBundleMetadata(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  llvm::Expected<DispatchPair> pair =
+      collectDispatchPairFromCandidates(candidates);
+  if (!pair)
+    return pair.takeError();
+  return deriveRVVScalarDispatchBundleMetadataFromPair(*pair);
+}
+
 std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   std::string result;
   result.reserve(std::min<std::size_t>(value.size(), 64));
@@ -1370,12 +1410,123 @@ std::string sanitizeCIdentifierComponent(llvm::StringRef value) {
   return result;
 }
 
+llvm::Expected<std::string>
+requireSelectedComponentFamilyID(const TargetArtifactCandidate &candidate,
+                                 llvm::StringRef metadataName,
+                                 llvm::StringRef componentLabel) {
+  const SelectedPlanMetadataEntry *match = nullptr;
+  unsigned count = 0;
+  for (const SelectedPlanMetadataEntry &metadata :
+       candidate.selectedPlanMetadata) {
+    if (metadata.name == metadataName) {
+      match = &metadata;
+      ++count;
+    }
+  }
+
+  if (count == 0)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected ") + componentLabel + " candidate @" +
+            candidate.selectedVariant + " requires selected_plan_metadata '" +
+            metadataName + "' before RVV+scalar dispatch identity export");
+  if (count > 1)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected ") + componentLabel + " candidate @" +
+            candidate.selectedVariant +
+            " has duplicate selected_plan_metadata '" + metadataName + "'");
+  std::string fieldName =
+      (llvm::Twine(componentLabel) + " selected component family id").str();
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          candidate.kernel, fieldName, match->value))
+    return std::move(error);
+  return match->value;
+}
+
+std::string deriveDispatchFunctionStemFromSelectedFamily(
+    llvm::StringRef selectedFamilyID) {
+  return sanitizeCIdentifierComponent(selectedFamilyID);
+}
+
+std::string deriveDispatchHeaderGuardStemFromSelectedFamily(
+    llvm::StringRef selectedFamilyID) {
+  std::string guard = deriveDispatchFunctionStemFromSelectedFamily(
+      selectedFamilyID);
+  for (char &character : guard)
+    character = static_cast<char>(
+        std::toupper(static_cast<unsigned char>(character)));
+  return guard;
+}
+
+llvm::Expected<DispatchPair::CompositeIdentity>
+deriveDispatchCompositeIdentityFromSelectedComponents(
+    const DispatchPair &pair) {
+  llvm::Expected<std::string> rvvFamilyID =
+      requireSelectedComponentFamilyID(
+          pair.rvv,
+          tianchenrv::target::rvv::getRVVSelectedBinaryFamilyMetadataName(),
+          "RVV dispatch case");
+  if (!rvvFamilyID)
+    return rvvFamilyID.takeError();
+
+  llvm::Expected<std::string> scalarFamilyID =
+      requireSelectedComponentFamilyID(
+          pair.scalar,
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryFamilyMetadataName(),
+          "scalar dispatch fallback");
+  if (!scalarFamilyID)
+    return scalarFamilyID.takeError();
+
+  if (*rvvFamilyID != *scalarFamilyID)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        llvm::Twine("selected RVV dispatch case family '") + *rvvFamilyID +
+            "' does not match selected scalar dispatch fallback family '" +
+            *scalarFamilyID +
+            "'; selected component plans are the dispatch identity authority");
+
+  if (pair.family && pair.family->rvvFamily &&
+      *rvvFamilyID != pair.family->rvvFamily->familyID)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        llvm::Twine("selected component family '") + *rvvFamilyID +
+            "' does not match finite dispatch route registration metadata '" +
+            pair.family->rvvFamily->familyID +
+            "'; descriptor-local metadata cannot alter RVV+scalar dispatch "
+            "identity");
+
+  DispatchPair::CompositeIdentity identity;
+  identity.diagnosticName = *rvvFamilyID;
+  identity.functionStem =
+      deriveDispatchFunctionStemFromSelectedFamily(*rvvFamilyID);
+  identity.headerGuardStem =
+      deriveDispatchHeaderGuardStemFromSelectedFamily(*rvvFamilyID);
+  identity.runtimeABIKind =
+      "rvv-scalar-dispatch-runtime-callable-c-abi";
+  identity.runtimeABIName =
+      (llvm::Twine("rvv-scalar-") + *rvvFamilyID +
+       "-dispatch-runtime-callable-c-function.v1")
+          .str();
+  identity.componentGroup =
+      (llvm::Twine("rvv-scalar-") + *rvvFamilyID +
+       "-dispatch-external-abi.v1")
+          .str();
+  identity.externalABIName = identity.runtimeABIName;
+  identity.selfCheckSuccessMarker =
+      (llvm::Twine("tcrv_rvv_scalar_") + identity.functionStem +
+       "_dispatch_self_check_ok")
+          .str();
+  return identity;
+}
+
 std::string makeRVVFunctionName(const DispatchPair &pair) {
   const TargetArtifactCandidate &candidate = pair.rvv;
   KernelOp kernel = candidate.kernel;
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_rvv_" << pair.family->functionStem << "_microkernel_"
+  stream << "tcrv_rvv_" << pair.composite.functionStem << "_microkernel_"
          << sanitizeCIdentifierComponent(kernel.getSymName()) << "_"
          << sanitizeCIdentifierComponent(candidate.selectedVariant);
   stream.flush();
@@ -1387,7 +1538,7 @@ std::string makeScalarFunctionName(const DispatchPair &pair) {
   KernelOp kernel = candidate.kernel;
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_scalar_" << pair.family->functionStem << "_microkernel_"
+  stream << "tcrv_scalar_" << pair.composite.functionStem << "_microkernel_"
          << sanitizeCIdentifierComponent(kernel.getSymName()) << "_"
          << sanitizeCIdentifierComponent(candidate.selectedVariant);
   stream.flush();
@@ -1398,7 +1549,7 @@ std::string makeDispatcherFunctionName(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
   std::string name;
   llvm::raw_string_ostream stream(name);
-  stream << "tcrv_dispatch_" << pair.family->functionStem << "_"
+  stream << "tcrv_dispatch_" << pair.composite.functionStem << "_"
          << sanitizeCIdentifierComponent(kernel.getSymName());
   stream.flush();
   return name;
@@ -1407,7 +1558,7 @@ std::string makeDispatcherFunctionName(const DispatchPair &pair) {
 std::string makeDispatchHeaderIncludeGuard(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
   std::string guard = "TIANCHENRV_RVV_SCALAR_";
-  guard += pair.family->headerGuardStem;
+  guard += pair.composite.headerGuardStem;
   guard += "_DISPATCH_";
   guard += sanitizeCIdentifierComponent(kernel.getSymName());
   guard += "_H";
@@ -2527,8 +2678,8 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
     return bindings.takeError();
 
   os << "/* TianChen-RV RVV+scalar host runtime dispatch C export. */\n";
-  os << "/* Scope: one selected RVV " << pair.family->diagnosticName
-     << " dispatch case plus one scalar " << pair.family->diagnosticName
+  os << "/* Scope: one selected RVV " << pair.composite.diagnosticName
+     << " dispatch case plus one scalar " << pair.composite.diagnosticName
      << " dispatch fallback. */\n";
   os << "/* Runtime guard: explicit host-provided "
      << bindings->dispatchAvailabilityGuard->cName
@@ -2592,7 +2743,7 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
     printDispatchSelfCheckHarness(os, descriptor, dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
                                   bindings->dispatchAvailabilityGuard->cName,
-                                  pair.family->selfCheckSuccessMarker);
+                                  pair.composite.selfCheckSuccessMarker);
   }
   return llvm::Error::success();
 }
@@ -2757,7 +2908,7 @@ llvm::Expected<DispatchPair> collectDispatchPairForExpectedFamily(
         pair->rvv.kernel,
         llvm::Twine(routeContext) + " expected " +
             expectedFamily.diagnosticName + " dispatch artifacts, got " +
-            pair->family->diagnosticName);
+            pair->composite.diagnosticName);
   return std::move(*pair);
 }
 
@@ -3316,7 +3467,8 @@ llvm::Error registerRVVScalarDispatchRouteTargetExporter(
       resolveRVVScalarDispatchRuntimeABIParameters,
       /*directHelperRoute=*/true, route.componentGroup, route.externalABIName,
       validateRVVScalarDispatchCandidates,
-      buildRVVScalarDispatchRouteMetadata(route)));
+      buildRVVScalarDispatchRouteMetadata(route),
+      resolveRVVScalarDispatchBundleMetadata));
 }
 
 llvm::Error registerRVVScalarDispatchTargetExporters(

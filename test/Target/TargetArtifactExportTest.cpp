@@ -2121,9 +2121,10 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
       registry.lookupComposite(dispatchSourceRouteID);
   if (!dispatchSourceComposite ||
       !dispatchSourceComposite->getRuntimeABIParametersFn() ||
-      !dispatchSourceComposite->getCandidateValidationFn()) {
+      !dispatchSourceComposite->getCandidateValidationFn() ||
+      !dispatchSourceComposite->getBundleMetadataFn()) {
     llvm::errs() << "RVV+scalar dispatch plugin-owned route lacks runtime ABI "
-                    "parameter and preflight callbacks\n";
+                    "parameter, bundle metadata, and preflight callbacks\n";
     return false;
   }
 
@@ -2317,7 +2318,7 @@ bool expectRuntimeABICallableIdentity(
       identity.runtimeGlueRole == runtimeGlueRole)
     return true;
   llvm::errs() << context
-               << ": descriptor-backed callable ABI identity mismatch\n";
+               << ": finite callable ABI identity mismatch\n";
   return false;
 }
 
@@ -2329,7 +2330,7 @@ bool expectRuntimeABIDispatchIdentity(
       identity.runtimeABIName == runtimeABIName)
     return true;
   llvm::errs() << context
-               << ": descriptor-backed dispatch ABI identity mismatch\n";
+               << ": finite dispatch ABI identity mismatch\n";
   return false;
 }
 
@@ -2520,7 +2521,7 @@ bool expectRVVBinaryRuntimeABIContractShapeForFamily(
         requirement.role != callable[index].role ||
         requirement.ownership != callable[index].ownership) {
       llvm::errs() << "RVV callable role requirement[" << index
-                   << "] does not mirror descriptor-owned role/type for "
+                   << "] does not mirror finite callable role/type for "
                    << family.familyID << "\n";
       return false;
     }
@@ -2536,7 +2537,7 @@ bool expectRVVBinaryRuntimeABIContractShapeForFamily(
       windows[1].role != RuntimeABIParameterRole::RHSInputBuffer ||
       windows[2].role != RuntimeABIParameterRole::OutputBuffer) {
     llvm::errs() << "RVV binary runtime ABI contract mem_window specs are "
-                    "not descriptor-owned for "
+                    "not finite-family consistent for "
                  << family.familyID << "\n";
     return false;
   }
@@ -4458,6 +4459,99 @@ bool expectDispatchComponentAuthorityValidators() {
   return true;
 }
 
+bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
+    const TargetArtifactExporterRegistry &registry) {
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+                     "register RVV plugin for dispatch bundle metadata "
+                     "fixture"))
+    return false;
+  if (!expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(plugins),
+                     "register scalar plugin for dispatch bundle metadata "
+                     "fixture"))
+    return false;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseDispatchComponentAuthorityFixture(
+          context, makeDispatchComponentAuthorityFixture(),
+          "dispatch bundle metadata component-plan fixture");
+  if (!module)
+    return false;
+
+  tianchenrv::tcrv::exec::KernelOp kernel =
+      findKernel(*module, "dispatch_component_authority");
+  if (!kernel) {
+    llvm::errs() << "dispatch bundle metadata fixture missing kernel\n";
+    return false;
+  }
+
+  const TargetArtifactCompositeExporter *composite =
+      registry.lookupComposite("tcrv-export-rvv-scalar-i32-vmul-dispatch-c");
+  if (!composite || !composite->getBundleMetadataFn()) {
+    llvm::errs() << "vmul dispatch source composite route lacks bundle "
+                    "metadata callback\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(makeRVVMulDispatchCandidate(kernel, "rvv_first_slice"));
+  candidates.push_back(makeScalarMulDispatchFallbackCandidate(
+      kernel, "scalar_fallback_first_slice"));
+
+  llvm::Expected<TargetArtifactCompositeBundleMetadata> metadata =
+      composite->getBundleMetadataFn()(candidates);
+  if (!metadata) {
+    llvm::errs() << "selected component-plan dispatch bundle metadata "
+                    "resolution failed: "
+                 << llvm::toString(metadata.takeError()) << "\n";
+    return false;
+  }
+
+  if (metadata->runtimeABIKind !=
+          "rvv-scalar-dispatch-runtime-callable-c-abi" ||
+      metadata->runtimeABIName !=
+          "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1" ||
+      metadata->componentGroup !=
+          "rvv-scalar-i32-vmul-dispatch-external-abi.v1" ||
+      metadata->externalABIName !=
+          "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1") {
+    llvm::errs() << "dispatch bundle metadata was not derived from selected "
+                    "vmul component plans\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> staleCandidates = candidates;
+  if (!setSelectedPlanMetadataValue(
+          staleCandidates[0],
+          tianchenrv::target::rvv::getRVVSelectedBinaryFamilyMetadataName(),
+          "i32-vadd")) {
+    llvm::errs() << "stale dispatch bundle metadata test candidate is missing "
+                    "RVV selected_binary_family metadata\n";
+    return false;
+  }
+
+  llvm::Expected<TargetArtifactCompositeBundleMetadata> staleMetadata =
+      composite->getBundleMetadataFn()(staleCandidates);
+  if (staleMetadata) {
+    llvm::errs() << "stale RVV selected plan family unexpectedly changed "
+                    "dispatch bundle metadata authority\n";
+    return false;
+  }
+  return expectErrorContains(
+      staleMetadata.takeError(),
+      "stale selected component plan metadata rejected before dispatch bundle "
+      "metadata export",
+      {"route id 'tcrv-export-rvv-i32-vmul-microkernel-c'",
+       "selected_plan_metadata 'tcrv_rvv.selected_binary_family'",
+       "must use value 'i32-vmul'"});
+}
+
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -5331,10 +5425,11 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-c");
   if (!dispatchSourceComposite ||
       !dispatchSourceComposite->getRuntimeABIParametersFn() ||
-      !dispatchSourceComposite->getCandidateValidationFn()) {
+      !dispatchSourceComposite->getCandidateValidationFn() ||
+      !dispatchSourceComposite->getBundleMetadataFn()) {
     llvm::errs() << "dispatch source composite route must publish runtime ABI "
-                    "parameters and route-local candidate preflight through "
-                    "C++ callbacks\n";
+                    "parameters, route-local bundle metadata, and candidate "
+                    "preflight through C++ callbacks\n";
     return 1;
   }
   if (!expectCompositeRoute(
@@ -5368,10 +5463,11 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vsub-dispatch-c");
   if (!dispatchSubSourceComposite ||
       !dispatchSubSourceComposite->getRuntimeABIParametersFn() ||
-      !dispatchSubSourceComposite->getCandidateValidationFn()) {
+      !dispatchSubSourceComposite->getCandidateValidationFn() ||
+      !dispatchSubSourceComposite->getBundleMetadataFn()) {
     llvm::errs() << "vsub dispatch source composite route must publish "
-                    "runtime ABI parameters and route-local candidate "
-                    "preflight through C++ callbacks\n";
+                    "runtime ABI parameters, route-local bundle metadata, and "
+                    "candidate preflight through C++ callbacks\n";
     return 1;
   }
   if (!expectCompositeRoute(
@@ -5405,10 +5501,11 @@ int main() {
           "tcrv-export-rvv-scalar-i32-vmul-dispatch-c");
   if (!dispatchMulSourceComposite ||
       !dispatchMulSourceComposite->getRuntimeABIParametersFn() ||
-      !dispatchMulSourceComposite->getCandidateValidationFn()) {
+      !dispatchMulSourceComposite->getCandidateValidationFn() ||
+      !dispatchMulSourceComposite->getBundleMetadataFn()) {
     llvm::errs() << "vmul dispatch source composite route must publish "
-                    "runtime ABI parameters and route-local candidate "
-                    "preflight through C++ callbacks\n";
+                    "runtime ABI parameters, route-local bundle metadata, and "
+                    "candidate preflight through C++ callbacks\n";
     return 1;
   }
   if (!expectCompositeRoute(
@@ -5444,11 +5541,13 @@ int main() {
         builtinRegistry.lookupComposite(dispatch.dispatchSourceRouteID);
     if (!dispatchSourceComposite ||
         !dispatchSourceComposite->getRuntimeABIParametersFn() ||
-        !dispatchSourceComposite->getCandidateValidationFn()) {
+        !dispatchSourceComposite->getCandidateValidationFn() ||
+        !dispatchSourceComposite->getBundleMetadataFn()) {
       llvm::errs() << "i64 dispatch source composite route '"
                    << dispatch.dispatchSourceRouteID
-                   << "' must publish runtime ABI parameters and route-local "
-                      "candidate preflight through C++ callbacks\n";
+                   << "' must publish runtime ABI parameters, route-local "
+                      "bundle metadata, and candidate preflight through C++ "
+                      "callbacks\n";
       return 1;
     }
     if (!expectCompositeRoute(
@@ -5520,6 +5619,9 @@ int main() {
   if (!expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch())
     return 1;
   if (!expectDispatchComponentAuthorityValidators())
+    return 1;
+  if (!expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
+          builtinRegistry))
     return 1;
   if (!expectScalarSubSourceRejectsStaleAddMetadata(builtinRegistry))
     return 1;

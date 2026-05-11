@@ -1457,6 +1457,21 @@ llvm::Error appendCompositeBundleRecords(
         deriveCompositeRuntimeABIKind(group.candidates, exporter);
     record.runtimeABIName =
         deriveCompositeRuntimeABIName(group.candidates, exporter);
+    if (TargetArtifactCompositeBundleMetadataFn bundleMetadataFn =
+            exporter.getBundleMetadataFn()) {
+      llvm::Expected<TargetArtifactCompositeBundleMetadata> bundleMetadata =
+          bundleMetadataFn(group.candidates);
+      if (!bundleMetadata)
+        return bundleMetadata.takeError();
+      if (!bundleMetadata->runtimeABIKind.empty())
+        record.runtimeABIKind = std::move(bundleMetadata->runtimeABIKind);
+      if (!bundleMetadata->runtimeABIName.empty())
+        record.runtimeABIName = std::move(bundleMetadata->runtimeABIName);
+      if (!bundleMetadata->componentGroup.empty())
+        record.componentGroup = std::move(bundleMetadata->componentGroup);
+      if (!bundleMetadata->externalABIName.empty())
+        record.externalABIName = std::move(bundleMetadata->externalABIName);
+    }
     if (TargetArtifactCompositeRuntimeABIParametersFn parametersFn =
             exporter.getRuntimeABIParametersFn()) {
       llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
@@ -1471,7 +1486,7 @@ llvm::Error appendCompositeBundleRecords(
       record.runtimeABIParameters.append(runtimeABIParameters.begin(),
                                          runtimeABIParameters.end());
     }
-    if (!record.componentGroup.empty())
+    if (!record.componentGroup.empty() && record.externalABIName.empty())
       record.externalABIName = exporter.getExternalABIName().empty()
                                    ? record.runtimeABIName
                                    : exporter.getExternalABIName().str();
@@ -2479,7 +2494,8 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef runtimeABIName, bool directHelperRoute,
     llvm::StringRef componentGroup, llvm::StringRef externalABIName,
     TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
-    const TargetArtifactRouteMetadata &routeMetadata)
+    const TargetArtifactRouteMetadata &routeMetadata,
+    TargetArtifactCompositeBundleMetadataFn bundleMetadataFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
@@ -2487,6 +2503,7 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       candidateValidationFn(candidateValidationFn),
+      bundleMetadataFn(bundleMetadataFn),
       routeMetadata(routeMetadata) {}
 
 TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
@@ -2498,7 +2515,8 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     bool directHelperRoute, llvm::StringRef componentGroup,
     llvm::StringRef externalABIName,
     TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
-    const TargetArtifactRouteMetadata &routeMetadata)
+    const TargetArtifactRouteMetadata &routeMetadata,
+    TargetArtifactCompositeBundleMetadataFn bundleMetadataFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
@@ -2506,6 +2524,7 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       candidateValidationFn(candidateValidationFn),
+      bundleMetadataFn(bundleMetadataFn),
       routeMetadata(routeMetadata) {
   this->runtimeABIParameters.append(runtimeABIParameters.begin(),
                                     runtimeABIParameters.end());
@@ -2520,7 +2539,8 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     bool directHelperRoute, llvm::StringRef componentGroup,
     llvm::StringRef externalABIName,
     TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
-    const TargetArtifactRouteMetadata &routeMetadata)
+    const TargetArtifactRouteMetadata &routeMetadata,
+    TargetArtifactCompositeBundleMetadataFn bundleMetadataFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
@@ -2529,6 +2549,7 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
       externalABIName(externalABIName.str()),
       runtimeABIParametersFn(runtimeABIParametersFn),
       candidateValidationFn(candidateValidationFn),
+      bundleMetadataFn(bundleMetadataFn),
       routeMetadata(routeMetadata) {}
 
 llvm::Error TargetArtifactExporterRegistry::registerExporter(

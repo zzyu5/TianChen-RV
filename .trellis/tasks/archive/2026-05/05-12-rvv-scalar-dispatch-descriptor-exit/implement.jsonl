@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants and descriptor boundary"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified RISC-V extension-family architecture"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "typed extension-family ops to common EmitC route authority"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export, composite route, ABI, and bundle contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected component emission context"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "scalar fallback selected component emission context"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++ and lit validation requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-selected-emission-descriptor-exit/prd.md", "reason": "previous RVV component descriptor-exit context"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-scalar-selected-emission-descriptor-exit/prd.md", "reason": "previous scalar component descriptor-exit context"}
+{"file": "include/TianChenRV/Target/RVVScalarDispatch.h", "reason": "RVV+scalar dispatch route API"}
+{"file": "include/TianChenRV/Target/RVVScalarBinaryFamily.h", "reason": "finite RVV/scalar compatibility metadata and dispatch route registry"}
+{"file": "include/TianChenRV/Target/TargetArtifactExport.h", "reason": "generic target artifact and composite bundle metadata interfaces"}
+{"file": "lib/Target/Builtin/RVVScalarDispatch.cpp", "reason": "dispatch composite export implementation"}
+{"file": "lib/Target/TargetArtifactExport.cpp", "reason": "generic bundle record derivation and validation"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "focused target/export C++ coverage"}
+{"file": "test/Target/I32BinaryFamilyRegistryTest.cpp", "reason": "finite route registry coverage"}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir", "reason": "focused RVV+scalar dispatch lit coverage"}
+{"file": "test/Scripts/rvv-scalar-dispatch-e2e.test", "reason": "dispatch dry-run script coverage"}
+{"file": "test/Scripts/rvv-scalar-dispatch-bundle-e2e.test", "reason": "dispatch bundle dry-run script coverage"}

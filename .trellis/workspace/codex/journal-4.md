@@ -107,3 +107,49 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 
 [OK] Completed and ready to archive. No `ssh rvv` runtime, correctness, or
 performance claim was made.
+
+
+## Session 37: RVV+scalar dispatch descriptor exit
+
+**Date**: 2026-05-12
+**Task**: rvv-scalar-dispatch-descriptor-exit
+**Branch**: `main`
+
+### Summary
+
+Removed descriptor authority from the default RVV+scalar dispatch composite
+bundle identity path for the bounded selected-component route.
+
+### Main Changes
+
+- Added a route-local composite bundle metadata callback to
+  `TargetArtifactCompositeExporter` and let bundle records take dispatch ABI,
+  component group, and external ABI identity from selected component groups
+  before static route fallback metadata.
+- Rewired RVV+scalar dispatch composite identity so dispatch function stem,
+  header guard stem, self-check marker, runtime ABI name, component group, and
+  external ABI name are derived from selected RVV/scalar
+  `selected_binary_family` plan metadata.
+- Kept finite descriptors as route registration and mismatch validation
+  metadata only; stale selected component metadata now fails closed before
+  bundle metadata export can proceed.
+- Updated target/export and i32 registry tests to require route-local runtime
+  ABI, bundle metadata, and candidate preflight callbacks.
+
+### Testing
+
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit filter:
+  `Target/RVVScalarDispatch|rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e`,
+  15/15 passed.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  207/207 passed.
+
+### Status
+
+[OK] Completed and ready to archive. No `ssh rvv` runtime, correctness, or
+performance claim was made.
