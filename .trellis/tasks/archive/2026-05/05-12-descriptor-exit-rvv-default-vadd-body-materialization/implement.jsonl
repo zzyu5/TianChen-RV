@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and descriptor-exit boundary"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V architecture boundary and descriptor-driven computation debt"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Typed extension family op to common EmitC route contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected emission, runtime ABI, and target artifact fail-closed contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin typed microkernel materialization and selected export contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation and selection ownership boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation requirements"}

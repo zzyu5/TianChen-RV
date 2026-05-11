@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack and descriptor-exit invariants for final review"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check tcrv.exec stays compute-free and RVV remains extension-owned"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check default path reaches typed op/common EmitC route rather than descriptor-owned compute"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected emission/export fail-closed behavior and ABI layering"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check materialized RVV i32 microkernel body contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check plugin proposal/selection ownership boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test coverage matches MLIR testing policy"}

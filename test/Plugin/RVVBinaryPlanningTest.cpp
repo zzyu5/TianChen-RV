@@ -136,6 +136,21 @@ void addI32M2Facts(TargetCapabilitySet &capabilities) {
       {{"lanes", "4"}}));
 }
 
+void addI32M1Facts(TargetCapabilitySet &capabilities) {
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m1_sew32", "rvv.i32_m1.sew32", "isa-vector-config",
+      {{"sew_bits", "32"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m1_lmul_m1", "rvv.i32_m1.lmul_m1", "isa-vector-config",
+      {{"lmul", "m1"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m1_tail_agnostic", "rvv.i32_m1.tail_policy.agnostic",
+      "isa-vector-config", {{"tail_policy", "agnostic"}}));
+  capabilities.addCapability(makeAvailableCapability(
+      "rvv_i32_m1_mask_agnostic", "rvv.i32_m1.mask_policy.agnostic",
+      "isa-vector-config", {{"mask_policy", "agnostic"}}));
+}
+
 void addI64M1Facts(TargetCapabilitySet &capabilities) {
   capabilities.addCapability(makeAvailableCapability(
       "rvv_i64_m1_sew64", "rvv.i64_m1.sew64", "isa-vector-config",
@@ -469,6 +484,75 @@ int runProposalPlanRequirementMetadataTest() {
     return fail("expected unsupported finite family proposal error");
   return expectErrorContains(unsupported.takeError(),
                              "frontend lowering family must be");
+}
+
+int runDefaultI32VAddTypedBodyMaterializationPlanningTest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @default_i32_vadd_no_body {
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse default i32-vadd planning module");
+
+  KernelOp kernel = findKernel(*module, "default_i32_vadd_no_body");
+  RVVBinaryFamilyPlanningResolution resolution;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
+              kernel, "unit default i32-vadd typed materialization"),
+          resolution, "resolve default i32-vadd typed materialization request"))
+    return result;
+
+  if (int result =
+          expect(resolution.getFamilyID() == "i32-vadd" &&
+                     resolution.getSourceKind() ==
+                         "default-i32-vadd-typed-body-materialization" &&
+                     resolution.getDirectSelectedShapeID().empty(),
+                 "default no-body i32-vadd resolves only as typed-body "
+                 "materialization request"))
+    return result;
+
+  TargetCapabilitySet capabilities;
+  addBaseRVVFacts(capabilities);
+  addI32M1Facts(capabilities);
+
+  RVVBinaryProposalPlan plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+              capabilities, kernel, "unit default i32-vadd proposal"),
+          plan, "build default i32-vadd descriptorless proposal"))
+    return result;
+
+  if (int result =
+          expect(plan.getFamilyID() == "i32-vadd" &&
+                     plan.getSelectedShape().shapeID == "i32m1" &&
+                     plan.selectedPlan.elementCount == 16 &&
+                     !plan.shouldAttachLoweringDescriptorAttr(),
+                 "default proposal selects i32m1 and refuses to reattach "
+                 "descriptor compute authority"))
+    return result;
+
+  return expect(plan.getRequiredCapabilityIDs().size() == 5 &&
+                    plan.getRequiredCapabilityIDs()[0] == "rvv" &&
+                    plan.getRequiredCapabilityIDs()[1] ==
+                        "rvv.i32_m1.sew32" &&
+                    plan.getRequiredCapabilityIDs()[2] ==
+                        "rvv.i32_m1.lmul_m1" &&
+                    plan.getRequiredCapabilityIDs()[3] ==
+                        "rvv.i32_m1.tail_policy.agnostic" &&
+                    plan.getRequiredCapabilityIDs()[4] ==
+                        "rvv.i32_m1.mask_policy.agnostic",
+                "default proposal keeps selected vector-shape capability "
+                "requirements explicit for later typed body materialization");
 }
 
 int runDirectDescriptorPlanningContractTest() {
@@ -991,6 +1075,8 @@ int main() {
   if (int result = runEmissionIdentityTest())
     return result;
   if (int result = runProposalPlanRequirementMetadataTest())
+    return result;
+  if (int result = runDefaultI32VAddTypedBodyMaterializationPlanningTest())
     return result;
   if (int result = runDirectDescriptorPlanningContractTest())
     return result;

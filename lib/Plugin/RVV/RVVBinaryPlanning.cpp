@@ -69,6 +69,8 @@ constexpr llvm::StringLiteral kBoundarySelectedSetVLSuffixAttrName(
     "selected_setvl_suffix");
 constexpr llvm::StringLiteral kDirectTypedMicrokernelBodySourceKind(
     "direct-typed-microkernel-body");
+constexpr llvm::StringLiteral kDefaultTypedMicrokernelBodySourceKind(
+    "default-i32-vadd-typed-body-materialization");
 constexpr llvm::StringLiteral kDirectLoweringDescriptorSourceKind(
     "direct-lowering-descriptor");
 constexpr llvm::StringLiteral kDirectRVVBinaryDescriptorSourceKind(
@@ -440,6 +442,10 @@ bool isSameRVVBinaryFamily(const target::rvv::RVVBinaryFamilyDescriptor &lhs,
 
 bool isDirectTypedSourceKind(llvm::StringRef sourceKind) {
   return sourceKind == kDirectTypedMicrokernelBodySourceKind;
+}
+
+bool isDescriptorOwnedSourceKind(llvm::StringRef sourceKind) {
+  return sourceKind == kDirectLoweringDescriptorSourceKind;
 }
 
 std::string stringifyType(mlir::Type type) {
@@ -1745,7 +1751,7 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
 
   RVVBinaryFamilyPlanningResolution defaultResolution;
   defaultResolution.family = &target::rvv::getI32VAddFamilyDescriptor();
-  defaultResolution.sourceKind = "default-i32-vadd";
+  defaultResolution.sourceKind = kDefaultTypedMicrokernelBodySourceKind.str();
   return defaultResolution;
 }
 
@@ -1803,7 +1809,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
 
   bool attachLoweringDescriptorAttr = true;
   if (isDescriptorlessDefaultTypedFamily(*resolution->family) &&
-      resolution->sourceKind != "direct-lowering-descriptor")
+      !isDescriptorOwnedSourceKind(resolution->sourceKind))
     attachLoweringDescriptorAttr = false;
 
   return buildRVVBinaryProposalPlanForFamily(

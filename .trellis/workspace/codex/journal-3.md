@@ -99,6 +99,77 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 31: Descriptor exit for default RVV i32-vadd typed body materialization
+
+**Date**: 2026-05-12
+**Task**: Descriptor exit from RVV default i32 add typed-body materialization
+**Branch**: `main`
+
+### Summary
+
+Made the descriptorless default RVV `i32-vadd` route explicit as a typed-body
+materialization request, added focused C++ coverage for planning and selected
+lowering-boundary materialization, archived the Trellis task, and passed the
+full TianChen-RV test suite.
+
+### Main Changes
+
+- Renamed the default no-evidence RVV `i32-vadd` planning source kind from
+  `default-i32-vadd` to `default-i32-vadd-typed-body-materialization`.
+- Kept descriptor attachment disabled for descriptorless typed-family default
+  routes unless the source is explicitly descriptor-owned.
+- Added RVV binary planning C++ coverage proving the default no-body route
+  selects `i32m1`, keeps capability requirements explicit, and does not
+  reattach `tcrv_rvv.lowering_descriptor`.
+- Added selected lowering-boundary C++ coverage proving the default
+  descriptorless `i32-vadd` route materializes
+  `tcrv_rvv.i32_vadd_microkernel` with selected metadata, required march,
+  `setvl`/`with_vl`, load/add/store body ops, ABI roles, and callable runtime
+  ABI boundaries before emission/export.
+- No spec update was needed: the existing specs already require typed RVV
+  family ops, common EmitC routing, descriptor-exit, and fail-closed export
+  checks; this round implemented and tested that existing contract.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] focused build:
+  `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-selected-lowering-boundary-test -j2`
+- [OK] `tianchenrv-rvv-binary-planning-test`
+- [OK] `tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] focused build:
+  `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `tianchenrv-rvv-extension-plugin-test`
+- [OK] `tianchenrv-target-artifact-export-test`
+- [OK] focused FileCheck for
+  `test/Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir`
+  with `IR`, `READY`, and `EXPORT` checks.
+- [OK] focused FileCheck for
+  `test/Transforms/LoweringBoundary/rvv-i32-vadd-descriptor-only-legacy-quarantine.mlir`
+- [OK] active Trellis validation before archive and archived Trellis
+  validation after archive.
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`: 206/206 lit tests passed.
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or
+  performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 30: Descriptor exit linalg finite-binary frontend
 
 **Date**: 2026-05-12

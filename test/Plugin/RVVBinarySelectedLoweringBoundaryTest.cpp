@@ -212,6 +212,17 @@ int expectCallableRuntimeABI(KernelOp kernel, llvm::StringRef dtype) {
                     dtype + " callable mem_window/runtime_param ABI");
 }
 
+bool hasNestedOperation(mlir::Operation *op, llvm::StringRef opName) {
+  bool found = false;
+  if (!op)
+    return found;
+  op->walk([&](mlir::Operation *candidate) {
+    if (candidate->getName().getStringRef() == opName)
+      found = true;
+  });
+  return found;
+}
+
 llvm::Error materializeWithModuleAPI(
     tianchenrv::plugin::rvv::RVVExtensionPlugin &plugin,
     mlir::OpBuilder &builder, VariantOp variant, KernelOp kernel,
@@ -424,6 +435,144 @@ module {
       {"capacity metadata", "does not match"});
 }
 
+int runDefaultI32VAddSelectedLoweringBoundaryModuleTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_default_i32_vadd_boundary attributes {} {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
+      sew_bits = 32 : i64,
+      lmul = "m1",
+      tail_policy = "agnostic",
+      mask_policy = "agnostic",
+      architecture = "riscv64",
+      isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_probe_compile_run {
+      id = "rvv.probe.compile_run",
+      kind = "toolchain",
+      selected_mabi = "lp64d",
+      selected_march = "rv64gcv",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_toolchain_march {
+      id = "rvv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gcv"
+    }
+    tcrv.exec.variant @rvv_first_slice attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse default i32-vadd selected-boundary module");
+
+  KernelOp kernel = findKernel(*module, "rvv_default_i32_vadd_boundary");
+  VariantOp variant = findVariant(kernel, "rvv_first_slice");
+  if (int result =
+          expect(kernel && variant, "default i32-vadd test has kernel/variant"))
+    return result;
+  if (int status = expect(!variant->hasAttr("tcrv_rvv.lowering_descriptor"),
+                          "default i32-vadd input is descriptorless"))
+    return status;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
+  mlir::OpBuilder builder(&context);
+  builder.setInsertionPointToEnd(&kernel.getBody().front());
+
+  VariantLoweringBoundaryResult result;
+  if (int status = expectSuccess(
+          materializeWithModuleAPI(plugin, builder, variant, kernel,
+                                   capabilities, result),
+          "materialize default i32-vadd typed selected lowering boundary"))
+    return status;
+  if (int status =
+          expect(result.isMaterialized(),
+                 "default i32-vadd selected boundary result is materialized"))
+    return status;
+
+  LoweringBoundaryOp boundary = findBoundary(kernel, variant.getSymName());
+  if (int status =
+          expect(static_cast<bool>(boundary),
+                 "default i32-vadd selected boundary op exists"))
+    return status;
+
+  mlir::Operation *microkernel = findSelectedOpByName(
+      kernel, variant.getSymName(),
+      tianchenrv::target::rvv::getI32VAddFamilyDescriptor().microkernelOpName);
+  if (int status =
+          expect(microkernel,
+                 "default descriptorless path materializes typed i32-vadd "
+                 "microkernel before emission/export"))
+    return status;
+  if (int status = expectIntegerAttr(microkernel, "element_count", 16))
+    return status;
+  if (int status = expectStringAttr(microkernel, "required_march", "rv64gcv"))
+    return status;
+  if (int status = expectStringAttr(microkernel, "selected_mabi", "lp64d"))
+    return status;
+  if (int status =
+          expectStringAttr(microkernel, "selected_vector_shape", "i32m1"))
+    return status;
+  if (int status =
+          expectStringAttr(microkernel, "selected_vector_lmul", "m1"))
+    return status;
+  if (int status =
+          expectStringAttr(microkernel, "selected_setvl_suffix", "e32m1"))
+    return status;
+  if (int status =
+          expectStringAttr(microkernel, "role", "direct variant"))
+    return status;
+
+  if (int status =
+          expect(hasNestedOperation(microkernel, "tcrv_rvv.setvl") &&
+                     hasNestedOperation(microkernel, "tcrv_rvv.with_vl") &&
+                     hasNestedOperation(microkernel, "tcrv_rvv.i32_load") &&
+                     hasNestedOperation(microkernel, "tcrv_rvv.i32_add") &&
+                     hasNestedOperation(microkernel, "tcrv_rvv.i32_store"),
+                 "default materialized body carries typed RVV control and "
+                 "i32 add dataflow ops"))
+    return status;
+
+  if (int status = expectCallableRuntimeABI(kernel, "i32"))
+    return status;
+
+  return expectSuccess(
+      validateWithModuleAPI(plugin, variant, kernel, capabilities, boundary),
+      "validate default i32-vadd typed selected boundary through module API");
+}
+
 int runI64SelectedLoweringBoundaryModuleTest(
     mlir::MLIRContext &context,
     const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
@@ -591,6 +740,9 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runI32SelectedLoweringBoundaryModuleTest(context))
+    return result;
+  if (int result =
+          runDefaultI32VAddSelectedLoweringBoundaryModuleTest(context))
     return result;
   if (int result = runI64SelectedLoweringBoundaryModuleTest(
           context, tianchenrv::target::rvv::getI64VSubFamilyDescriptor()))
