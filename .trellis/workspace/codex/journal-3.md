@@ -59,6 +59,103 @@ No `ssh rvv` evidence was collected and no runtime correctness or performance cl
 
 - None - task complete
 
+
+## Session 27: RVV i32-vmul frontend-to-dispatch ssh evidence
+
+**Date**: 2026-05-11
+**Task**: RVV i32-vmul frontend-to-dispatch ssh evidence slice
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded current-HEAD `i32-vmul` RVV+scalar dispatch bundle evidence
+slice. The active C++/MLIR path already carried the marked linalg front-door
+fixture through selected RVV `i32-vmul` dispatch case, selected scalar
+`i32-vmul` fallback, plugin-owned lowering boundaries, plan-and-export target
+artifact bundle export, and generated external caller construction. This round
+added focused dry-run lit coverage for the exact bundle handoff and collected
+fresh `ssh rvv` runtime evidence for both source-built and bundle-object
+external caller paths.
+
+### Main Changes
+
+- Created and started Trellis task
+  `.trellis/tasks/05-11-rvv-i32-vmul-frontend-dispatch-ssh-evidence/` with a
+  PRD and curated implement/check context.
+- Added a focused `rvv_scalar_dispatch_e2e.py` lit regression for
+  `--dry-run --use-target-artifact-bundle
+  --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul`.
+- The new regression checks the dry-run/non-runtime claim boundary, generated
+  source/header/object bundle files, selected kernel `frontend_bundle_i32_vmul`,
+  `__riscv_vmul_vv_i32m1`, scalar `lhs * rhs`, RVV/scalar callable symbols,
+  source/header/object route ids, runtime ABI roles, selected descriptor
+  metadata, and absence of `runtime_success`/performance claims in dry-run
+  evidence.
+- No C++/MLIR/TableGen/CMake compiler implementation change was needed.
+
+### Runtime Evidence
+
+- Evidence directory:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i32-vmul-dispatch-bundle-ssh-20260511/`.
+- Evidence JSON:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-i32-vmul-dispatch-bundle-ssh-20260511/evidence.json`.
+- Command:
+  `python3 scripts/rvv_scalar_dispatch_e2e.py
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i32-vmul
+  --expect-selected-kernel=frontend_bundle_i32_vmul --run-id
+  codex-i32-vmul-dispatch-bundle-ssh-20260511 --overwrite --timeout 120
+  --ssh-target rvv`
+- Result: `status=success`, `pass_fail_result=pass`, `mode=ssh`,
+  `runtime_success=true`, `ssh_evidence.success=true`,
+  `ssh_evidence_verified=true`.
+- Selected route/component group:
+  `tcrv-export-rvv-scalar-i32-vmul-dispatch-c`,
+  `tcrv-export-rvv-scalar-i32-vmul-dispatch-header`,
+  `tcrv-export-rvv-scalar-i32-vmul-dispatch-object`,
+  `rvv-scalar-i32-vmul-dispatch-external-abi.v1`.
+- Both source-built and compiler-emitted bundle object external caller paths
+  compiled, linked, ran, and observed
+  `tcrv_rvv_scalar_i32_vmul_bundle_external_abi_ok runtime_counts=7,16
+  branches=scalar_and_rvv`.
+- Runtime claim is limited to this generated RVV+scalar `i32-vmul`
+  target-artifact bundle external caller correctness on `ssh rvv`.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt
+  tcrv-translate tianchenrv-rvv-extension-plugin-test
+  tianchenrv-scalar-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door
+  --arithmetic-family=i32-vmul
+  --expect-selected-kernel=frontend_bundle_i32_vmul --run-id
+  codex-i32-vmul-dispatch-bundle-dry --overwrite --timeout 120`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `--filter rvv-scalar-dispatch-e2e`
+- Focused lit from `artifacts/tmp/tianchenrv-build/test`:
+  `--filter 'plan-linalg-i32-vmul-and-export-target-artifact-bundle|rvv-scalar-i32-vmul-dispatch-generic-route'`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-i32-vmul-frontend-dispatch-ssh-evidence`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 ---
 
 ## Session 22: RVV i32m2 selected VL dispatch ssh evidence

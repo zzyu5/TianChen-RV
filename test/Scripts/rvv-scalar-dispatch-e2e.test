@@ -24,6 +24,12 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VMUL-SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-vmul-dispatch-e2e/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --expect-selected-kernel=frontend_bundle_i32_vmul --run-id lit-rvv-scalar-vmul-bundle-dispatch-e2e --overwrite | FileCheck %s --check-prefix=VMUL-BUNDLE-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-bundle-dispatch-e2e/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-bundle-dispatch-e2e/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vmul-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-bundle-dispatch-e2e/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vmul-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=VMUL-BUNDLE-SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-bundle-dispatch-e2e/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vmul-dispatch-c.c
+# RUN: FileCheck %s --check-prefix=VMUL-BUNDLE-EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vmul-bundle-dispatch-e2e/evidence.json
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i64-vadd --run-id lit-rvv-scalar-i64-vadd-dispatch-e2e --overwrite | FileCheck %s --check-prefix=I64-DRY
 # RUN: test -f %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/rvv_scalar_dispatch_self_check.c
 # RUN: FileCheck %s --check-prefix=I64-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=rvv.i32_ --implicit-check-not=i32-vadd < %S/../../artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e/rvv_scalar_dispatch_self_check.c
@@ -170,6 +176,56 @@
 # VMUL-EVIDENCE: "self_check_source_export_route": "--tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c"
 # VMUL-EVIDENCE: "ssh_evidence": null
 # VMUL-EVIDENCE: "status": "success"
+
+# VMUL-BUNDLE-DRY: "arithmetic_family": "i32-vmul"
+# VMUL-BUNDLE-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VMUL-BUNDLE-DRY: "claim_scope": "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
+# VMUL-BUNDLE-DRY: "fixture_free_frontend_pipeline": true
+# VMUL-BUNDLE-DRY: "mode": "dry-run"
+# VMUL-BUNDLE-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VMUL-BUNDLE-DRY: "selected_kernel": "frontend_bundle_i32_vmul"
+# VMUL-BUNDLE-DRY: "source_export_mode": "runtime-callable-library"
+# VMUL-BUNDLE-DRY: "ssh_evidence": false
+# VMUL-BUNDLE-DRY: "ssh_evidence_verified": false
+# VMUL-BUNDLE-DRY: "status": "success"
+
+# VMUL-BUNDLE-SOURCE: /* Scope: one selected RVV i32-vmul dispatch case plus one scalar i32-vmul dispatch fallback. */
+# VMUL-BUNDLE-SOURCE: /* selected_kernel: @frontend_bundle_i32_vmul */
+# VMUL-BUNDLE-SOURCE: /* rvv_artifact_route_id: tcrv-export-rvv-i32-vmul-microkernel-c */
+# VMUL-BUNDLE-SOURCE: /* scalar_artifact_route_id: tcrv-export-scalar-i32-vmul-microkernel-c */
+# VMUL-BUNDLE-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32_vmul_rvv_first_slice */
+# VMUL-BUNDLE-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32_vmul_scalar_fallback_first_slice */
+# VMUL-BUNDLE-SOURCE: __riscv_vmul_vv_i32m1
+# VMUL-BUNDLE-SOURCE: out[index] = lhs[index] * rhs[index];
+# VMUL-BUNDLE-SOURCE: void tcrv_dispatch_i32_vmul_frontend_bundle_i32_vmul
+
+# VMUL-BUNDLE-EVIDENCE: "arithmetic_family": "i32-vmul"
+# VMUL-BUNDLE-EVIDENCE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VMUL-BUNDLE-EVIDENCE: "claim_scope": "local dry-run verifies bundle export, index parsing, file discovery, and external caller construction only"
+# VMUL-BUNDLE-EVIDENCE: "rvv_callable_symbol": "tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32_vmul_rvv_first_slice"
+# VMUL-BUNDLE-EVIDENCE: "scalar_callable_symbol": "tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32_vmul_scalar_fallback_first_slice"
+# VMUL-BUNDLE-EVIDENCE: "mode": "dry-run"
+# VMUL-BUNDLE-EVIDENCE: "bundle_object_path_checked_by_live_run": false
+# VMUL-BUNDLE-EVIDENCE: "source_built_object_path_checked_by_live_run": false
+# VMUL-BUNDLE-EVIDENCE: "selected_route_id": "tcrv-export-rvv-scalar-i32-vmul-dispatch-header"
+# VMUL-BUNDLE-EVIDENCE: "selected_route_id": "tcrv-export-rvv-scalar-i32-vmul-dispatch-object"
+# VMUL-BUNDLE-EVIDENCE: "selected_route_id": "tcrv-export-rvv-scalar-i32-vmul-dispatch-c"
+# VMUL-BUNDLE-EVIDENCE: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VMUL-BUNDLE-EVIDENCE: "component_group": "rvv-scalar-i32-vmul-dispatch-external-abi.v1"
+# VMUL-BUNDLE-EVIDENCE: "external_abi_name": "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"
+# VMUL-BUNDLE-EVIDENCE: "route": "tcrv-export-rvv-scalar-i32-vmul-dispatch-c"
+# VMUL-BUNDLE-EVIDENCE: "runtime_abi_kind": "rvv-scalar-dispatch-runtime-callable-c-abi"
+# VMUL-BUNDLE-EVIDENCE: "runtime_abi_name": "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"
+# VMUL-BUNDLE-EVIDENCE: "role": "runtime-element-count"
+# VMUL-BUNDLE-EVIDENCE: "role": "dispatch-availability-guard"
+# VMUL-BUNDLE-EVIDENCE: "name": "tcrv_rvv.selected_binary_family"
+# VMUL-BUNDLE-EVIDENCE: "value": "i32-vmul"
+# VMUL-BUNDLE-EVIDENCE: "name": "tcrv_scalar.selected_binary_family"
+# VMUL-BUNDLE-EVIDENCE: "value": "i32-vmul"
+# VMUL-BUNDLE-EVIDENCE: "selected_kernel": "frontend_bundle_i32_vmul"
+# VMUL-BUNDLE-EVIDENCE: "ssh_evidence": null
+# VMUL-BUNDLE-EVIDENCE: "ssh_evidence_verified": false
+# VMUL-BUNDLE-EVIDENCE: "status": "success"
 
 # I64-DRY: "arithmetic_family": "i64-vadd"
 # I64-DRY: "artifact_dir": "artifacts/tmp/rvv_scalar_dispatch_e2e/lit-rvv-scalar-i64-vadd-dispatch-e2e"
