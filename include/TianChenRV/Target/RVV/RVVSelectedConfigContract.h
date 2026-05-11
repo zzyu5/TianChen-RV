@@ -311,15 +311,12 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
   if (!family.frontendContract)
     return makeRVVSelectedConfigContractError(
         llvm::Twine("selected config mismatch: finite binary family '") +
-        family.familyID + "' is missing its frontend descriptor contract");
+        family.familyID + "' is missing its frontend marker/ABI contract");
 
   if (family.frontendContract->dtypeID != family.dtypeID ||
       family.frontendContract->familyID != family.familyID ||
       family.frontendContract->frontendLowering != family.frontendLowering ||
-      family.frontendContract->loweringDescriptor !=
-          family.loweringDescriptor ||
       family.frontendContract->elementBitWidth != family.elementBitWidth ||
-      family.frontendContract->cOperator != family.cOperator ||
       family.frontendContract->constInputPointerCType !=
           family.constInputPointerCType ||
       family.frontendContract->outputPointerCType !=
@@ -327,7 +324,7 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
     return makeRVVSelectedConfigContractError(
         llvm::Twine("selected config mismatch: finite binary family '") +
         family.familyID +
-        "' disagrees with the descriptor-local frontend dtype/operator "
+        "' disagrees with the source-derived frontend marker/ABI "
         "contract");
 
   if (contract.getDescriptorElementCount() < 0 ||

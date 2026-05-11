@@ -11,8 +11,10 @@ def LowerLinalgRVVBinaryToExec
     binary add/sub/mul wrappers and materializes the TianChen-RV execution
     boundary consumed by the existing plugin planning pipeline. The pass
     creates a tcrv.exec.kernel with a selected module target profile reference,
-    preserves the bounded frontend lowering family marker, validates that target
-    profile's generic capability provider composition, optionally clones
+    derives finite dtype/arithmetic identity from the source memrefs, scalar
+    region arguments, and arith.addi/subi/muli feeding linalg.yield, checks the
+    bounded frontend lowering marker only as a route request, validates that
+    target profile's generic capability provider composition, optionally clones
     explicitly referenced supplemental module-level capability providers into
     the kernel capability scope, and materializes the bounded binary runtime ABI
     mem_window/runtime_param surface, then removes the source wrapper.

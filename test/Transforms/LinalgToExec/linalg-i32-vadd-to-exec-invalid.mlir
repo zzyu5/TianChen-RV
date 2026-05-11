@@ -38,4 +38,4 @@ module {
   }
 }
 
-// CHECK: marked linalg.generic for TianChen-RV i32-vadd expects one arith.addi feeding linalg.yield
+// CHECK: marked linalg.generic for TianChen-RV has marker 'i32-vadd' requesting family 'i32-vadd' but source body infers family 'i32-vsub' from arith.subi; marker is only a bounded route request/cross-check

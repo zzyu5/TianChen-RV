@@ -99,6 +99,65 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 30: Descriptor exit linalg finite-binary frontend
+
+**Date**: 2026-05-12
+**Task**: Descriptor exit from the bounded linalg finite-binary frontend path
+**Branch**: `main`
+
+### Summary
+
+Migrated the bounded linalg finite-binary frontend so source MLIR body/types
+are the compute authority before marker cross-check, then archived
+`descriptor-exit-linalg-finite-binary-frontend`.
+
+### Main Changes
+
+- Replaced `FiniteBinaryFrontendLoweringDescriptor` with a bounded
+  `FiniteBinaryFrontendContract` that carries accepted marker names and ABI
+  spellings only, without arithmetic, lowering descriptor, or C operator
+  authority.
+- Reworked `LowerLinalgRVVBinaryToExec` to infer family from source memref
+  element widths, scalar region argument/result types, and the actual
+  `arith.addi`/`arith.subi`/`arith.muli` feeding `linalg.yield`.
+- Made `tcrv_frontend_lowering` a route marker/cross-check only; marker/body
+  and marker/dtype mismatches fail before creating `tcrv.exec.kernel`.
+- Added fail-closed frontend diagnostics for unsupported dtype, nonuniform
+  source dtype, unsupported arithmetic, missing arithmetic-result yield, and
+  legacy descriptor metadata on the frontend wrapper/marked op.
+- Updated frontend boundary specs and lit expectations to remove descriptor
+  authority from the bounded linalg source-analysis contract.
+- Archived `.trellis/tasks/archive/2026-05/05-12-descriptor-exit-linalg-finite-binary-frontend/`
+  after active and archived Trellis validation passed.
+
+### Testing
+
+- `git diff --check`
+- Focused build: `cmake --build artifacts/tmp/tianchenrv-build --target
+  tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test
+  tianchenrv-scalar-extension-plugin-test tianchenrv-rvv-binary-planning-test
+  tianchenrv-target-artifact-export-test -j2`
+- C++ tests: `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-scalar-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`
+- Focused lit: `Transforms/LinalgToExec`, 14/14 passed.
+- Focused lit filter: `ExecutionPlanning`, `RVVScalarDispatch`,
+  `TargetArtifactBundleExport`, `RVVMicrokernel`, and `Scalar`, 85/85 passed.
+- Full check: `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`, 206/206 passed.
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or
+  performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 27: Scalar i32 add descriptor exit
 
 **Date**: 2026-05-11

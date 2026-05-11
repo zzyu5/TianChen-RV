@@ -51,48 +51,89 @@ constexpr llvm::StringLiteral kFrontendKernelAttrName("tcrv_frontend_kernel");
 constexpr llvm::StringLiteral kFrontendTargetAttrName("tcrv_frontend_target");
 constexpr llvm::StringLiteral kFrontendCapabilityProvidersAttrName(
     "tcrv_frontend_capability_providers");
+constexpr llvm::StringLiteral kLegacyRVVLoweringDescriptorAttrName(
+    "tcrv_rvv.lowering_descriptor");
+constexpr llvm::StringLiteral kLegacyScalarLoweringDescriptorAttrName(
+    "tcrv_scalar.lowering_descriptor");
+constexpr llvm::StringLiteral kLegacyRVVSelectedLoweringDescriptorAttrName(
+    "tcrv_rvv.selected_lowering_descriptor");
+constexpr llvm::StringLiteral kLegacyScalarSelectedLoweringDescriptorAttrName(
+    "tcrv_scalar.selected_lowering_descriptor");
+constexpr llvm::StringLiteral kLegacySelectedLoweringDescriptorAttrName(
+    "selected_lowering_descriptor");
+
+enum class SourceBinaryArithmeticKind {
+  Add,
+  Sub,
+  Mul,
+};
+
+struct InferredFrontendBinarySource {
+  const support::FiniteBinaryFrontendContract *contract = nullptr;
+  support::FiniteBinaryElementKind elementKind =
+      support::FiniteBinaryElementKind::I32;
+  SourceBinaryArithmeticKind arithmetic = SourceBinaryArithmeticKind::Add;
+  unsigned elementBitWidth = 32;
+  llvm::StringRef arithmeticOpName;
+};
 
 struct FrontendBinarySpec {
-  const support::FiniteBinaryFrontendLoweringDescriptor *descriptor = nullptr;
-  llvm::StringRef arithmeticOpName;
+  const support::FiniteBinaryFrontendContract *contract = nullptr;
   llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeElementCountSpecs;
 };
 
-llvm::StringRef getFrontendArithmeticOpName(
-    support::FiniteBinaryArithmeticKind arithmetic) {
-  using Kind = support::FiniteBinaryArithmeticKind;
-  switch (arithmetic) {
-  case Kind::Add:
+llvm::StringRef getSourceArithmeticOpName(SourceBinaryArithmeticKind kind) {
+  switch (kind) {
+  case SourceBinaryArithmeticKind::Add:
     return kArithAddIOpName;
-  case Kind::Sub:
+  case SourceBinaryArithmeticKind::Sub:
     return kArithSubIOpName;
-  case Kind::Mul:
+  case SourceBinaryArithmeticKind::Mul:
     return kArithMulIOpName;
   }
-  llvm_unreachable("unknown RVV binary arithmetic kind");
+  return llvm::StringRef();
 }
 
-FrontendBinarySpec
-makeFrontendBinarySpec(
-    const support::FiniteBinaryFrontendLoweringDescriptor &descriptor) {
+llvm::StringRef getSourceArithmeticFrontendSuffix(
+    SourceBinaryArithmeticKind kind) {
+  switch (kind) {
+  case SourceBinaryArithmeticKind::Add:
+    return "vadd";
+  case SourceBinaryArithmeticKind::Sub:
+    return "vsub";
+  case SourceBinaryArithmeticKind::Mul:
+    return "vmul";
+  }
+  return llvm::StringRef();
+}
+
+llvm::StringRef getElementKindDTypeID(support::FiniteBinaryElementKind kind) {
+  switch (kind) {
+  case support::FiniteBinaryElementKind::I32:
+    return "i32";
+  case support::FiniteBinaryElementKind::I64:
+    return "i64";
+  }
+  return llvm::StringRef();
+}
+
+std::string getInferredFamilyID(support::FiniteBinaryElementKind elementKind,
+                                SourceBinaryArithmeticKind arithmetic) {
+  return (llvm::Twine(getElementKindDTypeID(elementKind)) + "-" +
+          getSourceArithmeticFrontendSuffix(arithmetic))
+      .str();
+}
+
+FrontendBinarySpec makeFrontendBinarySpec(
+    const support::FiniteBinaryFrontendContract &contract) {
   FrontendBinarySpec spec;
-  spec.descriptor = &descriptor;
-  spec.arithmeticOpName = getFrontendArithmeticOpName(descriptor.arithmetic);
+  spec.contract = &contract;
   spec.bufferMemWindowSpecs =
-      support::getFiniteBinaryFrontendBufferMemWindowSpecs(descriptor);
+      support::getFiniteBinaryFrontendBufferMemWindowSpecs(contract);
   spec.runtimeElementCountSpecs =
-      support::getFiniteBinaryFrontendRuntimeElementCountParamSpecs(descriptor);
+      support::getFiniteBinaryFrontendRuntimeElementCountParamSpecs(contract);
   return spec;
-}
-
-std::optional<FrontendBinarySpec>
-lookupFrontendBinarySpec(llvm::StringRef name) {
-  const support::FiniteBinaryFrontendLoweringDescriptor *descriptor =
-      support::lookupFiniteBinaryFrontendLoweringByMarker(name);
-  if (!descriptor)
-    return std::nullopt;
-  return makeFrontendBinarySpec(*descriptor);
 }
 
 std::string formatSupportedFrontendLowerings() {
@@ -142,13 +183,43 @@ bool isIntegerScalarWithWidth(mlir::Type type, unsigned width) {
   return integer && integer.getWidth() == width;
 }
 
-bool isRankedDynamicVectorMemRefWithElementWidth(mlir::Type type,
-                                                 unsigned width) {
+std::optional<unsigned>
+getRankedDynamicVectorMemRefIntegerElementWidth(mlir::Type type) {
   auto memref = llvm::dyn_cast<mlir::MemRefType>(type);
   if (!memref || memref.getRank() != 1 ||
       memref.getDimSize(0) != mlir::ShapedType::kDynamic)
-    return false;
-  return isIntegerScalarWithWidth(memref.getElementType(), width);
+    return std::nullopt;
+  auto integer = llvm::dyn_cast<mlir::IntegerType>(memref.getElementType());
+  if (!integer)
+    return std::nullopt;
+  return integer.getWidth();
+}
+
+std::optional<unsigned> getIntegerScalarWidth(mlir::Type type) {
+  auto integer = llvm::dyn_cast<mlir::IntegerType>(type);
+  if (!integer)
+    return std::nullopt;
+  return integer.getWidth();
+}
+
+std::optional<support::FiniteBinaryElementKind>
+getSupportedElementKindForWidth(unsigned width) {
+  if (width == 32)
+    return support::FiniteBinaryElementKind::I32;
+  if (width == 64)
+    return support::FiniteBinaryElementKind::I64;
+  return std::nullopt;
+}
+
+std::optional<SourceBinaryArithmeticKind>
+getSupportedArithmeticKind(mlir::Operation *op) {
+  if (isOperationNamed(op, kArithAddIOpName))
+    return SourceBinaryArithmeticKind::Add;
+  if (isOperationNamed(op, kArithSubIOpName))
+    return SourceBinaryArithmeticKind::Sub;
+  if (isOperationNamed(op, kArithMulIOpName))
+    return SourceBinaryArithmeticKind::Mul;
+  return std::nullopt;
 }
 
 std::string getIntegerTypeSpelling(unsigned width) {
@@ -160,81 +231,120 @@ bool hasOneBlock(mlir::Region &region) {
 }
 
 mlir::LogicalResult
-requireMarkedLinalgBodyShape(mlir::Operation *linalgOp,
-                             const FrontendBinarySpec &spec) {
-  const support::FiniteBinaryFrontendLoweringDescriptor &descriptor =
-      *spec.descriptor;
+inferMarkedLinalgSourceIdentity(mlir::Operation *linalgOp,
+                                InferredFrontendBinarySource &out) {
   if (linalgOp->getNumOperands() != 3)
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
-           << " expects exactly "
-              "two input buffers and one output buffer";
-  if (!isRankedDynamicVectorMemRefWithElementWidth(
-          linalgOp->getOperand(0).getType(), descriptor.elementBitWidth) ||
-      !isRankedDynamicVectorMemRefWithElementWidth(
-          linalgOp->getOperand(1).getType(), descriptor.elementBitWidth) ||
-      !isRankedDynamicVectorMemRefWithElementWidth(
-          linalgOp->getOperand(2).getType(), descriptor.elementBitWidth)) {
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+              "exactly two input buffers and one output buffer";
+
+  std::optional<unsigned> lhsWidth =
+      getRankedDynamicVectorMemRefIntegerElementWidth(
+          linalgOp->getOperand(0).getType());
+  std::optional<unsigned> rhsWidth =
+      getRankedDynamicVectorMemRefIntegerElementWidth(
+          linalgOp->getOperand(1).getType());
+  std::optional<unsigned> outWidth =
+      getRankedDynamicVectorMemRefIntegerElementWidth(
+          linalgOp->getOperand(2).getType());
+  if (!lhsWidth || !rhsWidth || !outWidth)
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
-           << " expects memref<?x"
-           << getIntegerTypeSpelling(descriptor.elementBitWidth)
-           << "> lhs/rhs/output operands";
-  }
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+              "rank-1 dynamic memref<?xi32> or memref<?xi64> "
+              "lhs/rhs/output operands";
+  if (*lhsWidth != *rhsWidth || *lhsWidth != *outWidth)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+              "lhs/rhs/output memref element types to match, got "
+           << getIntegerTypeSpelling(*lhsWidth) << ", "
+           << getIntegerTypeSpelling(*rhsWidth) << ", and "
+           << getIntegerTypeSpelling(*outWidth);
+
+  std::optional<support::FiniteBinaryElementKind> elementKind =
+      getSupportedElementKindForWidth(*lhsWidth);
+  if (!elementKind)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV bounded binary supports "
+              "only i32 or i64 source memref element types, got "
+           << getIntegerTypeSpelling(*lhsWidth);
+
   if (linalgOp->getNumRegions() != 1 || !hasOneBlock(linalgOp->getRegion(0)))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
+           << "marked linalg.generic for TianChen-RV bounded binary"
            << " expects one single-block region";
 
   mlir::Block &body = linalgOp->getRegion(0).front();
   if (body.getNumArguments() != 3)
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
+           << "marked linalg.generic for TianChen-RV bounded binary"
            << " expects three scalar region arguments";
-  if (!llvm::all_of(body.getArguments(), [&](mlir::BlockArgument arg) {
-        return isIntegerScalarWithWidth(arg.getType(),
-                                        descriptor.elementBitWidth);
-      }))
-    return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
-           << " expects " << getIntegerTypeSpelling(descriptor.elementBitWidth)
-           << " scalar region arguments";
+
+  for (mlir::BlockArgument arg : body.getArguments()) {
+    std::optional<unsigned> argWidth = getIntegerScalarWidth(arg.getType());
+    if (!argWidth || *argWidth != *lhsWidth)
+      return linalgOp->emitError()
+             << "marked linalg.generic for TianChen-RV bounded binary expects "
+             << getIntegerTypeSpelling(*lhsWidth)
+             << " scalar region arguments matching the source memrefs";
+  }
 
   if (!llvm::hasNItems(body.getOperations(), 2))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
-           << " expects exactly one " << spec.arithmeticOpName
-           << " and one linalg.yield";
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+              "exactly one supported arith.addi, arith.subi, or arith.muli "
+              "and one linalg.yield";
 
   mlir::Operation &arithmetic = body.front();
   mlir::Operation &yield = body.back();
-  if (!isOperationNamed(&arithmetic, spec.arithmeticOpName) ||
-      !isOperationNamed(&yield, kLinalgYieldOpName))
+  std::optional<SourceBinaryArithmeticKind> arithmeticKind =
+      getSupportedArithmeticKind(&arithmetic);
+  if (!arithmeticKind)
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
-           << " expects one " << spec.arithmeticOpName
-           << " feeding linalg.yield";
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+              "source body arithmetic to be arith.addi, arith.subi, or "
+              "arith.muli";
+  llvm::StringRef arithmeticOpName =
+      getSourceArithmeticOpName(*arithmeticKind);
+
+  if (!isOperationNamed(&yield, kLinalgYieldOpName))
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+           << arithmeticOpName << " feeding linalg.yield";
 
   if (arithmetic.getNumOperands() != 2 ||
       arithmetic.getNumResults() != 1 ||
       arithmetic.getOperand(0) != body.getArgument(0) ||
       arithmetic.getOperand(1) != body.getArgument(1) ||
-      !isIntegerScalarWithWidth(arithmetic.getResult(0).getType(),
-                                descriptor.elementBitWidth))
+      !isIntegerScalarWithWidth(arithmetic.getResult(0).getType(), *lhsWidth))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
-           << " expects " << spec.arithmeticOpName
+           << "marked linalg.generic for TianChen-RV bounded binary expects "
+           << arithmeticOpName
            << " of the first two "
-           << getIntegerTypeSpelling(descriptor.elementBitWidth)
+           << getIntegerTypeSpelling(*lhsWidth)
            << " region arguments";
 
   if (yield.getNumOperands() != 1 ||
       yield.getOperand(0) != arithmetic.getResult(0))
     return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV " << descriptor.familyID
+           << "marked linalg.generic for TianChen-RV bounded binary"
            << " expects linalg.yield to return the "
-           << spec.arithmeticOpName << " result";
+           << arithmeticOpName << " result";
 
+  std::string inferredFamilyID =
+      getInferredFamilyID(*elementKind, *arithmeticKind);
+  const support::FiniteBinaryFrontendContract *contract =
+      support::lookupFiniteBinaryFrontendContractByFamilyID(inferredFamilyID);
+  if (!contract)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV bounded binary inferred "
+              "unsupported finite source family '"
+           << inferredFamilyID << "'";
+
+  out.contract = contract;
+  out.elementKind = *elementKind;
+  out.arithmetic = *arithmeticKind;
+  out.elementBitWidth = *lhsWidth;
+  out.arithmeticOpName = arithmeticOpName;
   return mlir::success();
 }
 
@@ -475,12 +585,68 @@ mlir::LogicalResult requireNoDuplicateKernelSymbol(mlir::ModuleOp module,
          << " already exists";
 }
 
+mlir::LogicalResult requireNoLegacyDescriptorMetadata(mlir::Operation *funcOp,
+                                                      mlir::Operation *linalgOp) {
+  llvm::StringRef legacyNames[] = {
+      kLegacyRVVLoweringDescriptorAttrName,
+      kLegacyScalarLoweringDescriptorAttrName,
+      kLegacyRVVSelectedLoweringDescriptorAttrName,
+      kLegacyScalarSelectedLoweringDescriptorAttrName,
+      kLegacySelectedLoweringDescriptorAttrName,
+  };
+
+  for (mlir::Operation *op : {funcOp, linalgOp}) {
+    if (!op)
+      continue;
+    for (llvm::StringRef attrName : legacyNames) {
+      if (op->getAttr(attrName))
+        return op->emitError()
+               << "TianChen-RV linalg frontend no longer accepts legacy "
+                  "descriptor metadata '"
+               << attrName
+               << "'; the source linalg body and typed operands are the "
+                  "compute authority";
+    }
+  }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult crossCheckFrontendMarker(
+    mlir::Operation *linalgOp, llvm::StringRef marker,
+    const InferredFrontendBinarySource &source) {
+  const support::FiniteBinaryFrontendContract *markerContract =
+      support::lookupFiniteBinaryFrontendContractByMarker(marker);
+  if (!markerContract)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV expects '"
+           << kFrontendLoweringAttrName
+           << "' to be " << formatSupportedFrontendLowerings();
+
+  if (markerContract->dtypeID != source.contract->dtypeID)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV has marker '"
+           << marker << "' requesting dtype '" << markerContract->dtypeID
+           << "' but source operands and region arguments infer dtype '"
+           << source.contract->dtypeID
+           << "'; marker is only a bounded route request/cross-check";
+
+  if (markerContract->familyID != source.contract->familyID)
+    return linalgOp->emitError()
+           << "marked linalg.generic for TianChen-RV has marker '"
+           << marker << "' requesting family '" << markerContract->familyID
+           << "' but source body infers family '" << source.contract->familyID
+           << "' from " << source.arithmeticOpName
+           << "; marker is only a bounded route request/cross-check";
+
+  return mlir::success();
+}
+
 KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
                           llvm::StringRef kernelName,
                           mlir::FlatSymbolRefAttr targetRef,
                           const FrontendBinarySpec &spec) {
-  const support::FiniteBinaryFrontendLoweringDescriptor &descriptor =
-      *spec.descriptor;
+  const support::FiniteBinaryFrontendContract &contract = *spec.contract;
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPoint(sourceFunc);
 
@@ -489,7 +655,7 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
                      builder.getStringAttr(kernelName));
   state.addAttribute("target", targetRef);
   state.addAttribute(kFrontendLoweringAttrName,
-                     builder.getStringAttr(descriptor.frontendLowering));
+                     builder.getStringAttr(contract.frontendLowering));
   state.addRegion();
 
   auto kernel = llvm::cast<KernelOp>(builder.create(state));
@@ -529,10 +695,7 @@ mlir::LogicalResult materializeFrontendBinaryABI(
 mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
                                          mlir::Operation *linalgOp) {
   auto frontendAttr = getStringAttr(linalgOp, kFrontendLoweringAttrName);
-  std::optional<FrontendBinarySpec> spec =
-      frontendAttr ? lookupFrontendBinarySpec(frontendAttr.getValue())
-                   : std::nullopt;
-  if (!spec)
+  if (!frontendAttr)
     return linalgOp->emitError()
            << "marked linalg.generic for TianChen-RV expects '"
            << kFrontendLoweringAttrName
@@ -541,8 +704,17 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   mlir::Operation *funcOp = linalgOp->getParentOp();
   if (mlir::failed(requireSourceWrapperShape(funcOp, linalgOp)))
     return mlir::failure();
-  if (mlir::failed(requireMarkedLinalgBodyShape(linalgOp, *spec)))
+
+  InferredFrontendBinarySource source;
+  if (mlir::failed(inferMarkedLinalgSourceIdentity(linalgOp, source)))
     return mlir::failure();
+  if (mlir::failed(crossCheckFrontendMarker(linalgOp, frontendAttr.getValue(),
+                                            source)))
+    return mlir::failure();
+  if (mlir::failed(requireNoLegacyDescriptorMetadata(funcOp, linalgOp)))
+    return mlir::failure();
+
+  FrontendBinarySpec spec = makeFrontendBinarySpec(*source.contract);
 
   mlir::StringAttr kernelAttr = getKernelName(linalgOp, funcOp);
   if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))
@@ -583,9 +755,9 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   }
 
   KernelOp kernel =
-      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef, *spec);
+      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef, spec);
   materializeCapabilityProviderImports(kernel, providerImports);
-  if (mlir::failed(materializeFrontendBinaryABI(kernel, *spec))) {
+  if (mlir::failed(materializeFrontendBinaryABI(kernel, spec))) {
     kernel.erase();
     return mlir::failure();
   }

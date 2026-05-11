@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants: C++/MLIR stack, descriptor-driven computation debt, unified RISC-V boundary."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Architecture boundary forbidding descriptor compute authority and one-backend-per-family drift."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg RVV binary frontend contract and execution-planning pipeline boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor boundary for typed extension-family ops."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI layering for mem_window/runtime_param and target artifact export contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin/interface orchestration boundary and no family-specific core semantic branches."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and C++ validation scope for frontend lowering and export paths."}

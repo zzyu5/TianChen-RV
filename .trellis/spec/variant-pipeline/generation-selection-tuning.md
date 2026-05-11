@@ -73,9 +73,11 @@ marked hand-written/test linalg.generic finite RVV binary add/sub/mul wrapper
 ```
 
 Trigger this contract only for the bounded RVV binary add/sub/mul frontend
-owner over the finite families already represented by the RVV binary family
-registry. Do not reuse it as a generic linalg, tensor, reduction, matmul,
-shape-analysis, or bufferization lowering contract.
+owner over the finite source families already represented by the RVV binary
+family registry. The source `linalg.generic` body and typed operand/region
+facts are the compute authority. The marker is only a bounded route request and
+cross-check. Do not reuse this slice as a generic linalg, tensor, reduction,
+matmul, shape-analysis, or bufferization lowering contract.
 
 ### 2. Signatures
 
@@ -124,11 +126,14 @@ tcrv.exec.kernel @<new-kernel-symbol> attributes {target = @<profile>} {
 
 ### 3. Contracts
 
-It accepts only an explicitly marked `linalg.generic` operation whose
-`tcrv_frontend_lowering` value resolves to one of the finite RVV binary family
-descriptors, currently `"i32-vadd"`, `"i32-vsub"`, `"i32-vmul"`,
-`"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"`, inside a bounded `func.func`
-wrapper. The wrapper or marked op must carry:
+It accepts only an explicitly marked `linalg.generic` operation inside a
+bounded `func.func` wrapper. The source memref operand element types, scalar
+region argument/result types, and body arithmetic op infer one of the finite
+families, currently `"i32-vadd"`, `"i32-vsub"`, `"i32-vmul"`,
+`"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"`. The
+`tcrv_frontend_lowering` value must be one of those accepted markers and must
+match the already inferred source family. It does not select arithmetic or
+dtype semantics. The wrapper or marked op must carry:
 
 ```text
 tcrv_frontend_kernel = "<new-kernel-symbol>"
@@ -153,14 +158,17 @@ target-composed provider symbols/ids, or another supplemental import.
 
 The pass must semantically check the bounded source body before materializing
 TianChen-RV IR: exactly two scalar input region arguments and one output region
-argument with the selected family's element width, one family-selected
+argument whose types match the i32/i64 source memref element type, one source
 `arith.addi`, `arith.subi`, or `arith.muli` of the first two arguments, and one
-`linalg.yield` of that result. It then creates one `tcrv.exec.kernel`, copies
-only the selected target profile reference as `target = @...`, preserves the
-bounded frontend family marker, relies on the target profile's generic
+`linalg.yield` of that result. The inferred dtype plus arithmetic determines
+the finite family id. The frontend marker is then checked against that inferred
+family and stale descriptor metadata is rejected before creating an exec
+kernel. The pass then creates one `tcrv.exec.kernel`, copies only the selected
+target profile reference as `target = @...`, preserves the bounded frontend
+family marker as route metadata, relies on the target profile's generic
 composition for normal provider scope, clones only any explicit supplemental
 provider imports into the kernel capability scope, and materializes the
-descriptor-owned binary callable ABI boundary:
+source-derived binary callable ABI boundary:
 
 ```text
 tcrv.exec.mem_window @abi_lhs_input_buffer
@@ -180,8 +188,15 @@ or incorrectly marked linalg bodies must fail before creating a
 ### 4. Validation & Error Matrix
 
 - Missing marker -> pass ignores the linalg op.
-- Marked linalg with a frontend marker that does not resolve to a finite RVV
-  binary family descriptor -> pass failure before creating the kernel.
+- Marked linalg with a frontend marker that is not one of the accepted bounded
+  finite RVV binary route markers -> pass failure before creating the kernel.
+- Frontend marker dtype or family disagrees with the family inferred from the
+  source memrefs, scalar region arguments, arithmetic op, and yield -> pass
+  failure before creating the kernel.
+- Legacy descriptor metadata such as `tcrv_rvv.lowering_descriptor`,
+  `tcrv_scalar.lowering_descriptor`, or selected-lowering-descriptor metadata
+  on the frontend wrapper/marked op -> pass failure before creating the
+  kernel.
 - Marked op outside the bounded `func.func` wrapper -> pass failure.
 - Wrapper with anything other than one marked `linalg.generic` followed by
   operand-free `func.return` -> pass failure.
@@ -199,23 +214,27 @@ or incorrectly marked linalg bodies must fail before creating a
   symbol/id, duplicates target-composed provider symbols/ids, or duplicates
   another supplemental import provider symbol/id -> pass failure before
   creating the kernel.
-- Region body that is not exactly the checked family-selected
-  `arith.addi`, `arith.subi`, or `arith.muli` / `linalg.yield` shape -> pass
-  failure before creating the kernel.
+- Region body that is not exactly the checked source-selected
+  `arith.addi`, `arith.subi`, or `arith.muli` / `linalg.yield` shape, has
+  nonuniform source dtype, unsupported source dtype, unsupported arithmetic, or
+  yields anything other than the arithmetic result -> pass failure before
+  creating the kernel.
 - Runtime ABI mem_window/runtime_param helper validation failure -> erase the
   partial kernel and fail the pass.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: a marked finite RVV binary add/sub/mul linalg wrapper lowers to an
-  exec kernel with the matching frontend family marker, then
+- Good: a marked finite RVV binary add/sub/mul linalg wrapper whose body/types
+  infer the same family requested by the marker lowers to an exec kernel with
+  the matching frontend family marker, then
   `--tcrv-execution-planning-pipeline` materializes plugin proposals and the
   selected RVV/scalar-supported emission handoff according to the target
   profile.
 - Base: an unmarked linalg op is left untouched by this pass.
 - Bad: a marked `i32-vadd` `linalg.generic` with `arith.subi`, a marked
-  `i32-vsub` linalg with `arith.addi`, extra body ops, missing target profile,
-  or reused kernel symbol must not create a `tcrv.exec.kernel`.
+  `i64-vmul` linalg with i32 source memrefs, a body with unsupported
+  arithmetic, stale legacy descriptor metadata, extra body ops, missing target
+  profile, or reused kernel symbol must not create a `tcrv.exec.kernel`.
 
 ### 6. Tests Required
 
@@ -227,7 +246,9 @@ or incorrectly marked linalg bodies must fail before creating a
   bounded emission-plan metadata for add/sub/mul where those routes are
   covered.
 - lit/FileCheck negative test: a marked but unsupported or mismatched linalg
-  body fails before any exec kernel appears.
+  body, dtype/marker mismatch, body/marker mismatch, missing arithmetic-result
+  yield, unsupported arithmetic, or legacy descriptor metadata fails before any
+  exec kernel appears.
 - lit/FileCheck compatibility test: the old
   `--tcrv-lower-linalg-i32-binary-to-exec` and
   `--tcrv-lower-linalg-i32-vadd-to-exec` options remain only as deprecated

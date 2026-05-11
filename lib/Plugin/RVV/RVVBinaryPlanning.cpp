@@ -382,8 +382,6 @@ getRegisteredRVVBinaryFamily(
       registeredFamily->frontendContract->familyID != family.familyID ||
       registeredFamily->frontendContract->frontendLowering !=
           family.frontendLowering ||
-      registeredFamily->frontendContract->loweringDescriptor !=
-          family.loweringDescriptor ||
       registeredFamily->frontendContract->elementBitWidth !=
           family.elementBitWidth ||
       registeredFamily->frontendContract->constInputPointerCType !=
@@ -393,7 +391,7 @@ getRegisteredRVVBinaryFamily(
     return makeRVVBinaryPlanningError(
         llvm::Twine("family '") + family.familyID +
         "' must be one registered finite RVV binary family descriptor with a "
-        "matching finite frontend lowering contract");
+        "matching finite frontend marker/ABI contract");
   }
   return registeredFamily;
 }

@@ -50,8 +50,7 @@ struct RVVBinaryFamilyDescriptor {
   llvm::StringRef scalarCType;
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
-  const support::FiniteBinaryFrontendLoweringDescriptor *frontendContract =
-      nullptr;
+  const support::FiniteBinaryFrontendContract *frontendContract = nullptr;
 };
 
 inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
@@ -84,7 +83,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyDescriptor() {
       "int32_t",
       "const int32_t *",
       "int32_t *",
-      &support::getI32VAddFiniteBinaryFrontendLoweringDescriptor()};
+      &support::getI32VAddFiniteBinaryFrontendContract()};
   return descriptor;
 }
 
@@ -118,7 +117,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyDescriptor() {
       "int32_t",
       "const int32_t *",
       "int32_t *",
-      &support::getI32VSubFiniteBinaryFrontendLoweringDescriptor()};
+      &support::getI32VSubFiniteBinaryFrontendContract()};
   return descriptor;
 }
 
@@ -152,7 +151,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyDescriptor() {
       "int32_t",
       "const int32_t *",
       "int32_t *",
-      &support::getI32VMulFiniteBinaryFrontendLoweringDescriptor()};
+      &support::getI32VMulFiniteBinaryFrontendContract()};
   return descriptor;
 }
 
@@ -186,7 +185,7 @@ inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyDescriptor() {
       "int64_t",
       "const int64_t *",
       "int64_t *",
-      &support::getI64VAddFiniteBinaryFrontendLoweringDescriptor()};
+      &support::getI64VAddFiniteBinaryFrontendContract()};
   return descriptor;
 }
 
@@ -220,7 +219,7 @@ inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyDescriptor() {
       "int64_t",
       "const int64_t *",
       "int64_t *",
-      &support::getI64VSubFiniteBinaryFrontendLoweringDescriptor()};
+      &support::getI64VSubFiniteBinaryFrontendContract()};
   return descriptor;
 }
 
@@ -254,7 +253,7 @@ inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyDescriptor() {
       "int64_t",
       "const int64_t *",
       "int64_t *",
-      &support::getI64VMulFiniteBinaryFrontendLoweringDescriptor()};
+      &support::getI64VMulFiniteBinaryFrontendContract()};
   return descriptor;
 }
 

@@ -50,5 +50,5 @@ module @plan_linalg_i32_vsub_marker_mismatch_no_bundle {
   }
 }
 
-// CHECK: marked linalg.generic for TianChen-RV i32-vsub expects one arith.subi feeding linalg.yield
+// CHECK: marked linalg.generic for TianChen-RV has marker 'i32-vsub' requesting family 'i32-vsub' but source body infers family 'i32-vadd' from arith.addi; marker is only a bounded route request/cross-check
 // CHECK: TianChen-RV plan-and-export target artifact bundle failed during bounded linalg RVV binary frontend lowering
