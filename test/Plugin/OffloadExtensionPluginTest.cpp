@@ -213,6 +213,16 @@ module {
     }
   }
 
+  tcrv.exec.kernel @misclassified_custom_isa_offload attributes {} {
+    tcrv.exec.capability @offload_runtime {
+      id = "offload.runtime",
+      kind = "custom-isa",
+      status = "available",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      handoff_kind = "runtime-offload"
+    }
+  }
+
   tcrv.exec.kernel @vendor_string_only attributes {vendor_hint = "sophgo"} {
     tcrv.exec.capability @vendor_runtime {
       id = "sophgo.runtime",
@@ -233,10 +243,12 @@ module {
   KernelOp available = findKernel(*module, "available_offload");
   KernelOp missing = findKernel(*module, "missing_offload");
   KernelOp malformed = findKernel(*module, "malformed_offload");
+  KernelOp misclassified =
+      findKernel(*module, "misclassified_custom_isa_offload");
   KernelOp vendorOnly = findKernel(*module, "vendor_string_only");
-  if (int result =
-          expect(highLevelOp && available && missing && malformed && vendorOnly,
-                 "proposal gating module contains all anchors"))
+  if (int result = expect(highLevelOp && available && missing && malformed &&
+                              misclassified && vendorOnly,
+                          "proposal gating module contains all anchors"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -326,6 +338,29 @@ module {
                              getOffloadExtensionPluginName() &&
                      declines.front().getReason().contains("runtime_abi"),
                  "malformed offload capability records plugin-local decline"))
+    return result;
+
+  TargetCapabilitySet misclassifiedCapabilities =
+      TargetCapabilitySet::buildFromKernel(misclassified);
+  VariantProposalRequest misclassifiedRequest(
+      highLevelOp.getOperation(), misclassified, misclassifiedCapabilities);
+  proposals.clear();
+  declines.clear();
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(misclassifiedRequest, proposals,
+                                           &declines),
+          "custom-ISA offload capability misclassification decline is "
+          "recoverable"))
+    return result;
+  if (int result =
+          expect(proposals.empty() && declines.size() == 1 &&
+                     declines.front().getPluginName() ==
+                         tianchenrv::plugin::offload::
+                             getOffloadExtensionPluginName() &&
+                     declines.front().getReason().contains(
+                         "kind must be 'runtime-offload'"),
+                 "offload.runtime modeled as custom ISA records "
+                 "plugin-local decline"))
     return result;
 
   TargetCapabilitySet vendorOnlyCapabilities =
@@ -664,6 +699,23 @@ module {
 int runLegalityRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
+  tcrv.exec.kernel @offload_custom_isa_misclassification_rejected {
+    tcrv.exec.capability @offload_runtime {
+      id = "offload.runtime",
+      kind = "custom-isa",
+      status = "available",
+      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      handoff_kind = "runtime-offload"
+    }
+    tcrv.exec.variant @offload_runtime_first_slice attributes {
+      origin = "offload-plugin",
+      requires = [@offload_runtime],
+      tcrv_offload.runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+      tcrv_offload.handoff_kind = "runtime-offload"
+    } {
+    }
+  }
+
   tcrv.exec.kernel @offload_legality_rejections attributes {} {
     tcrv.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -699,11 +751,16 @@ module {
     return fail("failed to parse offload legality rejection module");
 
   KernelOp kernel = findKernel(*module, "offload_legality_rejections");
+  KernelOp customISA =
+      findKernel(*module, "offload_custom_isa_misclassification_rejected");
   VariantOp missingRequirement =
       findVariant(kernel, "missing_offload_requirement");
   VariantOp missingABI =
       findVariant(kernel, "missing_runtime_abi_metadata");
-  if (int result = expect(kernel && missingRequirement && missingABI,
+  VariantOp customISAVariant =
+      findVariant(customISA, "offload_runtime_first_slice");
+  if (int result = expect(kernel && customISA && missingRequirement &&
+                              missingABI && customISAVariant,
                           "legality rejection module has anchors"))
     return result;
 
@@ -712,6 +769,15 @@ module {
           expectSuccess(tianchenrv::plugin::registerOffloadExtensionPlugin(
                             registry),
                         "register offload plugin for legality negatives"))
+    return result;
+
+  TargetCapabilitySet customISACapabilities =
+      TargetCapabilitySet::buildFromKernel(customISA);
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(
+              tianchenrv::plugin::VariantLegalityRequest(
+                  customISAVariant, customISA, customISACapabilities)),
+          {"runtime-offload", "kind must be 'runtime-offload'"}))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);

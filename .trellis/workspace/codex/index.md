@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-3.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 23
 - **Last Active**: 2026-05-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-3.md` | ~60 | Active |
+| `journal-3.md` | ~190 | Active |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
 <!-- @@@/auto:active-documents -->
@@ -31,6 +31,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-05-11 | Offload runtime plugin boundary template | this commit | `main` |
+| 22 | 2026-05-11 | RVV i32m2 selected VL dispatch ssh evidence | `679b19c` | `main` |
 | 21 | 2026-05-11 | RVV selected config VL dataflow materialization | this commit | `main` |
 | 20 | 2026-05-11 | RVV selected config AVL/VL artifact contract | - | `main` |
 | 19 | 2026-05-10 | Plugin-local RVV binary selected emission planning | this commit | `main` |

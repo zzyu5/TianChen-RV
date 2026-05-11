@@ -126,3 +126,63 @@ emission, and real `ssh rvv` compile/link/run correctness.
 ### Next Steps
 
 - None - task complete.
+
+---
+
+## Session 23: Offload runtime plugin boundary template
+
+**Date**: 2026-05-11
+**Task**: Offload runtime plugin boundary template
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded offload runtime plugin boundary template by tightening
+the descriptor handoff claim boundary and adding fail-closed coverage for
+offload runtime capability misclassification as a custom ISA.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `offload-runtime-plugin-boundary-template` with a PRD aligned to the offload
+  runtime plugin spec.
+- Added explicit descriptor output fields for non-executable handoff status,
+  no local runtime execution claim, no local runtime correctness claim, no
+  hardware execution claim, and no performance claim.
+- Extended the offload plugin C++ test so `offload.runtime` declared as
+  `kind = "custom-isa"` records a recoverable proposal decline and fails
+  plugin legality as runtime-offload misclassification.
+- Added lit coverage for the same custom-ISA misclassification through the
+  public emission-plan materialization route.
+- Updated descriptor artifact FileCheck coverage for the new explicit no-claim
+  fields.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tcrv-opt tcrv-translate tianchenrv-offload-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-offload-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Plugin/offload-extension-plugin.test Transforms/EmissionReadiness/offload-fail-closed.mlir Target/ArtifactExport/offload-runtime-descriptor-artifact-route.test Target/EmissionManifest/emission-manifest-offload-pipeline.mlir`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test tianchenrv-emission-readiness-test tianchenrv-variant-materialization-test tianchenrv-variant-selection-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emission-readiness-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-variant-materialization-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-variant-selection-test`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  200/200 lit tests passed.
+
+No offload runtime, hardware correctness, or performance evidence was claimed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.

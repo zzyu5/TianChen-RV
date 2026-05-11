@@ -1583,6 +1583,21 @@ void printDescriptor(const DescriptorRecord &record, llvm::raw_ostream &os) {
               "call, DMA, object generation, hardware correctness, or "
               "performance evidence");
   os << "\n";
+  os << "artifact_status: ";
+  printQuoted(os, "non-executable-runtime-offload-handoff-metadata");
+  os << "\n";
+  os << "local_runtime_execution_claim: ";
+  printQuoted(os, "none");
+  os << "\n";
+  os << "local_runtime_correctness_claim: ";
+  printQuoted(os, "none");
+  os << "\n";
+  os << "hardware_execution_claim: ";
+  printQuoted(os, "none");
+  os << "\n";
+  os << "performance_claim: ";
+  printQuoted(os, "none");
+  os << "\n";
   os << "non_claims: ";
   printStringList(os,
                   {"no-vendor-runtime-call", "no-dma-or-buffer-management",
