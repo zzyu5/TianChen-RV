@@ -90,8 +90,17 @@ module {
     // CHECK-SAME: source_kernel = "public_scalar_only_scalar_boundary"
     // CHECK-SAME: status = "metadata-only"
     // CHECK-NOT: tcrv_rvv.lowering_boundary
+    // CHECK: tcrv_scalar.i32_vadd_microkernel
+    // CHECK-SAME: element_count = 16 : i64
+    // CHECK-SAME: role = "direct variant"
+    // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
     // CHECK: tcrv.exec.diagnostic
-    // CHECK-SAME: status = "metadata-only"
+    // CHECK-SAME: artifact_kind = "runtime-callable-c-source"
+    // CHECK-SAME: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
+    // CHECK-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
+    // CHECK-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+    // CHECK-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.emitc_source_op"{{.*}}value = "tcrv_scalar.i32_vadd_microkernel"{{.*}}name = "tcrv_scalar.emitc_lowerable_op_interface"{{.*}}value = "TCRVEmitCLowerableOpInterface"
+    // CHECK-SAME: status = "supported"
     // CHECK-SAME: target = @scalar_fallback_first_slice
   }
 }

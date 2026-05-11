@@ -32,23 +32,28 @@ module {
     // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
     // CHECK-SAME: source_kernel = "public_scalar_fallback"
     // CHECK-SAME: status = "metadata-only"
+    // CHECK: tcrv_scalar.i32_vadd_microkernel
+    // CHECK-SAME: element_count = 16 : i64
+    // CHECK-SAME: origin = "scalar-plugin"
+    // CHECK-SAME: role = "direct variant"
+    // CHECK-SAME: selected_variant = @scalar_fallback_first_slice
+    // CHECK-SAME: source_kernel = "public_scalar_fallback"
     // CHECK: tcrv.exec.diagnostic
-    // CHECK-SAME: artifact_kind = "metadata-diagnostic"
-    // CHECK-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+    // CHECK-SAME: artifact_kind = "runtime-callable-c-source"
+    // CHECK-SAME: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
     // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-    // CHECK-SAME: lowering_pipeline = "none-executable-metadata-only"
-    // CHECK-SAME: message = "scalar fallback first slice records a portable fallback metadata route
+    // CHECK-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
     // CHECK-SAME: origin = "scalar-plugin"
     // CHECK-SAME: plan_kind = "plugin-emission-plan"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@scalar_fallback]
     // CHECK-SAME: role = "direct variant"
-    // CHECK-SAME: runtime_abi = "none-metadata-only"
-    // CHECK-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-    // CHECK-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-    // CHECK-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-    // CHECK-SAME: severity = "note"
-    // CHECK-SAME: status = "metadata-only"
+    // CHECK-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
+    // CHECK-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+    // CHECK-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+    // CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+    // CHECK-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.emitc_source_op"{{.*}}value = "tcrv_scalar.i32_vadd_microkernel"{{.*}}name = "tcrv_scalar.emitc_lowerable_op_interface"{{.*}}value = "TCRVEmitCLowerableOpInterface"
+    // CHECK-SAME: status = "supported"
     // CHECK-SAME: target = @scalar_fallback_first_slice
   }
 }

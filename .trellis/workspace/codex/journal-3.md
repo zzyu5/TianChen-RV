@@ -99,6 +99,63 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 27: Scalar i32 add descriptor exit
+
+**Date**: 2026-05-11
+**Task**: Descriptor exit from scalar i32 add fallback path
+**Branch**: `main`
+
+### Summary
+
+Migrated the default scalar fallback i32 add path away from
+`tcrv_scalar.lowering_descriptor` compute authority. The default scalar i32 add
+proposal/materialization path is now descriptorless and uses the typed
+`tcrv_scalar.i32_vadd_microkernel` body plus the common EmitC route metadata as
+the source/export boundary.
+
+### Main Changes
+
+- Added generated `TCRVEmitCLowerableOpInterface` support to
+  `tcrv_scalar.i32_vadd_microkernel`.
+- Stopped adding scalar lowering descriptor and descriptor-local element count
+  to default scalar i32 add proposals.
+- Added typed scalar selected-plan metadata:
+  `tcrv_scalar.emitc_source_op`, `tcrv_scalar.emitc_lowerable_op_interface`,
+  and typed binary source roles for i32 add.
+- Wired scalar i32 add source export through a verified common EmitC lowerable
+  route before bounded target-owned scalar C output.
+- Preserved descriptor handling for non-default scalar families and added
+  fail-closed coverage for stale/conflicting scalar descriptor metadata.
+- Updated default frontend/planning/source tests so scalar i32 add default is
+  descriptorless while vsub/vmul descriptor-backed behavior remains unchanged.
+- No RVV runtime, correctness, throughput, latency, or performance claim was
+  made; no `ssh rvv` run was needed.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVScalarDialect TianChenRVScalarTarget tianchenrv-scalar-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit: `Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir`,
+  `Transforms/ExecutionPlanning/execution-planning-pipeline-builtin.mlir`,
+  `Transforms/ExecutionPlanning/execution-planning-pipeline-offload.mlir`,
+  `Target/ArtifactExport/scalar-target-source-artifact-routes.test`
+- Related lit group: `Transforms/LinalgToExec`, `Transforms/ExecutionPlanning`,
+  `Target/ArtifactExport`, `Target/RVVScalarDispatch`,
+  `Target/TargetArtifactBundleExport`: 59/59 passed.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  206/206 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 31: Descriptor exit from RVV i32 add default path
 
 **Date**: 2026-05-11

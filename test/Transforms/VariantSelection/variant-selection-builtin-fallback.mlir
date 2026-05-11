@@ -158,10 +158,11 @@ module {
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@scalar_fallback]
     // CHECK-SAME: role = "direct variant"
-    // CHECK-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-    // CHECK-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-    // CHECK-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-    // CHECK-SAME: status = "metadata-only"
+    // CHECK-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+    // CHECK-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
+    // CHECK-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+    // CHECK-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.emitc_source_op"{{.*}}value = "tcrv_scalar.i32_vadd_microkernel"{{.*}}name = "tcrv_scalar.emitc_lowerable_op_interface"{{.*}}value = "TCRVEmitCLowerableOpInterface"
+    // CHECK-SAME: status = "supported"
     // CHECK-SAME: target = @scalar_fallback_first_slice
   }
 }

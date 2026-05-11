@@ -1,5 +1,8 @@
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
@@ -40,6 +43,14 @@ namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
 
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueResult;
+using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
+using tianchenrv::conversion::emitc::
+    verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -195,6 +206,9 @@ struct ScalarMicrokernelRecord {
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   std::int64_t elementCount = 0;
+  std::string emitcSourceOpName;
+  std::string emitcSourceOpRole;
+  std::string emitcSourceOpInterface;
 };
 
 struct ScalarCallableABIPlan {
@@ -1418,6 +1432,49 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
   return llvm::Error::success();
 }
 
+llvm::Error requireScalarI32VAddEmitCLowerableInterface(
+    KernelOp kernel, mlir::Operation *microkernel,
+    const ScalarI32MicrokernelFamilySpec &family,
+    std::string &sourceOpName, std::string &sourceOpRole,
+    std::string &sourceOpInterface) {
+  if (family.rvvFamily->familyID != "i32-vadd")
+    return llvm::Error::success();
+
+  auto lowerable = llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(microkernel);
+  if (!lowerable)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("typed scalar source op '") +
+                    microkernel->getName().getStringRef() +
+                    "' must implement generated "
+                    "TCRVEmitCLowerableOpInterface before the scalar i32 add "
+                    "EmitC route is constructed");
+
+  llvm::StringRef opName = lowerable.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = lowerable.getTCRVEmitCLowerableSourceRole();
+  if (llvm::Error error =
+          validateBoundedText(kernel, "EmitC lowerable source op", opName))
+    return error;
+  if (llvm::Error error =
+          validateBoundedText(kernel, "EmitC lowerable source role", role))
+    return error;
+  if (opName != family.microkernelOpName)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("generated TCRVEmitCLowerableOpInterface source "
+                            "op '") +
+                    opName + "' must match typed scalar family operation '" +
+                    family.microkernelOpName + "'");
+  if (role != "compute")
+    return makeMicrokernelError(
+        kernel, llvm::Twine("generated TCRVEmitCLowerableOpInterface source "
+                            "role '") +
+                    role + "' must be 'compute' for bounded scalar i32 add");
+
+  sourceOpName = opName.str();
+  sourceOpRole = role.str();
+  sourceOpInterface = "TCRVEmitCLowerableOpInterface";
+  return llvm::Error::success();
+}
+
 llvm::Expected<support::RuntimeABIParameter>
 makeScalarCallableParameterFromMemWindow(
     KernelOp kernel, MemWindowOp window,
@@ -1592,6 +1649,14 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           kernel, getPathVariant(path), *microkernelFamily, elementCount))
     return std::move(error);
 
+  std::string emitcSourceOpName;
+  std::string emitcSourceOpRole;
+  std::string emitcSourceOpInterface;
+  if (llvm::Error error = requireScalarI32VAddEmitCLowerableInterface(
+          kernel, microkernel, *microkernelFamily, emitcSourceOpName,
+          emitcSourceOpRole, emitcSourceOpInterface))
+    return std::move(error);
+
   llvm::Expected<ScalarCallableABIPlan> callablePlan =
       buildScalarCallableABIPlan(kernel, *microkernelFamily);
   if (!callablePlan)
@@ -1611,6 +1676,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.bufferWindows = std::move(callablePlan->bufferWindows);
   record.runtimeElementCountParam = callablePlan->runtimeElementCountParam;
   record.elementCount = elementCount;
+  record.emitcSourceOpName = std::move(emitcSourceOpName);
+  record.emitcSourceOpRole = std::move(emitcSourceOpRole);
+  record.emitcSourceOpInterface = std::move(emitcSourceOpInterface);
   return record;
 }
 
@@ -1755,6 +1823,91 @@ std::string makeMicrokernelFunctionName(const ScalarMicrokernelRecord &record) {
   return name;
 }
 
+const support::RuntimeABIParameter *lookupParameterByRole(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    support::RuntimeABIParameterRole role) {
+  for (const support::RuntimeABIParameter &parameter : parameters)
+    if (parameter.role == role)
+      return &parameter;
+  return nullptr;
+}
+
+class ScalarI32VAddEmitCLowerable final : public TCRVEmitCLowerableInterface {
+public:
+  explicit ScalarI32VAddEmitCLowerable(const ScalarMicrokernelRecord &record)
+      : record(record) {}
+
+  llvm::Expected<TCRVEmitCLowerableRoute>
+  buildEmitCLowerableRoute() const override {
+    if (!record.family || record.family->rvvFamily->familyID != "i32-vadd")
+      return makeModuleMicrokernelError(
+          "scalar EmitC lowerable route is currently defined only for the "
+          "typed i32-vadd microkernel");
+    if (record.emitcSourceOpName.empty() || record.emitcSourceOpRole.empty() ||
+        record.emitcSourceOpInterface.empty())
+      return makeModuleMicrokernelError(
+          "scalar i32 add EmitC route requires generated op-interface "
+          "provenance from the typed scalar microkernel op");
+
+    const support::RuntimeABIParameter *lhs = lookupParameterByRole(
+        record.runtimeABIParameters,
+        support::RuntimeABIParameterRole::LHSInputBuffer);
+    const support::RuntimeABIParameter *rhs = lookupParameterByRole(
+        record.runtimeABIParameters,
+        support::RuntimeABIParameterRole::RHSInputBuffer);
+    const support::RuntimeABIParameter *out = lookupParameterByRole(
+        record.runtimeABIParameters,
+        support::RuntimeABIParameterRole::OutputBuffer);
+    if (!lhs || !rhs || !out)
+      return makeModuleMicrokernelError(
+          "scalar i32 add EmitC route requires lhs, rhs, and output ABI "
+          "mappings from the IR-backed callable plan");
+
+    TCRVEmitCLowerableRoute route(
+        record.family->routeID,
+        "typed-scalar-family-op-to-emitc-call-opaque");
+    route.addHeader("stddef.h");
+    route.addHeader("stdint.h");
+    route.addTypeMapping("i32", "int32_t");
+    for (const support::RuntimeABIParameter &parameter :
+         record.runtimeABIParameters)
+      route.addABIValueMapping(parameter, parameter.cName);
+
+    TCRVEmitCCallOpaqueStep computeStep;
+    computeStep.sourceOp.opName = record.emitcSourceOpName;
+    computeStep.sourceOp.role = record.emitcSourceOpRole;
+    computeStep.sourceOp.opInterface = record.emitcSourceOpInterface;
+    computeStep.callee = "tcrv_scalar_i32_add";
+    computeStep.operands.push_back(
+        {(llvm::Twine(lhs->cName) + "[index]").str(), "int32_t"});
+    computeStep.operands.push_back(
+        {(llvm::Twine(rhs->cName) + "[index]").str(), "int32_t"});
+    computeStep.result = TCRVEmitCCallOpaqueResult{"sum", "int32_t"};
+    route.addCallOpaqueStep(std::move(computeStep));
+
+    TCRVEmitCCallOpaqueStep storeStep;
+    storeStep.sourceOp.opName = record.emitcSourceOpName;
+    storeStep.sourceOp.role = "buffer-store";
+    storeStep.sourceOp.opInterface = record.emitcSourceOpInterface;
+    storeStep.callee = "tcrv_scalar_i32_store";
+    storeStep.operands.push_back(
+        {(llvm::Twine("&") + out->cName + "[index]").str(), out->cType});
+    storeStep.operands.push_back({"sum", "int32_t"});
+    route.addCallOpaqueStep(std::move(storeStep));
+
+    return route;
+  }
+
+private:
+  const ScalarMicrokernelRecord &record;
+};
+
+llvm::Expected<TCRVEmitCLowerableRoute>
+buildScalarI32VAddEmitCRoute(const ScalarMicrokernelRecord &record) {
+  ScalarI32VAddEmitCLowerable lowerable(record);
+  return buildTCRVEmitCLowerableRoute(lowerable);
+}
+
 std::string
 makeMicrokernelHeaderIncludeGuard(const ScalarMicrokernelRecord &record) {
   std::string guard = "TIANCHENRV_SCALAR_";
@@ -1815,9 +1968,53 @@ void printCallableBoundaryMetadata(llvm::raw_ostream &os,
      << " */\n";
 }
 
+void printScalarEmitCRouteMetadata(llvm::raw_ostream &os,
+                                   const TCRVEmitCLowerableRoute &route,
+                                   llvm::StringRef functionName) {
+  os << "/* emitc_route: tcrv_scalar.i32_vadd_microkernel -> "
+        "emitc.call_opaque -> scalar runtime C/C++ */\n";
+  os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
+  os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
+        "emitc.include, emitc.func, and emitc.call_opaque before bounded "
+        "target-owned scalar C source output */\n";
+  os << "/* emitc_materialization_function: @" << functionName << " */\n";
+  for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps()) {
+    if (step.sourceOp.opInterface.empty())
+      continue;
+    os << "/* emitc_lowerable_op_interface: "
+       << step.sourceOp.opInterface << " */\n";
+    break;
+  }
+  os << "/* emitc_route_id: " << route.getRouteID()
+     << ", route_kind=" << route.getRouteKind() << " */\n";
+  os << "/* emitc_route_headers:";
+  for (const auto &header : route.getHeaders())
+    os << " <" << header.header << ">";
+  os << " */\n";
+  os << "/* emitc_route_source_ops:";
+  for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps())
+    os << " " << step.sourceOp.opName;
+  os << " */\n";
+  for (auto [index, step] : llvm::enumerate(route.getCallOpaqueSteps())) {
+    os << "/* emitc.call_opaque[" << index
+       << "]: " << step.callee << " from " << step.sourceOp.opName
+       << " */\n";
+    os << "/* emitc.call_opaque_boundary[" << index << "]: source_role="
+       << step.sourceOp.role << ", operands=" << step.operands.size();
+    if (step.result)
+      os << ", result=" << step.result->name << ":" << step.result->cType;
+    else
+      os << ", result=void";
+    if (!step.sourceOp.opInterface.empty())
+      os << ", op_interface=" << step.sourceOp.opInterface;
+    os << " */\n";
+  }
+}
+
 void printRecordComment(llvm::raw_ostream &os,
                         const ScalarMicrokernelRecord &record,
-                        llvm::StringRef functionName) {
+                        llvm::StringRef functionName,
+                        const TCRVEmitCLowerableRoute *emitcRoute = nullptr) {
   os << "/* microkernel function: " << functionName << " */\n";
   os << "/* selected_kernel: @" << record.kernelSymbol << " */\n";
   os << "/* selected_variant: @" << record.variantSymbol << " */\n";
@@ -1856,6 +2053,8 @@ void printRecordComment(llvm::raw_ostream &os,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") */\n";
+  if (emitcRoute)
+    printScalarEmitCRouteMetadata(os, *emitcRoute, functionName);
 }
 
 void printMicrokernelPrototype(
@@ -1937,10 +2136,26 @@ void printMicrokernelHeader(const ScalarMicrokernelRecord &record,
 llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
                                    llvm::raw_ostream &os) {
   std::string functionName = makeMicrokernelFunctionName(record);
+  std::optional<TCRVEmitCLowerableRoute> emitcRoute;
+  if (record.family->rvvFamily->familyID == "i32-vadd") {
+    llvm::Expected<TCRVEmitCLowerableRoute> route =
+        buildScalarI32VAddEmitCRoute(record);
+    if (!route)
+      return route.takeError();
+    if (llvm::Error error =
+            verifyTCRVEmitCLowerableRouteMaterializesToEmitC(*route,
+                                                             functionName,
+                                                             {"index"}))
+      return error;
+    emitcRoute = std::move(*route);
+  }
 
   os << "/* TianChen-RV scalar runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "
      << record.family->microkernelOpName << ". */\n";
+  if (emitcRoute)
+    os << "/* Route: typed scalar family op lowers through the common EmitC "
+          "runtime route before C/C++ source emission. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   os << "/* This is a bounded fallback library artifact; it is not "
@@ -1948,7 +2163,8 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
   os << "#include <stddef.h>\n";
   os << "#include <stdint.h>\n\n";
 
-  printRecordComment(os, record, functionName);
+  printRecordComment(os, record, functionName,
+                     emitcRoute ? &*emitcRoute : nullptr);
   if (llvm::Error error =
           printMicrokernelFunction(os, functionName,
                                    record.runtimeABIParameters,
@@ -1963,25 +2179,55 @@ TargetArtifactRouteMetadata buildScalarMicrokernelSourceRouteMetadata(
                                        family.runtimeABIKind,
                                        family.runtimeABIName,
                                        family.runtimeGlueRole);
-  llvm::StringRef descriptorRole =
-      tianchenrv::target::rvv_scalar::
-          getScalarSelectedBinaryDescriptorMetadataRole();
-  metadata.addSelectedPlanMetadataRequirement(
-      tianchenrv::target::rvv_scalar::
-          getScalarSelectedBinaryDTypeMetadataName(),
-      family.rvvFamily->dtypeID, descriptorRole);
-  metadata.addSelectedPlanMetadataRequirement(
-      tianchenrv::target::rvv_scalar::
-          getScalarSelectedBinaryFamilyMetadataName(),
-      family.rvvFamily->familyID, descriptorRole);
-  metadata.addSelectedPlanMetadataRequirement(
-      tianchenrv::target::rvv_scalar::
-          getScalarSelectedBinaryOperatorMetadataName(),
-      family.rvvFamily->arithmeticVerb, descriptorRole);
-  metadata.addSelectedPlanMetadataRequirement(
-      tianchenrv::target::rvv_scalar::
-          getScalarSelectedLoweringDescriptorMetadataName(),
-      family.descriptor, descriptorRole);
+  if (family.rvvFamily->familyID == "i32-vadd") {
+    llvm::StringRef typedRole =
+        tianchenrv::target::rvv_scalar::
+            getScalarTypedBinarySourceMetadataRole();
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryDTypeMetadataName(),
+        family.rvvFamily->dtypeID, typedRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryFamilyMetadataName(),
+        family.rvvFamily->familyID, typedRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryOperatorMetadataName(),
+        family.rvvFamily->arithmeticVerb, typedRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarEmitCSourceOpMetadataName(),
+        family.microkernelOpName,
+        tianchenrv::target::rvv_scalar::
+            getScalarEmitCSourceOpMetadataRole());
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarEmitCLowerableOpInterfaceMetadataName(),
+        "TCRVEmitCLowerableOpInterface",
+        tianchenrv::target::rvv_scalar::
+            getScalarEmitCSourceOpMetadataRole());
+  } else {
+    llvm::StringRef descriptorRole =
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryDescriptorMetadataRole();
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryDTypeMetadataName(),
+        family.rvvFamily->dtypeID, descriptorRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryFamilyMetadataName(),
+        family.rvvFamily->familyID, descriptorRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedBinaryOperatorMetadataName(),
+        family.rvvFamily->arithmeticVerb, descriptorRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        tianchenrv::target::rvv_scalar::
+            getScalarSelectedLoweringDescriptorMetadataName(),
+        family.descriptor, descriptorRole);
+  }
   metadata.addSelectedPlanMetadataPresenceRequirement(
       tianchenrv::target::rvv_scalar::
           getScalarRuntimeElementCountCNameMetadataName(),

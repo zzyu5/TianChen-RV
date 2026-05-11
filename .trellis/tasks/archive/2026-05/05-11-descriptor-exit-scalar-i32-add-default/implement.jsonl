@@ -1,0 +1,20 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, descriptor debt policy, and current extension-family ops to EmitC route."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V extension-family architecture and descriptor non-architecture boundary."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin contract, typed scalar microkernel route, legacy descriptor context, and selected boundary expectations."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Generated lowerable op interface boundary and correct typed op to common EmitC export route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact export, runtime ABI parameter layering, and preflight coherence rules."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin-local family ops and EmitC mapping rules without core family-specific semantic branches."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ coverage requirements for scalar microkernel export, frontend route, and fail-closed behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-descriptor-exit-rvv-i32-add-default/prd.md", "reason": "Completed RVV descriptor-exit pattern to mirror only where scalar architecture matches."}
+{"file": "include/TianChenRV/Dialect/Scalar/IR/ScalarOps.td", "reason": "Typed scalar microkernel op definitions and lowerable interface integration point."}
+{"file": "lib/Plugin/Scalar/ScalarExtensionPlugin.cpp", "reason": "Scalar proposal/materialization/emission plan owner for descriptor exit."}
+{"file": "lib/Target/Scalar/ScalarMicrokernel.cpp", "reason": "Scalar source/header/object export implementation and common EmitC route handoff point."}
+{"file": "include/TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h", "reason": "Common EmitC lowerable route payload and adapter API."}
+{"file": "include/TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h", "reason": "Common EmitC materializer API used by target exporters."}
+{"file": "include/TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td", "reason": "Generated lowerable op interface contract for typed scalar ops."}
+{"file": "lib/Conversion/EmitC/TCRVEmitCLowerableInterface.cpp", "reason": "Common EmitC lowerable route validation implementation."}
+{"file": "lib/Conversion/EmitC/TCRVEmitCLowerableMaterializer.cpp", "reason": "Common EmitC materialization implementation."}
+{"file": "lib/Transforms/LowerLinalgRVVBinaryToExec.cpp", "reason": "Default frontend i32 add RVV+scalar pipeline source for descriptorless scalar fallback branch."}
+{"file": "lib/Transforms/ExecutionPlanningPipeline.cpp", "reason": "Execution planning pipeline wiring and final coherence gate."}
+{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "Recently completed RVV descriptorless selected i32 add migration pattern for reference only."}
+{"file": "lib/Plugin/RVV/RVVBinarySelectedLoweringBoundary.cpp", "reason": "Recently completed RVV typed boundary materialization pattern for reference only."}

@@ -1,7 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --implicit-check-not="void tcrv_dispatch_i32_vadd"
 
 module @rvv_scalar_dispatch_missing_scalar_input {
-  tcrv.exec.kernel @dispatch_vadd_missing_scalar {
+  tcrv.exec.kernel @dispatch_vadd_missing_scalar attributes {tcrv_frontend_lowering = "i32-vsub"} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -44,6 +44,47 @@ module @rvv_scalar_dispatch_missing_scalar_input {
       kind = "fallback",
       status = "available"
     }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int32_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "n",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
+    tcrv.exec.runtime_param @abi_dispatch_availability_guard {
+      abi_role = "dispatch-availability-guard",
+      c_name = "rvv_available",
+      c_type = "int",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
     tcrv.exec.variant @rvv_first_slice attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",
@@ -66,6 +107,8 @@ module @rvv_scalar_dispatch_missing_scalar_input {
         condition = "rvv_capability_properties_available",
         guard = "plugin_local_rvv_property_evidence",
         origin = "rvv-plugin",
+        runtime_guard = @abi_dispatch_availability_guard,
+        runtime_guard_required = true,
         policy = "metadata_only_first_slice"
       }
       tcrv.exec.fallback @scalar_fallback_first_slice {

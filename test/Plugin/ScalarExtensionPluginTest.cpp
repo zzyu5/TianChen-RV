@@ -389,22 +389,41 @@ module {
   for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
     llvm::StringRef name = attr.getName().getValue();
     if (name == "tcrv_scalar.lowering_descriptor") {
-      auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
-      hasDescriptor = value &&
-                      value.getValue() ==
-                          tianchenrv::target::i32_binary::
-                              getI32VAddFamilyDescriptor()
-                                  .loweringDescriptor;
+      hasDescriptor = true;
     }
     if (name == "tcrv_scalar.element_count") {
-      auto value = llvm::dyn_cast<mlir::IntegerAttr>(attr.getValue());
-      hasElementCount = value && value.getInt() == 16;
+      hasElementCount = true;
     }
   }
   if (int result =
-          expect(hasDescriptor && hasElementCount,
-                 "scalar fallback proposal carries finite i32-vadd descriptor"))
+          expect(!hasDescriptor && !hasElementCount,
+                 "default scalar i32-vadd proposal is descriptorless"))
     return result;
+
+  auto expectDescriptorlessScalarProposalForKernel =
+      [&](KernelOp kernel, llvm::StringRef context) -> int {
+    TargetCapabilitySet kernelCapabilities =
+        TargetCapabilitySet::buildFromKernel(kernel);
+    VariantProposalRequest kernelRequest(highLevelOp.getOperation(), kernel,
+                                         kernelCapabilities);
+    proposals.clear();
+    if (int result = expectSuccess(
+            registry.collectVariantProposals(kernelRequest, proposals),
+            llvm::Twine("collect scalar proposal for ") + context))
+      return result;
+    if (int result = expect(proposals.size() == 1,
+                            llvm::Twine("one scalar proposal for ") + context))
+      return result;
+
+    for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
+      llvm::StringRef name = attr.getName().getValue();
+      if (name == "tcrv_scalar.lowering_descriptor" ||
+          name == "tcrv_scalar.element_count")
+        return fail(llvm::Twine("default scalar proposal for ") + context +
+                    " must not carry descriptor-owned compute metadata");
+    }
+    return 0;
+  };
 
   auto expectScalarDescriptorForKernel =
       [&](KernelOp kernel, llvm::StringRef expectedDescriptor,
@@ -440,11 +459,8 @@ module {
                       context);
   };
 
-  if (int result = expectScalarDescriptorForKernel(
-          availableVAdd,
-          tianchenrv::target::i32_binary::getI32VAddFamilyDescriptor()
-              .loweringDescriptor,
-          "frontend-lowered i32-vadd"))
+  if (int result = expectDescriptorlessScalarProposalForKernel(
+          availableVAdd, "frontend-lowered i32-vadd"))
     return result;
   if (int result = expectScalarDescriptorForKernel(
           availableVSub,
@@ -817,6 +833,30 @@ module {
                      emissionPlan.getArtifactKind() ==
                          "runtime-callable-c-source",
                  "scalar fallback emission plan records stable supported source route"))
+    return result;
+  auto hasSelectedPlanMetadata =
+      [&](llvm::StringRef name, llvm::StringRef value,
+          llvm::StringRef role) {
+        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
+          if (entry.name == name && entry.value == value && entry.role == role)
+            return true;
+        return false;
+      };
+  if (int result = expect(
+          hasSelectedPlanMetadata(
+              "tcrv_scalar.emitc_source_op",
+              "tcrv_scalar.i32_vadd_microkernel",
+              "typed-scalar-emitc-source-op") &&
+              hasSelectedPlanMetadata(
+                  "tcrv_scalar.emitc_lowerable_op_interface",
+                  "TCRVEmitCLowerableOpInterface",
+                  "typed-scalar-emitc-source-op") &&
+              !hasSelectedPlanMetadata(
+                  "tcrv_scalar.selected_lowering_descriptor",
+                  "i32-vadd-microkernel.v1",
+                  "selected-scalar-binary-descriptor"),
+          "scalar i32-vadd emission plan records typed EmitC source metadata "
+          "without descriptor authority"))
     return result;
 
   return 0;

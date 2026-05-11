@@ -63,8 +63,8 @@ module {
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: policy = "portable_scalar_fallback_first_slice"
     // PIPE-SAME: requires = [@scalar_fallback]
-    // PIPE-SAME: tcrv_scalar.element_count = 16 : i64
-    // PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+    // PIPE-NOT: tcrv_scalar.element_count
+    // PIPE-NOT: tcrv_scalar.lowering_descriptor
     // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // PIPE-SAME: abi_role = "dispatch-availability-guard"
     // PIPE-SAME: c_name = "rvv_available"
@@ -169,6 +169,7 @@ module {
     // PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
     // PIPE-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
     // PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+    // PIPE-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.emitc_source_op"{{.*}}value = "tcrv_scalar.i32_vadd_microkernel"{{.*}}name = "tcrv_scalar.emitc_lowerable_op_interface"{{.*}}value = "TCRVEmitCLowerableOpInterface"
     // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
@@ -295,8 +296,8 @@ module {
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: policy = "portable_scalar_fallback_first_slice"
     // PIPE-SAME: requires = [@scalar_fallback]
-    // PIPE-SAME: tcrv_scalar.element_count = 16 : i64
-    // PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+    // PIPE-NOT: tcrv_scalar.element_count
+    // PIPE-NOT: tcrv_scalar.lowering_descriptor
     // PIPE-NOT: tcrv_rvv.lowering_boundary
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: fallback_role = "conservative"
@@ -332,6 +333,7 @@ module {
     // PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
     // PIPE-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
     // PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
+    // PIPE-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.emitc_source_op"{{.*}}value = "tcrv_scalar.i32_vadd_microkernel"{{.*}}name = "tcrv_scalar.emitc_lowerable_op_interface"{{.*}}value = "TCRVEmitCLowerableOpInterface"
     // PIPE-SAME: status = "supported"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 

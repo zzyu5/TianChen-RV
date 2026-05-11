@@ -2,6 +2,7 @@
 #define TIANCHENRV_DIALECT_SCALAR_IR_SCALAROPS_TD
 
 include "mlir/IR/OpBase.td"
+include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td"
 
 def TCRV_Scalar_Dialect : Dialect {
   let name = "tcrv_scalar";
@@ -55,7 +56,8 @@ def LoweringBoundaryOp : TCRVScalar_Op<"lowering_boundary", []> {
   let hasVerifier = 1;
 }
 
-def I32VAddMicrokernelOp : TCRVScalar_Op<"i32_vadd_microkernel", []> {
+def I32VAddMicrokernelOp : TCRVScalar_Op<"i32_vadd_microkernel",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "explicit bounded scalar i32 vector-add source-export microkernel";
   let description = [{
     Records one plugin-local scalar i32 vector-add microkernel body for a

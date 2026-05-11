@@ -115,11 +115,17 @@ void appendScalarSelectedPlanMetadata(
   llvm::SmallVector<
       tianchenrv::target::rvv_scalar::
           ScalarBinarySelectedPlanMetadataDescriptor,
-      5>
+      6>
       metadata;
-  tianchenrv::target::rvv_scalar::
-      appendScalarBinarySelectedDescriptorMetadata(
-          family, getRuntimeElementCountCNameForTest(candidate), metadata);
+  if (family.familyID == "i32-vadd") {
+    tianchenrv::target::rvv_scalar::
+        appendScalarI32VAddSelectedTypedSourceMetadata(
+            family, getRuntimeElementCountCNameForTest(candidate), metadata);
+  } else {
+    tianchenrv::target::rvv_scalar::
+        appendScalarBinarySelectedDescriptorMetadata(
+            family, getRuntimeElementCountCNameForTest(candidate), metadata);
+  }
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name.str(), entry.value.str(), entry.role.str(),
@@ -636,15 +642,19 @@ bool expectScalarSourceRouteDescriptorMetadata(
     const TargetArtifactExporterRegistry &registry,
     const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
         &family) {
+  llvm::StringRef expectedRole =
+      family.familyID == "i32-vadd"
+          ? tianchenrv::target::rvv_scalar::
+                getScalarTypedBinarySourceMetadataRole()
+          : tianchenrv::target::rvv_scalar::
+                getScalarSelectedBinaryDescriptorMetadataRole();
   if (!expectRouteDescriptorMetadata(
           registry, family.scalar.routeID, family.scalar.runtimeABI,
           family.scalar.runtimeABIKind, family.scalar.runtimeABIName,
           family.scalar.runtimeGlueRole,
           tianchenrv::target::rvv_scalar::
               getScalarSelectedBinaryFamilyMetadataName(),
-          family.familyID,
-          tianchenrv::target::rvv_scalar::
-              getScalarSelectedBinaryDescriptorMetadataRole(),
+          family.familyID, expectedRole,
           "runtime_correctness_claim"))
     return false;
   if (!expectRouteSelectedPlanExactRequirement(
@@ -652,25 +662,49 @@ bool expectScalarSourceRouteDescriptorMetadata(
           tianchenrv::target::rvv_scalar::
               getScalarSelectedBinaryDTypeMetadataName(),
           family.rvvFamily->dtypeID,
-          tianchenrv::target::rvv_scalar::
-              getScalarSelectedBinaryDescriptorMetadataRole()))
+          expectedRole))
     return false;
   if (!expectRouteSelectedPlanExactRequirement(
           registry, family.scalar.routeID,
           tianchenrv::target::rvv_scalar::
               getScalarSelectedBinaryOperatorMetadataName(),
-          family.rvvFamily->arithmeticVerb,
-          tianchenrv::target::rvv_scalar::
-              getScalarSelectedBinaryDescriptorMetadataRole()))
+          family.rvvFamily->arithmeticVerb, expectedRole))
     return false;
-  if (!expectRouteSelectedPlanExactRequirement(
-          registry, family.scalar.routeID,
-          tianchenrv::target::rvv_scalar::
-              getScalarSelectedLoweringDescriptorMetadataName(),
-          family.loweringDescriptor,
-          tianchenrv::target::rvv_scalar::
-              getScalarSelectedBinaryDescriptorMetadataRole()))
-    return false;
+  if (family.familyID == "i32-vadd") {
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarEmitCSourceOpMetadataName(),
+            family.scalar.microkernelOpName,
+            tianchenrv::target::rvv_scalar::
+                getScalarEmitCSourceOpMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarEmitCLowerableOpInterfaceMetadataName(),
+            "TCRVEmitCLowerableOpInterface",
+            tianchenrv::target::rvv_scalar::
+                getScalarEmitCSourceOpMetadataRole()))
+      return false;
+    if (findRouteSelectedPlanRequirement(
+            *registry.lookup(family.scalar.routeID),
+            tianchenrv::target::rvv_scalar::
+                getScalarSelectedLoweringDescriptorMetadataName())) {
+      llvm::errs() << "scalar i32-vadd source route unexpectedly requires "
+                      "selected lowering descriptor metadata\n";
+      return false;
+    }
+  } else {
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.scalar.routeID,
+            tianchenrv::target::rvv_scalar::
+                getScalarSelectedLoweringDescriptorMetadataName(),
+            family.loweringDescriptor,
+            tianchenrv::target::rvv_scalar::
+                getScalarSelectedBinaryDescriptorMetadataRole()))
+      return false;
+  }
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.scalar.routeID,
           tianchenrv::target::rvv_scalar::

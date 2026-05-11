@@ -101,8 +101,20 @@ inline llvm::StringRef getScalarRuntimeElementCountCNameMetadataName() {
   return "tcrv_scalar.runtime_element_count_c_name";
 }
 
+inline llvm::StringRef getScalarEmitCSourceOpMetadataName() {
+  return "tcrv_scalar.emitc_source_op";
+}
+
+inline llvm::StringRef getScalarEmitCLowerableOpInterfaceMetadataName() {
+  return "tcrv_scalar.emitc_lowerable_op_interface";
+}
+
 inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataRole() {
   return "selected-scalar-binary-descriptor";
+}
+
+inline llvm::StringRef getScalarTypedBinarySourceMetadataRole() {
+  return "typed-scalar-binary-source";
 }
 
 inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataNote() {
@@ -110,6 +122,26 @@ inline llvm::StringRef getScalarSelectedBinaryDescriptorMetadataNote() {
          "selected by the scalar plugin; not a runtime trip count, RVV "
          "vector-shape config, hardware execution proof, or performance "
          "evidence";
+}
+
+inline llvm::StringRef getScalarTypedBinarySourceMetadataNote() {
+  return "typed scalar family op metadata selected by the scalar plugin for "
+         "the common EmitC route; not descriptor-owned computation, runtime "
+         "correctness evidence, or performance evidence";
+}
+
+inline llvm::StringRef getScalarEmitCSourceOpMetadataRole() {
+  return "typed-scalar-emitc-source-op";
+}
+
+inline llvm::StringRef getScalarEmitCSourceOpMetadataNote() {
+  return "typed scalar microkernel op used as the source operation for the "
+         "common EmitC lowerable route; not a lowering descriptor";
+}
+
+inline llvm::StringRef getScalarEmitCLowerableOpInterfaceMetadataNote() {
+  return "generated scalar op interface queried before building the common "
+         "EmitC lowerable route; not descriptor-selected computation";
 }
 
 inline llvm::StringRef getScalarRuntimeControlNameMetadataRole() {
@@ -313,6 +345,32 @@ inline void appendScalarBinarySelectedDescriptorMetadata(
                  descriptorNote});
   out.push_back({getScalarSelectedLoweringDescriptorMetadataName(),
                  family.loweringDescriptor, descriptorRole, descriptorNote});
+  out.push_back({getScalarRuntimeElementCountCNameMetadataName(),
+                 runtimeElementCountCName,
+                 getScalarRuntimeControlNameMetadataRole(),
+                 getScalarRuntimeControlNameMetadataNote()});
+}
+
+inline void appendScalarI32VAddSelectedTypedSourceMetadata(
+    const RVVScalarBinaryFamilyDescriptor &family,
+    llvm::StringRef runtimeElementCountCName,
+    llvm::SmallVectorImpl<ScalarBinarySelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef typedRole = getScalarTypedBinarySourceMetadataRole();
+  llvm::StringRef typedNote = getScalarTypedBinarySourceMetadataNote();
+  out.push_back({getScalarSelectedBinaryDTypeMetadataName(),
+                 family.rvvFamily->dtypeID, typedRole, typedNote});
+  out.push_back({getScalarSelectedBinaryFamilyMetadataName(),
+                 family.familyID, typedRole, typedNote});
+  out.push_back({getScalarSelectedBinaryOperatorMetadataName(),
+                 family.rvvFamily->arithmeticVerb, typedRole, typedNote});
+  out.push_back({getScalarEmitCSourceOpMetadataName(),
+                 family.scalar.microkernelOpName,
+                 getScalarEmitCSourceOpMetadataRole(),
+                 getScalarEmitCSourceOpMetadataNote()});
+  out.push_back({getScalarEmitCLowerableOpInterfaceMetadataName(),
+                 "TCRVEmitCLowerableOpInterface",
+                 getScalarEmitCSourceOpMetadataRole(),
+                 getScalarEmitCLowerableOpInterfaceMetadataNote()});
   out.push_back({getScalarRuntimeElementCountCNameMetadataName(),
                  runtimeElementCountCName,
                  getScalarRuntimeControlNameMetadataRole(),

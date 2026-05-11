@@ -90,7 +90,8 @@ module {
 // PIPE-SAME: fallback_role = "conservative"
 // PIPE-SAME: origin = "scalar-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
-// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+// PIPE-NOT: tcrv_scalar.lowering_descriptor
+// PIPE-NOT: tcrv_scalar.element_count
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: reason = "variant-selected"
 // PIPE-SAME: selection_kind = "static-variant"

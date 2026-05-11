@@ -273,6 +273,27 @@ void appendScalarSelectedDescriptorMetadata(
                                  entry.note);
 }
 
+void appendScalarSelectedTypedSourceMetadata(
+    VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family,
+    llvm::StringRef runtimeElementCountCName) {
+  llvm::SmallVector<
+      tianchenrv::target::rvv_scalar::
+          ScalarBinarySelectedPlanMetadataDescriptor,
+      6>
+      metadata;
+  tianchenrv::target::rvv_scalar::
+      appendScalarI32VAddSelectedTypedSourceMetadata(
+          family, runtimeElementCountCName, metadata);
+  for (const auto &entry : metadata)
+    plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
+                                 entry.note);
+}
+
+bool isDescriptorlessDefaultScalarI32VAddFamily(
+    const ScalarMicrokernelFamilySpec &family) {
+  return family.family->familyID == "i32-vadd";
+}
+
 const ScalarMicrokernelFamilySpec *
 lookupScalarMicrokernelFamilyByDescriptor(llvm::StringRef descriptor) {
   const ScalarBinaryFamilyDescriptor *family =
@@ -441,6 +462,28 @@ buildScalarMicrokernelMaterializationPlan(tcrv::exec::VariantOp variant) {
   ScalarMicrokernelMaterializationPlan plan;
   plan.family = family;
   plan.elementCount = elementCount;
+  return plan;
+}
+
+std::optional<ScalarMicrokernelMaterializationPlan>
+buildDescriptorlessDefaultScalarI32VAddMaterializationPlan(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
+  if (!kernel || !variant)
+    return std::nullopt;
+  if (variant->hasAttr(kScalarLoweringDescriptorAttrName) ||
+      variant->hasAttr(kScalarElementCountAttrName))
+    return std::nullopt;
+
+  auto frontendLowering =
+      kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName);
+  if (frontendLowering &&
+      frontendLowering.getValue().trim() !=
+          getI32VAddFamilySpec().getFrontendLowering())
+    return std::nullopt;
+
+  ScalarMicrokernelMaterializationPlan plan;
+  plan.family = &getI32VAddFamilySpec();
+  plan.elementCount = kDefaultScalarMicrokernelElementCount;
   return plan;
 }
 
@@ -901,17 +944,19 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
   proposal.addRequiredCapabilityID(kScalarFallbackCapabilityID);
   proposal.setPolicy(kScalarFallbackPolicy);
   proposal.setFallbackRole(VariantFallbackRole::ConservativeFallback);
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kScalarLoweringDescriptorAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            family->getLoweringDescriptor()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kScalarElementCountAttrName),
-      mlir::IntegerAttr::get(
-          mlir::IntegerType::get(request.getKernel()->getContext(), 64),
-          kDefaultScalarMicrokernelElementCount));
+  if (!isDescriptorlessDefaultScalarI32VAddFamily(*family)) {
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              kScalarLoweringDescriptorAttrName),
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              family->getLoweringDescriptor()));
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(request.getKernel()->getContext(),
+                              kScalarElementCountAttrName),
+        mlir::IntegerAttr::get(
+            mlir::IntegerType::get(request.getKernel()->getContext(), 64),
+            kDefaultScalarMicrokernelElementCount));
+  }
   out.push_back(proposal);
   return llvm::Error::success();
 }
@@ -1030,8 +1075,12 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     llvm::StringRef runtimeElementCountCName =
         getScalarRuntimeElementCountCName(runtimeABIParameters);
     out.addRuntimeABIParameters(runtimeABIParameters);
-    appendScalarSelectedDescriptorMetadata(out, *family.family,
-                                           runtimeElementCountCName);
+    if (isDescriptorlessDefaultScalarI32VAddFamily(family))
+      appendScalarSelectedTypedSourceMetadata(out, *family.family,
+                                             runtimeElementCountCName);
+    else
+      appendScalarSelectedDescriptorMetadata(out, *family.family,
+                                             runtimeElementCountCName);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
@@ -1103,6 +1152,15 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
     if (!explicitMicrokernel)
       return explicitMicrokernel.takeError();
     callableMicrokernelFamily = *explicitMicrokernel;
+    selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
+  }
+
+  if (!selectedPathHasCallableMicrokernel)
+    *microkernelPlan = buildDescriptorlessDefaultScalarI32VAddMaterializationPlan(
+        request.getKernel(), request.getVariant());
+
+  if (*microkernelPlan) {
+    callableMicrokernelFamily = (*microkernelPlan)->family;
     selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
   }
 

@@ -184,7 +184,8 @@ module {
     // PIPE-SAME: fallback_role = "conservative"
     // PIPE-SAME: origin = "scalar-plugin"
     // PIPE-SAME: requires = [@module_offload_scalar_profile]
-    // PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
+    // PIPE-NOT: tcrv_scalar.lowering_descriptor
+    // PIPE-NOT: tcrv_scalar.element_count
     // PIPE-NOT: tcrv.exec.dispatch
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: selection_kind = "static-variant"
