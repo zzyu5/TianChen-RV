@@ -92,6 +92,8 @@ module {
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
+// SOURCE: /* dataflow_emission_source: derived from verified tcrv_rvv.with_vl body order, SSA chain, and buffer_role attributes */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec */
+// SOURCE: /* intrinsic_config_source: validated tcrv_rvv.setvl and tcrv_rvv.with_vl SEW/LMUL/policy metadata */
 // SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice
 // SOURCE: __riscv_vmul_vv_i32m1

@@ -1138,6 +1138,48 @@ llvm::Error validateSelectedVectorShapeMetadata(
   return llvm::Error::success();
 }
 
+llvm::Error validateSelectedDescriptorMatchesMicrokernelFamily(
+    KernelOp kernel, const SelectedPath &path,
+    const RVVI32MicrokernelFamilySpec &family) {
+  auto descriptorAttr =
+      getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
+          kRVVLoweringDescriptorAttrName);
+  if (!descriptorAttr)
+    return llvm::Error::success();
+
+  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+  if (llvm::Error error =
+          validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+                              descriptor))
+    return error;
+
+  const RVVBinaryFamilyDescriptor *selectedFamily =
+      lookupRVVBinaryFamilyByLoweringDescriptor(descriptor);
+  if (!selectedFamily)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") +
+                    getPathVariantSymbol(path) +
+                    " has unsupported tcrv_rvv.lowering_descriptor '" +
+                    descriptor + "' for RVV binary microkernel export");
+  if (selectedFamily->dtype != RVVBinaryDTypeKind::I32)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") +
+                    getPathVariantSymbol(path) +
+                    " tcrv_rvv.lowering_descriptor '" + descriptor +
+                    "' does not describe an i32 RVV microkernel body");
+  if (!isSameRVVBinaryFamily(*selectedFamily, family))
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") +
+                    getPathVariantSymbol(path) +
+                    " tcrv_rvv.lowering_descriptor '" + descriptor +
+                    "' requires " + selectedFamily->microkernelOpName +
+                    " but typed microkernel body is " +
+                    family.microkernelOpName +
+                    "; descriptor and typed body family must agree before "
+                    "artifact export");
+  return llvm::Error::success();
+}
+
 llvm::Expected<const SelectedPlanMetadataEntry *>
 findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
     const TargetArtifactCandidate &candidate, llvm::StringRef name) {
@@ -1698,6 +1740,11 @@ llvm::Error validateMicrokernelForPath(
               kBoundarySelectedVectorTypeAttrName,
               kBoundarySelectedVectorSuffixAttrName,
               kBoundarySelectedSetVLSuffixAttrName))
+    return error;
+
+  if (llvm::Error error =
+          validateSelectedDescriptorMatchesMicrokernelFamily(kernel, path,
+                                                            family))
     return error;
 
   std::string microkernelMarch;

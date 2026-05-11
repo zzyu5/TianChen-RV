@@ -3748,6 +3748,73 @@ bool expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
        "must use value 'runtime-element-count'"});
 }
 
+bool expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch() {
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+                     "register RVV extension plugin for descriptor/body "
+                     "mismatch fixture"))
+    return false;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module @rvv_microkernel_descriptor_body_mismatch_input {
+  tcrv.exec.kernel @descriptor_body_mismatch {
+    tcrv.exec.capability @rvv {architecture = "riscv64", id = "rvv", isa_vector_hints = "rv64gcv_zvl128b", kind = "isa-vector", lmul = "m1", mask_policy = "agnostic", provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"], sew_bits = 32 : i64, status = "available", tail_policy = "agnostic"}
+    tcrv.exec.capability @rvv_toolchain_march {id = "rvv.toolchain.march", kind = "toolchain", status = "available", value = "rv64gcv"}
+    tcrv.exec.capability @rvv_toolchain_mabi {id = "rvv.toolchain.mabi", kind = "toolchain", status = "available", value = "lp64d"}
+    tcrv.exec.variant @rvv_first_slice attributes {condition = "rvv_capability_properties_available", guard = "plugin_local_rvv_property_evidence", origin = "rvv-plugin", policy = "metadata_only_first_slice", requires = [@rvv], tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, tcrv_rvv.required_march = "rv64gcv"} {
+    }
+    tcrv.exec.diagnostic {message = "static RVV i32 vmul microkernel path selected by descriptor/body mismatch fixture", origin = "rvv-plugin", reason = "variant-selected", selection_kind = "static-variant", severity = "note", status = "selected", target = @rvv_first_slice}
+    tcrv.exec.mem_window @abi_lhs_input_buffer {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.mem_window @abi_rhs_input_buffer {abi_role = "rhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.mem_window @abi_output_buffer {abi_role = "output-buffer", access = "write", binding = "kernel-argument", c_type = "int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
+    tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
+    tcrv_rvv.lowering_boundary {capability_summary = "rvv", origin = "rvv-plugin", required_capabilities = [@rvv], role = "direct variant", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "descriptor_body_mismatch", status = "unsupported", unsupported_reason = "RVV lowering boundary is pre-executable metadata only; no RVV lowering pipeline, runtime ABI, generated artifact, correctness proof, or performance measurement is produced"}
+    tcrv_rvv.i32_vadd_microkernel attributes {element_count = 16 : i64, origin = "rvv-plugin", required_capabilities = [@rvv], required_march = "rv64gcv", role = "direct variant", selected_mabi = "lp64d", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "descriptor_body_mismatch"} {
+    ^bb0(%arg0: index):
+      %0 = tcrv_rvv.setvl %arg0 {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %0 attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %1 = tcrv_rvv.i32_load %0 {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %2 = tcrv_rvv.i32_load %0 {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %3 = tcrv_rvv.i32_add %1, %2, %0 : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %3, %0 {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module) {
+    llvm::errs() << "descriptor/body mismatch fixture failed to parse\n";
+    return false;
+  }
+
+  std::string output;
+  llvm::raw_string_ostream stream(output);
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::exportRVVMicrokernelC(*module, stream),
+          "RVV direct export rejects descriptor/body family mismatch",
+          {"tcrv_rvv.lowering_descriptor 'i32-vmul-microkernel.v1'",
+           "requires tcrv_rvv.i32_vmul_microkernel",
+           "typed microkernel body is tcrv_rvv.i32_vadd_microkernel"}))
+    return false;
+  stream.flush();
+  if (!output.empty()) {
+    llvm::errs() << "descriptor/body mismatch unexpectedly emitted source: "
+                 << output << "\n";
+    return false;
+  }
+  return true;
+}
+
 bool expectScalarSubSourceRejectsStaleAddMetadata(
     const TargetArtifactExporterRegistry &registry) {
   const TargetArtifactExporter *exporter =
@@ -5057,6 +5124,8 @@ int main() {
   if (!expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyDescriptor()))
+    return 1;
+  if (!expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch())
     return 1;
   if (!expectScalarSubSourceRejectsStaleAddMetadata(builtinRegistry))
     return 1;

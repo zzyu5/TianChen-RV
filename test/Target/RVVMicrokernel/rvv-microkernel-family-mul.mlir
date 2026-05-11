@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not="__riscv" --implicit-check-not=riscv_vector --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-i32-vsub-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-VSUB --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1"/s//tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"/' | not tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-DESCRIPTOR --implicit-check-not="#include <riscv_vector.h>"
 
 module @rvv_microkernel_i32_vmul_export_input {
   tcrv.exec.kernel @export_i32_vmul {
@@ -99,3 +100,6 @@ module @rvv_microkernel_i32_vmul_export_input {
 
 // STALE-VSUB: route 'tcrv-export-rvv-i32-vsub-microkernel-c' requires tcrv_rvv.i32_vsub_microkernel
 // STALE-VSUB-SAME: selected RVV record is tcrv_rvv.i32_vmul_microkernel
+
+// STALE-DESCRIPTOR: tcrv_rvv.lowering_descriptor 'i32-vadd-microkernel.v1' requires tcrv_rvv.i32_vadd_microkernel
+// STALE-DESCRIPTOR-SAME: typed microkernel body is tcrv_rvv.i32_vmul_microkernel

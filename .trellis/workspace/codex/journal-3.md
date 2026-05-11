@@ -99,6 +99,99 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 29: RVV structured microkernel body export authority
+
+**Date**: 2026-05-11
+**Task**: RVV structured microkernel body export authority
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded C++/MLIR RVV target/export authority gap for direct
+`i32-vmul` microkernel artifacts. The exporter now resolves the selected
+`tcrv_rvv.lowering_descriptor` and fails closed if it does not match the typed
+`tcrv_rvv.*_microkernel` structured body family before generated source,
+header, or object-derived records can be trusted.
+
+### Main Changes
+
+- Created and started Trellis task
+  `.trellis/tasks/05-11-rvv-structured-body-export-authority/` with PRD and
+  curated implement/check context.
+- Added target/export C++ validation in `lib/Target/RVV/RVVMicrokernel.cpp`
+  so stale selected descriptor metadata cannot silently drive artifacts when
+  the typed RVV body names a different arithmetic family.
+- Added C++ fail-closed coverage in
+  `test/Target/TargetArtifactExportTest.cpp` for selected `i32-vmul`
+  descriptor metadata paired with a typed `tcrv_rvv.i32_vadd_microkernel`
+  body.
+- Added lit/FileCheck coverage in
+  `test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir` proving a
+  post-materialization descriptor mutation fails before source emission.
+- Strengthened
+  `test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir` to check
+  body-derived dataflow and intrinsic config authority comments.
+- Python stayed runner/evidence-only; no compiler internals were implemented
+  in Python.
+
+### Runtime Evidence
+
+- Dry-run evidence directory:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-body-authority-vmul-dry-run-20260511/`.
+- Fresh `ssh rvv` evidence directory:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-body-authority-vmul-ssh-20260511/`.
+- Fresh `ssh rvv` command:
+  `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vmul
+  --lower-linalg-frontend --input
+  test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i32_vmul --run-id
+  codex-body-authority-vmul-ssh-20260511 --overwrite --timeout 120
+  --ssh-target rvv`
+- Result: `status=success`, `ssh_evidence=true`, selected kernel
+  `frontend_i32_vmul`, vector shape `i32m1`, source route
+  `tcrv-export-rvv-i32-vmul-microkernel-c`.
+- Runtime claim is limited to this exact generated RVV direct `i32-vmul`
+  helper artifact handoff plus header/object external caller correctness on
+  `ssh rvv`. No performance or generic RVV backend claim is made.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-target-artifact-export-test
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-rvv-binary-planning-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `cd artifacts/tmp/tianchenrv-build/test && python3
+  /usr/lib/llvm-20/build/utils/lit/lit.py -v . --filter
+  'rvv-microkernel-family-mul|linalg-i32-vmul-to-rvv-artifact|rvv-microkernel-e2e'`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul
+  --lower-linalg-frontend --input
+  test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i32_vmul --run-id
+  codex-body-authority-vmul-dry-run-20260511 --overwrite`
+- `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vmul
+  --lower-linalg-frontend --input
+  test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir
+  --expect-selected-kernel=frontend_i32_vmul --run-id
+  codex-body-authority-vmul-ssh-20260511 --overwrite --timeout 120
+  --ssh-target rvv`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-11-rvv-structured-body-export-authority`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 21: RVV selected config VL dataflow materialization
 
 **Date**: 2026-05-11

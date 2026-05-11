@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source-of-truth, stack, plugin, and compute-free exec boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of vector config, structured body, descriptor, and runtime ABI facts"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, emission authority, runtime ABI, and hardware/config/runtime layering contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation and selected plan facts that must agree with bounded RVV emission"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/e2e validation expectations for compiler-owned RVV behavior"}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Bounded ssh rvv evidence interpretation and forbidden performance/generalization claims"}
