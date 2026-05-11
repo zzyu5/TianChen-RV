@@ -76,3 +76,43 @@
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/rvv-spoof-scalar-route.txt 2>&1 | FileCheck %s --check-prefix=RVV-SPOOF-SCALAR --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
 # RVV-SPOOF-SCALAR: route id 'tcrv-export-scalar-microkernel-c' is registered for origin 'scalar-plugin' but selected emission-plan origin is 'rvv-plugin'
+
+# RUN: tcrv-opt %S/Inputs/scalar-i64-vmul-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-i64-vmul-post-planning.mlir
+# RUN: tcrv-translate --tcrv-export-target-source-artifact %t.scalar-i64-vmul-post-planning.mlir > %t.scalar-i64-vmul.c
+# RUN: FileCheck %s --check-prefix=SCALAR-I64 --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not=int32_t --implicit-check-not=i64_vadd --implicit-check-not=i64_vsub --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not="#include <stdio.h>" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar-i64-vmul.c
+
+# SCALAR-I64: /* TianChen-RV scalar runtime-callable microkernel C export. */
+# SCALAR-I64: /* Scope: library-style C source for exactly one tcrv_scalar.i64_vmul_microkernel. */
+# SCALAR-I64: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
+# SCALAR-I64: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int64_t * */
+# SCALAR-I64: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=len64, c_type=size_t, ownership=target-export-abi-owned */
+# SCALAR-I64: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+# SCALAR-I64: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
+# SCALAR-I64: /* runtime_abi_parameter[3]: c_name=len64, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+# SCALAR-I64: /* runtime_callable_abi: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64) */
+# SCALAR-I64: /* emitc_route: tcrv_scalar.i64_vmul_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
+# SCALAR-I64: /* emitc.call_opaque[0]: tcrv_scalar_i64_mul from tcrv_scalar.i64_vmul_microkernel */
+# SCALAR-I64: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64)
+# SCALAR-I64: for (size_t index = 0; index < len64; ++index) {
+# SCALAR-I64: int64_t product = tcrv_scalar_i64_mul(lhs[index], rhs[index]);
+# SCALAR-I64: tcrv_scalar_i64_store(&out[index], product);
+
+# RUN: FileCheck %s --check-prefix=SCALAR-I64-PLAN < %t.scalar-i64-vmul-post-planning.mlir
+# SCALAR-I64-PLAN: artifact_kind = "runtime-callable-c-source"
+# SCALAR-I64-PLAN: emission_kind = "scalar-explicit-i64-vmul-microkernel-c-source"
+# SCALAR-I64-PLAN-SAME: lowering_pipeline = "tcrv-export-scalar-i64-vmul-microkernel-c"
+# SCALAR-I64-PLAN-SAME: runtime_abi = "scalar-i64-vmul-runtime-callable-c-abi.v1"
+# SCALAR-I64-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
+# SCALAR-I64-PLAN-SAME: runtime_abi_name = "scalar-i64-vmul-runtime-callable-c-function.v1"
+# SCALAR-I64-PLAN-SAME: runtime_abi_parameters = [{{.*}}c_name = "lhs"{{.*}}c_type = "const int64_t *"{{.*}}role = "lhs-input-buffer"{{.*}}c_name = "len64"{{.*}}role = "runtime-element-count"
+# SCALAR-I64-PLAN-SAME: runtime_glue_role = "runtime-callable-i64-vmul-fallback-function"
+# SCALAR-I64-PLAN-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.selected_binary_family"{{.*}}value = "i64-vmul"{{.*}}name = "tcrv_scalar.runtime_element_count_c_name"{{.*}}value = "len64"
+# SCALAR-I64-PLAN-SAME: status = "supported"
+
+# RUN: sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/d' %t.scalar-i64-vmul-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-I64-MISSING-MEM-WINDOW --implicit-check-not="#include <stdint.h>"
+# SCALAR-I64-MISSING-MEM-WINDOW: runtime ABI mem_window validation failed
+# SCALAR-I64-MISSING-MEM-WINDOW-SAME: requires exactly one tcrv.exec.mem_window with ABI role 'lhs-input-buffer'
+
+# RUN: sed '/tcrv.exec.runtime_param @abi_runtime_element_count/ s/c_type = "size_t"/c_type = "uint64_t"/' %t.scalar-i64-vmul-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-I64-STALE-RUNTIME --implicit-check-not="#include <stdint.h>"
+# SCALAR-I64-STALE-RUNTIME: runtime ABI runtime_param validation failed
+# SCALAR-I64-STALE-RUNTIME-SAME: requires attribute 'c_type' = "size_t"

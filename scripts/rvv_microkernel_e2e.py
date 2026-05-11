@@ -352,6 +352,24 @@ def runtime_abi_signature_for_family(
     ]
 
 
+def runtime_abi_signature_for_observed_runtime_name(
+    family: dict[str, str | Path], observed: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    expected = runtime_abi_signature_for_family(family)
+    runtime_names = [
+        str(parameter.get("c_name", "")).strip()
+        for parameter in observed
+        if parameter.get("role") == "runtime-element-count"
+    ]
+    if len(runtime_names) != 1 or not runtime_names[0]:
+        raise BridgeError(
+            "runtime ABI signature requires exactly one non-empty "
+            "runtime-element-count c_name"
+        )
+    expected[3]["c_name"] = runtime_names[0]
+    return expected
+
+
 def direct_helper_translation_route(
     family: dict[str, str | Path], artifact_role: str
 ) -> str:
@@ -1589,13 +1607,13 @@ def parse_runtime_abi_parameters_from_source(source: str) -> list[dict[str, str]
 def validate_runtime_abi_signature(
     observed: list[dict[str, str]], family: dict[str, str | Path]
 ) -> list[dict[str, str]]:
-    expected = runtime_abi_signature_for_family(family)
+    expected = runtime_abi_signature_for_observed_runtime_name(family, observed)
     if observed != expected:
         raise BridgeError(
             "generated C source runtime ABI signature does not match the "
             "selected RVV "
             + str(family["diagnostic_name"])
-            + " compiler-emitted descriptor contract"
+            + " compiler-emitted callable ABI contract"
         )
     return observed
 
@@ -2024,7 +2042,9 @@ def normalize_c_parameter_list(parameter_text: str) -> str:
     return normalized
 
 
-def validate_generated_header(header: str) -> str:
+def validate_generated_header(
+    header: str, runtime_abi_parameters: list[dict[str, str]] | None = None
+) -> str:
     if not header.strip():
         raise BridgeError("generated RVV microkernel C header is empty")
     reject_secret_like_text("generated RVV microkernel C header", header)
@@ -2064,8 +2084,15 @@ def validate_generated_header(header: str) -> str:
             "generated RVV microkernel C header prototype does not match "
             f"selected arithmetic family {ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
         )
+    parameters = runtime_abi_parameters or runtime_abi_signature_for_family(
+        ACTIVE_ARITHMETIC_FAMILY
+    )
+    if runtime_abi_parameters is not None:
+        parameters = validate_runtime_abi_signature(
+            runtime_abi_parameters, ACTIVE_ARITHMETIC_FAMILY
+        )
     expected_parameters = []
-    for parameter in runtime_abi_signature_for_family(ACTIVE_ARITHMETIC_FAMILY):
+    for parameter in parameters:
         expected_parameters.append(parameter["c_type"] + " " + parameter["c_name"])
     observed = normalize_c_parameter_list(parameter_text)
     expected = normalize_c_parameter_list(", ".join(expected_parameters))
@@ -2347,7 +2374,10 @@ def require_rvv_runtime_abi_signature(
         seen_roles.add(parameter["role"])
         parameters.append(parameter)
 
-    if parameters != runtime_abi_signature_for_family(ACTIVE_ARITHMETIC_FAMILY):
+    expected = runtime_abi_signature_for_observed_runtime_name(
+        ACTIVE_ARITHMETIC_FAMILY, parameters
+    )
+    if parameters != expected:
         raise BridgeError(
             f"bundle record route {record.get('route')} runtime ABI signature "
             "does not match the RVV "
@@ -3538,7 +3568,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     expected_selected_kernel = validate_expected_selected_kernel(
         source_flags["compiler_path_context"], args.expect_selected_kernel
     )
-    header_function_name = validate_generated_header(header_text)
+    header_function_name = validate_generated_header(
+        header_text, source_flags["runtime_abi_parameters"]
+    )
     if object_path.stat().st_size < 4 or object_path.read_bytes()[:4] != b"\x7fELF":
         raise BridgeError("bundled RVV microkernel object must be a non-empty ELF relocatable")
 
@@ -3910,7 +3942,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             commands=commands,
             timeout_seconds=args.timeout,
         )
-        header_function_name = validate_generated_header(header_text)
+        header_function_name = validate_generated_header(
+            header_text, source_flags["runtime_abi_parameters"]
+        )
         write_generated_text(
             header_path, "generated RVV microkernel header", header_text
         )

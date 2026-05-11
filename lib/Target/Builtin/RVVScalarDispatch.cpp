@@ -710,127 +710,20 @@ findDispatchABIParameterByRole(
   return *parameter;
 }
 
-llvm::StringRef getDispatchMemWindowStringAttr(MemWindowOp window,
-                                               llvm::StringRef attrName) {
-  auto attr = window->getAttrOfType<mlir::StringAttr>(attrName);
-  if (!attr)
-    return {};
-  return attr.getValue();
-}
-
 llvm::Error validateDispatchCallableABIParameterMirror(
     KernelOp kernel,
     llvm::ArrayRef<support::RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource, const DispatchI32FamilySpec &family) {
-  if (metadataParameters.empty())
+  if (!family.rvvFamily)
     return makeDispatchError(
-        kernel, llvm::Twine(metadataSource) +
-                    " requires runtime_abi_parameters metadata mirroring the "
-                    "IR-backed callable ABI plan");
+        kernel, llvm::Twine("dispatch callable ABI mirror validation for ") +
+                    family.diagnosticName +
+                    " requires finite RVV binary family metadata");
 
-  std::size_t expectedParameterCount =
-      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
-          *family.rvvFamily)
-          .size();
-  if (irBackedParameters.size() != expectedParameterCount)
-    return makeDispatchError(
-        kernel, llvm::Twine("IR-backed callable ABI plan for ") +
-                    family.diagnosticName + " must contain exactly " +
-                    llvm::Twine(expectedParameterCount) + " parameters");
-
-  for (const support::RuntimeABIParameter &expected : irBackedParameters) {
-    const support::RuntimeABIParameter *actual = nullptr;
-    unsigned count = 0;
-    for (const support::RuntimeABIParameter &candidate : metadataParameters) {
-      if (candidate.role != expected.role)
-        continue;
-      actual = &candidate;
-      ++count;
-    }
-
-    if (count == 0)
-      return makeDispatchError(
-          kernel, llvm::Twine(metadataSource) +
-                      " requires runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "' to mirror the IR-backed callable ABI plan");
-    if (count > 1)
-      return makeDispatchError(
-          kernel, llvm::Twine(metadataSource) +
-                      " contains duplicate runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "'");
-
-    if (actual->cName != expected.cName || actual->cType != expected.cType ||
-        actual->role != expected.role ||
-        actual->ownership != expected.ownership) {
-      return makeDispatchError(
-          kernel, llvm::Twine(metadataSource) +
-                      " runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(
-                          expected.role) +
-                      "' must mirror IR-backed callable ABI parameter "
-                      "c_name='" +
-                      expected.cName + "', c_type='" + expected.cType +
-                      "', ownership='" +
-                      support::stringifyRuntimeABIParameterOwnership(
-                          expected.ownership) +
-                      "'");
-    }
-  }
-
-  for (const support::RuntimeABIParameter &actual : metadataParameters) {
-    bool expectedRole = llvm::any_of(
-        irBackedParameters, [&](const support::RuntimeABIParameter &param) {
-          return param.role == actual.role;
-        });
-    if (!expectedRole)
-      return makeDispatchError(
-          kernel, llvm::Twine(metadataSource) +
-                      " contains unsupported runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(actual.role) +
-                      "'");
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Expected<support::RuntimeABIParameter>
-makeDispatchCallableParameterFromMemWindow(
-    KernelOp kernel, MemWindowOp window,
-    llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters) {
-  llvm::StringRef role =
-      getDispatchMemWindowStringAttr(window, support::kMemWindowABIRoleAttrName);
-  std::optional<support::RuntimeABIParameterRole> parsedRole =
-      support::symbolizeRuntimeABIParameterRole(role);
-  if (!parsedRole)
-    return makeDispatchError(
-        kernel, llvm::Twine("unsupported tcrv.exec.mem_window ABI role '") +
-                    role + "'");
-
-  llvm::Expected<const support::RuntimeABIParameter *> expected =
-      support::findUniqueRuntimeABIParameterByRole(
-          expectedParameters, *parsedRole,
-          "RVV+scalar dispatch callable ABI descriptor");
-  if (!expected) {
-    std::string message = llvm::toString(expected.takeError());
-    return makeDispatchError(kernel, message);
-  }
-
-  llvm::StringRef cType =
-      getDispatchMemWindowStringAttr(window, support::kMemWindowCTypeAttrName);
-  llvm::StringRef ownership = getDispatchMemWindowStringAttr(
-      window, support::kMemWindowOwnershipAttrName);
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(ownership);
-  if (!parsedOwnership)
-    return makeDispatchError(
-        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
-                    " has unsupported ownership '" + ownership + "'");
-
-  return support::RuntimeABIParameter((*expected)->cName, cType, *parsedRole,
-                                      *parsedOwnership);
+  return support::validateFiniteBinaryCallableABIParameterMirror(
+      kernel, metadataParameters, irBackedParameters, metadataSource,
+      *family.rvvFamily);
 }
 
 llvm::Expected<CallableABIPlan>
@@ -840,46 +733,21 @@ buildDispatchCallableABIPlan(KernelOp kernel,
     return makeDispatchError(
         kernel, "requires a materialized tcrv.exec.kernel body");
 
-  CallableABIPlan plan;
-  auto windowSpecs =
-      tianchenrv::target::rvv::getRVVBinaryBufferMemWindowSpecs(
-          *family.rvvFamily);
-  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
-          kernel, windowSpecs, plan.bufferWindows))
-    return std::move(error);
-
-  auto expectedParameters =
-      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
-          *family.rvvFamily);
-  for (MemWindowOp window : plan.bufferWindows) {
-    llvm::Expected<support::RuntimeABIParameter> parameter =
-        makeDispatchCallableParameterFromMemWindow(kernel, window,
-                                                   expectedParameters);
-    if (!parameter)
-      return parameter.takeError();
-    plan.parameters.push_back(std::move(*parameter));
-  }
-
-  auto countSpecs =
-      tianchenrv::target::rvv::getRVVBinaryRuntimeElementCountParamSpecs(
-          *family.rvvFamily, /*cName=*/"");
-  llvm::SmallVector<RuntimeParamOp, 1> runtimeParams;
-  if (llvm::Error error =
-          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams))
-    return std::move(error);
-  plan.runtimeElementCountParam = runtimeParams.front();
-
-  llvm::Expected<support::RuntimeABIParameter> runtimeCount =
-      makeRuntimeABIParameterFromRuntimeParam(kernel,
-                                              plan.runtimeElementCountParam);
-  if (!runtimeCount)
-    return runtimeCount.takeError();
-  if (runtimeCount->role !=
-      support::RuntimeABIParameterRole::RuntimeElementCount)
+  if (!family.rvvFamily)
     return makeDispatchError(
-        kernel, "runtime element-count parameter must carry ABI role "
-                "'runtime-element-count'");
-  plan.parameters.push_back(std::move(*runtimeCount));
+        kernel, llvm::Twine("dispatch callable ABI plan for ") +
+                    family.diagnosticName +
+                    " requires finite RVV binary family metadata");
+
+  llvm::Expected<support::FiniteBinaryCallableABIPlan> finitePlan =
+      support::buildFiniteBinaryCallableABIPlan(kernel, *family.rvvFamily);
+  if (!finitePlan)
+    return finitePlan.takeError();
+
+  CallableABIPlan plan;
+  plan.parameters = std::move(finitePlan->parameters);
+  plan.bufferWindows = std::move(finitePlan->bufferWindows);
+  plan.runtimeElementCountParam = finitePlan->runtimeElementCountParam;
   return plan;
 }
 

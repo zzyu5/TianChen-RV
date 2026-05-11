@@ -2,8 +2,6 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
-#include "TianChenRV/Support/RuntimeABIMemWindow.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -46,14 +44,6 @@ tcrv::rvv::PolicyAttr getExpectedRVVPolicyAttr(mlir::MLIRContext *context) {
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-llvm::StringRef getStringAttrValue(mlir::Operation *op,
-                                   llvm::StringRef name) {
-  mlir::StringAttr attr = getStringAttr(op, name);
-  if (!attr)
-    return {};
-  return attr.getValue();
 }
 
 mlir::Type getRVVBinaryVectorType(
@@ -159,26 +149,6 @@ llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
   return llvm::Error::success();
 }
 
-llvm::Error appendRuntimeABIWindowParameter(
-    llvm::SmallVectorImpl<support::RuntimeABIParameter> &parameters,
-    tcrv::exec::MemWindowOp window, support::RuntimeABIParameterRole role,
-    llvm::StringRef cName) {
-  llvm::StringRef cType =
-      getStringAttrValue(window.getOperation(), support::kMemWindowCTypeAttrName);
-  llvm::StringRef ownership = getStringAttrValue(
-      window.getOperation(), support::kMemWindowOwnershipAttrName);
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(ownership);
-  if (!parsedOwnership)
-    return makeRVVBinaryMicrokernelMaterializationError(
-        llvm::Twine("RVV binary callable ABI mem_window @") +
-        window.getSymName() + " has unsupported ownership '" + ownership + "'");
-
-  parameters.push_back(
-      support::RuntimeABIParameter(cName, cType, role, *parsedOwnership));
-  return llvm::Error::success();
-}
-
 } // namespace
 
 llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
@@ -247,66 +217,11 @@ llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildRVVBinaryCallableRuntimeABIParameters(
     tcrv::exec::KernelOp kernel,
     const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor) {
-  if (descriptor.family.dtype == target::rvv::RVVBinaryDTypeKind::I32) {
-    const target::i32_binary::I32BinaryFamilyDescriptor *family =
-        target::i32_binary::lookupI32BinaryFamilyByID(
-            descriptor.getArithmeticFamilyID());
-    if (!family)
-      return makeRVVBinaryMicrokernelMaterializationError(
-          llvm::Twine("RVV i32 binary callable ABI requires shared i32 "
-                      "binary family descriptor for '") +
-          descriptor.getArithmeticFamilyID() + "'");
-
-    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-        support::buildI32BinaryCallableABIPlan(kernel, *family);
-    if (!callablePlan)
-      return callablePlan.takeError();
-    return std::move(callablePlan->parameters);
-  }
-
-  llvm::SmallVector<tcrv::exec::MemWindowOp, 3> windows;
-  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
-          kernel, descriptor.getBufferMemWindowSpecs(), windows))
-    return std::move(error);
-
-  llvm::SmallVector<support::RuntimeABIParamSpec, 1> countSpecs =
-      descriptor.getRuntimeElementCountParamSpecs(/*cName=*/"");
-  llvm::SmallVector<tcrv::exec::RuntimeParamOp, 1> runtimeParams;
-  if (llvm::Error error =
-          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams))
-    return std::move(error);
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
-  if (llvm::Error error = appendRuntimeABIWindowParameter(
-          parameters, windows[0],
-          support::RuntimeABIParameterRole::LHSInputBuffer, "lhs"))
-    return std::move(error);
-  if (llvm::Error error = appendRuntimeABIWindowParameter(
-          parameters, windows[1],
-          support::RuntimeABIParameterRole::RHSInputBuffer, "rhs"))
-    return std::move(error);
-  if (llvm::Error error = appendRuntimeABIWindowParameter(
-          parameters, windows[2], support::RuntimeABIParameterRole::OutputBuffer,
-          "out"))
-    return std::move(error);
-
-  tcrv::exec::RuntimeParamOp runtimeCount = runtimeParams.front();
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(getStringAttrValue(
-          runtimeCount.getOperation(), support::kRuntimeParamOwnershipAttrName));
-  if (!parsedOwnership)
-    return makeRVVBinaryMicrokernelMaterializationError(
-        llvm::Twine("RVV binary callable ABI runtime_param @") +
-        runtimeCount.getSymName() + " has unsupported ownership");
-
-  parameters.push_back(support::RuntimeABIParameter(
-      getStringAttrValue(runtimeCount.getOperation(),
-                         support::kRuntimeParamCNameAttrName),
-      getStringAttrValue(runtimeCount.getOperation(),
-                         support::kRuntimeParamCTypeAttrName),
-      support::RuntimeABIParameterRole::RuntimeElementCount, *parsedOwnership));
-
-  return parameters;
+  llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
+      support::buildFiniteBinaryCallableABIPlan(kernel, descriptor.family);
+  if (!callablePlan)
+    return callablePlan.takeError();
+  return std::move(callablePlan->parameters);
 }
 
 const target::rvv::RVVBinaryFamilyDescriptor *

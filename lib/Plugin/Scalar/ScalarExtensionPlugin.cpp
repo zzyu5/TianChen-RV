@@ -3,7 +3,6 @@
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
-#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "mlir/IR/Attributes.h"
@@ -178,96 +177,17 @@ getScalarFamilySpec(const ScalarBinaryFamilyDescriptor &family) {
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildScalarEmissionRuntimeABIParameters(
     tcrv::exec::KernelOp kernel, const ScalarBinaryFamilyDescriptor &family) {
-  if (family.rvvFamily &&
-      family.rvvFamily->dtype ==
-          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32) {
-    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
-        *i32Family = tianchenrv::target::i32_binary::
-            lookupI32BinaryFamilyByID(family.familyID);
-    if (!i32Family)
-      return makeScalarPluginError(
-          llvm::Twine("scalar i32 binary callable ABI requires shared i32 "
-                      "binary family descriptor for '") +
-          family.familyID + "'");
+  if (!family.rvvFamily)
+    return makeScalarPluginError(
+        llvm::Twine("scalar binary callable ABI requires finite RVV family "
+                    "metadata for '") +
+        family.familyID + "'");
 
-    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-        support::buildI32BinaryCallableABIPlan(kernel, *i32Family);
-    if (!callablePlan)
-      return callablePlan.takeError();
-    return std::move(callablePlan->parameters);
-  }
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
-      tianchenrv::target::rvv_scalar::
-          getRVVScalarBinaryCallableRuntimeABIParameters(family);
-  if (!kernel || kernel.getBody().empty())
-    return parameters;
-
-  auto replaceByRole = [&](support::RuntimeABIParameter parameter) {
-    for (support::RuntimeABIParameter &existing : parameters) {
-      if (existing.role == parameter.role) {
-        existing = std::move(parameter);
-        return;
-      }
-    }
-  };
-
-  llvm::SmallVector<tcrv::exec::MemWindowOp, 3> windows;
-  auto windowSpecs =
-      tianchenrv::target::rvv_scalar::getRVVScalarBinaryBufferMemWindowSpecs(
-          family);
-  if (llvm::Error error =
-          support::collectRuntimeABIBufferMemWindows(kernel, windowSpecs,
-                                                     windows)) {
-    llvm::consumeError(std::move(error));
-  } else {
-    for (std::size_t index = 0; index < windows.size() && index < parameters.size();
-         ++index) {
-      auto cType = windows[index]->getAttrOfType<mlir::StringAttr>(
-          support::kMemWindowCTypeAttrName);
-      auto ownership = windows[index]->getAttrOfType<mlir::StringAttr>(
-          support::kMemWindowOwnershipAttrName);
-      std::optional<support::RuntimeABIParameterOwnership> parsedOwnership;
-      if (ownership)
-        parsedOwnership = support::symbolizeRuntimeABIParameterOwnership(
-            ownership.getValue());
-      if (cType && parsedOwnership) {
-        const support::RuntimeABIParameter &descriptorParameter =
-            parameters[index];
-        replaceByRole(support::RuntimeABIParameter(
-            descriptorParameter.cName, cType.getValue(),
-            descriptorParameter.role, *parsedOwnership));
-      }
-    }
-  }
-
-  llvm::SmallVector<tcrv::exec::RuntimeParamOp, 1> runtimeParams;
-  auto countSpecs =
-      tianchenrv::target::rvv_scalar::
-          getRVVScalarBinaryRuntimeElementCountParamSpecs(family,
-                                                          /*cName=*/"");
-  if (llvm::Error error =
-          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams)) {
-    llvm::consumeError(std::move(error));
-  } else if (!runtimeParams.empty()) {
-    auto cName = runtimeParams.front()->getAttrOfType<mlir::StringAttr>(
-        support::kRuntimeParamCNameAttrName);
-    auto cType = runtimeParams.front()->getAttrOfType<mlir::StringAttr>(
-        support::kRuntimeParamCTypeAttrName);
-    auto ownership = runtimeParams.front()->getAttrOfType<mlir::StringAttr>(
-        support::kRuntimeParamOwnershipAttrName);
-    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership;
-    if (ownership)
-      parsedOwnership = support::symbolizeRuntimeABIParameterOwnership(
-          ownership.getValue());
-    if (cName && cType && parsedOwnership)
-      replaceByRole(support::RuntimeABIParameter(
-          cName.getValue(), cType.getValue(),
-          support::RuntimeABIParameterRole::RuntimeElementCount,
-          *parsedOwnership));
-  }
-
-  return parameters;
+  llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
+      support::buildFiniteBinaryCallableABIPlan(kernel, *family.rvvFamily);
+  if (!callablePlan)
+    return callablePlan.takeError();
+  return std::move(callablePlan->parameters);
 }
 
 llvm::StringRef getScalarRuntimeElementCountCName(

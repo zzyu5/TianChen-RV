@@ -8,7 +8,6 @@
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
-#include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
@@ -474,92 +473,15 @@ llvm::Error validateScalarCallableABIParameterMirror(
     llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
     const ScalarI32MicrokernelFamilySpec &family) {
-  if (family.rvvFamily &&
-      family.rvvFamily->dtype == RVVBinaryDTypeKind::I32) {
-    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
-        *i32Family = tianchenrv::target::i32_binary::
-            lookupI32BinaryFamilyByID(family.rvvFamily->familyID);
-    if (!i32Family)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("scalar i32 binary callable ABI requires "
-                              "shared i32 binary family descriptor for ") +
-                      family.microkernelOpName);
-    return support::validateI32BinaryCallableABIParameterMirror(
-        kernel, metadataParameters, irBackedParameters, metadataSource,
-        *i32Family);
-  }
-
-  if (metadataParameters.empty())
+  if (!family.rvvFamily)
     return makeMicrokernelError(
-        kernel, llvm::Twine(metadataSource) +
-                    " requires runtime_abi_parameters metadata mirroring the "
-                    "IR-backed scalar callable ABI plan");
+        kernel, llvm::Twine("scalar callable ABI mirror validation for ") +
+                    family.microkernelOpName +
+                    " requires finite RVV binary family metadata");
 
-  std::size_t expectedParameterCount =
-      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
-          *family.rvvFamily)
-          .size();
-  if (irBackedParameters.size() != expectedParameterCount)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("IR-backed scalar callable ABI plan for ") +
-                    family.microkernelOpName + " must contain exactly " +
-                    llvm::Twine(expectedParameterCount) + " parameters");
-
-  for (const support::RuntimeABIParameter &expected : irBackedParameters) {
-    const support::RuntimeABIParameter *actual = nullptr;
-    unsigned count = 0;
-    for (const support::RuntimeABIParameter &candidate : metadataParameters) {
-      if (candidate.role != expected.role)
-        continue;
-      actual = &candidate;
-      ++count;
-    }
-
-    if (count == 0)
-      return makeMicrokernelError(
-          kernel, llvm::Twine(metadataSource) +
-                      " requires runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "' to mirror the IR-backed callable ABI plan");
-    if (count > 1)
-      return makeMicrokernelError(
-          kernel, llvm::Twine(metadataSource) +
-                      " contains duplicate runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(expected.role) +
-                      "'");
-
-    if (actual->cName != expected.cName || actual->cType != expected.cType ||
-        actual->role != expected.role ||
-        actual->ownership != expected.ownership) {
-      return makeMicrokernelError(
-          kernel, llvm::Twine(metadataSource) +
-                      " runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(
-                          expected.role) +
-                      "' must mirror IR-backed scalar callable ABI parameter "
-                      "c_name='" +
-                      expected.cName + "', c_type='" + expected.cType +
-                      "', ownership='" +
-                      support::stringifyRuntimeABIParameterOwnership(
-                          expected.ownership) +
-                      "'");
-    }
-  }
-
-  for (const support::RuntimeABIParameter &actual : metadataParameters) {
-    bool expectedRole = llvm::any_of(
-        irBackedParameters, [&](const support::RuntimeABIParameter &param) {
-          return param.role == actual.role;
-        });
-    if (!expectedRole)
-      return makeMicrokernelError(
-          kernel, llvm::Twine(metadataSource) +
-                      " contains unsupported runtime ABI parameter role '" +
-                      support::stringifyRuntimeABIParameterRole(actual.role) +
-                      "'");
-  }
-
-  return llvm::Error::success();
+  return support::validateFiniteBinaryCallableABIParameterMirror(
+      kernel, metadataParameters, irBackedParameters, metadataSource,
+      *family.rvvFamily);
 }
 
 llvm::Error validateEmissionPlanParameterMirror(
@@ -1536,77 +1458,6 @@ llvm::Error requireScalarEmitCLowerableInterface(
   return llvm::Error::success();
 }
 
-llvm::Expected<support::RuntimeABIParameter>
-makeScalarCallableParameterFromMemWindow(
-    KernelOp kernel, MemWindowOp window,
-    llvm::ArrayRef<support::RuntimeABIParameter> expectedParameters) {
-  llvm::StringRef role =
-      getStringAttr(window.getOperation(), support::kMemWindowABIRoleAttrName);
-  std::optional<support::RuntimeABIParameterRole> parsedRole =
-      support::symbolizeRuntimeABIParameterRole(role);
-  if (!parsedRole)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("unsupported tcrv.exec.mem_window ABI role '") +
-                    role + "'");
-
-  llvm::Expected<const support::RuntimeABIParameter *> expected =
-      support::findUniqueRuntimeABIParameterByRole(
-          expectedParameters, *parsedRole,
-          "scalar binary callable ABI descriptor");
-  if (!expected) {
-    std::string message = llvm::toString(expected.takeError());
-    return makeMicrokernelError(kernel, message);
-  }
-
-  llvm::StringRef cType =
-      getStringAttr(window.getOperation(), support::kMemWindowCTypeAttrName);
-  llvm::StringRef ownership =
-      getStringAttr(window.getOperation(), support::kMemWindowOwnershipAttrName);
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(ownership);
-  if (!parsedOwnership)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("tcrv.exec.mem_window @") + window.getSymName() +
-                    " has unsupported ownership '" + ownership + "'");
-
-  return support::RuntimeABIParameter((*expected)->cName, cType, *parsedRole,
-                                      *parsedOwnership);
-}
-
-llvm::Expected<support::RuntimeABIParameter>
-makeScalarCallableParameterFromRuntimeParam(
-    KernelOp kernel, RuntimeParamOp param,
-    support::RuntimeABIParameterRole expectedRole) {
-  llvm::StringRef role =
-      getStringAttr(param.getOperation(), support::kRuntimeParamABIRoleAttrName);
-  std::optional<support::RuntimeABIParameterRole> parsedRole =
-      support::symbolizeRuntimeABIParameterRole(role);
-  if (!parsedRole || *parsedRole != expectedRole)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("tcrv.exec.runtime_param @") +
-                    param.getSymName() + " must carry ABI role '" +
-                    support::stringifyRuntimeABIParameterRole(expectedRole) +
-                    "'");
-
-  llvm::StringRef cName =
-      getStringAttr(param.getOperation(), support::kRuntimeParamCNameAttrName);
-  llvm::StringRef cType =
-      getStringAttr(param.getOperation(), support::kRuntimeParamCTypeAttrName);
-  llvm::StringRef ownership =
-      getStringAttr(param.getOperation(),
-                    support::kRuntimeParamOwnershipAttrName);
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(ownership);
-  if (!parsedOwnership)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("tcrv.exec.runtime_param @") +
-                    param.getSymName() + " has unsupported ownership '" +
-                    ownership + "'");
-
-  return support::RuntimeABIParameter(cName, cType, expectedRole,
-                                      *parsedOwnership);
-}
-
 llvm::Expected<ScalarCallableABIPlan>
 buildScalarCallableABIPlan(KernelOp kernel,
                            const ScalarI32MicrokernelFamilySpec &family) {
@@ -1614,64 +1465,21 @@ buildScalarCallableABIPlan(KernelOp kernel,
     return makeMicrokernelError(
         kernel, "requires a materialized tcrv.exec.kernel body");
 
-  if (family.rvvFamily && family.rvvFamily->dtype == RVVBinaryDTypeKind::I32) {
-    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor
-        *i32Family = tianchenrv::target::i32_binary::
-            lookupI32BinaryFamilyByID(family.rvvFamily->familyID);
-    if (!i32Family)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("scalar i32 binary callable ABI requires "
-                              "shared i32 binary family descriptor for ") +
-                      family.microkernelOpName);
+  if (!family.rvvFamily)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("scalar callable ABI plan for ") +
+                    family.microkernelOpName +
+                    " requires finite RVV binary family metadata");
 
-    llvm::Expected<support::I32BinaryCallableABIPlan> i32Plan =
-        support::buildI32BinaryCallableABIPlan(kernel, *i32Family);
-    if (!i32Plan)
-      return i32Plan.takeError();
-
-    ScalarCallableABIPlan plan;
-    plan.parameters = std::move(i32Plan->parameters);
-    plan.bufferWindows = std::move(i32Plan->bufferWindows);
-    plan.runtimeElementCountParam = i32Plan->runtimeElementCountParam;
-    return plan;
-  }
+  llvm::Expected<support::FiniteBinaryCallableABIPlan> finitePlan =
+      support::buildFiniteBinaryCallableABIPlan(kernel, *family.rvvFamily);
+  if (!finitePlan)
+    return finitePlan.takeError();
 
   ScalarCallableABIPlan plan;
-  auto windowSpecs =
-      tianchenrv::target::rvv::getRVVBinaryBufferMemWindowSpecs(
-          *family.rvvFamily);
-  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
-          kernel, windowSpecs, plan.bufferWindows))
-    return std::move(error);
-
-  auto expectedParameters =
-      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIParameters(
-          *family.rvvFamily);
-  for (MemWindowOp window : plan.bufferWindows) {
-    llvm::Expected<support::RuntimeABIParameter> parameter =
-        makeScalarCallableParameterFromMemWindow(kernel, window,
-                                                 expectedParameters);
-    if (!parameter)
-      return parameter.takeError();
-    plan.parameters.push_back(std::move(*parameter));
-  }
-
-  auto countSpecs =
-      tianchenrv::target::rvv::getRVVBinaryRuntimeElementCountParamSpecs(
-          *family.rvvFamily, /*cName=*/"");
-  llvm::SmallVector<RuntimeParamOp, 1> runtimeParams;
-  if (llvm::Error error =
-          support::collectRuntimeABIParams(kernel, countSpecs, runtimeParams))
-    return std::move(error);
-  plan.runtimeElementCountParam = runtimeParams.front();
-
-  llvm::Expected<support::RuntimeABIParameter> runtimeCount =
-      makeScalarCallableParameterFromRuntimeParam(
-          kernel, plan.runtimeElementCountParam,
-          support::RuntimeABIParameterRole::RuntimeElementCount);
-  if (!runtimeCount)
-    return runtimeCount.takeError();
-  plan.parameters.push_back(std::move(*runtimeCount));
+  plan.parameters = std::move(finitePlan->parameters);
+  plan.bufferWindows = std::move(finitePlan->bufferWindows);
+  plan.runtimeElementCountParam = finitePlan->runtimeElementCountParam;
   return plan;
 }
 

@@ -1,0 +1,79 @@
+module @scalar_i64_vmul_microkernel_source_input {
+  tcrv.exec.kernel @scalar_i64_vmul_microkernel_export {
+    tcrv.exec.capability @rv64 {
+      id = "rv64",
+      kind = "isa-scalar",
+      architecture = "riscv64",
+      status = "available"
+    }
+    tcrv.exec.capability @riscv_toolchain_march {
+      id = "riscv.toolchain.march",
+      kind = "toolchain",
+      status = "available",
+      value = "rv64gc"
+    }
+    tcrv.exec.capability @riscv_toolchain_mabi {
+      id = "riscv.toolchain.mabi",
+      kind = "toolchain",
+      status = "available",
+      value = "lp64d"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int64_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int64_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int64_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "len64",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
+    }
+    tcrv.exec.variant @scalar_fallback_first_slice attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback],
+      tcrv_scalar.element_count = 16 : i64,
+      tcrv_scalar.lowering_descriptor = "i64-vmul-microkernel.v1"
+    } {
+    }
+    tcrv.exec.diagnostic {
+      message = "static scalar i64 vmul microkernel fallback path selected by test fixture",
+      origin = "scalar-plugin",
+      reason = "variant-selected",
+      selection_kind = "fallback-only",
+      severity = "note",
+      status = "selected",
+      target = @scalar_fallback_first_slice
+    }
+  }
+}

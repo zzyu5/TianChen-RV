@@ -350,23 +350,6 @@ llvm::Error makeModuleMicrokernelError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-llvm::Error makeRuntimeABICallablePlanError(
-    KernelOp kernel, const RVVBinaryIntrinsicDescriptor &descriptor,
-    llvm::Twine message) {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  stream << "runtime ABI callable plan validation failed for family '"
-         << descriptor.getArithmeticFamilyID() << "'";
-  if (kernel)
-    stream << " for kernel @" << kernel.getSymName();
-  else
-    stream << " for kernel <missing>";
-  stream << ": " << message;
-  stream.flush();
-  return llvm::make_error<llvm::StringError>(text,
-                                             llvm::errc::invalid_argument);
-}
-
 llvm::Error makeMicrokernelObjectError(llvm::StringRef kernelSymbol,
                                        llvm::Twine message) {
   std::string text;
@@ -676,76 +659,9 @@ llvm::Error validateRVVBinaryCallableABIParameterMirror(
     llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
     const RVVBinaryIntrinsicDescriptor &descriptor) {
-  if (metadataParameters.empty())
-    return makeRuntimeABICallablePlanError(
-        kernel, descriptor,
-        llvm::Twine(metadataSource) +
-            " requires runtime_abi_parameters metadata mirroring the "
-            "IR-backed callable ABI plan");
-
-  std::size_t expectedParameterCount =
-      descriptor.getCallableRuntimeABIParameters().size();
-  if (irBackedParameters.size() != expectedParameterCount)
-    return makeRuntimeABICallablePlanError(
-        kernel, descriptor,
-        llvm::Twine("IR-backed RVV binary callable ABI plan must contain "
-                    "exactly ") +
-            llvm::Twine(expectedParameterCount) + " parameters for family '" +
-            descriptor.getArithmeticFamilyID() + "'");
-
-  for (const support::RuntimeABIParameter &expected : irBackedParameters) {
-    const support::RuntimeABIParameter *actual = nullptr;
-    unsigned count = 0;
-    for (const support::RuntimeABIParameter &candidate : metadataParameters) {
-      if (candidate.role != expected.role)
-        continue;
-      actual = &candidate;
-      ++count;
-    }
-
-    if (count == 0)
-      return makeRuntimeABICallablePlanError(
-          kernel, descriptor,
-          llvm::Twine(metadataSource) +
-              " requires runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) +
-              "' to mirror the IR-backed callable ABI plan");
-    if (count > 1)
-      return makeRuntimeABICallablePlanError(
-          kernel, descriptor,
-          llvm::Twine(metadataSource) +
-              " contains duplicate runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) + "'");
-
-    if (actual->cName != expected.cName || actual->cType != expected.cType ||
-        actual->role != expected.role ||
-        actual->ownership != expected.ownership)
-      return makeRuntimeABICallablePlanError(
-          kernel, descriptor,
-          llvm::Twine(metadataSource) + " runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(expected.role) +
-              "' must mirror IR-backed callable ABI parameter c_name='" +
-              expected.cName + "', c_type='" + expected.cType +
-              "', ownership='" +
-              support::stringifyRuntimeABIParameterOwnership(
-                  expected.ownership) +
-              "'");
-  }
-
-  for (const support::RuntimeABIParameter &actual : metadataParameters) {
-    bool expectedRole = llvm::any_of(
-        irBackedParameters, [&](const support::RuntimeABIParameter &param) {
-          return param.role == actual.role;
-        });
-    if (!expectedRole)
-      return makeRuntimeABICallablePlanError(
-          kernel, descriptor,
-          llvm::Twine(metadataSource) +
-              " contains unsupported runtime ABI parameter role '" +
-              support::stringifyRuntimeABIParameterRole(actual.role) + "'");
-  }
-
-  return llvm::Error::success();
+  return support::validateFiniteBinaryCallableABIParameterMirror(
+      kernel, metadataParameters, irBackedParameters, metadataSource,
+      descriptor.family);
 }
 
 void collectDirectKernelSymbols(
@@ -2123,84 +2039,18 @@ llvm::Error buildRVVBinaryCallableABIPlanFromIR(
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &parameters,
     llvm::SmallVectorImpl<MemWindowOp> &bufferWindows,
     RuntimeParamOp &runtimeElementCountParam) {
-  if (descriptor.family.dtype == RVVBinaryDTypeKind::I32) {
-    const i32_binary::I32BinaryFamilyDescriptor *family =
-        i32_binary::lookupI32BinaryFamilyByID(
-            descriptor.getArithmeticFamilyID());
-    if (!family)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("RVV i32 binary callable ABI requires shared "
-                              "i32 binary family descriptor for '") +
-                      descriptor.getArithmeticFamilyID() + "'");
-
-    llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-        support::buildI32BinaryCallableABIPlan(kernel, *family);
-    if (!callablePlan)
-      return callablePlan.takeError();
-
-    parameters.clear();
-    parameters.append(callablePlan->parameters.begin(),
-                      callablePlan->parameters.end());
-    bufferWindows.clear();
-    bufferWindows.append(callablePlan->bufferWindows.begin(),
-                         callablePlan->bufferWindows.end());
-    runtimeElementCountParam = callablePlan->runtimeElementCountParam;
-    return llvm::Error::success();
-  }
-
-  llvm::SmallVector<MemWindowOp, 3> windows;
-  if (llvm::Error error = support::collectRuntimeABIBufferMemWindows(
-          kernel, descriptor.getBufferMemWindowSpecs(), windows))
-    return error;
-
-  llvm::SmallVector<RuntimeParamOp, 1> runtimeParams;
-  if (llvm::Error error = support::collectRuntimeABIParams(
-          kernel, descriptor.getRuntimeElementCountParamSpecs(/*cName=*/""),
-          runtimeParams))
-    return error;
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> descriptorParameters =
-      descriptor.getCallableRuntimeABIParameters(getAttrValue(
-          runtimeParams.front().getOperation(),
-          support::kRuntimeParamCNameAttrName));
+  llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
+      support::buildFiniteBinaryCallableABIPlan(kernel, descriptor.family);
+  if (!callablePlan)
+    return callablePlan.takeError();
 
   parameters.clear();
-  for (auto [index, window] : llvm::enumerate(windows)) {
-    llvm::StringRef cType =
-        getAttrValue(window.getOperation(), support::kMemWindowCTypeAttrName);
-    llvm::StringRef ownership = getAttrValue(
-        window.getOperation(), support::kMemWindowOwnershipAttrName);
-    std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-        support::symbolizeRuntimeABIParameterOwnership(ownership);
-    if (!parsedOwnership)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("RVV binary callable ABI mem_window @") +
-                      window.getSymName() + " has unsupported ownership '" +
-                      ownership + "'");
-    parameters.push_back(support::RuntimeABIParameter(
-        descriptorParameters[index].cName, cType,
-        descriptorParameters[index].role, *parsedOwnership));
-  }
-
-  RuntimeParamOp runtimeParam = runtimeParams.front();
-  llvm::StringRef runtimeOwnership = getAttrValue(
-      runtimeParam.getOperation(), support::kRuntimeParamOwnershipAttrName);
-  std::optional<support::RuntimeABIParameterOwnership> parsedOwnership =
-      support::symbolizeRuntimeABIParameterOwnership(runtimeOwnership);
-  if (!parsedOwnership)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("RVV binary callable ABI runtime_param @") +
-                    runtimeParam.getSymName() +
-                    " has unsupported ownership '" + runtimeOwnership + "'");
-  parameters.push_back(support::RuntimeABIParameter(
-      getAttrValue(runtimeParam.getOperation(),
-                   support::kRuntimeParamCNameAttrName),
-      getAttrValue(runtimeParam.getOperation(),
-                   support::kRuntimeParamCTypeAttrName),
-      support::RuntimeABIParameterRole::RuntimeElementCount, *parsedOwnership));
-
-  bufferWindows.append(windows.begin(), windows.end());
-  runtimeElementCountParam = runtimeParam;
+  parameters.append(callablePlan->parameters.begin(),
+                    callablePlan->parameters.end());
+  bufferWindows.clear();
+  bufferWindows.append(callablePlan->bufferWindows.begin(),
+                       callablePlan->bufferWindows.end());
+  runtimeElementCountParam = callablePlan->runtimeElementCountParam;
   return llvm::Error::success();
 }
 

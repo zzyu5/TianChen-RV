@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for the i64 ABI authority migration."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines mem_window/runtime_param ABI boundary ownership and tcrv.exec compute-free scope."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines runtime_abi_parameters as mirror metadata and target artifact ABI preflight contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Preserves typed extension family op to common EmitC route authority for compute bodies."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary family route, i64 vector shape, and no runtime/performance claim boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback finite i32/i64 add/sub/mul source/header/object route contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck validation expectations for runtime ABI role contracts."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-i32-binary-ir-backed-callable-abi-production-authority/prd.md", "reason": "Previous i32 migration contract and completed behavior to preserve while generalizing."}

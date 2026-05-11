@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check that ABI boundaries stay in exec IR without adding compute semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check that runtime ABI metadata remains mirror-only and export preflight fails closed."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV i64 direct route keeps typed family op and EmitC route authority."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar i64 fallback source/header/object route contracts and finite family bounds."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation uses C++ tests, lit/FileCheck, diff check, and check-tianchenrv."}

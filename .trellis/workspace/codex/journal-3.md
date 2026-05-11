@@ -92,11 +92,7 @@ evidence facts, while Python remains runner/evidence orchestration only.
 
 ### Status
 
-[OK] **Completed**
-
-### Next Steps
-
-- None - task complete
+[OK] **Completed**; no next steps.
 
 
 ## Session 33: Scalar source export common EmitC route authority
@@ -204,6 +200,37 @@ exact hash.
   check-tianchenrv -j2`: 206/206 lit tests passed
 - No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or
   performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 34: i64 binary IR-backed callable ABI authority
+
+**Date**: 2026-05-12
+**Task**: i64 binary IR-backed callable ABI authority
+**Branch**: `main`
+
+### Summary
+
+Generalized shared exec-IR-backed callable ABI planning to finite i64
+add/sub/mul, then rewired RVV direct and scalar fallback export planning to use it.
+
+### Main Changes
+
+- Added finite binary callable ABI plan support with i32 wrappers.
+- Removed i64 RVV direct/scalar fallback descriptor-default callable ABI authority.
+- Kept mirror metadata mirror-only, `tcrv.exec` compute-free, and compute on typed extension ops through common EmitC.
+
+### Testing
+
+- [OK] callable plan C++ test, focused lit filters, `git diff --check`, and `check-tianchenrv -j2` with 207/207 passed
+- No `ssh rvv` run; no RVV runtime, correctness, throughput, latency, or performance claim was made.
 
 ### Status
 

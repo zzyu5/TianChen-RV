@@ -1,5 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PIPE --implicit-check-not=tcrv_rvv.i32_vadd_microkernel --implicit-check-not=tcrv_rvv.i32_vsub_microkernel --implicit-check-not=tcrv_rvv.i32_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.i64-vadd-post-planning.mlir
+// RUN: sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/d' %t.i64-vadd-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-I64-LHS --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed '/tcrv.exec.runtime_param @abi_runtime_element_count/ s/c_type = "size_t"/c_type = "uint64_t"/' %t.i64-vadd-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-I64-RUNTIME --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/tcrv_rvv.i64_vadd_microkernel/,+20 s/element_count = 8 : i64/element_count = 16 : i64/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=BAD-ELEMENT-COUNT --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i64-vadd-microkernel-c | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-i64-vadd-microkernel-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not="__riscv" --implicit-check-not=riscv_vector --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
@@ -45,6 +48,40 @@ module @rvv_microkernel_i64_vadd_export_input {
       kind = "toolchain",
       status = "available",
       value = "lp64d"
+    }
+    tcrv.exec.mem_window @abi_lhs_input_buffer {
+      abi_role = "lhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int64_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_rhs_input_buffer {
+      abi_role = "rhs-input-buffer",
+      access = "read",
+      binding = "kernel-argument",
+      c_type = "const int64_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.mem_window @abi_output_buffer {
+      abi_role = "output-buffer",
+      access = "write",
+      binding = "kernel-argument",
+      c_type = "int64_t *",
+      memory_space = "host",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-buffer"
+    }
+    tcrv.exec.runtime_param @abi_runtime_element_count {
+      abi_role = "runtime-element-count",
+      c_name = "len64",
+      c_type = "size_t",
+      ownership = "target-export-abi-owned",
+      purpose = "runtime-abi-scalar"
     }
     tcrv.exec.variant @rvv_i64_slice attributes {
       condition = "rvv_capability_properties_available",
@@ -112,9 +149,14 @@ module @rvv_microkernel_i64_vadd_export_input {
 // PIPE-SAME: runtime_abi_parameters = [{c_name = "lhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}
 // PIPE-SAME: {c_name = "rhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}
 // PIPE-SAME: {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"}
-// PIPE-SAME: {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}]
+// PIPE-SAME: {c_name = "len64", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}]
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i64-vadd-function"
 // PIPE-SAME: status = "supported"
+
+// MISSING-I64-LHS: runtime ABI mem_window validation failed
+// MISSING-I64-LHS-SAME: requires exactly one tcrv.exec.mem_window with ABI role 'lhs-input-buffer'
+// STALE-I64-RUNTIME: runtime ABI runtime_param validation failed
+// STALE-I64-RUNTIME-SAME: requires attribute 'c_type' = "size_t"
 
 // BAD-ELEMENT-COUNT: TianChen-RV RVV microkernel body verifier failed
 // BAD-ELEMENT-COUNT-SAME: family 'tcrv_rvv.i64_vadd_microkernel'
@@ -142,8 +184,9 @@ module @rvv_microkernel_i64_vadd_export_input {
 // SOURCE: /* intrinsic_config: vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
-// SOURCE: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
-// SOURCE: while (offset < n)
+// SOURCE: /* runtime_abi_parameter[3]: c_name=len64, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// SOURCE: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64)
+// SOURCE: while (offset < len64)
 // SOURCE: __riscv_vsetvl_e64m1
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vadd_vv_i64m1
@@ -152,7 +195,7 @@ module @rvv_microkernel_i64_vadd_export_input {
 // HEADER: #ifndef TIANCHENRV_RVV_I64_VADD_MICROKERNEL_EXPORT_I64_VADD_RVV_I64_SLICE_H
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>
-// HEADER: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);
+// HEADER: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64);
 // HEADER: #endif /* TIANCHENRV_RVV_I64_VADD_MICROKERNEL_EXPORT_I64_VADD_RVV_I64_SLICE_H */
 
 // HELP-DAG: --tcrv-export-rvv-i64-vadd-microkernel-c
