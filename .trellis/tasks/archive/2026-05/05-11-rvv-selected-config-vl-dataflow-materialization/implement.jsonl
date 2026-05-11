@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, and project boundary"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec compute-free while materializing RVV extension dataflow"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected vector-shape, finite binary family, and plugin ownership rules"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant and bounded linalg frontend contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI/control versus selected config and descriptor layering"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and C++ test expectations"}
+{"file": ".trellis/tasks/archive/2026-05/05-11-rvv-selected-config-boundary-family-contract/prd.md", "reason": "Previous selected config contract producer/consumer context"}

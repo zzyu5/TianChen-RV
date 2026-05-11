@@ -9,6 +9,7 @@
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/Types.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -17,6 +18,7 @@
 #include <string>
 
 namespace mlir {
+class MLIRContext;
 class OpBuilder;
 } // namespace mlir
 
@@ -38,12 +40,33 @@ struct RVVBinaryMicrokernelMaterializationPlan {
   }
 };
 
+struct RVVBinaryVLDataflowMaterialization {
+  const target::rvv::RVVBinarySelectedConfigContract *selectedConfig =
+      nullptr;
+  mlir::Type vectorType;
+  llvm::StringRef microkernelOpName;
+  llvm::StringRef loadOpName;
+  llvm::StringRef arithmeticOpName;
+  llvm::StringRef storeOpName;
+  std::int64_t sewBits = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef vectorSuffix;
+  llvm::StringRef setvlSuffix;
+  std::int64_t descriptorElementCount = 0;
+};
+
 llvm::Expected<std::optional<RVVBinaryMicrokernelMaterializationPlan>>
 buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
     tcrv::exec::VariantOp variant,
     const target::rvv::RVVVectorShapeConfig &shape,
     llvm::StringRef expectedDTypeID,
     std::optional<std::string> selectedMABI = std::nullopt);
+
+llvm::Expected<RVVBinaryVLDataflowMaterialization>
+buildRVVBinaryVLDataflowMaterialization(
+    mlir::MLIRContext *context, const RVVBinarySelectedPlan &selectedPlan);
 
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildRVVBinaryCallableRuntimeABIParameters(

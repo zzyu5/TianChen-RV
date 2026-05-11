@@ -1,4 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVBinaryMicrokernelMaterialization.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -755,6 +757,117 @@ int runSelectedShapeMetadataTest() {
       "selected vector-shape id must be 'i32m2'");
 }
 
+int runSelectedConfigVLDataflowMaterializationTest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  RVVBinarySelectedPlan i32Plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
+              tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
+              tianchenrv::target::rvv::getI32M2VectorShapeConfig(), 32,
+              "rv64gcv", std::string("lp64d")),
+          i32Plan,
+          "build i32m2 selected plan for VL dataflow materialization"))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVBinaryVLDataflowMaterialization i32Dataflow;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::
+              buildRVVBinaryVLDataflowMaterialization(&context, i32Plan),
+          i32Dataflow, "build i32m2 selected-config VL dataflow"))
+    return result;
+  if (int result = expect(
+          i32Dataflow.selectedConfig ==
+              &i32Plan.getSelectedConfig().getContract(),
+          "i32m2 VL dataflow consumes the selected-config contract object"))
+    return result;
+  if (int result = expect(
+          llvm::isa<tianchenrv::tcrv::rvv::I32M2VectorType>(
+              i32Dataflow.vectorType) &&
+              i32Dataflow.microkernelOpName ==
+                  "tcrv_rvv.i32_vsub_microkernel" &&
+              i32Dataflow.loadOpName == "tcrv_rvv.i32_load" &&
+              i32Dataflow.arithmeticOpName == "tcrv_rvv.i32_sub" &&
+              i32Dataflow.storeOpName == "tcrv_rvv.i32_store" &&
+              i32Dataflow.sewBits == 32 && i32Dataflow.lmul == "m2" &&
+              i32Dataflow.vectorSuffix == "i32m2" &&
+              i32Dataflow.setvlSuffix == "e32m2" &&
+              i32Dataflow.descriptorElementCount == 32,
+          "i32m2 VL dataflow derives vector type, ops, and config from the "
+          "selected-config contract"))
+    return result;
+
+  RVVBinarySelectedPlan i64Plan;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
+              tianchenrv::target::rvv::getI64VMulFamilyDescriptor(),
+              tianchenrv::target::rvv::getI64M1VectorShapeConfig(), 16,
+              "rv64gcv", std::string("lp64d")),
+          i64Plan,
+          "build i64m1 selected plan for VL dataflow materialization"))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVBinaryVLDataflowMaterialization i64Dataflow;
+  if (int result = expectExpectedSuccess(
+          tianchenrv::plugin::rvv::
+              buildRVVBinaryVLDataflowMaterialization(&context, i64Plan),
+          i64Dataflow, "build i64m1 selected-config VL dataflow"))
+    return result;
+  if (int result = expect(
+          llvm::isa<tianchenrv::tcrv::rvv::I64M1VectorType>(
+              i64Dataflow.vectorType) &&
+              i64Dataflow.microkernelOpName ==
+                  "tcrv_rvv.i64_vmul_microkernel" &&
+              i64Dataflow.loadOpName == "tcrv_rvv.i64_load" &&
+              i64Dataflow.arithmeticOpName == "tcrv_rvv.i64_mul" &&
+              i64Dataflow.storeOpName == "tcrv_rvv.i64_store" &&
+              i64Dataflow.sewBits == 64 && i64Dataflow.lmul == "m1" &&
+              i64Dataflow.vectorSuffix == "i64m1" &&
+              i64Dataflow.setvlSuffix == "e64m1",
+          "i64m1 VL dataflow derives vector type, ops, and config from the "
+          "same selected-config contract path"))
+    return result;
+
+  RVVBinarySelectedPlan staleDescriptorPlan = i32Plan;
+  staleDescriptorPlan.descriptor =
+      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+          tianchenrv::target::rvv::getI32VSubFamilyDescriptor(),
+          tianchenrv::target::rvv::getI32M1VectorShapeConfig());
+  llvm::Expected<tianchenrv::plugin::rvv::
+                     RVVBinaryVLDataflowMaterialization>
+      staleDataflow = tianchenrv::plugin::rvv::
+          buildRVVBinaryVLDataflowMaterialization(&context,
+                                                  staleDescriptorPlan);
+  if (staleDataflow)
+    return fail("expected stale i32m1 descriptor versus i32m2 selected-config "
+                "contract to fail");
+  if (int result = expectErrorContains(staleDataflow.takeError(),
+                                       "field 'shape'"))
+    return result;
+
+  RVVBinarySelectedPlan missingContractPlan;
+  missingContractPlan.family =
+      &tianchenrv::target::rvv::getI64VMulFamilyDescriptor();
+  missingContractPlan.descriptor =
+      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+          tianchenrv::target::rvv::getI64VMulFamilyDescriptor(),
+          tianchenrv::target::rvv::getI64M1VectorShapeConfig());
+  missingContractPlan.elementCount = 16;
+  llvm::Expected<tianchenrv::plugin::rvv::
+                     RVVBinaryVLDataflowMaterialization>
+      missingDataflow = tianchenrv::plugin::rvv::
+          buildRVVBinaryVLDataflowMaterialization(&context,
+                                                  missingContractPlan);
+  if (missingDataflow)
+    return fail("expected missing selected-config contract to fail");
+  return expectErrorContains(missingDataflow.takeError(),
+                             "requires a finite binary family descriptor");
+}
+
 } // namespace
 
 int main() {
@@ -773,6 +886,8 @@ int main() {
   if (int result = runNegativeSelectedPlanTest())
     return result;
   if (int result = runSelectedShapeMetadataTest())
+    return result;
+  if (int result = runSelectedConfigVLDataflowMaterializationTest())
     return result;
 
   llvm::outs() << "RVV binary planning smoke test passed\n";

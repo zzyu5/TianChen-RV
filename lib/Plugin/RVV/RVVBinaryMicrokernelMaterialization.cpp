@@ -57,35 +57,105 @@ llvm::StringRef getStringAttrValue(mlir::Operation *op,
 
 mlir::Type getRVVBinaryVectorType(
     mlir::MLIRContext *context,
-    const target::rvv::RVVVectorShapeConfig &shape) {
-  if (shape.dtypeID == "i32") {
-    if (shape.lmul == "m2")
+    const target::rvv::RVVBinarySelectedConfigContract &contract) {
+  if (contract.getDTypeID() == "i32") {
+    if (contract.getLMUL() == "m2")
       return tcrv::rvv::I32M2VectorType::get(context);
     return tcrv::rvv::I32M1VectorType::get(context);
   }
 
-  if (shape.dtypeID == "i64" && shape.lmul == "m1")
+  if (contract.getDTypeID() == "i64" && contract.getLMUL() == "m1")
     return tcrv::rvv::I64M1VectorType::get(context);
 
   return {};
 }
 
 llvm::StringRef
-getRVVBinaryLoadOpName(const target::rvv::RVVVectorShapeConfig &shape) {
-  if (shape.dtypeID == "i32")
+getRVVBinaryLoadOpName(
+    const target::rvv::RVVBinarySelectedConfigContract &contract) {
+  if (contract.getDTypeID() == "i32")
     return tcrv::rvv::I32LoadOp::getOperationName();
-  if (shape.dtypeID == "i64")
+  if (contract.getDTypeID() == "i64")
     return tcrv::rvv::I64LoadOp::getOperationName();
   return {};
 }
 
 llvm::StringRef
-getRVVBinaryStoreOpName(const target::rvv::RVVVectorShapeConfig &shape) {
-  if (shape.dtypeID == "i32")
+getRVVBinaryStoreOpName(
+    const target::rvv::RVVBinarySelectedConfigContract &contract) {
+  if (contract.getDTypeID() == "i32")
     return tcrv::rvv::I32StoreOp::getOperationName();
-  if (shape.dtypeID == "i64")
+  if (contract.getDTypeID() == "i64")
     return tcrv::rvv::I64StoreOp::getOperationName();
   return {};
+}
+
+llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
+    const RVVBinarySelectedPlan &selectedPlan,
+    const target::rvv::RVVBinarySelectedConfigContract &contract) {
+  if (!selectedPlan.family)
+    return makeRVVBinaryMicrokernelMaterializationError(
+        "selected RVV binary VL dataflow materialization requires a finite "
+        "binary family descriptor");
+
+  auto failMismatch = [&](llvm::StringRef field, llvm::Twine expected,
+                          llvm::Twine actual) -> llvm::Error {
+    return makeRVVBinaryMicrokernelMaterializationError(
+        llvm::Twine("selected RVV binary VL dataflow materialization "
+                    "requires selected intrinsic descriptor field '") +
+        field + "' to match selected-config contract; expected '" + expected +
+        "' but found '" + actual + "'");
+  };
+
+  const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor =
+      selectedPlan.descriptor;
+  if (selectedPlan.family->familyID != contract.getFamilyID())
+    return failMismatch("family", contract.getFamilyID(),
+                        selectedPlan.family->familyID);
+  if (descriptor.getArithmeticFamilyID() != contract.getFamilyID())
+    return failMismatch("descriptor-family", contract.getFamilyID(),
+                        descriptor.getArithmeticFamilyID());
+  if (descriptor.getLoweringDescriptor() != contract.getLoweringDescriptor())
+    return failMismatch("lowering-descriptor",
+                        contract.getLoweringDescriptor(),
+                        descriptor.getLoweringDescriptor());
+  if (descriptor.getRVVMicrokernelOpName() !=
+      contract.getFamily().microkernelOpName)
+    return failMismatch("microkernel-op",
+                        contract.getFamily().microkernelOpName,
+                        descriptor.getRVVMicrokernelOpName());
+  if (descriptor.getRVVOperationName() != contract.getArithmeticOpName())
+    return failMismatch("arithmetic-op", contract.getArithmeticOpName(),
+                        descriptor.getRVVOperationName());
+  if (descriptor.getShapeID() != contract.getShapeID())
+    return failMismatch("shape", contract.getShapeID(),
+                        descriptor.getShapeID());
+  if (descriptor.getSEWBits() != contract.getSEWBits())
+    return failMismatch("sew", llvm::Twine(contract.getSEWBits()),
+                        llvm::Twine(descriptor.getSEWBits()));
+  if (descriptor.getLMUL() != contract.getLMUL())
+    return failMismatch("lmul", contract.getLMUL(), descriptor.getLMUL());
+  if (descriptor.getTailPolicy() != contract.getTailPolicy())
+    return failMismatch("tail-policy", contract.getTailPolicy(),
+                        descriptor.getTailPolicy());
+  if (descriptor.getMaskPolicy() != contract.getMaskPolicy())
+    return failMismatch("mask-policy", contract.getMaskPolicy(),
+                        descriptor.getMaskPolicy());
+  if (descriptor.getVectorType() != contract.getVectorType())
+    return failMismatch("vector-type", contract.getVectorType(),
+                        descriptor.getVectorType());
+  if (descriptor.getVectorSuffix() != contract.getVectorSuffix())
+    return failMismatch("vector-suffix", contract.getVectorSuffix(),
+                        descriptor.getVectorSuffix());
+  if (descriptor.getSetVLSuffix() != contract.getSetVLSuffix())
+    return failMismatch("setvl-suffix", contract.getSetVLSuffix(),
+                        descriptor.getSetVLSuffix());
+  if (selectedPlan.elementCount != contract.getDescriptorElementCount())
+    return failMismatch("descriptor-element-count",
+                        llvm::Twine(contract.getDescriptorElementCount()),
+                        llvm::Twine(selectedPlan.elementCount));
+
+  return llvm::Error::success();
 }
 
 llvm::Error appendRuntimeABIWindowParameter(
@@ -127,6 +197,49 @@ buildRVVBinaryMicrokernelMaterializationPlanFromVariant(
   RVVBinaryMicrokernelMaterializationPlan plan;
   plan.selectedPlan = std::move(**selectedPlan);
   return plan;
+}
+
+llvm::Expected<RVVBinaryVLDataflowMaterialization>
+buildRVVBinaryVLDataflowMaterialization(
+    mlir::MLIRContext *context, const RVVBinarySelectedPlan &selectedPlan) {
+  if (!context)
+    return makeRVVBinaryMicrokernelMaterializationError(
+        "selected RVV binary VL dataflow materialization requires an MLIR "
+        "context");
+
+  const target::rvv::RVVBinarySelectedConfigContract &contract =
+      selectedPlan.getSelectedConfig().getContract();
+  if (llvm::Error error =
+          target::rvv::validateRVVBinarySelectedConfigContract(contract))
+    return std::move(error);
+  if (llvm::Error error =
+          validateRVVBinaryVLDataflowPlanMatchesContract(selectedPlan,
+                                                         contract))
+    return std::move(error);
+
+  RVVBinaryVLDataflowMaterialization dataflow;
+  dataflow.selectedConfig = &contract;
+  dataflow.vectorType = getRVVBinaryVectorType(context, contract);
+  dataflow.microkernelOpName = contract.getFamily().microkernelOpName;
+  dataflow.loadOpName = getRVVBinaryLoadOpName(contract);
+  dataflow.arithmeticOpName = contract.getArithmeticOpName();
+  dataflow.storeOpName = getRVVBinaryStoreOpName(contract);
+  dataflow.sewBits = contract.getSEWBits();
+  dataflow.lmul = contract.getLMUL();
+  dataflow.tailPolicy = contract.getTailPolicy();
+  dataflow.maskPolicy = contract.getMaskPolicy();
+  dataflow.vectorSuffix = contract.getVectorSuffix();
+  dataflow.setvlSuffix = contract.getSetVLSuffix();
+  dataflow.descriptorElementCount = contract.getDescriptorElementCount();
+
+  if (!dataflow.vectorType || dataflow.loadOpName.empty() ||
+      dataflow.arithmeticOpName.empty() || dataflow.storeOpName.empty())
+    return makeRVVBinaryMicrokernelMaterializationError(
+        llvm::Twine("selected RVV binary config contract for family '") +
+        contract.getFamilyID() +
+        "' requires one supported finite VL dataflow shape");
+
+  return dataflow;
 }
 
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
@@ -229,25 +342,16 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
     const RVVBinaryMicrokernelMaterializationPlan &plan) {
   const RVVBinarySelectedPlan &selectedPlan = plan.selectedPlan;
-  const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor =
-      selectedPlan.descriptor;
-  const target::rvv::RVVVectorShapeConfig &shape = selectedPlan.getShape();
-
-  mlir::Type vectorType =
-      getRVVBinaryVectorType(builder.getContext(), shape);
-  llvm::StringRef loadOpName = getRVVBinaryLoadOpName(shape);
-  llvm::StringRef storeOpName = getRVVBinaryStoreOpName(shape);
-  if (!vectorType || loadOpName.empty() || storeOpName.empty())
-    return makeRVVBinaryMicrokernelMaterializationError(
-        llvm::Twine("selected RVV binary microkernel descriptor '") +
-        selectedPlan.getLoweringDescriptor() +
-        "' requires one supported finite vector-shape config");
+  llvm::Expected<RVVBinaryVLDataflowMaterialization> dataflow =
+      buildRVVBinaryVLDataflowMaterialization(builder.getContext(),
+                                             selectedPlan);
+  if (!dataflow)
+    return dataflow.takeError();
 
   auto requiredCapabilities =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
-  mlir::OperationState state(variant.getLoc(),
-                             descriptor.getRVVMicrokernelOpName());
+  mlir::OperationState state(variant.getLoc(), dataflow->microkernelOpName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
@@ -257,12 +361,14 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
   state.addAttribute(kRoleAttrName,
                      builder.getStringAttr(stringifyVariantEmissionRole(role)));
   state.addAttribute(kElementCountAttrName,
-                     builder.getI64IntegerAttr(selectedPlan.elementCount));
+                     builder.getI64IntegerAttr(
+                         dataflow->descriptorElementCount));
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   state.addAttribute(kMicrokernelRequiredMarchAttrName,
                      builder.getStringAttr(selectedPlan.requiredMarch));
   addRVVSelectedVectorShapeMetadataToOperationState(state, builder.getContext(),
-                                                    shape);
+                                                    dataflow->selectedConfig
+                                                        ->getShape());
   if (selectedPlan.selectedMABI)
     state.addAttribute(kSelectedMABIAttrName,
                        builder.getStringAttr(*selectedPlan.selectedMABI));
@@ -284,9 +390,9 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
   setvlState.addOperands(runtimeN);
   setvlState.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
   setvlState.addAttribute(kSEWAttrName,
-                          builder.getI64IntegerAttr(descriptor.getSEWBits()));
+                          builder.getI64IntegerAttr(dataflow->sewBits));
   setvlState.addAttribute(kLMULAttrName,
-                          builder.getStringAttr(descriptor.getLMUL()));
+                          builder.getStringAttr(dataflow->lmul));
   setvlState.addAttribute(kPolicyAttrName, policy);
   mlir::Operation *setvlOp = bodyBuilder.create(setvlState);
   mlir::Value vl = setvlOp->getResult(0);
@@ -295,9 +401,9 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
                                    tcrv::rvv::WithVLOp::getOperationName());
   withVLState.addOperands(vl);
   withVLState.addAttribute(kSEWAttrName,
-                           builder.getI64IntegerAttr(descriptor.getSEWBits()));
+                           builder.getI64IntegerAttr(dataflow->sewBits));
   withVLState.addAttribute(kLMULAttrName,
-                           builder.getStringAttr(descriptor.getLMUL()));
+                           builder.getStringAttr(dataflow->lmul));
   withVLState.addAttribute(kPolicyAttrName, policy);
   mlir::Region *withVLBody = withVLState.addRegion();
   auto *withVLBlock = new mlir::Block();
@@ -306,31 +412,31 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
   mlir::OpBuilder withVLBodyBuilder(builder.getContext());
   withVLBodyBuilder.setInsertionPointToStart(withVLBlock);
 
-  mlir::OperationState lhsLoadState(variant.getLoc(), loadOpName);
+  mlir::OperationState lhsLoadState(variant.getLoc(), dataflow->loadOpName);
   lhsLoadState.addOperands(vl);
-  lhsLoadState.addTypes(vectorType);
+  lhsLoadState.addTypes(dataflow->vectorType);
   lhsLoadState.addAttribute(
       kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
           support::RuntimeABIParameterRole::LHSInputBuffer)));
   mlir::Operation *lhsLoad = withVLBodyBuilder.create(lhsLoadState);
 
-  mlir::OperationState rhsLoadState(variant.getLoc(), loadOpName);
+  mlir::OperationState rhsLoadState(variant.getLoc(), dataflow->loadOpName);
   rhsLoadState.addOperands(vl);
-  rhsLoadState.addTypes(vectorType);
+  rhsLoadState.addTypes(dataflow->vectorType);
   rhsLoadState.addAttribute(
       kBufferRoleAttrName,
       builder.getStringAttr(support::stringifyRuntimeABIParameterRole(
           support::RuntimeABIParameterRole::RHSInputBuffer)));
   mlir::Operation *rhsLoad = withVLBodyBuilder.create(rhsLoadState);
 
-  mlir::OperationState arithmeticState(
-      variant.getLoc(), descriptor.getRVVOperationName());
+  mlir::OperationState arithmeticState(variant.getLoc(),
+                                       dataflow->arithmeticOpName);
   arithmeticState.addOperands({lhsLoad->getResult(0), rhsLoad->getResult(0), vl});
-  arithmeticState.addTypes(vectorType);
+  arithmeticState.addTypes(dataflow->vectorType);
   mlir::Operation *arithmetic = withVLBodyBuilder.create(arithmeticState);
 
-  mlir::OperationState storeState(variant.getLoc(), storeOpName);
+  mlir::OperationState storeState(variant.getLoc(), dataflow->storeOpName);
   storeState.addOperands({arithmetic->getResult(0), vl});
   storeState.addAttribute(
       kBufferRoleAttrName,
