@@ -127,6 +127,25 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
     bundle.addTargetArtifactRouteMetadataRequirement(
         family->scalar.routeID, "runtime-callable-c-source");
   }
+  static const llvm::StringRef requiredDispatchPlugins[] = {
+      plugin::rvv::getRVVExtensionPluginName()};
+  for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &route :
+       rvv_scalar::getRVVScalarDispatchRouteManifest()) {
+    switch (route.routeKind) {
+    case rvv_scalar::RVVScalarDispatchRouteKind::Source:
+    case rvv_scalar::RVVScalarDispatchRouteKind::Header:
+    case rvv_scalar::RVVScalarDispatchRouteKind::Object:
+      bundle.addTargetArtifactRouteMetadataRequirement(route.routeID,
+                                                       route.artifactKind,
+                                                       /*requireRouteMetadata=*/
+                                                       true,
+                                                       requiredDispatchPlugins);
+      break;
+    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckSource:
+    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckObject:
+      break;
+    }
+  }
   return registry.registerBundle(bundle);
 }
 

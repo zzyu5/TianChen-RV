@@ -489,10 +489,22 @@
 # I64-VMUL-INDEX: runtime_abi_parameter[4]:
 # I64-VMUL-INDEX: c_name: "rvv_available"
 # I64-VMUL-INDEX: role: "dispatch-availability-guard"
+# I64-VMUL-INDEX: route_claim[0]:
+# I64-VMUL-INDEX: name: "compile_export_claim"
+# I64-VMUL-INDEX: value: "compiler-artifact-only"
+# I64-VMUL-INDEX: route_claim[3]:
+# I64-VMUL-INDEX: name: "performance_claim"
+# I64-VMUL-INDEX: value: "none"
 # I64-VMUL-INDEX: component_role: "header"
 # I64-VMUL-INDEX: route: "tcrv-export-rvv-scalar-i64-vmul-dispatch-header"
+# I64-VMUL-INDEX: route_claim[1]:
+# I64-VMUL-INDEX: name: "runtime_correctness_claim"
+# I64-VMUL-INDEX: value: "none"
 # I64-VMUL-INDEX: component_role: "object"
 # I64-VMUL-INDEX: route: "tcrv-export-rvv-scalar-i64-vmul-dispatch-object"
+# I64-VMUL-INDEX: route_claim[2]:
+# I64-VMUL-INDEX: name: "hardware_execution_claim"
+# I64-VMUL-INDEX: value: "none"
 
 # I64-VMUL-EVIDENCE: "arithmetic_family": "i64-vmul"
 # I64-VMUL-EVIDENCE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"

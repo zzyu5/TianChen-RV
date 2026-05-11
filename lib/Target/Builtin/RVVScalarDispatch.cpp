@@ -3115,6 +3115,17 @@ makeRVVScalarDispatchRouteManifestEntry(const DispatchI32FamilySpec &family,
   llvm_unreachable("unknown RVV+scalar dispatch route kind");
 }
 
+TargetArtifactRouteMetadata buildRVVScalarDispatchRouteMetadata(
+    const RVVScalarDispatchRouteManifestEntry &route) {
+  (void)route;
+  TargetArtifactRouteMetadata metadata;
+  metadata.addClaimField("compile_export_claim", "compiler-artifact-only");
+  metadata.addClaimField("runtime_correctness_claim", "none");
+  metadata.addClaimField("hardware_execution_claim", "none");
+  metadata.addClaimField("performance_claim", "none");
+  return metadata;
+}
+
 } // namespace
 
 llvm::ArrayRef<RVVScalarDispatchRouteKind>
@@ -3411,7 +3422,8 @@ llvm::Error registerRVVScalarDispatchRouteTargetExporter(
       kDispatchTargetOwner, route.runtimeABIKind, route.runtimeABIName,
       resolveRVVScalarDispatchRuntimeABIParameters,
       /*directHelperRoute=*/true, route.componentGroup, route.externalABIName,
-      validateRVVScalarDispatchCandidates));
+      validateRVVScalarDispatchCandidates,
+      buildRVVScalarDispatchRouteMetadata(route)));
 }
 
 llvm::Error registerRVVScalarDispatchTargetExporters(

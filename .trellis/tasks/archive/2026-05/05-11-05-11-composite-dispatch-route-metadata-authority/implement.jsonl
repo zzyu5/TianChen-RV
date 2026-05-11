@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and boundary invariants"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact registry, composite route, and bundle index contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned exporter registry and extension ownership boundary"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Keep extension-specific route semantics plugin-local"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route metadata and no-claim boundary"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback and RVV+scalar dispatch ownership boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit validation expectations for artifact routes and bundle index"}

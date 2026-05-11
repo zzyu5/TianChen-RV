@@ -178,8 +178,13 @@ llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
   return llvm::Error::success();
 }
 
+llvm::Expected<bool>
+alwaysMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>);
+
 constexpr llvm::StringLiteral kBundleTestNoMetadataRouteID(
     "bundle-test-no-metadata-route");
+constexpr llvm::StringLiteral kBundleTestNoMetadataCompositeRouteID(
+    "bundle-test-no-metadata-composite-route");
 constexpr llvm::StringLiteral kBundleTestDuplicateRouteID(
     "bundle-test-duplicate-route");
 
@@ -196,6 +201,21 @@ llvm::Error registerNoMetadataToyPluginTargetExporterBundle(
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
       registerNoMetadataToyTargetExporter));
+}
+
+llvm::Error registerNoMetadataToyCompositeTargetExporter(
+    TargetArtifactExporterRegistry &registry) {
+  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+      kBundleTestNoMetadataCompositeRouteID, "runtime-callable-c-source",
+      alwaysMatchComposite, noopExporter,
+      tianchenrv::plugin::toy::getToyExtensionPluginName()));
+}
+
+llvm::Error registerNoMetadataToyCompositePluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      tianchenrv::plugin::toy::getToyExtensionPluginName(),
+      registerNoMetadataToyCompositeTargetExporter));
 }
 
 llvm::Error registerDuplicateToyTargetExporters(
@@ -401,6 +421,45 @@ findRouteClaimField(const TargetArtifactExporter &exporter,
     if (claim.name == name)
       return &claim;
   return nullptr;
+}
+
+const TargetArtifactRouteClaimField *
+findCompositeRouteClaimField(const TargetArtifactCompositeExporter &exporter,
+                             llvm::StringRef name) {
+  for (const TargetArtifactRouteClaimField &claim :
+       exporter.getRouteMetadata().getClaimFields())
+    if (claim.name == name)
+      return &claim;
+  return nullptr;
+}
+
+bool expectCompositeRouteConservativeClaimFields(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  const TargetArtifactCompositeExporter *exporter =
+      registry.lookupComposite(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing composite route '" << routeID
+                 << "' for route claim metadata check\n";
+    return false;
+  }
+
+  const TargetArtifactRouteClaimField *compileClaim =
+      findCompositeRouteClaimField(*exporter, "compile_export_claim");
+  const TargetArtifactRouteClaimField *runtimeClaim =
+      findCompositeRouteClaimField(*exporter, "runtime_correctness_claim");
+  const TargetArtifactRouteClaimField *hardwareClaim =
+      findCompositeRouteClaimField(*exporter, "hardware_execution_claim");
+  const TargetArtifactRouteClaimField *performanceClaim =
+      findCompositeRouteClaimField(*exporter, "performance_claim");
+  if (!compileClaim || compileClaim->value != "compiler-artifact-only" ||
+      !runtimeClaim || runtimeClaim->value != "none" || !hardwareClaim ||
+      hardwareClaim->value != "none" || !performanceClaim ||
+      performanceClaim->value != "none") {
+    llvm::errs() << "composite route '" << routeID
+                 << "' lacks conservative route claim fields\n";
+    return false;
+  }
+  return true;
 }
 
 bool expectRouteDescriptorMetadata(
@@ -857,11 +916,12 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   const auto scalarFamilies =
       tianchenrv::target::rvv_scalar::getRVVScalarBinaryFamilyDescriptors();
   const std::size_t scalarSourceRouteCount = scalarFamilies.size();
+  const std::size_t dispatchCompositeRouteCount = scalarFamilies.size() * 3;
   if (scalarBundle->getTargetArtifactRouteMetadata().size() !=
-      scalarSourceRouteCount) {
-    llvm::errs() << "Scalar extension bundle frontdoor expected "
-                 << scalarSourceRouteCount
-                 << " finite source route metadata requirements, got "
+      scalarSourceRouteCount + dispatchCompositeRouteCount) {
+    llvm::errs() << "Scalar extension bundle frontdoor expected scalar "
+                    "source plus RVV+scalar dispatch route metadata "
+                    "requirements, got "
                  << scalarBundle->getTargetArtifactRouteMetadata().size()
                  << "\n";
     return false;
@@ -881,6 +941,44 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       llvm::errs() << "Scalar extension bundle frontdoor is missing finite "
                       "source route metadata requirement for "
                    << family->familyID << "\n";
+      return false;
+    }
+  }
+  using DispatchRouteKind =
+      tianchenrv::target::rvv_scalar::RVVScalarDispatchRouteKind;
+  for (const auto &route :
+       tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteManifest()) {
+    bool requiredRoute = false;
+    switch (route.routeKind) {
+    case DispatchRouteKind::Source:
+    case DispatchRouteKind::Header:
+    case DispatchRouteKind::Object:
+      requiredRoute = true;
+      break;
+    case DispatchRouteKind::SelfCheckSource:
+    case DispatchRouteKind::SelfCheckObject:
+      break;
+    }
+    if (!requiredRoute)
+      continue;
+
+    bool found = false;
+    for (const ExtensionBundleTargetArtifactRouteMetadata &metadata :
+         scalarBundle->getTargetArtifactRouteMetadata()) {
+      if (metadata.routeID == route.routeID &&
+          metadata.artifactKind == route.artifactKind &&
+          metadata.requireRouteMetadata &&
+          metadata.requiredPluginNames.size() == 1 &&
+          metadata.requiredPluginNames.front() ==
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName()) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      llvm::errs() << "Scalar extension bundle frontdoor is missing "
+                      "RVV+scalar dispatch route metadata requirement for "
+                   << route.routeID << "\n";
       return false;
     }
   }
@@ -1054,6 +1152,57 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
             "registered route without TargetArtifactRouteMetadata rejected",
             {"target artifact route", kBundleTestNoMetadataRouteID,
              "requires registered TargetArtifactRouteMetadata"}))
+      return false;
+  }
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle noMetadataCompositeRoute(
+        "toy-no-metadata-composite-route-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    noMetadataCompositeRoute.setTargetArtifactExporterBundleRegistrationFn(
+        registerNoMetadataToyCompositePluginTargetExporterBundle);
+    noMetadataCompositeRoute.addTargetArtifactRouteMetadataRequirement(
+        kBundleTestNoMetadataCompositeRouteID, "runtime-callable-c-source");
+    if (!expectSuccess(bundles.registerBundle(noMetadataCompositeRoute),
+                       "register no-metadata-composite-route bundle"))
+      return false;
+
+    ExtensionPluginRegistry plugins;
+    if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
+                       "register plugins for no-metadata-composite-route "
+                       "bundle"))
+      return false;
+    TargetArtifactExporterRegistry exporters;
+    if (!expectErrorContains(
+            bundles.registerTargetArtifactExportersForEnabledPlugins(
+                plugins, exporters),
+            "registered composite route without TargetArtifactRouteMetadata "
+            "rejected",
+            {"target artifact route", kBundleTestNoMetadataCompositeRouteID,
+             "requires registered TargetArtifactRouteMetadata"}))
+      return false;
+  }
+
+  {
+    TargetArtifactRouteMetadata metadata;
+    metadata.addClaimField("performance_claim", "none");
+    metadata.addClaimField("performance_claim", "none");
+    TargetArtifactExporterRegistry registry;
+    if (!expectErrorContains(
+            registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+                "bundle-test-duplicate-composite-claim",
+                "runtime-callable-c-source", alwaysMatchComposite,
+                noopExporter, "toy-plugin",
+                /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+                /*directHelperRoute=*/false, /*componentGroup=*/{},
+                /*externalABIName=*/{},
+                /*candidateValidationFn=*/nullptr, metadata)),
+            "duplicate composite route claim field rejected",
+            {"composite exporter route id",
+             "bundle-test-duplicate-composite-claim",
+             "duplicate route claim field", "performance_claim"}))
       return false;
   }
 
@@ -1899,6 +2048,13 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
           dispatchRuntimeABIName, /*expectedDirectHelperRoute=*/true,
           dispatchExternalABIComponentGroup, dispatchRuntimeABIName,
           /*expectedCandidateValidation=*/true))
+    return false;
+  if (!expectCompositeRouteConservativeClaimFields(registry,
+                                                   dispatchSourceRouteID) ||
+      !expectCompositeRouteConservativeClaimFields(registry,
+                                                   dispatchHeaderRouteID) ||
+      !expectCompositeRouteConservativeClaimFields(registry,
+                                                   dispatchObjectRouteID))
     return false;
 
   const TargetArtifactCompositeExporter *dispatchSourceComposite =

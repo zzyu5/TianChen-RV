@@ -240,7 +240,9 @@ public:
                                   llvm::StringRef componentGroup = {},
                                   llvm::StringRef externalABIName = {},
                                   TargetArtifactCompositeCandidateValidationFn
-                                      candidateValidationFn = nullptr);
+                                      candidateValidationFn = nullptr,
+                                  const TargetArtifactRouteMetadata
+                                      &routeMetadata = {});
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
       TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
@@ -250,7 +252,8 @@ public:
       bool directHelperRoute = false, llvm::StringRef componentGroup = {},
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
-          nullptr);
+          nullptr,
+      const TargetArtifactRouteMetadata &routeMetadata = {});
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
       TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
@@ -260,7 +263,8 @@ public:
       bool directHelperRoute = false, llvm::StringRef componentGroup = {},
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
-          nullptr);
+          nullptr,
+      const TargetArtifactRouteMetadata &routeMetadata = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -283,6 +287,9 @@ public:
   TargetArtifactCompositeCandidateValidationFn getCandidateValidationFn() const {
     return candidateValidationFn;
   }
+  const TargetArtifactRouteMetadata &getRouteMetadata() const {
+    return routeMetadata;
+  }
 
 private:
   std::string routeID;
@@ -299,6 +306,7 @@ private:
   TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn =
       nullptr;
   TargetArtifactCompositeCandidateValidationFn candidateValidationFn = nullptr;
+  TargetArtifactRouteMetadata routeMetadata;
 };
 
 class TargetArtifactExporterRegistry {
@@ -369,11 +377,14 @@ struct ExtensionBundleTargetArtifactRouteMetadata {
   ExtensionBundleTargetArtifactRouteMetadata() = default;
   ExtensionBundleTargetArtifactRouteMetadata(llvm::StringRef routeID,
                                              llvm::StringRef artifactKind,
-                                             bool requireRouteMetadata = true);
+                                             bool requireRouteMetadata = true,
+                                             llvm::ArrayRef<llvm::StringRef>
+                                                 requiredPluginNames = {});
 
   std::string routeID;
   std::string artifactKind;
   bool requireRouteMetadata = true;
+  llvm::SmallVector<std::string, 2> requiredPluginNames;
 };
 
 class ExtensionBundle {
@@ -414,7 +425,8 @@ public:
   }
   void addTargetArtifactRouteMetadataRequirement(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
-      bool requireRouteMetadata = true);
+      bool requireRouteMetadata = true,
+      llvm::ArrayRef<llvm::StringRef> requiredPluginNames = {});
 
 private:
   std::string bundleID;

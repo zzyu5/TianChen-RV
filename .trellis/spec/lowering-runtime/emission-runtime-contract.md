@@ -298,6 +298,17 @@ to validate origin ownership and the generic target artifact exporter registry
 to validate route metadata. Target-specific proof of a concrete microkernel,
 descriptor body, toolchain, or runtime remains target-owned and must not move
 into the shared transform.
+Registry-owned route metadata is not limited to standalone routes. Composite
+target artifact exporters may also carry `TargetArtifactRouteMetadata` for
+route-level claim fields and bounded metadata-shape validation. Generic
+registry code may validate the shape of those fields, copy route claim fields
+into bundle records, and let extension bundles require metadata for composite
+route ids, but it must not interpret RVV/scalar/offload family semantics from
+that metadata.
+If a route metadata requirement depends on an additional enabled plugin, such
+as scalar-owned RVV+scalar dispatch routes that also require `rvv-plugin`, the
+requirement must declare that plugin dependency and is enforced only when the
+dependency is enabled.
 When a registered target artifact route declares required runtime ABI roles or
 a route-local ABI validation callback, this same preflight verifier must reject
 missing or inconsistent compiler-owned ABI contracts before descriptor, source,
@@ -675,6 +686,11 @@ bundle index is build handoff metadata only: it may record file names, artifact
 kind, route, owner, runtime ABI kind/name, component selected paths, and
 conservative evidence roles, but it does not claim link success, runtime
 success, RVV execution, correctness, or performance.
+When a matched route, including a composite route, has registry-owned route
+claim fields, the bundle index must preserve those fields on the corresponding
+artifact record. This allows downstream evidence runners to consume the
+compiler-emitted no-claim boundary instead of inferring it from file names or
+route strings.
 When a selected dispatch has a supported primary non-fallback route plus a
 supported dispatch fallback route and no target-owned composite bundle route
 matches, the bundle layer follows the single-artifact front-door rule and emits

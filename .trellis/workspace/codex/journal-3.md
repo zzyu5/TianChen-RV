@@ -98,6 +98,65 @@ evidence facts, while Python remains runner/evidence orchestration only.
 
 - None - task complete
 
+---
+
+## Session 30: Composite dispatch route metadata authority
+
+**Date**: 2026-05-11
+**Task**: Composite dispatch route metadata authority
+**Branch**: `main`
+
+### Summary
+
+Closed the Hermes fallback continuation by making composite target artifact
+routes carry registry-owned route metadata, then applying that authority to
+RVV+scalar dispatch source/header/object composite routes. Dispatch bundle
+records now preserve compiler-emitted conservative no-claim fields instead of
+leaving downstream evidence helpers to infer them from route names.
+
+### Main Changes
+
+- Added `TargetArtifactRouteMetadata` to `TargetArtifactCompositeExporter`,
+  including registration-time shape validation and a public getter.
+- Extended extension-bundle route metadata requirements to resolve standalone
+  or composite routes, with optional required-plugin conditions for routes such
+  as scalar-owned RVV+scalar dispatch that also require `rvv-plugin`.
+- Registered conservative dispatch composite route claim fields:
+  `compile_export_claim = compiler-artifact-only`,
+  `runtime_correctness_claim = none`, `hardware_execution_claim = none`, and
+  `performance_claim = none`.
+- Propagated composite route claim fields into target artifact bundle records
+  and updated focused dispatch bundle FileCheck coverage.
+- Updated lowering/runtime spec text for composite route metadata and
+  conditional route metadata requirements.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv
+  Scripts/rvv-scalar-dispatch-bundle-e2e.test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv
+  Target/TargetArtifactBundleExport/plan-linalg-i64-vmul-and-export-target-artifact-bundle.mlir
+  Target/RVVScalarDispatch/rvv-scalar-i32-vmul-dispatch-generic-route.mlir`
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`:
+  205/205 tests passed.
+
+No fresh `ssh rvv` run was required or performed because this task changed
+compiler registry and bundle metadata authority only and made no new RVV
+runtime correctness, hardware execution, throughput, latency, or performance
+claim.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 
 ## Session 29: RVV structured microkernel body export authority
 

@@ -281,9 +281,10 @@ llvm::Error validateRouteRegistryText(llvm::StringRef fieldName,
   return llvm::Error::success();
 }
 
-llvm::Error
-validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
-  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+llvm::Error validateRouteMetadataShape(llvm::StringRef routeID,
+                                       llvm::StringRef routeKind,
+                                       const TargetArtifactRouteMetadata
+                                           &metadata) {
 
   if (metadata.hasRuntimeABIMetadata()) {
     if (metadata.getRuntimeABI().trim().empty() ||
@@ -291,7 +292,7 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
         metadata.getRuntimeABIName().trim().empty() ||
         metadata.getRuntimeGlueRole().trim().empty())
       return makeRegistryError(
-          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          llvm::Twine(routeKind) + " route id '" + routeID +
           "' route metadata runtime ABI descriptor requires non-empty "
           "runtime ABI, runtime ABI kind/name, and runtime glue role");
 
@@ -319,12 +320,12 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
     if (requirement.name.empty() || requirement.role.empty() ||
         (requirement.requireExactValue && requirement.value.empty()))
       return makeRegistryError(
-          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          llvm::Twine(routeKind) + " route id '" + routeID +
           "' selected-plan metadata requirements must have non-empty name and "
           "role, plus non-empty value for exact-value requirements");
     if (!seenSelectedPlanRequirements.insert(requirement.name).second)
       return makeRegistryError(
-          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          llvm::Twine(routeKind) + " route id '" + routeID +
           "' has duplicate selected-plan metadata requirement '" +
           requirement.name + "'");
     if (llvm::Error error =
@@ -337,7 +338,7 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
         return error;
     } else if (!requirement.value.empty()) {
       return makeRegistryError(
-          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          llvm::Twine(routeKind) + " route id '" + routeID +
           "' selected-plan metadata presence requirement '" +
           requirement.name + "' must not carry an expected value");
     }
@@ -352,11 +353,11 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
        metadata.getClaimFields()) {
     if (claim.name.empty() || claim.value.empty())
       return makeRegistryError(
-          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          llvm::Twine(routeKind) + " route id '" + routeID +
           "' route claim fields must have non-empty name and value");
     if (!seenClaimFields.insert(claim.name).second)
       return makeRegistryError(
-          llvm::Twine("exporter route id '") + exporter.getRouteID() +
+          llvm::Twine(routeKind) + " route id '" + routeID +
           "' has duplicate route claim field '" + claim.name + "'");
     if (llvm::Error error =
             validateRouteRegistryText("route claim field name", claim.name))
@@ -367,6 +368,19 @@ validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
   }
 
   return llvm::Error::success();
+}
+
+llvm::Error
+validateRouteMetadataShape(const TargetArtifactExporter &exporter) {
+  return validateRouteMetadataShape(exporter.getRouteID(), "exporter",
+                                    exporter.getRouteMetadata());
+}
+
+llvm::Error
+validateRouteMetadataShape(const TargetArtifactCompositeExporter &exporter) {
+  return validateRouteMetadataShape(exporter.getRouteID(),
+                                    "composite exporter",
+                                    exporter.getRouteMetadata());
 }
 
 llvm::Error validateBoundedText(KernelOp kernel, llvm::StringRef fieldName,
@@ -1461,6 +1475,9 @@ llvm::Error appendCompositeBundleRecords(
       record.externalABIName = exporter.getExternalABIName().empty()
                                    ? record.runtimeABIName
                                    : exporter.getExternalABIName().str();
+    llvm::ArrayRef<TargetArtifactRouteClaimField> claimFields =
+        exporter.getRouteMetadata().getClaimFields();
+    record.routeClaimFields.append(claimFields.begin(), claimFields.end());
     record.evidenceRole =
         getEvidenceRoleForArtifactKind(exporter.getArtifactKind()).str();
     out.push_back(std::move(record));
@@ -2461,14 +2478,16 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef owner, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeABIName, bool directHelperRoute,
     llvm::StringRef componentGroup, llvm::StringRef externalABIName,
-    TargetArtifactCompositeCandidateValidationFn candidateValidationFn)
+    TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
+    const TargetArtifactRouteMetadata &routeMetadata)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
       directHelperRoute(directHelperRoute),
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
-      candidateValidationFn(candidateValidationFn) {}
+      candidateValidationFn(candidateValidationFn),
+      routeMetadata(routeMetadata) {}
 
 TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
@@ -2478,14 +2497,16 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
     bool directHelperRoute, llvm::StringRef componentGroup,
     llvm::StringRef externalABIName,
-    TargetArtifactCompositeCandidateValidationFn candidateValidationFn)
+    TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
+    const TargetArtifactRouteMetadata &routeMetadata)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
       directHelperRoute(directHelperRoute),
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
-      candidateValidationFn(candidateValidationFn) {
+      candidateValidationFn(candidateValidationFn),
+      routeMetadata(routeMetadata) {
   this->runtimeABIParameters.append(runtimeABIParameters.begin(),
                                     runtimeABIParameters.end());
 }
@@ -2498,7 +2519,8 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn,
     bool directHelperRoute, llvm::StringRef componentGroup,
     llvm::StringRef externalABIName,
-    TargetArtifactCompositeCandidateValidationFn candidateValidationFn)
+    TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
+    const TargetArtifactRouteMetadata &routeMetadata)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
@@ -2506,7 +2528,8 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       runtimeABIParametersFn(runtimeABIParametersFn),
-      candidateValidationFn(candidateValidationFn) {}
+      candidateValidationFn(candidateValidationFn),
+      routeMetadata(routeMetadata) {}
 
 llvm::Error TargetArtifactExporterRegistry::registerExporter(
     const TargetArtifactExporter &exporter) {
@@ -2548,6 +2571,8 @@ llvm::Error TargetArtifactExporterRegistry::registerCompositeExporter(
   if (!exporter.getExportFn())
     return makeRegistryError(
         "composite exporter callback must be non-null");
+  if (llvm::Error error = validateRouteMetadataShape(exporter))
+    return error;
 
   if (lookup(exporter.getRouteID()))
     return makeRegistryError(
@@ -2740,8 +2765,7 @@ llvm::Error validateUniqueTextList(llvm::StringRef bundleID,
   return llvm::Error::success();
 }
 
-bool hasRegisteredRouteMetadata(const TargetArtifactExporter &exporter) {
-  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+bool hasRegisteredRouteMetadata(const TargetArtifactRouteMetadata &metadata) {
   return metadata.hasRuntimeABIMetadata() ||
          !metadata.getSelectedPlanMetadataRequirements().empty() ||
          !metadata.getClaimFields().empty();
@@ -2749,25 +2773,41 @@ bool hasRegisteredRouteMetadata(const TargetArtifactExporter &exporter) {
 
 llvm::Error validateExtensionBundleRouteMetadataRequirements(
     const ExtensionBundle &bundle,
+    const plugin::ExtensionPluginRegistry &plugins,
     const TargetArtifactExporterRegistry &registry) {
   for (const ExtensionBundleTargetArtifactRouteMetadata &route :
        bundle.getTargetArtifactRouteMetadata()) {
+    if (!llvm::all_of(route.requiredPluginNames,
+                      [&](llvm::StringRef requiredPluginName) {
+                        return hasEnabledRequiredPlugin(plugins,
+                                                        requiredPluginName);
+                      }))
+      continue;
+
     const TargetArtifactExporter *exporter = registry.lookup(route.routeID);
+    const TargetArtifactCompositeExporter *compositeExporter = nullptr;
     if (!exporter)
+      compositeExporter = registry.lookupComposite(route.routeID);
+    if (!exporter && !compositeExporter)
       return makeExtensionBundleRegistryError(
           llvm::Twine("extension bundle '") + bundle.getBundleID() +
           "' for plugin '" + bundle.getPluginName() +
           "' expected target artifact route '" + route.routeID +
           "' to be registered");
+    llvm::StringRef artifactKind =
+        exporter ? exporter->getArtifactKind()
+                 : compositeExporter->getArtifactKind();
     if (!route.artifactKind.empty() &&
-        exporter->getArtifactKind() != route.artifactKind)
+        artifactKind != route.artifactKind)
       return makeExtensionBundleRegistryError(
           llvm::Twine("extension bundle '") + bundle.getBundleID() +
           "' expected target artifact route '" + route.routeID +
           "' artifact kind '" + route.artifactKind +
-          "' but registered artifact kind is '" +
-          exporter->getArtifactKind() + "'");
-    if (route.requireRouteMetadata && !hasRegisteredRouteMetadata(*exporter))
+          "' but registered artifact kind is '" + artifactKind + "'");
+    const TargetArtifactRouteMetadata &metadata =
+        exporter ? exporter->getRouteMetadata()
+                 : compositeExporter->getRouteMetadata();
+    if (route.requireRouteMetadata && !hasRegisteredRouteMetadata(metadata))
       return makeExtensionBundleRegistryError(
           llvm::Twine("extension bundle '") + bundle.getBundleID() +
           "' target artifact route '" + route.routeID +
@@ -2854,9 +2894,14 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerExportersForPlugin(
 ExtensionBundleTargetArtifactRouteMetadata::
     ExtensionBundleTargetArtifactRouteMetadata(
         llvm::StringRef routeID, llvm::StringRef artifactKind,
-        bool requireRouteMetadata)
+        bool requireRouteMetadata,
+        llvm::ArrayRef<llvm::StringRef> requiredPluginNames)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
-      requireRouteMetadata(requireRouteMetadata) {}
+      requireRouteMetadata(requireRouteMetadata) {
+  this->requiredPluginNames.reserve(requiredPluginNames.size());
+  for (llvm::StringRef requiredPluginName : requiredPluginNames)
+    this->requiredPluginNames.push_back(requiredPluginName.str());
+}
 
 ExtensionBundle::ExtensionBundle(
     llvm::StringRef bundleID, llvm::StringRef pluginName,
@@ -2879,10 +2924,12 @@ void ExtensionBundle::setTargetArtifactExporterBundleRegistrationFn(
 
 void ExtensionBundle::addTargetArtifactRouteMetadataRequirement(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
-    bool requireRouteMetadata) {
+    bool requireRouteMetadata,
+    llvm::ArrayRef<llvm::StringRef> requiredPluginNames) {
   targetArtifactRouteMetadata.push_back(
       ExtensionBundleTargetArtifactRouteMetadata(routeID, artifactKind,
-                                                 requireRouteMetadata));
+                                                 requireRouteMetadata,
+                                                 requiredPluginNames));
   if (requireRouteMetadata)
     requireTargetArtifactRouteMetadata = true;
 }
@@ -2944,6 +2991,12 @@ llvm::Error ExtensionBundleRegistry::registerBundle(
           llvm::Twine("extension bundle '") + bundle.getBundleID() +
           "' has duplicate target artifact route metadata requirement '" +
           route.routeID + "'");
+    if (llvm::Error error =
+            validateUniqueTextList(bundle.getBundleID(),
+                                   "target artifact route metadata required "
+                                   "plugin",
+                                   route.requiredPluginNames))
+      return error;
   }
 
   std::size_t index = bundles.size();
@@ -3020,7 +3073,8 @@ llvm::Error ExtensionBundleRegistry::
     if (!plugin || !plugin->isEnabled())
       continue;
     if (llvm::Error error =
-            validateExtensionBundleRouteMetadataRequirements(bundle, registry))
+            validateExtensionBundleRouteMetadataRequirements(bundle, plugins,
+                                                             registry))
       return error;
   }
 
