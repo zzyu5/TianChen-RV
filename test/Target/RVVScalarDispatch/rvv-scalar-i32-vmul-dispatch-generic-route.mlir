@@ -70,10 +70,10 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // IR-SAME: tcrv_frontend_lowering = "i32-vmul"
 // IR: tcrv.exec.variant @rvv_first_slice
 // IR-SAME: origin = "rvv-plugin"
-// IR-SAME: tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1"
+// IR-NOT: tcrv_rvv.lowering_descriptor
 // IR: tcrv.exec.variant @scalar_fallback_first_slice
 // IR-SAME: origin = "scalar-plugin"
-// IR-SAME: tcrv_scalar.lowering_descriptor = "i32-vmul-microkernel.v1"
+// IR-NOT: tcrv_scalar.lowering_descriptor
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR: tcrv.exec.dispatch
@@ -153,9 +153,9 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // ROUTE-MISMATCH: direct source export route expected i32-vadd dispatch artifacts, got i32-vmul
 
 // STALE-RVV-BODY: selected RVV dispatch case component body authority failed before RVV+scalar dispatch artifact emission
-// STALE-RVV-BODY-SAME: tcrv_rvv.lowering_descriptor 'i32-vmul-microkernel.v1'
-// STALE-RVV-BODY-SAME: typed microkernel body is tcrv_rvv.i32_vadd_microkernel
+// STALE-RVV-BODY-SAME: supported emission-plan route 'tcrv-export-rvv-i32-vmul-microkernel-c'
+// STALE-RVV-BODY-SAME: does not match RVV binary microkernel descriptor 'tcrv-export-rvv-microkernel-c'
 
 // STALE-SCALAR-BODY: selected scalar dispatch fallback component body authority failed before RVV+scalar dispatch artifact emission
-// STALE-SCALAR-BODY-SAME: selected scalar variant @scalar_fallback_first_slice descriptor 'i32-vmul-microkernel.v1'
-// STALE-SCALAR-BODY-SAME: materialized tcrv_scalar.i32_vadd_microkernel
+// STALE-SCALAR-BODY-SAME: supported emission-plan route 'tcrv-export-scalar-i32-vmul-microkernel-c'
+// STALE-SCALAR-BODY-SAME: does not match scalar microkernel route 'tcrv-export-scalar-microkernel-c'

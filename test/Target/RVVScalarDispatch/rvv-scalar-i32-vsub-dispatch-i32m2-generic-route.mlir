@@ -70,7 +70,7 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 // IR-SAME: tcrv_frontend_lowering = "i32-vsub"
 // IR: tcrv.exec.variant @rvv_first_slice
 // IR-SAME: origin = "rvv-plugin"
-// IR-SAME: tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1"
+// IR-NOT: tcrv_rvv.lowering_descriptor
 // IR-SAME: tcrv_rvv.selected_vector_shape = "i32m2"
 // IR-SAME: tcrv_rvv.selected_vector_type = "vint32m2_t"
 // IR: tcrv.exec.variant @scalar_fallback_first_slice

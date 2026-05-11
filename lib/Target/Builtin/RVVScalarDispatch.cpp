@@ -1746,13 +1746,20 @@ llvm::Error validateDispatchSelectedDescriptorMetadata(
   llvm::SmallVector<
       tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
       expected;
-  tianchenrv::target::rvv::appendRVVBinarySelectedDescriptorMetadata(contract,
-                                                                    expected);
+  bool expectsTypedSource =
+      contract.getFamily().dtype ==
+      tianchenrv::target::rvv::RVVBinaryDTypeKind::I32;
+  if (expectsTypedSource)
+    tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
+        contract, expected);
+  else
+    tianchenrv::target::rvv::appendRVVBinarySelectedDescriptorMetadata(
+        contract, expected);
   for (const auto &entry : expected)
     if (llvm::Error error =
             validateDispatchSelectedPlanMetadataEntry(candidate, entry))
       return error;
-  if (contract.getDescriptorElementCount() > 0) {
+  if (!expectsTypedSource && contract.getDescriptorElementCount() > 0) {
     llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
         findUniqueSelectedPlanMetadataEntry(
             candidate,
@@ -1942,7 +1949,19 @@ buildDispatchPairSelectedConfigContract(
       resolveDispatchDescriptorElementCountMetadata(pair.rvv);
   if (!metadataElementCount)
     return metadataElementCount.takeError();
+  bool expectsTypedSource =
+      pair.family->rvvFamily->dtype ==
+      tianchenrv::target::rvv::RVVBinaryDTypeKind::I32;
   if (*metadataElementCount) {
+    if (expectsTypedSource)
+      return makeDispatchError(
+          kernel, llvm::Twine("selected RVV dispatch candidate @") +
+                      pair.rvv.selectedVariant +
+                      " must not provide descriptor-local selected_plan_metadata "
+                      "'" +
+                      tianchenrv::target::rvv::
+                          getRVVDescriptorElementCountMetadataName() +
+                      "' for typed i32 dispatch source metadata");
     if (selectedElementCount && **metadataElementCount != *selectedElementCount)
       return makeDispatchError(
           kernel, llvm::Twine("selected RVV dispatch candidate @") +
@@ -1954,7 +1973,7 @@ buildDispatchPairSelectedConfigContract(
                       llvm::Twine(*selectedElementCount) + "'");
     selectedElementCount = **metadataElementCount;
   }
-  if (!selectedElementCount)
+  if (!selectedElementCount && !expectsTypedSource)
     return makeDispatchError(
         kernel, llvm::Twine("selected RVV dispatch case variant @") +
                     pair.rvv.selectedVariant +
@@ -1963,6 +1982,8 @@ buildDispatchPairSelectedConfigContract(
                         getRVVDescriptorElementCountMetadataName() +
                     "' or tcrv_rvv.element_count for the selected config "
                     "contract");
+  if (!selectedElementCount)
+    selectedElementCount = 0;
 
   llvm::StringRef runtimeElementCountCName;
   llvm::StringRef dispatchGuardCName;

@@ -99,8 +99,12 @@ void appendRVVSelectedPlanMetadata(
                  << llvm::toString(contract.takeError()) << "\n";
     return;
   }
-  tianchenrv::target::rvv::appendRVVBinarySelectedDescriptorMetadata(*contract,
-                                                                    metadata);
+  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32)
+    tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
+        *contract, metadata);
+  else
+    tianchenrv::target::rvv::appendRVVBinarySelectedDescriptorMetadata(
+        *contract, metadata);
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name.str(), entry.value.str(), entry.role.str(),
@@ -117,9 +121,10 @@ void appendScalarSelectedPlanMetadata(
           ScalarBinarySelectedPlanMetadataDescriptor,
       6>
       metadata;
-  if (family.familyID == "i32-vadd") {
+  if (family.rvvFamily->dtype ==
+      tianchenrv::target::rvv::RVVBinaryDTypeKind::I32) {
     tianchenrv::target::rvv_scalar::
-        appendScalarI32VAddSelectedTypedSourceMetadata(
+        appendScalarI32SelectedTypedSourceMetadata(
             family, getRuntimeElementCountCNameForTest(candidate), metadata);
   } else {
     tianchenrv::target::rvv_scalar::
@@ -564,24 +569,47 @@ bool expectRouteSelectedPlanExactRequirement(
 bool expectRVVSourceRouteDescriptorMetadata(
     const TargetArtifactExporterRegistry &registry,
     const RVVBinaryFamilyDescriptor &family) {
+  bool expectsTypedSource =
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32;
+  llvm::StringRef expectedRole =
+      expectsTypedSource
+          ? tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole()
+          : tianchenrv::target::rvv::
+                getRVVSelectedBinaryDescriptorMetadataRole();
   if (!expectRouteDescriptorMetadata(
           registry, family.routeID, family.runtimeABI, family.runtimeABIKind,
           family.runtimeABIName, family.runtimeGlueRole,
           "tcrv_rvv.selected_binary_family", family.familyID,
-          "selected-rvv-binary-descriptor", "runtime_correctness_claim"))
+          expectedRole, "runtime_correctness_claim"))
     return false;
   if (!expectRouteSelectedPlanExactRequirement(
           registry, family.routeID, "tcrv_rvv.selected_binary_dtype",
-          family.dtypeID, "selected-rvv-binary-descriptor"))
+          family.dtypeID, expectedRole))
     return false;
   if (!expectRouteSelectedPlanExactRequirement(
           registry, family.routeID, "tcrv_rvv.selected_binary_operator",
-          family.arithmeticVerb, "selected-rvv-binary-descriptor"))
+          family.arithmeticVerb, expectedRole))
     return false;
-  if (!expectRouteSelectedPlanExactRequirement(
-          registry, family.routeID, "tcrv_rvv.selected_lowering_descriptor",
-          family.loweringDescriptor, "selected-rvv-binary-descriptor"))
-    return false;
+  if (expectsTypedSource) {
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataName(),
+            family.arithmeticOpName,
+            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::
+                getRVVEmitCLowerableOpInterfaceMetadataName(),
+            "TCRVEmitCLowerableOpInterface",
+            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+      return false;
+  } else {
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.routeID, "tcrv_rvv.selected_lowering_descriptor",
+            family.loweringDescriptor, expectedRole))
+      return false;
+  }
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.runtime_element_count_c_name",
           "rvv-runtime-control-name-boundary"))
@@ -643,7 +671,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
     const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
         &family) {
   llvm::StringRef expectedRole =
-      family.familyID == "i32-vadd"
+      family.rvvFamily->dtypeID == "i32"
           ? tianchenrv::target::rvv_scalar::
                 getScalarTypedBinarySourceMetadataRole()
           : tianchenrv::target::rvv_scalar::
@@ -670,7 +698,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
               getScalarSelectedBinaryOperatorMetadataName(),
           family.rvvFamily->arithmeticVerb, expectedRole))
     return false;
-  if (family.familyID == "i32-vadd") {
+  if (family.rvvFamily->dtypeID == "i32") {
     if (!expectRouteSelectedPlanExactRequirement(
             registry, family.scalar.routeID,
             tianchenrv::target::rvv_scalar::
@@ -691,7 +719,7 @@ bool expectScalarSourceRouteDescriptorMetadata(
             *registry.lookup(family.scalar.routeID),
             tianchenrv::target::rvv_scalar::
                 getScalarSelectedLoweringDescriptorMetadataName())) {
-      llvm::errs() << "scalar i32-vadd source route unexpectedly requires "
+      llvm::errs() << "scalar i32 source route unexpectedly requires "
                       "selected lowering descriptor metadata\n";
       return false;
     }
@@ -1623,14 +1651,8 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
                    "rvv-i32-vsub-microkernel-external-abi.v1",
                    "rvv-i32-vsub-runtime-callable-c-function.v1"))
     return false;
-  if (!expectRouteDescriptorMetadata(
-          registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
-          "rvv-i32-vsub-runtime-callable-c-abi.v1",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vsub-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vsub-function",
-          "tcrv_rvv.selected_binary_family", "i32-vsub",
-          "selected-rvv-binary-descriptor", "runtime_correctness_claim"))
+  if (!expectRVVSourceRouteDescriptorMetadata(
+          registry, tianchenrv::target::rvv::getI32VSubFamilyDescriptor()))
     return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, "tcrv-export-rvv-i32-vsub-microkernel-c",
@@ -4964,14 +4986,9 @@ int main() {
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
           getSubRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
-  if (!expectRouteDescriptorMetadata(
-          builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",
-          "rvv-i32-vsub-runtime-callable-c-abi.v1",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vsub-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vsub-function",
-          "tcrv_rvv.selected_binary_family", "i32-vsub",
-          "selected-rvv-binary-descriptor", "runtime_correctness_claim"))
+  if (!expectRVVSourceRouteDescriptorMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI32VSubFamilyDescriptor()))
     return 1;
   if (!expectRouteSelectedPlanPresenceRequirement(
           builtinRegistry, "tcrv-export-rvv-i32-vsub-microkernel-c",

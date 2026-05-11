@@ -42,14 +42,46 @@ inline llvm::StringRef getRVVRuntimeElementCountCNameMetadataName() {
   return "tcrv_rvv.runtime_element_count_c_name";
 }
 
+inline llvm::StringRef getRVVEmitCSourceOpMetadataName() {
+  return "tcrv_rvv.emitc_source_op";
+}
+
+inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataName() {
+  return "tcrv_rvv.emitc_lowerable_op_interface";
+}
+
 inline llvm::StringRef getRVVSelectedBinaryDescriptorMetadataRole() {
   return "selected-rvv-binary-descriptor";
+}
+
+inline llvm::StringRef getRVVTypedBinarySourceMetadataRole() {
+  return "typed-rvv-binary-source";
 }
 
 inline llvm::StringRef getRVVSelectedBinaryDescriptorMetadataNote() {
   return "descriptor-local finite RVV binary dtype/operator metadata selected "
          "by the RVV plugin; not a runtime AVL/VL value or hardware capacity "
          "fact";
+}
+
+inline llvm::StringRef getRVVTypedBinarySourceMetadataNote() {
+  return "typed RVV family-op metadata selected by the RVV plugin for the "
+         "common EmitC route; not descriptor-owned computation, runtime "
+         "correctness evidence, or performance evidence";
+}
+
+inline llvm::StringRef getRVVEmitCSourceOpMetadataRole() {
+  return "typed-rvv-emitc-source-op";
+}
+
+inline llvm::StringRef getRVVEmitCSourceOpMetadataNote() {
+  return "typed RVV arithmetic op used as the source operation for the common "
+         "EmitC lowerable route; not a lowering descriptor";
+}
+
+inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataNote() {
+  return "generated RVV op interface queried before building the common EmitC "
+         "lowerable route; not descriptor-selected computation";
 }
 
 inline llvm::StringRef getRVVRuntimeControlNameMetadataRole() {
@@ -353,6 +385,37 @@ inline void appendRVVBinarySelectedDescriptorMetadata(
   out.push_back({getRVVSelectedLoweringDescriptorMetadataName(),
                  contract.getLoweringDescriptor(), descriptorRole,
                  descriptorNote, "selected lowering descriptor"});
+  out.push_back({getRVVRuntimeElementCountCNameMetadataName(),
+                 contract.getRuntimeElementCountCName(),
+                 getRVVRuntimeControlNameMetadataRole(),
+                 getRVVRuntimeControlNameMetadataNote(),
+                 "runtime element-count C name"});
+}
+
+inline void appendRVVBinarySelectedTypedSourceMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef typedRole = getRVVTypedBinarySourceMetadataRole();
+  llvm::StringRef typedNote = getRVVTypedBinarySourceMetadataNote();
+  out.push_back({getRVVSelectedBinaryDTypeMetadataName(),
+                 contract.getDTypeID(), typedRole, typedNote,
+                 "selected binary dtype"});
+  out.push_back({getRVVSelectedBinaryFamilyMetadataName(),
+                 contract.getFamilyID(), typedRole, typedNote,
+                 "selected binary family"});
+  out.push_back({getRVVSelectedBinaryOperatorMetadataName(),
+                 contract.getArithmeticVerb(), typedRole, typedNote,
+                 "selected binary operator"});
+  out.push_back({getRVVEmitCSourceOpMetadataName(),
+                 contract.getArithmeticOpName(),
+                 getRVVEmitCSourceOpMetadataRole(),
+                 getRVVEmitCSourceOpMetadataNote(),
+                 "EmitC source op"});
+  out.push_back({getRVVEmitCLowerableOpInterfaceMetadataName(),
+                 "TCRVEmitCLowerableOpInterface",
+                 getRVVEmitCSourceOpMetadataRole(),
+                 getRVVEmitCLowerableOpInterfaceMetadataNote(),
+                 "EmitC lowerable op interface"});
   out.push_back({getRVVRuntimeElementCountCNameMetadataName(),
                  contract.getRuntimeElementCountCName(),
                  getRVVRuntimeControlNameMetadataRole(),

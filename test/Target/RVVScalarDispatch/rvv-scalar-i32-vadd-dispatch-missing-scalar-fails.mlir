@@ -142,4 +142,4 @@ module @rvv_scalar_dispatch_missing_scalar_input {
 }
 
 // CHECK: RVV+scalar binary dispatch C export failed
-// CHECK-SAME: requires exactly one supported scalar dispatch fallback callable route; found none
+// CHECK-SAME: selected RVV dispatch case callable family 'i32-vadd' does not match selected scalar dispatch fallback callable family 'i32-vsub'

@@ -1327,7 +1327,10 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
           *runtimeElementCountCName);
   if (!selectedConfig)
     return selectedConfig.takeError();
-  appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
+  if (descriptor.family.dtype == RVVBinaryDTypeKind::I32)
+    appendRVVBinarySelectedTypedSourceMetadata(*selectedConfig, expected);
+  else
+    appendRVVBinarySelectedDescriptorMetadata(*selectedConfig, expected);
 
   for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
     if (llvm::Error error =
@@ -3432,18 +3435,37 @@ buildRVVMicrokernelSourceRouteMetadata(
       family.runtimeABI, family.runtimeABIKind, family.runtimeABIName,
       family.runtimeGlueRole);
 
-  llvm::StringRef descriptorRole = getRVVSelectedBinaryDescriptorMetadataRole();
-  metadata.addSelectedPlanMetadataRequirement(
-      getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, descriptorRole);
-  metadata.addSelectedPlanMetadataRequirement(
-      getRVVSelectedBinaryFamilyMetadataName(), family.familyID,
-      descriptorRole);
-  metadata.addSelectedPlanMetadataRequirement(
-      getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
-      descriptorRole);
-  metadata.addSelectedPlanMetadataRequirement(
-      getRVVSelectedLoweringDescriptorMetadataName(),
-      family.loweringDescriptor, descriptorRole);
+  if (family.dtype == RVVBinaryDTypeKind::I32) {
+    llvm::StringRef typedRole = getRVVTypedBinarySourceMetadataRole();
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, typedRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryFamilyMetadataName(), family.familyID, typedRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
+        typedRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVEmitCSourceOpMetadataName(), family.arithmeticOpName,
+        getRVVEmitCSourceOpMetadataRole());
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVEmitCLowerableOpInterfaceMetadataName(),
+        "TCRVEmitCLowerableOpInterface", getRVVEmitCSourceOpMetadataRole());
+  } else {
+    llvm::StringRef descriptorRole =
+        getRVVSelectedBinaryDescriptorMetadataRole();
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID,
+        descriptorRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryFamilyMetadataName(), family.familyID,
+        descriptorRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
+        descriptorRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedLoweringDescriptorMetadataName(),
+        family.loweringDescriptor, descriptorRole);
+  }
   metadata.addSelectedPlanMetadataPresenceRequirement(
       getRVVRuntimeElementCountCNameMetadataName(),
       getRVVRuntimeControlNameMetadataRole());

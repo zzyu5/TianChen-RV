@@ -62,7 +62,6 @@ module {
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
 // PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-SAME: tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1"
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.selected_mask_policy = "agnostic"
 // PIPE-SAME: tcrv_rvv.selected_setvl_suffix = "e32m2"
@@ -77,8 +76,8 @@ module {
 // PIPE-SAME: fallback_role = "conservative"
 // PIPE-SAME: origin = "scalar-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
-// PIPE-SAME: tcrv_scalar.element_count = 16 : i64
-// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
+// PIPE-NOT: tcrv_scalar.element_count
+// PIPE-NOT: tcrv_scalar.lowering_descriptor
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: reason = "variant-selected"
 // PIPE-SAME: selection_kind = "static-variant"
@@ -138,12 +137,12 @@ module {
 // PIPE-SAME: value = "i32-vsub"}
 // PIPE-SAME: {name = "tcrv_rvv.selected_binary_operator"
 // PIPE-SAME: value = "subtract"}
-// PIPE-SAME: {name = "tcrv_rvv.selected_lowering_descriptor"
-// PIPE-SAME: value = "i32-vsub-microkernel.v1"}
+// PIPE-SAME: {name = "tcrv_rvv.emitc_source_op"
+// PIPE-SAME: value = "tcrv_rvv.i32_sub"}
+// PIPE-SAME: {name = "tcrv_rvv.emitc_lowerable_op_interface"
+// PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"}
 // PIPE-SAME: {name = "tcrv_rvv.runtime_element_count_c_name"
 // PIPE-SAME: value = "n"}
-// PIPE-SAME: {name = "tcrv_rvv.descriptor_element_count"
-// PIPE-SAME: value = "16"}]
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @rvv_first_slice
 

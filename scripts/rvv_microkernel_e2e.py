@@ -1358,19 +1358,42 @@ def require_direct_manifest_artifacts(
                 f"{context} selected binary family does not match requested "
                 f"{selected_family}"
             )
-        expected_lowering_descriptor = str(
-            ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
-        )
-        if expected_lowering_descriptor and (
-            manifest_metadata_value(
-                record, "tcrv_rvv.selected_lowering_descriptor", context
+        if family_dtype(ACTIVE_ARITHMETIC_FAMILY) == "i32":
+            expected_emitc_source_op = str(
+                ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"]
             )
-            != expected_lowering_descriptor
-        ):
-            raise BridgeError(
-                f"{context} selected lowering descriptor does not match "
-                f"requested {expected_lowering_descriptor}"
+            if (
+                manifest_metadata_value(record, "tcrv_rvv.emitc_source_op", context)
+                != expected_emitc_source_op
+            ):
+                raise BridgeError(
+                    f"{context} typed EmitC source op does not match requested "
+                    f"{expected_emitc_source_op}"
+                )
+            if (
+                manifest_metadata_value(
+                    record, "tcrv_rvv.emitc_lowerable_op_interface", context
+                )
+                != "TCRVEmitCLowerableOpInterface"
+            ):
+                raise BridgeError(
+                    f"{context} typed EmitC source op is missing "
+                    "TCRVEmitCLowerableOpInterface authority"
+                )
+        else:
+            expected_lowering_descriptor = str(
+                ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
             )
+            if expected_lowering_descriptor and (
+                manifest_metadata_value(
+                    record, "tcrv_rvv.selected_lowering_descriptor", context
+                )
+                != expected_lowering_descriptor
+            ):
+                raise BridgeError(
+                    f"{context} selected lowering descriptor does not match "
+                    f"requested {expected_lowering_descriptor}"
+                )
         if (
             manifest_metadata_value(
                 record, "tcrv_rvv.selected_vector_shape", context
@@ -1385,20 +1408,28 @@ def require_direct_manifest_artifacts(
     return selected
 
 
-def build_selected_binary_descriptor_authority(
+def build_selected_binary_source_authority(
     record: dict[str, Any], context: str
 ) -> dict[str, str]:
-    descriptor_names = [
+    metadata_names = [
         "tcrv_rvv.selected_binary_dtype",
         "tcrv_rvv.selected_binary_family",
         "tcrv_rvv.selected_binary_operator",
-        "tcrv_rvv.selected_lowering_descriptor",
     ]
+    if family_dtype(ACTIVE_ARITHMETIC_FAMILY) == "i32":
+        metadata_names.extend(
+            [
+                "tcrv_rvv.emitc_source_op",
+                "tcrv_rvv.emitc_lowerable_op_interface",
+            ]
+        )
+    else:
+        metadata_names.append("tcrv_rvv.selected_lowering_descriptor")
     authority = {
         name.removeprefix("tcrv_rvv."): manifest_metadata_value(
             record, name, context
         )
-        for name in descriptor_names
+        for name in metadata_names
     }
     selected_family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
     if authority["selected_binary_family"] != selected_family:
@@ -1406,17 +1437,31 @@ def build_selected_binary_descriptor_authority(
             f"{context} selected binary family does not match requested "
             f"{selected_family}"
         )
-    expected_lowering_descriptor = str(
-        ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
-    )
-    if (
-        expected_lowering_descriptor
-        and authority["selected_lowering_descriptor"] != expected_lowering_descriptor
-    ):
-        raise BridgeError(
-            f"{context} selected lowering descriptor does not match requested "
-            f"{expected_lowering_descriptor}"
+    if family_dtype(ACTIVE_ARITHMETIC_FAMILY) == "i32":
+        expected_emitc_source_op = str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+        if authority["emitc_source_op"] != expected_emitc_source_op:
+            raise BridgeError(
+                f"{context} typed EmitC source op does not match requested "
+                f"{expected_emitc_source_op}"
+            )
+        if authority["emitc_lowerable_op_interface"] != "TCRVEmitCLowerableOpInterface":
+            raise BridgeError(
+                f"{context} typed EmitC source op is missing "
+                "TCRVEmitCLowerableOpInterface authority"
+            )
+    else:
+        expected_lowering_descriptor = str(
+            ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
         )
+        if (
+            expected_lowering_descriptor
+            and authority["selected_lowering_descriptor"]
+            != expected_lowering_descriptor
+        ):
+            raise BridgeError(
+                f"{context} selected lowering descriptor does not match requested "
+                f"{expected_lowering_descriptor}"
+            )
     return authority
 
 
@@ -3766,13 +3811,13 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         and ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"] == "i32-vmul"
     )
     direct_manifest_artifacts: dict[str, dict[str, Any]] = {}
-    selected_binary_descriptor_authority: dict[str, str] = {}
+    selected_binary_source_authority: dict[str, str] = {}
     if uses_direct_manifest_authority:
         direct_manifest_artifacts = require_direct_manifest_artifacts(
             manifest_handoff
         )
-        selected_binary_descriptor_authority = (
-            build_selected_binary_descriptor_authority(
+        selected_binary_source_authority = (
+            build_selected_binary_source_authority(
                 direct_manifest_artifacts["source"],
                 "manifest source target_artifact",
             )
@@ -4031,7 +4076,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         ],
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
         "source_emitc_route_provenance": source_flags["emitc_route_provenance"],
-        "selected_binary_descriptor_authority": selected_binary_descriptor_authority,
+        "selected_binary_source_authority": selected_binary_source_authority,
         "compiler_path_context": source_flags["compiler_path_context"],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_operator": source_flags["arithmetic_operator"],
@@ -4327,9 +4372,29 @@ kernel @rvv_microkernel_manifest
           role: "selected-rvv-vector-shape-config"
           note: "bounded"
         selected_plan_metadata[1]:
+          name: "tcrv_rvv.selected_binary_dtype"
+          value: "i32"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[2]:
           name: "tcrv_rvv.selected_binary_family"
           value: "i32-vadd"
-          role: "selected-rvv-binary-descriptor"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[3]:
+          name: "tcrv_rvv.selected_binary_operator"
+          value: "add"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[4]:
+          name: "tcrv_rvv.emitc_source_op"
+          value: "tcrv_rvv.i32_add"
+          role: "typed-rvv-emitc-source-op"
+          note: "bounded"
+        selected_plan_metadata[5]:
+          name: "tcrv_rvv.emitc_lowerable_op_interface"
+          value: "TCRVEmitCLowerableOpInterface"
+          role: "typed-rvv-emitc-source-op"
           note: "bounded"
         evidence_role: "compiler-artifact"
       artifact[1]:
@@ -4369,9 +4434,29 @@ kernel @rvv_microkernel_manifest
           role: "selected-rvv-vector-shape-config"
           note: "bounded"
         selected_plan_metadata[1]:
+          name: "tcrv_rvv.selected_binary_dtype"
+          value: "i32"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[2]:
           name: "tcrv_rvv.selected_binary_family"
           value: "i32-vadd"
-          role: "selected-rvv-binary-descriptor"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[3]:
+          name: "tcrv_rvv.selected_binary_operator"
+          value: "add"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[4]:
+          name: "tcrv_rvv.emitc_source_op"
+          value: "tcrv_rvv.i32_add"
+          role: "typed-rvv-emitc-source-op"
+          note: "bounded"
+        selected_plan_metadata[5]:
+          name: "tcrv_rvv.emitc_lowerable_op_interface"
+          value: "TCRVEmitCLowerableOpInterface"
+          role: "typed-rvv-emitc-source-op"
           note: "bounded"
         evidence_role: "header-declaration"
       artifact[2]:
@@ -4411,9 +4496,29 @@ kernel @rvv_microkernel_manifest
           role: "selected-rvv-vector-shape-config"
           note: "bounded"
         selected_plan_metadata[1]:
+          name: "tcrv_rvv.selected_binary_dtype"
+          value: "i32"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[2]:
           name: "tcrv_rvv.selected_binary_family"
           value: "i32-vadd"
-          role: "selected-rvv-binary-descriptor"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[3]:
+          name: "tcrv_rvv.selected_binary_operator"
+          value: "add"
+          role: "typed-rvv-binary-source"
+          note: "bounded"
+        selected_plan_metadata[4]:
+          name: "tcrv_rvv.emitc_source_op"
+          value: "tcrv_rvv.i32_add"
+          role: "typed-rvv-emitc-source-op"
+          note: "bounded"
+        selected_plan_metadata[5]:
+          name: "tcrv_rvv.emitc_lowerable_op_interface"
+          value: "TCRVEmitCLowerableOpInterface"
+          role: "typed-rvv-emitc-source-op"
           note: "bounded"
         evidence_role: "relocatable-object"
 """.strip()

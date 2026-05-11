@@ -69,10 +69,10 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // IR-SAME: tcrv_frontend_lowering = "i32-vsub"
 // IR: tcrv.exec.variant @rvv_first_slice
 // IR-SAME: origin = "rvv-plugin"
-// IR-SAME: tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1"
+// IR-NOT: tcrv_rvv.lowering_descriptor
 // IR: tcrv.exec.variant @scalar_fallback_first_slice
 // IR-SAME: origin = "scalar-plugin"
-// IR-SAME: tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
+// IR-NOT: tcrv_scalar.lowering_descriptor
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR: tcrv.exec.dispatch

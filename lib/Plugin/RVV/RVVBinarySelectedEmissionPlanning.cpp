@@ -888,18 +888,23 @@ llvm::Error bindSelectedConfigRuntimeControlNames(
       selectedPlan.getSelectedConfig().getContract());
 }
 
-void appendSelectedBinaryDescriptorMetadata(
+void appendSelectedBinaryMetadata(
     const target::rvv::RVVBinarySelectedConfigContract &contract,
+    bool includeDescriptorMetadata,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
       target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
       descriptorMetadata;
-  target::rvv::appendRVVBinarySelectedDescriptorMetadata(contract,
-                                                        descriptorMetadata);
+  if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32)
+    target::rvv::appendRVVBinarySelectedTypedSourceMetadata(contract,
+                                                           descriptorMetadata);
+  if (includeDescriptorMetadata)
+    target::rvv::appendRVVBinarySelectedDescriptorMetadata(contract,
+                                                          descriptorMetadata);
   for (const auto &entry : descriptorMetadata)
     metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
                         entry.note.str()});
-  if (contract.getDescriptorElementCount() > 0) {
+  if (includeDescriptorMetadata && contract.getDescriptorElementCount() > 0) {
     metadata.push_back({
         target::rvv::getRVVDescriptorElementCountMetadataName().str(),
         std::to_string(contract.getDescriptorElementCount()),
@@ -993,9 +998,11 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
           request.getVariant(), plan.selectedPlanMetadata))
     return std::move(error);
   appendRuntimeVLBoundaryMetadata(plan.selectedPlanMetadata);
-  appendSelectedBinaryDescriptorMetadata(
+  bool includeDescriptorMetadata =
+      plan.selectedPlan.family->dtype == RVVBinaryDTypeKind::I64;
+  appendSelectedBinaryMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
-      plan.selectedPlanMetadata);
+      includeDescriptorMetadata, plan.selectedPlanMetadata);
   return plan;
 }
 

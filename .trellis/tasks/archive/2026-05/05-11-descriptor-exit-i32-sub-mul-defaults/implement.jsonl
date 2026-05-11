@@ -1,0 +1,27 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack boundaries, descriptor debt policy, and extension-family ops to EmitC main route."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V extension-family architecture and descriptor non-architecture boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Generated lowerable op interface boundary and typed op to common EmitC export route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, target artifact export, runtime ABI parameter layering, and preflight coherence rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV i32 add/sub/mul microkernel body/materialization/export contract and legacy descriptor context."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback add/sub/mul microkernel routes, descriptor debt, and family-correct source/header/object rules."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin-local family ops and EmitC mapping rules without core family-specific semantic branches."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ coverage requirements for RVV/scalar microkernel export, frontend route, and fail-closed behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-descriptor-exit-rvv-i32-add-default/prd.md", "reason": "Completed RVV descriptorless i32 add pattern to generalize for RVV sub/mul."}
+{"file": ".trellis/tasks/archive/2026-05/05-11-descriptor-exit-scalar-i32-add-default/prd.md", "reason": "Completed scalar descriptorless i32 add pattern to generalize for scalar sub/mul."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Typed RVV microkernel op definitions and lowerable interface integration point."}
+{"file": "include/TianChenRV/Dialect/Scalar/IR/ScalarOps.td", "reason": "Typed scalar microkernel op definitions and lowerable interface integration point."}
+{"file": "include/TianChenRV/Target/RVVScalarBinaryFamily.h", "reason": "Shared finite binary family descriptor and descriptor-to-family metadata boundary."}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "RVV proposal/materialization/emission plan owner for descriptor exit."}
+{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "RVV selected-plan construction and existing descriptorless add pattern."}
+{"file": "lib/Plugin/RVV/RVVBinaryMicrokernelMaterialization.cpp", "reason": "RVV typed microkernel body materialization and descriptor/body mismatch validation."}
+{"file": "lib/Plugin/RVV/RVVBinarySelectedEmissionPlanning.cpp", "reason": "RVV selected emission planning and route metadata for sub/mul export."}
+{"file": "lib/Plugin/Scalar/ScalarExtensionPlugin.cpp", "reason": "Scalar proposal/materialization/emission plan owner and existing descriptorless add pattern."}
+{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "RVV source/header/object export implementation and common EmitC route handoff."}
+{"file": "lib/Target/Scalar/ScalarMicrokernel.cpp", "reason": "Scalar source/header/object export implementation and common EmitC route handoff."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused RVV plugin behavior and descriptorless sub/mul proposal/materialization coverage."}
+{"file": "test/Plugin/ScalarExtensionPluginTest.cpp", "reason": "Focused scalar plugin behavior and descriptorless sub/mul fallback coverage."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target/export route and stale descriptor fail-closed coverage for RVV/scalar sub/mul."}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir", "reason": "Default RVV i32 vsub frontend/export lit expectation to update away from descriptor compute authority."}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir", "reason": "Default RVV i32 vmul frontend/export lit expectation to update away from descriptor compute authority."}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vsub-to-scalar-artifact.mlir", "reason": "Default scalar i32 vsub frontend/export lit expectation to update away from descriptor compute authority."}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vmul-to-scalar-artifact.mlir", "reason": "Default scalar i32 vmul frontend/export lit expectation to update away from descriptor compute authority."}

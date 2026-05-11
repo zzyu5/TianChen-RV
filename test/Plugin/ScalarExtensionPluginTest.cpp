@@ -425,54 +425,14 @@ module {
     return 0;
   };
 
-  auto expectScalarDescriptorForKernel =
-      [&](KernelOp kernel, llvm::StringRef expectedDescriptor,
-          llvm::StringRef context) -> int {
-    TargetCapabilitySet kernelCapabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
-    VariantProposalRequest kernelRequest(highLevelOp.getOperation(), kernel,
-                                         kernelCapabilities);
-    proposals.clear();
-    if (int result = expectSuccess(
-            registry.collectVariantProposals(kernelRequest, proposals),
-            llvm::Twine("collect scalar proposal for ") + context))
-      return result;
-    if (int result = expect(proposals.size() == 1,
-                            llvm::Twine("one scalar proposal for ") + context))
-      return result;
-
-    bool descriptorMatches = false;
-    bool elementCountMatches = false;
-    for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
-      llvm::StringRef name = attr.getName().getValue();
-      if (name == "tcrv_scalar.lowering_descriptor") {
-        auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
-        descriptorMatches = value && value.getValue() == expectedDescriptor;
-      }
-      if (name == "tcrv_scalar.element_count") {
-        auto value = llvm::dyn_cast<mlir::IntegerAttr>(attr.getValue());
-        elementCountMatches = value && value.getInt() == 16;
-      }
-    }
-    return expect(descriptorMatches && elementCountMatches,
-                  llvm::Twine("scalar proposal descriptor matches ") +
-                      context);
-  };
-
   if (int result = expectDescriptorlessScalarProposalForKernel(
           availableVAdd, "frontend-lowered i32-vadd"))
     return result;
-  if (int result = expectScalarDescriptorForKernel(
-          availableVSub,
-          tianchenrv::target::i32_binary::getI32VSubFamilyDescriptor()
-              .loweringDescriptor,
-          "frontend-lowered i32-vsub"))
+  if (int result = expectDescriptorlessScalarProposalForKernel(
+          availableVSub, "frontend-lowered i32-vsub"))
     return result;
-  if (int result = expectScalarDescriptorForKernel(
-          availableVMul,
-          tianchenrv::target::i32_binary::getI32VMulFamilyDescriptor()
-              .loweringDescriptor,
-          "frontend-lowered i32-vmul"))
+  if (int result = expectDescriptorlessScalarProposalForKernel(
+          availableVMul, "frontend-lowered i32-vmul"))
     return result;
 
   TargetCapabilitySet unavailableCapabilities =
@@ -915,15 +875,17 @@ module {
                           "scalar vsub collects one proposal"))
     return result;
   bool hasDescriptor = false;
+  bool hasElementCount = false;
   for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
     if (attr.getName().getValue() == "tcrv_scalar.lowering_descriptor") {
-      auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
-      hasDescriptor = value && value.getValue() == family.loweringDescriptor;
+      hasDescriptor = true;
     }
+    if (attr.getName().getValue() == "tcrv_scalar.element_count")
+      hasElementCount = true;
   }
   if (int result =
-          expect(hasDescriptor,
-                 "scalar vsub proposal consumes registry lowering descriptor"))
+          expect(!hasDescriptor && !hasElementCount,
+                 "scalar vsub proposal is descriptorless typed i32"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -984,18 +946,38 @@ module {
                          family.scalar.runtimeGlueRole,
                  "scalar vsub emission plan consumes registry facts"))
     return result;
+  auto hasSelectedPlanMetadata =
+      [&](llvm::StringRef name, llvm::StringRef value,
+          llvm::StringRef role) {
+        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
+          if (entry.name == name && entry.value == value && entry.role == role)
+            return true;
+        return false;
+      };
+  if (int result =
+          expect(hasSelectedPlanMetadata("tcrv_scalar.emitc_source_op",
+                                         family.scalar.microkernelOpName,
+                                         "typed-scalar-emitc-source-op") &&
+                     hasSelectedPlanMetadata(
+                         "tcrv_scalar.emitc_lowerable_op_interface",
+                         "TCRVEmitCLowerableOpInterface",
+                         "typed-scalar-emitc-source-op") &&
+                     !hasSelectedPlanMetadata(
+                         "tcrv_scalar.selected_lowering_descriptor",
+                         family.loweringDescriptor,
+                         "selected-scalar-binary-descriptor"),
+                 "scalar vsub emission plan records typed EmitC source "
+                 "metadata without descriptor authority"))
+    return result;
 
   {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToEnd(&kernel.getBody().front());
-    mlir::OperationState staleState(
-        variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
-    staleState.addAttribute(
-        "selected_variant",
-        mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                     variant.getSymName()));
-    staleState.addAttribute("role", builder.getStringAttr("direct variant"));
-    builder.create(staleState);
+    variant->setAttr(
+        "tcrv_scalar.lowering_descriptor",
+        builder.getStringAttr(
+            tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
+                .loweringDescriptor));
+    variant->setAttr("tcrv_scalar.element_count",
+                     builder.getI64IntegerAttr(16));
   }
 
   VariantEmissionStatus staleStatus;
@@ -1004,7 +986,9 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           staleStatus),
-      {"descriptor requires", family.scalar.microkernelOpName});
+      {"descriptor requires",
+       tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
+           .scalar.microkernelOpName});
 }
 
 int runDescriptorBackedScalarMulMaterializationTest(
@@ -1060,15 +1044,17 @@ module {
                           "scalar vmul collects one proposal"))
     return result;
   bool hasDescriptor = false;
+  bool hasElementCount = false;
   for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
     if (attr.getName().getValue() == "tcrv_scalar.lowering_descriptor") {
-      auto value = llvm::dyn_cast<mlir::StringAttr>(attr.getValue());
-      hasDescriptor = value && value.getValue() == family.loweringDescriptor;
+      hasDescriptor = true;
     }
+    if (attr.getName().getValue() == "tcrv_scalar.element_count")
+      hasElementCount = true;
   }
   if (int result =
-          expect(hasDescriptor,
-                 "scalar vmul proposal consumes registry lowering descriptor"))
+          expect(!hasDescriptor && !hasElementCount,
+                 "scalar vmul proposal is descriptorless typed i32"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1129,18 +1115,38 @@ module {
                          family.scalar.runtimeGlueRole,
                  "scalar vmul emission plan consumes registry facts"))
     return result;
+  auto hasSelectedPlanMetadata =
+      [&](llvm::StringRef name, llvm::StringRef value,
+          llvm::StringRef role) {
+        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
+          if (entry.name == name && entry.value == value && entry.role == role)
+            return true;
+        return false;
+      };
+  if (int result =
+          expect(hasSelectedPlanMetadata("tcrv_scalar.emitc_source_op",
+                                         family.scalar.microkernelOpName,
+                                         "typed-scalar-emitc-source-op") &&
+                     hasSelectedPlanMetadata(
+                         "tcrv_scalar.emitc_lowerable_op_interface",
+                         "TCRVEmitCLowerableOpInterface",
+                         "typed-scalar-emitc-source-op") &&
+                     !hasSelectedPlanMetadata(
+                         "tcrv_scalar.selected_lowering_descriptor",
+                         family.loweringDescriptor,
+                         "selected-scalar-binary-descriptor"),
+                 "scalar vmul emission plan records typed EmitC source "
+                 "metadata without descriptor authority"))
+    return result;
 
   {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToEnd(&kernel.getBody().front());
-    mlir::OperationState staleState(
-        variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
-    staleState.addAttribute(
-        "selected_variant",
-        mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                     variant.getSymName()));
-    staleState.addAttribute("role", builder.getStringAttr("direct variant"));
-    builder.create(staleState);
+    variant->setAttr(
+        "tcrv_scalar.lowering_descriptor",
+        builder.getStringAttr(
+            tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
+                .loweringDescriptor));
+    variant->setAttr("tcrv_scalar.element_count",
+                     builder.getI64IntegerAttr(16));
   }
 
   VariantEmissionStatus staleStatus;
@@ -1149,7 +1155,9 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           staleStatus),
-      {"descriptor requires", family.scalar.microkernelOpName});
+      {"descriptor requires",
+       tianchenrv::target::rvv_scalar::getI32VAddFamilyDescriptor()
+           .scalar.microkernelOpName});
 }
 
 int runDescriptorBackedScalarI64VAddMaterializationTest(

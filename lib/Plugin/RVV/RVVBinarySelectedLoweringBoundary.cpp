@@ -417,10 +417,25 @@ buildRVVBinarySelectedMicrokernelMaterializationPlan(
 }
 
 llvm::Expected<RVVBinaryMicrokernelMaterializationPlan>
-buildDescriptorlessDefaultI32AddMicrokernelMaterializationPlan(
+buildDescriptorlessDefaultI32MicrokernelMaterializationPlan(
+    tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
     const RVVBinaryCapabilityPropertyView &view) {
+  llvm::Expected<RVVBinaryFamilyPlanningResolution> resolution =
+      resolveRVVBinaryFamilyForProposal(
+          kernel, "descriptorless default RVV i32 selected lowering boundary");
+  if (!resolution)
+    return resolution.takeError();
+  if (!resolution->family ||
+      resolution->family->dtype != target::rvv::RVVBinaryDTypeKind::I32)
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("descriptorless default RVV i32 selected lowering "
+                    "boundary requires an i32 finite family, got '") +
+        (resolution->family ? resolution->family->familyID
+                            : llvm::StringRef("<none>")) +
+        "'");
+
   llvm::Expected<std::optional<std::string>> selectedMABI =
       getOptionalSelectedMABI(capabilities);
   if (!selectedMABI)
@@ -428,8 +443,8 @@ buildDescriptorlessDefaultI32AddMicrokernelMaterializationPlan(
 
   llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
       buildRVVBinarySelectedPlanFromTypedFamilyVariant(
-          variant, target::rvv::getI32VAddFamilyDescriptor(),
-          *view.selectedShape, "i32", std::move(*selectedMABI));
+          variant, *resolution->family, *view.selectedShape, "i32",
+          std::move(*selectedMABI));
   if (!selectedPlan)
     return selectedPlan.takeError();
 
@@ -493,21 +508,21 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
   bool hasLoweringDescriptor = variant->hasAttr(kLoweringDescriptorAttrName);
   bool hasSmokeProbeDescriptor =
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
-  bool hasDescriptorlessDefaultI32Add =
+  bool hasDescriptorlessDefaultI32 =
       !hasLoweringDescriptor && !hasSmokeProbeDescriptor &&
       variant->hasAttr(kElementCountAttrName) &&
       (*selectedConfig)->dtypeID == "i32";
-  if (hasLoweringDescriptor || hasDescriptorlessDefaultI32Add) {
+  if (hasLoweringDescriptor || hasDescriptorlessDefaultI32) {
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
         buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
                                             *selectedConfig);
     if (!propertyView)
       return propertyView.takeError();
 
-    if (hasDescriptorlessDefaultI32Add) {
+    if (hasDescriptorlessDefaultI32) {
       llvm::Expected<RVVBinaryMicrokernelMaterializationPlan> plannedI32 =
-          buildDescriptorlessDefaultI32AddMicrokernelMaterializationPlan(
-              variant, request.getCapabilities(), *propertyView);
+          buildDescriptorlessDefaultI32MicrokernelMaterializationPlan(
+              kernel, variant, request.getCapabilities(), *propertyView);
       if (!plannedI32)
         return plannedI32.takeError();
       i32MicrokernelPlan = std::move(*plannedI32);

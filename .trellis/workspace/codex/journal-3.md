@@ -1397,3 +1397,50 @@ Testing:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Descriptor exit i32 sub/mul defaults
+
+**Date**: 2026-05-11
+**Task**: Descriptor exit i32 sub/mul defaults
+**Branch**: `main`
+
+### Summary
+
+Migrated default RVV and scalar i32 sub/mul selected/export paths from descriptor-selected computation to typed extension family ops through common EmitC, updated route metadata/tests, and archived descriptor-exit-i32-sub-mul-defaults.
+
+### Main Changes
+
+### Main Changes
+
+- Generalized descriptorless default i32 handling for RVV and scalar add/sub/mul families instead of leaving sub/mul on lowering descriptors.
+- Added typed RVV and scalar selected-plan metadata for `selected_binary_*`, `emitc_source_op`, and `TCRVEmitCLowerableOpInterface`; i64 descriptor-backed routes remain bounded legacy.
+- Rewired RVV/scalar source export and RVV+scalar dispatch preflight to validate typed i32 metadata and reject descriptor-local override paths.
+- Updated focused C++ and lit coverage for LinalgToExec, ExecutionPlanning, ArtifactExport, RVVMicrokernel, RVVScalarDispatch, and the RVV e2e runner dry-run evidence parser.
+- Archived `.trellis/tasks/archive/2026-05/05-11-descriptor-exit-i32-sub-mul-defaults/` after active and archived Trellis validation passed.
+
+### Testing
+
+- Focused build: `tcrv-opt`, `tcrv-translate`, RVV plugin test, scalar plugin test, target artifact export test, EmitC lowerable interface test.
+- C++ tests: `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-scalar-extension-plugin-test`, `tianchenrv-target-artifact-export-test`, `tianchenrv-emitc-lowerable-interface-test`.
+- Focused lit: `LinalgToExec|ExecutionPlanning|ArtifactExport|RVVMicrokernel|RVVScalarDispatch`, 73/73 passed.
+- Full check: `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`, 206/206 passed.
+- `git diff --check` passed before archive; rerun before commit.
+- No `ssh rvv` run; no runtime/correctness/performance claim was made.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1947,17 +1947,9 @@ module {
             expect(proposals.size() == 1,
                    llvm::Twine("one RVV proposal for ") + kernelName))
       return result;
-    if (family.arithmetic ==
-        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
-      if (int result = expectProposalMissingAttr(
-              proposals[0], "tcrv_rvv.lowering_descriptor"))
-        return result;
-    } else {
-      if (int result = expectProposalStringAttr(
-              proposals[0], "tcrv_rvv.lowering_descriptor",
-              family.loweringDescriptor))
-        return result;
-    }
+    if (int result = expectProposalMissingAttr(
+            proposals[0], "tcrv_rvv.lowering_descriptor"))
+      return result;
 
     mlir::OpBuilder builder(&context);
     llvm::SmallVector<VariantOp, 1> materializedVariants;
@@ -1972,19 +1964,10 @@ module {
                        kernelName))
       return result;
     VariantOp variant = materializedVariants.front();
-    if (family.arithmetic ==
-        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
-      if (int result =
-              expectMissingAttr(variant.getOperation(),
-                                "tcrv_rvv.lowering_descriptor"))
-        return result;
-    } else {
-      if (int result =
-              expectStringAttr(variant.getOperation(),
-                               "tcrv_rvv.lowering_descriptor",
-                               family.loweringDescriptor))
-        return result;
-    }
+    if (int result =
+            expectMissingAttr(variant.getOperation(),
+                              "tcrv_rvv.lowering_descriptor"))
+      return result;
 
     VariantLoweringBoundaryResult boundaryResult;
     {
@@ -2048,29 +2031,6 @@ module {
                    llvm::Twine("RVV emission plan consumes registry facts for ") +
                        kernelName))
       return result;
-
-    if (family.arithmetic !=
-        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
-      mlir::OpBuilder::InsertionGuard guard(builder);
-      builder.setInsertionPointToEnd(&kernel.getBody().front());
-      mlir::OperationState staleState(
-          variant.getLoc(), I32VAddMicrokernelOp::getOperationName());
-      staleState.addAttribute(
-          "selected_variant",
-          mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                       variant.getSymName()));
-      staleState.addAttribute("role", builder.getStringAttr("direct variant"));
-      builder.create(staleState);
-
-      VariantEmissionStatus staleStatus;
-      if (int result = expectErrorContains(
-              registry.checkVariantEmissionReadiness(
-                  VariantEmissionRequest(variant, kernel, capabilities,
-                                         VariantEmissionRole::DirectVariant),
-                  staleStatus),
-              {"descriptor requires", family.microkernelOpName}))
-        return result;
-    }
 
     return 0;
   };

@@ -38,8 +38,8 @@ module {
 // PIPE-SAME: fallback_role = "conservative"
 // PIPE-SAME: origin = "scalar-plugin"
 // PIPE-SAME: requires = [@frontend_scalar_profile]
-// PIPE-SAME: tcrv_scalar.element_count = 16 : i64
-// PIPE-SAME: tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
+// PIPE-NOT: tcrv_scalar.element_count
+// PIPE-NOT: tcrv_scalar.lowering_descriptor
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: reason = "variant-selected"
 // PIPE-SAME: selection_kind = "fallback-only"
@@ -66,15 +66,27 @@ module {
 // PIPE-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
 // PIPE-SAME: runtime_abi_name = "scalar-i32-vsub-runtime-callable-c-function.v1"
 // PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vsub-fallback-function"
+// PIPE-SAME: selected_plan_metadata = [{name = "tcrv_scalar.selected_binary_dtype"
+// PIPE-SAME: role = "typed-scalar-binary-source"
+// PIPE-SAME: value = "i32"}
+// PIPE-SAME: {name = "tcrv_scalar.selected_binary_family"
+// PIPE-SAME: value = "i32-vsub"}
+// PIPE-SAME: {name = "tcrv_scalar.emitc_source_op"
+// PIPE-SAME: value = "tcrv_scalar.i32_vsub_microkernel"}
+// PIPE-SAME: {name = "tcrv_scalar.emitc_lowerable_op_interface"
+// PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"}
 // PIPE-SAME: status = "supported"
 // PIPE-SAME: target = @scalar_fallback_first_slice
 
 // SOURCE: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vsub_microkernel. */
+// SOURCE: /* Route: typed scalar family op lowers through the common EmitC runtime route before C/C++ source emission. */
 // SOURCE: /* selected_kernel: @frontend_i32_vsub_scalar */
 // SOURCE: /* selected_variant: @scalar_fallback_first_slice */
 // SOURCE: /* executable_microkernel: tcrv_scalar.i32_vsub_microkernel */
 // SOURCE: /* runtime_abi_name: scalar-i32-vsub-runtime-callable-c-function.v1 */
 // SOURCE: /* runtime_glue_role: runtime-callable-i32-vsub-fallback-function */
+// SOURCE: /* emitc_route: tcrv_scalar.i32_vsub_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
+// SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: void tcrv_scalar_i32_vsub_microkernel_frontend_i32_vsub_scalar_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
 // SOURCE: for (size_t index = 0; index < n; ++index)
 // SOURCE: out[index] = lhs[index] - rhs[index];

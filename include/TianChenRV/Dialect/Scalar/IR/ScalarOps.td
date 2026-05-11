@@ -86,7 +86,8 @@ def I32VAddMicrokernelOp : TCRVScalar_Op<"i32_vadd_microkernel",
   let hasVerifier = 1;
 }
 
-def I32VSubMicrokernelOp : TCRVScalar_Op<"i32_vsub_microkernel", []> {
+def I32VSubMicrokernelOp : TCRVScalar_Op<"i32_vsub_microkernel",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "explicit bounded scalar i32 vector-subtract source-export microkernel";
   let description = [{
     Records one plugin-local scalar i32 vector-subtract microkernel body for a
@@ -115,7 +116,8 @@ def I32VSubMicrokernelOp : TCRVScalar_Op<"i32_vsub_microkernel", []> {
   let hasVerifier = 1;
 }
 
-def I32VMulMicrokernelOp : TCRVScalar_Op<"i32_vmul_microkernel", []> {
+def I32VMulMicrokernelOp : TCRVScalar_Op<"i32_vmul_microkernel",
+    [TCRVEmitCLowerableOpInterface]> {
   let summary = "explicit bounded scalar i32 vector-multiply source-export microkernel";
   let description = [{
     Records one plugin-local scalar i32 vector-multiply microkernel body for a
