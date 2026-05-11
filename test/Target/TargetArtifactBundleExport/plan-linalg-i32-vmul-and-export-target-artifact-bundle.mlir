@@ -122,7 +122,7 @@ module @plan_linalg_i32_vmul_bundle_input {
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32_vmul_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32_vmul_scalar_fallback_first_slice */
 // SOURCE: __riscv_vmul_vv_i32m1
-// SOURCE: out[index] = lhs[index] * rhs[index];
+// SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
 // SOURCE: void tcrv_dispatch_i32_vmul_frontend_bundle_i32_vmul
 
 // HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VMUL_DISPATCH_FRONTEND_BUNDLE_I32_VMUL_H

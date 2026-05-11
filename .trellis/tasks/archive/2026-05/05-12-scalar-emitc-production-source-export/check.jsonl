@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation boundaries"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check no descriptor-driven or tcrv.exec compute semantics are reintroduced"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check production source export now uses common EmitC route authority"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export and runtime ABI layering remain fail-closed"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar plugin-local ownership remains bounded"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation coverage"}

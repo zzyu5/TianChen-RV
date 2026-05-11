@@ -200,8 +200,9 @@ Use lit/FileCheck for:
   `tcrv_scalar.i32_vsub_microkernel`, selected scalar fallback plus matching
   `tcrv_scalar.lowering_boundary`, deterministic portable runtime-callable C
   output with `const int32_t *` inputs, `int32_t *` output, and `size_t`
-  length, scalar i32 addition or subtraction inside that callable function
-  according to the selected scalar family, absence of RVV
+  length, a callable function body rendered from the common EmitC lowerable
+  route's ordered scalar compute/store `call_opaque` steps for the selected
+  scalar family, absence of RVV
   headers/intrinsics/route claims, absence of an embedded `main` or self-check
   success marker in the default artifact, scalar runtime-callable header export
   with a declaration-only C prototype, scalar RISC-V relocatable object export

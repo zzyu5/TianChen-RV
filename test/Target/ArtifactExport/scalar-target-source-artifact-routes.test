@@ -4,7 +4,7 @@
 
 # SCALAR-POS: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-POS: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vadd_microkernel. */
-# SCALAR-POS: /* Route: typed scalar family op lowers through the common EmitC runtime route before C/C++ source emission. */
+# SCALAR-POS: /* Route: typed scalar family op builds the common EmitC lowerable route that renders the production C function body. */
 # SCALAR-POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # SCALAR-POS: #include <stddef.h>
 # SCALAR-POS: #include <stdint.h>
@@ -27,12 +27,14 @@
 # SCALAR-POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # SCALAR-POS: /* runtime_callable_abi: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
 # SCALAR-POS: /* emitc_route: tcrv_scalar.i32_vadd_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
-# SCALAR-POS: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, and emitc.call_opaque before bounded target-owned scalar C source output */
+# SCALAR-POS: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, and emitc.call_opaque before route-authored production C source output */
+# SCALAR-POS: /* emitc_c_source_authority: production function body rendered from TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque steps */
 # SCALAR-POS: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 # SCALAR-POS: /* emitc.call_opaque_boundary[0]: source_role=compute, operands=2, result=sum:int32_t, op_interface=TCRVEmitCLowerableOpInterface */
 # SCALAR-POS: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
-# SCALAR-POS: for (size_t index = 0; index < n; ++index)
-# SCALAR-POS: out[index] = lhs[index] + rhs[index];
+# SCALAR-POS: for (size_t index = 0; index < n; ++index) {
+# SCALAR-POS: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+# SCALAR-POS: tcrv_scalar_i32_store(&out[index], sum);
 
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=SCALAR-PLAN
 # SCALAR-PLAN: artifact_kind = "runtime-callable-c-source"

@@ -52,6 +52,7 @@ using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::
     verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
+using tianchenrv::conversion::emitc::renderTCRVEmitCLowerableRouteAsCFunction;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -2027,9 +2028,12 @@ void printScalarEmitCRouteMetadata(llvm::raw_ostream &os,
         "emitc.call_opaque -> scalar runtime C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
   os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
-        "emitc.include, emitc.func, and emitc.call_opaque before bounded "
-        "target-owned scalar C source output */\n";
+        "emitc.include, emitc.func, and emitc.call_opaque before route-authored "
+        "production C source output */\n";
   os << "/* emitc_materialization_function: @" << functionName << " */\n";
+  os << "/* emitc_c_source_authority: production function body rendered from "
+        "TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque "
+        "steps */\n";
   for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps()) {
     if (step.sourceOp.opInterface.empty())
       continue;
@@ -2121,46 +2125,39 @@ void printMicrokernelPrototype(
   os << ")";
 }
 
-llvm::Error printMicrokernelFunction(
-    llvm::raw_ostream &os, llvm::StringRef functionName,
-    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
-    const ScalarI32MicrokernelFamilySpec &family) {
-  using Role = support::RuntimeABIParameterRole;
-  llvm::Expected<const support::RuntimeABIParameter *> lhs =
-      support::findUniqueRuntimeABIParameterByRole(
-          parameters, Role::LHSInputBuffer,
-          "scalar direct microkernel C emission");
-  if (!lhs)
-    return lhs.takeError();
-  llvm::Expected<const support::RuntimeABIParameter *> rhs =
-      support::findUniqueRuntimeABIParameterByRole(
-          parameters, Role::RHSInputBuffer,
-          "scalar direct microkernel C emission");
-  if (!rhs)
-    return rhs.takeError();
-  llvm::Expected<const support::RuntimeABIParameter *> out =
-      support::findUniqueRuntimeABIParameterByRole(
-          parameters, Role::OutputBuffer,
-          "scalar direct microkernel C emission");
-  if (!out)
-    return out.takeError();
-  llvm::Expected<const support::RuntimeABIParameter *> runtimeN =
-      support::findUniqueRuntimeABIParameterByRole(
-          parameters, Role::RuntimeElementCount,
-          "scalar direct microkernel C emission");
-  if (!runtimeN)
-    return runtimeN.takeError();
-
-  printMicrokernelPrototype(os, functionName, parameters);
-  os << " {\n";
-  os << "  for (size_t index = 0; index < " << (*runtimeN)->cName
-     << "; ++index)\n";
-  os << "    " << (*out)->cName << "[index] = " << (*lhs)->cName
-     << "[index] "
-     << family.cOperator << " "
-     << (*rhs)->cName << "[index];\n\n";
+void printScalarRuntimeHelperDefinitions(
+    llvm::raw_ostream &os, const ScalarI32MicrokernelFamilySpec &family) {
+  llvm::StringRef scalarCType = family.rvvFamily->scalarCType;
+  os << "static inline " << scalarCType << " "
+     << getScalarEmitCCallee(family) << "(" << scalarCType << " lhs, "
+     << scalarCType << " rhs) {\n";
+  switch (family.rvvFamily->arithmetic) {
+  case RVVBinaryArithmeticKind::Add:
+    os << "  return lhs + rhs;\n";
+    break;
+  case RVVBinaryArithmeticKind::Sub:
+    os << "  return lhs - rhs;\n";
+    break;
+  case RVVBinaryArithmeticKind::Mul:
+    os << "  return lhs * rhs;\n";
+    break;
+  }
   os << "}\n\n";
-  return llvm::Error::success();
+
+  os << "static inline void " << getScalarEmitCStoreCallee(family) << "("
+     << scalarCType << " *out, " << scalarCType << " value) {\n";
+  os << "  *out = value;\n";
+  os << "}\n\n";
+}
+
+llvm::Error printMicrokernelFunction(llvm::raw_ostream &os,
+                                     llvm::StringRef functionName,
+                                     const TCRVEmitCLowerableRoute &route) {
+  tianchenrv::conversion::emitc::TCRVEmitCSourceRenderOptions options;
+  options.functionName = functionName.str();
+  options.loopIndexName = "index";
+  options.requireInterfaceBackedCompute = true;
+  return renderTCRVEmitCLowerableRouteAsCFunction(route, os, options);
 }
 
 void printMicrokernelHeader(const ScalarMicrokernelRecord &record,
@@ -2206,8 +2203,8 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
   os << "/* Scope: library-style C source for exactly one "
      << record.family->microkernelOpName << ". */\n";
   if (emitcRoute)
-    os << "/* Route: typed scalar family op lowers through the common EmitC "
-          "runtime route before C/C++ source emission. */\n";
+    os << "/* Route: typed scalar family op builds the common EmitC lowerable "
+          "route that renders the production C function body. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   os << "/* This is a bounded fallback library artifact; it is not "
@@ -2215,12 +2212,15 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
   os << "#include <stddef.h>\n";
   os << "#include <stdint.h>\n\n";
 
+  if (!emitcRoute)
+    return makeModuleMicrokernelError(
+        "scalar microkernel source export requires a typed scalar EmitC "
+        "lowerable route before production C source rendering");
+  printScalarRuntimeHelperDefinitions(os, *record.family);
   printRecordComment(os, record, functionName,
                      emitcRoute ? &*emitcRoute : nullptr);
   if (llvm::Error error =
-          printMicrokernelFunction(os, functionName,
-                                   record.runtimeABIParameters,
-                                   *record.family))
+          printMicrokernelFunction(os, functionName, *emitcRoute))
     return error;
   return llvm::Error::success();
 }

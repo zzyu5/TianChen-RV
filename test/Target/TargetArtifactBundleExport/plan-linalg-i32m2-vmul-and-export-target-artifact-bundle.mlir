@@ -151,7 +151,7 @@ module @plan_linalg_i32m2_vmul_bundle_input {
 // SOURCE: __riscv_vle32_v_i32m2
 // SOURCE: __riscv_vmul_vv_i32m2
 // SOURCE: __riscv_vse32_v_i32m2
-// SOURCE: out[index] = lhs[index] * rhs[index];
+// SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
 // SOURCE: void tcrv_dispatch_i32_vmul_frontend_bundle_i32m2_vmul
 
 // HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VMUL_DISPATCH_FRONTEND_BUNDLE_I32M2_VMUL_H

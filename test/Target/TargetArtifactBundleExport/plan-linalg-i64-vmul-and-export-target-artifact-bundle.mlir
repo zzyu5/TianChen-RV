@@ -131,7 +131,7 @@ module @plan_linalg_i64_vmul_bundle_input {
 // SOURCE: __riscv_vmul_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
 // SOURCE: void tcrv_scalar_i64_vmul_microkernel_frontend_bundle_i64_vmul_scalar_fallback_first_slice
-// SOURCE: out[index] = lhs[index] * rhs[index];
+// SOURCE: int64_t product = tcrv_scalar_i64_mul(lhs[index], rhs[index]);
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i64_vmul_frontend_bundle_i64_vmul
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i64_vmul_microkernel_frontend_bundle_i64_vmul_rvv_first_slice(lhs, rhs, out, n);

@@ -197,7 +197,7 @@ module {
 // SOURCE: __riscv_vadd_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
 // SOURCE: void tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
-// SOURCE: out[index] = lhs[index] + rhs[index];
+// SOURCE: int64_t sum = tcrv_scalar_i64_add(lhs[index], rhs[index]);
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i64_vadd_frontend_i64_vadd
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(lhs, rhs, out, n);

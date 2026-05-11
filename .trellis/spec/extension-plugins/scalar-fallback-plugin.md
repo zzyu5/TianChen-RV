@@ -260,12 +260,17 @@ artifact kind: runtime-callable-c-source
 
 The exported source must contain a deterministic callable C function with
 family-derived pointer types (`int32_t` for i32 families, `int64_t` for i64
-families) and `size_t n`. The add route must emit
-`out[index] = lhs[index] + rhs[index]`; the subtract route must emit
-`out[index] = lhs[index] - rhs[index]`; the multiply route must emit
-`out[index] = lhs[index] * rhs[index]`; and no route may inherit stale route,
-C type, or ABI metadata from another family. The callable ABI
-plan must be built from direct
+families) and `size_t n`. The production function body must be rendered from
+the typed scalar microkernel op's common `TCRVEmitCLowerableRoute`: the route
+carries the ABI value mappings, runtime-element-count loop boundary, and
+ordered `emitc.call_opaque` compute/store steps. Scalar target code may emit
+bounded target-owned inline helper definitions for callees such as
+`tcrv_scalar_i32_add`, `tcrv_scalar_i32_sub`, `tcrv_scalar_i32_mul`, and their
+i64 counterparts, but the callable body must invoke the route-authored callee
+sequence rather than reconstructing `out[index] = lhs[index] <op> rhs[index]`
+from descriptor or family metadata. No route may inherit stale route, C type,
+or ABI metadata from another family. The callable ABI plan must be built from
+direct
 `tcrv.exec.mem_window` IR for lhs/rhs/out buffer roles plus direct
 `tcrv.exec.runtime_param` IR for runtime `n`; supported emission-plan
 `runtime_abi_parameters` entries are validated mirrors of that IR-backed plan.

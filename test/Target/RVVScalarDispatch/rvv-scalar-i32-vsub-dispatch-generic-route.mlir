@@ -136,7 +136,7 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice
 // SOURCE: __riscv_vsub_vv_i32m1
 // SOURCE: void tcrv_scalar_i32_vsub_microkernel_frontend_dispatch_i32_vsub_scalar_fallback_first_slice
-// SOURCE: out[index] = lhs[index] - rhs[index];
+// SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice(lhs, rhs, out, n);
@@ -151,7 +151,7 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 
 // HARNESS: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 // HARNESS: __riscv_vsub_vv_i32m1
-// HARNESS: out[index] = lhs[index] - rhs[index];
+// HARNESS: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 // HARNESS: if (out[index] != lhs[index] - rhs[index])
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(7, 0)

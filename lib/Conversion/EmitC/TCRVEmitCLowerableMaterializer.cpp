@@ -383,30 +383,32 @@ public:
 
     llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
         route.getCallOpaqueSteps();
-    if (steps.size() < 2)
-      return makeSourceRendererError(
-          route.getRouteID(),
-          "requires a runtime-avl-to-vl step followed by at least one "
-          "body call_opaque step");
-
-    const TCRVEmitCCallOpaqueStep &firstStep = steps.front();
-    if (firstStep.sourceOp.role != "runtime-avl-to-vl" || !firstStep.result)
-      return makeSourceRendererError(
-          route.getRouteID(),
-          "first call_opaque step must map runtime AVL to a VL result before "
-          "bounded-loop C source rendering");
-    if (firstStep.result->cType != "size_t")
-      return makeSourceRendererError(
-          route.getRouteID(),
-          "runtime-avl-to-vl result must use C type 'size_t' before "
-          "bounded-loop C source rendering");
+    bool usesRuntimeVLLoop = isRuntimeAVLToVLStep(steps.front());
+    if (usesRuntimeVLLoop) {
+      if (steps.size() < 2)
+        return makeSourceRendererError(
+            route.getRouteID(),
+            "requires a runtime-avl-to-vl step followed by at least one "
+            "body call_opaque step");
+      if (llvm::Error error = validateRuntimeVLLoopHeader(steps.front()))
+        return error;
+    } else if (llvm::Error error = validateRuntimeElementCountLoopShape(steps)) {
+      return error;
+    }
 
     std::string rendered;
     llvm::raw_string_ostream renderedOS(rendered);
     printFunctionHeader(renderedOS);
-    renderedOS << "  size_t " << options.loopIndexName << " = 0;\n";
-    renderedOS << "  while (" << options.loopIndexName << " < "
-               << runtimeElementCountValueName << ") {\n";
+    if (usesRuntimeVLLoop) {
+      renderedOS << "  size_t " << options.loopIndexName << " = 0;\n";
+      renderedOS << "  while (" << options.loopIndexName << " < "
+                 << runtimeElementCountValueName << ") {\n";
+    } else {
+      renderedOS << "  for (size_t " << options.loopIndexName << " = 0; "
+                 << options.loopIndexName << " < "
+                 << runtimeElementCountValueName << "; ++"
+                 << options.loopIndexName << ") {\n";
+    }
 
     bool sawInterfaceBackedCompute = false;
     for (const TCRVEmitCCallOpaqueStep &step : steps) {
@@ -421,8 +423,9 @@ public:
           "requires at least one interface-backed compute call_opaque step "
           "before C source rendering");
 
-    renderedOS << "    " << options.loopIndexName << " += "
-               << firstStep.result->name << ";\n";
+    if (usesRuntimeVLLoop)
+      renderedOS << "    " << options.loopIndexName << " += "
+                 << steps.front().result->name << ";\n";
     renderedOS << "  }\n";
     renderedOS << "}\n\n";
     renderedOS.flush();
@@ -477,6 +480,43 @@ private:
           route.getRouteID(),
           "requires exactly one runtime-element-count ABI mapping before "
           "bounded-loop C source rendering");
+    return llvm::Error::success();
+  }
+
+  static bool isRuntimeAVLToVLStep(const TCRVEmitCCallOpaqueStep &step) {
+    return step.sourceOp.role == "runtime-avl-to-vl";
+  }
+
+  llvm::Error
+  validateRuntimeVLLoopHeader(const TCRVEmitCCallOpaqueStep &firstStep) const {
+    if (!firstStep.result)
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "first call_opaque step must map runtime AVL to a VL result before "
+          "bounded-loop C source rendering");
+    if (firstStep.result->cType != "size_t")
+      return makeSourceRendererError(
+          route.getRouteID(),
+          "runtime-avl-to-vl result must use C type 'size_t' before "
+          "bounded-loop C source rendering");
+    return llvm::Error::success();
+  }
+
+  llvm::Error validateRuntimeElementCountLoopShape(
+      llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps) const {
+    for (const TCRVEmitCCallOpaqueStep &step : steps) {
+      if (isRuntimeAVLToVLStep(step))
+        return makeSourceRendererError(
+            route.getRouteID(),
+            "runtime-element-count C source rendering cannot mix a "
+            "runtime-avl-to-vl call_opaque step into the scalar loop shape");
+      if (step.sourceOp.role != "compute" && step.result)
+        return makeSourceRendererError(
+            route.getRouteID(),
+            llvm::Twine("runtime-element-count C source rendering cannot "
+                        "materialize non-compute call_opaque result '") +
+                step.result->name + "'");
+    }
     return llvm::Error::success();
   }
 

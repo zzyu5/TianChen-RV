@@ -438,6 +438,31 @@ def arithmetic_intrinsic_for_family(
     return "__riscv_v" + str(family["intrinsic_op"]) + "_vv_" + vector_suffix
 
 
+def scalar_route_result_name(family: dict[str, str | Path]) -> str:
+    op = str(family["intrinsic_op"])
+    if op == "add":
+        return "sum"
+    if op == "sub":
+        return "difference"
+    if op == "mul":
+        return "product"
+    raise BridgeError(f"unsupported scalar route arithmetic op: {op}")
+
+
+def scalar_route_compute_snippet(family: dict[str, str | Path]) -> str:
+    dtype = str(family["dtype"])
+    op = str(family["intrinsic_op"])
+    c_type = str(family["scalar_c_type"])
+    result = scalar_route_result_name(family)
+    return f"{c_type} {result} = tcrv_scalar_{dtype}_{op}(lhs[index], rhs[index]);"
+
+
+def scalar_route_store_snippet(family: dict[str, str | Path]) -> str:
+    dtype = str(family["dtype"])
+    result = scalar_route_result_name(family)
+    return f"tcrv_scalar_{dtype}_store(&out[index], {result});"
+
+
 def load_intrinsic_for_suffix(vector_suffix: str) -> str:
     sew_bits = RVV_VECTOR_SHAPE_SPECS[vector_suffix]["sew_bits"]
     return "__riscv_vle" + str(sew_bits) + "_v_" + vector_suffix
@@ -1466,9 +1491,8 @@ def validate_library_dispatch_source(source: str) -> dict[str, Any]:
         "/* TianChen-RV RVV+scalar host runtime dispatch C export. */",
         "/* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */",
         *vector_config["required_intrinsics"],
-        "out[index] = lhs[index] "
-        + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
-        + " rhs[index];",
+        scalar_route_compute_snippet(ACTIVE_ARITHMETIC_FAMILY),
+        scalar_route_store_snippet(ACTIVE_ARITHMETIC_FAMILY),
         "void tcrv_dispatch_"
         + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
         + "_",
@@ -1519,9 +1543,8 @@ def validate_self_check_dispatch_source(source: str) -> dict[str, Any]:
         "runtime_counts=7,16",
         "int main(void)",
         SUCCESS_MARKER,
-        "out[index] = lhs[index] "
-        + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
-        + " rhs[index];",
+        scalar_route_compute_snippet(ACTIVE_ARITHMETIC_FAMILY),
+        scalar_route_store_snippet(ACTIVE_ARITHMETIC_FAMILY),
         "tcrv_dispatch_"
         + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
         + "_",
@@ -3701,13 +3724,15 @@ def run_self_test() -> None:
         family: dict[str, str | Path], shape_name: str, operator: str
     ) -> str:
         shape = sample_shape_payload(shape_name)
+        _ = operator
         return (
             "void f(void) {\n"
             f"  {setvl_intrinsic_for_suffix(str(shape['setvl_suffix']))};\n"
             f"  {load_intrinsic_for_suffix(str(shape['vector_suffix']))};\n"
             f"  {arithmetic_intrinsic_for_family(family, str(shape['vector_suffix']))};\n"
             f"  {store_intrinsic_for_suffix(str(shape['vector_suffix']))};\n"
-            f"  out[index] = lhs[index] {operator} rhs[index];\n"
+            f"  {scalar_route_compute_snippet(family)}\n"
+            f"  {scalar_route_store_snippet(family)}\n"
             "}"
         )
 

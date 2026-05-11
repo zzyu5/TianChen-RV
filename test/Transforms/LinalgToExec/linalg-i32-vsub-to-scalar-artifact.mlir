@@ -79,7 +79,7 @@ module {
 // PIPE-SAME: target = @scalar_fallback_first_slice
 
 // SOURCE: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vsub_microkernel. */
-// SOURCE: /* Route: typed scalar family op lowers through the common EmitC runtime route before C/C++ source emission. */
+// SOURCE: /* Route: typed scalar family op builds the common EmitC lowerable route that renders the production C function body. */
 // SOURCE: /* selected_kernel: @frontend_i32_vsub_scalar */
 // SOURCE: /* selected_variant: @scalar_fallback_first_slice */
 // SOURCE: /* executable_microkernel: tcrv_scalar.i32_vsub_microkernel */
@@ -89,4 +89,4 @@ module {
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: void tcrv_scalar_i32_vsub_microkernel_frontend_i32_vsub_scalar_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
 // SOURCE: for (size_t index = 0; index < n; ++index)
-// SOURCE: out[index] = lhs[index] - rhs[index];
+// SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);

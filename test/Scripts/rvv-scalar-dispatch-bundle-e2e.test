@@ -158,7 +158,7 @@
 # I64-VADD-FRONTDOOR-SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 # I64-VADD-FRONTDOOR-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-VADD-FRONTDOOR-SOURCE: __riscv_vadd_vv_i64m1
-# I64-VADD-FRONTDOOR-SOURCE: out[index] = lhs[index] + rhs[index];
+# I64-VADD-FRONTDOOR-SOURCE: int64_t sum = tcrv_scalar_i64_add(lhs[index], rhs[index]);
 # I64-VADD-FRONTDOOR-SOURCE: void tcrv_dispatch_i64_vadd_frontend_i64_vadd
 
 # I64-VADD-FRONTDOOR-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
@@ -250,7 +250,7 @@
 # VSUB-M2-SOURCE: __riscv_vle32_v_i32m2
 # VSUB-M2-SOURCE: __riscv_vsub_vv_i32m2
 # VSUB-M2-SOURCE: __riscv_vse32_v_i32m2
-# VSUB-M2-SOURCE: out[index] = lhs[index] - rhs[index];
+# VSUB-M2-SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
 # VSUB-M2-SOURCE: void tcrv_dispatch_i32_vsub_frontend_bundle_i32m2_vsub
 
 # VSUB-M2-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
@@ -324,7 +324,7 @@
 # I64-VSUB-SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 # I64-VSUB-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-VSUB-SOURCE: __riscv_vsub_vv_i64m1
-# I64-VSUB-SOURCE: out[index] = lhs[index] - rhs[index];
+# I64-VSUB-SOURCE: int64_t difference = tcrv_scalar_i64_sub(lhs[index], rhs[index]);
 # I64-VSUB-SOURCE: void tcrv_dispatch_i64_vsub_frontend_bundle_i64_vsub
 
 # I64-VSUB-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
@@ -415,7 +415,7 @@
 # VMUL-M2-SOURCE: __riscv_vle32_v_i32m2
 # VMUL-M2-SOURCE: __riscv_vmul_vv_i32m2
 # VMUL-M2-SOURCE: __riscv_vse32_v_i32m2
-# VMUL-M2-SOURCE: out[index] = lhs[index] * rhs[index];
+# VMUL-M2-SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
 # VMUL-M2-SOURCE: void tcrv_dispatch_i32_vmul_frontend_bundle_i32m2_vmul
 
 # VMUL-M2-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)
@@ -459,7 +459,7 @@
 # I64-VMUL-SOURCE: /* dispatch_runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 # I64-VMUL-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-VMUL-SOURCE: __riscv_vmul_vv_i64m1
-# I64-VMUL-SOURCE: out[index] = lhs[index] * rhs[index];
+# I64-VMUL-SOURCE: int64_t product = tcrv_scalar_i64_mul(lhs[index], rhs[index]);
 # I64-VMUL-SOURCE: void tcrv_dispatch_i64_vmul_frontend_bundle_i64_vmul
 
 # I64-VMUL-CALLER: static int run_dispatch_case(size_t runtime_n, int rvv_available)

@@ -269,6 +269,64 @@ TCRVEmitCLowerableRoute makeRouteWithNonAVLFirstStep() {
   return route;
 }
 
+void addStandardScalarABI(TCRVEmitCLowerableRoute &route,
+                          bool includeRuntimeElementCount = true) {
+  using tianchenrv::support::RuntimeABIParameter;
+  using tianchenrv::support::RuntimeABIParameterOwnership;
+  using tianchenrv::support::RuntimeABIParameterRole;
+
+  route.addABIValueMapping(
+      RuntimeABIParameter("lhs", "const int32_t *",
+                          RuntimeABIParameterRole::LHSInputBuffer,
+                          RuntimeABIParameterOwnership::TargetExportABIOwned),
+      "lhs");
+  route.addABIValueMapping(
+      RuntimeABIParameter("rhs", "const int32_t *",
+                          RuntimeABIParameterRole::RHSInputBuffer,
+                          RuntimeABIParameterOwnership::TargetExportABIOwned),
+      "rhs");
+  route.addABIValueMapping(
+      RuntimeABIParameter("out", "int32_t *",
+                          RuntimeABIParameterRole::OutputBuffer,
+                          RuntimeABIParameterOwnership::TargetExportABIOwned),
+      "out");
+  if (includeRuntimeElementCount)
+    route.addABIValueMapping(
+        RuntimeABIParameter(
+            "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
+            RuntimeABIParameterOwnership::TargetExportABIOwned),
+        "n");
+}
+
+TCRVEmitCLowerableRoute
+makeScalarElementLoopRoute(bool includeRuntimeElementCount = true) {
+  TCRVEmitCLowerableRoute route(
+      "tcrv-export-scalar-microkernel-c",
+      "typed-scalar-family-op-to-emitc-call-opaque");
+  route.addHeader("stddef.h");
+  route.addHeader("stdint.h");
+  route.addTypeMapping("i32", "int32_t");
+  addStandardScalarABI(route, includeRuntimeElementCount);
+
+  TCRVEmitCCallOpaqueStep arithmetic;
+  arithmetic.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "compute",
+                         kEmitCLowerableOpInterfaceName.str()};
+  arithmetic.callee = "tcrv_scalar_i32_add";
+  arithmetic.operands.push_back({"lhs[index]", "int32_t"});
+  arithmetic.operands.push_back({"rhs[index]", "int32_t"});
+  arithmetic.result = TCRVEmitCCallOpaqueResult{"sum", "int32_t"};
+  route.addCallOpaqueStep(std::move(arithmetic));
+
+  TCRVEmitCCallOpaqueStep store;
+  store.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "buffer-store",
+                    kEmitCLowerableOpInterfaceName.str()};
+  store.callee = "tcrv_scalar_i32_store";
+  store.operands.push_back({"&out[index]", "int32_t *"});
+  store.operands.push_back({"sum", "int32_t"});
+  route.addCallOpaqueStep(std::move(store));
+  return route;
+}
+
 TCRVEmitCMaterializationOptions
 makeMaterializerOptions(llvm::StringRef functionName) {
   TCRVEmitCMaterializationOptions options;
@@ -407,6 +465,48 @@ int expectRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
   if (int result =
           expect(llvm::StringRef(source).contains("offset += vl;"),
                  "route-rendered source advances by route VL result"))
+    return result;
+  return 0;
+}
+
+int expectScalarRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
+                                    llvm::StringRef functionName) {
+  TCRVEmitCSourceRenderOptions options;
+  options.functionName = functionName.str();
+  options.loopIndexName = "index";
+  std::string source;
+  llvm::raw_string_ostream os(source);
+  if (llvm::Error error =
+          renderTCRVEmitCLowerableRouteAsCFunction(route, os, options))
+    return fail(llvm::Twine("expected scalar route to render C source: ") +
+                llvm::toString(std::move(error)));
+  os.flush();
+
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("void ") + functionName + "(").str()),
+                 "scalar route-rendered source contains function signature"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     "for (size_t index = 0; index < n; ++index)"),
+                 "scalar route-rendered source uses runtime element-count "
+                 "loop"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     "int32_t sum = tcrv_scalar_i32_add(lhs[index], "
+                     "rhs[index]);"),
+                 "scalar route-rendered source emits compute call from route"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     "tcrv_scalar_i32_store(&out[index], sum);"),
+                 "scalar route-rendered source emits store call from route"))
+    return result;
+  if (int result = expect(!llvm::StringRef(source).contains("offset += "),
+                          "scalar route-rendered source does not use a VL "
+                          "increment"))
     return result;
   return 0;
 }
@@ -551,6 +651,20 @@ int main() {
                                     "__riscv_vmul_vv_i32m1", "product_vec"))
     return result;
 
+  TCRVEmitCLowerableRoute scalarRoute = makeScalarElementLoopRoute();
+  if (int result =
+          expect(scalarRoute.getCallOpaqueSteps().size() == 2,
+                 "scalar route preserves compute and store call_opaque steps"))
+    return result;
+  if (llvm::Error error = verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+          scalarRoute, "tcrv_emitc_scalar_test_add", {"index"}))
+    return fail(llvm::Twine("expected scalar route to materialize: ") +
+                llvm::toString(std::move(error)));
+  if (int result =
+          expectScalarRouteRendersCSource(scalarRoute,
+                                          "tcrv_emitc_scalar_test_add"))
+    return result;
+
   if (int result = expectMaterializationFails(
           makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
                                        "__riscv_vadd_vv_i32m1", std::nullopt),
@@ -584,8 +698,13 @@ int main() {
                                        "lhs", "vl", "lhs", ""),
           "requires generated op-interface provenance"))
     return result;
-  if (int result = expectRouteRenderingFails(makeRouteWithNonAVLFirstStep(),
-                                             "first call_opaque step"))
+  if (int result =
+          expectRouteRenderingFails(makeRouteWithNonAVLFirstStep(),
+                                    "non-compute call_opaque result"))
+    return result;
+  if (int result = expectRouteRenderingFails(
+          makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/false),
+          "requires exactly one runtime-element-count ABI mapping"))
     return result;
   if (int result = expectRouteRenderingFails(
           makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",

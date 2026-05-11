@@ -99,6 +99,62 @@ evidence facts, while Python remains runner/evidence orchestration only.
 - None - task complete
 
 
+## Session 33: Scalar source export common EmitC route authority
+
+**Date**: 2026-05-12
+**Task**: scalar-emitc-production-source-export
+**Branch**: `main`
+
+### Summary
+
+Migrated the bounded scalar fallback runtime-callable source exporter so the
+production C function body is rendered from the typed scalar
+`TCRVEmitCLowerableRoute`, not from the old scalar-only direct body printer
+using `family.cOperator`.
+
+### Main Changes
+
+- Extended common `renderTCRVEmitCLowerableRouteAsCFunction` support to handle
+  a generic runtime-element-count scalar loop shape in addition to the existing
+  runtime-AVL-to-VL loop shape.
+- Rewired scalar source export to build/verify the typed
+  `tcrv_scalar.*_microkernel` route and render the callable body from ordered
+  `call_opaque` compute/store steps.
+- Removed descriptor/family-operator body authority from the scalar production
+  function body. Scalar target-owned inline helper definitions remain bounded
+  runtime helper code; the callable body invokes route-authored helper callees.
+- Updated scalar source, dispatch, linalg, bundle, e2e-runner, and common
+  EmitC tests to check route body authority and route compute/store calls.
+- Updated scalar fallback/testing specs to match the new route-authored scalar
+  source contract.
+
+### Testing
+
+- `git diff --check`
+- Focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-emitc-lowerable-interface-test`,
+  `tianchenrv-target-artifact-export-test`, and
+  `tianchenrv-scalar-extension-plugin-test`
+- C++ tests: EmitC lowerable interface, target artifact export, and scalar
+  extension plugin
+- Focused lit: scalar source/header/object routes, scalar dispatch/linalg
+  routes, target artifact bundle routes, and rvv-scalar e2e runner routes
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Full check: `cmake --build artifacts/tmp/tianchenrv-build --target
+  check-tianchenrv -j2`, 206/206 passed
+- No `ssh rvv` run; no runtime, correctness, throughput, latency, or
+  performance claim was made.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 31: Quarantine RVV descriptor-only production export
 
 **Date**: 2026-05-12
