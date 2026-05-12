@@ -2,6 +2,7 @@
 #define TIANCHENRV_TARGET_RVV_RVVMICROKERNEL_H
 
 #include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -73,6 +74,12 @@ llvm::Error exportRVVMicrokernelCForFamily(
     llvm::raw_ostream &os);
 
 llvm::Error validateRVVMicrokernelSourceAuthority(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID);
+
+llvm::Expected<RVVBinarySelectedConfigContract>
+resolveRVVMicrokernelSelectedConfigContractAuthority(
     mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID);

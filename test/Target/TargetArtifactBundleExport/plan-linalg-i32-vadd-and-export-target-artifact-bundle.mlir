@@ -178,6 +178,18 @@ module @plan_linalg_i32_vadd_bundle_input {
 // INDEX: selected_plan_metadata[13]:
 // INDEX: name: "tcrv_rvv.base_i32_m1_lanes"
 // INDEX: value: "4"
+// INDEX: name: "tcrv_rvv.dispatch_contract_runtime_element_count_c_name"
+// INDEX-NEXT: value: "n"
+// INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
+// INDEX: name: "tcrv_rvv.dispatch_contract_selected_vector_config"
+// INDEX-NEXT: value: "shape=i32m1,sew=32,lmul=m1,tail_policy=agnostic,mask_policy=agnostic,vector_type=vint32m1_t,vector_suffix=i32m1,setvl_suffix=e32m1"
+// INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
+// INDEX: name: "tcrv_rvv.dispatch_contract_selected_role"
+// INDEX-NEXT: value: "dispatch case"
+// INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
+// INDEX: name: "tcrv_rvv.dispatch_contract_descriptor_element_count"
+// INDEX-NEXT: value: "16"
+// INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
@@ -205,6 +217,11 @@ module @plan_linalg_i32_vadd_bundle_input {
 // SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // SOURCE: /* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
 // SOURCE: /* selected_kernel: @frontend_bundle_i32_vadd */
+// SOURCE: /* selected_binary_config: dtype=i32, family=i32-vadd
+// SOURCE-SAME: runtime_element_count_c_name=n
+// SOURCE-SAME: dispatch_availability_c_name=rvv_available
+// SOURCE-SAME: descriptor_element_count=16
+// SOURCE-SAME: selected_role=dispatch case */
 // SOURCE: /* rvv_selected_variant: @rvv_first_slice */
 // SOURCE: /* rvv_selected_role: dispatch case */
 // SOURCE: /* scalar_selected_variant: @scalar_fallback_first_slice */

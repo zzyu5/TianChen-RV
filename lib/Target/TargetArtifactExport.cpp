@@ -1471,6 +1471,9 @@ llvm::Error appendCompositeBundleRecords(
         record.componentGroup = std::move(bundleMetadata->componentGroup);
       if (!bundleMetadata->externalABIName.empty())
         record.externalABIName = std::move(bundleMetadata->externalABIName);
+      record.selectedPlanMetadata.append(
+          bundleMetadata->selectedPlanMetadata.begin(),
+          bundleMetadata->selectedPlanMetadata.end());
     }
     if (TargetArtifactCompositeRuntimeABIParametersFn parametersFn =
             exporter.getRuntimeABIParametersFn()) {

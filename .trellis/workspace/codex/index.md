@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 47
+- **Total Sessions**: 48
 - **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1371 | Active |
+| `journal-4.md` | ~1507 | Active |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 48 | 2026-05-13 | RVV dispatch AVL/VL contract consumption | - | `main` |
 | 47 | 2026-05-13 | RVV exact-family runtime ABI hardware proof | - | `main` |
 | 46 | 2026-05-12 | Direct artifact route planning authority | - | `main` |
 | 45 | 2026-05-12 | Direct target translate route artifact coherence | this commit | `main` |

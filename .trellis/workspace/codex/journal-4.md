@@ -1474,3 +1474,34 @@ correctness claim was made.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 48: RVV dispatch AVL/VL contract consumption
+
+**Date**: 2026-05-13
+**Task**: RVV dispatch AVL/VL contract consumption
+**Branch**: `main`
+
+### Summary
+
+Consumed the direct RVV selected-config/runtime AVL contract in RVV+scalar dispatch source/header/object and bundle metadata; added fail-closed stale runtime-count coverage and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

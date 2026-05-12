@@ -1,5 +1,6 @@
 // RUN: sed -e '/abi_role = "runtime-element-count"/,/purpose = "runtime-abi-scalar"/s/c_name = "n"/c_name = "len"/' -e '/abi_role = "dispatch-availability-guard"/,/purpose = "runtime-abi-scalar"/s/c_name = "rvv_available"/c_name = "rvv_ready"/' %S/rvv-scalar-i32-vadd-dispatch-c.mlir | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c | FileCheck %s --check-prefix=ROLE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/s/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "guard", c_type = "int", ownership = "target-export-abi-owned", role = "dispatch-availability-guard"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/value = "n"}], severity = "info", status = "supported", target = @rvv_first_slice}/value = "len"}], severity = "info", status = "supported", target = @rvv_first_slice}/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-RVV-CONTRACT --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/c_name = "rhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "rhs-input-buffer"/s/c_name = "rhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "rhs-input-buffer"/c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=DUPLICATE --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/s/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "n", c_type = "long", ownership = "target-export-abi-owned", role = "runtime-element-count"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=WRONG-TYPE --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %S/rvv-scalar-i32-vadd-dispatch-c.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/c_name = "lhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "lhs-input-buffer"/s/c_name = "lhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "lhs-input-buffer"/c_name = "lhs", c_type = "const int32_t *", ownership = "ir-modeled", role = "lhs-input-buffer"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=WRONG-OWNERSHIP --implicit-check-not="void tcrv_dispatch_i32_vadd"
@@ -8,6 +9,11 @@
 // RUN: sed 's/tcrv.exec.dispatch {/tcrv.exec.dispatch attributes { tcrv_rvv_scalar.dispatch_runtime_abi_parameters = [{c_name = "rvv_ready", c_type = "int", ownership = "target-export-abi-owned", role = "dispatch-availability-guard"}] } {/' %S/rvv-scalar-i32-vadd-dispatch-c.mlir | tcrv-opt - --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=DETACHED --implicit-check-not="void tcrv_dispatch_i32_vadd"
 
 // ROLE: /* Runtime guard: explicit host-provided rvv_ready parameter; no automatic hardware probe is generated. */
+// ROLE: /* selected_binary_config: dtype=i32, family=i32-vadd
+// ROLE-SAME: runtime_element_count_c_name=len
+// ROLE-SAME: dispatch_availability_c_name=rvv_ready
+// ROLE-SAME: descriptor_element_count=16
+// ROLE-SAME: selected_role=dispatch case */
 // ROLE: /* rvv_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // ROLE: /* rvv_runtime_abi_parameter[3]: c_name=len, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // ROLE: /* scalar_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -43,6 +49,10 @@
 // ROLE-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
 // MISSING: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'
+
+// STALE-RVV-CONTRACT: target artifact candidate validation failed
+// STALE-RVV-CONTRACT-SAME: selected_plan_metadata 'tcrv_rvv.runtime_element_count_c_name'
+// STALE-RVV-CONTRACT-SAME: must be 'n'
 
 // DUPLICATE: duplicate runtime ABI parameter role 'lhs-input-buffer'
 

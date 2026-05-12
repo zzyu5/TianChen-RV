@@ -206,6 +206,7 @@ struct TargetArtifactCompositeBundleMetadata {
   std::string runtimeABIName;
   std::string componentGroup;
   std::string externalABIName;
+  llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
 };
 
 using TargetArtifactCompositeBundleMetadataFn =

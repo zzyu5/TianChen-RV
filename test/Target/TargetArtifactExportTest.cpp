@@ -4882,6 +4882,40 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
     return false;
   }
 
+  auto findDispatchContractMetadata =
+      [&](llvm::StringRef name) -> const SelectedPlanMetadataEntry * {
+    for (const SelectedPlanMetadataEntry &entry :
+         metadata->selectedPlanMetadata)
+      if (entry.name == name)
+        return &entry;
+    return nullptr;
+  };
+  const SelectedPlanMetadataEntry *runtimeCount =
+      findDispatchContractMetadata(
+          "tcrv_rvv.dispatch_contract_runtime_element_count_c_name");
+  const SelectedPlanMetadataEntry *vectorConfig =
+      findDispatchContractMetadata(
+          "tcrv_rvv.dispatch_contract_selected_vector_config");
+  const SelectedPlanMetadataEntry *selectedRole =
+      findDispatchContractMetadata(
+          "tcrv_rvv.dispatch_contract_selected_role");
+  const SelectedPlanMetadataEntry *descriptorCount =
+      findDispatchContractMetadata(
+          "tcrv_rvv.dispatch_contract_descriptor_element_count");
+  if (!runtimeCount || runtimeCount->value != "n" ||
+      runtimeCount->role != "rvv-dispatch-selected-config-contract" ||
+      !vectorConfig || !llvm::StringRef(vectorConfig->value)
+                            .contains("shape=i32m1,sew=32,lmul=m1") ||
+      vectorConfig->role != "rvv-dispatch-selected-config-contract" ||
+      !selectedRole || selectedRole->value != "dispatch case" ||
+      selectedRole->role != "rvv-dispatch-selected-config-contract" ||
+      !descriptorCount || descriptorCount->value != "16" ||
+      descriptorCount->role != "rvv-dispatch-selected-config-contract") {
+    llvm::errs() << "dispatch bundle metadata did not preserve consumed RVV "
+                    "selected-config/runtime AVL contract fields\n";
+    return false;
+  }
+
   llvm::SmallVector<TargetArtifactCandidate, 2> staleCandidates = candidates;
   if (!setSelectedPlanMetadataValue(
           staleCandidates[0],

@@ -2269,6 +2269,14 @@ mismatched selected-plan metadata fail closed before bundle export. Source,
 header, and object routes must remain separate records. Composite dispatch
 records may be attached to the selected dispatch surface and must preserve the
 component selected variants/roles rather than moving RVV/scalar branch
-semantics into `tcrv.exec` or generic manifest code. Unsupported or
+semantics into `tcrv.exec` or generic manifest code. For RVV+scalar dispatch
+records, the target-owned dispatch exporter must consume the validated direct
+RVV component selected-config/runtime AVL contract before deriving dispatch
+source/header/object or bundle records. The composite bundle record must carry
+dispatch-specific selected-plan metadata that exposes the consumed RVV
+component contract fields: runtime element-count C name, selected vector
+config, selected dispatch role, and descriptor-local element count as bounded
+component capacity metadata only. Missing or mismatched direct RVV selected
+config contract fields must fail before bundle output. Unsupported or
 metadata-only selected paths must omit target artifact records instead of
 fabricating route data.

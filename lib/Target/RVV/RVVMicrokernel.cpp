@@ -4151,6 +4151,19 @@ llvm::Error validateRVVMicrokernelSourceAuthority(
     mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID) {
+  llvm::Expected<RVVBinarySelectedConfigContract> contract =
+      resolveRVVMicrokernelSelectedConfigContractAuthority(
+          module, family, selectedVariant, role, routeID);
+  if (!contract)
+    return contract.takeError();
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVBinarySelectedConfigContract>
+resolveRVVMicrokernelSelectedConfigContractAuthority(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID) {
   llvm::Expected<RVVMicrokernelRecord> record =
       buildModuleRecordForRVVBinaryFamily(module, family, routeID);
   if (!record)
@@ -4175,7 +4188,7 @@ llvm::Error validateRVVMicrokernelSourceAuthority(
         routeID + "' requires " + family.microkernelOpName +
         " but typed RVV record is " +
         record->descriptor.getRVVMicrokernelOpName());
-  return llvm::Error::success();
+  return record->selectedConfigContract;
 }
 
 llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
