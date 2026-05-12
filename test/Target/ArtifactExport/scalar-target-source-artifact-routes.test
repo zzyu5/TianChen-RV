@@ -4,7 +4,7 @@
 
 # SCALAR-POS: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-POS: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vadd_microkernel. */
-# SCALAR-POS: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by MLIR EmitC / MLIR Cpp source authority. */
+# SCALAR-POS: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by the common lower-to-EmitC source-authority boundary. */
 # SCALAR-POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # SCALAR-POS: #include <stddef.h>
 # SCALAR-POS: #include <stdint.h>
@@ -27,6 +27,7 @@
 # SCALAR-POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # SCALAR-POS: /* runtime_callable_abi: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
 # SCALAR-POS: /* emitc_route: tcrv_scalar.i32_vadd_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
+# SCALAR-POS: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # SCALAR-POS: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
 # SCALAR-POS: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 # SCALAR-POS: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */

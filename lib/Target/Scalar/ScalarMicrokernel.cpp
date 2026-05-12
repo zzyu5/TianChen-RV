@@ -1,8 +1,8 @@
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVLowerToEmitC.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
@@ -48,10 +48,12 @@ using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::TCRVEmitCSourceAuthorityOptions;
-using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::
-    emitTCRVEmitCLowerableRouteAsCppSource;
+    TCRVLowerToEmitCSourceOptions;
+using tianchenrv::conversion::emitc::
+    TCRVLowerToEmitCSourceResult;
+using tianchenrv::conversion::emitc::
+    lowerTCRVEmitCLowerableToEmitCSource;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -1859,10 +1861,15 @@ private:
   const ScalarMicrokernelRecord &record;
 };
 
-llvm::Expected<TCRVEmitCLowerableRoute>
-buildScalarBinaryEmitCRoute(const ScalarMicrokernelRecord &record) {
+llvm::Expected<TCRVLowerToEmitCSourceResult>
+lowerScalarBinaryToEmitCSource(const ScalarMicrokernelRecord &record,
+                               llvm::StringRef functionName) {
   ScalarBinaryEmitCLowerable lowerable(record);
-  return buildTCRVEmitCLowerableRoute(lowerable);
+  TCRVLowerToEmitCSourceOptions options;
+  options.sourceAuthorityOptions.functionName = functionName.str();
+  options.sourceAuthorityOptions.loopIndexName = "index";
+  options.sourceAuthorityOptions.requireInterfaceBackedCompute = true;
+  return lowerTCRVEmitCLowerableToEmitCSource(lowerable, options);
 }
 
 std::string
@@ -1935,6 +1942,8 @@ void printScalarEmitCRouteMetadata(llvm::raw_ostream &os,
   os << "/* emitc_route: " << sourceOp << " -> "
         "emitc.call_opaque -> scalar runtime C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
+  os << "/* emitc_common_lower_to_emitc_boundary: "
+        "TCRVLowerToEmitCSourceAuthority */\n";
   os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
         "emitc.include, emitc.func, emitc.if, emitc.call_opaque, and "
         "emitc.call before MLIR Cpp emitter production source output */\n";
@@ -2058,16 +2067,6 @@ void printScalarRuntimeHelperDefinitions(
   os << "}\n\n";
 }
 
-llvm::Error printMicrokernelFunction(llvm::raw_ostream &os,
-                                     llvm::StringRef functionName,
-                                     const TCRVEmitCLowerableRoute &route) {
-  TCRVEmitCSourceAuthorityOptions options;
-  options.functionName = functionName.str();
-  options.loopIndexName = "index";
-  options.requireInterfaceBackedCompute = true;
-  return emitTCRVEmitCLowerableRouteAsCppSource(route, os, options);
-}
-
 void printMicrokernelHeader(const ScalarMicrokernelRecord &record,
                             llvm::raw_ostream &os) {
   std::string includeGuard = makeMicrokernelHeaderIncludeGuard(record);
@@ -2093,21 +2092,18 @@ void printMicrokernelHeader(const ScalarMicrokernelRecord &record,
 llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
                                    llvm::raw_ostream &os) {
   std::string functionName = makeMicrokernelFunctionName(record);
-  std::optional<TCRVEmitCLowerableRoute> emitcRoute;
-  if (isScalarEmitCLowerableFamily(*record.family)) {
-    llvm::Expected<TCRVEmitCLowerableRoute> route =
-        buildScalarBinaryEmitCRoute(record);
-    if (!route)
-      return route.takeError();
-    emitcRoute = std::move(*route);
-  }
+  llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
+      lowerScalarBinaryToEmitCSource(record, functionName);
+  if (!loweredSource)
+    return loweredSource.takeError();
+  const TCRVEmitCLowerableRoute &emitcRoute = loweredSource->getRoute();
 
   os << "/* TianChen-RV scalar runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "
      << record.family->microkernelOpName << ". */\n";
-  if (emitcRoute)
-    os << "/* Route: typed scalar family op builds the common EmitC lowerable "
-          "route emitted by MLIR EmitC / MLIR Cpp source authority. */\n";
+  os << "/* Route: typed scalar family op builds the common EmitC lowerable "
+        "route emitted by the common lower-to-EmitC source-authority "
+        "boundary. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   os << "/* This is a bounded fallback library artifact; it is not "
@@ -2115,10 +2111,6 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
   os << "#include <stddef.h>\n";
   os << "#include <stdint.h>\n\n";
 
-  if (!emitcRoute)
-    return makeModuleMicrokernelError(
-        "scalar microkernel source export requires a typed scalar EmitC "
-        "lowerable route before production C source rendering");
   llvm::Expected<std::string> scalarElementCType =
       deriveScalarElementCTypeFromCallableABI(
           record.runtimeABIParameters, "scalar runtime helper emission");
@@ -2126,11 +2118,8 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
     return scalarElementCType.takeError();
   printScalarRuntimeHelperDefinitions(os, *record.family,
                                       *scalarElementCType);
-  printRecordComment(os, record, functionName,
-                     emitcRoute ? &*emitcRoute : nullptr);
-  if (llvm::Error error =
-          printMicrokernelFunction(os, functionName, *emitcRoute))
-    return error;
+  printRecordComment(os, record, functionName, &emitcRoute);
+  os << loweredSource->getSource();
   return llvm::Error::success();
 }
 

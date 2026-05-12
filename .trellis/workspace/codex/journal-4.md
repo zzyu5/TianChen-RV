@@ -1056,3 +1056,57 @@ made.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 42: Common extension lower-to-EmitC source boundary
+
+**Date**: 2026-05-12
+**Task**: Common Extension Interface + Lower-To-EmitC Pass Owner
+**Branch**: `main`
+
+### Summary
+
+Added a common conversion/EmitC source-authority API and rewired scalar
+fallback production source export through it. Scalar target code still owns the
+family route mapping, callee names, ABI mapping, and validation, but the
+route-to-EmitC-to-C++ source authority step now goes through the shared
+conversion boundary.
+
+### Main Changes
+
+- Added `TCRVLowerToEmitCSourceResult`,
+  `TCRVLowerToEmitCSourceOptions`, and
+  `lowerTCRVEmitCLowerableToEmitCSource` in the conversion/EmitC library.
+- The new API builds a verified `TCRVEmitCLowerableRoute` from
+  `TCRVEmitCLowerableInterface`, emits through MLIR EmitC /
+  `mlir::emitc::translateToCpp`, and fails if the emitted source lacks
+  `tcrv_emitc.source_authority=mlir_emitc_cpp_emitter`.
+- Rewired scalar runtime-callable source export to call the common boundary
+  for production/default scalar source routes instead of calling the
+  source-authority materializer directly from target-local code.
+- Added C++ coverage for positive common-boundary lowering and fail-closed
+  missing op-interface provenance / bad route verification.
+- Updated scalar artifact and frontend lit expectations to assert the common
+  lower-to-EmitC boundary marker.
+
+### Testing
+
+- `cmake --build build --target TianChenRVConversionEmitC tianchenrv-emitc-lowerable-interface-test TianChenRVScalarTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-emitc-lowerable-interface-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'linalg-i32-vmul-to-scalar-artifact|linalg-i32-vsub-to-scalar-artifact|scalar-target-source-artifact-routes|scalar-target-vmul-source-artifact-routes|target-source-artifact-routes'`
+  with 5/5 selected tests passed.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-common-extension-lower-to-emitc-pass-owner`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-12-common-extension-lower-to-emitc-pass-owner`
+- `cmake --build build --target check-tianchenrv -j2`, 210/210 passed.
+
+### Status
+
+[OK] Completed. No `ssh rvv` runtime, correctness, or performance claim was
+made.
+
+### Next Steps
+
+- None - task complete

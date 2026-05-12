@@ -4,7 +4,7 @@
 
 # SCALAR-VMUL: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-VMUL: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vmul_microkernel. */
-# SCALAR-VMUL: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by MLIR EmitC / MLIR Cpp source authority. */
+# SCALAR-VMUL: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by the common lower-to-EmitC source-authority boundary. */
 # SCALAR-VMUL: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # SCALAR-VMUL: /* This is a bounded fallback library artifact; it is not generic lowering, runtime integration, or performance evidence. */
 # SCALAR-VMUL: #include <stddef.h>
@@ -18,6 +18,7 @@
 # SCALAR-VMUL: /* runtime_abi_name: scalar-i32-vmul-runtime-callable-c-function.v1 */
 # SCALAR-VMUL: /* runtime_glue_role: runtime-callable-i32-vmul-fallback-function */
 # SCALAR-VMUL: /* emitc_route: tcrv_scalar.i32_vmul_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
+# SCALAR-VMUL: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # SCALAR-VMUL: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 # SCALAR-VMUL: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 # SCALAR-VMUL: /* emitc_route_id: tcrv-export-scalar-i32-vmul-microkernel-c, route_kind=typed-scalar-family-op-to-emitc-call-opaque */

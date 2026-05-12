@@ -1,6 +1,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVLowerToEmitC.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -172,6 +173,20 @@ public:
     route.addCallOpaqueStep(std::move(add));
     return route;
   }
+};
+
+class RouteBackedLowerable final : public TCRVEmitCLowerableInterface {
+public:
+  explicit RouteBackedLowerable(TCRVEmitCLowerableRoute route)
+      : route(std::move(route)) {}
+
+  llvm::Expected<TCRVEmitCLowerableRoute>
+  buildEmitCLowerableRoute() const override {
+    return route;
+  }
+
+private:
+  TCRVEmitCLowerableRoute route;
 };
 
 void addStandardABI(TCRVEmitCLowerableRoute &route,
@@ -563,6 +578,66 @@ int expectRouteSourceAuthorityFails(const TCRVEmitCLowerableRoute &route,
                     expectedDiagnostic + "'");
 }
 
+int expectLowerableLowersThroughCommonSourceAuthority(
+    const TCRVEmitCLowerableInterface &lowerable, llvm::StringRef functionName,
+    llvm::StringRef expectedCallee, llvm::StringRef expectedSourceOp,
+    llvm::StringRef loopIndexName = "offset") {
+  TCRVLowerToEmitCSourceOptions options;
+  options.sourceAuthorityOptions.functionName = functionName.str();
+  options.sourceAuthorityOptions.loopIndexName = loopIndexName.str();
+  options.sourceAuthorityOptions.requireInterfaceBackedCompute = true;
+
+  llvm::Expected<TCRVLowerToEmitCSourceResult> lowered =
+      lowerTCRVEmitCLowerableToEmitCSource(lowerable, options);
+  if (!lowered)
+    return fail(llvm::Twine("expected common lower-to-EmitC source authority: ") +
+                llvm::toString(lowered.takeError()));
+
+  if (int result = expect(!lowered->getRoute().getRouteID().empty(),
+                          "common lower-to-EmitC boundary returns verified "
+                          "route metadata"))
+    return result;
+  if (int result =
+          expect(lowered->getSource().contains(
+                     "tcrv_emitc.source_authority=mlir_emitc_cpp_emitter"),
+                 "common lower-to-EmitC boundary preserves MLIR Cpp emitter "
+                 "authority"))
+    return result;
+  if (int result =
+          expect(lowered->getSource().contains(expectedCallee),
+                 "common lower-to-EmitC boundary emits route callee"))
+    return result;
+  if (int result =
+          expect(lowered->getSource().contains(
+                     (llvm::Twine("tcrv_emitc.source_op=") +
+                      expectedSourceOp)
+                         .str()),
+                 "common lower-to-EmitC boundary preserves source-op "
+                 "provenance"))
+    return result;
+  return 0;
+}
+
+int expectLowerableCommonSourceAuthorityFails(
+    const TCRVEmitCLowerableInterface &lowerable,
+    llvm::StringRef expectedDiagnostic,
+    llvm::StringRef loopIndexName = "offset") {
+  TCRVLowerToEmitCSourceOptions options;
+  options.sourceAuthorityOptions.functionName = "tcrv_emitc_common_bad_route";
+  options.sourceAuthorityOptions.loopIndexName = loopIndexName.str();
+  options.sourceAuthorityOptions.requireInterfaceBackedCompute = true;
+
+  llvm::Expected<TCRVLowerToEmitCSourceResult> lowered =
+      lowerTCRVEmitCLowerableToEmitCSource(lowerable, options);
+  if (lowered)
+    return fail("expected common lower-to-EmitC source authority to fail "
+                "closed");
+  std::string message = llvm::toString(lowered.takeError());
+  return expect(llvm::StringRef(message).contains(expectedDiagnostic),
+                llvm::Twine("common lower-to-EmitC diagnostic contains '") +
+                    expectedDiagnostic + "'");
+}
+
 int expectDispatchRouteEmitsCppSourceAuthority(
     const TCRVEmitCLowerableRoute &route, llvm::StringRef functionName) {
   TCRVEmitCSourceAuthorityOptions options;
@@ -771,6 +846,10 @@ int main() {
           *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1",
           "tcrv_rvv.i32_add"))
     return result;
+  if (int result = expectLowerableLowersThroughCommonSourceAuthority(
+          valid, "tcrv_emitc_common_test_add", "__riscv_vadd_vv_i32m1",
+          "tcrv_rvv.i32_add"))
+    return result;
 
   auto subLowerable = llvm::cast<TCRVEmitCLowerableOpInterface>(subOp);
   GeneratedRVVArithmeticLowerable validSub(
@@ -819,6 +898,12 @@ int main() {
           scalarRoute, "tcrv_emitc_scalar_test_add", "tcrv_scalar_i32_add",
           "tcrv_scalar.i32_vadd_microkernel", "index"))
     return result;
+  RouteBackedLowerable scalarLowerable(scalarRoute);
+  if (int result = expectLowerableLowersThroughCommonSourceAuthority(
+          scalarLowerable, "tcrv_emitc_common_scalar_test_add",
+          "tcrv_scalar_i32_add", "tcrv_scalar.i32_vadd_microkernel",
+          "index"))
+    return result;
 
   TCRVEmitCLowerableRoute dispatchRoute = makeDispatchControlRoute();
   if (int result =
@@ -865,6 +950,13 @@ int main() {
                                      /*includeInterfaceProvenance=*/false),
           "requires generated op-interface provenance", "index"))
     return result;
+  RouteBackedLowerable missingInterfaceLowerable(makeScalarElementLoopRoute(
+      /*includeRuntimeElementCount=*/true,
+      /*includeInterfaceProvenance=*/false));
+  if (int result = expectLowerableCommonSourceAuthorityFails(
+          missingInterfaceLowerable,
+          "requires generated op-interface provenance", "index"))
+    return result;
   if (int result = expectDispatchRouteSourceAuthorityFails(
           makeDispatchControlRoute(/*includeDispatchGuard=*/false),
           "requires dispatch guard ABI value"))
@@ -875,6 +967,9 @@ int main() {
           "source role 'dispatch-case-call'"))
     return result;
   InvalidMissingCalleeLowerable invalid;
+  if (int result = expectLowerableCommonSourceAuthorityFails(
+          invalid, "call_opaque callee"))
+    return result;
   llvm::Expected<TCRVEmitCLowerableRoute> badRoute =
       buildTCRVEmitCLowerableRoute(invalid);
   if (badRoute)

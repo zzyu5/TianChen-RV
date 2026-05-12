@@ -79,13 +79,14 @@ module {
 // PIPE-SAME: target = @scalar_fallback_first_slice
 
 // SOURCE: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vmul_microkernel. */
-// SOURCE: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by MLIR EmitC / MLIR Cpp source authority. */
+// SOURCE: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by the common lower-to-EmitC source-authority boundary. */
 // SOURCE: /* selected_kernel: @frontend_i32_vmul_scalar */
 // SOURCE: /* selected_variant: @scalar_fallback_first_slice */
 // SOURCE: /* executable_microkernel: tcrv_scalar.i32_vmul_microkernel */
 // SOURCE: /* runtime_abi_name: scalar-i32-vmul-runtime-callable-c-function.v1 */
 // SOURCE: /* runtime_glue_role: runtime-callable-i32-vmul-fallback-function */
 // SOURCE: /* emitc_route: tcrv_scalar.i32_vmul_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
+// SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // SOURCE: static void tcrv_scalar_i32_vmul_microkernel_frontend_i32_vmul_scalar_scalar_fallback_first_slice__tcrv_emitc_body
