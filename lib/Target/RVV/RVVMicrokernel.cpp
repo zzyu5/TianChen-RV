@@ -181,6 +181,7 @@ struct RVVMicrokernelRecord {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
+  RVVBinarySelectedConfigContract selectedConfigContract;
   RVVI32VAddDataflowEmissionPlan dataflowPlan;
   RVVIntrinsicConfig intrinsicConfig;
   const RVVI32VectorShapeConfig *selectedShape = nullptr;
@@ -2254,6 +2255,53 @@ llvm::Error validateRVVBinaryCandidateRuntimeABIMirrorsIR(
       "selected RVV target artifact candidate", descriptor);
 }
 
+llvm::Expected<RVVBinarySelectedConfigContract>
+buildRVVMicrokernelSelectedConfigContract(KernelOp kernel,
+                                          const RVVMicrokernelRecord &record) {
+  if (!record.selectedShape)
+    return makeMicrokernelError(
+        kernel,
+        "selected RVV microkernel record requires selected vector-shape "
+        "metadata before runtime AVL/VL authority validation");
+
+  const RVVBinaryFamilyDescriptor *registeredFamily =
+      lookupRVVBinaryFamilyRegistrationByID(
+          record.descriptor.getArithmeticFamilyID());
+  if (!registeredFamily)
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("selected RVV microkernel record references unknown "
+                    "finite binary family '") +
+            record.descriptor.getArithmeticFamilyID() + "'");
+
+  llvm::Expected<const support::RuntimeABIParameter *> runtimeElementCount =
+      support::findUniqueRuntimeABIParameterByRole(
+          record.runtimeABIParameters,
+          support::RuntimeABIParameterRole::RuntimeElementCount,
+          "RVV direct microkernel selected config contract");
+  if (!runtimeElementCount) {
+    std::string message = llvm::toString(runtimeElementCount.takeError());
+    return makeMicrokernelError(kernel, message);
+  }
+
+  RuntimeParamOp runtimeElementCountParam = record.runtimeElementCountParam;
+  llvm::StringRef runtimeParamCName =
+      getAttrValue(runtimeElementCountParam.getOperation(),
+                   support::kRuntimeParamCNameAttrName);
+  if (runtimeParamCName != (*runtimeElementCount)->cName)
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("IR-backed runtime-element-count tcrv.exec.runtime_param "
+                    "c_name '") +
+            runtimeParamCName +
+            "' does not match the selected callable ABI parameter c_name '" +
+            (*runtimeElementCount)->cName + "'");
+
+  return buildRVVBinarySelectedConfigContract(
+      *registeredFamily, *record.selectedShape, record.variantSymbol,
+      record.role, record.elementCount, (*runtimeElementCount)->cName);
+}
+
 llvm::Expected<RVVMicrokernelRecord>
 buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                        const TargetCapabilitySet &capabilities,
@@ -2380,6 +2428,11 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     record.elementCount = elementCount;
     record.controlPlaneSEW = controlPlaneSEW;
     record.controlPlaneLMUL = std::move(controlPlaneLMUL);
+    llvm::Expected<RVVBinarySelectedConfigContract> selectedConfigContract =
+        buildRVVMicrokernelSelectedConfigContract(kernel, record);
+    if (!selectedConfigContract)
+      return selectedConfigContract.takeError();
+    record.selectedConfigContract = std::move(*selectedConfigContract);
     return record;
   }
 
@@ -2427,6 +2480,11 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.elementCount = elementCount;
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
+  llvm::Expected<RVVBinarySelectedConfigContract> selectedConfigContract =
+      buildRVVMicrokernelSelectedConfigContract(kernel, record);
+  if (!selectedConfigContract)
+    return selectedConfigContract.takeError();
+  record.selectedConfigContract = std::move(*selectedConfigContract);
   return record;
 }
 
@@ -3021,13 +3079,17 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* arithmetic_family: "
      << record.descriptor.getArithmeticFamilyID() << " */\n";
   os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
+  os << "/* " << record.selectedConfigContract.formatSummaryCommentBody()
+     << " */\n";
   os << "/* arithmetic_source: typed op "
      << record.descriptor.getRVVOperationName()
      << " via generated EmitC route and IR-backed callable ABI */\n";
   os << "/* active_route: " << record.activeRouteID << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
-        "target/export-owned runtime n ABI parameter */\n";
+        "target/export-owned runtime "
+     << record.selectedConfigContract.getRuntimeElementCountCName()
+     << " ABI parameter */\n";
   os << "/* control_plane_vl: !tcrv_rvv.vl value consumed by "
         "tcrv_rvv.with_vl */\n";
   os << "/* dataflow_body: tcrv_rvv." << record.descriptor.getDTypeID()
@@ -3040,8 +3102,10 @@ void printRecordComment(llvm::raw_ostream &os,
         "attributes */\n";
   os << "/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, "
         "rhs_load.buffer_role=rhs-input-buffer, "
-        "store.buffer_role=output-buffer; runtime n remains the "
-        "target/export-owned runtime element-count ABI parameter */\n";
+        "store.buffer_role=output-buffer; runtime "
+     << record.selectedConfigContract.getRuntimeElementCountCName()
+     << " remains the target/export-owned runtime element-count ABI "
+        "parameter */\n";
   printDataflowPlanMetadata(os, record.dataflowPlan, record.descriptor);
   printEmitCRouteMetadata(os, emitcRoute, functionName);
   if (record.selectedShape) {

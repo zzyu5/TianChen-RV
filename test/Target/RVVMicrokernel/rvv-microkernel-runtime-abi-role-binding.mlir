@@ -179,6 +179,9 @@ module @rvv_runtime_abi_role_binding {
   }
 }
 
+// ALT: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=len, dispatch_availability_c_name=rvv_available, descriptor_element_count=16, selected_variant=@rvv_first_slice, selected_role=direct variant */
+// ALT: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime len ABI parameter */
+// ALT: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime len remains the target/export-owned runtime element-count ABI parameter */
 // ALT: /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
 // ALT: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 // ALT: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */

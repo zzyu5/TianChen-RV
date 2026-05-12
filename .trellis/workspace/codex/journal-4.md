@@ -1420,3 +1420,57 @@ made.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 49: RVV runtime AVL/VL boundary authority
+
+**Date**: 2026-05-13
+**Task**: RVV runtime AVL/VL boundary authority
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task/PRD from the Hermes brief and hardened the direct RVV
+`i32-vadd` record/export path so the selected binary config contract is built
+after IR-backed callable ABI resolution and records the actual
+runtime-element-count C ABI name used as AVL authority.
+
+### Main Changes
+
+- `RVVMicrokernelRecord` now carries an `RVVBinarySelectedConfigContract`
+  combining the static RVV family registry entry, selected vector-shape config,
+  selected variant/role, descriptor-local bounded element count, and the
+  runtime-element-count C name from `tcrv.exec.runtime_param`.
+- Direct RVV record construction fails before artifact output if the
+  IR-backed runtime-element-count `runtime_param` C name disagrees with the
+  selected callable ABI parameter.
+- Generated direct RVV source now prints `selected_binary_config` and names the
+  actual runtime count parameter in `control_plane_runtime_avl` and
+  `dataflow_abi_roles`; focused FileCheck covers both default `n` and custom
+  `len`.
+- Self-repair: fixed a first attempt that stored the contract against a moved
+  record-local family copy, replacing it with the stable static registry family
+  returned by `lookupRVVBinaryFamilyRegistrationByID`.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`, focused lit filter over RVVMicrokernel,
+  RVVScalarDispatch, EmissionManifest, TargetArtifactBundleExport, and target
+  artifact routes: 73/73 passed.
+- Manual direct source/header/object plus generic source artifacts under
+  `artifacts/tmp/rvv_runtime_avl_vl_boundary_authority_manual/`, using the
+  custom `len` runtime-element-count fixture.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-runtime-avl-vl-boundary-authority`
+- `git diff --check`
+- `git diff --cached --check`
+
+### Status
+
+[OK] Completed. Generated runtime behavior did not change, so no new `ssh rvv`
+correctness claim was made.
+
+### Next Steps
+
+- None - task complete

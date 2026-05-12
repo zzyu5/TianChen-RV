@@ -111,6 +111,7 @@ module @rvv_microkernel_input {
 // LIB: /* selected_mabi: lp64d */
 // LIB: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 // LIB: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+// LIB: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=n, dispatch_availability_c_name=rvv_available, descriptor_element_count=16, selected_variant=@rvv_first_slice, selected_role=dispatch case */
 // LIB: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
 // LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
