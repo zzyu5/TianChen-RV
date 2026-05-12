@@ -1595,28 +1595,30 @@ def hermes_review(
     review_prompt_path.write_text(prompt, encoding="utf-8")
     one_shot_consumption = consume_manual_steering_once(repo, args, loop_dir, round_index, review_prompt_path)
 
-    if args.hermes_review_mode == "oneshot":
-        cmd = [args.hermes_bin]
-        if args.hermes_model:
-            cmd.extend(["--model", args.hermes_model])
-        if args.hermes_provider:
-            cmd.extend(["--provider", args.hermes_provider])
-        if args.hermes_ignore_rules:
-            cmd.append("--ignore-rules")
-        for skill in [s.strip() for s in args.hermes_skills.split(",") if s.strip()]:
-            cmd.extend(["--skills", skill])
-        cmd.extend(["-z", prompt])
-    else:
+    def build_cmd(review_prompt: str, max_turns: int) -> list[str]:
+        if args.hermes_review_mode == "oneshot":
+            cmd = [args.hermes_bin]
+            if args.hermes_model:
+                cmd.extend(["--model", args.hermes_model])
+            if args.hermes_provider:
+                cmd.extend(["--provider", args.hermes_provider])
+            if args.hermes_ignore_rules:
+                cmd.append("--ignore-rules")
+            for skill in [s.strip() for s in args.hermes_skills.split(",") if s.strip()]:
+                cmd.extend(["--skills", skill])
+            cmd.extend(["-z", review_prompt])
+            return cmd
+
         cmd = [
             args.hermes_bin,
             "chat",
             "-q",
-            prompt,
+            review_prompt,
             "-Q",
             "--source",
             args.hermes_source,
             "--max-turns",
-            str(args.hermes_max_turns),
+            str(max_turns),
         ]
         if args.hermes_session_id:
             cmd.extend(["--resume", args.hermes_session_id])
@@ -1630,70 +1632,139 @@ def hermes_review(
             cmd.append("--pass-session-id")
         for skill in [s.strip() for s in args.hermes_skills.split(",") if s.strip()]:
             cmd.extend(["--skills", skill])
+        return cmd
 
-    with BlockingFileLock(artifact_root_path(repo, args.artifact_root) / HERMES_SESSION_LOCK_FILE_NAME):
-        proc = subprocess.run(
-            cmd,
-            cwd=repo,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=args.hermes_timeout,
+    def run_attempt(attempt_index: int, review_prompt: str, max_turns: int) -> dict[str, Any]:
+        cmd = build_cmd(review_prompt, max_turns)
+        with BlockingFileLock(artifact_root_path(repo, args.artifact_root) / HERMES_SESSION_LOCK_FILE_NAME):
+            proc = subprocess.run(
+                cmd,
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=args.hermes_timeout,
+            )
+        suffix = "" if attempt_index == 0 else f"_retry{attempt_index}"
+        (loop_dir / f"round_{round_index:04d}_hermes{suffix}.stdout").write_text(
+            proc.stdout,
+            encoding="utf-8",
         )
-    (loop_dir / f"round_{round_index:04d}_hermes.stdout").write_text(proc.stdout, encoding="utf-8")
-    (loop_dir / f"round_{round_index:04d}_hermes.stderr").write_text(proc.stderr, encoding="utf-8")
-    review = normalize_review(proc.stdout)
-    hermes_session_id = extract_hermes_session_id(proc.stdout)
-    session_lookup: dict[str, Any] | None = None
-    if proc.returncode == 0 and not hermes_session_id and not args.hermes_session_id:
-        session_lookup = latest_hermes_session_id(args, repo)
-        hermes_session_id = str(session_lookup.get("session_id") or "")
-    rename_result: dict[str, Any] | None = None
-    if (
-        proc.returncode == 0
-        and hermes_session_id
-        and args.hermes_session_name
-        and not args.hermes_session_id
-    ):
-        rename_proc = subprocess.run(
-            [args.hermes_bin, "sessions", "rename", hermes_session_id, args.hermes_session_name],
-            cwd=repo,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=30,
+        (loop_dir / f"round_{round_index:04d}_hermes{suffix}.stderr").write_text(
+            proc.stderr,
+            encoding="utf-8",
         )
-        rename_result = {
-            "returncode": rename_proc.returncode,
-            "stdout": rename_proc.stdout.strip(),
-            "stderr": rename_proc.stderr.strip(),
-        }
-    review.update(
+        review = normalize_review(proc.stdout)
+        hermes_session_id = extract_hermes_session_id(proc.stdout)
+        session_lookup: dict[str, Any] | None = None
+        if proc.returncode == 0 and not hermes_session_id and not args.hermes_session_id:
+            session_lookup = latest_hermes_session_id(args, repo)
+            hermes_session_id = str(session_lookup.get("session_id") or "")
+        rename_result: dict[str, Any] | None = None
+        if (
+            proc.returncode == 0
+            and hermes_session_id
+            and args.hermes_session_name
+            and not args.hermes_session_id
+        ):
+            rename_proc = subprocess.run(
+                [args.hermes_bin, "sessions", "rename", hermes_session_id, args.hermes_session_name],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+            )
+            rename_result = {
+                "returncode": rename_proc.returncode,
+                "stdout": rename_proc.stdout.strip(),
+                "stderr": rename_proc.stderr.strip(),
+            }
+        review.update(
+            {
+                "attempt": attempt_index,
+                "cmd": [*cmd[:3], "<prompt>", *cmd[4:]]
+                if args.hermes_review_mode == "chat"
+                else cmd[:-1] + ["<prompt>"],
+                "returncode": proc.returncode,
+                "review_prompt": str(review_prompt_path),
+                "hermes_review_mode": args.hermes_review_mode,
+                "hermes_max_turns": max_turns,
+                "hermes_session_id": hermes_session_id or args.hermes_session_id,
+                "hermes_session_name": args.hermes_session_name,
+                "hermes_session_lookup": session_lookup,
+                "hermes_session_rename": rename_result,
+                "manual_steering_once_consumption": one_shot_consumption,
+            }
+        )
+        if proc.returncode != 0:
+            review["continue"] = False
+            review["delta"] = ""
+            review["next_prompt"] = ""
+            review["base_prompt_edits"] = []
+            review["parse_error"] = True
+            review["reason"] = (
+                f"Hermes review failed with exit code {proc.returncode}: {proc.stderr[-1000:]}"
+            )
+            review["telegram_note"] = "Hermes review failed; supervisor is blocked."
+        return review
+
+    attempts: list[dict[str, Any]] = []
+    review = run_attempt(0, prompt, args.hermes_max_turns)
+    attempts.append(
         {
-            "cmd": [*cmd[:3], "<prompt>", *cmd[4:]] if args.hermes_review_mode == "chat" else cmd[:-1] + ["<prompt>"],
-            "returncode": proc.returncode,
-            "review_prompt": str(review_prompt_path),
-            "hermes_review_mode": args.hermes_review_mode,
-            "hermes_session_id": hermes_session_id or args.hermes_session_id,
-            "hermes_session_name": args.hermes_session_name,
-            "hermes_session_lookup": session_lookup,
-            "hermes_session_rename": rename_result,
-            "manual_steering_once_consumption": one_shot_consumption,
+            "attempt": review.get("attempt", 0),
+            "parse_error": review.get("parse_error", False),
+            "returncode": review.get("returncode", 0),
+            "hermes_max_turns": review.get("hermes_max_turns", args.hermes_max_turns),
+            "raw_prefix": str(review.get("raw") or "")[:500],
+            "reason": review.get("reason", ""),
         }
     )
-    if proc.returncode != 0:
-        review["continue"] = True
+    retry_count = max(0, int(getattr(args, "hermes_review_retries", 0)))
+    if review.get("parse_error") and retry_count:
+        failed_raw = str(review.get("raw") or "")
+        retry_prompt = (
+            prompt
+            + "\n\n## Strict JSON Retry After Invalid Hermes Review\n\n"
+            + "The previous Hermes review invocation did not return the required strict JSON object. "
+            + "Run the official review again using the real repository evidence already embedded above. "
+            + "Use read-only inspection only if absolutely necessary. "
+            + "Return exactly one strict JSON object with keys: continue, next_prompt, base_prompt_edits, delta, reason, telegram_note. "
+            + "Do not return markdown, prose, summaries, or code fences outside the JSON object. "
+            + "If a complete next_prompt cannot be produced, set continue=false and explain why in reason.\n\n"
+            + "## Previous Invalid Hermes Output Prefix\n\n"
+            + failed_raw[:4000]
+            + "\n"
+        )
+        retry_prompt_path = loop_dir / f"round_{round_index:04d}_hermes_review_retry_prompt.md"
+        retry_prompt_path.write_text(retry_prompt, encoding="utf-8")
+        retry_turns = max(args.hermes_retry_max_turns, args.hermes_max_turns * 2)
+        for attempt_index in range(1, retry_count + 1):
+            review = run_attempt(attempt_index, retry_prompt, retry_turns)
+            attempts.append(
+                {
+                    "attempt": review.get("attempt", attempt_index),
+                    "parse_error": review.get("parse_error", False),
+                    "returncode": review.get("returncode", 0),
+                    "hermes_max_turns": review.get("hermes_max_turns", retry_turns),
+                    "raw_prefix": str(review.get("raw") or "")[:500],
+                    "reason": review.get("reason", ""),
+                }
+            )
+            if not review.get("parse_error"):
+                break
+    review["hermes_attempts"] = attempts
+    if review.get("parse_error"):
+        review["continue"] = False
         review["delta"] = ""
         review["next_prompt"] = ""
         review["base_prompt_edits"] = []
-        review["parse_error"] = True
         review["reason"] = (
-            f"Hermes review failed with exit code {proc.returncode}: {proc.stderr[-1000:]}"
-            " Runner will continue with canonical base prompt fallback."
+            "Hermes review did not return valid strict JSON after official Hermes retry attempts; "
+            "supervisor must stop instead of falling back to a Codex-authored task brief."
         )
-        review["telegram_note"] = (
-            "Hermes review failed; supervisor is continuing with canonical fallback prompt."
-        )
+        review["telegram_note"] = "Hermes review JSON failed after retry; supervisor stopped."
     return review
 
 
@@ -1956,6 +2027,10 @@ def build_loop_subprocess_cmd(args: argparse.Namespace, loop_id: str) -> list[st
         args.hermes_source,
         "--hermes-max-turns",
         str(args.hermes_max_turns),
+        "--hermes-review-retries",
+        str(args.hermes_review_retries),
+        "--hermes-retry-max-turns",
+        str(args.hermes_retry_max_turns),
         "--codex-transient-retries",
         str(args.codex_transient_retries),
     ]
@@ -2330,16 +2405,16 @@ def command_loop(args: argparse.Namespace) -> int:
                 review = hermes_review(args, repo, run_dir, loop_dir, next_round, delta, prompt_mode)
             except Exception as exc:  # noqa: BLE001 - keep loop evidence explicit
                 review = {
-                    "continue": True,
+                    "continue": False,
                     "delta": "",
                     "next_prompt": "",
                     "base_prompt_edits": [],
                     "reason": (
                         f"Hermes review exception: {type(exc).__name__}: {exc}; "
-                        "runner will continue with canonical base prompt fallback."
+                        "supervisor stopped instead of falling back to a Codex-authored task brief."
                     ),
                     "telegram_note": (
-                        "Hermes review raised an exception; supervisor is continuing with canonical fallback prompt."
+                        "Hermes review raised an exception; supervisor stopped."
                     ),
                     "parse_error": True,
                 }
@@ -2352,20 +2427,13 @@ def command_loop(args: argparse.Namespace) -> int:
             if not next_prompt and prompt_edit_results and any(r.get("applied") for r in prompt_edit_results):
                 next_prompt = edited_prompt
             if review.get("continue", True) and not next_prompt:
+                review["continue"] = False
                 if review.get("parse_error"):
-                    next_prompt = (
-                        "## Supervisor Review Parse Fallback\n\n"
-                        + "Hermes returned malformed JSON in the previous review, so the runner is continuing with the canonical base prompt plus this fallback task brief instead of stopping. "
-                        + "Before choosing work, inspect the latest `repo_audit.md`, `review_input.md`, git history, TianchenRV specs, and current code. "
-                        + "Continue the current Trellis task if it remains valid; otherwise create or repair a module-sized task. "
-                        + "Do not choose smoke/probe/guardrail/test-harness work unless it is the only blocker for a real compiler path. "
-                        + "Maintain serial execution, focused validation, truthful Trellis task status, and a coherent commit.\n"
-                    )
                     review["reason"] = (
-                        "Hermes review output was malformed JSON; runner used canonical base prompt with parse-fallback task brief."
+                        "Hermes review did not provide valid JSON/next_prompt after retry; "
+                        "supervisor stopped instead of using Codex fallback."
                     )
                 else:
-                    review["continue"] = False
                     review["reason"] = "Hermes review did not provide required non-empty next_prompt task brief."
             next_prompt_path = loop_dir / f"round_{next_round:04d}_next_prompt.md"
             next_prompt_path.write_text(next_prompt + ("\n" if next_prompt else ""), encoding="utf-8")
@@ -2627,7 +2695,19 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
         help="Hermes session title/name to continue when no session id is provided.",
     )
     parser.add_argument("--hermes-source", default="cli", help="Hermes session source tag.")
-    parser.add_argument("--hermes-max-turns", type=int, default=8, help="Hermes review max tool-calling turns.")
+    parser.add_argument("--hermes-max-turns", type=int, default=50, help="Hermes review max tool-calling turns.")
+    parser.add_argument(
+        "--hermes-review-retries",
+        type=int,
+        default=1,
+        help="Retry official Hermes review this many times when it does not return strict JSON.",
+    )
+    parser.add_argument(
+        "--hermes-retry-max-turns",
+        type=int,
+        default=100,
+        help="Hermes max tool-calling turns for a strict JSON review retry.",
+    )
     parser.add_argument(
         "--codex-transient-retries",
         type=int,
@@ -2702,7 +2782,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_ask.add_argument("--review-max-chars", type=int, default=30000, help="Max chars included in Hermes ask prompt.")
     p_ask.add_argument("--hermes-bin", default="hermes")
     p_ask.add_argument("--hermes-source", default="cli", help="Hermes session source tag.")
-    p_ask.add_argument("--hermes-max-turns", type=int, default=8, help="Hermes ask max tool-calling turns.")
+    p_ask.add_argument("--hermes-max-turns", type=int, default=50, help="Hermes ask max tool-calling turns.")
     p_ask.add_argument("--hermes-model", default=DEFAULT_SUPERVISOR_MODEL)
     p_ask.add_argument("--hermes-provider", default="")
     p_ask.add_argument("--hermes-timeout", type=int, default=900)
