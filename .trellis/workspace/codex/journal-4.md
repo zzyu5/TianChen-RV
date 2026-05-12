@@ -75,6 +75,59 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 39: RVV+scalar dispatch selected-plan route authority
+
+**Date**: 2026-05-12
+**Task**: rvv-scalar-dispatch-selected-plan-route-authority
+**Branch**: `main`
+
+### Summary
+
+Rewired RVV+scalar dispatch composite candidate family authority so selected
+RVV/scalar component plans choose the finite family before descriptor-derived
+route registration records are consulted.
+
+### Main Changes
+
+- Changed RVV+scalar dispatch candidate collection and composite matching to
+  read `tcrv_rvv.selected_binary_family` and
+  `tcrv_scalar.selected_binary_family` selected-plan metadata before checking
+  finite route ids, emission kinds, runtime ABI names, runtime glue roles, and
+  artifact kinds.
+- Kept finite `RVVScalarBinaryFamilyDescriptor` /
+  `DispatchBinaryFamilyDescriptor` data as route-registration and stale-mirror
+  validation metadata only.
+- Preserved non-RVV/scalar composite route matching by using route ids only as
+  a relevance filter before selected-plan authority checks.
+- Added C++ target artifact export coverage for missing selected family
+  metadata and stale scalar route data after selected-plan family authority is
+  established.
+- Updated the i32-vsub i32m2 RVV+scalar dispatch lit stale-family diagnostic
+  to the new selected-plan-first route mismatch.
+
+### Testing
+
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-scalar-extension-plugin-test`
+- Focused lit filter:
+  `RVVScalarDispatch|rvv-scalar-dispatch-e2e|rvv-scalar-dispatch-bundle-e2e`,
+  15/15 passed.
+- Focused lit filter: `target-artifact-bundle-guards`, 1/1 passed after
+  matcher relevance filtering was restored for non-RVV/scalar routes.
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vmul --lower-linalg-frontend --run-id codex-selected-plan-route-authority-vmul --overwrite --input test/Target/RVVScalarDispatch/rvv-scalar-i32-vmul-dispatch-generic-route.mlir`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-scalar-dispatch-selected-plan-route-authority`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed and ready to archive. Python stayed tooling-only,
+`tcrv.exec` stayed compute-free, extension details stayed plugin/target-local,
+and no `ssh rvv` runtime, correctness, or performance claim was made.
+
+
 ## Session 40: RVV selected variant descriptor attribute exit
 
 **Date**: 2026-05-12

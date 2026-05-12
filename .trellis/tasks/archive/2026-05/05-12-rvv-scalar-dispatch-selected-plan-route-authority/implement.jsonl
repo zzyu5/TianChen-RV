@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants: C++/MLIR stack, unified RISC-V extension families, tcrv.exec compute-free, descriptor-driven computation prohibited"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Architecture boundary for extension-family execution, target-owned emission, and descriptor debt"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor boundary for target/export code"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, selected-plan preflight, RVV+scalar dispatch ABI, and parameter layering contracts"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected typed family/source metadata and legacy descriptor mirror constraints"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback selected typed source metadata and finite callable export contract"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin locality and common-core no family-specific semantic branch boundary"}

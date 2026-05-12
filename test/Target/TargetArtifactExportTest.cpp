@@ -4324,6 +4324,70 @@ bool expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
        "LMUL capability id must be 'rvv.i32_m1.lmul_m1'"});
 }
 
+bool expectDispatchCompositePreflightRequiresSelectedPlanFamilyAuthority(
+    const TargetArtifactExporterRegistry &registry) {
+  llvm::StringRef routeID = "tcrv-export-rvv-scalar-i32-vmul-dispatch-c";
+  const TargetArtifactCompositeExporter *composite =
+      registry.lookupComposite(routeID);
+  if (!composite || !composite->getCandidateValidationFn()) {
+    llvm::errs() << "vmul dispatch composite route lacks candidate "
+                    "preflight callback\n";
+    return false;
+  }
+
+  TargetArtifactCandidate rvvCandidate =
+      makeRVVMulDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                  "rvv_first_slice");
+  TargetArtifactCandidate scalarCandidate =
+      makeScalarMulDispatchFallbackCandidate(
+          tianchenrv::tcrv::exec::KernelOp(),
+          "scalar_fallback_first_slice");
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> missingRVVFamily;
+  missingRVVFamily.push_back(rvvCandidate);
+  missingRVVFamily.push_back(scalarCandidate);
+  if (!eraseSelectedPlanMetadataEntry(
+          missingRVVFamily[0],
+          tianchenrv::target::rvv::
+              getRVVSelectedBinaryFamilyMetadataName())) {
+    llvm::errs() << "test candidate is missing RVV selected family metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          composite->getCandidateValidationFn()(missingRVVFamily),
+          "dispatch composite requires RVV selected family metadata before "
+          "route registration lookup",
+          {"selected RVV dispatch case candidate @rvv_first_slice",
+           "requires selected_plan_metadata "
+           "'tcrv_rvv.selected_binary_family'",
+           "before RVV+scalar dispatch identity export"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> staleScalarFamily;
+  staleScalarFamily.push_back(rvvCandidate);
+  staleScalarFamily.push_back(scalarCandidate);
+  if (!setSelectedPlanMetadataValue(
+          staleScalarFamily[1],
+          tianchenrv::target::rvv_scalar::
+              getScalarSelectedBinaryFamilyMetadataName(),
+          "i32-vadd")) {
+    llvm::errs()
+        << "test candidate is missing scalar selected family metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          composite->getCandidateValidationFn()(staleScalarFamily),
+          "dispatch composite rejects stale scalar route after selected-plan "
+          "family authority",
+          {"selected scalar dispatch fallback callable route "
+           "'tcrv-export-scalar-i32-vmul-microkernel-c'",
+           "for i32-vadd has stale route id",
+           "expected 'tcrv-export-scalar-microkernel-c'"}))
+    return false;
+
+  return true;
+}
+
 std::string makeDispatchComponentAuthorityFixture() {
   return R"mlir(
 module @dispatch_component_authority_input {
@@ -4822,9 +4886,10 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
       staleMetadata.takeError(),
       "stale selected component plan metadata rejected before dispatch bundle "
       "metadata export",
-      {"route id 'tcrv-export-rvv-i32-vmul-microkernel-c'",
-       "selected_plan_metadata 'tcrv_rvv.selected_binary_family'",
-       "must use value 'i32-vmul'"});
+      {"selected RVV dispatch case callable route "
+       "'tcrv-export-rvv-i32-vmul-microkernel-c'",
+       "for i32-vadd has stale route id",
+       "expected 'tcrv-export-rvv-microkernel-c'"});
 }
 
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
@@ -5998,6 +6063,9 @@ int main() {
   if (!expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"))
+    return 1;
+  if (!expectDispatchCompositePreflightRequiresSelectedPlanFamilyAuthority(
+          builtinRegistry))
     return 1;
   if (!expectDispatchCompositeRejectsFallbackMismatch(context,
                                                       builtinRegistry))
