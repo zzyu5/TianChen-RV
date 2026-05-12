@@ -1374,28 +1374,30 @@ a repeated copy of the base prompt, and not a long architecture document.
 
 ## Evidence Priority
 
-Use evidence in this order:
+Default review evidence is the live summary below:
 
-1. Real repository state and file contents from the live checkout.
-2. Artifact entry points listed below, especially `repo_audit.md` when useful.
-3. `review_input.md`, run manifest, stderr, and last Codex message.
-4. Codex final summary.
+1. changed files
+2. diff stat
+3. latest commit summary
+4. current Trellis task status/title
+5. git status summary
+
+Only read more files when that live summary does not answer the owner /
+direction question. If more evidence is needed, keep the inspection bounded to
+the directly relevant files or directories. Do not rebuild a repo audit, do not
+open `repo_audit.md` by default, and do not broad-grep the whole repository.
+Artifact paths are entry points, not a mandatory reading checklist.
 
 If Codex says one thing and repository evidence says another, trust repository
-evidence. You may use read-only inspection commands when tool access exists:
-`pwd`, `git status --short`, `git log`, `git show`, `find`, and text search over
-source, tests, specs, task files, and loop artifacts. Never modify files.
-
-Useful read-only commands:
+evidence. When you need read-only commands, prefer a small bounded set such as:
 
 ```bash
-pwd
-git status --short
-git log --oneline -12
 git show --name-status --stat --oneline --decorate HEAD
-find include lib tools test tests cmake .trellis/spec scripts -maxdepth 4 -type f 2>/dev/null | sort | sed -n '1,260p'
-grep -R "tcrv.exec\\|TCRV\\|EmitC\\|descriptor\\|Extension Manifest\\|extension family\\|Plugin\\|RVV\\|IME\\|offload" -n include lib tools test tests cmake .trellis/spec scripts 2>/dev/null | head -240
+sed -n '1,220p' <changed-file-or-directly-related-spec>
+rg -n "<symbol-or-phrase>" <specific-file-or-directly-related-directory>
 ```
+
+Never modify files.
 
 ## Active Human Steering
 
