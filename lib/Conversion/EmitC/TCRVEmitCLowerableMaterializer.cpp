@@ -6,6 +6,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Target/Cpp/CppEmitter.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
@@ -137,6 +138,15 @@ mlir::Location makeStepLocation(mlir::OpBuilder &builder,
   os.flush();
   return mlir::NameLoc::get(builder.getStringAttr(name),
                             builder.getUnknownLoc());
+}
+
+std::string makeSourceAuthorityComment(llvm::StringRef key,
+                                       llvm::StringRef value) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_emitc." << key << "=" << value;
+  os.flush();
+  return text;
 }
 
 void collectExpressionIdentifiers(llvm::StringRef expression,
@@ -353,11 +363,468 @@ private:
   llvm::StringSet<> implicitValues;
 };
 
+class RouteCppSourceAuthorityMaterializer {
+public:
+  RouteCppSourceAuthorityMaterializer(
+      mlir::MLIRContext &context, const TCRVEmitCLowerableRoute &route,
+      const TCRVEmitCSourceAuthorityOptions &options)
+      : context(context), route(route), options(options), builder(&context) {}
+
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> run() {
+    if (llvm::Error error = route.verify())
+      return std::move(error);
+    if (llvm::Error error = validateOptions())
+      return std::move(error);
+    if (llvm::Error error = initializeRuntimeElementCount())
+      return std::move(error);
+    if (llvm::Error error = validateRuntimeVLRouteShape())
+      return std::move(error);
+
+    context.getOrLoadDialect<mlir::emitc::EmitCDialect>();
+
+    mlir::Location loc = builder.getUnknownLoc();
+    mlir::OwningOpRef<mlir::ModuleOp> module(mlir::ModuleOp::create(loc));
+    builder.setInsertionPointToStart(module->getBody());
+
+    emitSourceAuthorityHeaders(loc);
+    builder.create<mlir::emitc::VerbatimOp>(
+        loc, makeSourceAuthorityComment("source_authority",
+                                        "mlir_emitc_cpp_emitter"));
+    builder.create<mlir::emitc::VerbatimOp>(
+        loc, makeSourceAuthorityComment("source_route_id",
+                                        route.getRouteID()));
+    builder.create<mlir::emitc::VerbatimOp>(
+        loc, makeSourceAuthorityComment("public_function",
+                                        options.functionName));
+
+    mlir::emitc::FuncOp helper = buildHelperFunction(loc);
+    if (llvm::Error error = materializeHelperBody(helper))
+      return std::move(error);
+
+    builder.setInsertionPointAfter(helper);
+    mlir::emitc::FuncOp publicFunction = buildPublicFunction(loc);
+    if (llvm::Error error = materializePublicWrapper(publicFunction, helper))
+      return std::move(error);
+
+    if (options.verifyModule && mlir::failed(mlir::verify(*module)))
+      return makeMaterializerError(route.getRouteID(),
+                                   "source-authority EmitC module failed "
+                                   "MLIR verification");
+    return module;
+  }
+
+private:
+  llvm::Error validateOptions() {
+    if (llvm::Error error = validateSafeIdentifier(
+            route.getRouteID(), "EmitC source-authority function name",
+            options.functionName))
+      return error;
+    if (llvm::Error error =
+            validateSafeIdentifier(route.getRouteID(),
+                                   "EmitC source-authority loop index name",
+                                   options.loopIndexName))
+      return error;
+    helperFunctionName = options.helperFunctionName;
+    if (helperFunctionName.empty())
+      helperFunctionName =
+          (llvm::Twine(options.functionName) + "__tcrv_emitc_body").str();
+    if (llvm::Error error =
+            validateSafeIdentifier(route.getRouteID(),
+                                   "EmitC source-authority helper function "
+                                   "name",
+                                   helperFunctionName))
+      return error;
+    if (helperFunctionName == options.functionName)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "source-authority helper function name must differ from the public "
+          "function name");
+    return llvm::Error::success();
+  }
+
+  llvm::Error initializeRuntimeElementCount() {
+    for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings()) {
+      llvm::StringRef cName = mapping.parameter.cName;
+      llvm::StringRef valueName = mapping.valueName;
+      if (llvm::Error error =
+              validateSafeIdentifier(route.getRouteID(), "ABI C name", cName))
+        return error;
+      if (llvm::Error error = validateSafeIdentifier(
+              route.getRouteID(), "ABI value mapping name", valueName))
+        return error;
+      if (cName != valueName)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("ABI value mapping for C parameter '") + cName +
+                "' must use the same function-boundary value name, got '" +
+                valueName + "'");
+      if (!seenABIValueNames.insert(valueName).second)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("duplicate ABI value mapping name '") + valueName +
+                "'");
+      if (mapping.parameter.role ==
+          support::RuntimeABIParameterRole::RuntimeElementCount) {
+        runtimeElementCountValueName = valueName.str();
+        ++runtimeElementCountMatches;
+        if (mapping.parameter.cType != "size_t")
+          return makeMaterializerError(
+              route.getRouteID(),
+              "MLIR Cpp source authority currently requires the "
+              "runtime-element-count ABI mapping to use C type 'size_t'");
+      }
+    }
+
+    if (runtimeElementCountMatches != 1)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "MLIR Cpp source authority requires exactly one "
+          "runtime-element-count ABI mapping");
+    return llvm::Error::success();
+  }
+
+  llvm::Error validateRuntimeVLRouteShape() const {
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
+        route.getCallOpaqueSteps();
+    if (steps.size() < 2)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "MLIR Cpp source authority requires a runtime-avl-to-vl step "
+          "followed by bounded body call_opaque steps");
+    const TCRVEmitCCallOpaqueStep &first = steps.front();
+    if (first.sourceOp.role != "runtime-avl-to-vl")
+      return makeMaterializerError(
+          route.getRouteID(),
+          "MLIR Cpp source authority currently supports only bounded "
+          "runtime-avl-to-vl routes");
+    if (!first.result || first.result->cType != "size_t")
+      return makeMaterializerError(
+          route.getRouteID(),
+          "runtime-avl-to-vl source-authority step must produce a size_t VL "
+          "result");
+    if (first.operands.size() != 1)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "runtime-avl-to-vl source-authority step requires exactly one "
+          "remaining-element operand");
+    std::string expectedRemaining =
+        (llvm::Twine(runtimeElementCountValueName) + " - " +
+         options.loopIndexName)
+            .str();
+    if (first.operands.front().expression != expectedRemaining)
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("runtime-avl-to-vl source-authority operand must be '") +
+              expectedRemaining + "'");
+    return llvm::Error::success();
+  }
+
+  void emitSourceAuthorityHeaders(mlir::Location loc) {
+    llvm::StringSet<> emittedHeaders;
+    for (const TCRVEmitCHeaderRequirement &header : route.getHeaders()) {
+      if (!emittedHeaders.insert(header.header).second)
+        continue;
+      builder.create<mlir::emitc::IncludeOp>(loc, header.header,
+                                             /*is_standard_include=*/true);
+    }
+    if (emittedHeaders.insert("stdbool.h").second)
+      builder.create<mlir::emitc::IncludeOp>(loc, "stdbool.h",
+                                             /*is_standard_include=*/true);
+  }
+
+  mlir::FunctionType buildHelperFunctionType() {
+    llvm::SmallVector<mlir::Type, 8> inputTypes;
+    for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings())
+      inputTypes.push_back(
+          getEmitCTypeForCType(context, mapping.parameter.cType));
+    inputTypes.push_back(mlir::emitc::SizeTType::get(&context));
+    return builder.getFunctionType(inputTypes, llvm::ArrayRef<mlir::Type>{});
+  }
+
+  mlir::FunctionType buildPublicFunctionType() {
+    llvm::SmallVector<mlir::Type, 6> inputTypes;
+    for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings())
+      inputTypes.push_back(
+          getEmitCTypeForCType(context, mapping.parameter.cType));
+    return builder.getFunctionType(inputTypes, llvm::ArrayRef<mlir::Type>{});
+  }
+
+  mlir::emitc::FuncOp buildHelperFunction(mlir::Location loc) {
+    mlir::emitc::FuncOp function = builder.create<mlir::emitc::FuncOp>(
+        loc, helperFunctionName, buildHelperFunctionType());
+    function->setAttr("specifiers", builder.getStrArrayAttr({"static"}));
+    mlir::Block *entry = new mlir::Block();
+    function.getBody().push_back(entry);
+    for (mlir::Type type : function.getFunctionType().getInputs())
+      entry->addArgument(type, loc);
+    return function;
+  }
+
+  mlir::emitc::FuncOp buildPublicFunction(mlir::Location loc) {
+    mlir::emitc::FuncOp function = builder.create<mlir::emitc::FuncOp>(
+        loc, options.functionName, buildPublicFunctionType());
+    mlir::Block *entry = new mlir::Block();
+    function.getBody().push_back(entry);
+    for (mlir::Type type : function.getFunctionType().getInputs())
+      entry->addArgument(type, loc);
+    return function;
+  }
+
+  void initializeFunctionValueMap(mlir::Block *entry,
+                                  bool includeLoopIndexArgument) {
+    valueMap.clear();
+    for (auto [index, mapping] : llvm::enumerate(route.getABIMappings()))
+      valueMap[mapping.valueName] = entry->getArgument(index);
+    if (includeLoopIndexArgument)
+      valueMap[options.loopIndexName] =
+          entry->getArgument(route.getABIMappings().size());
+  }
+
+  mlir::Value lookupRequiredValue(llvm::StringRef name) const {
+    return valueMap.lookup(name);
+  }
+
+  llvm::Expected<mlir::Value>
+  materializeAddressOfSubscriptExpression(llvm::StringRef expression,
+                                          mlir::Location loc) {
+    if (!expression.starts_with("&") ||
+        !expression.ends_with((llvm::Twine("[") + options.loopIndexName + "]")
+                                  .str()))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("source-authority operand expression '") + expression +
+              "' is not a supported ABI buffer subscript expression");
+
+    llvm::StringRef base =
+        expression.drop_front().drop_back(options.loopIndexName.size() + 2);
+    if (llvm::Error error = validateSafeIdentifier(
+            route.getRouteID(), "ABI buffer expression base", base))
+      return std::move(error);
+    mlir::Value pointer = lookupRequiredValue(base);
+    if (!pointer)
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("source-authority operand expression references "
+                      "unknown ABI buffer '") +
+              base + "'");
+    mlir::Value offset = lookupRequiredValue(options.loopIndexName);
+    if (!offset)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "source-authority body is missing the runtime loop index value");
+
+    auto pointerType =
+        llvm::dyn_cast<mlir::emitc::PointerType>(pointer.getType());
+    if (!pointerType)
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("source-authority ABI buffer '") + base +
+              "' must have EmitC pointer type before subscript emission");
+    mlir::Type lvalueType =
+        mlir::emitc::LValueType::get(pointerType.getPointee());
+    mlir::emitc::SubscriptOp subscript =
+        builder.create<mlir::emitc::SubscriptOp>(
+            loc, lvalueType, pointer, mlir::ValueRange{offset});
+    return builder
+        .create<mlir::emitc::ApplyOp>(loc, pointer.getType(), "&",
+                                      subscript.getResult())
+        .getResult();
+  }
+
+  llvm::Expected<mlir::Value>
+  materializeSourceOperand(const TCRVEmitCCallOpaqueOperand &operand,
+                           mlir::Location loc) {
+    llvm::StringRef expression = operand.expression;
+    if (!isSafeExpressionText(expression))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("source-authority operand expression '") + expression +
+              "' contains unsafe text before EmitC materialization");
+
+    if (isSafeIdentifier(expression)) {
+      if (mlir::Value value = lookupRequiredValue(expression))
+        return value;
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("source-authority operand expression references "
+                      "unknown value name '") +
+              expression + "'");
+    }
+
+    return materializeAddressOfSubscriptExpression(expression, loc);
+  }
+
+  llvm::Error materializeRouteStep(const TCRVEmitCCallOpaqueStep &step) {
+    if (llvm::Error error = validateSafeProvenance(route, step.sourceOp))
+      return error;
+    if (llvm::Error error =
+            validateSafeIdentifier(route.getRouteID(), "call_opaque callee",
+                                   step.callee))
+      return error;
+    if (step.sourceOp.role == "compute") {
+      if (!step.result)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("compute step from source op '") +
+                step.sourceOp.opName +
+                "' requires a result value before MLIR Cpp source emission");
+      if (options.requireInterfaceBackedCompute &&
+          step.sourceOp.opInterface.empty())
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("compute step from source op '") +
+                step.sourceOp.opName +
+                "' requires generated op-interface provenance before MLIR "
+                "Cpp source emission");
+      sawInterfaceBackedCompute = true;
+    }
+
+    builder.create<mlir::emitc::VerbatimOp>(makeStepLocation(builder, step),
+                                            makeStepProvenanceComment(step));
+
+    llvm::SmallVector<mlir::Value, 4> operands;
+    for (const TCRVEmitCCallOpaqueOperand &operand : step.operands) {
+      llvm::Expected<mlir::Value> value =
+          materializeSourceOperand(operand, makeStepLocation(builder, step));
+      if (!value)
+        return value.takeError();
+      operands.push_back(*value);
+    }
+
+    llvm::SmallVector<mlir::Type, 1> resultTypes;
+    if (step.result) {
+      if (llvm::Error error = validateSafeIdentifier(
+              route.getRouteID(), "call_opaque result name",
+              step.result->name))
+        return error;
+      if (valueMap.contains(step.result->name))
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("duplicate source-authority value name '") +
+                step.result->name + "'");
+      resultTypes.push_back(getEmitCTypeForCType(context, step.result->cType));
+    }
+
+    mlir::emitc::CallOpaqueOp call =
+        builder.create<mlir::emitc::CallOpaqueOp>(
+            makeStepLocation(builder, step), resultTypes, step.callee,
+            operands);
+    if (step.result)
+      valueMap[step.result->name] = call->getResult(0);
+    return llvm::Error::success();
+  }
+
+  llvm::Error materializeRuntimeVLStep(const TCRVEmitCCallOpaqueStep &step) {
+    mlir::Location loc = makeStepLocation(builder, step);
+    builder.create<mlir::emitc::VerbatimOp>(loc,
+                                            makeStepProvenanceComment(step));
+    mlir::Value runtimeN = lookupRequiredValue(runtimeElementCountValueName);
+    mlir::Value offset = lookupRequiredValue(options.loopIndexName);
+    if (!runtimeN || !offset)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "source-authority runtime VL step is missing runtime n or offset "
+          "values");
+    mlir::Type sizeTType = mlir::emitc::SizeTType::get(&context);
+    mlir::Value remaining =
+        builder.create<mlir::emitc::SubOp>(loc, sizeTType, runtimeN, offset)
+            .getResult();
+    mlir::emitc::CallOpaqueOp call =
+        builder.create<mlir::emitc::CallOpaqueOp>(
+            loc, mlir::TypeRange{sizeTType}, step.callee,
+            mlir::ValueRange{remaining});
+    valueMap[step.result->name] = call->getResult(0);
+    return llvm::Error::success();
+  }
+
+  llvm::Error materializeHelperBody(mlir::emitc::FuncOp helper) {
+    mlir::Block &entry = helper.getBody().front();
+    builder.setInsertionPointToStart(&entry);
+    initializeFunctionValueMap(&entry, /*includeLoopIndexArgument=*/true);
+
+    mlir::Location loc = builder.getUnknownLoc();
+    mlir::Value runtimeN = lookupRequiredValue(runtimeElementCountValueName);
+    mlir::Value offset = lookupRequiredValue(options.loopIndexName);
+    mlir::Value condition =
+        builder
+            .create<mlir::emitc::CmpOp>(
+                loc, builder.getI1Type(), mlir::emitc::CmpPredicate::lt,
+                offset, runtimeN)
+            .getResult();
+    mlir::emitc::IfOp ifOp =
+        builder.create<mlir::emitc::IfOp>(loc, condition);
+    mlir::Block &thenBlock = ifOp.getThenRegion().front();
+    builder.setInsertionPoint(thenBlock.getTerminator());
+
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
+        route.getCallOpaqueSteps();
+    if (llvm::Error error = materializeRuntimeVLStep(steps.front()))
+      return error;
+    for (const TCRVEmitCCallOpaqueStep &step : steps.drop_front())
+      if (llvm::Error error = materializeRouteStep(step))
+        return error;
+    if (options.requireInterfaceBackedCompute && !sawInterfaceBackedCompute)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "MLIR Cpp source authority requires at least one "
+          "interface-backed compute call_opaque step");
+
+    mlir::Value vl = lookupRequiredValue(steps.front().result->name);
+    mlir::Value nextOffset =
+        builder
+            .create<mlir::emitc::AddOp>(
+                loc, mlir::emitc::SizeTType::get(&context), offset, vl)
+            .getResult();
+    llvm::SmallVector<mlir::Value, 8> recursiveArgs;
+    for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings())
+      recursiveArgs.push_back(lookupRequiredValue(mapping.valueName));
+    recursiveArgs.push_back(nextOffset);
+    builder.create<mlir::emitc::CallOp>(
+        loc, helperFunctionName, mlir::TypeRange{}, recursiveArgs);
+
+    builder.setInsertionPointAfter(ifOp);
+    builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
+    return llvm::Error::success();
+  }
+
+  llvm::Error materializePublicWrapper(mlir::emitc::FuncOp publicFunction,
+                                       mlir::emitc::FuncOp helper) {
+    mlir::Block &entry = publicFunction.getBody().front();
+    builder.setInsertionPointToStart(&entry);
+    initializeFunctionValueMap(&entry, /*includeLoopIndexArgument=*/false);
+
+    mlir::Location loc = builder.getUnknownLoc();
+    mlir::Value zero =
+        builder
+            .create<mlir::emitc::LiteralOp>(
+                loc, mlir::emitc::SizeTType::get(&context), "0")
+            .getResult();
+    llvm::SmallVector<mlir::Value, 8> callArgs;
+    for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings())
+      callArgs.push_back(lookupRequiredValue(mapping.valueName));
+    callArgs.push_back(zero);
+    builder.create<mlir::emitc::CallOp>(loc, helper, callArgs);
+    builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
+    return llvm::Error::success();
+  }
+
+  mlir::MLIRContext &context;
+  const TCRVEmitCLowerableRoute &route;
+  const TCRVEmitCSourceAuthorityOptions &options;
+  mlir::OpBuilder builder;
+  llvm::StringSet<> seenABIValueNames;
+  llvm::StringMap<mlir::Value> valueMap;
+  std::string helperFunctionName;
+  std::string runtimeElementCountValueName;
+  unsigned runtimeElementCountMatches = 0;
+  bool sawInterfaceBackedCompute = false;
+};
+
 llvm::Error makeSourceRendererError(llvm::StringRef routeID,
                                     llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "TianChen-RV EmitC C source renderer";
+  os << "TianChen-RV legacy diagnostic EmitC C source renderer";
   if (!routeID.empty())
     os << " for route '" << routeID << "'";
   os << " failed: ";
@@ -366,11 +833,11 @@ llvm::Error makeSourceRendererError(llvm::StringRef routeID,
   return llvm::createStringError(llvm::errc::invalid_argument, text);
 }
 
-class RouteCSourceRenderer {
+class LegacyDiagnosticRouteCSourceRenderer {
 public:
-  RouteCSourceRenderer(const TCRVEmitCLowerableRoute &route,
-                       llvm::raw_ostream &os,
-                       const TCRVEmitCSourceRenderOptions &options)
+  LegacyDiagnosticRouteCSourceRenderer(
+      const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
+      const TCRVEmitCLegacyDiagnosticSourceRenderOptions &options)
       : route(route), os(os), options(options) {}
 
   llvm::Error run() {
@@ -620,7 +1087,7 @@ private:
 
   const TCRVEmitCLowerableRoute &route;
   llvm::raw_ostream &os;
-  const TCRVEmitCSourceRenderOptions &options;
+  const TCRVEmitCLegacyDiagnosticSourceRenderOptions &options;
   llvm::StringSet<> knownValues;
   std::string runtimeElementCountValueName;
 };
@@ -650,10 +1117,39 @@ llvm::Error verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
   return llvm::Error::success();
 }
 
-llvm::Error renderTCRVEmitCLowerableRouteAsCFunction(
+llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
+materializeTCRVEmitCLowerableRouteSourceAuthority(
+    mlir::MLIRContext &context, const TCRVEmitCLowerableRoute &route,
+    const TCRVEmitCSourceAuthorityOptions &options) {
+  return RouteCppSourceAuthorityMaterializer(context, route, options).run();
+}
+
+llvm::Error emitTCRVEmitCLowerableRouteAsCppSource(
     const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
-    const TCRVEmitCSourceRenderOptions &options) {
-  return RouteCSourceRenderer(route, os, options).run();
+    const TCRVEmitCSourceAuthorityOptions &options) {
+  mlir::MLIRContext context;
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> module =
+      materializeTCRVEmitCLowerableRouteSourceAuthority(context, route,
+                                                        options);
+  if (!module)
+    return module.takeError();
+
+  std::string source;
+  llvm::raw_string_ostream sourceOS(source);
+  if (mlir::failed(mlir::emitc::translateToCpp(
+          module->get().getOperation(), sourceOS, options.declareVariablesAtTop)))
+    return makeMaterializerError(route.getRouteID(),
+                                 "MLIR Cpp emitter failed while translating "
+                                 "the source-authority EmitC module");
+  sourceOS.flush();
+  os << source;
+  return llvm::Error::success();
+}
+
+llvm::Error renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(
+    const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
+    const TCRVEmitCLegacyDiagnosticSourceRenderOptions &options) {
+  return LegacyDiagnosticRouteCSourceRenderer(route, os, options).run();
 }
 
 } // namespace tianchenrv::conversion::emitc

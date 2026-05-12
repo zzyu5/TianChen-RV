@@ -7,7 +7,6 @@
 # POS: /* TianChen-RV RVV runtime-callable microkernel C export. */
 # POS: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
 # POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
-# POS: #include <riscv_vector.h>
 # POS: /* selected_kernel: @rvv_microkernel_manifest */
 # POS: /* selected_variant: @rvv_first_slice */
 # POS: /* selected_role: direct variant */
@@ -21,11 +20,15 @@
 # POS: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
 # POS: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 # POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-# POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
+# POS: #include <riscv_vector.h>
+# POS: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# POS: static void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice__tcrv_emitc_body
+# POS: if (
 # POS: __riscv_vsetvl_e32m1
 # POS: __riscv_vle32_v_i32m1
 # POS: __riscv_vadd_vv_i32m1
 # POS: __riscv_vse32_v_i32m1
+# POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
 
 # RUN: tcrv-opt %S/../RVVMicrokernel/rvv-microkernel-pipeline.mlir --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PLAN --implicit-check-not="#include <riscv_vector.h>"
 # MISSING-PLAN: execution plan coherence check failed for kernel @micro_a
@@ -42,8 +45,10 @@
 # AUTO-DISPATCH: /* scalar_selected_role: dispatch fallback */
 # AUTO-DISPATCH: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
 # AUTO-DISPATCH: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
-# AUTO-DISPATCH: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
+# AUTO-DISPATCH: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# AUTO-DISPATCH: static void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice__tcrv_emitc_body
 # AUTO-DISPATCH: __riscv_vadd_vv_i32m1
+# AUTO-DISPATCH: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 # AUTO-DISPATCH: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
 # AUTO-DISPATCH: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
 # AUTO-DISPATCH-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest

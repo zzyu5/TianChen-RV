@@ -64,8 +64,10 @@ module @rvv_microkernel_object_input {
 // SOURCE: /* selected_march: rv64gcv */
 // SOURCE: /* selected_mabi: lp64d */
 // SOURCE: /* artifact_kind: runtime-callable-c-source */
-// SOURCE: void tcrv_rvv_i32_vadd_microkernel_static_object_i32_vadd_rvv_first_slice
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i32_vadd_microkernel_static_object_i32_vadd_rvv_first_slice__tcrv_emitc_body
 // SOURCE: __riscv_vadd_vv_i32m1
+// SOURCE: void tcrv_rvv_i32_vadd_microkernel_static_object_i32_vadd_rvv_first_slice
 
 // HELP-DAG: --tcrv-export-rvv-microkernel-object
 // HELP-DAG: --tcrv-export-rvv-i32-vsub-microkernel-object

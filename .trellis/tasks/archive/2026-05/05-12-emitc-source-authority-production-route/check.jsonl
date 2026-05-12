@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that implementation preserves project-wide stack and architecture invariants."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check unified extension-family architecture and descriptor/direct-renderer quarantine."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check source authority follows the common EmitC route and generated op-interface provenance contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export, parameter layering, and conservative evidence claims."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-owned mapping, selected vector-shape metadata, and runtime AVL/VL boundaries."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check no RVV semantic branch moved into common orchestration."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-emitc-source-authority-production-route/prd.md", "reason": "Check implementation and tests satisfy the archived task acceptance criteria."}

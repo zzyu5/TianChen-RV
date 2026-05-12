@@ -56,11 +56,9 @@ using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueResult;
 using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::TCRVEmitCSourceRenderOptions;
 using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::renderTCRVEmitCLowerableRouteAsCFunction;
-using tianchenrv::conversion::emitc::
-    verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
+using tianchenrv::conversion::emitc::emitTCRVEmitCLowerableRouteAsCppSource;
+using tianchenrv::conversion::emitc::TCRVEmitCSourceAuthorityOptions;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -2932,12 +2930,11 @@ void printEmitCRouteMetadata(llvm::raw_ostream &os,
         "intrinsic C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
   os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
-        "emitc.include, emitc.func, and emitc.call_opaque before route-authored "
-        "production C source output */\n";
+        "emitc.include, emitc.func, emitc.if, emitc.call_opaque, and "
+        "emitc.call before MLIR Cpp emitter production source output */\n";
   os << "/* emitc_materialization_function: @" << functionName << " */\n";
-  os << "/* emitc_c_source_authority: production function body rendered from "
-        "TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque "
-        "steps */\n";
+  os << "/* emitc_c_source_authority: MLIR EmitC module translated by "
+        "mlir::emitc::translateToCpp */\n";
   bool hasGeneratedOpInterface = llvm::any_of(
       route.getCallOpaqueSteps(), [](const TCRVEmitCCallOpaqueStep &step) {
         return !step.sourceOp.opInterface.empty();
@@ -3112,11 +3109,11 @@ void printRecordComment(llvm::raw_ostream &os,
 llvm::Error printMicrokernelFunction(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     const TCRVEmitCLowerableRoute &emitcRoute) {
-  TCRVEmitCSourceRenderOptions options;
+  TCRVEmitCSourceAuthorityOptions options;
   options.functionName = functionName.str();
   options.loopIndexName = "offset";
   options.requireInterfaceBackedCompute = true;
-  return renderTCRVEmitCLowerableRouteAsCFunction(emitcRoute, os, options);
+  return emitTCRVEmitCLowerableRouteAsCppSource(emitcRoute, os, options);
 }
 
 void printMicrokernelPrototype(llvm::raw_ostream &os,
@@ -3247,16 +3244,13 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
                                   record.runtimeABIParameters);
   if (!emitcRoute)
     return emitcRoute.takeError();
-  if (llvm::Error error =
-          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-              *emitcRoute, functionName, {"offset"}))
-    return error;
 
   os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "
      << record.descriptor.getRVVMicrokernelOpName() << ". */\n";
   os << "/* Route: verified RVV family ops build the common EmitC lowerable "
-        "route that renders the production C function body. */\n";
+        "route; MLIR EmitC plus the MLIR Cpp emitter produce the production "
+        "source body. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   if (includeHarness)
@@ -3265,17 +3259,13 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   os << "/* Correctness claims require the explicit self-check harness and ssh "
         "rvv evidence; this source is not generic TianChen-RV lowering or "
         "performance evidence. */\n\n";
-  os << "#include <stddef.h>\n";
-  os << "#include <stdint.h>\n";
-  if (includeHarness)
-    os << "#include <stdio.h>\n";
-  os << "#include <riscv_vector.h>\n\n";
 
   printRecordComment(os, record, functionName, *emitcRoute);
   if (llvm::Error error =
           printMicrokernelFunction(os, functionName, *emitcRoute))
     return error;
   if (includeHarness) {
+    os << "#include <stdio.h>\n\n";
     if (record.descriptor.family.dtype != RVVBinaryDTypeKind::I32)
       return makeModuleMicrokernelError(
           "RVV self-check harness export is currently bounded to i32 "

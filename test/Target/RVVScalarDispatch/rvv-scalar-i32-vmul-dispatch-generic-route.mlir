@@ -125,8 +125,10 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // SOURCE: /* scalar_runtime_glue_role: runtime-callable-i32-vmul-fallback-function */
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_dispatch_i32_vmul_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_dispatch_i32_vmul_scalar_fallback_first_slice */
-// SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_dispatch_i32_vmul_rvv_first_slice
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i32_vmul_microkernel_frontend_dispatch_i32_vmul_rvv_first_slice__tcrv_emitc_body
 // SOURCE: __riscv_vmul_vv_i32m1
+// SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_dispatch_i32_vmul_rvv_first_slice
 // SOURCE: void tcrv_scalar_i32_vmul_microkernel_frontend_dispatch_i32_vmul_scalar_fallback_first_slice
 // SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul

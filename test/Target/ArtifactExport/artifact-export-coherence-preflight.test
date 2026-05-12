@@ -1,9 +1,11 @@
 # RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-rvv-microkernel.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=RVV-OK --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 # RVV-OK: /* TianChen-RV RVV runtime-callable microkernel C export. */
-# RVV-OK: #include <riscv_vector.h>
 # RVV-OK: /* selected_kernel: @rvv_microkernel_manifest */
 # RVV-OK: /* selected_variant: @rvv_first_slice */
 # RVV-OK: /* artifact_kind: runtime-callable-c-source */
+# RVV-OK: #include <riscv_vector.h>
+# RVV-OK: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# RVV-OK: static void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice__tcrv_emitc_body
 # RVV-OK: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
 
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SCALAR-OK --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not="int main(void)" --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token

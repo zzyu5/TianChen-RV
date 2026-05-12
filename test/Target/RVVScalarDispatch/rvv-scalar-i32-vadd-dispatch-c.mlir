@@ -268,8 +268,10 @@ module @rvv_scalar_dispatch_input {
 // AUTO: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
 // AUTO: /* dispatch_runtime_guard_link: case=@rvv_first_slice, runtime_guard=@abi_dispatch_availability_guard */
 // AUTO: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
-// AUTO: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
+// AUTO: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// AUTO: static void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice__tcrv_emitc_body
 // AUTO: __riscv_vadd_vv_i32m1
+// AUTO: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 // AUTO: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
 // AUTO: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
 // AUTO-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
@@ -279,6 +281,8 @@ module @rvv_scalar_dispatch_input {
 
 // HARNESS: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // HARNESS: /* selected_kernel: @dispatch_vadd */
+// HARNESS: static void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice__tcrv_emitc_body
+// HARNESS: __riscv_vadd_vv_i32m1
 // HARNESS: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // HARNESS: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
 // HARNESS-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd

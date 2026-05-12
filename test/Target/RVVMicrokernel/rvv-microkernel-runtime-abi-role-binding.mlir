@@ -188,12 +188,16 @@ module @rvv_runtime_abi_role_binding {
 // ALT: /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 // ALT: /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 // ALT: /* runtime_abi_parameter[3]: c_name=len, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-// ALT: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len)
-// ALT: while (offset < len)
-// ALT: __riscv_vsetvl_e32m1(len - offset)
-// ALT: __riscv_vle32_v_i32m1(&lhs[offset], vl)
-// ALT: __riscv_vle32_v_i32m1(&rhs[offset], vl)
-// ALT: __riscv_vse32_v_i32m1(&out[offset], sum_vec, vl)
+// ALT: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// ALT: static void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice__tcrv_emitc_body
+// ALT: if (
+// ALT: __riscv_vsetvl_e32m1
+// ALT: __riscv_vle32_v_i32m1
+// ALT: __riscv_vle32_v_i32m1
+// ALT: // tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
+// ALT: __riscv_vadd_vv_i32m1
+// ALT: __riscv_vse32_v_i32m1
+// ALT: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice
 
 // STALE-NAME: runtime ABI callable plan validation failed
 // STALE-NAME-SAME: supported RVV microkernel emission-plan runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'

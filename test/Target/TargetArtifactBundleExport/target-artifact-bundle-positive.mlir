@@ -99,16 +99,18 @@ module @target_artifact_bundle_positive_input {
 // DIRECT-INDEX: evidence_role: "relocatable-object"
 
 // DIRECT-SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */
-// DIRECT-SOURCE: #include <riscv_vector.h>
 // DIRECT-SOURCE: /* selected_kernel: @bundle_i32_vadd */
 // DIRECT-SOURCE: /* selected_role: direct variant */
 // DIRECT-SOURCE: /* dataflow_emission_source: derived from verified tcrv_rvv.with_vl body order, SSA chain, and buffer_role attributes */
 // DIRECT-SOURCE: /* artifact_kind: runtime-callable-c-source */
-// DIRECT-SOURCE: void tcrv_rvv_i32_vadd_microkernel_bundle_i32_vadd_rvv_first_slice
+// DIRECT-SOURCE: #include <riscv_vector.h>
+// DIRECT-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// DIRECT-SOURCE: static void tcrv_rvv_i32_vadd_microkernel_bundle_i32_vadd_rvv_first_slice__tcrv_emitc_body
 // DIRECT-SOURCE: __riscv_vsetvl_e32m1
 // DIRECT-SOURCE: __riscv_vle32_v_i32m1
 // DIRECT-SOURCE: __riscv_vadd_vv_i32m1
 // DIRECT-SOURCE: __riscv_vse32_v_i32m1
+// DIRECT-SOURCE: void tcrv_rvv_i32_vadd_microkernel_bundle_i32_vadd_rvv_first_slice
 
 // DIRECT-HEADER: #ifndef TIANCHENRV_RVV_I32_VADD_MICROKERNEL_BUNDLE_I32_VADD_RVV_FIRST_SLICE_H
 // DIRECT-HEADER: void tcrv_rvv_i32_vadd_microkernel_bundle_i32_vadd_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

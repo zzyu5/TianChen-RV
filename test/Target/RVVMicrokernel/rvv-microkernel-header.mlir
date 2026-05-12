@@ -67,10 +67,12 @@ module @rvv_microkernel_header_input {
 // GENERIC-HEADER: void tcrv_rvv_i32_vadd_microkernel_header_i32_vadd_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 // GENERIC-HEADER: #endif /* TIANCHENRV_RVV_I32_VADD_MICROKERNEL_HEADER_I32_VADD_RVV_FIRST_SLICE_H */
 
-// SOURCE: #include <riscv_vector.h>
 // SOURCE: /* artifact_kind: runtime-callable-c-source */
-// SOURCE: void tcrv_rvv_i32_vadd_microkernel_header_i32_vadd_rvv_first_slice
+// SOURCE: #include <riscv_vector.h>
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i32_vadd_microkernel_header_i32_vadd_rvv_first_slice__tcrv_emitc_body
 // SOURCE: __riscv_vadd_vv_i32m1
+// SOURCE: void tcrv_rvv_i32_vadd_microkernel_header_i32_vadd_rvv_first_slice
 
 // HELP-DAG: --tcrv-export-rvv-microkernel-header
 // HELP-DAG: --tcrv-export-rvv-i32-vsub-microkernel-c

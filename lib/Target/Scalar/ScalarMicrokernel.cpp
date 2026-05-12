@@ -51,7 +51,8 @@ using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::
     verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
-using tianchenrv::conversion::emitc::renderTCRVEmitCLowerableRouteAsCFunction;
+using tianchenrv::conversion::emitc::
+    renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -2060,11 +2061,13 @@ void printScalarRuntimeHelperDefinitions(
 llvm::Error printMicrokernelFunction(llvm::raw_ostream &os,
                                      llvm::StringRef functionName,
                                      const TCRVEmitCLowerableRoute &route) {
-  tianchenrv::conversion::emitc::TCRVEmitCSourceRenderOptions options;
+  tianchenrv::conversion::emitc::TCRVEmitCLegacyDiagnosticSourceRenderOptions
+      options;
   options.functionName = functionName.str();
   options.loopIndexName = "index";
   options.requireInterfaceBackedCompute = true;
-  return renderTCRVEmitCLowerableRouteAsCFunction(route, os, options);
+  return renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
+                                                                  options);
 }
 
 void printMicrokernelHeader(const ScalarMicrokernelRecord &record,

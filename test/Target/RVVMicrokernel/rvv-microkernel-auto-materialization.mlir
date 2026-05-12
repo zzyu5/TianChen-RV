@@ -118,9 +118,8 @@ module @rvv_auto_microkernel_input {
 
 // EXPORT: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // EXPORT: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
-// EXPORT: /* Route: verified RVV family ops build the common EmitC lowerable route that renders the production C function body. */
+// EXPORT: /* Route: verified RVV family ops build the common EmitC lowerable route; MLIR EmitC plus the MLIR Cpp emitter produce the production source body. */
 // EXPORT: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
-// EXPORT: #include <riscv_vector.h>
 // EXPORT-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice */
 // EXPORT: /* selected_kernel: @auto_i32_vadd */
 // EXPORT: /* selected_variant: @rvv_first_slice */
@@ -150,9 +149,13 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // EXPORT: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // EXPORT: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
-// EXPORT: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
-// EXPORT: while (offset < n)
+// EXPORT: #include <riscv_vector.h>
+// EXPORT: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// EXPORT: static void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice__tcrv_emitc_body
+// EXPORT: if (
 // EXPORT: __riscv_vsetvl_e32m1
 // EXPORT: __riscv_vle32_v_i32m1
+// EXPORT: // tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
 // EXPORT: __riscv_vadd_vv_i32m1
 // EXPORT: __riscv_vse32_v_i32m1
+// EXPORT: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice

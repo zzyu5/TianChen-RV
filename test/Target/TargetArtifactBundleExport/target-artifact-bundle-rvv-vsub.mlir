@@ -60,8 +60,10 @@ module @target_artifact_bundle_rvv_vsub_test_anchor {
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
-// SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice__tcrv_emitc_body
 // SOURCE: __riscv_vsub_vv_i32m1
+// SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
 
 // HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_EXPORT_I32_VSUB_RVV_SUB_SLICE_H
 // HEADER: void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

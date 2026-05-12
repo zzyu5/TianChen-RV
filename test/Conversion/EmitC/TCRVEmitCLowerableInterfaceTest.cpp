@@ -426,13 +426,14 @@ int expectRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
                               llvm::StringRef functionName,
                               llvm::StringRef arithmeticCallee,
                               llvm::StringRef resultName) {
-  TCRVEmitCSourceRenderOptions options;
+  TCRVEmitCLegacyDiagnosticSourceRenderOptions options;
   options.functionName = functionName.str();
   options.loopIndexName = "offset";
   std::string source;
   llvm::raw_string_ostream os(source);
   if (llvm::Error error =
-          renderTCRVEmitCLowerableRouteAsCFunction(route, os, options))
+          renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
+                                                                   options))
     return fail(llvm::Twine("expected route to render C source: ") +
                 llvm::toString(std::move(error)));
   os.flush();
@@ -469,15 +470,96 @@ int expectRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
   return 0;
 }
 
+int expectRouteEmitsCppSourceAuthority(const TCRVEmitCLowerableRoute &route,
+                                       llvm::StringRef functionName,
+                                       llvm::StringRef arithmeticCallee,
+                                       llvm::StringRef arithmeticSourceOp) {
+  TCRVEmitCSourceAuthorityOptions options;
+  options.functionName = functionName.str();
+  options.loopIndexName = "offset";
+
+  mlir::MLIRContext sourceContext;
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> sourceModule =
+      materializeTCRVEmitCLowerableRouteSourceAuthority(sourceContext, route,
+                                                        options);
+  if (!sourceModule)
+    return fail(llvm::Twine("expected source-authority route to materialize: ") +
+                llvm::toString(sourceModule.takeError()));
+
+  unsigned funcCount = 0;
+  unsigned ifCount = 0;
+  unsigned callOpaqueCount = 0;
+  sourceModule->get().walk([&](mlir::emitc::FuncOp) { ++funcCount; });
+  sourceModule->get().walk([&](mlir::emitc::IfOp) { ++ifCount; });
+  sourceModule->get().walk(
+      [&](mlir::emitc::CallOpaqueOp) { ++callOpaqueCount; });
+  if (int result = expect(funcCount == 2,
+                          "source-authority module contains helper and public "
+                          "emitc.func ops"))
+    return result;
+  if (int result = expect(ifCount == 1,
+                          "source-authority module models runtime VL loop "
+                          "control with EmitC control flow"))
+    return result;
+  if (int result =
+          expect(callOpaqueCount == route.getCallOpaqueSteps().size(),
+                 "source-authority module keeps one emitc.call_opaque per "
+                 "route step"))
+    return result;
+
+  std::string source;
+  llvm::raw_string_ostream os(source);
+  if (llvm::Error error =
+          emitTCRVEmitCLowerableRouteAsCppSource(route, os, options))
+    return fail(llvm::Twine("expected route to emit MLIR Cpp source: ") +
+                llvm::toString(std::move(error)));
+  os.flush();
+
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     "tcrv_emitc.source_authority=mlir_emitc_cpp_emitter"),
+                 "source-authority output records MLIR Cpp emitter authority"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("static void ") + functionName +
+                      "__tcrv_emitc_body")
+                         .str()),
+                 "source-authority output contains static EmitC helper"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("void ") + functionName + "(").str()),
+                 "source-authority output contains public wrapper function"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains("if ("),
+                 "source-authority output emits MLIR-modeled control flow"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(arithmeticCallee),
+                 "source-authority output emits arithmetic callee from route"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(source).contains(
+                     (llvm::Twine("tcrv_emitc.source_op=") +
+                      arithmeticSourceOp)
+                         .str()),
+                 "source-authority output preserves source-op provenance"))
+    return result;
+  return 0;
+}
+
 int expectScalarRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
                                     llvm::StringRef functionName) {
-  TCRVEmitCSourceRenderOptions options;
+  TCRVEmitCLegacyDiagnosticSourceRenderOptions options;
   options.functionName = functionName.str();
   options.loopIndexName = "index";
   std::string source;
   llvm::raw_string_ostream os(source);
   if (llvm::Error error =
-          renderTCRVEmitCLowerableRouteAsCFunction(route, os, options))
+          renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
+                                                                   options))
     return fail(llvm::Twine("expected scalar route to render C source: ") +
                 llvm::toString(std::move(error)));
   os.flush();
@@ -513,12 +595,13 @@ int expectScalarRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
 
 int expectRouteRenderingFails(const TCRVEmitCLowerableRoute &route,
                               llvm::StringRef expectedDiagnostic) {
-  TCRVEmitCSourceRenderOptions options;
+  TCRVEmitCLegacyDiagnosticSourceRenderOptions options;
   options.functionName = "tcrv_emitc_bad_render";
   std::string source;
   llvm::raw_string_ostream os(source);
   llvm::Error error =
-      renderTCRVEmitCLowerableRouteAsCFunction(route, os, options);
+      renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
+                                                               options);
   if (!error)
     return fail("expected route C source rendering to fail closed");
   os.flush();
@@ -615,6 +698,10 @@ int main() {
   if (int result = expectRouteRendersCSource(
           *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1", "sum_vec"))
     return result;
+  if (int result = expectRouteEmitsCppSourceAuthority(
+          *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1",
+          "tcrv_rvv.i32_add"))
+    return result;
 
   auto subLowerable = llvm::cast<TCRVEmitCLowerableOpInterface>(subOp);
   GeneratedRVVArithmeticLowerable validSub(
@@ -633,6 +720,10 @@ int main() {
                                     "__riscv_vsub_vv_i32m1",
                                     "difference_vec"))
     return result;
+  if (int result = expectRouteEmitsCppSourceAuthority(
+          *subRoute, "tcrv_emitc_test_sub", "__riscv_vsub_vv_i32m1",
+          "tcrv_rvv.i32_sub"))
+    return result;
 
   auto mulLowerable = llvm::cast<TCRVEmitCLowerableOpInterface>(mulOp);
   GeneratedRVVArithmeticLowerable validMul(
@@ -649,6 +740,10 @@ int main() {
   if (int result =
           expectRouteRendersCSource(*mulRoute, "tcrv_emitc_test_mul",
                                     "__riscv_vmul_vv_i32m1", "product_vec"))
+    return result;
+  if (int result = expectRouteEmitsCppSourceAuthority(
+          *mulRoute, "tcrv_emitc_test_mul", "__riscv_vmul_vv_i32m1",
+          "tcrv_rvv.i32_mul"))
     return result;
 
   TCRVEmitCLowerableRoute scalarRoute = makeScalarElementLoopRoute();

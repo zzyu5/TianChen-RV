@@ -75,6 +75,54 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 41: EmitC source authority production route
+
+**Date**: 2026-05-12
+**Task**: EmitC source authority production route
+**Branch**: `main`
+
+### Summary
+
+The bounded direct RVV runtime-callable source export now uses a verified MLIR
+EmitC module translated by `mlir::emitc::translateToCpp` as the production
+source authority instead of the custom route-to-C renderer.
+
+### Main Changes
+
+- Added a conversion / EmitC source authority adapter that materializes the
+  runtime-AVL-to-VL route as EmitC functions, EmitC control flow, route
+  `call_opaque` steps, and source-op provenance comments.
+- Rewired the direct RVV microkernel source export to call the MLIR-backed
+  source authority for generated source bytes while preserving clang as the
+  default native compiler path.
+- Renamed the custom route renderer as a legacy diagnostic compatibility path;
+  scalar compatibility can still use it, but the bounded RVV default route no
+  longer does.
+- Updated C++ and lit coverage across RVV source, artifact export, dispatch,
+  bundle, script, and transform fixtures to assert MLIR EmitC / MLIR Cpp
+  emitter authority rather than old handwritten loop spelling.
+
+### Testing
+
+- Focused changed-owner builds for `TianChenRVConversionEmitC`,
+  `TianChenRVRVVTarget`, `TianChenRVScalarTarget`,
+  `tianchenrv-target-artifact-export-test`, and `tcrv-translate`.
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused and broader lit filters for RVV source/export, dispatch, bundle,
+  script, and transform fixtures.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 39: RVV+scalar dispatch selected-plan route authority
 
 **Date**: 2026-05-12

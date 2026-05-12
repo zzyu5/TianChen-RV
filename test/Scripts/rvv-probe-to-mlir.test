@@ -160,11 +160,13 @@
 # I64-SOURCE: /* active_route: tcrv-export-rvv-i64-vadd-microkernel-c */
 # I64-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
-# I64-SOURCE: void tcrv_rvv_i64_vadd_microkernel_rvv_probe_i64_replay_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
+# I64-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# I64-SOURCE: static void tcrv_rvv_i64_vadd_microkernel_rvv_probe_i64_replay_rvv_first_slice__tcrv_emitc_body
 # I64-SOURCE: __riscv_vsetvl_e64m1
 # I64-SOURCE: __riscv_vle64_v_i64m1
 # I64-SOURCE: __riscv_vadd_vv_i64m1
 # I64-SOURCE: __riscv_vse64_v_i64m1
+# I64-SOURCE: void tcrv_rvv_i64_vadd_microkernel_rvv_probe_i64_replay_rvv_first_slice
 
 # I64-MALFORMED: no viable plugin proposals
 # I64-MALFORMED: rvv-plugin:

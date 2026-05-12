@@ -11,4 +11,5 @@ add_mlir_library(TianChenRVConversionEmitC
   MLIREmitCDialect
   MLIRIR
   MLIRSupport
+  MLIRTargetCpp
 )

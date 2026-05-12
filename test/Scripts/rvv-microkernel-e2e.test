@@ -383,11 +383,13 @@
 # I32-VMUL-FRONTEND-SOURCE: /* selected_kernel: @frontend_i32_vmul */
 # I32-VMUL-FRONTEND-SOURCE: /* arithmetic_family: i32-vmul */
 # I32-VMUL-FRONTEND-SOURCE: /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
-# I32-VMUL-FRONTEND-SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
+# I32-VMUL-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# I32-VMUL-FRONTEND-SOURCE: static void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice__tcrv_emitc_body
 # I32-VMUL-FRONTEND-SOURCE: __riscv_vsetvl_e32m1
 # I32-VMUL-FRONTEND-SOURCE: __riscv_vle32_v_i32m1
 # I32-VMUL-FRONTEND-SOURCE: __riscv_vmul_vv_i32m1
 # I32-VMUL-FRONTEND-SOURCE: __riscv_vse32_v_i32m1
+# I32-VMUL-FRONTEND-SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice
 # I32-VMUL-FRONTEND-SOURCE-NOT: __riscv_vadd_vv_i32m1
 # I32-VMUL-FRONTEND-SOURCE-NOT: __riscv_vsub_vv_i32m1
 # I32-VMUL-FRONTEND-SOURCE-NOT: runtime_success
@@ -450,11 +452,13 @@
 # I64-FRONTEND-SOURCE: /* selected_kernel: @frontend_i64_vadd */
 # I64-FRONTEND-SOURCE: /* arithmetic_family: i64-vadd */
 # I64-FRONTEND-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
-# I64-FRONTEND-SOURCE: void tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
+# I64-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# I64-FRONTEND-SOURCE: static void tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice__tcrv_emitc_body
 # I64-FRONTEND-SOURCE: __riscv_vsetvl_e64m1
 # I64-FRONTEND-SOURCE: __riscv_vle64_v_i64m1
 # I64-FRONTEND-SOURCE: __riscv_vadd_vv_i64m1
 # I64-FRONTEND-SOURCE: __riscv_vse64_v_i64m1
+# I64-FRONTEND-SOURCE: void tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice
 # I64-FRONTEND-SOURCE-NOT: int32_t
 
 # I64-VSUB-FRONTEND-EVIDENCE: "arithmetic_family": "i64-vsub"
@@ -474,11 +478,13 @@
 # I64-VSUB-FRONTEND-SOURCE: /* selected_kernel: @frontend_i64_vsub */
 # I64-VSUB-FRONTEND-SOURCE: /* arithmetic_family: i64-vsub */
 # I64-VSUB-FRONTEND-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
-# I64-VSUB-FRONTEND-SOURCE: void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
+# I64-VSUB-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# I64-VSUB-FRONTEND-SOURCE: static void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice__tcrv_emitc_body
 # I64-VSUB-FRONTEND-SOURCE: __riscv_vsetvl_e64m1
 # I64-VSUB-FRONTEND-SOURCE: __riscv_vle64_v_i64m1
 # I64-VSUB-FRONTEND-SOURCE: __riscv_vsub_vv_i64m1
 # I64-VSUB-FRONTEND-SOURCE: __riscv_vse64_v_i64m1
+# I64-VSUB-FRONTEND-SOURCE: void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice
 # I64-VSUB-FRONTEND-SOURCE-NOT: int32_t
 
 # I64-VMUL-FRONTEND-EVIDENCE: "arithmetic_family": "i64-vmul"
@@ -498,11 +504,13 @@
 # I64-VMUL-FRONTEND-SOURCE: /* selected_kernel: @frontend_i64_vmul */
 # I64-VMUL-FRONTEND-SOURCE: /* arithmetic_family: i64-vmul */
 # I64-VMUL-FRONTEND-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
-# I64-VMUL-FRONTEND-SOURCE: void tcrv_rvv_i64_vmul_microkernel_frontend_i64_vmul_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
+# I64-VMUL-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# I64-VMUL-FRONTEND-SOURCE: static void tcrv_rvv_i64_vmul_microkernel_frontend_i64_vmul_rvv_first_slice__tcrv_emitc_body
 # I64-VMUL-FRONTEND-SOURCE: __riscv_vsetvl_e64m1
 # I64-VMUL-FRONTEND-SOURCE: __riscv_vle64_v_i64m1
 # I64-VMUL-FRONTEND-SOURCE: __riscv_vmul_vv_i64m1
 # I64-VMUL-FRONTEND-SOURCE: __riscv_vse64_v_i64m1
+# I64-VMUL-FRONTEND-SOURCE: void tcrv_rvv_i64_vmul_microkernel_frontend_i64_vmul_rvv_first_slice
 # I64-VMUL-FRONTEND-SOURCE-NOT: int32_t
 # I64-SOURCE-NOT: int32_t
 # I64-SOURCE-NOT: i32-vsub

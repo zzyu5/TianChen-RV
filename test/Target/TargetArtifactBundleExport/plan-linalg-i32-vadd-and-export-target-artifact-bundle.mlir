@@ -211,8 +211,10 @@ module @plan_linalg_i32_vadd_bundle_input {
 // SOURCE: /* scalar_selected_role: dispatch fallback */
 // SOURCE: /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned, purpose=runtime-abi-scalar */
 // SOURCE: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
-// SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_bundle_i32_vadd_rvv_first_slice
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i32_vadd_microkernel_frontend_bundle_i32_vadd_rvv_first_slice__tcrv_emitc_body
 // SOURCE: __riscv_vadd_vv_i32m1
+// SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_bundle_i32_vadd_rvv_first_slice
 // SOURCE: void tcrv_scalar_i32_vadd_microkernel_frontend_bundle_i32_vadd_scalar_fallback_first_slice
 // SOURCE: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vadd_frontend_bundle_i32_vadd

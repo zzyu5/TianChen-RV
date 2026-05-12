@@ -166,8 +166,6 @@ module @rvv_microkernel_i64_vadd_export_input {
 
 // SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // SOURCE: /* Scope: library-style C source for exactly one tcrv_rvv.i64_vadd_microkernel. */
-// SOURCE: #include <stdint.h>
-// SOURCE: #include <riscv_vector.h>
 // SOURCE-LABEL: /* microkernel function: tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice */
 // SOURCE: /* selected_kernel: @export_i64_vadd */
 // SOURCE: /* selected_variant: @rvv_i64_slice */
@@ -185,12 +183,17 @@ module @rvv_microkernel_i64_vadd_export_input {
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[3]: c_name=len64, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-// SOURCE: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64)
-// SOURCE: while (offset < len64)
+// SOURCE: #include <stdint.h>
+// SOURCE: #include <riscv_vector.h>
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice__tcrv_emitc_body
+// SOURCE: if (
 // SOURCE: __riscv_vsetvl_e64m1
 // SOURCE: __riscv_vle64_v_i64m1
+// SOURCE: // tcrv_emitc.source_op=tcrv_rvv.i64_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i64m1
 // SOURCE: __riscv_vadd_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+// SOURCE: void tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice
 
 // HEADER: #ifndef TIANCHENRV_RVV_I64_VADD_MICROKERNEL_EXPORT_I64_VADD_RVV_I64_SLICE_H
 // HEADER: #include <stddef.h>

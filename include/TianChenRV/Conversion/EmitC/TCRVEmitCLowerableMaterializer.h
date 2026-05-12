@@ -24,7 +24,16 @@ struct TCRVEmitCMaterializationOptions {
   bool verifyModule = true;
 };
 
-struct TCRVEmitCSourceRenderOptions {
+struct TCRVEmitCSourceAuthorityOptions {
+  std::string functionName = "tcrv_emitc_route";
+  std::string loopIndexName = "offset";
+  std::string helperFunctionName;
+  bool requireInterfaceBackedCompute = true;
+  bool verifyModule = true;
+  bool declareVariablesAtTop = false;
+};
+
+struct TCRVEmitCLegacyDiagnosticSourceRenderOptions {
   std::string functionName = "tcrv_emitc_route";
   std::string loopIndexName = "offset";
   bool requireInterfaceBackedCompute = true;
@@ -39,9 +48,18 @@ llvm::Error verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
     const TCRVEmitCLowerableRoute &route, llvm::StringRef functionName,
     llvm::ArrayRef<llvm::StringRef> implicitValueNames = {});
 
-llvm::Error renderTCRVEmitCLowerableRouteAsCFunction(
+llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
+materializeTCRVEmitCLowerableRouteSourceAuthority(
+    mlir::MLIRContext &context, const TCRVEmitCLowerableRoute &route,
+    const TCRVEmitCSourceAuthorityOptions &options = {});
+
+llvm::Error emitTCRVEmitCLowerableRouteAsCppSource(
     const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
-    const TCRVEmitCSourceRenderOptions &options = {});
+    const TCRVEmitCSourceAuthorityOptions &options = {});
+
+llvm::Error renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(
+    const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
+    const TCRVEmitCLegacyDiagnosticSourceRenderOptions &options = {});
 
 } // namespace tianchenrv::conversion::emitc
 

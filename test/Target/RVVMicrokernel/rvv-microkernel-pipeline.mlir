@@ -103,7 +103,6 @@ module @rvv_microkernel_input {
 // LIB: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // LIB: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
 // LIB: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
-// LIB: #include <riscv_vector.h>
 // LIB-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
 // LIB: /* selected_kernel: @micro_a */
 // LIB: /* selected_variant: @rvv_first_slice */
@@ -123,9 +122,9 @@ module @rvv_microkernel_input {
 // LIB: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // LIB: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 // LIB: /* emitc_lowerable_interface: TCRVEmitCLowerableInterface */
-// LIB: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, and emitc.call_opaque before route-authored production C source output */
+// LIB: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
 // LIB: /* emitc_materialization_function: @tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
-// LIB: /* emitc_c_source_authority: production function body rendered from TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque steps */
+// LIB: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 // LIB: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // LIB: /* emitc_route_id: tcrv-export-rvv-microkernel-c, route_kind=extension-family-ops-to-emitc-call-opaque */
 // LIB: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */
@@ -141,17 +140,19 @@ module @rvv_microkernel_input {
 // LIB: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // LIB: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // LIB: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
-// LIB: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
-// LIB: while (offset < n)
+// LIB: #include <riscv_vector.h>
+// LIB: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// LIB: static void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice__tcrv_emitc_body
+// LIB: if (
 // LIB: __riscv_vsetvl_e32m1
 // LIB: __riscv_vle32_v_i32m1
+// LIB: // tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
 // LIB: __riscv_vadd_vv_i32m1
 // LIB: __riscv_vse32_v_i32m1
+// LIB: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
 
 // HARNESS: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
 // HARNESS: #include <stdio.h>
-// HARNESS: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
-// HARNESS: __riscv_vadd_vv_i32m1
 // HARNESS: /* Harness capacity comes from descriptor-local element_count; each call still supplies runtime n through the generated C ABI. */
 // HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type. */
 // HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one(size_t runtime_n)

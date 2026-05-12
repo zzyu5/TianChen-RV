@@ -53,7 +53,6 @@ module @rvv_microkernel_i32m2_vsub_export_input {
 
 // SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */
 // SOURCE: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vsub_microkernel. */
-// SOURCE: #include <riscv_vector.h>
 // SOURCE-LABEL: /* microkernel function: tcrv_rvv_i32_vsub_microkernel_export_i32m2_vsub_rvv_first_slice */
 // SOURCE: /* selected_kernel: @export_i32m2_vsub */
 // SOURCE: /* selected_variant: @rvv_first_slice */
@@ -63,11 +62,16 @@ module @rvv_microkernel_i32m2_vsub_export_input {
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 // SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // SOURCE: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
-// SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32m2_vsub_rvv_first_slice
+// SOURCE: #include <riscv_vector.h>
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i32_vsub_microkernel_export_i32m2_vsub_rvv_first_slice__tcrv_emitc_body
+// SOURCE: if (
 // SOURCE: __riscv_vsetvl_e32m2
 // SOURCE: __riscv_vle32_v_i32m2
+// SOURCE: // tcrv_emitc.source_op=tcrv_rvv.i32_sub role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsub_vv_i32m2
 // SOURCE: __riscv_vsub_vv_i32m2
 // SOURCE: __riscv_vse32_v_i32m2
+// SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32m2_vsub_rvv_first_slice
 
 // HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_EXPORT_I32M2_VSUB_RVV_FIRST_SLICE_H
 // HEADER: #include <stddef.h>

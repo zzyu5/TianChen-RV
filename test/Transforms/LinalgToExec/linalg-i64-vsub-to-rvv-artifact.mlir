@@ -163,8 +163,10 @@ module {
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
-// SOURCE: void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
-// SOURCE: __riscv_vsetvl_e64m1(n - offset)
+// SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// SOURCE: static void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice__tcrv_emitc_body
+// SOURCE: __riscv_vsetvl_e64m1
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vsub_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+// SOURCE: void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice
