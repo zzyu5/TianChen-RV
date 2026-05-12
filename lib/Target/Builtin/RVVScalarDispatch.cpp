@@ -785,7 +785,7 @@ llvm::Error validateDispatchCallableABIParameterMirror(
 
   return support::validateFiniteBinaryCallableABIParameterMirror(
       kernel, metadataParameters, irBackedParameters, metadataSource,
-      *family.rvvFamily);
+      target::rvv::getRVVBinaryRuntimeABIContract(*family.rvvFamily));
 }
 
 llvm::Expected<CallableABIPlan>
@@ -802,7 +802,9 @@ buildDispatchCallableABIPlan(KernelOp kernel,
                     " requires finite RVV binary family metadata");
 
   llvm::Expected<support::FiniteBinaryCallableABIPlan> finitePlan =
-      support::buildFiniteBinaryCallableABIPlan(kernel, *family.rvvFamily);
+      support::buildFiniteBinaryCallableABIPlan(
+          kernel,
+          target::rvv::getRVVBinaryRuntimeABIContract(*family.rvvFamily));
   if (!finitePlan)
     return finitePlan.takeError();
 

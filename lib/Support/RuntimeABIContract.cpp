@@ -92,24 +92,21 @@ bindOneI32BinaryCallableParameterByRole(
 
 } // namespace
 
-I32BinaryRuntimeABIContract::I32BinaryRuntimeABIContract(
-    const target::i32_binary::I32BinaryFamilyDescriptor &family)
-    : family(&family),
-      rvvCallableIdentity{family.rvv.runtimeABI, family.rvv.runtimeABIKind,
-                          family.rvv.runtimeABIName,
-                          family.rvv.runtimeGlueRole},
-      scalarCallableIdentity{family.scalar.runtimeABI,
-                             family.scalar.runtimeABIKind,
-                             family.scalar.runtimeABIName,
-                             family.scalar.runtimeGlueRole},
-      dispatchIdentity{family.dispatch.dispatchRuntimeABIKind,
-                       family.dispatch.dispatchRuntimeABIName} {
+FiniteBinaryRuntimeABIContract::FiniteBinaryRuntimeABIContract(
+    const FiniteBinaryRuntimeABIContractSpec &spec)
+    : familyID(spec.familyID), callableIdentity(spec.callableIdentity),
+      rvvCallableIdentity(spec.rvvCallableIdentity),
+      scalarCallableIdentity(spec.scalarCallableIdentity),
+      dispatchIdentity(spec.dispatchIdentity),
+      externalABIComponentGroup(spec.externalABIComponentGroup) {
   callableParameters.push_back(makeTargetExportABIParameter(
-      "lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer));
+      "lhs", spec.constInputPointerCType,
+      RuntimeABIParameterRole::LHSInputBuffer));
   callableParameters.push_back(makeTargetExportABIParameter(
-      "rhs", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer));
+      "rhs", spec.constInputPointerCType,
+      RuntimeABIParameterRole::RHSInputBuffer));
   callableParameters.push_back(makeTargetExportABIParameter(
-      "out", "int32_t *", RuntimeABIParameterRole::OutputBuffer));
+      "out", spec.outputPointerCType, RuntimeABIParameterRole::OutputBuffer));
   callableParameters.push_back(makeTargetExportABIParameter(
       "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount));
 
@@ -122,23 +119,37 @@ I32BinaryRuntimeABIContract::I32BinaryRuntimeABIContract(
       kRuntimeABIReadAccess,
       stringifyRuntimeABIParameterOwnership(
           RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "const int32_t *"));
+      spec.constInputPointerCType));
   bufferMemWindowSpecs.push_back(RuntimeABIMemWindowSpec(
       "abi_rhs_input_buffer", RuntimeABIParameterRole::RHSInputBuffer,
       kRuntimeABIReadAccess,
       stringifyRuntimeABIParameterOwnership(
           RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "const int32_t *"));
+      spec.constInputPointerCType));
   bufferMemWindowSpecs.push_back(RuntimeABIMemWindowSpec(
       "abi_output_buffer", RuntimeABIParameterRole::OutputBuffer,
       kRuntimeABIWriteAccess,
       stringifyRuntimeABIParameterOwnership(
           RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "int32_t *"));
+      spec.outputPointerCType));
+}
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+FiniteBinaryRuntimeABIContract::getCallableParameters(
+    llvm::StringRef runtimeCountCName) const {
+  llvm::SmallVector<RuntimeABIParameter, 4> parameters(callableParameters.begin(),
+                                                       callableParameters.end());
+  for (RuntimeABIParameter &parameter : parameters) {
+    if (parameter.role == RuntimeABIParameterRole::RuntimeElementCount) {
+      parameter.cName = runtimeCountCName.str();
+      break;
+    }
+  }
+  return parameters;
 }
 
 RuntimeABIParamSpec
-I32BinaryRuntimeABIContract::getRuntimeElementCountParamSpec(
+FiniteBinaryRuntimeABIContract::getRuntimeElementCountParamSpec(
     llvm::StringRef cName) const {
   return RuntimeABIParamSpec(
       "abi_runtime_element_count",
@@ -148,20 +159,20 @@ I32BinaryRuntimeABIContract::getRuntimeElementCountParamSpec(
 }
 
 RuntimeABIParamSpec
-I32BinaryRuntimeABIContract::getDispatchAvailabilityGuardParamSpec(
+FiniteBinaryRuntimeABIContract::getDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName) const {
   return ::tianchenrv::support::getDispatchAvailabilityGuardParamSpec(cName);
 }
 
 RuntimeABIParameter
-I32BinaryRuntimeABIContract::getDispatchAvailabilityGuardParameter(
+FiniteBinaryRuntimeABIContract::getDispatchAvailabilityGuardParameter(
     llvm::StringRef cName) const {
   return makeTargetExportABIParameter(
       cName, "int", RuntimeABIParameterRole::DispatchAvailabilityGuard);
 }
 
 llvm::SmallVector<RuntimeABIParamSpec, 1>
-I32BinaryRuntimeABIContract::getRuntimeElementCountParamSpecs(
+FiniteBinaryRuntimeABIContract::getRuntimeElementCountParamSpecs(
     llvm::StringRef cName) const {
   llvm::SmallVector<RuntimeABIParamSpec, 1> specs;
   specs.push_back(getRuntimeElementCountParamSpec(cName));
@@ -169,7 +180,7 @@ I32BinaryRuntimeABIContract::getRuntimeElementCountParamSpecs(
 }
 
 llvm::SmallVector<RuntimeABIParamSpec, 2>
-I32BinaryRuntimeABIContract::getDispatchRuntimeParamSpecs(
+FiniteBinaryRuntimeABIContract::getDispatchRuntimeParamSpecs(
     llvm::StringRef runtimeCountCName, llvm::StringRef guardCName) const {
   llvm::SmallVector<RuntimeABIParamSpec, 2> specs;
   specs.push_back(getRuntimeElementCountParamSpec(runtimeCountCName));
@@ -178,7 +189,7 @@ I32BinaryRuntimeABIContract::getDispatchRuntimeParamSpecs(
 }
 
 llvm::SmallVector<RuntimeABIParameter, 5>
-I32BinaryRuntimeABIContract::getDispatchRuntimeABIParameters(
+FiniteBinaryRuntimeABIContract::getDispatchRuntimeABIParameters(
     llvm::StringRef guardCName) const {
   llvm::SmallVector<RuntimeABIParameter, 5> parameters;
   parameters.append(callableParameters.begin(), callableParameters.end());
@@ -186,7 +197,7 @@ I32BinaryRuntimeABIContract::getDispatchRuntimeABIParameters(
   return parameters;
 }
 
-llvm::StringRef I32BinaryRuntimeABIContract::getCallableBufferCName(
+llvm::StringRef FiniteBinaryRuntimeABIContract::getCallableBufferCName(
     RuntimeABIParameterRole role) const {
   for (const RuntimeABIParameter &parameter : callableParameters) {
     if (parameter.role == role)
@@ -196,50 +207,82 @@ llvm::StringRef I32BinaryRuntimeABIContract::getCallableBufferCName(
 }
 
 const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
-    const target::i32_binary::I32BinaryFamilyDescriptor &family) {
-  using Kind = target::i32_binary::I32BinaryFamilyKind;
-  switch (family.kind) {
-  case Kind::Add: {
-    static const I32BinaryRuntimeABIContract contract(
-        target::i32_binary::getI32VAddFamilyRegistrationRecord());
-    return contract;
-  }
-  case Kind::Sub: {
-    static const I32BinaryRuntimeABIContract contract(
-        target::i32_binary::getI32VSubFamilyRegistrationRecord());
-    return contract;
-  }
-  case Kind::Mul: {
-    static const I32BinaryRuntimeABIContract contract(
-        target::i32_binary::getI32VMulFamilyRegistrationRecord());
-    return contract;
-  }
-  }
-  llvm_unreachable("unknown i32 binary family kind");
-}
+    llvm::StringRef familyID) {
+  static const I32BinaryRuntimeABIContract addContract(
+      FiniteBinaryRuntimeABIContractSpec{
+          "i32-vadd",
+          "const int32_t *",
+          "int32_t *",
+          {"rvv-i32-vadd-runtime-callable-c-abi.v1",
+           "rvv-runtime-callable-c-abi",
+           "rvv-i32-vadd-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vadd-function"},
+          {"rvv-i32-vadd-runtime-callable-c-abi.v1",
+           "rvv-runtime-callable-c-abi",
+           "rvv-i32-vadd-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vadd-function"},
+          {"scalar-i32-vadd-runtime-callable-c-abi.v1",
+           "scalar-runtime-callable-c-abi",
+           "scalar-i32-vadd-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vadd-fallback-function"},
+          {"rvv-scalar-dispatch-runtime-callable-c-abi",
+           "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"},
+          "rvv-i32-vadd-microkernel-external-abi.v1"});
+  static const I32BinaryRuntimeABIContract subContract(
+      FiniteBinaryRuntimeABIContractSpec{
+          "i32-vsub",
+          "const int32_t *",
+          "int32_t *",
+          {"rvv-i32-vsub-runtime-callable-c-abi.v1",
+           "rvv-runtime-callable-c-abi",
+           "rvv-i32-vsub-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vsub-function"},
+          {"rvv-i32-vsub-runtime-callable-c-abi.v1",
+           "rvv-runtime-callable-c-abi",
+           "rvv-i32-vsub-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vsub-function"},
+          {"scalar-i32-vsub-runtime-callable-c-abi.v1",
+           "scalar-runtime-callable-c-abi",
+           "scalar-i32-vsub-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vsub-fallback-function"},
+          {"rvv-scalar-dispatch-runtime-callable-c-abi",
+           "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"},
+          "rvv-i32-vsub-microkernel-external-abi.v1"});
+  static const I32BinaryRuntimeABIContract mulContract(
+      FiniteBinaryRuntimeABIContractSpec{
+          "i32-vmul",
+          "const int32_t *",
+          "int32_t *",
+          {"rvv-i32-vmul-runtime-callable-c-abi.v1",
+           "rvv-runtime-callable-c-abi",
+           "rvv-i32-vmul-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vmul-function"},
+          {"rvv-i32-vmul-runtime-callable-c-abi.v1",
+           "rvv-runtime-callable-c-abi",
+           "rvv-i32-vmul-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vmul-function"},
+          {"scalar-i32-vmul-runtime-callable-c-abi.v1",
+           "scalar-runtime-callable-c-abi",
+           "scalar-i32-vmul-runtime-callable-c-function.v1",
+           "runtime-callable-i32-vmul-fallback-function"},
+          {"rvv-scalar-dispatch-runtime-callable-c-abi",
+           "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"},
+          "rvv-i32-vmul-microkernel-external-abi.v1"});
 
-const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
-    target::i32_binary::I32BinaryFamilyKind kind) {
-  using Kind = target::i32_binary::I32BinaryFamilyKind;
-  switch (kind) {
-  case Kind::Add:
-    return getI32BinaryRuntimeABIContract(
-        target::i32_binary::getI32VAddFamilyRegistrationRecord());
-  case Kind::Sub:
-    return getI32BinaryRuntimeABIContract(
-        target::i32_binary::getI32VSubFamilyRegistrationRecord());
-  case Kind::Mul:
-    return getI32BinaryRuntimeABIContract(
-        target::i32_binary::getI32VMulFamilyRegistrationRecord());
-  }
-  llvm_unreachable("unknown i32 binary family kind");
+  familyID = familyID.trim();
+  if (familyID == "i32-vadd")
+    return addContract;
+  if (familyID == "i32-vsub")
+    return subContract;
+  if (familyID == "i32-vmul")
+    return mulContract;
+  llvm_unreachable("unknown i32 binary runtime ABI family id");
 }
 
 void appendI32BinaryRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
   llvm::ArrayRef<RuntimeABIParameter> parameters =
-      getI32BinaryRuntimeABIContract(
-          target::i32_binary::I32BinaryFamilyKind::Add)
+      getI32BinaryRuntimeABIContract("i32-vadd")
           .getCallableParameters();
   out.append(parameters.begin(), parameters.end());
 }
@@ -253,8 +296,7 @@ llvm::SmallVector<RuntimeABIParameter, 4> getI32BinaryRuntimeABIParameters() {
 void appendI32BinaryRuntimeABIRoleRequirements(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
   llvm::ArrayRef<RuntimeABIParameter> parameters =
-      getI32BinaryRuntimeABIContract(
-          target::i32_binary::I32BinaryFamilyKind::Add)
+      getI32BinaryRuntimeABIContract("i32-vadd")
           .getCallableRoleRequirements();
   out.append(parameters.begin(), parameters.end());
 }
@@ -269,14 +311,14 @@ getI32BinaryRuntimeABIRoleRequirements() {
 RuntimeABIParameter
 makeI32BinaryDispatchAvailabilityGuard(llvm::StringRef cName) {
   return getI32BinaryRuntimeABIContract(
-             target::i32_binary::I32BinaryFamilyKind::Add)
+             "i32-vadd")
       .getDispatchAvailabilityGuardParameter(cName);
 }
 
 llvm::SmallVector<RuntimeABIParameter, 5>
 getI32BinaryDispatchRuntimeABIParameters() {
   return getI32BinaryRuntimeABIContract(
-             target::i32_binary::I32BinaryFamilyKind::Add)
+             "i32-vadd")
       .getDispatchRuntimeABIParameters();
 }
 
@@ -316,7 +358,7 @@ bindI32BinaryCallableRuntimeABIParametersByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context) {
   using Role = RuntimeABIParameterRole;
   const I32BinaryRuntimeABIContract &contract = getI32BinaryRuntimeABIContract(
-      target::i32_binary::I32BinaryFamilyKind::Add);
+      "i32-vadd");
   I32BinaryCallableRuntimeABIParameterBindings bindings;
 
   llvm::Expected<const RuntimeABIParameter *> lhs =
@@ -362,8 +404,7 @@ bindI32BinaryCallableRuntimeABIParametersByRole(
 llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
 getI32BinaryBufferMemWindowSpecs() {
   llvm::ArrayRef<RuntimeABIMemWindowSpec> specs =
-      getI32BinaryRuntimeABIContract(
-          target::i32_binary::I32BinaryFamilyKind::Add)
+      getI32BinaryRuntimeABIContract("i32-vadd")
           .getBufferMemWindowSpecs();
   return llvm::SmallVector<RuntimeABIMemWindowSpec, 3>(specs.begin(),
                                                        specs.end());
@@ -372,21 +413,21 @@ getI32BinaryBufferMemWindowSpecs() {
 RuntimeABIParamSpec
 getI32BinaryRuntimeElementCountParamSpec(llvm::StringRef cName) {
   return getI32BinaryRuntimeABIContract(
-             target::i32_binary::I32BinaryFamilyKind::Add)
+             "i32-vadd")
       .getRuntimeElementCountParamSpec(cName);
 }
 
 RuntimeABIParamSpec
 getI32BinaryDispatchAvailabilityGuardParamSpec(llvm::StringRef cName) {
   return getI32BinaryRuntimeABIContract(
-             target::i32_binary::I32BinaryFamilyKind::Add)
+             "i32-vadd")
       .getDispatchAvailabilityGuardParamSpec(cName);
 }
 
 llvm::SmallVector<RuntimeABIParamSpec, 1>
 getI32BinaryRuntimeElementCountParamSpecs(llvm::StringRef cName) {
   return getI32BinaryRuntimeABIContract(
-             target::i32_binary::I32BinaryFamilyKind::Add)
+             "i32-vadd")
       .getRuntimeElementCountParamSpecs(cName);
 }
 
@@ -394,7 +435,7 @@ llvm::SmallVector<RuntimeABIParamSpec, 2>
 getI32BinaryDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName,
                                       llvm::StringRef guardCName) {
   return getI32BinaryRuntimeABIContract(
-             target::i32_binary::I32BinaryFamilyKind::Add)
+             "i32-vadd")
       .getDispatchRuntimeParamSpecs(runtimeCountCName, guardCName);
 }
 

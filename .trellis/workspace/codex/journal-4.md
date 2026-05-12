@@ -75,6 +75,63 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 39: Descriptor mirror retirement from production source-authority surfaces
+
+**Date**: 2026-05-12
+**Task**: descriptor-mirror-retirement-from-production-surfaces
+**Branch**: `main`
+
+### Summary
+
+Removed descriptor/registration-record shaped authority from the Support
+runtime ABI callable planning API. Production RVV, scalar fallback,
+RVV+scalar dispatch, and offload call sites now pass selected-family runtime ABI
+contracts into Support planning while descriptor mirrors remain target-local
+legacy validation data.
+
+### Main Changes
+
+- Added Support-owned `FiniteBinaryRuntimeABIContract` and made the i32 shared
+  runtime ABI contract selected-family-id keyed rather than descriptor-record
+  keyed.
+- Removed target descriptor and i32 family registry includes plus
+  descriptor-shaped callable-plan overloads from Support callable planning.
+- Reworked target-owned RVV runtime ABI contracts to derive from the generic
+  Support finite-binary contract.
+- Updated RVV, scalar, dispatch, and offload production call sites to adapt
+  selected typed family registration data before invoking Support planning.
+- Updated Support and target artifact C++ tests plus the lowering/runtime spec
+  to enforce descriptorless Support callable planning.
+
+### Testing
+
+- Focused builds for Support, RVV target, scalar target, offload target,
+  built-in target artifact exporters, `tcrv-opt`, and `tcrv-translate`.
+- C++ tests:
+  `tianchenrv-runtime-abi-callable-plan-test`,
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-scalar-extension-plugin-test`,
+  `tianchenrv-rvv-binary-planning-test`.
+- Focused lit filter:
+  `Target/ArtifactExport|Target/TargetArtifactBundleExport|Target/RVVScalarDispatch|Transforms/LinalgToExec`,
+  50/50 passed.
+- Dry-run bundle validations for direct `i32-vmul` RVV and RVV+scalar dispatch
+  through `--use-target-artifact-bundle --use-plan-and-export-bundle-front-door`.
+- `git diff --check`.
+- Trellis task validation.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed and ready to archive. Production/default paths are descriptorless
+at the Support callable-planning API, common EmitC remains the source route for
+RVV/scalar/dispatch, `tcrv.exec` stayed compute-free, Python stayed
+tooling-only, and no `ssh rvv` runtime, correctness, or performance claim was
+made.
+
+
 ## Session 38: Scalar fallback EmitC source authority production route
 
 **Date**: 2026-05-12

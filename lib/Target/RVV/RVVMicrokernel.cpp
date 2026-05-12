@@ -662,7 +662,7 @@ llvm::Error validateRVVBinaryCallableABIParameterMirror(
     const RVVBinaryIntrinsicDescriptor &descriptor) {
   return support::validateFiniteBinaryCallableABIParameterMirror(
       kernel, metadataParameters, irBackedParameters, metadataSource,
-      descriptor.family);
+      target::rvv::getRVVBinaryRuntimeABIContract(descriptor.family));
 }
 
 void collectDirectKernelSymbols(
@@ -2102,7 +2102,9 @@ llvm::Error buildRVVBinaryCallableABIPlanFromIR(
     llvm::SmallVectorImpl<MemWindowOp> &bufferWindows,
     RuntimeParamOp &runtimeElementCountParam) {
   llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
-      support::buildFiniteBinaryCallableABIPlan(kernel, descriptor.family);
+      support::buildFiniteBinaryCallableABIPlan(
+          kernel,
+          target::rvv::getRVVBinaryRuntimeABIContract(descriptor.family));
   if (!callablePlan)
     return callablePlan.takeError();
 

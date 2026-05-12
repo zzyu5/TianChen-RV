@@ -10,7 +10,6 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
@@ -46,28 +45,24 @@ using tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
-using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
 using RVVBinaryFamilyDescriptor =
     tianchenrv::target::rvv::RVVBinaryFamilyDescriptor;
 
 const I32BinaryRuntimeABIContract &
-getRuntimeABIContract(const I32BinaryFamilyDescriptor &family) {
-  return tianchenrv::support::getI32BinaryRuntimeABIContract(family);
+getRuntimeABIContract(llvm::StringRef familyID) {
+  return tianchenrv::support::getI32BinaryRuntimeABIContract(familyID);
 }
 
 const I32BinaryRuntimeABIContract &getAddRuntimeABIContract() {
-  return getRuntimeABIContract(
-      tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord());
+  return getRuntimeABIContract("i32-vadd");
 }
 
 const I32BinaryRuntimeABIContract &getSubRuntimeABIContract() {
-  return getRuntimeABIContract(
-      tianchenrv::target::i32_binary::getI32VSubFamilyRegistrationRecord());
+  return getRuntimeABIContract("i32-vsub");
 }
 
 const I32BinaryRuntimeABIContract &getMulRuntimeABIContract() {
-  return getRuntimeABIContract(
-      tianchenrv::target::i32_binary::getI32VMulFamilyRegistrationRecord());
+  return getRuntimeABIContract("i32-vmul");
 }
 
 llvm::StringRef getRuntimeElementCountCNameForTest(

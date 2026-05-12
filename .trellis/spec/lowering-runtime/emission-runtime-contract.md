@@ -75,7 +75,7 @@ Rules:
   from and validated against direct `tcrv.exec.mem_window` /
   `tcrv.exec.runtime_param` IR boundaries rather than acting as an independent
   parameter truth source. Add/sub/mul ABI identity fields must be derived from
-  the selected `I32BinaryFamilyDescriptor`;
+  the selected finite binary runtime ABI contract keyed by selected family id;
 - carry required capability symbol refs that are a safe subset of the selected
   variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -265,7 +265,7 @@ preserve parameter layering:
   lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR for
   runtime-element-count. Candidate/emission-plan parameter metadata may only
   mirror that IR-backed plan, while runtime ABI strings and glue roles come
-  from the selected add/sub/mul family descriptor. Runtime `n` remains a
+  from the selected finite binary runtime ABI contract. Runtime `n` remains a
   runtime ABI/control value, not descriptor-local element count;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters from the same IR-backed callable ABI plan for both the selected RVV
@@ -1565,20 +1565,24 @@ missing or stale scalar microkernel, unavailable fallback capability, unknown
 route id, unsupported artifact kind, route spoofing, offload-only paths, and
 ambiguous multiple supported artifacts must fail before source output.
 
-## Support-Layer I32 Binary Runtime ABI Contract
+## Support-Layer Finite Binary Runtime ABI Contract
 
-The current bounded i32 binary executable slice must have one compiler-owned
-C++ runtime ABI contract in the support layer. The family-aware stable entry
-point is:
+The current bounded finite binary executable slice must have one compiler-owned
+C++ runtime ABI contract shape in the support layer. The stable support-layer
+planning entry points are descriptorless:
 
 ```cpp
+llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
+tianchenrv::support::buildFiniteBinaryCallableABIPlan(
+    tcrv::exec::KernelOp kernel,
+    const tianchenrv::support::FiniteBinaryRuntimeABIContract &contract);
+
 const tianchenrv::support::I32BinaryRuntimeABIContract &
-tianchenrv::support::getI32BinaryRuntimeABIContract(
-    const tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor &family);
+tianchenrv::support::getI32BinaryRuntimeABIContract(llvm::StringRef familyID);
 ```
 
 The contract owns only reusable runtime ABI metadata for the bounded i32 binary
-callable shape and registration-scoped identity fields:
+callable shape and selected-family identity fields:
 
 - ordered callable C parameters:
   `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, `size_t n`;
@@ -1587,17 +1591,24 @@ callable shape and registration-scoped identity fields:
 - `tcrv.exec.runtime_param` specs for runtime element count and the optional
   dispatch availability guard;
 - stable runtime ABI identity strings for the selected add/sub/mul RVV
-  callable, scalar callable, and RVV+scalar dispatch callable surfaces, derived
-  from `I32BinaryFamilyDescriptor` registration records or their
-  RVV/scalar/dispatch subrecords.
+  callable, scalar callable, and RVV+scalar dispatch callable surfaces, keyed by
+  the selected family id such as `i32-vadd`, `i32-vsub`, or `i32-vmul`.
+
+Support headers for callable planning must not import RVV, scalar, or i32
+descriptor/registration headers. Target-owned RVV, scalar, dispatch, and
+offload code may adapt their selected typed family/registration records into a
+`FiniteBinaryRuntimeABIContract`, but that adaptation is outside the Support
+default API and must occur only after typed selected-path authority has been
+established.
 
 The temporary add-only runtime ABI compatibility APIs have been retired. Active
 RVV, scalar, dispatch, offload descriptor, and target artifact exporter code
-that handles add/sub/mul must consume the `I32Binary*` APIs directly when it
-needs ABI shape, ABI identity, mem-window specs, runtime-param specs, dispatch
-guard specs, role binding, or callable-plan validation. Reintroducing
-`I32VAdd*` ABI wrappers would reopen the obsolete add-only compatibility
-surface and should be treated as a descriptor-exit regression unless a future
+that handles i32 add/sub/mul must consume the selected-family-id or generic
+finite-binary contract APIs directly when it needs ABI shape, ABI identity,
+mem-window specs, runtime-param specs, dispatch guard specs, role binding, or
+callable-plan validation. Reintroducing `I32VAdd*` ABI wrappers or
+descriptor-shaped Support overloads would reopen obsolete compatibility
+surfaces and should be treated as a descriptor-exit regression unless a future
 spec explicitly re-establishes such an API for a non-compatibility purpose.
 
 The contract must not own target artifact route ids, artifact kinds, source vs
@@ -1624,8 +1635,10 @@ Required tests for changes to this contract:
 
 - C++ tests must prove the callable parameter order, roles, C spellings, and
   ownership match the contract for add/sub/mul;
-- C++ tests must prove add/sub/mul expose distinct descriptor-derived RVV,
+- C++ tests must prove add/sub/mul expose distinct selected-family-derived RVV,
   scalar, and dispatch runtime ABI identities;
+- C++ tests must prove Support callable-planning headers do not require target
+  descriptor headers or descriptor-shaped planning overloads;
 - at least one active target exporter or validation path must reject metadata
   that disagrees with the contract;
 - existing lit/FileCheck coverage must continue proving that RVV, scalar, and
@@ -1685,7 +1698,8 @@ object bytes.
 Required tests for changes to this contract:
 
 - C++ tests must prove all direct RVV i32/i64 add/sub/mul families expose the
-  descriptor-owned callable parameter order, roles, C spellings, and ownership;
+  selected-family runtime ABI parameter order, roles, C spellings, and
+  ownership;
 - C++ tests must prove i64 add/sub/mul selected plans and supported emission
   plans expose family-specific runtime ABI identity and `int64_t` callable
   parameters rather than stale i32-vadd defaults;

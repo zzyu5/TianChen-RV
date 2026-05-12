@@ -184,7 +184,10 @@ buildScalarEmissionRuntimeABIParameters(
         family.familyID + "'");
 
   llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
-      support::buildFiniteBinaryCallableABIPlan(kernel, *family.rvvFamily);
+      support::buildFiniteBinaryCallableABIPlan(
+          kernel,
+          tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(
+              *family.rvvFamily));
   if (!callablePlan)
     return callablePlan.takeError();
   return std::move(callablePlan->parameters);

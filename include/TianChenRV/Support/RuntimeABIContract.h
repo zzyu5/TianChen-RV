@@ -4,7 +4,6 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -24,22 +23,47 @@ struct RuntimeABIDispatchIdentity {
   llvm::StringRef runtimeABIName;
 };
 
-// Single support-layer owner for the current bounded i32 binary callable ABI.
-// It centralizes shared ABI parameter shape and registration-scoped ABI
-// identities only; route ids, artifact kinds, hardware facts, descriptor
-// metadata, bundle records, and evidence data stay with their owners.
-class I32BinaryRuntimeABIContract {
-public:
-  const target::i32_binary::I32BinaryFamilyDescriptor &
-  getFamilyRegistrationRecord() const {
-    return *family;
-  }
+struct FiniteBinaryRuntimeABIContractSpec {
+  llvm::StringRef familyID;
+  llvm::StringRef constInputPointerCType;
+  llvm::StringRef outputPointerCType;
+  RuntimeABICallableIdentity callableIdentity;
+  RuntimeABICallableIdentity rvvCallableIdentity;
+  RuntimeABICallableIdentity scalarCallableIdentity;
+  RuntimeABIDispatchIdentity dispatchIdentity;
+  llvm::StringRef externalABIComponentGroup;
+};
 
-  llvm::StringRef getFamilyID() const { return family->familyID; }
+// Support-layer runtime ABI contract for the current bounded finite binary
+// callable shape. It carries ABI shape and selected family identity only; route
+// ids, artifact kinds, hardware facts, descriptor metadata, bundle records, and
+// evidence data stay with their owning target/export layers.
+class FiniteBinaryRuntimeABIContract {
+public:
+  explicit FiniteBinaryRuntimeABIContract(
+      const FiniteBinaryRuntimeABIContractSpec &spec);
+
+  llvm::StringRef getFamilyID() const { return familyID; }
+  llvm::StringRef getRuntimeABI() const { return callableIdentity.runtimeABI; }
+  llvm::StringRef getRuntimeABIKind() const {
+    return callableIdentity.runtimeABIKind;
+  }
+  llvm::StringRef getRuntimeABIName() const {
+    return callableIdentity.runtimeABIName;
+  }
+  llvm::StringRef getRuntimeGlueRole() const {
+    return callableIdentity.runtimeGlueRole;
+  }
+  llvm::StringRef getExternalABIComponentGroup() const {
+    return externalABIComponentGroup;
+  }
 
   llvm::ArrayRef<RuntimeABIParameter> getCallableParameters() const {
     return callableParameters;
   }
+
+  llvm::SmallVector<RuntimeABIParameter, 4>
+  getCallableParameters(llvm::StringRef runtimeCountCName) const;
 
   llvm::ArrayRef<RuntimeABIParameter> getCallableRoleRequirements() const {
     return callableRoleRequirements;
@@ -85,27 +109,25 @@ public:
     return dispatchIdentity;
   }
 
+protected:
+  FiniteBinaryRuntimeABIContract() = default;
+
 private:
-  friend const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
-      const target::i32_binary::I32BinaryFamilyDescriptor &family);
-
-  explicit I32BinaryRuntimeABIContract(
-      const target::i32_binary::I32BinaryFamilyDescriptor &family);
-
-  const target::i32_binary::I32BinaryFamilyDescriptor *family = nullptr;
+  llvm::StringRef familyID;
   llvm::SmallVector<RuntimeABIParameter, 4> callableParameters;
   llvm::SmallVector<RuntimeABIParameter, 4> callableRoleRequirements;
   llvm::SmallVector<RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
+  RuntimeABICallableIdentity callableIdentity;
   RuntimeABICallableIdentity rvvCallableIdentity;
   RuntimeABICallableIdentity scalarCallableIdentity;
   RuntimeABIDispatchIdentity dispatchIdentity;
+  llvm::StringRef externalABIComponentGroup;
 };
 
-const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
-    const target::i32_binary::I32BinaryFamilyDescriptor &family);
+using I32BinaryRuntimeABIContract = FiniteBinaryRuntimeABIContract;
 
 const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
-    target::i32_binary::I32BinaryFamilyKind kind);
+    llvm::StringRef familyID);
 
 } // namespace tianchenrv::support
 

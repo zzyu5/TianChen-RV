@@ -4,8 +4,6 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -27,36 +25,19 @@ using I32BinaryCallableABIPlan = FiniteBinaryCallableABIPlan;
 llvm::Expected<FiniteBinaryCallableABIPlan>
 buildFiniteBinaryCallableABIPlan(
     tcrv::exec::KernelOp kernel,
-    const target::rvv::RVVBinaryRuntimeABIContract &contract);
-
-llvm::Expected<FiniteBinaryCallableABIPlan>
-buildFiniteBinaryCallableABIPlan(
-    tcrv::exec::KernelOp kernel,
-    const target::rvv::RVVBinaryFamilyDescriptor &family);
+    const FiniteBinaryRuntimeABIContract &contract);
 
 llvm::Error validateFiniteBinaryCallableABIParameterMirror(
     tcrv::exec::KernelOp kernel,
     llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
-    const target::rvv::RVVBinaryRuntimeABIContract &contract);
-
-llvm::Error validateFiniteBinaryCallableABIParameterMirror(
-    tcrv::exec::KernelOp kernel,
-    llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
-    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource,
-    const target::rvv::RVVBinaryFamilyDescriptor &family);
+    const FiniteBinaryRuntimeABIContract &contract);
 
 // Compatibility wrappers for the current i32 binary callable ABI.
 llvm::Expected<I32BinaryCallableABIPlan>
 buildI32BinaryCallableABIPlan(tcrv::exec::KernelOp kernel,
                               const I32BinaryRuntimeABIContract &contract);
-
-llvm::Expected<I32BinaryCallableABIPlan>
-buildI32BinaryCallableABIPlan(
-    tcrv::exec::KernelOp kernel,
-    const target::i32_binary::I32BinaryFamilyDescriptor &family);
 
 llvm::Error validateI32BinaryCallableABIParameterMirror(
     tcrv::exec::KernelOp kernel,
@@ -70,7 +51,7 @@ llvm::Error validateI32BinaryCallableABIParameterMirror(
     llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
-    const target::i32_binary::I32BinaryFamilyDescriptor &family);
+    llvm::StringRef familyID);
 
 } // namespace tianchenrv::support
 

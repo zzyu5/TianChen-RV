@@ -600,7 +600,7 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
   llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
       support::buildI32BinaryCallableABIPlan(
           request.getKernel(),
-          tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord());
+          support::getI32BinaryRuntimeABIContract("i32-vadd"));
   if (!callablePlan) {
     std::string message = llvm::toString(callablePlan.takeError());
     return makeOffloadPluginError(

@@ -199,7 +199,9 @@ buildRVVBinaryCallableRuntimeABIParameters(
     tcrv::exec::KernelOp kernel,
     const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor) {
   llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
-      support::buildFiniteBinaryCallableABIPlan(kernel, descriptor.family);
+      support::buildFiniteBinaryCallableABIPlan(
+          kernel,
+          target::rvv::getRVVBinaryRuntimeABIContract(descriptor.family));
   if (!callablePlan)
     return callablePlan.takeError();
   return std::move(callablePlan->parameters);

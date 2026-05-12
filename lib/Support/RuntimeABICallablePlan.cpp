@@ -281,30 +281,14 @@ llvm::Error validateFiniteBinaryCallableABIParameterMirrorFromContract(
 
 llvm::Expected<FiniteBinaryCallableABIPlan>
 buildFiniteBinaryCallableABIPlan(
-    KernelOp kernel,
-    const target::rvv::RVVBinaryRuntimeABIContract &contract) {
+    KernelOp kernel, const FiniteBinaryRuntimeABIContract &contract) {
   return buildFiniteBinaryCallableABIPlanFromContract(kernel, contract);
-}
-
-llvm::Expected<FiniteBinaryCallableABIPlan>
-buildFiniteBinaryCallableABIPlan(
-    KernelOp kernel, const target::rvv::RVVBinaryFamilyDescriptor &family) {
-  return buildFiniteBinaryCallableABIPlan(
-      kernel, target::rvv::getRVVBinaryRuntimeABIContract(family));
 }
 
 llvm::Expected<I32BinaryCallableABIPlan>
 buildI32BinaryCallableABIPlan(KernelOp kernel,
                               const I32BinaryRuntimeABIContract &contract) {
   return buildFiniteBinaryCallableABIPlanFromContract(kernel, contract);
-}
-
-llvm::Expected<I32BinaryCallableABIPlan>
-buildI32BinaryCallableABIPlan(
-    KernelOp kernel,
-    const target::i32_binary::I32BinaryFamilyDescriptor &family) {
-  return buildI32BinaryCallableABIPlan(
-      kernel, getI32BinaryRuntimeABIContract(family));
 }
 
 llvm::Error validateI32BinaryCallableABIParameterMirror(
@@ -321,30 +305,19 @@ llvm::Error validateFiniteBinaryCallableABIParameterMirror(
     KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
-    const target::rvv::RVVBinaryRuntimeABIContract &contract) {
+    const FiniteBinaryRuntimeABIContract &contract) {
   return validateFiniteBinaryCallableABIParameterMirrorFromContract(
       kernel, metadataParameters, irBackedParameters, metadataSource,
       contract);
 }
 
-llvm::Error validateFiniteBinaryCallableABIParameterMirror(
-    KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
-    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource,
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
-  return validateFiniteBinaryCallableABIParameterMirror(
-      kernel, metadataParameters, irBackedParameters, metadataSource,
-      target::rvv::getRVVBinaryRuntimeABIContract(family));
-}
-
 llvm::Error validateI32BinaryCallableABIParameterMirror(
     KernelOp kernel, llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource,
-    const target::i32_binary::I32BinaryFamilyDescriptor &family) {
+    llvm::StringRef metadataSource, llvm::StringRef familyID) {
   return validateI32BinaryCallableABIParameterMirror(
       kernel, metadataParameters, irBackedParameters, metadataSource,
-      getI32BinaryRuntimeABIContract(family));
+      getI32BinaryRuntimeABIContract(familyID));
 }
 
 } // namespace tianchenrv::support

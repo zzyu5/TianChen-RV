@@ -1244,7 +1244,7 @@ llvm::Error validateAndAttachRuntimeABIContract(KernelOp kernel,
 
   llvm::Expected<support::I32BinaryCallableABIPlan> abiPlan =
       support::buildI32BinaryCallableABIPlan(
-          kernel, tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord());
+          kernel, support::getI32BinaryRuntimeABIContract("i32-vadd"));
   if (!abiPlan) {
     std::string message = llvm::toString(abiPlan.takeError());
     return makeDescriptorError(
@@ -1255,8 +1255,7 @@ llvm::Error validateAndAttachRuntimeABIContract(KernelOp kernel,
 
   if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
           kernel, record.runtimeABIParameters, abiPlan->parameters,
-          "offload descriptor ABI contract",
-          tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord())) {
+          "offload descriptor ABI contract", "i32-vadd")) {
     std::string message = llvm::toString(std::move(error));
     return makeDescriptorError(
         kernel, llvm::Twine("offload descriptor ABI contract failed: ") +
@@ -1291,7 +1290,7 @@ llvm::Error validateOffloadDescriptorTargetArtifactRuntimeABIContract(
   llvm::Expected<support::I32BinaryCallableABIPlan> abiPlan =
       support::buildI32BinaryCallableABIPlan(
           candidate.kernel,
-          tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord());
+          support::getI32BinaryRuntimeABIContract("i32-vadd"));
   if (!abiPlan) {
     std::string message = llvm::toString(abiPlan.takeError());
     return makeDescriptorError(
@@ -1303,8 +1302,7 @@ llvm::Error validateOffloadDescriptorTargetArtifactRuntimeABIContract(
 
   if (llvm::Error error = support::validateI32BinaryCallableABIParameterMirror(
           candidate.kernel, candidate.runtimeABIParameters, abiPlan->parameters,
-          "offload descriptor target artifact preflight",
-          tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord())) {
+          "offload descriptor target artifact preflight", "i32-vadd")) {
     std::string message = llvm::toString(std::move(error));
     return makeDescriptorError(
         candidate.kernel,
@@ -1658,7 +1656,7 @@ llvm::Error registerOffloadRuntimeDescriptorTargetExporters(
       kDescriptorRouteID, kDescriptorArtifactKind, kOffloadPluginName,
       kDescriptorEmissionKind, exportOffloadRuntimeDescriptor,
       support::getI32BinaryRuntimeABIContract(
-          tianchenrv::target::i32_binary::getI32VAddFamilyRegistrationRecord())
+          "i32-vadd")
           .getCallableRoleRequirements(),
       /*directHelperRoute=*/false, kRuntimeOffloadHandoffKind,
       validateOffloadDescriptorTargetArtifactRuntimeABIContract,

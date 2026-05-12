@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundaries and compiler-stack rules for this implementation task."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Descriptor-driven computation boundary and unified extension-family architecture."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor boundary for generated source authority."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI callable planning, target artifact export, and parameter layering contracts."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Compute-free exec dialect and runtime ABI mem_window/runtime_param surfaces."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed family/body authority and legacy descriptor mirror quarantine."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback typed source authority and descriptor quarantine constraints."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension-family interface locality and no family-specific core branches."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-scalar-dispatch-emitc-source-authority-production-route/prd.md", "reason": "Predecessor dispatch EmitC source-authority context."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-scalar-emitc-source-authority-production-route/prd.md", "reason": "Predecessor scalar EmitC source-authority context."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-emitc-source-authority-production-route/prd.md", "reason": "Predecessor RVV EmitC source-authority context."}
