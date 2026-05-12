@@ -128,6 +128,51 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 47: RVV typed-family EmitC artifact authority
+
+**Date**: 2026-05-13
+**Task**: RVV typed-family EmitC artifact authority
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task/PRD from the Hermes brief, verified that the current
+RVV production source path already uses typed family-body authority plus
+generated `TCRVEmitCLowerableOpInterface` provenance and the common EmitC
+source-authority boundary, then pinned the remaining descriptor-only production
+rejection with focused lit coverage.
+
+### Main Changes
+
+- Added a descriptor-only RVV i32 production-input regression under
+  `test/Target/RVVMicrokernel/`.
+- The regression exercises the marked direct route
+  `tcrv-export-rvv-i32-vmul-microkernel-c` and checks that descriptor-only
+  metadata fails during artifact-backed planning before exact target artifact
+  export and before any RVV C source output.
+- No spec update was needed because the existing specs already describe the
+  typed-family authority, interface-backed EmitC provenance, and descriptor
+  mirror boundary.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'RVVMicrokernel|RVVScalarDispatch|target-source-artifact-routes|target-artifact-export-registry|emitc-lowerable|rvv-microkernel-descriptor-only-production-rejects'`
+  with 46/46 selected tests passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-typed-family-emitc-artifact-authority`
+
+### Status
+
+[OK] Completed. No `ssh rvv` runtime, correctness, or performance claim was
+made.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 43: RVV common EmitC source boundary production owner
 
 **Date**: 2026-05-12

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that generated source evidence stays interface-backed and descriptor-free for production authority."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check exact-route fail-closed behavior and artifact route metadata boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed family/body authority, descriptor mirror, and runtime ABI provenance."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin-local ownership and absence of shared RVV-specific routing branches."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++ validation scope and evidence wording."}
