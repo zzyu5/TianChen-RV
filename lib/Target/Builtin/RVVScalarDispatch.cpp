@@ -1,7 +1,7 @@
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
+#include "TianChenRV/Conversion/EmitC/TCRVLowerToEmitC.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
@@ -46,9 +46,10 @@ using tianchenrv::target::TargetArtifactCompositeExporter;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
 using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::TCRVEmitCSourceAuthorityOptions;
-using tianchenrv::conversion::emitc::emitTCRVEmitCLowerableRouteAsCppSource;
+using tianchenrv::conversion::emitc::TCRVLowerToEmitCSourceOptions;
+using tianchenrv::conversion::emitc::lowerTCRVEmitCLowerableToEmitCSource;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::target::BinarySelfCheckArithmeticKind;
@@ -2607,6 +2608,29 @@ llvm::Expected<TCRVEmitCLowerableRoute> buildDispatchControlEmitCRoute(
   return emitcRoute;
 }
 
+class DispatchControlEmitCLowerable final : public TCRVEmitCLowerableInterface {
+public:
+  DispatchControlEmitCLowerable(
+      const DispatchPair &pair, const DispatchRouteManifestEntry &route,
+      llvm::StringRef rvvFunctionName, llvm::StringRef scalarFunctionName,
+      const DispatchRuntimeABIParameterBindings &bindings)
+      : pair(pair), route(route), rvvFunctionName(rvvFunctionName.str()),
+        scalarFunctionName(scalarFunctionName.str()), bindings(bindings) {}
+
+  llvm::Expected<TCRVEmitCLowerableRoute>
+  buildEmitCLowerableRoute() const override {
+    return buildDispatchControlEmitCRoute(pair, route, rvvFunctionName,
+                                          scalarFunctionName, bindings);
+  }
+
+private:
+  const DispatchPair &pair;
+  const DispatchRouteManifestEntry &route;
+  std::string rvvFunctionName;
+  std::string scalarFunctionName;
+  const DispatchRuntimeABIParameterBindings &bindings;
+};
+
 void printDispatchEmitCRouteMetadata(llvm::raw_ostream &os,
                                      const TCRVEmitCLowerableRoute &route,
                                      llvm::StringRef dispatcherFunctionName,
@@ -2615,6 +2639,8 @@ void printDispatchEmitCRouteMetadata(llvm::raw_ostream &os,
         "selected callable artifacts */\n";
   os << "/* dispatch_emitc_lowerable_interface: "
         "TCRVEmitCLowerableInterface */\n";
+  os << "/* dispatch_emitc_common_lower_to_emitc_boundary: "
+        "TCRVLowerToEmitCSourceAuthority */\n";
   os << "/* dispatch_emitc_materialization_boundary: verified MLIR EmitC "
         "module with emitc.include, emitc.func, emitc.if, emitc.cmp, "
         "emitc.call_opaque, and emitc.return before MLIR Cpp emitter "
@@ -2641,24 +2667,23 @@ llvm::Error emitDispatchFunctionFromEmitC(
     llvm::StringRef scalarFunctionName,
     const DispatchRuntimeABIParameterBindings &bindings,
     std::string &dispatchFunctionSource, TCRVEmitCLowerableRoute &emitcRoute) {
-  llvm::Expected<TCRVEmitCLowerableRoute> routeOrError =
-      buildDispatchControlEmitCRoute(pair, route, rvvFunctionName,
-                                     scalarFunctionName, bindings);
-  if (!routeOrError)
-    return routeOrError.takeError();
-  emitcRoute = std::move(*routeOrError);
+  DispatchControlEmitCLowerable lowerable(pair, route, rvvFunctionName,
+                                          scalarFunctionName, bindings);
 
-  TCRVEmitCSourceAuthorityOptions options;
-  options.functionName = dispatcherFunctionName.str();
-  options.dispatchGuardValueName =
+  TCRVLowerToEmitCSourceOptions options;
+  options.sourceAuthorityOptions.functionName = dispatcherFunctionName.str();
+  options.sourceAuthorityOptions.dispatchGuardValueName =
       bindings.dispatchAvailabilityGuard->cName;
-  options.requireInterfaceBackedCompute = false;
+  options.sourceAuthorityOptions.requireInterfaceBackedCompute = false;
 
-  llvm::raw_string_ostream stream(dispatchFunctionSource);
-  if (llvm::Error error =
-          emitTCRVEmitCLowerableRouteAsCppSource(emitcRoute, stream, options))
-    return error;
-  stream.flush();
+  llvm::Expected<tianchenrv::conversion::emitc::TCRVLowerToEmitCSourceResult>
+      loweredSource =
+          lowerTCRVEmitCLowerableToEmitCSource(lowerable, options);
+  if (!loweredSource)
+    return loweredSource.takeError();
+
+  emitcRoute = loweredSource->getRoute();
+  dispatchFunctionSource = loweredSource->takeSource();
   return llvm::Error::success();
 }
 

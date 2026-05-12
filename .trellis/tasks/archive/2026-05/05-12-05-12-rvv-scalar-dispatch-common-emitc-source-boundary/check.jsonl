@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final verification"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC boundary use and source authority"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify RVV+scalar dispatch export and parameter layering claims"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused build/lit/evidence validation requirements"}

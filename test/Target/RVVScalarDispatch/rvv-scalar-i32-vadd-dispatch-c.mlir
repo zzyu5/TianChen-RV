@@ -258,6 +258,7 @@ module @rvv_scalar_dispatch_input {
 // BODY: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // BODY: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
 // BODY: tcrv_scalar_i32_add
+// BODY: /* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // BODY: /* dispatch_emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 // BODY: /* dispatch_emitc_runtime_guard_value: rvv_available */
 // BODY: /* dispatch_emitc.call_opaque[0]: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice from tcrv.exec.case, source_role=dispatch-case-call, operands=4 */
@@ -285,6 +286,7 @@ module @rvv_scalar_dispatch_input {
 // AUTO: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
 // AUTO: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
 // AUTO: tcrv_scalar_i32_add
+// AUTO: /* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // AUTO: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
 // AUTO: // tcrv_emitc.dispatch_guard_value=rvv_available
 // AUTO-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
@@ -299,6 +301,7 @@ module @rvv_scalar_dispatch_input {
 // HARNESS: __riscv_vadd_vv_i32m1
 // HARNESS: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // HARNESS: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// HARNESS: /* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // HARNESS: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
 // HARNESS: // tcrv_emitc.dispatch_guard_value=rvv_available
 // HARNESS-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
@@ -326,8 +329,9 @@ module @rvv_scalar_dispatch_input {
 // HARNESS: puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv");
 
 // AUTO-HARNESS: /* selected_kernel: @pipeline_manifest */
-// AUTO-HARNESS: void tcrv_dispatch_i32_vadd_pipeline_manifest
+// AUTO-HARNESS: /* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // AUTO-HARNESS: // tcrv_emitc.dispatch_guard_value=rvv_available
+// AUTO-HARNESS: void tcrv_dispatch_i32_vadd_pipeline_manifest
 // AUTO-HARNESS: static int tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(size_t runtime_n, int rvv_available)
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest(lhs, rhs, out, runtime_n, rvv_available);
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(7, 0)

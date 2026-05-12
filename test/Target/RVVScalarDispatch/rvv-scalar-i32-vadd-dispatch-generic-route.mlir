@@ -111,6 +111,7 @@ module {
 // GENERIC: void tcrv_scalar_i32_vadd_microkernel_conflict_planned_dispatch_scalar_fallback_first_slice
 // GENERIC: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
 // GENERIC: tcrv_scalar_i32_add
+// GENERIC: /* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // GENERIC: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
 // GENERIC: // tcrv_emitc.dispatch_guard_value=rvv_available
 // GENERIC-LABEL: {{^}}void tcrv_dispatch_i32_vadd_conflict_planned_dispatch

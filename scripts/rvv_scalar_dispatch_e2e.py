@@ -1384,6 +1384,7 @@ def validate_dispatch_emitc_control_source(source: str, context: str) -> None:
         source,
         [
             "// tcrv_emitc.source_authority=mlir_emitc_cpp_emitter",
+            "/* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */",
             "// tcrv_emitc.source_route_kind=tcrv-exec-dispatch-control-to-emitc-call-opaque",
             "// tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch",
             "// tcrv_emitc.dispatch_guard_value=rvv_available",
@@ -3785,6 +3786,7 @@ def run_self_test() -> None:
     def sample_dispatch_emitc_control(function_stem: str, c_type: str) -> str:
         return f"""
 // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+/* dispatch_emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // tcrv_emitc.source_route_kind=tcrv-exec-dispatch-control-to-emitc-call-opaque
 // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
 // tcrv_emitc.dispatch_guard_value=rvv_available

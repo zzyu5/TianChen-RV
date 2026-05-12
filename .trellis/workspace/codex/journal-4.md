@@ -179,6 +179,59 @@ self-check executable correctness only.
 - None - task complete
 
 
+## Session 44: RVV+scalar dispatch common EmitC source boundary
+
+**Date**: 2026-05-12
+**Task**: RVV Scalar Dispatch Common EmitC Source Boundary
+**Branch**: `main`
+
+### Summary
+
+Rewired the RVV+scalar host dispatcher body source emission so the
+target-owned dispatch-control route now crosses the common
+`lowerTCRVEmitCLowerableToEmitCSource` boundary instead of calling the
+lower-level EmitC source-authority materializer directly from
+`RVVScalarDispatch.cpp`.
+
+### Main Changes
+
+- Added a target-local `DispatchControlEmitCLowerable` adapter over the
+  existing dispatch route construction.
+- Removed direct dispatch target imports/usages of
+  `emitTCRVEmitCLowerableRouteAsCppSource` and
+  `TCRVEmitCSourceAuthorityOptions`.
+- Preserved dispatch-local authority for selected RVV/scalar callable symbols,
+  ABI parameter bindings, runtime guard linkage, fallback target linkage,
+  route ids, and the `tcrv.exec.case` / `tcrv.exec.fallback` call steps.
+- Added generated-source metadata for
+  `dispatch_emitc_common_lower_to_emitc_boundary:
+  TCRVLowerToEmitCSourceAuthority`.
+- Updated RVV+scalar dispatch FileCheck coverage and the dry-run evidence
+  helper validator to require the dispatch common-boundary marker.
+
+### Testing
+
+- `cmake --build build --target TianChenRVConversionEmitC TianChenRVBuiltinTargetArtifactExporters tcrv-translate tcrv-opt -j2`
+- Focused lit filter for RVV+scalar dispatch direct/generic routes, dispatch
+  script tests, and bundle/front-door tests: 12/12 passed after one FileCheck
+  ordering repair.
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --arithmetic-family=i32-vadd --run-id codex-dispatch-common-emitc-boundary-dry --overwrite`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id codex-dispatch-common-emitc-boundary-bundle-dry --overwrite`
+- `git diff --check`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target check-tianchenrv -j2`, 210/210 passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-05-12-rvv-scalar-dispatch-common-emitc-source-boundary`
+
+### Status
+
+[OK] Completed. No `ssh rvv` runtime, correctness, or performance claim was
+made; dry-run evidence is local compiler artifact validation only.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 39: Descriptor mirror retirement from production source-authority surfaces
 
 **Date**: 2026-05-12
