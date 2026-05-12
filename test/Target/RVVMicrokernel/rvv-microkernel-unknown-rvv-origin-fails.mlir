@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -38,5 +44,6 @@ module {
   }
 }
 
-// CHECK: selected RVV-like path @rvv_first_slice uses unknown origin
-// CHECK-SAME: only accepts registered origin 'rvv-plugin'
+// CHECK: TianChen-RV selected lowering-boundary materialization failed for variant @rvv_first_slice
+// CHECK-SAME: unknown origin plugin 'experimental-rvv-plugin'
+// CHECK: artifact-backed direct translate route 'tcrv-export-rvv-microkernel-c' failed during execution planning before exact target artifact export

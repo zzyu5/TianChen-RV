@@ -9,14 +9,16 @@
 // RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.dispatch-self-check.c
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c | FileCheck %s --check-prefix=AUTO --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c | FileCheck %s --check-prefix=AUTO-HARNESS --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c %s | FileCheck %s --check-prefix=NO-PLAN-SOURCE --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header %s | FileCheck %s --check-prefix=NO-PLAN-HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not="__riscv" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=ROUTE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-header 2>&1 | FileCheck %s --check-prefix=HEADER-ROUTE-MISMATCH --implicit-check-not="#ifndef TIANCHENRV_RVV_SCALAR_I32_VSUB_DISPATCH"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-object 2>&1 | FileCheck %s --check-prefix=OBJECT-ROUTE-MISMATCH --implicit-check-not="generated object file must have an ELF"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c 2>&1 | FileCheck %s --check-prefix=SELFCHECK-ROUTE-MISMATCH --implicit-check-not="tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-object 2>&1 | FileCheck %s --check-prefix=SELFCHECK-OBJECT-ROUTE-MISMATCH --implicit-check-not="generated object file must have an ELF"
-// RUN: not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object %s 2>&1 | FileCheck %s --check-prefix=OBJECT-NO-PLAN --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
-// RUN: not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object %s 2>&1 | FileCheck %s --check-prefix=OBJECT-NO-PLAN --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: sed '/tcrv.exec.capability @rvv_hart_count/,+5d' %s | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object 2>&1 | FileCheck %s --check-prefix=OBJECT-NO-PLAN --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object %s 2>&1 | FileCheck %s --check-prefix=SELFCHECK-OBJECT-NO-PLAN --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "malformed-runtime-element-count"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object 2>&1 | FileCheck %s --check-prefix=OBJECT-BAD-ABI --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/architecture = "riscv64"/architecture = ""/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object 2>&1 | FileCheck %s --check-prefix=OBJECT-MISSING-ARCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/^    tcrv.exec.mem_window @abi_lhs_input_buffer {/d' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=MISSING-MEM-WINDOW --implicit-check-not="void tcrv_dispatch_i32_vadd"
@@ -338,6 +340,15 @@ module @rvv_scalar_dispatch_input {
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(16, 1)
 // AUTO-HARNESS: tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
+// NO-PLAN-SOURCE: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
+// NO-PLAN-SOURCE: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i32-vadd-dispatch-c */
+// NO-PLAN-SOURCE: void tcrv_dispatch_i32_vadd_dispatch_vadd
+// NO-PLAN-SOURCE: __riscv_vadd_vv_i32m1
+
+// NO-PLAN-HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
+// NO-PLAN-HEADER: void tcrv_dispatch_i32_vadd_dispatch_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
+// NO-PLAN-HEADER: #endif
+
 // HELP-DAG: tcrv-export-rvv-scalar-i32-vadd-dispatch-c
 // HELP-DAG: tcrv-export-rvv-scalar-i32-vadd-dispatch-header
 // HELP-DAG: tcrv-export-rvv-scalar-i32-vadd-dispatch-object
@@ -367,8 +378,11 @@ module @rvv_scalar_dispatch_input {
 // SELFCHECK-ROUTE-MISMATCH: self-check export route expected i32-vsub dispatch artifacts, got i32-vadd
 // SELFCHECK-OBJECT-ROUTE-MISMATCH: self-check object export route expected i32-vsub dispatch artifacts, got i32-vadd
 
-// OBJECT-NO-PLAN: RVV+scalar binary dispatch object export failed
-// OBJECT-NO-PLAN: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before target artifact export
+// OBJECT-NO-PLAN: TianChen-RV selected lowering-boundary materialization failed
+// OBJECT-NO-PLAN-SAME: RVV property decision requires capability id 'rvv.hart_count'
+// OBJECT-NO-PLAN: artifact-backed direct translate route 'tcrv-export-rvv-scalar-i32-vadd-dispatch-object' failed during execution planning before exact target artifact export
+// SELFCHECK-OBJECT-NO-PLAN: RVV+scalar binary dispatch object export failed
+// SELFCHECK-OBJECT-NO-PLAN-SAME: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before target artifact export
 
 // OBJECT-BAD-ABI: unsupported runtime ABI parameter role 'malformed-runtime-element-count'
 

@@ -126,9 +126,15 @@ mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 }
 
 bool hasEmissionPlanDiagnostics(mlir::ModuleOp module);
+bool hasMaterializedExecutionVariants(mlir::ModuleOp module);
+bool hasMaterializedSelectedLoweringBoundaries(mlir::ModuleOp module);
 
 mlir::LogicalResult exportCoherenceGatedTargetArtifactRoute(
     mlir::ModuleOp module, llvm::raw_ostream &os, llvm::StringRef routeID);
+
+mlir::LogicalResult planAndExportTargetTranslateArtifactRoute(
+    mlir::ModuleOp module, const tianchenrv::target::TargetTranslateRoute &route,
+    llvm::raw_ostream &os);
 
 mlir::LogicalResult
 exportTargetTranslateRoute(mlir::ModuleOp module,
@@ -146,6 +152,8 @@ exportTargetTranslateRoute(mlir::ModuleOp module,
   if (route.hasTargetArtifactRouteID() && hasEmissionPlanDiagnostics(module))
     return exportCoherenceGatedTargetArtifactRoute(
         module, os, route.getTargetArtifactRouteID());
+  if (route.hasTargetArtifactRouteID())
+    return planAndExportTargetTranslateArtifactRoute(module, route, os);
 
   if (llvm::Error error = route.getExportFn()(module, os)) {
     std::string message = llvm::toString(std::move(error));
@@ -210,6 +218,28 @@ bool hasEmissionPlanDiagnostics(mlir::ModuleOp module) {
   return found;
 }
 
+bool hasMaterializedExecutionVariants(mlir::ModuleOp module) {
+  bool found = false;
+  module->walk([&](mlir::Operation *op) {
+    if (op->getName().getStringRef() != "tcrv.exec.variant")
+      return mlir::WalkResult::advance();
+    found = true;
+    return mlir::WalkResult::interrupt();
+  });
+  return found;
+}
+
+bool hasMaterializedSelectedLoweringBoundaries(mlir::ModuleOp module) {
+  bool found = false;
+  module->walk([&](mlir::Operation *op) {
+    if (!op->getName().getStringRef().ends_with(".lowering_boundary"))
+      return mlir::WalkResult::advance();
+    found = true;
+    return mlir::WalkResult::interrupt();
+  });
+  return found;
+}
+
 mlir::LogicalResult
 exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
                                    TargetArtifactExportFn exportFn) {
@@ -253,6 +283,52 @@ mlir::LogicalResult exportCoherenceGatedTargetArtifactRoute(
 
   if (llvm::Error error = tianchenrv::target::exportTargetArtifactRoute(
           module, exporters, routeID, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult planAndExportTargetTranslateArtifactRoute(
+    mlir::ModuleOp module, const tianchenrv::target::TargetTranslateRoute &route,
+    llvm::raw_ostream &os) {
+  tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
+  if (mlir::failed(
+          populateBuiltinPlanningRegistries(module, plugins, exporters)))
+    return mlir::failure();
+
+  mlir::PassManager pm(module.getContext());
+  if (hasMaterializedSelectedLoweringBoundaries(module)) {
+    pm.addPass(tianchenrv::transforms::createMaterializeEmissionPlansPass(
+        plugins));
+    pm.addPass(tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
+        plugins, exporters));
+  } else if (hasMaterializedExecutionVariants(module)) {
+    pm.addPass(
+        tianchenrv::transforms::createMaterializeSelectedLoweringBoundariesPass(
+            plugins));
+    pm.addPass(tianchenrv::transforms::createMaterializeEmissionPlansPass(
+        plugins));
+    pm.addPass(tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
+        plugins, exporters));
+  } else {
+    tianchenrv::transforms::buildExecutionPlanningPipeline(pm, plugins,
+                                                           exporters);
+  }
+
+  if (mlir::failed(pm.run(module))) {
+    module.emitError()
+        << "TianChen-RV artifact-backed direct translate route '"
+        << route.getRouteID()
+        << "' failed during execution planning before exact target artifact "
+           "export";
+    return mlir::failure();
+  }
+
+  if (llvm::Error error = tianchenrv::target::exportTargetArtifactRoute(
+          module, exporters, route.getTargetArtifactRouteID(), os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

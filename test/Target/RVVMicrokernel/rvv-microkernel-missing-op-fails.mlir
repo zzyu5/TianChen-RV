@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -47,4 +53,5 @@ module {
   }
 }
 
-// CHECK: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel
+// CHECK: TianChen-RV target source artifact export failed
+// CHECK-SAME: exact target artifact route 'tcrv-export-rvv-microkernel-c' requires exactly one selected emission-plan candidate; found none

@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -77,8 +83,5 @@ module {
   }
 }
 
-// CHECK: TianChen-RV RVV microkernel body verifier failed
-// CHECK-SAME: family 'tcrv_rvv.i32_vsub_microkernel'
-// CHECK-SAME: route 'tcrv-export-rvv-i32-vsub-microkernel-c'
-// CHECK-SAME: tcrv_rvv.setvl compile-time vector config layer is stale
-// CHECK-SAME: selected descriptor/config requires sew=32, lmul=m2
+// CHECK: TianChen-RV variant emission plan collection failed
+// CHECK-SAME: explicit RVV microkernel emission plan requires setvl SEW/LMUL/policy metadata to match the selected RVV first-slice variant config

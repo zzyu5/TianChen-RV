@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -68,4 +74,5 @@ module {
   }
 }
 
-// CHECK: 'tcrv_rvv.required_march' metadata is not satisfied by preserved selected_march capability metadata
+// CHECK: TianChen-RV selected lowering-boundary materialization failed
+// CHECK-SAME: 'tcrv_rvv.required_march' metadata is not satisfied by preserved capability property 'selected_march'

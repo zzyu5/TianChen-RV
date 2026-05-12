@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -67,5 +73,6 @@ module {
   }
 }
 
-// CHECK: tcrv_rvv.lowering_descriptor 'i32-vsub-microkernel.v1' requires tcrv_rvv.i32_vsub_microkernel but typed microkernel body is tcrv_rvv.i32_vadd_microkernel
-// CHECK-SAME: descriptor and typed body family must agree before artifact export
+// CHECK: legacy RVV binary descriptor mirror 'i32-vsub-microkernel.v1'
+// CHECK-SAME: typed RVV authority from direct-typed-microkernel-body names family 'i32-vadd'
+// CHECK-SAME: descriptor metadata is non-authoritative mirror metadata

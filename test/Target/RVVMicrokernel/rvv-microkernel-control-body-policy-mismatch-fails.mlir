@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -84,7 +90,5 @@ module {
   }
 }
 
-// CHECK: TianChen-RV RVV microkernel body verifier failed
-// CHECK-SAME: family 'tcrv_rvv.i32_vadd_microkernel'
-// CHECK-SAME: tcrv_rvv.setvl policy layer is stale
-// CHECK-SAME: selected variant tcrv_rvv.policy metadata before artifact export
+// CHECK: TianChen-RV variant emission plan collection failed
+// CHECK-SAME: explicit RVV microkernel emission plan requires setvl SEW/LMUL/policy metadata to match the selected RVV first-slice variant config

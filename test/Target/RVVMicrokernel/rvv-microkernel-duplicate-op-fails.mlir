@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -89,4 +95,5 @@ module {
   }
 }
 
-// CHECK: selected RVV path @rvv_first_slice as direct variant has duplicate RVV i32 microkernel metadata
+// CHECK: TianChen-RV variant emission plan collection failed
+// CHECK-SAME: selected RVV emission plan path @rvv_first_slice as direct variant has duplicate RVV i32 microkernel metadata

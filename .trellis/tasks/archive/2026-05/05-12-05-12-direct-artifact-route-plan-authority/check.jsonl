@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariants for final spec compliance check"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "validate planning/coherence/exact-route behavior and fail-closed diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check no descriptor-to-C production authority is reintroduced"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "check generic code remains family-neutral and registry-driven"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused lit/FileCheck and C++ coverage match policy"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "review capability and route selection boundaries"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "review plugin locality and absence of extension-name branches in core orchestration"}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "passed focused C++ target artifact exporter registry and exact-route behavior checks"}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir", "reason": "focused lit filter RVVScalarDispatch|RVVMicrokernel|target-source-artifact-routes|target-artifact-export-registry|plan-and-export passed 47 selected tests"}
+{"file": "tools/tcrv-translate/tcrv-translate.cpp", "reason": "git diff --check passed after implementation"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-05-12-direct-artifact-route-plan-authority/prd.md", "reason": "archived Trellis task validation passed after archive"}

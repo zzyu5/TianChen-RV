@@ -1262,3 +1262,34 @@ made.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 46: Direct artifact route planning authority
+
+**Date**: 2026-05-12
+**Task**: Direct artifact route planning authority
+**Branch**: `main`
+
+### Summary
+
+Migrated marked tcrv-translate direct artifact routes to common planning/coherence/exact-route authority, updated RVV and RVV+scalar FileCheck coverage, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

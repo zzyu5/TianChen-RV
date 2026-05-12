@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV project invariants and spec layer routing"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified RISC-V MLIR boundary and descriptor-to-C non-architecture constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common extension-family ops to EmitC production route and descriptor boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "execution planning, emission-plan, coherence, and target artifact export contracts"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "family-neutral registry and plugin interface usage rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required focused lit/FileCheck and C++ test evidence for route/export behavior"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "capability-first review for emission and dispatch decisions"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "prevent concrete-family branches in common orchestration"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "ensure this migration does not move compute semantics into core"}
+{"file": "tools/tcrv-translate/tcrv-translate.cpp", "reason": "marked direct routes now use planning/coherence/exact target artifact export; no marked production route falls through to target-local descriptor callbacks"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir", "reason": "added direct no-plan RVV source route coverage through self-planning"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-missing-boundary-fails.mlir", "reason": "converted obsolete missing-boundary fallback failure into positive selected-variant planning coverage"}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir", "reason": "added no-plan RVV+scalar source/header planning coverage and object fail-closed planning coverage"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir", "reason": "updated stale descriptor/family route tests to expect planning, coherence, or exact-route rejection instead of target-local production callback diagnostics"}

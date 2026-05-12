@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -75,5 +81,5 @@ module {
   }
 }
 
-// CHECK: stale tcrv_rvv.lowering_boundary for @rvv_old as direct variant
-// CHECK-SAME: is not selected by the current RVV microkernel surface
+// CHECK: TianChen-RV emission path check failed for kernel @stale_boundary_microkernel
+// CHECK-SAME: stale lowering boundary 'tcrv_rvv.lowering_boundary' selected_variant @rvv_old as direct variant is not selected by the current dispatch or selected diagnostic surface

@@ -1,4 +1,4 @@
-// RUN: not tcrv-translate --tcrv-export-rvv-microkernel-c %s 2>&1 | FileCheck %s --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 
 module {
   tcrv.exec.kernel @missing_boundary_microkernel {
@@ -12,6 +12,12 @@ module {
       mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
+      status = "available"
+    }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -59,4 +65,7 @@ module {
   }
 }
 
-// CHECK: selected RVV path @rvv_first_slice as direct variant requires exactly one matching tcrv_rvv.lowering_boundary
+// CHECK: /* TianChen-RV RVV runtime-callable microkernel C export. */
+// CHECK: /* active_route: tcrv-export-rvv-microkernel-c */
+// CHECK: void tcrv_rvv_i32_vadd_microkernel_missing_boundary_microkernel_rvv_first_slice
+// CHECK: __riscv_vadd_vv_i32m1

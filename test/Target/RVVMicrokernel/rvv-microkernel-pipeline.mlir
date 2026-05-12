@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-c | FileCheck %s --check-prefix=LIB --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=NO-DIRECT-FALLBACK --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: sed '/%lhs = tcrv_rvv.i32_load/s/buffer_role = "lhs-input-buffer"/buffer_role = "output-buffer"/' %s | not tcrv-opt - --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=BAD-DATAFLOW-ROLE --implicit-check-not="__riscv_vle32_v_i32m1"
 
@@ -151,6 +151,10 @@ module @rvv_microkernel_input {
 // LIB: __riscv_vadd_vv_i32m1
 // LIB: __riscv_vse32_v_i32m1
 // LIB: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
+
+// NO-DIRECT-FALLBACK: TianChen-RV target source artifact export failed
+// NO-DIRECT-FALLBACK-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference to a dispatch-availability-guard tcrv.exec.runtime_param
+// NO-DIRECT-FALLBACK: artifact-backed direct translate route 'tcrv-export-rvv-microkernel-c' failed during execution planning before exact target artifact export
 
 // HARNESS: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
 // HARNESS: #include <stdio.h>

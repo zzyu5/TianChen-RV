@@ -14,6 +14,12 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
+    tcrv.exec.capability @rvv_hart_count {
+      id = "rvv.hart_count",
+      kind = "uarch",
+      count = 64 : i64,
+      status = "available"
+    }
     tcrv.exec.capability @rvv_probe_compile_run {
       id = "rvv.probe.compile_run",
       kind = "toolchain",
@@ -67,4 +73,5 @@ module {
   }
 }
 
-// CHECK: selected RVV variant @rvv_first_slice requires typed 'tcrv_rvv.policy' metadata before microkernel export
+// CHECK: TianChen-RV selected lowering-boundary materialization failed
+// CHECK-SAME: materialized RVV variant requires typed 'tcrv_rvv.policy' metadata
