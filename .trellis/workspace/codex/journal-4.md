@@ -1338,3 +1338,34 @@ Migrated marked tcrv-translate direct artifact routes to common planning/coheren
 ### Next Steps
 
 - None - task complete
+
+
+## Session 47: RVV exact-family runtime ABI hardware proof
+
+**Date**: 2026-05-13
+**Task**: RVV exact-family runtime ABI hardware proof
+**Branch**: `main`
+
+### Summary
+
+Verified the existing descriptor-free typed RVV i32-vadd exact-family source/header/object route through real ssh rvv external ABI execution; archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

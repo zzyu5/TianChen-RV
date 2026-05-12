@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 46
-- **Last Active**: 2026-05-12
+- **Total Sessions**: 47
+- **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1295 | Active |
+| `journal-4.md` | ~1371 | Active |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 47 | 2026-05-13 | RVV exact-family runtime ABI hardware proof | - | `main` |
 | 46 | 2026-05-12 | Direct artifact route planning authority | - | `main` |
 | 45 | 2026-05-12 | Direct target translate route artifact coherence | this commit | `main` |
 | 39 | 2026-05-12 | Scalar selected-boundary descriptor-only quarantine | this commit | `main` |
