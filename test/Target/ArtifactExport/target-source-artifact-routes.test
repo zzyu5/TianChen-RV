@@ -52,10 +52,18 @@
 # AUTO-DISPATCH: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
 # AUTO-DISPATCH: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
 # AUTO-DISPATCH: tcrv_scalar_i32_add
+# AUTO-DISPATCH: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+# AUTO-DISPATCH: // tcrv_emitc.dispatch_guard_value=rvv_available
 # AUTO-DISPATCH-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
-# AUTO-DISPATCH: if (rvv_available)
-# AUTO-DISPATCH: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);
-# AUTO-DISPATCH: tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice(lhs, rhs, out, n);
+# AUTO-DISPATCH-SAME: (const int32_t* [[LHS:v[0-9]+]], const int32_t* [[RHS:v[0-9]+]], int32_t* [[OUT:v[0-9]+]], size_t [[LEN:v[0-9]+]], int [[GUARD:v[0-9]+]])
+# AUTO-DISPATCH-NEXT: {{^}}  bool [[COND:v[0-9]+]] = [[GUARD]] != 0;
+# AUTO-DISPATCH-NEXT: {{^}}  if ([[COND]]) {
+# AUTO-DISPATCH-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
+# AUTO-DISPATCH-NEXT: {{^}}  tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
+# AUTO-DISPATCH-NEXT: {{^}}  return;
+# AUTO-DISPATCH-NEXT: {{^}}  }
+# AUTO-DISPATCH-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
+# AUTO-DISPATCH-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE --implicit-check-not="#include <riscv_vector.h>"
 # STALE: stale emission-plan diagnostic is not selected by the current execution plan surface

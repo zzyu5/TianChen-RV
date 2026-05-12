@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for the dispatch source-authority migration."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified RISC-V MLIR boundary and descriptor-to-C migration constraint."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and source-authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, runtime ABI, and RVV+scalar dispatch contract."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec dispatch/case/fallback/runtime_guard/mem_window/runtime_param semantics."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and component source authority boundary."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin ownership and component source authority boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/RVV evidence expectations for dispatch artifacts."}

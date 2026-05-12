@@ -394,17 +394,34 @@ public:
         loc, makeSourceAuthorityComment("source_route_id",
                                         route.getRouteID()));
     builder.create<mlir::emitc::VerbatimOp>(
+        loc, makeSourceAuthorityComment("source_route_kind",
+                                        route.getRouteKind()));
+    if (sourceAuthorityShape == SourceAuthorityShape::DispatchControl)
+      builder.create<mlir::emitc::VerbatimOp>(
+          loc, makeSourceAuthorityComment("dispatch_control_source",
+                                          "tcrv.exec.dispatch"));
+    if (sourceAuthorityShape == SourceAuthorityShape::DispatchControl)
+      builder.create<mlir::emitc::VerbatimOp>(
+          loc, makeSourceAuthorityComment("dispatch_guard_value",
+                                          options.dispatchGuardValueName));
+    builder.create<mlir::emitc::VerbatimOp>(
         loc, makeSourceAuthorityComment("public_function",
                                         options.functionName));
 
-    mlir::emitc::FuncOp helper = buildHelperFunction(loc);
-    if (llvm::Error error = materializeHelperBody(helper))
-      return std::move(error);
+    if (sourceAuthorityShape == SourceAuthorityShape::DispatchControl) {
+      mlir::emitc::FuncOp publicFunction = buildPublicFunction(loc);
+      if (llvm::Error error = materializeDispatchControlBody(publicFunction))
+        return std::move(error);
+    } else {
+      mlir::emitc::FuncOp helper = buildHelperFunction(loc);
+      if (llvm::Error error = materializeHelperBody(helper))
+        return std::move(error);
 
-    builder.setInsertionPointAfter(helper);
-    mlir::emitc::FuncOp publicFunction = buildPublicFunction(loc);
-    if (llvm::Error error = materializePublicWrapper(publicFunction, helper))
-      return std::move(error);
+      builder.setInsertionPointAfter(helper);
+      mlir::emitc::FuncOp publicFunction = buildPublicFunction(loc);
+      if (llvm::Error error = materializePublicWrapper(publicFunction, helper))
+        return std::move(error);
+    }
 
     if (options.verifyModule && mlir::failed(mlir::verify(*module)))
       return makeMaterializerError(route.getRouteID(),
@@ -414,7 +431,11 @@ public:
   }
 
 private:
-  enum class LoopShape { RuntimeAVLToVL, RuntimeElementCount };
+  enum class SourceAuthorityShape {
+    RuntimeAVLToVL,
+    RuntimeElementCount,
+    DispatchControl
+  };
 
   llvm::Error validateOptions() {
     if (llvm::Error error = validateSafeIdentifier(
@@ -426,6 +447,12 @@ private:
                                    "EmitC source-authority loop index name",
                                    options.loopIndexName))
       return error;
+    if (!options.dispatchGuardValueName.empty())
+      if (llvm::Error error =
+              validateSafeIdentifier(route.getRouteID(),
+                                     "EmitC dispatch guard value name",
+                                     options.dispatchGuardValueName))
+        return error;
     helperFunctionName = options.helperFunctionName;
     if (helperFunctionName.empty())
       helperFunctionName =
@@ -475,6 +502,15 @@ private:
               "MLIR Cpp source authority currently requires the "
               "runtime-element-count ABI mapping to use C type 'size_t'");
       }
+      if (mapping.parameter.role ==
+          support::RuntimeABIParameterRole::DispatchAvailabilityGuard) {
+        dispatchGuardValueNames.push_back(valueName.str());
+        if (mapping.parameter.cType != "int")
+          return makeMaterializerError(
+              route.getRouteID(),
+              "MLIR Cpp source authority currently requires the "
+              "dispatch-availability-guard ABI mapping to use C type 'int'");
+      }
     }
 
     if (runtimeElementCountMatches != 1)
@@ -492,12 +528,16 @@ private:
       return makeMaterializerError(
           route.getRouteID(),
           "MLIR Cpp source authority requires at least one call_opaque step");
+    if (!options.dispatchGuardValueName.empty()) {
+      sourceAuthorityShape = SourceAuthorityShape::DispatchControl;
+      return validateDispatchControlRouteShape();
+    }
     if (steps.front().sourceOp.role == "runtime-avl-to-vl") {
-      loopShape = LoopShape::RuntimeAVLToVL;
+      sourceAuthorityShape = SourceAuthorityShape::RuntimeAVLToVL;
       return validateRuntimeVLRouteShape();
     }
 
-    loopShape = LoopShape::RuntimeElementCount;
+    sourceAuthorityShape = SourceAuthorityShape::RuntimeElementCount;
     return validateRuntimeElementCountRouteShape();
   }
 
@@ -550,6 +590,53 @@ private:
             llvm::Twine("runtime-element-count MLIR Cpp source authority "
                         "cannot materialize non-compute call_opaque result '") +
                 step.result->name + "'");
+    }
+    return llvm::Error::success();
+  }
+
+  llvm::Error validateDispatchControlRouteShape() const {
+    if (!seenABIValueNames.contains(options.dispatchGuardValueName))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("dispatch-control MLIR Cpp source authority requires "
+                      "dispatch guard ABI value '") +
+              options.dispatchGuardValueName + "'");
+    if (dispatchGuardValueNames.size() != 1 ||
+        dispatchGuardValueNames.front() != options.dispatchGuardValueName)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "dispatch-control MLIR Cpp source authority requires exactly one "
+          "dispatch-availability-guard ABI mapping matching the configured "
+          "guard value name");
+
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
+        route.getCallOpaqueSteps();
+    if (steps.size() != 2)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "dispatch-control MLIR Cpp source authority requires exactly two "
+          "call_opaque steps: dispatch case and dispatch fallback");
+    if (steps[0].sourceOp.role != "dispatch-case-call")
+      return makeMaterializerError(
+          route.getRouteID(),
+          "dispatch-control MLIR Cpp source authority requires the first "
+          "call_opaque step to have source role 'dispatch-case-call'");
+    if (steps[1].sourceOp.role != "dispatch-fallback-call")
+      return makeMaterializerError(
+          route.getRouteID(),
+          "dispatch-control MLIR Cpp source authority requires the second "
+          "call_opaque step to have source role 'dispatch-fallback-call'");
+    for (const TCRVEmitCCallOpaqueStep &step : steps) {
+      if (step.result)
+        return makeMaterializerError(
+            route.getRouteID(),
+            "dispatch-control MLIR Cpp source authority requires component "
+            "call_opaque steps to be void calls");
+      if (step.operands.empty())
+        return makeMaterializerError(
+            route.getRouteID(),
+            "dispatch-control MLIR Cpp source authority requires component "
+            "calls to carry ABI-ordered callable operands");
     }
     return llvm::Error::success();
   }
@@ -821,7 +908,7 @@ private:
     builder.setInsertionPoint(thenBlock.getTerminator());
 
     llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps = route.getCallOpaqueSteps();
-    if (loopShape == LoopShape::RuntimeAVLToVL) {
+    if (sourceAuthorityShape == SourceAuthorityShape::RuntimeAVLToVL) {
       if (llvm::Error error = materializeRuntimeVLStep(steps.front()))
         return error;
       for (const TCRVEmitCCallOpaqueStep &step : steps.drop_front())
@@ -840,7 +927,7 @@ private:
           "interface-backed compute call_opaque step");
 
     mlir::Value increment;
-    if (loopShape == LoopShape::RuntimeAVLToVL)
+    if (sourceAuthorityShape == SourceAuthorityShape::RuntimeAVLToVL)
       increment = lookupRequiredValue(steps.front().result->name);
     else
       increment =
@@ -861,6 +948,47 @@ private:
         loc, helperFunctionName, mlir::TypeRange{}, recursiveArgs);
 
     builder.setInsertionPointAfter(ifOp);
+    builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
+    return llvm::Error::success();
+  }
+
+  llvm::Error
+  materializeDispatchControlBody(mlir::emitc::FuncOp publicFunction) {
+    mlir::Block &entry = publicFunction.getBody().front();
+    builder.setInsertionPointToStart(&entry);
+    initializeFunctionValueMap(&entry, /*includeLoopIndexArgument=*/false);
+
+    mlir::Location loc = builder.getUnknownLoc();
+    mlir::Value guard = lookupRequiredValue(options.dispatchGuardValueName);
+    if (!guard)
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("dispatch-control body is missing guard value '") +
+              options.dispatchGuardValueName + "'");
+    mlir::Value zero =
+        builder
+            .create<mlir::emitc::LiteralOp>(loc, guard.getType(), "0")
+            .getResult();
+    mlir::Value condition =
+        builder
+            .create<mlir::emitc::CmpOp>(
+                loc, builder.getI1Type(), mlir::emitc::CmpPredicate::ne,
+                guard, zero)
+            .getResult();
+    mlir::emitc::IfOp ifOp =
+        builder.create<mlir::emitc::IfOp>(loc, condition);
+
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
+        route.getCallOpaqueSteps();
+    mlir::Block &thenBlock = ifOp.getThenRegion().front();
+    builder.setInsertionPoint(thenBlock.getTerminator());
+    if (llvm::Error error = materializeRouteStep(steps.front()))
+      return error;
+    builder.create<mlir::emitc::VerbatimOp>(loc, "return;");
+
+    builder.setInsertionPointAfter(ifOp);
+    if (llvm::Error error = materializeRouteStep(steps[1]))
+      return error;
     builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
     return llvm::Error::success();
   }
@@ -894,9 +1022,11 @@ private:
   llvm::StringMap<mlir::Value> valueMap;
   std::string helperFunctionName;
   std::string runtimeElementCountValueName;
+  llvm::SmallVector<std::string, 1> dispatchGuardValueNames;
   unsigned runtimeElementCountMatches = 0;
   bool sawInterfaceBackedCompute = false;
-  LoopShape loopShape = LoopShape::RuntimeAVLToVL;
+  SourceAuthorityShape sourceAuthorityShape =
+      SourceAuthorityShape::RuntimeAVLToVL;
 };
 
 llvm::Error makeSourceRendererError(llvm::StringRef routeID,

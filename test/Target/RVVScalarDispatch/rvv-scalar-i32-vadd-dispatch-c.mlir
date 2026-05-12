@@ -31,6 +31,8 @@
 // RUN: sed '/^    tcrv.exec.variant @rvv_first_slice/i\    tcrv.exec.runtime_param @abi_dispatch_availability_guard_dup {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}' %s | not tcrv-opt - 2>&1 | FileCheck %s --check-prefix=DUPLICATE-RUNTIME-GUARD --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int"/abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "bool"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=BAD-RUNTIME-GUARD-TYPE --implicit-check-not="void tcrv_dispatch_i32_vadd"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned"/abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "ir-modeled"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=BAD-RUNTIME-GUARD-OWNERSHIP --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lowering_pipeline = "tcrv-export-rvv-microkernel-c"/s//lowering_pipeline = "tcrv-export-rvv-i32-vsub-microkernel-c"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-RVV-COMPONENT-ROUTE --implicit-check-not="void tcrv_dispatch_i32_vadd"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lowering_pipeline = "tcrv-export-scalar-microkernel-c"/s//lowering_pipeline = "tcrv-export-scalar-i32-vsub-microkernel-c"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR-COMPONENT-ROUTE --implicit-check-not="void tcrv_dispatch_i32_vadd"
 
 module @rvv_scalar_dispatch_input {
   tcrv.exec.kernel @dispatch_vadd {
@@ -256,11 +258,18 @@ module @rvv_scalar_dispatch_input {
 // BODY: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // BODY: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
 // BODY: tcrv_scalar_i32_add
+// BODY: /* dispatch_emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
+// BODY: /* dispatch_emitc_runtime_guard_value: rvv_available */
+// BODY: /* dispatch_emitc.call_opaque[0]: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice from tcrv.exec.case, source_role=dispatch-case-call, operands=4 */
+// BODY: /* dispatch_emitc.call_opaque[1]: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice from tcrv.exec.fallback, source_role=dispatch-fallback-call, operands=4 */
+// BODY: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// BODY: // tcrv_emitc.dispatch_guard_value=rvv_available
 // BODY-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
-// BODY: if (rvv_available)
-// BODY: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
+// BODY: bool [[BODY_GUARD:v[0-9]+]] = {{v[0-9]+}} != 0;
+// BODY: if ([[BODY_GUARD]])
+// BODY: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 // BODY: return;
-// BODY: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+// BODY: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 
 // AUTO: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // AUTO: /* selected_kernel: @pipeline_manifest */
@@ -276,10 +285,13 @@ module @rvv_scalar_dispatch_input {
 // AUTO: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
 // AUTO: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
 // AUTO: tcrv_scalar_i32_add
+// AUTO: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// AUTO: // tcrv_emitc.dispatch_guard_value=rvv_available
 // AUTO-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
-// AUTO: if (rvv_available)
-// AUTO: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);
-// AUTO: tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice(lhs, rhs, out, n);
+// AUTO: bool [[AUTO_GUARD:v[0-9]+]] = {{v[0-9]+}} != 0;
+// AUTO: if ([[AUTO_GUARD]])
+// AUTO: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
+// AUTO: tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 
 // HARNESS: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 // HARNESS: /* selected_kernel: @dispatch_vadd */
@@ -287,10 +299,13 @@ module @rvv_scalar_dispatch_input {
 // HARNESS: __riscv_vadd_vv_i32m1
 // HARNESS: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // HARNESS: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// HARNESS: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// HARNESS: // tcrv_emitc.dispatch_guard_value=rvv_available
 // HARNESS-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
-// HARNESS: if (rvv_available)
-// HARNESS: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
-// HARNESS: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+// HARNESS: bool [[HARNESS_GUARD:v[0-9]+]] = {{v[0-9]+}} != 0;
+// HARNESS: if ([[HARNESS_GUARD]])
+// HARNESS: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
+// HARNESS: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 // HARNESS: /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
 // HARNESS: Runtime element count is a target/export-owned ABI parameter
@@ -312,6 +327,7 @@ module @rvv_scalar_dispatch_input {
 
 // AUTO-HARNESS: /* selected_kernel: @pipeline_manifest */
 // AUTO-HARNESS: void tcrv_dispatch_i32_vadd_pipeline_manifest
+// AUTO-HARNESS: // tcrv_emitc.dispatch_guard_value=rvv_available
 // AUTO-HARNESS: static int tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(size_t runtime_n, int rvv_available)
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest(lhs, rhs, out, runtime_n, rvv_available);
 // AUTO-HARNESS: tcrv_dispatch_i32_vadd_pipeline_manifest_self_check_one(7, 0)
@@ -386,3 +402,11 @@ module @rvv_scalar_dispatch_input {
 // BAD-RUNTIME-GUARD-OWNERSHIP: RVV+scalar binary dispatch C export failed
 // BAD-RUNTIME-GUARD-OWNERSHIP-SAME: runtime ABI runtime_param validation failed
 // BAD-RUNTIME-GUARD-OWNERSHIP-SAME: tcrv.exec.runtime_param @abi_dispatch_availability_guard requires attribute 'ownership' = "target-export-abi-owned"
+
+// STALE-RVV-COMPONENT-ROUTE: RVV+scalar binary dispatch C export failed
+// STALE-RVV-COMPONENT-ROUTE-SAME: selected RVV dispatch case callable route 'tcrv-export-rvv-i32-vsub-microkernel-c' for i32-vadd has stale route id
+// STALE-RVV-COMPONENT-ROUTE-SAME: expected 'tcrv-export-rvv-microkernel-c'
+
+// STALE-SCALAR-COMPONENT-ROUTE: RVV+scalar binary dispatch C export failed
+// STALE-SCALAR-COMPONENT-ROUTE-SAME: selected scalar dispatch fallback callable route 'tcrv-export-scalar-i32-vsub-microkernel-c' for i32-vadd has stale route id
+// STALE-SCALAR-COMPONENT-ROUTE-SAME: expected 'tcrv-export-scalar-microkernel-c'

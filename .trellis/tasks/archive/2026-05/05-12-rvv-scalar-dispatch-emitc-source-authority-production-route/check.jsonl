@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack and architecture invariants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC route remains generic and source-authority backed."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check export/runtime ABI fail-closed behavior and dispatch route metadata."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check dispatch control uses tcrv.exec IR without compute semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation and evidence reporting scope."}

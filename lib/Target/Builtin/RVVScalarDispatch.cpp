@@ -1,5 +1,7 @@
 #include "TianChenRV/Target/RVVScalarDispatch.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
@@ -43,6 +45,10 @@ using tianchenrv::target::TargetArtifactCompositeBundleMetadata;
 using tianchenrv::target::TargetArtifactCompositeExporter;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
+using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+using tianchenrv::conversion::emitc::TCRVEmitCSourceAuthorityOptions;
+using tianchenrv::conversion::emitc::emitTCRVEmitCLowerableRouteAsCppSource;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::target::BinarySelfCheckArithmeticKind;
@@ -2563,41 +2569,95 @@ llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
   return llvm::Error::success();
 }
 
-void printDispatcherFunction(llvm::raw_ostream &os,
-                             llvm::StringRef dispatcherFunctionName,
-                             llvm::StringRef rvvFunctionName,
-                             llvm::StringRef scalarFunctionName,
-                             llvm::ArrayRef<support::RuntimeABIParameter>
-                                 parameters,
-                             const DispatchRuntimeABIParameterBindings
-                                 &bindings) {
-  os << "void " << dispatcherFunctionName << "(";
-  for (auto [index, parameter] : llvm::enumerate(parameters)) {
-    if (index != 0)
-      os << ", ";
-    support::printRuntimeABIParameterCDeclaration(os, parameter);
-  }
-  os << ") {\n";
-  os << "  if (" << bindings.dispatchAvailabilityGuard->cName << ") {\n";
-  os << "    " << rvvFunctionName << "(";
+TCRVEmitCCallOpaqueStep buildDispatchComponentCallStep(
+    llvm::StringRef sourceOpName, llvm::StringRef sourceRole,
+    llvm::StringRef callee,
+    const DispatchRuntimeABIParameterBindings &bindings) {
+  TCRVEmitCCallOpaqueStep step;
+  step.sourceOp.opName = sourceOpName.str();
+  step.sourceOp.role = sourceRole.str();
+  step.callee = callee.str();
   const support::RuntimeABIParameter *callableParameters[] = {
       bindings.lhs, bindings.rhs, bindings.out, bindings.runtimeElementCount};
-  for (auto [index, parameter] : llvm::enumerate(callableParameters)) {
-    if (index != 0)
-      os << ", ";
-    os << parameter->cName;
+  for (const support::RuntimeABIParameter *parameter : callableParameters)
+    step.operands.push_back({parameter->cName, parameter->cType});
+  return step;
+}
+
+llvm::Expected<TCRVEmitCLowerableRoute> buildDispatchControlEmitCRoute(
+    const DispatchPair &pair, const DispatchRouteManifestEntry &route,
+    llvm::StringRef rvvFunctionName, llvm::StringRef scalarFunctionName,
+    const DispatchRuntimeABIParameterBindings &bindings) {
+  TCRVEmitCLowerableRoute emitcRoute(
+      route.routeID, "tcrv-exec-dispatch-control-to-emitc-call-opaque");
+  emitcRoute.addHeader("stddef.h");
+  emitcRoute.addHeader("stdint.h");
+  for (const support::RuntimeABIParameter &parameter : pair.abiPlan.parameters)
+    emitcRoute.addABIValueMapping(parameter, parameter.cName);
+
+  emitcRoute.addCallOpaqueStep(buildDispatchComponentCallStep(
+      "tcrv.exec.case", "dispatch-case-call", rvvFunctionName, bindings));
+  emitcRoute.addCallOpaqueStep(buildDispatchComponentCallStep(
+      "tcrv.exec.fallback", "dispatch-fallback-call", scalarFunctionName,
+      bindings));
+  if (llvm::Error error = emitcRoute.verify())
+    return std::move(error);
+  return emitcRoute;
+}
+
+void printDispatchEmitCRouteMetadata(llvm::raw_ostream &os,
+                                     const TCRVEmitCLowerableRoute &route,
+                                     llvm::StringRef dispatcherFunctionName,
+                                     llvm::StringRef guardValueName) {
+  os << "/* dispatch_emitc_route: tcrv.exec.dispatch -> emitc.if -> "
+        "selected callable artifacts */\n";
+  os << "/* dispatch_emitc_lowerable_interface: "
+        "TCRVEmitCLowerableInterface */\n";
+  os << "/* dispatch_emitc_materialization_boundary: verified MLIR EmitC "
+        "module with emitc.include, emitc.func, emitc.if, emitc.cmp, "
+        "emitc.call_opaque, and emitc.return before MLIR Cpp emitter "
+        "production source output */\n";
+  os << "/* dispatch_emitc_materialization_function: @"
+     << dispatcherFunctionName << " */\n";
+  os << "/* dispatch_emitc_c_source_authority: MLIR EmitC module translated "
+        "by mlir::emitc::translateToCpp */\n";
+  os << "/* dispatch_emitc_runtime_guard_value: " << guardValueName
+     << " */\n";
+  os << "/* dispatch_emitc_route_id: " << route.getRouteID()
+     << ", route_kind=" << route.getRouteKind() << " */\n";
+  for (auto [index, step] : llvm::enumerate(route.getCallOpaqueSteps())) {
+    os << "/* dispatch_emitc.call_opaque[" << index
+       << "]: " << step.callee << " from " << step.sourceOp.opName
+       << ", source_role=" << step.sourceOp.role
+       << ", operands=" << step.operands.size() << " */\n";
   }
-  os << ");\n";
-  os << "    return;\n";
-  os << "  }\n";
-  os << "  " << scalarFunctionName << "(";
-  for (auto [index, parameter] : llvm::enumerate(callableParameters)) {
-    if (index != 0)
-      os << ", ";
-    os << parameter->cName;
-  }
-  os << ");\n";
-  os << "}\n";
+}
+
+llvm::Error emitDispatchFunctionFromEmitC(
+    const DispatchPair &pair, const DispatchRouteManifestEntry &route,
+    llvm::StringRef dispatcherFunctionName, llvm::StringRef rvvFunctionName,
+    llvm::StringRef scalarFunctionName,
+    const DispatchRuntimeABIParameterBindings &bindings,
+    std::string &dispatchFunctionSource, TCRVEmitCLowerableRoute &emitcRoute) {
+  llvm::Expected<TCRVEmitCLowerableRoute> routeOrError =
+      buildDispatchControlEmitCRoute(pair, route, rvvFunctionName,
+                                     scalarFunctionName, bindings);
+  if (!routeOrError)
+    return routeOrError.takeError();
+  emitcRoute = std::move(*routeOrError);
+
+  TCRVEmitCSourceAuthorityOptions options;
+  options.functionName = dispatcherFunctionName.str();
+  options.dispatchGuardValueName =
+      bindings.dispatchAvailabilityGuard->cName;
+  options.requireInterfaceBackedCompute = false;
+
+  llvm::raw_string_ostream stream(dispatchFunctionSource);
+  if (llvm::Error error =
+          emitTCRVEmitCLowerableRouteAsCppSource(emitcRoute, stream, options))
+    return error;
+  stream.flush();
+  return llvm::Error::success();
 }
 
 llvm::Error printDispatchHeader(const DispatchPair &pair,
@@ -2738,6 +2798,23 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   if (!bindings)
     return bindings.takeError();
 
+  std::string dispatchFunctionSource;
+  TCRVEmitCLowerableRoute dispatchEmitCRoute;
+  if (llvm::Error error = emitDispatchFunctionFromEmitC(
+          pair, *route, dispatcherFunctionName, rvvFunctionName,
+          scalarFunctionName, *bindings, dispatchFunctionSource,
+          dispatchEmitCRoute))
+    return error;
+
+  std::optional<BinarySelfCheckExpectation> selfCheckExpectation;
+  if (includeSelfCheck) {
+    llvm::Expected<BinarySelfCheckExpectation> expectation =
+        buildDispatchSelfCheckExpectation(pair);
+    if (!expectation)
+      return expectation.takeError();
+    selfCheckExpectation = std::move(*expectation);
+  }
+
   os << "/* TianChen-RV RVV+scalar host runtime dispatch C export. */\n";
   os << "/* Scope: one selected RVV " << pair.composite.diagnosticName
      << " dispatch case plus one scalar " << pair.composite.diagnosticName
@@ -2794,15 +2871,17 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   os << scalarSource;
   if (!scalarSource.ends_with("\n"))
     os << "\n";
-  os << "\n/* Host dispatcher over the two validated callable artifacts. */\n";
-  printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
-                          scalarFunctionName, dispatchParameters, *bindings);
+  os << "\n/* Host dispatcher emitted through MLIR EmitC source authority over "
+        "the two validated callable artifacts. */\n";
+  printDispatchEmitCRouteMetadata(os, dispatchEmitCRoute,
+                                  dispatcherFunctionName,
+                                  bindings->dispatchAvailabilityGuard->cName);
+  os << dispatchFunctionSource;
+  if (!llvm::StringRef(dispatchFunctionSource).ends_with("\n"))
+    os << "\n";
   if (includeSelfCheck) {
-    llvm::Expected<BinarySelfCheckExpectation> expectation =
-        buildDispatchSelfCheckExpectation(pair);
-    if (!expectation)
-      return expectation.takeError();
-    printDispatchSelfCheckHarness(os, *expectation, dispatcherFunctionName,
+    printDispatchSelfCheckHarness(os, *selfCheckExpectation,
+                                  dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
                                   bindings->dispatchAvailabilityGuard->cName,
                                   pair.composite.selfCheckSuccessMarker);

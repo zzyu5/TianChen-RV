@@ -28,6 +28,7 @@ struct TCRVEmitCSourceAuthorityOptions {
   std::string functionName = "tcrv_emitc_route";
   std::string loopIndexName = "offset";
   std::string helperFunctionName;
+  std::string dispatchGuardValueName;
   bool requireInterfaceBackedCompute = true;
   bool verifyModule = true;
   bool declareVariablesAtTop = false;

@@ -140,11 +140,14 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // SOURCE: void tcrv_scalar_i32_vsub_microkernel_frontend_dispatch_i32_vsub_scalar_fallback_first_slice
 // SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
 // SOURCE: tcrv_scalar_i32_sub
+// SOURCE: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// SOURCE: // tcrv_emitc.dispatch_guard_value=rvv_available
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub
-// SOURCE: if (rvv_available)
-// SOURCE: tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice(lhs, rhs, out, n);
+// SOURCE: bool [[SOURCE_GUARD:v[0-9]+]] = {{v[0-9]+}} != 0;
+// SOURCE: if ([[SOURCE_GUARD]])
+// SOURCE: tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 // SOURCE: return;
-// SOURCE: tcrv_scalar_i32_vsub_microkernel_frontend_dispatch_i32_vsub_scalar_fallback_first_slice(lhs, rhs, out, n);
+// SOURCE: tcrv_scalar_i32_vsub_microkernel_frontend_dispatch_i32_vsub_scalar_fallback_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 
 // HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VSUB_DISPATCH_FRONTEND_DISPATCH_I32_VSUB_H
 // HEADER: #define TIANCHENRV_RVV_SCALAR_I32_VSUB_DISPATCH_FRONTEND_DISPATCH_I32_VSUB_H

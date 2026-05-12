@@ -106,11 +106,14 @@ module {
 // GENERIC: void tcrv_scalar_i64_vadd_microkernel_conflict_planned_i64_dispatch_scalar_fallback_first_slice
 // GENERIC: // tcrv_emitc.source_op=tcrv_scalar.i64_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_add
 // GENERIC: tcrv_scalar_i64_add
+// GENERIC: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// GENERIC: // tcrv_emitc.dispatch_guard_value=rvv_available
 // GENERIC-LABEL: {{^}}void tcrv_dispatch_i64_vadd_conflict_planned_i64_dispatch
-// GENERIC: if (rvv_available)
-// GENERIC: tcrv_rvv_i64_vadd_microkernel_conflict_planned_i64_dispatch_rvv_first_slice(lhs, rhs, out, n);
+// GENERIC: bool [[GENERIC_GUARD:v[0-9]+]] = {{v[0-9]+}} != 0;
+// GENERIC: if ([[GENERIC_GUARD]])
+// GENERIC: tcrv_rvv_i64_vadd_microkernel_conflict_planned_i64_dispatch_rvv_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 // GENERIC: return;
-// GENERIC: tcrv_scalar_i64_vadd_microkernel_conflict_planned_i64_dispatch_scalar_fallback_first_slice(lhs, rhs, out, n);
+// GENERIC: tcrv_scalar_i64_vadd_microkernel_conflict_planned_i64_dispatch_scalar_fallback_first_slice({{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}});
 
 // GENERIC-HDR: #ifndef TIANCHENRV_RVV_SCALAR_I64_VADD_DISPATCH_CONFLICT_PLANNED_I64_DISPATCH_H
 // GENERIC-HDR: extern "C" {

@@ -199,10 +199,18 @@ module @target_artifact_bundle_positive_input {
 // DISPATCH-SOURCE: /* dispatch_fallback_link: target=@scalar_fallback_first_slice, selected_scalar_callable=@scalar_fallback_first_slice */
 // DISPATCH-SOURCE: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // DISPATCH-SOURCE: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// DISPATCH-SOURCE: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// DISPATCH-SOURCE: // tcrv_emitc.dispatch_guard_value=rvv_available
 // DISPATCH-SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
-// DISPATCH-SOURCE: if (rvv_available)
-// DISPATCH-SOURCE: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
-// DISPATCH-SOURCE: tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+// DISPATCH-SOURCE-SAME: (const int32_t* [[LHS:v[0-9]+]], const int32_t* [[RHS:v[0-9]+]], int32_t* [[OUT:v[0-9]+]], size_t [[LEN:v[0-9]+]], int [[GUARD:v[0-9]+]])
+// DISPATCH-SOURCE-NEXT: {{^}}  bool [[COND:v[0-9]+]] = [[GUARD]] != 0;
+// DISPATCH-SOURCE-NEXT: {{^}}  if ([[COND]]) {
+// DISPATCH-SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
+// DISPATCH-SOURCE-NEXT: {{^}}  tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
+// DISPATCH-SOURCE-NEXT: {{^}}  return;
+// DISPATCH-SOURCE-NEXT: {{^}}  }
+// DISPATCH-SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// DISPATCH-SOURCE-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
 // DISPATCH-HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
 // DISPATCH-HEADER: void tcrv_dispatch_i32_vadd_dispatch_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);

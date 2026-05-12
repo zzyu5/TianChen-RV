@@ -1361,6 +1361,52 @@ def require_source_snippets(source: str, snippets: list[str], context: str) -> N
         )
 
 
+def require_ordered_source_snippets(
+    source: str, snippets: list[str], context: str
+) -> None:
+    cursor = 0
+    missing: list[str] = []
+    for snippet in snippets:
+        index = source.find(snippet, cursor)
+        if index < 0:
+            missing.append(snippet)
+            continue
+        cursor = index + len(snippet)
+    if missing:
+        raise BridgeError(
+            f"{context} missing required ordered snippets: " + ", ".join(missing)
+        )
+
+
+def validate_dispatch_emitc_control_source(source: str, context: str) -> None:
+    function_stem = str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
+    require_source_snippets(
+        source,
+        [
+            "// tcrv_emitc.source_authority=mlir_emitc_cpp_emitter",
+            "// tcrv_emitc.source_route_kind=tcrv-exec-dispatch-control-to-emitc-call-opaque",
+            "// tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch",
+            "// tcrv_emitc.dispatch_guard_value=rvv_available",
+        ],
+        context,
+    )
+    require_ordered_source_snippets(
+        source,
+        [
+            "void tcrv_dispatch_" + function_stem + "_",
+            "bool v",
+            " != 0;",
+            "if (v",
+            "role=dispatch-case-call",
+            "tcrv_rvv_" + function_stem + "_microkernel",
+            "return;",
+            "role=dispatch-fallback-call",
+            "tcrv_scalar_" + function_stem + "_microkernel",
+        ],
+        context,
+    )
+
+
 def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
     selected_shape_config = parse_source_comment(
         source, "selected_vector_shape_config", required=True
@@ -1491,7 +1537,6 @@ def validate_library_dispatch_source(source: str) -> dict[str, Any]:
         "void tcrv_dispatch_"
         + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"])
         + "_",
-        "if (rvv_available)",
         "/* selected_vector_shape_config:",
         "shape=" + ACTIVE_VECTOR_SHAPE,
         "/* selected_vector_shape_capabilities:",
@@ -1505,6 +1550,9 @@ def validate_library_dispatch_source(source: str) -> dict[str, Any]:
             "generated library dispatch C source missing required snippets: "
             + ", ".join(missing)
         )
+    validate_dispatch_emitc_control_source(
+        source, "generated library dispatch C source"
+    )
     for other_name in SUPPORTED_RVV_VECTOR_SHAPES:
         if other_name == ACTIVE_VECTOR_SHAPE:
             continue
@@ -1548,6 +1596,9 @@ def validate_self_check_dispatch_source(source: str) -> dict[str, Any]:
         "/* selected_vector_shape_capabilities:",
     ]
     vector_config = validate_vector_shape_metadata(source)
+    validate_dispatch_emitc_control_source(
+        source, "generated dispatch self-check C source"
+    )
     required.extend(vector_config["required_intrinsics"])
     required.append("/* control_plane_config: sew=" + str(vector_config["sew_bits"]))
     required.append(
@@ -3731,6 +3782,25 @@ def run_self_test() -> None:
             "}"
         )
 
+    def sample_dispatch_emitc_control(function_stem: str, c_type: str) -> str:
+        return f"""
+// tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// tcrv_emitc.source_route_kind=tcrv-exec-dispatch-control-to-emitc-call-opaque
+// tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// tcrv_emitc.dispatch_guard_value=rvv_available
+void tcrv_dispatch_{function_stem}_self_test(const {c_type}* v1, const {c_type}* v2, {c_type}* v3, size_t v4, int v5) {{
+  bool v6 = v5 != 0;
+  if (v6) {{
+  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_{function_stem}_microkernel_self_test
+  tcrv_rvv_{function_stem}_microkernel_self_test(v1, v2, v3, v4);
+  return;
+  }}
+  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_{function_stem}_microkernel_self_test
+  tcrv_scalar_{function_stem}_microkernel_self_test(v1, v2, v3, v4);
+  return;
+}}
+""".strip()
+
     unsafe_text = (
         "Authorization: Bearer abc.def.ghi\n"
         "PASSWORD=hunter2\n"
@@ -3756,12 +3826,12 @@ def run_self_test() -> None:
 /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 /* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
 /* selected_march: rv64gcv */
-/* selected_mabi: lp64d */
-{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
-#include <riscv_vector.h>
-void tcrv_dispatch_i32_vadd_self_test(void) {{}}
-{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "+")}
-/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+	/* selected_mabi: lp64d */
+	{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
+	#include <riscv_vector.h>
+	{sample_dispatch_emitc_control("i32_vadd", "int32_t")}
+	{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "+")}
+	/* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
 int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }}
 """.strip()
@@ -3786,11 +3856,11 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
 /* TianChen-RV RVV+scalar host runtime dispatch C export. */
 /* Runtime guard: explicit host-provided rvv_available parameter; no automatic hardware probe is generated. */
 /* selected_march: rv64gcv */
-/* selected_mabi: lp64d */
-{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
-#include <riscv_vector.h>
-void tcrv_dispatch_i32_vsub_self_test(void) {{}}
-{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "-")}
+	/* selected_mabi: lp64d */
+	{sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
+	#include <riscv_vector.h>
+	{sample_dispatch_emitc_control("i32_vsub", "int32_t")}
+	{sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "-")}
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
 int main(void) {{ puts("tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv"); }}
@@ -3822,7 +3892,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_
 /* selected_mabi: lp64d */
 {sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
 #include <riscv_vector.h>
-void tcrv_dispatch_i32_vsub_self_test(void) {{}}
+	{sample_dispatch_emitc_control("i32_vsub", "int32_t")}
 {sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "-")}
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
@@ -3853,7 +3923,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_
 /* selected_mabi: lp64d */
 {sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
 #include <riscv_vector.h>
-void tcrv_dispatch_i32_vmul_self_test(void) {{}}
+	{sample_dispatch_emitc_control("i32_vmul", "int32_t")}
 {sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "*")}
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
@@ -3887,7 +3957,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok runtime_
 /* selected_mabi: lp64d */
 {sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
 #include <riscv_vector.h>
-void tcrv_dispatch_i64_vadd_self_test(void) {{}}
+	{sample_dispatch_emitc_control("i64_vadd", "int64_t")}
 {sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "+")}
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
@@ -3922,7 +3992,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i64_vadd_dispatch_self_check_ok runtime_
 /* selected_mabi: lp64d */
 {sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
 #include <riscv_vector.h>
-void tcrv_dispatch_i64_vsub_self_test(void) {{}}
+	{sample_dispatch_emitc_control("i64_vsub", "int64_t")}
 {sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "-")}
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
@@ -3957,7 +4027,7 @@ int main(void) {{ puts("tcrv_rvv_scalar_i64_vsub_dispatch_self_check_ok runtime_
 /* selected_mabi: lp64d */
 {sample_vector_shape_comments(ACTIVE_VECTOR_SHAPE)}
 #include <riscv_vector.h>
-void tcrv_dispatch_i64_vmul_self_test(void) {{}}
+	{sample_dispatch_emitc_control("i64_vmul", "int64_t")}
 {sample_vector_intrinsics(ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE, "*")}
 /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */

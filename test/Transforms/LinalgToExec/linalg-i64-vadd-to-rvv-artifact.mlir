@@ -201,11 +201,18 @@ module {
 // SOURCE: void tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n)
 // SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i64_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_add
 // SOURCE: tcrv_scalar_i64_add
+// SOURCE: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// SOURCE: // tcrv_emitc.dispatch_guard_value=rvv_available
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i64_vadd_frontend_i64_vadd
-// SOURCE: if (rvv_available)
-// SOURCE: tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice(lhs, rhs, out, n);
-// SOURCE: return;
-// SOURCE: tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
+// SOURCE-SAME: (const int64_t* [[LHS:v[0-9]+]], const int64_t* [[RHS:v[0-9]+]], int64_t* [[OUT:v[0-9]+]], size_t [[LEN:v[0-9]+]], int [[GUARD:v[0-9]+]])
+// SOURCE-NEXT: {{^}}  bool [[COND:v[0-9]+]] = [[GUARD]] != 0;
+// SOURCE-NEXT: {{^}}  if ([[COND]]) {
+// SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice
+// SOURCE-NEXT: {{^}}  tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
+// SOURCE-NEXT: {{^}}  return;
+// SOURCE-NEXT: {{^}}  }
+// SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice
+// SOURCE-NEXT: {{^}}  tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
 // STALE-RVV-DESCRIPTOR: selected RVV variant @rvv_first_slice failed plugin legality before boundary validation
 // STALE-RVV-DESCRIPTOR-SAME: legacy RVV binary descriptor mirror 'i64-vsub-microkernel.v1'

@@ -815,3 +815,47 @@ RVV finite binary legality now requires typed RVV body or selected-source author
 ### Next Steps
 
 - None - task complete
+
+
+## Session 38: RVV+scalar dispatch EmitC source authority production route
+
+**Date**: 2026-05-12
+**Task**: RVV+scalar dispatch EmitC source authority production route
+**Branch**: `main`
+
+### Summary
+
+Rewired the production RVV+scalar dispatch wrapper to build a verified MLIR EmitC dispatch-control route from tcrv.exec dispatch/case/fallback, selected component callable plans, and ordered runtime ABI parameters. Preserved RVV/scalar component source authority in their plugin/target routes, updated fail-closed source/artifact/script coverage, verified dry-run and bounded ssh rvv i32-vmul dispatch slice, archived the Trellis task.
+
+### Main Changes
+
+- Added a dispatch-control shape to the common EmitC lowerable materializer: runtime guard compare, `emitc.if`, selected case call, early return, and fallback call.
+- Rewired `RVVScalarDispatch` source export so the production dispatcher function is emitted by `mlir::emitc::translateToCpp` from selected `tcrv.exec.dispatch`/`case`/`fallback`, validated component callable plans, and ABI-ordered parameters.
+- Preserved RVV and scalar component bodies in their existing plugin/target-owned EmitC source-authority routes; the dispatch route emits only runtime control glue.
+- Added fail-closed coverage for malformed guard/runtime ABI facts, stale RVV/scalar component routes, route-family mismatch, and script/bundle stale selected-family checks.
+- Updated lit/FileCheck expectations across direct dispatch, target artifact bundle, generic artifact export, and linalg front-door tests for the new EmitC guard compare and dispatch provenance.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVConversionEmitC TianChenRVBuiltinTargetArtifactExporters tcrv-translate tianchenrv-emitc-lowerable-interface-test tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Focused lit: `Target/RVVScalarDispatch`, `Target/TargetArtifactBundleExport`, `Scripts/rvv-scalar-dispatch-e2e.test`, `Scripts/rvv-scalar-dispatch-bundle-e2e.test`, plus the two full-check fallout tests.
+- Dry-run bundle validation: `i32-vmul` through `--use-target-artifact-bundle --use-plan-and-export-bundle-front-door`.
+- Bounded `ssh rvv` validation: `i32-vmul` target-artifact bundle external caller correctness only.
+- `git diff --check`, `git diff --cached --check`, Trellis task validation before and after archive, and `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2` with 209/209 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

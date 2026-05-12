@@ -29,12 +29,18 @@
 // ROLE: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // ROLE: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len)
 // ROLE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-// ROLE-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len, int rvv_ready)
-// ROLE-NEXT: {{^}}  if (rvv_ready) {
-// ROLE-NEXT: {{^}}    tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, len);
-// ROLE-NEXT: {{^}}    return;
+// ROLE: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// ROLE: // tcrv_emitc.dispatch_guard_value=rvv_ready
+// ROLE-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
+// ROLE-SAME: (const int32_t* [[LHS:v[0-9]+]], const int32_t* [[RHS:v[0-9]+]], int32_t* [[OUT:v[0-9]+]], size_t [[LEN:v[0-9]+]], int [[READY:v[0-9]+]])
+// ROLE-NEXT: {{^}}  bool [[COND:v[0-9]+]] = [[READY]] != 0;
+// ROLE-NEXT: {{^}}  if ([[COND]]) {
+// ROLE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
+// ROLE-NEXT: {{^}}  tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
+// ROLE-NEXT: {{^}}  return;
 // ROLE-NEXT: {{^}}  }
-// ROLE-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(lhs, rhs, out, len);
+// ROLE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
+// ROLE-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
 // MISSING: target source artifact export failed
 // MISSING-SAME: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'

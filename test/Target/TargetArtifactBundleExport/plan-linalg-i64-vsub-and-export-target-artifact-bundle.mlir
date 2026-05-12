@@ -129,11 +129,18 @@ module @plan_linalg_i64_vsub_bundle_input {
 // SOURCE: void tcrv_scalar_i64_vsub_microkernel_frontend_bundle_i64_vsub_scalar_fallback_first_slice
 // SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i64_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_sub
 // SOURCE: tcrv_scalar_i64_sub
+// SOURCE: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
+// SOURCE: // tcrv_emitc.dispatch_guard_value=rvv_available
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i64_vsub_frontend_bundle_i64_vsub
-// SOURCE: if (rvv_available)
-// SOURCE: tcrv_rvv_i64_vsub_microkernel_frontend_bundle_i64_vsub_rvv_first_slice(lhs, rhs, out, n);
-// SOURCE: return;
-// SOURCE: tcrv_scalar_i64_vsub_microkernel_frontend_bundle_i64_vsub_scalar_fallback_first_slice(lhs, rhs, out, n);
+// SOURCE-SAME: (const int64_t* [[LHS:v[0-9]+]], const int64_t* [[RHS:v[0-9]+]], int64_t* [[OUT:v[0-9]+]], size_t [[LEN:v[0-9]+]], int [[GUARD:v[0-9]+]])
+// SOURCE-NEXT: {{^}}  bool [[COND:v[0-9]+]] = [[GUARD]] != 0;
+// SOURCE-NEXT: {{^}}  if ([[COND]]) {
+// SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_i64_vsub_microkernel_frontend_bundle_i64_vsub_rvv_first_slice
+// SOURCE-NEXT: {{^}}  tcrv_rvv_i64_vsub_microkernel_frontend_bundle_i64_vsub_rvv_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
+// SOURCE-NEXT: {{^}}  return;
+// SOURCE-NEXT: {{^}}  }
+// SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i64_vsub_microkernel_frontend_bundle_i64_vsub_scalar_fallback_first_slice
+// SOURCE-NEXT: {{^}}  tcrv_scalar_i64_vsub_microkernel_frontend_bundle_i64_vsub_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
 // HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I64_VSUB_DISPATCH_FRONTEND_BUNDLE_I64_VSUB_H
 // HEADER: extern "C" {
