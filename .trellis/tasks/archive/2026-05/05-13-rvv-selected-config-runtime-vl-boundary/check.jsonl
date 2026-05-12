@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Verify changes preserve global project invariants."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check RVV selected config and materialized microkernel behavior against plugin contract."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Check artifact export and runtime ABI metadata layering."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused build/lit/C++ evidence expectations."}

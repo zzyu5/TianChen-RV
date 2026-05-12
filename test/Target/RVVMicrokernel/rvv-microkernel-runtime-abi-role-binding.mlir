@@ -170,7 +170,8 @@ module @rvv_runtime_abi_role_binding {
         {name = "tcrv_rvv.runtime_avl_source", value = "runtime-element-count-abi-parameter", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
         {name = "tcrv_rvv.runtime_avl_role", value = "runtime-element-count", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
         {name = "tcrv_rvv.runtime_vl_source", value = "tcrv_rvv.setvl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
-        {name = "tcrv_rvv.runtime_vl_scope", value = "tcrv_rvv.with_vl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"}
+        {name = "tcrv_rvv.runtime_vl_scope", value = "tcrv_rvv.with_vl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
+        {name = "tcrv_rvv.descriptor_element_count", value = "16", role = "legacy-rvv-binary-descriptor-mirror", note = "legacy finite RVV descriptor mirror metadata checked after typed selected-plan authority is established; not compute, ABI, source, runtime AVL/VL, hardware capacity, or performance authority"}
       ],
       severity = "info",
       status = "supported",
@@ -203,7 +204,7 @@ module @rvv_runtime_abi_role_binding {
 // ALT: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice
 
 // STALE-NAME: runtime ABI callable plan validation failed
-// STALE-NAME-SAME: selected RVV target artifact candidate runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
+// STALE-NAME-SAME: runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
 // DUPLICATE: duplicate runtime ABI parameter role 'lhs-input-buffer'
 // UNKNOWN: unsupported runtime ABI parameter role 'unknown-length'
 // OWNERSHIP: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'output-buffer' must use c type 'int32_t *' and ownership 'target-export-abi-owned'

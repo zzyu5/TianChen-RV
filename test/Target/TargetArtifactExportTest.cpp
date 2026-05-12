@@ -87,7 +87,7 @@ void appendRVVSelectedPlanMetadata(
   llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigContract>
       contract = tianchenrv::target::rvv::buildRVVBinarySelectedConfigContract(
           family, shape, candidate.selectedVariant, candidate.role,
-          /*descriptorElementCount=*/0,
+          /*descriptorElementCount=*/16,
           getRuntimeElementCountCNameForTest(candidate));
   if (!contract) {
     llvm::errs() << "failed to build RVV selected config test metadata: "
@@ -106,6 +106,11 @@ void appendRVVSelectedPlanMetadata(
         {entry.name.str(), entry.value.str(), entry.role.str(),
          entry.note.str()});
   }
+  candidate.selectedPlanMetadata.push_back(
+      {tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName().str(),
+       std::to_string(contract->getDescriptorElementCount()),
+       tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataRole().str(),
+       tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataNote().str()});
 }
 
 void appendScalarSelectedPlanMetadata(
@@ -638,6 +643,10 @@ bool expectRVVSourceRouteRegistrationMetadata(
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.runtime_element_count_c_name",
           "rvv-runtime-control-name-boundary"))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID, "tcrv_rvv.descriptor_element_count",
+          "legacy-rvv-binary-descriptor-mirror"))
     return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.selected_vector_shape",
@@ -1375,6 +1384,9 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
 bool expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(
     const TargetArtifactExporterRegistry &registry);
 
+bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
+    const TargetArtifactExporterRegistry &registry);
+
 bool expectPluginOwnedToyTargetExporterRegistration() {
   constexpr llvm::StringLiteral toyRouteID(
       "none-executable-toy-template-metadata");
@@ -1743,6 +1755,8 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
           "tcrv_rvv.selected_binary_family", "i32-vadd"))
     return false;
   if (!expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(registry))
+    return false;
+  if (!expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(registry))
     return false;
   if (!expectCompositeRoute(registry, legacyRVVHeaderRouteID,
                             "runtime-callable-c-header", "rvv-plugin",
@@ -3922,6 +3936,35 @@ bool expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(
        "requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'"});
 }
 
+bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
+    const TargetArtifactExporterRegistry &registry) {
+  const TargetArtifactExporter *exporter =
+      registry.lookup("tcrv-export-rvv-i32-vsub-microkernel-c");
+  if (!exporter) {
+    llvm::errs() << "missing RVV vsub microkernel route for missing "
+                    "descriptor element-count metadata test\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate =
+      makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                "rvv_sub_slice");
+  if (!eraseSelectedPlanMetadataEntry(
+          candidate, tianchenrv::target::rvv::
+                         getRVVDescriptorElementCountMetadataName())) {
+    llvm::errs() << "test candidate is missing descriptor_element_count "
+                    "metadata\n";
+    return false;
+  }
+
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "missing descriptor-local RVV element-count metadata rejected by "
+      "registered route metadata",
+      {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
+       "requires selected_plan_metadata 'tcrv_rvv.descriptor_element_count'"});
+}
+
 bool expectRVVI64SourceRejectsStaleI32AddMetadata(
     const TargetArtifactExporterRegistry &registry,
     const RVVBinaryFamilyDescriptor &family) {
@@ -4139,6 +4182,34 @@ bool expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
       {"route id '" + family.routeID.str() + "'",
        "selected_plan_metadata 'tcrv_rvv.runtime_avl_role'",
        "must use value 'runtime-element-count'"});
+}
+
+bool expectRVVI64SourceRejectsMissingDescriptorElementCountMetadata(
+    const TargetArtifactExporterRegistry &registry,
+    const RVVBinaryFamilyDescriptor &family) {
+  const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
+  if (!exporter) {
+    llvm::errs() << "missing RVV i64 microkernel route for missing descriptor "
+                    "element-count metadata test: "
+                 << family.routeID << "\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeRVVI64DirectCandidate(
+      tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
+  if (!eraseSelectedPlanMetadataEntry(
+          candidate, tianchenrv::target::rvv::
+                         getRVVDescriptorElementCountMetadataName())) {
+    llvm::errs() << "test candidate is missing descriptor_element_count "
+                    "metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+      "missing descriptor-local RVV element-count metadata rejected by RVV i64 "
+      "source route",
+      {"route id '" + family.routeID.str() + "'",
+       "requires selected_plan_metadata 'tcrv_rvv.descriptor_element_count'"});
 }
 
 bool expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch() {
@@ -5049,14 +5120,35 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
                     "dispatch bundle metadata authority\n";
     return false;
   }
-  return expectErrorContains(
-      staleMetadata.takeError(),
-      "stale selected component plan metadata rejected before dispatch bundle "
-      "metadata export",
-      {"selected RVV dispatch case callable route "
-       "'tcrv-export-rvv-i32-vmul-microkernel-c'",
-       "for i32-vadd has stale route id",
-       "expected 'tcrv-export-rvv-microkernel-c'"});
+  if (!expectErrorContains(
+          staleMetadata.takeError(),
+          "stale selected component plan metadata rejected before dispatch "
+          "bundle metadata export",
+          {"selected RVV dispatch case callable route "
+           "'tcrv-export-rvv-i32-vmul-microkernel-c'",
+           "for i32-vadd has stale route id",
+           "expected 'tcrv-export-rvv-microkernel-c'"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> staleDescriptorCandidates =
+      candidates;
+  if (!setSelectedPlanMetadataValue(
+          staleDescriptorCandidates[0],
+          tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName(),
+          "8")) {
+    llvm::errs() << "stale dispatch bundle metadata test candidate is missing "
+                    "descriptor_element_count metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          composite->getCandidateValidationFn()(staleDescriptorCandidates),
+          "stale descriptor-local RVV element-count metadata rejected by "
+          "dispatch bundle metadata export",
+          {"selected RVV target artifact candidate @rvv_first_slice",
+           "selected_plan_metadata 'tcrv_rvv.descriptor_element_count'",
+           "descriptor-local element_count layer is stale"}))
+    return false;
+  return true;
 }
 
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
@@ -6127,6 +6219,10 @@ int main() {
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
     return 1;
   if (!expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
+          builtinRegistry,
+          tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
+    return 1;
+  if (!expectRVVI64SourceRejectsMissingDescriptorElementCountMetadata(
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
     return 1;

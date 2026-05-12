@@ -974,12 +974,13 @@ parseCapacityMetadataAttrs(mlir::Operation *op, llvm::StringRef context) {
 }
 
 void appendSelectedVectorShapeMetadata(
-    const RVVVectorShapeConfig &shape,
+    const target::rvv::RVVBinarySelectedConfigContract &contract,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
       target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
       shapeMetadata;
-  target::rvv::appendRVVVectorShapeSelectedPlanMetadata(shape, shapeMetadata);
+  target::rvv::appendRVVBinarySelectedVectorShapeMetadata(contract,
+                                                         shapeMetadata);
   for (const auto &entry : shapeMetadata)
     metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
                         entry.note.str()});
@@ -1009,11 +1010,13 @@ llvm::Error appendSelectedCapacityMetadata(
 }
 
 void appendRuntimeVLBoundaryMetadata(
+    const target::rvv::RVVBinarySelectedConfigContract &contract,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
       target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 4>
       runtimeMetadata;
-  target::rvv::appendRVVRuntimeVLBoundarySelectedPlanMetadata(runtimeMetadata);
+  target::rvv::appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
+      contract, runtimeMetadata);
   for (const auto &entry : runtimeMetadata)
     metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
                         entry.note.str()});
@@ -1072,7 +1075,7 @@ void appendSelectedBinaryMetadata(
   for (const auto &entry : legacyMirrorMetadata)
     metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
                         entry.note.str()});
-  if (includeLegacyDescriptorMirrorMetadata && contract.getDescriptorElementCount() > 0) {
+  if (contract.getDescriptorElementCount() > 0) {
     metadata.push_back({
         target::rvv::getRVVDescriptorElementCountMetadataName().str(),
         std::to_string(contract.getDescriptorElementCount()),
@@ -1160,12 +1163,15 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
   if (llvm::Error error = bindSelectedConfigRuntimeControlNames(
           plan.selectedPlan, plan.runtimeABIParameters))
     return std::move(error);
-  appendSelectedVectorShapeMetadata(plan.selectedPlan.getShape(),
-                                    plan.selectedPlanMetadata);
+  appendSelectedVectorShapeMetadata(
+      plan.selectedPlan.getSelectedConfig().getContract(),
+      plan.selectedPlanMetadata);
   if (llvm::Error error = appendSelectedCapacityMetadata(
           request.getVariant(), plan.selectedPlanMetadata))
     return std::move(error);
-  appendRuntimeVLBoundaryMetadata(plan.selectedPlanMetadata);
+  appendRuntimeVLBoundaryMetadata(
+      plan.selectedPlan.getSelectedConfig().getContract(),
+      plan.selectedPlanMetadata);
   bool includeLegacyDescriptorMirrorMetadata =
       request.getVariant()->hasAttr(kLoweringDescriptorAttrName);
   appendSelectedBinaryMetadata(

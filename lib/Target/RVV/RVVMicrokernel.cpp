@@ -1332,35 +1332,134 @@ resolveRVVMicrokernelRuntimeElementCountCName(
   return llvm::StringRef(match->cName);
 }
 
+llvm::Expected<std::int64_t>
+resolveRVVMicrokernelDescriptorElementCountMetadata(
+    const TargetArtifactCandidate &candidate) {
+  llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
+      findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
+          candidate, getRVVDescriptorElementCountMetadataName());
+  if (!metadata)
+    return metadata.takeError();
+
+  if ((*metadata)->role != getRVVLegacyDescriptorMirrorMetadataRole())
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            getRVVDescriptorElementCountMetadataName() +
+            "' role must be '" + getRVVLegacyDescriptorMirrorMetadataRole() +
+            "'");
+  if ((*metadata)->note != getRVVLegacyDescriptorMirrorMetadataNote())
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            getRVVDescriptorElementCountMetadataName() +
+            "' note must be '" + getRVVLegacyDescriptorMirrorMetadataNote() +
+            "'");
+
+  std::int64_t value = 0;
+  if (llvm::StringRef((*metadata)->value).getAsInteger(10, value) ||
+      value <= 0 || value > 64)
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            getRVVDescriptorElementCountMetadataName() +
+            "' descriptor-local element_count must be an integer in the "
+            "bounded smoke range [1, 64]");
+  return value;
+}
+
+llvm::Error validateRVVMicrokernelDescriptorElementCountMetadata(
+    const TargetArtifactCandidate &candidate,
+    const RVVBinarySelectedConfigContract &contract) {
+  llvm::Expected<std::int64_t> metadataElementCount =
+      resolveRVVMicrokernelDescriptorElementCountMetadata(candidate);
+  if (!metadataElementCount)
+    return metadataElementCount.takeError();
+
+  if (*metadataElementCount != contract.getDescriptorElementCount())
+    return makeMicrokernelError(
+        candidate.kernel,
+        llvm::Twine("selected RVV target artifact candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            getRVVDescriptorElementCountMetadataName() +
+            "' descriptor-local element_count layer is stale; expected " +
+            llvm::Twine(contract.getDescriptorElementCount()) +
+            " from the selected config/runtime AVL contract but found " +
+            llvm::Twine(*metadataElementCount));
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinarySelectedConfigContract &contract) {
   llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 24> expected;
-  appendRVVVectorShapeSelectedPlanMetadata(*descriptor.shape, expected);
-  appendRVVRuntimeVLBoundarySelectedPlanMetadata(expected);
-  llvm::Expected<llvm::StringRef> runtimeElementCountCName =
-      resolveRVVMicrokernelRuntimeElementCountCName(candidate);
-  if (!runtimeElementCountCName)
-    return runtimeElementCountCName.takeError();
-
-  llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
-      buildRVVBinarySelectedConfigContract(
-          descriptor.family, *descriptor.shape, candidate.selectedVariant,
-          candidate.role, /*descriptorElementCount=*/0,
-          *runtimeElementCountCName);
-  if (!selectedConfig)
-    return selectedConfig.takeError();
-  if (descriptor.family.dtype == RVVBinaryDTypeKind::I32 ||
-      descriptor.family.dtype == RVVBinaryDTypeKind::I64)
-    appendRVVBinarySelectedTypedSourceMetadata(*selectedConfig, expected);
+  appendRVVBinarySelectedVectorShapeMetadata(contract, expected);
+  appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(contract, expected);
+  if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
+      contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
+    appendRVVBinarySelectedTypedSourceMetadata(contract, expected);
   else
-    appendRVVBinaryLegacyDescriptorMirrorMetadata(*selectedConfig, expected);
+    appendRVVBinaryLegacyDescriptorMirrorMetadata(contract, expected);
 
   for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
     if (llvm::Error error =
             validateRVVMicrokernelSelectedPlanMetadataEntry(candidate, entry))
       return error;
-  return llvm::Error::success();
+  return validateRVVMicrokernelDescriptorElementCountMetadata(candidate,
+                                                            contract);
+}
+
+llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
+    const TargetArtifactCandidate &candidate,
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
+  llvm::Expected<llvm::StringRef> runtimeElementCountCName =
+      resolveRVVMicrokernelRuntimeElementCountCName(candidate);
+  if (!runtimeElementCountCName)
+    return runtimeElementCountCName.takeError();
+
+  llvm::Expected<std::int64_t> descriptorElementCount =
+      resolveRVVMicrokernelDescriptorElementCountMetadata(candidate);
+  if (!descriptorElementCount)
+    return descriptorElementCount.takeError();
+
+  llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
+      buildRVVBinarySelectedConfigContract(
+          descriptor.family, *descriptor.shape, candidate.selectedVariant,
+          candidate.role, *descriptorElementCount,
+          *runtimeElementCountCName);
+  if (!selectedConfig)
+    return selectedConfig.takeError();
+  return validateRVVMicrokernelSelectedPlanMetadata(candidate, *selectedConfig);
+}
+
+bool hasMatchingRVVMicrokernelAttachmentForCandidate(
+    const TargetArtifactCandidate &candidate,
+    const RVVBinaryFamilyDescriptor &family) {
+  KernelOp kernel = candidate.kernel;
+  if (!kernel || kernel.getBody().empty())
+    return false;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    const RVVBinaryFamilyDescriptor *opFamily = getI32MicrokernelFamilyForOp(&op);
+    if (!opFamily)
+      opFamily = getI64MicrokernelFamilyForOp(&op);
+    if (!opFamily || opFamily->familyID != family.familyID)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    auto role =
+        op.getAttrOfType<mlir::StringAttr>(execDiagnostic::kRoleAttrName);
+    if (selectedVariant && role &&
+        selectedVariant.getValue() == candidate.selectedVariant &&
+        role.getValue() == candidate.role)
+      return true;
+  }
+
+  return false;
 }
 
 llvm::Expected<const RVVI32VectorShapeConfig *>
@@ -3081,6 +3180,9 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
   os << "/* " << record.selectedConfigContract.formatSummaryCommentBody()
      << " */\n";
+  os << "/* "
+     << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
+     << " */\n";
   os << "/* arithmetic_source: typed op "
      << record.descriptor.getRVVOperationName()
      << " via generated EmitC route and IR-backed callable ABI */\n";
@@ -3399,6 +3501,25 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
   if (llvm::Error error =
           validateRVVMicrokernelSelectedPlanMetadata(candidate, descriptor))
     return error;
+  if (hasMatchingRVVMicrokernelAttachmentForCandidate(candidate, family)) {
+    mlir::ModuleOp module =
+        candidate.kernel->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return makeMicrokernelError(
+          candidate.kernel,
+          "selected RVV target artifact candidate requires an enclosing "
+          "builtin.module for selected config/runtime AVL contract "
+          "validation");
+    llvm::Expected<RVVBinarySelectedConfigContract> selectedContract =
+        resolveRVVMicrokernelSelectedConfigContractAuthority(
+            module, family, candidate.selectedVariant, candidate.role,
+            candidate.routeID);
+    if (!selectedContract)
+      return selectedContract.takeError();
+    if (llvm::Error error = validateRVVMicrokernelSelectedPlanMetadata(
+            candidate, *selectedContract))
+      return error;
+  }
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
 }
 
@@ -3444,6 +3565,9 @@ buildRVVMicrokernelSourceRouteMetadata(
   metadata.addSelectedPlanMetadataPresenceRequirement(
       getRVVRuntimeElementCountCNameMetadataName(),
       getRVVRuntimeControlNameMetadataRole());
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVDescriptorElementCountMetadataName(),
+      getRVVLegacyDescriptorMirrorMetadataRole());
 
   llvm::StringRef shapeRole = getSelectedRVVVectorShapeMetadataRole();
   metadata.addSelectedPlanMetadataPresenceRequirement(

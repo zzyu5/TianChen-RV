@@ -167,6 +167,18 @@ public:
   llvm::StringRef getDispatchAvailabilityGuardCName() const {
     return dispatchAvailabilityGuardCName;
   }
+  llvm::StringRef getRuntimeAVLSource() const {
+    return getRVVRuntimeAVLSourceMetadataValue();
+  }
+  llvm::StringRef getRuntimeAVLRole() const {
+    return getRVVRuntimeAVLRoleMetadataValue();
+  }
+  llvm::StringRef getRuntimeVLSource() const {
+    return getRVVRuntimeVLSourceMetadataValue();
+  }
+  llvm::StringRef getRuntimeVLScope() const {
+    return getRVVRuntimeVLScopeMetadataValue();
+  }
 
   void setSelectedPath(llvm::StringRef variantSymbol, llvm::StringRef role) {
     selectedVariantSymbol = variantSymbol.trim().str();
@@ -240,6 +252,24 @@ public:
            << getDispatchAvailabilityGuardCName();
     if (descriptorElementCount > 0)
       stream << ", descriptor_element_count=" << descriptorElementCount;
+    if (!selectedVariantSymbol.empty())
+      stream << ", selected_variant=@" << selectedVariantSymbol;
+    if (!selectedRole.empty())
+      stream << ", selected_role=" << selectedRole;
+    stream.flush();
+    return text;
+  }
+
+  std::string formatRuntimeVLBoundaryCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "selected_runtime_vl_boundary: runtime_element_count_c_name="
+           << getRuntimeElementCountCName()
+           << ", runtime_avl_source=" << getRuntimeAVLSource()
+           << ", runtime_avl_role=" << getRuntimeAVLRole()
+           << ", runtime_vl_source=" << getRuntimeVLSource()
+           << ", runtime_vl_scope=" << getRuntimeVLScope()
+           << ", descriptor_element_count=" << getDescriptorElementCount();
     if (!selectedVariantSymbol.empty())
       stream << ", selected_variant=@" << selectedVariantSymbol;
     if (!selectedRole.empty())
@@ -354,6 +384,31 @@ buildRVVBinarySelectedConfigContract(
   if (llvm::Error error = validateRVVBinarySelectedConfigContract(contract))
     return std::move(error);
   return contract;
+}
+
+inline void appendRVVBinarySelectedVectorShapeMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  appendRVVVectorShapeSelectedPlanMetadata(contract.getShape(), out);
+}
+
+inline void appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef role = getRVVRuntimeVLBoundaryMetadataRole();
+  llvm::StringRef note = getRVVRuntimeVLBoundaryMetadataNote();
+  out.push_back({getRVVRuntimeAVLSourceMetadataName(),
+                 contract.getRuntimeAVLSource(), role, note,
+                 "runtime AVL source"});
+  out.push_back({getRVVRuntimeAVLRoleMetadataName(),
+                 contract.getRuntimeAVLRole(), role, note,
+                 "runtime AVL role"});
+  out.push_back({getRVVRuntimeVLSourceMetadataName(),
+                 contract.getRuntimeVLSource(), role, note,
+                 "runtime VL source"});
+  out.push_back({getRVVRuntimeVLScopeMetadataName(),
+                 contract.getRuntimeVLScope(), role, note,
+                 "runtime VL scope"});
 }
 
 inline void appendRVVBinaryLegacyDescriptorMirrorMetadata(
