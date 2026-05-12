@@ -28,7 +28,7 @@
 // ROLE: __riscv_vse32_v_i32m1
 // ROLE: void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice
 // ROLE: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len)
-// ROLE: for (size_t index = 0; index < len; ++index)
+// ROLE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // ROLE-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len, int rvv_ready)
 // ROLE-NEXT: {{^}}  if (rvv_ready) {
 // ROLE-NEXT: {{^}}    tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, len);

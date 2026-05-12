@@ -253,8 +253,9 @@ module @rvv_scalar_dispatch_input {
 // BODY: __riscv_vadd_vv_i32m1
 // BODY: __riscv_vse32_v_i32m1
 // BODY: void tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
-// BODY: for (size_t index = 0; index < n; ++index)
-// BODY: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+// BODY: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+// BODY: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+// BODY: tcrv_scalar_i32_add
 // BODY-LABEL: {{^}}void tcrv_dispatch_i32_vadd_dispatch_vadd
 // BODY: if (rvv_available)
 // BODY: tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice(lhs, rhs, out, n);
@@ -273,7 +274,8 @@ module @rvv_scalar_dispatch_input {
 // AUTO: __riscv_vadd_vv_i32m1
 // AUTO: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 // AUTO: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
-// AUTO: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+// AUTO: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+// AUTO: tcrv_scalar_i32_add
 // AUTO-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
 // AUTO: if (rvv_available)
 // AUTO: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);

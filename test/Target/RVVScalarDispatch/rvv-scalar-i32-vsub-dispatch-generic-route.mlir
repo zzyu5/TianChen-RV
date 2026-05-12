@@ -138,7 +138,8 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // SOURCE: __riscv_vsub_vv_i32m1
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice
 // SOURCE: void tcrv_scalar_i32_vsub_microkernel_frontend_dispatch_i32_vsub_scalar_fallback_first_slice
-// SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
+// SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
+// SOURCE: tcrv_scalar_i32_sub
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i32_vsub_microkernel_frontend_dispatch_i32_vsub_rvv_first_slice(lhs, rhs, out, n);
@@ -153,7 +154,8 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 
 // HARNESS: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 // HARNESS: __riscv_vsub_vv_i32m1
-// HARNESS: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
+// HARNESS: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
+// HARNESS: tcrv_scalar_i32_sub
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 // HARNESS: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type.
 // HARNESS: if (out[index] != lhs[index] - rhs[index])

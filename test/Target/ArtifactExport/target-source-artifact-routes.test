@@ -50,7 +50,8 @@
 # AUTO-DISPATCH: __riscv_vadd_vv_i32m1
 # AUTO-DISPATCH: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
 # AUTO-DISPATCH: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
-# AUTO-DISPATCH: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+# AUTO-DISPATCH: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+# AUTO-DISPATCH: tcrv_scalar_i32_add
 # AUTO-DISPATCH-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
 # AUTO-DISPATCH: if (rvv_available)
 # AUTO-DISPATCH: tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice(lhs, rhs, out, n);

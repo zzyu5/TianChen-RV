@@ -75,6 +75,66 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 38: Scalar fallback EmitC source authority production route
+
+**Date**: 2026-05-12
+**Task**: Scalar fallback EmitC source authority production route
+**Branch**: `main`
+
+### Summary
+
+Scalar fallback runtime-callable source now uses the MLIR EmitC / MLIR Cpp
+emitter source authority for its production callable body, and RVV+scalar
+dispatch consumes that migrated scalar component.
+
+### Main Changes
+
+- Extended the common `TCRVEmitCLowerableRoute` source-authority materializer
+  with a runtime-element-count loop shape for scalar routes, using EmitC
+  subscript/load/apply/call_opaque/call operations rather than the legacy
+  route-to-C renderer.
+- Rewired `lib/Target/Scalar/ScalarMicrokernel.cpp` so scalar production source
+  calls `emitTCRVEmitCLowerableRouteAsCppSource`.
+- Kept the legacy renderer as an explicitly named diagnostic compatibility
+  helper; scalar and RVV production target code no longer call it.
+- Updated scalar, RVV+scalar dispatch, target artifact bundle, LinalgToExec,
+  ExecutionPlanning, and e2e script fixtures to assert MLIR Cpp emitter source
+  authority and typed scalar source-op provenance instead of old scalar loop
+  spelling.
+- No fresh `ssh rvv` run was performed, so no new RVV runtime, correctness, or
+  performance claim was made.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | feat(scalar): use emitc source authority for fallback source |
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVConversionEmitC TianChenRVScalarTarget -j2`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-emitc-lowerable-interface-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVConversionEmitC TianChenRVScalarTarget TianChenRVBuiltinTargetArtifactExporters tianchenrv-target-artifact-export-test tcrv-translate -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit for scalar source, RVV+scalar dispatch, target artifact bundles,
+  LinalgToExec, ExecutionPlanning, and RVV+scalar e2e scripts.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+- `git diff --check`
+- `git diff --cached --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-scalar-emitc-source-authority-production-route`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-12-scalar-emitc-source-authority-production-route`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 41: EmitC source authority production route
 
 **Date**: 2026-05-12

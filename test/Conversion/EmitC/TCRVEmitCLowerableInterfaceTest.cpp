@@ -299,7 +299,8 @@ void addStandardScalarABI(TCRVEmitCLowerableRoute &route,
 }
 
 TCRVEmitCLowerableRoute
-makeScalarElementLoopRoute(bool includeRuntimeElementCount = true) {
+makeScalarElementLoopRoute(bool includeRuntimeElementCount = true,
+                           bool includeInterfaceProvenance = true) {
   TCRVEmitCLowerableRoute route(
       "tcrv-export-scalar-microkernel-c",
       "typed-scalar-family-op-to-emitc-call-opaque");
@@ -309,8 +310,9 @@ makeScalarElementLoopRoute(bool includeRuntimeElementCount = true) {
   addStandardScalarABI(route, includeRuntimeElementCount);
 
   TCRVEmitCCallOpaqueStep arithmetic;
-  arithmetic.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "compute",
-                         kEmitCLowerableOpInterfaceName.str()};
+  arithmetic.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "compute"};
+  if (includeInterfaceProvenance)
+    arithmetic.sourceOp.opInterface = kEmitCLowerableOpInterfaceName.str();
   arithmetic.callee = "tcrv_scalar_i32_add";
   arithmetic.operands.push_back({"lhs[index]", "int32_t"});
   arithmetic.operands.push_back({"rhs[index]", "int32_t"});
@@ -318,8 +320,9 @@ makeScalarElementLoopRoute(bool includeRuntimeElementCount = true) {
   route.addCallOpaqueStep(std::move(arithmetic));
 
   TCRVEmitCCallOpaqueStep store;
-  store.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "buffer-store",
-                    kEmitCLowerableOpInterfaceName.str()};
+  store.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "buffer-store"};
+  if (includeInterfaceProvenance)
+    store.sourceOp.opInterface = kEmitCLowerableOpInterfaceName.str();
   store.callee = "tcrv_scalar_i32_store";
   store.operands.push_back({"&out[index]", "int32_t *"});
   store.operands.push_back({"sum", "int32_t"});
@@ -473,10 +476,12 @@ int expectRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
 int expectRouteEmitsCppSourceAuthority(const TCRVEmitCLowerableRoute &route,
                                        llvm::StringRef functionName,
                                        llvm::StringRef arithmeticCallee,
-                                       llvm::StringRef arithmeticSourceOp) {
+                                       llvm::StringRef arithmeticSourceOp,
+                                       llvm::StringRef loopIndexName =
+                                           "offset") {
   TCRVEmitCSourceAuthorityOptions options;
   options.functionName = functionName.str();
-  options.loopIndexName = "offset";
+  options.loopIndexName = loopIndexName.str();
 
   mlir::MLIRContext sourceContext;
   llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> sourceModule =
@@ -548,6 +553,30 @@ int expectRouteEmitsCppSourceAuthority(const TCRVEmitCLowerableRoute &route,
                  "source-authority output preserves source-op provenance"))
     return result;
   return 0;
+}
+
+int expectRouteSourceAuthorityFails(const TCRVEmitCLowerableRoute &route,
+                                    llvm::StringRef expectedDiagnostic,
+                                    llvm::StringRef loopIndexName = "offset") {
+  TCRVEmitCSourceAuthorityOptions options;
+  options.functionName = "tcrv_emitc_bad_source_authority";
+  options.loopIndexName = loopIndexName.str();
+  std::string source;
+  llvm::raw_string_ostream os(source);
+  llvm::Error error = emitTCRVEmitCLowerableRouteAsCppSource(route, os,
+                                                             options);
+  if (!error)
+    return fail("expected MLIR Cpp source authority to fail closed");
+  os.flush();
+  if (int result =
+          expect(source.empty(),
+                 "failed source-authority emission does not emit partial C "
+                 "source"))
+    return result;
+  std::string message = llvm::toString(std::move(error));
+  return expect(llvm::StringRef(message).contains(expectedDiagnostic),
+                llvm::Twine("source-authority diagnostic contains '") +
+                    expectedDiagnostic + "'");
 }
 
 int expectScalarRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
@@ -759,6 +788,10 @@ int main() {
           expectScalarRouteRendersCSource(scalarRoute,
                                           "tcrv_emitc_scalar_test_add"))
     return result;
+  if (int result = expectRouteEmitsCppSourceAuthority(
+          scalarRoute, "tcrv_emitc_scalar_test_add", "tcrv_scalar_i32_add",
+          "tcrv_scalar.i32_vadd_microkernel", "index"))
+    return result;
 
   if (int result = expectMaterializationFails(
           makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
@@ -800,6 +833,15 @@ int main() {
   if (int result = expectRouteRenderingFails(
           makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/false),
           "requires exactly one runtime-element-count ABI mapping"))
+    return result;
+  if (int result = expectRouteSourceAuthorityFails(
+          makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/false),
+          "requires exactly one runtime-element-count ABI mapping", "index"))
+    return result;
+  if (int result = expectRouteSourceAuthorityFails(
+          makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/true,
+                                     /*includeInterfaceProvenance=*/false),
+          "requires generated op-interface provenance", "index"))
     return result;
   if (int result = expectRouteRenderingFails(
           makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",

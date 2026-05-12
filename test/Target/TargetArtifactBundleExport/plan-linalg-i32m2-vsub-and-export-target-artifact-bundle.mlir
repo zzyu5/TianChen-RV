@@ -190,7 +190,8 @@ module @plan_linalg_i32m2_vsub_bundle_input {
 // SOURCE: __riscv_vle32_v_i32m2
 // SOURCE: __riscv_vsub_vv_i32m2
 // SOURCE: __riscv_vse32_v_i32m2
-// SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
+// SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
+// SOURCE: tcrv_scalar_i32_sub
 // SOURCE: void tcrv_dispatch_i32_vsub_frontend_bundle_i32m2_vsub
 
 // HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VSUB_DISPATCH_FRONTEND_BUNDLE_I32M2_VSUB_H

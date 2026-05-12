@@ -129,7 +129,8 @@
 # VSUB-M2-SOURCE: __riscv_vle32_v_i32m2
 # VSUB-M2-SOURCE: __riscv_vsub_vv_i32m2
 # VSUB-M2-SOURCE: __riscv_vse32_v_i32m2
-# VSUB-M2-SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
+# VSUB-M2-SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
+# VSUB-M2-SOURCE: tcrv_scalar_i32_sub
 # VSUB-M2-SOURCE: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
 # VSUB-M2-EVIDENCE: "arithmetic_family": "i32-vsub"
@@ -146,7 +147,8 @@
 
 # VSUB-SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 # VSUB-SOURCE: __riscv_vsub_vv_i32m1
-# VSUB-SOURCE: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
+# VSUB-SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
+# VSUB-SOURCE: tcrv_scalar_i32_sub
 # VSUB-SOURCE: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(7, 0)
 # VSUB-SOURCE: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(16, 1)
 # VSUB-SOURCE: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok
@@ -167,7 +169,8 @@
 
 # VMUL-SOURCE: /* Scope: one selected RVV i32-vmul dispatch case plus one scalar i32-vmul dispatch fallback. */
 # VMUL-SOURCE: __riscv_vmul_vv_i32m1
-# VMUL-SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
+# VMUL-SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_mul
+# VMUL-SOURCE: tcrv_scalar_i32_mul
 # VMUL-SOURCE: tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul_self_check_one(7, 0)
 # VMUL-SOURCE: tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul_self_check_one(16, 1)
 # VMUL-SOURCE: tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok
@@ -198,7 +201,8 @@
 # VMUL-BUNDLE-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_bundle_i32_vmul_rvv_first_slice */
 # VMUL-BUNDLE-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_bundle_i32_vmul_scalar_fallback_first_slice */
 # VMUL-BUNDLE-SOURCE: __riscv_vmul_vv_i32m1
-# VMUL-BUNDLE-SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
+# VMUL-BUNDLE-SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_mul
+# VMUL-BUNDLE-SOURCE: tcrv_scalar_i32_mul
 # VMUL-BUNDLE-SOURCE: void tcrv_dispatch_i32_vmul_frontend_bundle_i32_vmul
 
 # VMUL-BUNDLE-EVIDENCE: "arithmetic_family": "i32-vmul"

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC route, generated op-interface provenance, and no descriptor-driven source authority"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify callable ABI role contract, generic export preflight, and RVV+scalar dispatch component coherence"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify scalar source body authority, helper allowance, and finite scalar family route constraints"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify plugin-locality and no family-specific branches in common orchestration"}

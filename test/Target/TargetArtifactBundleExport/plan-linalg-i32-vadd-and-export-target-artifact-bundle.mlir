@@ -216,7 +216,8 @@ module @plan_linalg_i32_vadd_bundle_input {
 // SOURCE: __riscv_vadd_vv_i32m1
 // SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_bundle_i32_vadd_rvv_first_slice
 // SOURCE: void tcrv_scalar_i32_vadd_microkernel_frontend_bundle_i32_vadd_scalar_fallback_first_slice
-// SOURCE: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+// SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+// SOURCE: tcrv_scalar_i32_add
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vadd_frontend_bundle_i32_vadd
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i32_vadd_microkernel_frontend_bundle_i32_vadd_rvv_first_slice(lhs, rhs, out, n);

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified TCRV boundary and descriptor-to-C debt constraints for source authority migration"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated op-interface provenance requirements"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, callable ABI layering, and dispatch component contract"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback source/header/object route and typed scalar microkernel source authority contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin context for RVV+scalar dispatch component boundaries"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin locality and common interface constraints for extension family routes"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-emitc-source-authority-production-route/prd.md", "reason": "Predecessor RVV EmitC source-authority migration and remaining scalar gap"}

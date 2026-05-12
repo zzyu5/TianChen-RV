@@ -109,7 +109,8 @@ module {
 // GENERIC: void tcrv_rvv_i32_vadd_microkernel_conflict_planned_dispatch_rvv_first_slice
 // GENERIC: __riscv_vadd_vv_i32m1
 // GENERIC: void tcrv_scalar_i32_vadd_microkernel_conflict_planned_dispatch_scalar_fallback_first_slice
-// GENERIC: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+// GENERIC: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+// GENERIC: tcrv_scalar_i32_add
 // GENERIC-LABEL: {{^}}void tcrv_dispatch_i32_vadd_conflict_planned_dispatch
 // GENERIC: if (rvv_available)
 // GENERIC: tcrv_rvv_i32_vadd_microkernel_conflict_planned_dispatch_rvv_first_slice(lhs, rhs, out, n);

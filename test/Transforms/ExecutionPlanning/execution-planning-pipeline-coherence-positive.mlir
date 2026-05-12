@@ -33,6 +33,7 @@ module {
     // EXPORT: /* selected_role: direct variant */
     // EXPORT: /* artifact_kind: runtime-callable-c-source */
     // EXPORT: void tcrv_scalar_i32_vadd_microkernel_pipeline_coherence_scalar_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
-    // EXPORT: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
+    // EXPORT: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+    // EXPORT: tcrv_scalar_i32_add
   }
 }

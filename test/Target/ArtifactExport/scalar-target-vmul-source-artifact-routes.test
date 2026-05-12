@@ -4,7 +4,7 @@
 
 # SCALAR-VMUL: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-VMUL: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vmul_microkernel. */
-# SCALAR-VMUL: /* Route: typed scalar family op builds the common EmitC lowerable route that renders the production C function body. */
+# SCALAR-VMUL: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by MLIR EmitC / MLIR Cpp source authority. */
 # SCALAR-VMUL: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # SCALAR-VMUL: /* This is a bounded fallback library artifact; it is not generic lowering, runtime integration, or performance evidence. */
 # SCALAR-VMUL: #include <stddef.h>
@@ -18,14 +18,18 @@
 # SCALAR-VMUL: /* runtime_abi_name: scalar-i32-vmul-runtime-callable-c-function.v1 */
 # SCALAR-VMUL: /* runtime_glue_role: runtime-callable-i32-vmul-fallback-function */
 # SCALAR-VMUL: /* emitc_route: tcrv_scalar.i32_vmul_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
-# SCALAR-VMUL: /* emitc_c_source_authority: production function body rendered from TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque steps */
+# SCALAR-VMUL: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 # SCALAR-VMUL: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 # SCALAR-VMUL: /* emitc_route_id: tcrv-export-scalar-i32-vmul-microkernel-c, route_kind=typed-scalar-family-op-to-emitc-call-opaque */
 # SCALAR-VMUL: /* emitc.call_opaque[0]: tcrv_scalar_i32_mul from tcrv_scalar.i32_vmul_microkernel */
-# SCALAR-VMUL: void tcrv_scalar_i32_vmul_microkernel_scalar_vmul_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
-# SCALAR-VMUL: for (size_t index = 0; index < n; ++index) {
-# SCALAR-VMUL: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
-# SCALAR-VMUL: tcrv_scalar_i32_store(&out[index], product);
+# SCALAR-VMUL: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# SCALAR-VMUL: static void tcrv_scalar_i32_vmul_microkernel_scalar_vmul_microkernel_export_scalar_fallback_first_slice__tcrv_emitc_body
+# SCALAR-VMUL: if (
+# SCALAR-VMUL: // tcrv_emitc.source_op=tcrv_scalar.i32_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_mul
+# SCALAR-VMUL: tcrv_scalar_i32_mul
+# SCALAR-VMUL: // tcrv_emitc.source_op=tcrv_scalar.i32_vmul_microkernel role=buffer-store op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_store
+# SCALAR-VMUL: tcrv_scalar_i32_store
+# SCALAR-VMUL: void tcrv_scalar_i32_vmul_microkernel_scalar_vmul_microkernel_export_scalar_fallback_first_slice
 
 # RUN: tcrv-opt %S/Inputs/scalar-vmul-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=SCALAR-PLAN
 # SCALAR-PLAN: artifact_kind = "runtime-callable-c-source"

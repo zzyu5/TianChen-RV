@@ -48,11 +48,10 @@ using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+using tianchenrv::conversion::emitc::TCRVEmitCSourceAuthorityOptions;
 using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::
-    verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
-using tianchenrv::conversion::emitc::
-    renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction;
+    emitTCRVEmitCLowerableRouteAsCppSource;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -1935,12 +1934,11 @@ void printScalarEmitCRouteMetadata(llvm::raw_ostream &os,
         "emitc.call_opaque -> scalar runtime C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
   os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
-        "emitc.include, emitc.func, and emitc.call_opaque before route-authored "
-        "production C source output */\n";
+        "emitc.include, emitc.func, emitc.if, emitc.call_opaque, and "
+        "emitc.call before MLIR Cpp emitter production source output */\n";
   os << "/* emitc_materialization_function: @" << functionName << " */\n";
-  os << "/* emitc_c_source_authority: production function body rendered from "
-        "TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque "
-        "steps */\n";
+  os << "/* emitc_c_source_authority: MLIR EmitC module translated by "
+        "mlir::emitc::translateToCpp */\n";
   for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps()) {
     if (step.sourceOp.opInterface.empty())
       continue;
@@ -2061,13 +2059,11 @@ void printScalarRuntimeHelperDefinitions(
 llvm::Error printMicrokernelFunction(llvm::raw_ostream &os,
                                      llvm::StringRef functionName,
                                      const TCRVEmitCLowerableRoute &route) {
-  tianchenrv::conversion::emitc::TCRVEmitCLegacyDiagnosticSourceRenderOptions
-      options;
+  TCRVEmitCSourceAuthorityOptions options;
   options.functionName = functionName.str();
   options.loopIndexName = "index";
   options.requireInterfaceBackedCompute = true;
-  return renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
-                                                                  options);
+  return emitTCRVEmitCLowerableRouteAsCppSource(route, os, options);
 }
 
 void printMicrokernelHeader(const ScalarMicrokernelRecord &record,
@@ -2101,11 +2097,6 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
         buildScalarBinaryEmitCRoute(record);
     if (!route)
       return route.takeError();
-    if (llvm::Error error =
-            verifyTCRVEmitCLowerableRouteMaterializesToEmitC(*route,
-                                                             functionName,
-                                                             {"index"}))
-      return error;
     emitcRoute = std::move(*route);
   }
 
@@ -2114,7 +2105,7 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
      << record.family->microkernelOpName << ". */\n";
   if (emitcRoute)
     os << "/* Route: typed scalar family op builds the common EmitC lowerable "
-          "route that renders the production C function body. */\n";
+          "route emitted by MLIR EmitC / MLIR Cpp source authority. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   os << "/* This is a bounded fallback library artifact; it is not "

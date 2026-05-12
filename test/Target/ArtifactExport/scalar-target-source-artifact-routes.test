@@ -4,7 +4,7 @@
 
 # SCALAR-POS: /* TianChen-RV scalar runtime-callable microkernel C export. */
 # SCALAR-POS: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vadd_microkernel. */
-# SCALAR-POS: /* Route: typed scalar family op builds the common EmitC lowerable route that renders the production C function body. */
+# SCALAR-POS: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by MLIR EmitC / MLIR Cpp source authority. */
 # SCALAR-POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
 # SCALAR-POS: #include <stddef.h>
 # SCALAR-POS: #include <stdint.h>
@@ -27,14 +27,18 @@
 # SCALAR-POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # SCALAR-POS: /* runtime_callable_abi: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
 # SCALAR-POS: /* emitc_route: tcrv_scalar.i32_vadd_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
-# SCALAR-POS: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, and emitc.call_opaque before route-authored production C source output */
-# SCALAR-POS: /* emitc_c_source_authority: production function body rendered from TCRVEmitCLowerableRoute ABI mappings and ordered call_opaque steps */
+# SCALAR-POS: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
+# SCALAR-POS: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 # SCALAR-POS: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 # SCALAR-POS: /* emitc.call_opaque_boundary[0]: source_role=compute, operands=2, result=sum:int32_t, op_interface=TCRVEmitCLowerableOpInterface */
-# SCALAR-POS: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)
-# SCALAR-POS: for (size_t index = 0; index < n; ++index) {
-# SCALAR-POS: int32_t sum = tcrv_scalar_i32_add(lhs[index], rhs[index]);
-# SCALAR-POS: tcrv_scalar_i32_store(&out[index], sum);
+# SCALAR-POS: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# SCALAR-POS: static void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice__tcrv_emitc_body
+# SCALAR-POS: if (
+# SCALAR-POS: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
+# SCALAR-POS: tcrv_scalar_i32_add
+# SCALAR-POS: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=buffer-store op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_store
+# SCALAR-POS: tcrv_scalar_i32_store
+# SCALAR-POS: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice
 
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=SCALAR-PLAN
 # SCALAR-PLAN: artifact_kind = "runtime-callable-c-source"
@@ -91,11 +95,16 @@
 # SCALAR-I64: /* runtime_abi_parameter[3]: c_name=len64, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 # SCALAR-I64: /* runtime_callable_abi: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64) */
 # SCALAR-I64: /* emitc_route: tcrv_scalar.i64_vmul_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
+# SCALAR-I64: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 # SCALAR-I64: /* emitc.call_opaque[0]: tcrv_scalar_i64_mul from tcrv_scalar.i64_vmul_microkernel */
-# SCALAR-I64: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64)
-# SCALAR-I64: for (size_t index = 0; index < len64; ++index) {
-# SCALAR-I64: int64_t product = tcrv_scalar_i64_mul(lhs[index], rhs[index]);
-# SCALAR-I64: tcrv_scalar_i64_store(&out[index], product);
+# SCALAR-I64: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+# SCALAR-I64: static void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice__tcrv_emitc_body
+# SCALAR-I64: if (
+# SCALAR-I64: // tcrv_emitc.source_op=tcrv_scalar.i64_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_mul
+# SCALAR-I64: tcrv_scalar_i64_mul
+# SCALAR-I64: // tcrv_emitc.source_op=tcrv_scalar.i64_vmul_microkernel role=buffer-store op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_store
+# SCALAR-I64: tcrv_scalar_i64_store
+# SCALAR-I64: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice
 
 # RUN: FileCheck %s --check-prefix=SCALAR-I64-PLAN < %t.scalar-i64-vmul-post-planning.mlir
 # SCALAR-I64-PLAN: artifact_kind = "runtime-callable-c-source"

@@ -130,7 +130,8 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // SOURCE: __riscv_vmul_vv_i32m1
 // SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_dispatch_i32_vmul_rvv_first_slice
 // SOURCE: void tcrv_scalar_i32_vmul_microkernel_frontend_dispatch_i32_vmul_scalar_fallback_first_slice
-// SOURCE: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
+// SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_mul
+// SOURCE: tcrv_scalar_i32_mul
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i32_vmul_microkernel_frontend_dispatch_i32_vmul_rvv_first_slice(lhs, rhs, out, n);
@@ -145,7 +146,8 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 
 // HARNESS: /* Scope: one selected RVV i32-vmul dispatch case plus one scalar i32-vmul dispatch fallback. */
 // HARNESS: __riscv_vmul_vv_i32m1
-// HARNESS: int32_t product = tcrv_scalar_i32_mul(lhs[index], rhs[index]);
+// HARNESS: // tcrv_emitc.source_op=tcrv_scalar.i32_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_mul
+// HARNESS: tcrv_scalar_i32_mul
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
 // HARNESS: if (out[index] != lhs[index] * rhs[index])
 // HARNESS: tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul_self_check_one(7, 0)

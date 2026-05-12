@@ -438,29 +438,24 @@ def arithmetic_intrinsic_for_family(
     return "__riscv_v" + str(family["intrinsic_op"]) + "_vv_" + vector_suffix
 
 
-def scalar_route_result_name(family: dict[str, str | Path]) -> str:
-    op = str(family["intrinsic_op"])
-    if op == "add":
-        return "sum"
-    if op == "sub":
-        return "difference"
-    if op == "mul":
-        return "product"
-    raise BridgeError(f"unsupported scalar route arithmetic op: {op}")
-
-
 def scalar_route_compute_snippet(family: dict[str, str | Path]) -> str:
     dtype = str(family["dtype"])
     op = str(family["intrinsic_op"])
-    c_type = str(family["scalar_c_type"])
-    result = scalar_route_result_name(family)
-    return f"{c_type} {result} = tcrv_scalar_{dtype}_{op}(lhs[index], rhs[index]);"
+    return (
+        f"tcrv_emitc.source_op=tcrv_scalar.{dtype}_v{op}_microkernel "
+        "role=compute op_interface=TCRVEmitCLowerableOpInterface "
+        f"callee=tcrv_scalar_{dtype}_{op}"
+    )
 
 
 def scalar_route_store_snippet(family: dict[str, str | Path]) -> str:
     dtype = str(family["dtype"])
-    result = scalar_route_result_name(family)
-    return f"tcrv_scalar_{dtype}_store(&out[index], {result});"
+    op = str(family["intrinsic_op"])
+    return (
+        f"tcrv_emitc.source_op=tcrv_scalar.{dtype}_v{op}_microkernel "
+        "role=buffer-store op_interface=TCRVEmitCLowerableOpInterface "
+        f"callee=tcrv_scalar_{dtype}_store"
+    )
 
 
 def load_intrinsic_for_suffix(vector_suffix: str) -> str:

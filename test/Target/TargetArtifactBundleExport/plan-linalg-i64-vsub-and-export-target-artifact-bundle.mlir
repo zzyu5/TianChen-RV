@@ -127,7 +127,8 @@ module @plan_linalg_i64_vsub_bundle_input {
 // SOURCE: __riscv_vsub_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
 // SOURCE: void tcrv_scalar_i64_vsub_microkernel_frontend_bundle_i64_vsub_scalar_fallback_first_slice
-// SOURCE: int64_t difference = tcrv_scalar_i64_sub(lhs[index], rhs[index]);
+// SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i64_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_sub
+// SOURCE: tcrv_scalar_i64_sub
 // SOURCE-LABEL: {{^}}void tcrv_dispatch_i64_vsub_frontend_bundle_i64_vsub
 // SOURCE: if (rvv_available)
 // SOURCE: tcrv_rvv_i64_vsub_microkernel_frontend_bundle_i64_vsub_rvv_first_slice(lhs, rhs, out, n);

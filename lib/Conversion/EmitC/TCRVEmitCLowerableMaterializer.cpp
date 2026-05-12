@@ -377,7 +377,7 @@ public:
       return std::move(error);
     if (llvm::Error error = initializeRuntimeElementCount())
       return std::move(error);
-    if (llvm::Error error = validateRuntimeVLRouteShape())
+    if (llvm::Error error = validateSourceAuthorityRouteShape())
       return std::move(error);
 
     context.getOrLoadDialect<mlir::emitc::EmitCDialect>();
@@ -414,6 +414,8 @@ public:
   }
 
 private:
+  enum class LoopShape { RuntimeAVLToVL, RuntimeElementCount };
+
   llvm::Error validateOptions() {
     if (llvm::Error error = validateSafeIdentifier(
             route.getRouteID(), "EmitC source-authority function name",
@@ -483,6 +485,22 @@ private:
     return llvm::Error::success();
   }
 
+  llvm::Error validateSourceAuthorityRouteShape() {
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
+        route.getCallOpaqueSteps();
+    if (steps.empty())
+      return makeMaterializerError(
+          route.getRouteID(),
+          "MLIR Cpp source authority requires at least one call_opaque step");
+    if (steps.front().sourceOp.role == "runtime-avl-to-vl") {
+      loopShape = LoopShape::RuntimeAVLToVL;
+      return validateRuntimeVLRouteShape();
+    }
+
+    loopShape = LoopShape::RuntimeElementCount;
+    return validateRuntimeElementCountRouteShape();
+  }
+
   llvm::Error validateRuntimeVLRouteShape() const {
     llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
         route.getCallOpaqueSteps();
@@ -516,6 +534,23 @@ private:
           route.getRouteID(),
           llvm::Twine("runtime-avl-to-vl source-authority operand must be '") +
               expectedRemaining + "'");
+    return llvm::Error::success();
+  }
+
+  llvm::Error validateRuntimeElementCountRouteShape() const {
+    for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps()) {
+      if (step.sourceOp.role == "runtime-avl-to-vl")
+        return makeMaterializerError(
+            route.getRouteID(),
+            "runtime-element-count MLIR Cpp source authority cannot mix a "
+            "runtime-avl-to-vl call_opaque step into the scalar loop shape");
+      if (step.sourceOp.role != "compute" && step.result)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("runtime-element-count MLIR Cpp source authority "
+                        "cannot materialize non-compute call_opaque result '") +
+                step.result->name + "'");
+    }
     return llvm::Error::success();
   }
 
@@ -585,10 +620,9 @@ private:
   }
 
   llvm::Expected<mlir::Value>
-  materializeAddressOfSubscriptExpression(llvm::StringRef expression,
-                                          mlir::Location loc) {
-    if (!expression.starts_with("&") ||
-        !expression.ends_with((llvm::Twine("[") + options.loopIndexName + "]")
+  materializeSubscriptLValueExpression(llvm::StringRef expression,
+                                       mlir::Location loc) {
+    if (!expression.ends_with((llvm::Twine("[") + options.loopIndexName + "]")
                                   .str()))
       return makeMaterializerError(
           route.getRouteID(),
@@ -596,7 +630,7 @@ private:
               "' is not a supported ABI buffer subscript expression");
 
     llvm::StringRef base =
-        expression.drop_front().drop_back(options.loopIndexName.size() + 2);
+        expression.drop_back(options.loopIndexName.size() + 2);
     if (llvm::Error error = validateSafeIdentifier(
             route.getRouteID(), "ABI buffer expression base", base))
       return std::move(error);
@@ -625,9 +659,27 @@ private:
     mlir::emitc::SubscriptOp subscript =
         builder.create<mlir::emitc::SubscriptOp>(
             loc, lvalueType, pointer, mlir::ValueRange{offset});
+    return subscript.getResult();
+  }
+
+  llvm::Expected<mlir::Value>
+  materializeAddressOfSubscriptExpression(llvm::StringRef expression,
+                                          mlir::Location loc) {
+    if (!expression.starts_with("&"))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("source-authority operand expression '") + expression +
+              "' is not a supported ABI buffer address expression");
+
+    llvm::Expected<mlir::Value> lvalue =
+        materializeSubscriptLValueExpression(expression.drop_front(), loc);
+    if (!lvalue)
+      return lvalue.takeError();
+    auto lvalueType = llvm::cast<mlir::emitc::LValueType>((*lvalue).getType());
+    mlir::Type pointerType =
+        mlir::emitc::PointerType::get(&context, lvalueType.getValueType());
     return builder
-        .create<mlir::emitc::ApplyOp>(loc, pointer.getType(), "&",
-                                      subscript.getResult())
+        .create<mlir::emitc::ApplyOp>(loc, pointerType, "&", *lvalue)
         .getResult();
   }
 
@@ -651,7 +703,19 @@ private:
               expression + "'");
     }
 
-    return materializeAddressOfSubscriptExpression(expression, loc);
+    if (expression.starts_with("&"))
+      return materializeAddressOfSubscriptExpression(expression, loc);
+
+    llvm::Expected<mlir::Value> lvalue =
+        materializeSubscriptLValueExpression(expression, loc);
+    if (!lvalue)
+      return lvalue.takeError();
+    mlir::Type valueType =
+        llvm::cast<mlir::emitc::LValueType>((*lvalue).getType())
+            .getValueType();
+    return builder
+        .create<mlir::emitc::LoadOp>(loc, valueType, *lvalue)
+        .getResult();
   }
 
   llvm::Error materializeRouteStep(const TCRVEmitCCallOpaqueStep &step) {
@@ -756,24 +820,38 @@ private:
     mlir::Block &thenBlock = ifOp.getThenRegion().front();
     builder.setInsertionPoint(thenBlock.getTerminator());
 
-    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps =
-        route.getCallOpaqueSteps();
-    if (llvm::Error error = materializeRuntimeVLStep(steps.front()))
-      return error;
-    for (const TCRVEmitCCallOpaqueStep &step : steps.drop_front())
-      if (llvm::Error error = materializeRouteStep(step))
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> steps = route.getCallOpaqueSteps();
+    if (loopShape == LoopShape::RuntimeAVLToVL) {
+      if (llvm::Error error = materializeRuntimeVLStep(steps.front()))
         return error;
+      for (const TCRVEmitCCallOpaqueStep &step : steps.drop_front())
+        if (llvm::Error error = materializeRouteStep(step))
+          return error;
+    } else {
+      for (const TCRVEmitCCallOpaqueStep &step : steps)
+        if (llvm::Error error = materializeRouteStep(step))
+          return error;
+    }
+
     if (options.requireInterfaceBackedCompute && !sawInterfaceBackedCompute)
       return makeMaterializerError(
           route.getRouteID(),
           "MLIR Cpp source authority requires at least one "
           "interface-backed compute call_opaque step");
 
-    mlir::Value vl = lookupRequiredValue(steps.front().result->name);
+    mlir::Value increment;
+    if (loopShape == LoopShape::RuntimeAVLToVL)
+      increment = lookupRequiredValue(steps.front().result->name);
+    else
+      increment =
+          builder
+              .create<mlir::emitc::LiteralOp>(
+                  loc, mlir::emitc::SizeTType::get(&context), "1")
+              .getResult();
     mlir::Value nextOffset =
         builder
             .create<mlir::emitc::AddOp>(
-                loc, mlir::emitc::SizeTType::get(&context), offset, vl)
+                loc, mlir::emitc::SizeTType::get(&context), offset, increment)
             .getResult();
     llvm::SmallVector<mlir::Value, 8> recursiveArgs;
     for (const TCRVEmitCABIValueMapping &mapping : route.getABIMappings())
@@ -818,6 +896,7 @@ private:
   std::string runtimeElementCountValueName;
   unsigned runtimeElementCountMatches = 0;
   bool sawInterfaceBackedCompute = false;
+  LoopShape loopShape = LoopShape::RuntimeAVLToVL;
 };
 
 llvm::Error makeSourceRendererError(llvm::StringRef routeID,
