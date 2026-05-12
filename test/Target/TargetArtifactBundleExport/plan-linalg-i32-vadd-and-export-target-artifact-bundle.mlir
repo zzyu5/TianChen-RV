@@ -97,6 +97,27 @@ module @plan_linalg_i32_vadd_bundle_input {
 // IR: tcrv_rvv.lowering_boundary
 // IR-SAME: role = "dispatch case"
 // IR-SAME: selected_variant = @rvv_first_slice
+// IR: tcrv_rvv.i32_vadd_microkernel
+// IR-SAME: role = "dispatch case"
+// IR-SAME: selected_variant = @rvv_first_slice
+// IR-SAME: selected_vector_shape = "i32m1"
+// IR-SAME: source_kernel = "frontend_bundle_i32_vadd"
+// IR: ^bb0(%[[N:.*]]: index):
+// IR: %[[VL:.*]] = tcrv_rvv.setvl %[[N]]
+// IR-SAME: lmul = "m1"
+// IR-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+// IR-SAME: sew = 32 : i64
+// IR: tcrv_rvv.with_vl %[[VL]] attributes
+// IR-SAME: lmul = "m1"
+// IR-SAME: policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+// IR-SAME: sew = 32 : i64
+// IR: %[[LHS_VEC:.*]] = tcrv_rvv.i32_load %[[VL]]
+// IR-SAME: buffer_role = "lhs-input-buffer"
+// IR: %[[RHS_VEC:.*]] = tcrv_rvv.i32_load %[[VL]]
+// IR-SAME: buffer_role = "rhs-input-buffer"
+// IR: %[[SUM_VEC:.*]] = tcrv_rvv.i32_add %[[LHS_VEC]], %[[RHS_VEC]], %[[VL]]
+// IR: tcrv_rvv.i32_store %[[SUM_VEC]], %[[VL]]
+// IR-SAME: buffer_role = "output-buffer"
 // IR: tcrv_scalar.lowering_boundary
 // IR-SAME: role = "dispatch fallback"
 // IR-SAME: selected_variant = @scalar_fallback_first_slice

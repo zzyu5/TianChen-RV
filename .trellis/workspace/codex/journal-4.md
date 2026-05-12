@@ -1505,3 +1505,51 @@ Consumed the direct RVV selected-config/runtime AVL contract in RVV+scalar dispa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 50: Bounded MLIR vector-to-RVV materialization
+
+**Date**: 2026-05-13
+**Task**: Bounded MLIR vector-to-RVV materialization
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task/PRD from the Hermes brief, tightened i32 selected RVV
+microkernel selected-vector-shape mirror validation, and added focused
+positive/negative coverage for the bounded linalg/source boundary to typed RVV
+materialization path.
+
+### Main Changes
+
+- `RVVBinarySelectedEmissionPlanning.cpp` now validates selected-vector-shape
+  mirror metadata on matched i32 RVV microkernel ops before emission planning,
+  matching the existing i64 selected-emission behavior.
+- The linalg i32-vadd plan-and-export bundle test now checks the materialized
+  `tcrv_rvv.i32_vadd_microkernel` body, including runtime AVL argument,
+  `setvl`, `with_vl`, loads, `i32_add`, and store.
+- Added negative RVVMicrokernel coverage for stale and incomplete i32
+  microkernel selected-vector-shape mirror metadata.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'RVVMicrokernel|EmissionManifest|TargetArtifactBundleExport|LinalgToExec'`
+  with 72/72 selected tests passed.
+- Manual direct materialized IR/source/header/object artifacts under
+  `artifacts/tmp/bounded_vector_to_rvv_materialization/direct/`.
+- `git diff --check`
+- `git diff --cached --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-05-13-bounded-mlir-vector-to-rvv-materialization`
+
+### Status
+
+[OK] Completed. This round tightens compiler validation/provenance for the
+existing bounded i32-vadd route and makes no new `ssh rvv` runtime correctness
+or performance claim.
+
+### Next Steps
+
+- None - task complete

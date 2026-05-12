@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for review"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify artifact path still follows common EmitC route"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify selected-boundary/runtime ABI/artifact fail-closed contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV plugin-local ownership and hardware claim boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify lit/FileCheck coverage and no unsupported runtime claim"}

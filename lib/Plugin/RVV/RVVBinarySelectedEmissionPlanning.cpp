@@ -750,6 +750,14 @@ findI32SelectedEmissionAttachment(const VariantEmissionRequest &request,
     if (llvm::Error error = validateI32MicrokernelStructuredControlPlane(
             variant, &op, *family, *selectedShape))
       return std::move(error);
+
+    if (llvm::Error error = validateRVVSelectedVectorShapeMetadata(
+            &op,
+            (llvm::Twine("explicit RVV i32 microkernel ") +
+             family->microkernelOpName)
+                .str(),
+            *selectedShape, getRVVBoundarySelectedVectorShapeMetadataNames()))
+      return std::move(error);
   }
 
   if (matches > 1)
