@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final verification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin route authority and selected metadata verification"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that route work does not bypass the EmitC/current compiler stack boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify generic front-door and plugin-owned target exporter bundle behavior"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused build/lit/C++ test coverage is appropriate"}

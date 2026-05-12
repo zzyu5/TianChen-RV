@@ -86,16 +86,44 @@ module @target_artifact_bundle_positive_input {
 // DIRECT-INDEX: owner: "rvv-plugin"
 // DIRECT-INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
 // DIRECT-INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// DIRECT-INDEX: route_claim[0]:
+// DIRECT-INDEX: name: "compile_export_claim"
+// DIRECT-INDEX: value: "compiler-artifact-only"
+// DIRECT-INDEX: route_claim[1]:
+// DIRECT-INDEX: name: "runtime_correctness_claim"
+// DIRECT-INDEX: value: "none"
 // DIRECT-INDEX: evidence_role: "compiler-artifact"
 // DIRECT-INDEX: artifact[1]:
 // DIRECT-INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-microkernel-header.h"
 // DIRECT-INDEX: artifact_kind: "runtime-callable-c-header"
 // DIRECT-INDEX: route: "tcrv-export-rvv-microkernel-header"
+// DIRECT-INDEX: owner: "rvv-plugin"
+// DIRECT-INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// DIRECT-INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// DIRECT-INDEX: runtime_abi_parameter[3]:
+// DIRECT-INDEX: role: "runtime-element-count"
+// DIRECT-INDEX: route_claim[0]:
+// DIRECT-INDEX: name: "compile_export_claim"
+// DIRECT-INDEX: value: "compiler-artifact-only"
+// DIRECT-INDEX: route_claim[1]:
+// DIRECT-INDEX: name: "runtime_correctness_claim"
+// DIRECT-INDEX: value: "none"
 // DIRECT-INDEX: evidence_role: "header-declaration"
 // DIRECT-INDEX: artifact[2]:
 // DIRECT-INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-microkernel-object.o"
 // DIRECT-INDEX: artifact_kind: "riscv-elf-relocatable-object"
 // DIRECT-INDEX: route: "tcrv-export-rvv-microkernel-object"
+// DIRECT-INDEX: owner: "rvv-plugin"
+// DIRECT-INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
+// DIRECT-INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// DIRECT-INDEX: runtime_abi_parameter[3]:
+// DIRECT-INDEX: role: "runtime-element-count"
+// DIRECT-INDEX: route_claim[0]:
+// DIRECT-INDEX: name: "compile_export_claim"
+// DIRECT-INDEX: value: "compiler-artifact-only"
+// DIRECT-INDEX: route_claim[1]:
+// DIRECT-INDEX: name: "runtime_correctness_claim"
+// DIRECT-INDEX: value: "none"
 // DIRECT-INDEX: evidence_role: "relocatable-object"
 
 // DIRECT-SOURCE: /* TianChen-RV RVV runtime-callable microkernel C export. */

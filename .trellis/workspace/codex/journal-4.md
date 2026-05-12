@@ -1625,3 +1625,47 @@ Routed source-fronted i32-vadd RVV evidence through the plan-and-export target a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 51: Plugin-owned RVV artifact route authority
+
+**Date**: 2026-05-13
+**Task**: Plugin-owned RVV artifact route authority
+**Branch**: `main`
+
+### Summary
+
+Made RVV source/header/object microkernel route metadata owned once by the RVV
+target/plugin route authority and consumed by both the generic artifact
+registry/bundle path and direct compatibility translate routes.
+
+### Main Changes
+
+- Extended the RVV microkernel route descriptor API with owner, artifact kind,
+  runtime ABI identity, component group/role, binary stdout, and direct-helper
+  compatibility metadata.
+- Rewired RVV source exporter, header/object composite exporter, extension
+  bundle route metadata requirements, and direct translate route registration
+  to iterate the same route authority.
+- Added C++ and lit checks proving source/header/object bundle records preserve
+  route owner, runtime ABI metadata, runtime-element-count ABI parameters, and
+  conservative route claims.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'TargetArtifactBundleExport|EmissionManifest|RVVMicrokernel|LinalgToExec|rvv-microkernel-e2e'`
+  with 73/73 selected tests passed.
+- Exact plan-and-export bundle command produced source/header/object direct RVV
+  records under `artifacts/tmp/plugin_owned_rvv_route_authority/bundle/`.
+
+### Status
+
+[OK] Completed. Generated runtime semantics did not materially change, so no
+new `ssh rvv` runtime correctness claim was made.
+
+### Next Steps
+
+- None - task complete

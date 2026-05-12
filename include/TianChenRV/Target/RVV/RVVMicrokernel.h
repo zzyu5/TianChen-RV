@@ -41,14 +41,30 @@ struct RVVMicrokernelDirectRouteManifestEntry {
 
   llvm::StringRef getRouteID() const;
   llvm::StringRef getArtifactKind() const;
+  llvm::StringRef getOwner() const;
+  llvm::StringRef getEmissionKind() const;
+  llvm::StringRef getRuntimeABI() const;
+  llvm::StringRef getRuntimeABIKind() const;
+  llvm::StringRef getRuntimeABIName() const;
+  llvm::StringRef getRuntimeGlueRole() const;
+  llvm::StringRef getComponentGroup() const;
+  llvm::StringRef getExternalABIName() const;
+  llvm::StringRef getComponentRole() const;
   std::string getDescription() const;
   bool requiresBinaryStdout() const;
+  bool isDirectHelperCompatibilityRoute() const;
 };
+
+using RVVMicrokernelArtifactRouteDescriptor =
+    RVVMicrokernelDirectRouteManifestEntry;
 
 llvm::ArrayRef<RVVMicrokernelDirectRouteKind>
 getRVVMicrokernelDirectRouteKinds();
 
 std::size_t getRVVMicrokernelDirectRouteCount();
+
+llvm::ArrayRef<RVVMicrokernelArtifactRouteDescriptor>
+getRVVMicrokernelArtifactRouteAuthority();
 
 llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
 getRVVMicrokernelDirectRouteManifest();

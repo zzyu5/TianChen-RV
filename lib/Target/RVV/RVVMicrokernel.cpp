@@ -3325,9 +3325,34 @@ TargetArtifactRouteMetadata
 buildRVVMicrokernelSourceRouteMetadata(
     const RVVBinaryFamilyDescriptor &family);
 
+void addRVVMicrokernelConservativeRouteClaims(
+    TargetArtifactRouteMetadata &metadata);
+
+TargetArtifactRouteMetadata buildRVVMicrokernelArtifactRouteMetadata(
+    const RVVMicrokernelDirectRouteManifestEntry &route);
+
 tianchenrv::target::TargetArtifactExportFn
 getRVVMicrokernelExactExportFn(const RVVBinaryFamilyDescriptor &family,
                                RVVMicrokernelDirectRouteKind routeKind);
+
+llvm::Error validateRVVMicrokernelSourceCandidate(
+    const TargetArtifactCandidate &candidate);
+
+TargetArtifactExporter buildRVVMicrokernelSourceTargetArtifactExporter(
+    const RVVMicrokernelDirectRouteManifestEntry &route,
+    bool enableCandidateValidation) {
+  return TargetArtifactExporter(
+      route.getRouteID(), route.getArtifactKind(), route.getOwner(),
+      route.getEmissionKind(),
+      getRVVMicrokernelExactExportFn(*route.family, route.routeKind),
+      getRVVBinaryCallableRuntimeABIRoleRequirements(*route.family),
+      route.isDirectHelperCompatibilityRoute(),
+      /*handoffKind=*/{},
+      enableCandidateValidation ? validateRVVMicrokernelSourceCandidate
+                                : nullptr,
+      route.getComponentGroup(), route.getExternalABIName(),
+      buildRVVMicrokernelArtifactRouteMetadata(route));
+}
 
 llvm::Error validateRVVMicrokernelSourceCandidate(
     const TargetArtifactCandidate &candidate) {
@@ -3356,24 +3381,17 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
         llvm::Twine("target artifact route '") + candidate.routeID +
         "' does not match " + expectedDescription + "; "
         "expected emission_kind '" +
-        descriptor.family.emissionKind + "', artifact_kind '" +
+        route->getEmissionKind() + "', artifact_kind '" +
         route->getArtifactKind() + "', runtime_abi '" +
-        descriptor.getRVVRuntimeABI() + "', runtime_abi_kind '" +
-        descriptor.getRVVRuntimeABIKind() + "', runtime_abi_name '" +
-        descriptor.getRVVRuntimeABIName() + "', runtime_glue_role '" +
-        descriptor.getRVVRuntimeGlueRole() + "'");
+        route->getRuntimeABI() + "', runtime_abi_kind '" +
+        route->getRuntimeABIKind() + "', runtime_abi_name '" +
+        route->getRuntimeABIName() + "', runtime_glue_role '" +
+        route->getRuntimeGlueRole() + "'");
   }
 
-  TargetArtifactExporter sourceExporter(
-      route->getRouteID(), route->getArtifactKind(), kRVVPluginName,
-      family.emissionKind,
-      getRVVMicrokernelExactExportFn(
-          family, RVVMicrokernelDirectRouteKind::Source),
-      getRVVBinaryCallableRuntimeABIRoleRequirements(family),
-      /*directHelperRoute=*/true,
-      /*handoffKind=*/{}, /*candidateValidationFn=*/nullptr,
-      family.externalABIComponentGroup, family.runtimeABIName,
-      buildRVVMicrokernelSourceRouteMetadata(family));
+  TargetArtifactExporter sourceExporter =
+      buildRVVMicrokernelSourceTargetArtifactExporter(
+          *route, /*enableCandidateValidation=*/false);
   if (llvm::Error error =
           validateTargetArtifactCandidateAgainstExporter(candidate,
                                                         sourceExporter))
@@ -3470,10 +3488,27 @@ buildRVVMicrokernelSourceRouteMetadata(
       getRVVRuntimeVLScopeMetadataName(), getRVVRuntimeVLScopeMetadataValue(),
       runtimeVLRole);
 
+  addRVVMicrokernelConservativeRouteClaims(metadata);
+  return metadata;
+}
+
+void addRVVMicrokernelConservativeRouteClaims(
+    TargetArtifactRouteMetadata &metadata) {
   metadata.addClaimField("compile_export_claim", "compiler-artifact-only");
   metadata.addClaimField("runtime_correctness_claim", "none");
   metadata.addClaimField("hardware_execution_claim", "none");
   metadata.addClaimField("performance_claim", "none");
+}
+
+TargetArtifactRouteMetadata buildRVVMicrokernelArtifactRouteMetadata(
+    const RVVMicrokernelDirectRouteManifestEntry &route) {
+  if (route.routeKind == RVVMicrokernelDirectRouteKind::Source)
+    return buildRVVMicrokernelSourceRouteMetadata(*route.family);
+
+  TargetArtifactRouteMetadata metadata(
+      route.getRuntimeABI(), route.getRuntimeABIKind(),
+      route.getRuntimeABIName(), route.getRuntimeGlueRole());
+  addRVVMicrokernelConservativeRouteClaims(metadata);
   return metadata;
 }
 
@@ -3643,6 +3678,30 @@ getRVVMicrokernelObjectMatchFn(const RVVBinaryFamilyDescriptor &family) {
     break;
   }
   llvm_unreachable("unknown RVV binary family for object route");
+}
+
+TargetArtifactCompositeExporter buildRVVMicrokernelCompositeTargetArtifactExporter(
+    const RVVMicrokernelDirectRouteManifestEntry &route) {
+  TargetArtifactCompositeMatchFn matchFn = nullptr;
+  switch (route.routeKind) {
+  case RVVMicrokernelDirectRouteKind::Source:
+    llvm_unreachable("RVV source routes are standalone target exporters");
+  case RVVMicrokernelDirectRouteKind::Header:
+    matchFn = getRVVMicrokernelHeaderMatchFn(*route.family);
+    break;
+  case RVVMicrokernelDirectRouteKind::Object:
+    matchFn = getRVVMicrokernelObjectMatchFn(*route.family);
+    break;
+  }
+
+  return TargetArtifactCompositeExporter(
+      route.getRouteID(), route.getArtifactKind(), matchFn,
+      getRVVMicrokernelExactExportFn(*route.family, route.routeKind),
+      route.getOwner(), route.getRuntimeABIKind(), route.getRuntimeABIName(),
+      resolveRVVMicrokernelRuntimeABIParameters,
+      route.isDirectHelperCompatibilityRoute(), route.getComponentGroup(),
+      route.getExternalABIName(), validateRVVMicrokernelCallableCandidatePreflight,
+      buildRVVMicrokernelArtifactRouteMetadata(route));
 }
 
 llvm::Error createTempFile(llvm::StringRef prefix, llvm::StringRef suffix,
@@ -3998,6 +4057,57 @@ RVVMicrokernelDirectRouteManifestEntry::getArtifactKind() const {
   llvm_unreachable("unknown RVV microkernel direct route kind");
 }
 
+llvm::StringRef RVVMicrokernelDirectRouteManifestEntry::getOwner() const {
+  return kRVVPluginName;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getEmissionKind() const {
+  return family->emissionKind;
+}
+
+llvm::StringRef RVVMicrokernelDirectRouteManifestEntry::getRuntimeABI() const {
+  return family->runtimeABI;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getRuntimeABIKind() const {
+  return family->runtimeABIKind;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getRuntimeABIName() const {
+  return family->runtimeABIName;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getRuntimeGlueRole() const {
+  return family->runtimeGlueRole;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getComponentGroup() const {
+  return family->externalABIComponentGroup;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getExternalABIName() const {
+  return family->runtimeABIName;
+}
+
+llvm::StringRef
+RVVMicrokernelDirectRouteManifestEntry::getComponentRole() const {
+  switch (routeKind) {
+  case RVVMicrokernelDirectRouteKind::Source:
+    return "source";
+  case RVVMicrokernelDirectRouteKind::Header:
+    return "header";
+  case RVVMicrokernelDirectRouteKind::Object:
+    return "object";
+  }
+  llvm_unreachable("unknown RVV microkernel direct route kind");
+}
+
 std::string RVVMicrokernelDirectRouteManifestEntry::getDescription() const {
   switch (routeKind) {
   case RVVMicrokernelDirectRouteKind::Source:
@@ -4020,6 +4130,11 @@ bool RVVMicrokernelDirectRouteManifestEntry::requiresBinaryStdout() const {
   return routeKind == RVVMicrokernelDirectRouteKind::Object;
 }
 
+bool RVVMicrokernelDirectRouteManifestEntry::
+    isDirectHelperCompatibilityRoute() const {
+  return true;
+}
+
 llvm::ArrayRef<RVVMicrokernelDirectRouteKind>
 getRVVMicrokernelDirectRouteKinds() {
   static const RVVMicrokernelDirectRouteKind routeKinds[] = {
@@ -4035,8 +4150,8 @@ std::size_t getRVVMicrokernelDirectRouteCount() {
          getRVVMicrokernelDirectRouteKinds().size();
 }
 
-llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
-getRVVMicrokernelDirectRouteManifest() {
+llvm::ArrayRef<RVVMicrokernelArtifactRouteDescriptor>
+getRVVMicrokernelArtifactRouteAuthority() {
   static const llvm::SmallVector<RVVMicrokernelDirectRouteManifestEntry, 32>
       routes = [] {
         llvm::SmallVector<RVVMicrokernelDirectRouteManifestEntry, 32> result;
@@ -4050,6 +4165,11 @@ getRVVMicrokernelDirectRouteManifest() {
         return result;
       }();
   return llvm::ArrayRef(routes);
+}
+
+llvm::ArrayRef<RVVMicrokernelDirectRouteManifestEntry>
+getRVVMicrokernelDirectRouteManifest() {
+  return getRVVMicrokernelArtifactRouteAuthority();
 }
 
 const RVVMicrokernelDirectRouteManifestEntry *
@@ -4255,53 +4375,23 @@ llvm::Error exportRVVMicrokernelObjectForFamily(
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   for (const RVVMicrokernelDirectRouteManifestEntry &route :
-       getRVVMicrokernelDirectRouteManifest()) {
-    const RVVBinaryFamilyDescriptor &family = *route.family;
+       getRVVMicrokernelArtifactRouteAuthority()) {
     switch (route.routeKind) {
     case RVVMicrokernelDirectRouteKind::Source: {
-      TargetArtifactRouteMetadata routeMetadata =
-          buildRVVMicrokernelSourceRouteMetadata(family);
       if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-              route.getRouteID(), kMicrokernelArtifactKind, kRVVPluginName,
-              family.emissionKind,
-              getRVVMicrokernelExactExportFn(
-                  family, RVVMicrokernelDirectRouteKind::Source),
-              getRVVBinaryCallableRuntimeABIRoleRequirements(family),
-              /*directHelperRoute=*/true, /*handoffKind=*/{},
-              validateRVVMicrokernelSourceCandidate,
-              family.externalABIComponentGroup, family.runtimeABIName,
-              routeMetadata)))
+              buildRVVMicrokernelSourceTargetArtifactExporter(
+                  route, /*enableCandidateValidation=*/true))))
         return error;
       break;
     }
     case RVVMicrokernelDirectRouteKind::Header:
-      if (llvm::Error error =
-              registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-                  route.getRouteID(), kMicrokernelHeaderArtifactKind,
-                  getRVVMicrokernelHeaderMatchFn(family),
-                  getRVVMicrokernelExactExportFn(
-                      family, RVVMicrokernelDirectRouteKind::Header),
-                  kRVVPluginName,
-                  family.runtimeABIKind, family.runtimeABIName,
-                  resolveRVVMicrokernelRuntimeABIParameters,
-                  /*directHelperRoute=*/true, family.externalABIComponentGroup,
-                  family.runtimeABIName,
-                  validateRVVMicrokernelCallableCandidatePreflight)))
+      if (llvm::Error error = registry.registerCompositeExporter(
+              buildRVVMicrokernelCompositeTargetArtifactExporter(route)))
         return error;
       break;
     case RVVMicrokernelDirectRouteKind::Object:
-      if (llvm::Error error =
-              registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-                  route.getRouteID(), kMicrokernelObjectArtifactKind,
-                  getRVVMicrokernelObjectMatchFn(family),
-                  getRVVMicrokernelExactExportFn(
-                      family, RVVMicrokernelDirectRouteKind::Object),
-                  kRVVPluginName,
-                  family.runtimeABIKind, family.runtimeABIName,
-                  resolveRVVMicrokernelRuntimeABIParameters,
-                  /*directHelperRoute=*/true, family.externalABIComponentGroup,
-                  family.runtimeABIName,
-                  validateRVVMicrokernelCallableCandidatePreflight)))
+      if (llvm::Error error = registry.registerCompositeExporter(
+              buildRVVMicrokernelCompositeTargetArtifactExporter(route)))
         return error;
       break;
     }
@@ -4319,7 +4409,7 @@ llvm::Error registerRVVMicrokernelPluginTargetExporterBundle(
 llvm::Error registerRVVMicrokernelTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
   for (const RVVMicrokernelDirectRouteManifestEntry &route :
-       getRVVMicrokernelDirectRouteManifest()) {
+       getRVVMicrokernelArtifactRouteAuthority()) {
     const RVVMicrokernelDirectRouteManifestEntry *routePtr = &route;
     if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
             route.getRouteID(), route.getDescription(),

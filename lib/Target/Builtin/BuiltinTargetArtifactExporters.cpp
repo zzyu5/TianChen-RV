@@ -52,19 +52,17 @@ llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       rvv::registerRVVMicrokernelPluginTargetExporterBundle);
 
-  bool sawSourceRoute = false;
+  bool sawArtifactRoute = false;
   for (const rvv::RVVMicrokernelDirectRouteManifestEntry &route :
-       rvv::getRVVMicrokernelDirectRouteManifest()) {
-    if (route.routeKind != rvv::RVVMicrokernelDirectRouteKind::Source)
-      continue;
-    sawSourceRoute = true;
+       rvv::getRVVMicrokernelArtifactRouteAuthority()) {
+    sawArtifactRoute = true;
     bundle.addTargetArtifactRouteMetadataRequirement(route.getRouteID(),
                                                      route.getArtifactKind());
   }
-  if (!sawSourceRoute)
+  if (!sawArtifactRoute)
     return makeBuiltinExtensionBundleError(
-        "missing finite RVV binary source routes for route metadata "
-        "registration");
+        "missing finite RVV binary source/header/object routes for route "
+        "metadata registration");
 
   return registry.registerBundle(bundle);
 }
