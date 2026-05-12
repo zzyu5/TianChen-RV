@@ -186,13 +186,21 @@ header routes are still bounded target artifacts; they do not link, run
 hardware, perform automatic probing, prove correctness, or measure performance.
 The self-check object route remains an explicit target-owned helper command for
 evidence collection, not the generic artifact front door.
-For the direct RVV i32 add/sub/mul microkernel paths, the runtime-callable C header
-route is matched from the same validated callable source candidate as the
+For the direct RVV i32/i64 add/sub/mul microkernel paths, the runtime-callable C
+header route is matched from the same validated callable source candidate as the
 object route. It derives its single prototype from the same selected path,
 microkernel body, callable ABI plan, mem_window/runtime_param boundaries, and
-capability metadata as the source/object routes. It must not embed callable
-bodies, RVV intrinsics, `main`, self-check helpers, runtime probing, evidence
-logs, credentials, artifact paths, or performance text.
+capability metadata as the source/object routes. For the i64 source/header/
+object routes, the selected typed `tcrv_rvv.i64_vadd_microkernel`,
+`tcrv_rvv.i64_vsub_microkernel`, or `tcrv_rvv.i64_vmul_microkernel` body is the
+authority for family, dtype, arithmetic op, intrinsic config, callable ABI,
+route id, artifact kind, component group, function stem, and generated C body.
+If `tcrv_rvv.lowering_descriptor` is present beside that typed body, target
+export validates it only as non-authoritative legacy mirror metadata; a stale
+mirror or descriptor-only i64 path fails before source/header/object/bundle
+output. The header must not embed callable bodies, RVV intrinsics, `main`,
+self-check helpers, runtime probing, evidence logs, credentials, artifact
+paths, or performance text.
 
 The artifact-kind-aware generic route may also select scalar fallback
 runtime-callable C header and RISC-V ELF relocatable object helpers for the same

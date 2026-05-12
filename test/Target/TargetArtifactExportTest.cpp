@@ -4372,6 +4372,235 @@ bool replaceFirst(std::string &text, llvm::StringRef from,
   return true;
 }
 
+std::string makeRVVI64BodyAuthorityFixture(
+    const RVVBinaryFamilyDescriptor &family, llvm::StringRef descriptorMirror,
+    bool includeTypedBody) {
+  std::string source;
+  llvm::raw_string_ostream os(source);
+  os << "module @rvv_i64_body_authority_input {\n";
+  os << "  tcrv.exec.kernel @i64_body_authority {\n";
+  os << "    tcrv.exec.capability @rvv {architecture = \"riscv64\", id = "
+        "\"rvv\", isa_vector_hints = \"rv64gcv_zvl128b\", kind = "
+        "\"isa-vector\", lmul = \"m1\", mask_policy = \"agnostic\", "
+        "provides = [\"rvv.i64_m1.sew64\", \"rvv.i64_m1.lmul_m1\", "
+        "\"rvv.i64_m1.tail_policy.agnostic\", "
+        "\"rvv.i64_m1.mask_policy.agnostic\"], sew_bits = 64 : i64, "
+        "status = \"available\", tail_policy = \"agnostic\"}\n";
+  os << "    tcrv.exec.capability @rvv_toolchain_march {id = "
+        "\"rvv.toolchain.march\", kind = \"toolchain\", status = "
+        "\"available\", value = \"rv64gcv\"}\n";
+  os << "    tcrv.exec.capability @rvv_toolchain_mabi {id = "
+        "\"rvv.toolchain.mabi\", kind = \"toolchain\", status = "
+        "\"available\", value = \"lp64d\"}\n";
+  os << "    tcrv.exec.variant @rvv_i64_slice attributes {condition = "
+        "\"rvv_capability_properties_available\", guard = "
+        "\"plugin_local_rvv_property_evidence\", origin = \"rvv-plugin\", "
+        "policy = \"metadata_only_first_slice\", requires = [@rvv], "
+        "tcrv_rvv.element_count = 8 : i64";
+  if (!descriptorMirror.empty())
+    os << ", tcrv_rvv.lowering_descriptor = \"" << descriptorMirror << "\"";
+  os << ", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = "
+        "agnostic>, tcrv_rvv.required_march = \"rv64gcv\", "
+        "tcrv_rvv.selected_mask_policy = \"agnostic\", "
+        "tcrv_rvv.selected_setvl_suffix = \"e64m1\", "
+        "tcrv_rvv.selected_tail_policy = \"agnostic\", "
+        "tcrv_rvv.selected_vector_lmul = \"m1\", "
+        "tcrv_rvv.selected_vector_sew = 64 : i64, "
+        "tcrv_rvv.selected_vector_shape = \"i64m1\", "
+        "tcrv_rvv.selected_vector_suffix = \"i64m1\", "
+        "tcrv_rvv.selected_vector_type = \"vint64m1_t\"} {\n";
+  os << "    }\n";
+  os << "    tcrv.exec.diagnostic {message = \"static RVV "
+     << family.familyID
+     << " microkernel path selected by body authority fixture\", origin = "
+        "\"rvv-plugin\", reason = \"variant-selected\", selection_kind = "
+        "\"static-variant\", severity = \"note\", status = \"selected\", "
+        "target = @rvv_i64_slice}\n";
+  os << "    tcrv.exec.mem_window @abi_lhs_input_buffer {abi_role = "
+        "\"lhs-input-buffer\", access = \"read\", binding = "
+        "\"kernel-argument\", c_type = \"const int64_t *\", memory_space = "
+        "\"host\", ownership = \"target-export-abi-owned\", purpose = "
+        "\"runtime-abi-buffer\"}\n";
+  os << "    tcrv.exec.mem_window @abi_rhs_input_buffer {abi_role = "
+        "\"rhs-input-buffer\", access = \"read\", binding = "
+        "\"kernel-argument\", c_type = \"const int64_t *\", memory_space = "
+        "\"host\", ownership = \"target-export-abi-owned\", purpose = "
+        "\"runtime-abi-buffer\"}\n";
+  os << "    tcrv.exec.mem_window @abi_output_buffer {abi_role = "
+        "\"output-buffer\", access = \"write\", binding = "
+        "\"kernel-argument\", c_type = \"int64_t *\", memory_space = "
+        "\"host\", ownership = \"target-export-abi-owned\", purpose = "
+        "\"runtime-abi-buffer\"}\n";
+  os << "    tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "
+        "\"runtime-element-count\", c_name = \"n\", c_type = \"size_t\", "
+        "ownership = \"target-export-abi-owned\", purpose = "
+        "\"runtime-abi-scalar\"}\n";
+  os << "    tcrv_rvv.lowering_boundary {capability_summary = \"rvv\", "
+        "origin = \"rvv-plugin\", required_capabilities = [@rvv], role = "
+        "\"direct variant\", selected_mask_policy = \"agnostic\", "
+        "selected_setvl_suffix = \"e64m1\", selected_tail_policy = "
+        "\"agnostic\", selected_variant = @rvv_i64_slice, "
+        "selected_vector_lmul = \"m1\", selected_vector_sew = 64 : i64, "
+        "selected_vector_shape = \"i64m1\", selected_vector_suffix = "
+        "\"i64m1\", selected_vector_type = \"vint64m1_t\", source_kernel = "
+        "\"i64_body_authority\", status = \"unsupported\", "
+        "unsupported_reason = \"RVV lowering boundary is pre-executable "
+        "metadata only\"}\n";
+  if (includeTypedBody) {
+    os << "    " << family.microkernelOpName
+       << " attributes {element_count = 8 : i64, origin = \"rvv-plugin\", "
+          "required_capabilities = [@rvv], required_march = \"rv64gcv\", "
+          "role = \"direct variant\", selected_mabi = \"lp64d\", "
+          "selected_mask_policy = \"agnostic\", selected_setvl_suffix = "
+          "\"e64m1\", selected_tail_policy = \"agnostic\", selected_variant = "
+          "@rvv_i64_slice, selected_vector_lmul = \"m1\", "
+          "selected_vector_sew = 64 : i64, selected_vector_shape = "
+          "\"i64m1\", selected_vector_suffix = \"i64m1\", "
+          "selected_vector_type = \"vint64m1_t\", source_kernel = "
+          "\"i64_body_authority\"} {\n";
+    os << "    ^bb0(%arg0: index):\n";
+    os << "      %0 = tcrv_rvv.setvl %arg0 {lmul = \"m1\", policy = "
+          "#tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : "
+          "i64} : index -> !tcrv_rvv.vl\n";
+    os << "      tcrv_rvv.with_vl %0 attributes {lmul = \"m1\", policy = "
+          "#tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : "
+          "i64} {\n";
+    os << "        %1 = tcrv_rvv.i64_load %0 {buffer_role = "
+          "\"lhs-input-buffer\"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1\n";
+    os << "        %2 = tcrv_rvv.i64_load %0 {buffer_role = "
+          "\"rhs-input-buffer\"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1\n";
+    os << "        %3 = " << family.arithmeticOpName
+       << " %1, %2, %0 : !tcrv_rvv.i64m1, !tcrv_rvv.i64m1, "
+          "!tcrv_rvv.vl -> !tcrv_rvv.i64m1\n";
+    os << "        tcrv_rvv.i64_store %3, %0 {buffer_role = "
+          "\"output-buffer\"} : !tcrv_rvv.i64m1, !tcrv_rvv.vl\n";
+    os << "      } : !tcrv_rvv.vl\n";
+    os << "    }\n";
+  }
+  os << "  }\n";
+  os << "}\n";
+  os.flush();
+  return source;
+}
+
+mlir::OwningOpRef<mlir::ModuleOp>
+parseRVVI64BodyAuthorityFixture(mlir::MLIRContext &context,
+                                const std::string &source,
+                                llvm::StringRef contextLabel) {
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module)
+    llvm::errs() << contextLabel << ": failed to parse fixture\n";
+  return module;
+}
+
+bool expectRVVI64TargetExportBodyAuthority() {
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+                     "register RVV plugin for i64 target export body authority "
+                     "fixture"))
+    return false;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  const auto &vsubFamily =
+      tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord();
+  std::string matchingMirrorSource =
+      makeRVVI64BodyAuthorityFixture(vsubFamily, vsubFamily.loweringDescriptor,
+                                     /*includeTypedBody=*/true);
+  mlir::OwningOpRef<mlir::ModuleOp> matchingMirrorModule =
+      parseRVVI64BodyAuthorityFixture(
+          context, matchingMirrorSource,
+          "matching i64 descriptor mirror body authority fixture");
+  if (!matchingMirrorModule)
+    return false;
+
+  std::string matchingOutput;
+  llvm::raw_string_ostream matchingOutputStream(matchingOutput);
+  if (!expectSuccess(
+          tianchenrv::target::rvv::exportRVVMicrokernelC(
+              *matchingMirrorModule, matchingOutputStream),
+          "matching i64 descriptor mirror accepted after typed body authority"))
+    return false;
+  matchingOutputStream.flush();
+  llvm::StringRef rendered(matchingOutput);
+  if (!rendered.contains("executable_microkernel: "
+                         "tcrv_rvv.i64_vsub_microkernel") ||
+      !rendered.contains("active_route: "
+                         "tcrv-export-rvv-i64-vsub-microkernel-c") ||
+      !rendered.contains("__riscv_vsub_vv_i64m1") ||
+      rendered.contains("__riscv_vmul_vv_i64m1") ||
+      rendered.contains("i64_vmul_microkernel")) {
+    llvm::errs() << "matching i64 descriptor mirror did not preserve typed "
+                    "vsub body export authority:\n"
+                 << matchingOutput << "\n";
+    return false;
+  }
+
+  const auto &vmulFamily =
+      tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord();
+  std::string staleMirrorSource =
+      makeRVVI64BodyAuthorityFixture(vsubFamily, vmulFamily.loweringDescriptor,
+                                     /*includeTypedBody=*/true);
+  mlir::OwningOpRef<mlir::ModuleOp> staleMirrorModule =
+      parseRVVI64BodyAuthorityFixture(
+          context, staleMirrorSource,
+          "stale i64 descriptor mirror body authority fixture");
+  if (!staleMirrorModule)
+    return false;
+  std::string staleOutput;
+  llvm::raw_string_ostream staleOutputStream(staleOutput);
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::exportRVVMicrokernelC(*staleMirrorModule,
+                                                         staleOutputStream),
+          "stale i64 descriptor mirror rejected after typed body authority",
+          {"tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'",
+           "non-authoritative legacy mirror metadata",
+           "selected typed RVV i64 microkernel body is "
+           "tcrv_rvv.i64_vsub_microkernel",
+           "typed body is authoritative"}))
+    return false;
+  staleOutputStream.flush();
+  if (!staleOutput.empty()) {
+    llvm::errs() << "stale i64 descriptor mirror unexpectedly emitted source: "
+                 << staleOutput << "\n";
+    return false;
+  }
+
+  std::string descriptorOnlySource =
+      makeRVVI64BodyAuthorityFixture(vmulFamily, vmulFamily.loweringDescriptor,
+                                     /*includeTypedBody=*/false);
+  mlir::OwningOpRef<mlir::ModuleOp> descriptorOnlyModule =
+      parseRVVI64BodyAuthorityFixture(
+          context, descriptorOnlySource,
+          "descriptor-only i64 body authority fixture");
+  if (!descriptorOnlyModule)
+    return false;
+  std::string descriptorOnlyOutput;
+  llvm::raw_string_ostream descriptorOnlyOutputStream(descriptorOnlyOutput);
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::exportRVVMicrokernelC(*descriptorOnlyModule,
+                                                         descriptorOnlyOutputStream),
+          "descriptor-only i64 export rejected before output",
+          {"tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'",
+           "no selected typed RVV i64 microkernel body",
+           "typed body is authoritative",
+           "descriptor-only i64 export is rejected"}))
+    return false;
+  descriptorOnlyOutputStream.flush();
+  if (!descriptorOnlyOutput.empty()) {
+    llvm::errs() << "descriptor-only i64 export unexpectedly emitted source: "
+                 << descriptorOnlyOutput << "\n";
+    return false;
+  }
+
+  return true;
+}
+
 mlir::OwningOpRef<mlir::ModuleOp>
 parseDispatchComponentAuthorityFixture(mlir::MLIRContext &context,
                                        const std::string &source,
@@ -5670,6 +5899,8 @@ int main() {
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
     return 1;
   if (!expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch())
+    return 1;
+  if (!expectRVVI64TargetExportBodyAuthority())
     return 1;
   if (!expectDispatchComponentAuthorityValidators())
     return 1;

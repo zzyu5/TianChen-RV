@@ -346,3 +346,59 @@ bundle identity path for the bounded selected-component route.
 
 [OK] Completed and ready to archive. No `ssh rvv` runtime, correctness, or
 performance claim was made.
+
+
+## Session 36: RVV i64 target export body authority
+
+**Date**: 2026-05-12
+**Task**: RVV i64 target export body authority
+**Branch**: `main`
+
+### Summary
+
+Made RVV i64 target artifact export resolve typed microkernel bodies before
+legacy descriptor mirrors, with focused C++/lit coverage and the Trellis task
+archived.
+
+### Main Changes
+
+- Rewired `resolveSelectedI64FamilyForPath` so the selected
+  `tcrv_rvv.i64_vadd_microkernel`, `tcrv_rvv.i64_vsub_microkernel`, or
+  `tcrv_rvv.i64_vmul_microkernel` body is discovered before any legacy
+  descriptor mirror.
+- Added fail-closed target/export diagnostics for stale
+  `tcrv_rvv.lowering_descriptor` mirrors and descriptor-only i64 export.
+- Added focused target artifact export C++ coverage for matching mirror
+  acceptance, stale mirror rejection, and descriptor-only rejection.
+- Added i64 vsub/vmul lit coverage for matching and stale descriptor mirrors
+  through `tcrv-opt | tcrv-translate`, and updated the existing i64 vadd
+  stale-descriptor diagnostic expectation.
+- Recorded the i64 source/header/object body-authority rule in
+  `.trellis/spec/lowering-runtime/emission-runtime-contract.md`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | feat(rvv): make i64 target export body authoritative |
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit for RVV i64 vadd/vsub/vmul microkernel export, i64 vsub/vmul
+  RVV+scalar dispatch, i64 vsub/vmul target artifact bundle, and i64 vadd
+  linalg/export stale-descriptor diagnostics.
+- `git diff --check`
+- `git diff --cached --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-12-rvv-i64-target-export-body-authority`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

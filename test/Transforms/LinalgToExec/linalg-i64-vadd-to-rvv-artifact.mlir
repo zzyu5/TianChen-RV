@@ -205,7 +205,9 @@ module {
 // SOURCE: tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice(lhs, rhs, out, n);
 
 // STALE-RVV-DESCRIPTOR: selected RVV dispatch case component body authority failed before RVV+scalar dispatch artifact emission
-// STALE-RVV-DESCRIPTOR-SAME: requires tcrv_rvv.i64_vsub_microkernel but found tcrv_rvv.i64_vadd_microkernel
+// STALE-RVV-DESCRIPTOR-SAME: tcrv_rvv.lowering_descriptor 'i64-vsub-microkernel.v1' is non-authoritative legacy mirror metadata
+// STALE-RVV-DESCRIPTOR-SAME: selected typed RVV i64 microkernel body is tcrv_rvv.i64_vadd_microkernel
+// STALE-RVV-DESCRIPTOR-SAME: typed body is authoritative
 
 // STALE-SCALAR-DESCRIPTOR: selected scalar dispatch fallback component body authority failed before RVV+scalar dispatch artifact emission
 // STALE-SCALAR-DESCRIPTOR-SAME: selected scalar variant @scalar_fallback_first_slice descriptor 'i64-vsub-microkernel.v1' does not match materialized tcrv_scalar.i64_vadd_microkernel

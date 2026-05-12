@@ -1,5 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PIPE --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not=tcrv_rvv.i64_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vmul_vv_i64m1 --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.element_count = 8 : i64/s//tcrv_rvv.element_count = 8 : i64, tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1"/' | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=MIRROR --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vmul_vv_i64m1 --implicit-check-not=i64_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.element_count = 8 : i64/s//tcrv_rvv.element_count = 8 : i64, tcrv_rvv.lowering_descriptor = "i64-vmul-microkernel.v1"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DESC --implicit-check-not="void tcrv_rvv_i64_vsub_microkernel" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/,+8 s/c_type = "const int64_t \*"/c_type = "const int32_t *"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=BAD-I64-MEM-WINDOW --implicit-check-not="void tcrv_rvv_i64_vsub_microkernel" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency
 
 module @rvv_microkernel_i64_vsub_export_input {
@@ -139,6 +141,16 @@ module @rvv_microkernel_i64_vsub_export_input {
 // SOURCE: __riscv_vle64_v_i64m1
 // SOURCE: __riscv_vsub_vv_i64m1
 // SOURCE: __riscv_vse64_v_i64m1
+
+// MIRROR: /* executable_microkernel: tcrv_rvv.i64_vsub_microkernel */
+// MIRROR: /* arithmetic_family: i64-vsub */
+// MIRROR: /* active_route: tcrv-export-rvv-i64-vsub-microkernel-c */
+// MIRROR: __riscv_vsub_vv_i64m1
+
+// STALE-DESC: tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'
+// STALE-DESC: non-authoritative legacy mirror metadata
+// STALE-DESC: selected typed RVV i64 microkernel body is tcrv_rvv.i64_vsub_microkernel
+// STALE-DESC: typed body is authoritative
 
 // BAD-I64-MEM-WINDOW: runtime ABI role contract preflight failed
 // BAD-I64-MEM-WINDOW-SAME: runtime ABI mem_window validation failed

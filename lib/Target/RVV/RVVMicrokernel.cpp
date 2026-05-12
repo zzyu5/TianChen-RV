@@ -1107,25 +1107,50 @@ llvm::Error validateSelectedDescriptorMatchesMicrokernelFamily(
   return llvm::Error::success();
 }
 
+llvm::Error validateSelectedI64DescriptorMirrorMatchesTypedBody(
+    KernelOp kernel, const SelectedPath &path,
+    const RVVBinaryFamilyDescriptor &typedFamily) {
+  auto descriptorAttr =
+      getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
+          kRVVLoweringDescriptorAttrName);
+  if (!descriptorAttr)
+    return llvm::Error::success();
+
+  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+  if (llvm::Error error =
+          validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+                              descriptor))
+    return error;
+
+  const RVVBinaryFamilyDescriptor *mirrorFamily =
+      lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptor);
+  if (!mirrorFamily)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") +
+                    getPathVariantSymbol(path) +
+                    " has unsupported tcrv_rvv.lowering_descriptor '" +
+                    descriptor +
+                    "' for RVV i64 target artifact export; the selected typed "
+                    "RVV i64 microkernel body is authoritative");
+
+  if (!isSameRVVBinaryFamily(*mirrorFamily, typedFamily))
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV variant @") +
+                    getPathVariantSymbol(path) +
+                    " tcrv_rvv.lowering_descriptor '" + descriptor +
+                    "' is non-authoritative legacy mirror metadata for " +
+                    mirrorFamily->microkernelOpName +
+                    " but the selected typed RVV i64 microkernel body is " +
+                    typedFamily.microkernelOpName +
+                    "; typed body is authoritative for RVV target artifact "
+                    "export");
+  return llvm::Error::success();
+}
+
 llvm::Expected<const RVVBinaryFamilyDescriptor *>
 resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
-  if (auto descriptorAttr =
-          getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-              kRVVLoweringDescriptorAttrName)) {
-    llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-    if (llvm::Error error =
-            validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
-                                descriptor))
-      return std::move(error);
-
-    const RVVBinaryFamilyDescriptor *selectedFamily =
-        lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptor);
-    if (selectedFamily && selectedFamily->dtype == RVVBinaryDTypeKind::I64)
-      return selectedFamily;
-    return nullptr;
-  }
-
   const RVVBinaryFamilyDescriptor *matchedFamily = nullptr;
+  unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
     const RVVBinaryFamilyDescriptor *candidateFamily =
         getI64MicrokernelFamilyForOp(&op);
@@ -1141,10 +1166,46 @@ resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
         role.getValue() != path.role)
       continue;
 
+    ++matches;
     matchedFamily = candidateFamily;
-    break;
   }
 
+  if (matches > 1)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV path @") + getPathVariantSymbol(path) +
+                    " as " + path.role +
+                    " has duplicate selected typed RVV i64 microkernel bodies; "
+                    "typed body is authoritative for RVV target artifact export");
+
+  if (matchedFamily) {
+    if (llvm::Error error =
+            validateSelectedI64DescriptorMirrorMatchesTypedBody(
+                kernel, path, *matchedFamily))
+      return std::move(error);
+    return matchedFamily;
+  }
+
+  if (auto descriptorAttr =
+          getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
+              kRVVLoweringDescriptorAttrName)) {
+    llvm::StringRef descriptor = descriptorAttr.getValue().trim();
+    if (llvm::Error error =
+            validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+                                descriptor))
+      return std::move(error);
+
+    const RVVBinaryFamilyDescriptor *descriptorFamily =
+        lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptor);
+    if (descriptorFamily && descriptorFamily->dtype == RVVBinaryDTypeKind::I64)
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected RVV variant @") +
+                      getPathVariantSymbol(path) +
+                      " carries tcrv_rvv.lowering_descriptor '" + descriptor +
+                      "' for " + descriptorFamily->microkernelOpName +
+                      " but has no selected typed RVV i64 microkernel body; "
+                      "typed body is authoritative for RVV target artifact "
+                      "export and descriptor-only i64 export is rejected");
+  }
   return matchedFamily;
 }
 
