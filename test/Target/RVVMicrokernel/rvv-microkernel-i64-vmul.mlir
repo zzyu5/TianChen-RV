@@ -124,7 +124,7 @@ module @rvv_microkernel_i64_vmul_export_input {
 // SOURCE: /* executable_microkernel: tcrv_rvv.i64_vmul_microkernel */
 // SOURCE: /* arithmetic_family: i64-vmul */
 // SOURCE: /* dtype: i64 */
-// SOURCE: /* arithmetic_c_operator: * */
+// SOURCE: /* arithmetic_source: typed op tcrv_rvv.i64_mul via generated EmitC route and IR-backed callable ABI */
 // SOURCE: /* active_route: tcrv-export-rvv-i64-vmul-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_mul -> tcrv_rvv.i64_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */

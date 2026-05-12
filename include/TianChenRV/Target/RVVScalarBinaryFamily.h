@@ -34,7 +34,6 @@ struct ScalarBinaryMicrokernelDescriptor {
   std::string runtimeABIKind;
   std::string runtimeABIName;
   std::string runtimeGlueRole;
-  std::string cOperator;
 };
 
 // RVV+scalar dispatch route registration/compatibility metadata. Dispatch
@@ -46,7 +45,6 @@ struct DispatchBinaryFamilyDescriptor {
   std::string operationNoun;
   std::string functionStem;
   std::string headerGuardStem;
-  std::string cOperator;
   std::string selfCheckSuccessMarker;
   std::string rvvRouteID;
   std::string rvvEmissionKind;
@@ -284,14 +282,12 @@ inline RVVScalarBinaryFamilyDescriptor makeFamilyRegistrationRecord(
   descriptor.scalar.runtimeABIKind = "scalar-runtime-callable-c-abi";
   descriptor.scalar.runtimeABIName = makeScalarCompatibilityRuntimeABIName(family);
   descriptor.scalar.runtimeGlueRole = makeScalarCompatibilityRuntimeGlueRole(family);
-  descriptor.scalar.cOperator = family.cOperator.str();
 
   descriptor.dispatch.rvvFamily = &family;
   descriptor.dispatch.diagnosticName = family.familyID.str();
   descriptor.dispatch.operationNoun = makeRegistrationOperationNoun(family);
   descriptor.dispatch.functionStem = family.functionStem.str();
   descriptor.dispatch.headerGuardStem = family.headerGuardStem.str();
-  descriptor.dispatch.cOperator = family.cOperator.str();
   descriptor.dispatch.selfCheckSuccessMarker =
       makeDispatchRegistrationSelfCheckSuccessMarker(family);
   descriptor.dispatch.rvvRouteID = family.routeID.str();

@@ -248,8 +248,6 @@ struct RVVBinaryIntrinsicDescriptor {
   llvm::StringRef getRVVExternalABIComponentGroup() const {
     return family.externalABIComponentGroup;
   }
-  llvm::StringRef getCOperator() const { return family.cOperator; }
-  llvm::StringRef getScalarCType() const { return family.scalarCType; }
   llvm::StringRef getConstInputPointerCType() const {
     return family.constInputPointerCType;
   }
@@ -316,11 +314,6 @@ struct RVVBinaryIntrinsicDescriptor {
   llvm::SmallVector<support::RuntimeABIParamSpec, 1>
   getRuntimeElementCountParamSpecs(llvm::StringRef cName = "n") const {
     return getRVVBinaryRuntimeElementCountParamSpecs(family, cName);
-  }
-
-  std::string getCArithmeticCheckExpression(llvm::StringRef lhs,
-                                            llvm::StringRef rhs) const {
-    return (llvm::Twine(lhs) + " " + family.cOperator + " " + rhs).str();
   }
 
   std::string formatSelectedVectorShapeConfigCommentBody() const {

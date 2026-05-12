@@ -50,8 +50,6 @@ struct RVVBinaryFamilyDescriptor {
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeGlueRole;
   llvm::StringRef externalABIComponentGroup;
-  llvm::StringRef cOperator;
-  llvm::StringRef scalarCType;
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
   const support::FiniteBinaryFrontendContract *frontendContract = nullptr;
@@ -83,8 +81,6 @@ inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
       "rvv-i32-vadd-runtime-callable-c-function.v1",
       "runtime-callable-i32-vadd-function",
       "rvv-i32-vadd-microkernel-external-abi.v1",
-      "+",
-      "int32_t",
       "const int32_t *",
       "int32_t *",
       &support::getI32VAddFiniteBinaryFrontendContract()};
@@ -117,8 +113,6 @@ inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
       "rvv-i32-vsub-runtime-callable-c-function.v1",
       "runtime-callable-i32-vsub-function",
       "rvv-i32-vsub-microkernel-external-abi.v1",
-      "-",
-      "int32_t",
       "const int32_t *",
       "int32_t *",
       &support::getI32VSubFiniteBinaryFrontendContract()};
@@ -151,8 +145,6 @@ inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
       "rvv-i32-vmul-runtime-callable-c-function.v1",
       "runtime-callable-i32-vmul-function",
       "rvv-i32-vmul-microkernel-external-abi.v1",
-      "*",
-      "int32_t",
       "const int32_t *",
       "int32_t *",
       &support::getI32VMulFiniteBinaryFrontendContract()};
@@ -185,8 +177,6 @@ inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyRegistrationRecord() {
       "rvv-i64-vadd-runtime-callable-c-function.v1",
       "runtime-callable-i64-vadd-function",
       "rvv-i64-vadd-microkernel-external-abi.v1",
-      "+",
-      "int64_t",
       "const int64_t *",
       "int64_t *",
       &support::getI64VAddFiniteBinaryFrontendContract()};
@@ -219,8 +209,6 @@ inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyRegistrationRecord() {
       "rvv-i64-vsub-runtime-callable-c-function.v1",
       "runtime-callable-i64-vsub-function",
       "rvv-i64-vsub-microkernel-external-abi.v1",
-      "-",
-      "int64_t",
       "const int64_t *",
       "int64_t *",
       &support::getI64VSubFiniteBinaryFrontendContract()};
@@ -253,8 +241,6 @@ inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyRegistrationRecord() {
       "rvv-i64-vmul-runtime-callable-c-function.v1",
       "runtime-callable-i64-vmul-function",
       "rvv-i64-vmul-microkernel-external-abi.v1",
-      "*",
-      "int64_t",
       "const int64_t *",
       "int64_t *",
       &support::getI64VMulFiniteBinaryFrontendContract()};

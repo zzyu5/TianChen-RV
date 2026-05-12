@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants for implementation stack, descriptor boundary, and evidence claims."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check that descriptor cleanup preserves unified extension-family architecture."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check default artifact generation still follows typed family op to EmitC route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI, selected-plan metadata, and target artifact boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build validation is sufficient and claims remain bounded."}
+{"file": "include/TianChenRV/Target/RVV/RVVBinaryDescriptor.h", "reason": "Source search passed: no live include/lib/test/script hits for getCArithmeticCheckExpression, getCOperator, getScalarCType, cOperator, scalarCType, c_operator, arithmetic_operator, or arithmetic_c_operator."}
+{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "Source search passed: default generated artifacts no longer contain arithmetic_c_operator or selected_binary_config lowering_descriptor comments."}
+{"file": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused artifact export C++ test passed after rebuilding touched RVV, scalar, dispatch, tcrv-opt, and tcrv-translate targets."}
+{"file": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test", "reason": "Focused family registry C++ test passed after descriptor compute mirror fields were removed."}
+{"file": "scripts/rvv_microkernel_e2e.py", "reason": "Self-test passed, including stale selected family and missing runtime ABI fail-closed cases under the updated typed provenance vocabulary."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vadd.mlir", "reason": "Focused lit passed for direct RVV typed arithmetic_source provenance after descriptor arithmetic comment removal."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vsub.mlir", "reason": "Focused lit passed for direct RVV typed arithmetic_source provenance after descriptor arithmetic comment removal."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vmul.mlir", "reason": "Focused lit passed for direct RVV typed arithmetic_source provenance after descriptor arithmetic comment removal."}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-i32m2-generic-route.mlir", "reason": "Focused lit passed for RVV+scalar dispatch selected config without default lowering_descriptor authority comment."}
+{"file": "test/Scripts/rvv-microkernel-e2e.test", "reason": "Focused lit passed for direct e2e typed arithmetic_source and arithmetic_token evidence."}
+{"file": "test/Scripts/rvv-scalar-dispatch-bundle-e2e.test", "reason": "Focused lit passed for RVV+scalar bundle export without descriptor lowering authority in selected config comments."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-descriptor-compute-api-exit/prd.md", "reason": "Whitespace checks passed: git diff --check and git diff --cached --check."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-descriptor-compute-api-exit/prd.md", "reason": "Full validation passed: cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2, 209/209 lit tests passed."}

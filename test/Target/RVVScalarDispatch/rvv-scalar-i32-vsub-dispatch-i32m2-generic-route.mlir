@@ -91,7 +91,7 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 
 // SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
 // SOURCE: /* selected_kernel: @frontend_dispatch_i32m2_vsub */
-// SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, lowering_descriptor=i32-vsub-microkernel.v1, shape=i32m2, sew=32, lmul=m2
+// SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, shape=i32m2, sew=32, lmul=m2
 // SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[6]: name=tcrv_rvv.selected_vector_suffix, value=i32m2, role=selected-rvv-vector-shape-config
 // SOURCE: /* rvv_selected_plan_metadata[8]: name=tcrv_rvv.selected_vector_sew_capability, value=rvv.i32_m2.sew32, role=selected-rvv-vector-shape-capability

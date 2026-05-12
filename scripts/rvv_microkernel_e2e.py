@@ -53,7 +53,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "intrinsic": "__riscv_vadd_vv_i32m1",
         "function_stem": "i32_vadd",
         "result_vec": "sum_vec",
-        "c_operator": "+",
+        "arithmetic_token": "+",
         "source_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-microkernel-header",
         "object_route": "tcrv-export-rvv-microkernel-object",
@@ -81,7 +81,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "intrinsic": "__riscv_vsub_vv_i32m1",
         "function_stem": "i32_vsub",
         "result_vec": "difference_vec",
-        "c_operator": "-",
+        "arithmetic_token": "-",
         "source_route": "tcrv-export-rvv-i32-vsub-microkernel-c",
         "header_route": "tcrv-export-rvv-i32-vsub-microkernel-header",
         "object_route": "tcrv-export-rvv-i32-vsub-microkernel-object",
@@ -106,7 +106,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "intrinsic": "__riscv_vmul_vv_i32m1",
         "function_stem": "i32_vmul",
         "result_vec": "product_vec",
-        "c_operator": "*",
+        "arithmetic_token": "*",
         "source_route": "tcrv-export-rvv-i32-vmul-microkernel-c",
         "header_route": "tcrv-export-rvv-i32-vmul-microkernel-header",
         "object_route": "tcrv-export-rvv-i32-vmul-microkernel-object",
@@ -133,7 +133,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "intrinsic": "__riscv_vadd_vv_i64m1",
         "function_stem": "i64_vadd",
         "result_vec": "sum_vec",
-        "c_operator": "+",
+        "arithmetic_token": "+",
         "source_route": "tcrv-export-rvv-i64-vadd-microkernel-c",
         "source_translation_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-i64-vadd-microkernel-header",
@@ -163,7 +163,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "intrinsic": "__riscv_vsub_vv_i64m1",
         "function_stem": "i64_vsub",
         "result_vec": "difference_vec",
-        "c_operator": "-",
+        "arithmetic_token": "-",
         "source_route": "tcrv-export-rvv-i64-vsub-microkernel-c",
         "source_translation_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-i64-vsub-microkernel-header",
@@ -193,7 +193,7 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "intrinsic": "__riscv_vmul_vv_i64m1",
         "function_stem": "i64_vmul",
         "result_vec": "product_vec",
-        "c_operator": "*",
+        "arithmetic_token": "*",
         "source_route": "tcrv-export-rvv-i64-vmul-microkernel-c",
         "source_translation_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-i64-vmul-microkernel-header",
@@ -1688,7 +1688,9 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "/* arithmetic_family: "
         + str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
         + " */",
-        "/* arithmetic_c_operator: " + str(ACTIVE_ARITHMETIC_FAMILY["c_operator"]),
+        "/* arithmetic_source: typed op "
+        + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+        + " via generated EmitC route and IR-backed callable ABI */",
         "/* selected_vector_shape_config:",
         "/* selected_vector_shape_capabilities:",
         "/* dataflow_body: tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_load -> tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_load -> "
@@ -1775,14 +1777,19 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
             )
     selected_march = parse_source_comment(source, "selected_march", required=True)
     selected_mabi = parse_source_comment(source, "selected_mabi", required=False)
-    arithmetic_operator = parse_source_comment(
-        source, "arithmetic_c_operator", required=True
+    arithmetic_source = parse_source_comment(
+        source, "arithmetic_source", required=True
     )
-    if arithmetic_operator != str(ACTIVE_ARITHMETIC_FAMILY["c_operator"]):
+    expected_arithmetic_source = (
+        "typed op "
+        + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+        + " via generated EmitC route and IR-backed callable ABI"
+    )
+    if arithmetic_source != expected_arithmetic_source:
         raise BridgeError(
-            "generated RVV microkernel C source arithmetic_c_operator "
-            f"{arithmetic_operator!r} does not match selected family "
-            f"{ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}"
+            "generated RVV microkernel C source arithmetic_source "
+            f"{arithmetic_source!r} does not match typed source op "
+            f"{ACTIVE_ARITHMETIC_FAMILY['arithmetic_op_name']}"
         )
     if "v" not in selected_march.lower():
         raise BridgeError("selected_march from generated source must contain RVV vector evidence")
@@ -1796,7 +1803,8 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     return {
         "selected_march": selected_march,
         "selected_mabi": selected_mabi,
-        "arithmetic_operator": arithmetic_operator,
+        "arithmetic_source": arithmetic_source,
+        "arithmetic_token": str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_token"]),
         "vector_config": vector_config,
         "dataflow_provenance": provenance,
         "emitc_route_provenance": emitc_route_provenance,
@@ -2129,7 +2137,7 @@ def build_external_caller_source(
     function_name: str,
     header_file_name: str = "rvv_microkernel.h",
     runtime_abi_parameters: list[dict[str, str]] | None = None,
-    arithmetic_operator: str | None = None,
+    arithmetic_token: str | None = None,
     runtime_counts: list[int] | None = None,
 ) -> str:
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", function_name):
@@ -2141,9 +2149,13 @@ def build_external_caller_source(
     if parameters != runtime_abi_signature_for_family(ACTIVE_ARITHMETIC_FAMILY):
         validate_runtime_abi_signature(parameters, ACTIVE_ARITHMETIC_FAMILY)
     scalar_c_type = c_scalar_type_from_abi_type(parameters[0]["c_type"])
-    c_operator = arithmetic_operator or str(ACTIVE_ARITHMETIC_FAMILY["c_operator"])
-    if c_operator not in {"+", "-", "*"}:
-        raise BridgeError(f"unsupported arithmetic operator: {c_operator}")
+    selected_arithmetic_token = arithmetic_token or str(
+        ACTIVE_ARITHMETIC_FAMILY["arithmetic_token"]
+    )
+    if selected_arithmetic_token not in {"+", "-", "*"}:
+        raise BridgeError(
+            f"unsupported arithmetic token: {selected_arithmetic_token}"
+        )
     counts = runtime_counts or DIRECT_EXTERNAL_RUNTIME_COUNTS
     if len(counts) < 2:
         raise BridgeError("external caller evidence requires at least two runtime counts")
@@ -2174,7 +2186,7 @@ int main(void) {{
 
     {function_name}(lhs, rhs, out, runtime_n);
     for (size_t index = 0; index < runtime_n; ++index) {{
-      if (out[index] != lhs[index] {c_operator} rhs[index]) {{
+      if (out[index] != lhs[index] {selected_arithmetic_token} rhs[index]) {{
         fprintf(stderr, "rvv {family_name} microkernel external ABI mismatch at %zu for n=%zu\\n", index, runtime_n);
         return 3;
       }}
@@ -3578,7 +3590,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         header_function_name,
         str(selected_records["header"]["file_name"]),
         source_flags["runtime_abi_parameters"],
-        source_flags["arithmetic_operator"],
+        source_flags["arithmetic_token"],
         DIRECT_EXTERNAL_RUNTIME_COUNTS,
     )
     caller_path = artifact_dir / "rvv_microkernel_external_caller.c"
@@ -3654,7 +3666,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
         "compiler_path_context": source_flags["compiler_path_context"],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
-        "arithmetic_operator": source_flags["arithmetic_operator"],
+        "arithmetic_token": source_flags["arithmetic_token"],
         "expected_selected_kernel": expected_selected_kernel,
         "external_caller": {
             "kind": "generated-c-caller",
@@ -3662,7 +3674,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "runtime_abi_signature": source_flags["runtime_abi_parameters"],
             "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
             "arithmetic_check": "lhs "
-            + source_flags["arithmetic_operator"]
+            + source_flags["arithmetic_token"]
             + " rhs",
             "runtime_element_counts": DIRECT_EXTERNAL_RUNTIME_COUNTS,
         },
@@ -3975,7 +3987,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             header_function_name,
             header_path.name,
             source_flags["runtime_abi_parameters"],
-            source_flags["arithmetic_operator"],
+            source_flags["arithmetic_token"],
             DIRECT_EXTERNAL_RUNTIME_COUNTS,
         )
         write_generated_text(
@@ -4113,7 +4125,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "selected_binary_source_authority": selected_binary_source_authority,
         "compiler_path_context": source_flags["compiler_path_context"],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
-        "arithmetic_operator": source_flags["arithmetic_operator"],
+        "arithmetic_token": source_flags["arithmetic_token"],
         "expected_selected_kernel": expected_selected_kernel,
         "expected_stdout_marker": (
             SUCCESS_MARKER if use_harness else EXTERNAL_ABI_SUCCESS_MARKER
@@ -4204,7 +4216,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 "runtime_abi_signature": source_flags["runtime_abi_parameters"],
                 "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
                 "arithmetic_check": "lhs "
-                + source_flags["arithmetic_operator"]
+                + source_flags["arithmetic_token"]
                 + " rhs",
                 "runtime_element_counts": DIRECT_EXTERNAL_RUNTIME_COUNTS,
             }
@@ -4687,7 +4699,7 @@ kernel @rvv_microkernel_manifest
 /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 /* arithmetic_family: i32-vadd */
 /* dtype: i32 */
-/* arithmetic_c_operator: + */
+/* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -4783,7 +4795,7 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* arithmetic_family: i32-vsub */
 /* dtype: i32 */
-/* arithmetic_c_operator: - */
+/* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -4839,7 +4851,7 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* arithmetic_family: i32-vsub */
 /* dtype: i32 */
-/* arithmetic_c_operator: - */
+/* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -4899,7 +4911,7 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 /* arithmetic_family: i32-vmul */
 /* dtype: i32 */
-/* arithmetic_c_operator: * */
+/* arithmetic_source: typed op tcrv_rvv.i32_mul via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
@@ -4984,7 +4996,7 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
 /* arithmetic_family: i64-vadd */
 /* dtype: i64 */
-/* arithmetic_c_operator: + */
+/* arithmetic_source: typed op tcrv_rvv.i64_add via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_add -> tcrv_rvv.i64_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 /* dataflow_emission_step[0]: op=tcrv_rvv.i64_load, role=lhs-input-buffer, result=lhs_vec */
@@ -5036,7 +5048,7 @@ void tcrv_rvv_i64_vadd_microkernel_self_test(const int64_t *lhs, const int64_t *
         i64_function_name,
         "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i64-vadd-microkernel-header.h",
         i64_flags["runtime_abi_parameters"],
-        i64_flags["arithmetic_operator"],
+        i64_flags["arithmetic_token"],
         DIRECT_EXTERNAL_RUNTIME_COUNTS,
     )
     assert_self_test(

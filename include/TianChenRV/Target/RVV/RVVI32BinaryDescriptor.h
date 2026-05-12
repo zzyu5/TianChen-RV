@@ -76,7 +76,6 @@ struct RVVI32BinaryIntrinsicDescriptor {
   llvm::StringRef getDispatchSuccessMarker() const {
     return family->dispatch.selfCheckSuccessMarker;
   }
-  llvm::StringRef getCOperator() const { return family->dispatch.cOperator; }
   llvm::StringRef getVectorType() const { return shape->vectorType; }
   llvm::StringRef getVectorSuffix() const { return shape->vectorSuffix; }
   llvm::StringRef getSetVLSuffix() const { return shape->setvlSuffix; }
@@ -111,12 +110,6 @@ struct RVVI32BinaryIntrinsicDescriptor {
 
   std::string getStoreIntrinsicName() const {
     return (llvm::Twine("__riscv_vse32_v_") + shape->vectorSuffix).str();
-  }
-
-  std::string getCArithmeticCheckExpression(llvm::StringRef lhs,
-                                            llvm::StringRef rhs) const {
-    return (llvm::Twine(lhs) + " " + family->dispatch.cOperator + " " + rhs)
-        .str();
   }
 
   std::string formatSelectedVectorShapeConfigCommentBody() const {

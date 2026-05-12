@@ -3037,8 +3037,9 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* arithmetic_family: "
      << record.descriptor.getArithmeticFamilyID() << " */\n";
   os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
-  os << "/* arithmetic_c_operator: " << record.descriptor.getCOperator()
-     << " */\n";
+  os << "/* arithmetic_source: typed op "
+     << record.descriptor.getRVVOperationName()
+     << " via generated EmitC route and IR-backed callable ABI */\n";
   os << "/* active_route: " << record.activeRouteID << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
@@ -3145,11 +3146,11 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "static int " << functionName
      << "_self_check_one(size_t runtime_n) {\n";
   os << "  enum { kTCRVMicrokernelCapacity = " << elementCount << " };\n";
-  os << "  " << expectation.scalarCType
+  os << "  " << expectation.scalarElementCType
      << " lhs[kTCRVMicrokernelCapacity];\n";
-  os << "  " << expectation.scalarCType
+  os << "  " << expectation.scalarElementCType
      << " rhs[kTCRVMicrokernelCapacity];\n";
-  os << "  " << expectation.scalarCType
+  os << "  " << expectation.scalarElementCType
      << " out[kTCRVMicrokernelCapacity];\n\n";
   os << "  if (runtime_n == 0 || runtime_n > (size_t)kTCRVMicrokernelCapacity) "
         "{\n";
@@ -3159,11 +3160,12 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n\n";
   os << "  for (size_t index = 0; index < (size_t)kTCRVMicrokernelCapacity; "
         "++index) {\n";
-  os << "    lhs[index] = (" << expectation.scalarCType
+  os << "    lhs[index] = (" << expectation.scalarElementCType
      << ")(index + 1);\n";
-  os << "    rhs[index] = (" << expectation.scalarCType
+  os << "    rhs[index] = (" << expectation.scalarElementCType
      << ")(100 - (int)index);\n";
-  os << "    out[index] = (" << expectation.scalarCType << ")-12345;\n";
+  os << "    out[index] = (" << expectation.scalarElementCType
+     << ")-12345;\n";
   os << "  }\n\n";
   os << "  size_t first_vl = " << intrinsicConfig.setvlIntrinsicName
      << "(runtime_n);\n";
@@ -3173,7 +3175,7 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n\n";
   os << "  " << functionName << "(lhs, rhs, out, runtime_n);\n\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
-  os << "    " << expectation.scalarCType << " expected = "
+  os << "    " << expectation.scalarElementCType << " expected = "
      << expectation.formatExpression("lhs[index]", "rhs[index]")
      << ";\n";
   os << "    if (out[index] != expected) {\n";
@@ -3183,7 +3185,7 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n";
   os << "  for (size_t index = runtime_n; "
         "index < (size_t)kTCRVMicrokernelCapacity; ++index) {\n";
-  os << "    if (out[index] != (" << expectation.scalarCType
+  os << "    if (out[index] != (" << expectation.scalarElementCType
      << ")-12345) {\n";
   os << "      fprintf(stderr, \"rvv microkernel wrote past runtime_n at "
         "%zu\\n\", index);\n";

@@ -170,6 +170,63 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 performance claim was made.
 
 
+## Session 39: RVV descriptor compute API exit
+
+**Date**: 2026-05-12
+**Task**: rvv-descriptor-compute-api-exit
+**Branch**: `main`
+
+### Summary
+
+Quarantined descriptor-owned arithmetic/type helper authority from the live RVV,
+scalar fallback, and RVV+scalar default artifact/export path. Generated
+compute/self-check/provenance now uses typed family-op authority, the common
+EmitC route, and IR-backed runtime ABI roles instead of descriptor compute
+helpers.
+
+### Main Changes
+
+- Removed public descriptor compute helpers and mirror fields:
+  `getCArithmeticCheckExpression`, descriptor `getCOperator`,
+  descriptor `getScalarCType`, `cOperator`, and `scalarCType`.
+- Removed default generated `arithmetic_c_operator` comments and replaced them
+  with typed `arithmetic_source` provenance.
+- Removed default `selected_binary_config` `lowering_descriptor` comments from
+  generated dispatch summaries.
+- Rewired scalar fallback helper C element type derivation to runtime ABI
+  pointer roles instead of descriptor scalar type metadata.
+- Rewired RVV+scalar dispatch self-check arithmetic to selected typed component
+  family authority instead of suffix/descriptor-derived compute metadata.
+- Updated direct e2e evidence vocabulary from descriptor `c_operator` to typed
+  `arithmetic_token`.
+
+### Testing
+
+- `git diff --check`
+- `git diff --cached --check`
+- Focused source search over `include`, `lib`, `test`, and
+  `scripts/rvv_microkernel_e2e.py`: no live hits for descriptor compute helper
+  names or default descriptor arithmetic/provenance vocabulary.
+- Focused build targets:
+  `TianChenRVRVVTarget`, `TianChenRVScalarTarget`,
+  `TianChenRVBuiltinTargetArtifactExporters`, `tcrv-translate`, `tcrv-opt`,
+  `tianchenrv-target-artifact-export-test`, and
+  `tianchenrv-i32-binary-family-registry-test`.
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-i32-binary-family-registry-test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- Focused lit filter for direct RVV, scalar fallback, RVV+scalar dispatch, and
+  frontend-to-artifact paths, 13/13 passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-descriptor-compute-api-exit`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed and ready to archive. No `ssh rvv` runtime, correctness, or
+performance claim was made.
+
+
 ## Session 38: RVV plugin proposal planning descriptor exit
 
 **Date**: 2026-05-12

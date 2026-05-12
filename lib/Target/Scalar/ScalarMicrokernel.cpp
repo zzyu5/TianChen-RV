@@ -1723,6 +1723,62 @@ const support::RuntimeABIParameter *lookupParameterByRole(
   return nullptr;
 }
 
+llvm::Expected<std::string> deriveScalarElementCTypeFromPointerABI(
+    const support::RuntimeABIParameter &parameter, llvm::StringRef context) {
+  llvm::StringRef cType = llvm::StringRef(parameter.cType).trim();
+  if (!cType.ends_with("*"))
+    return makeModuleMicrokernelError(
+        llvm::Twine(context) + " ABI parameter '" + parameter.cName +
+        "' with role '" +
+        support::stringifyRuntimeABIParameterRole(parameter.role) +
+        "' must be a pointer type before scalar EmitC source rendering");
+
+  llvm::StringRef pointee = cType.drop_back().rtrim();
+  if (pointee.consume_front("const "))
+    pointee = pointee.ltrim();
+  if (pointee.empty())
+    return makeModuleMicrokernelError(
+        llvm::Twine(context) + " ABI parameter '" + parameter.cName +
+        "' has no scalar pointee type before scalar EmitC source rendering");
+  return pointee.str();
+}
+
+llvm::Expected<std::string> deriveScalarElementCTypeFromCallableABI(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    llvm::StringRef context) {
+  const support::RuntimeABIParameter *lhs = lookupParameterByRole(
+      parameters, support::RuntimeABIParameterRole::LHSInputBuffer);
+  const support::RuntimeABIParameter *rhs = lookupParameterByRole(
+      parameters, support::RuntimeABIParameterRole::RHSInputBuffer);
+  const support::RuntimeABIParameter *out = lookupParameterByRole(
+      parameters, support::RuntimeABIParameterRole::OutputBuffer);
+  if (!lhs || !rhs || !out)
+    return makeModuleMicrokernelError(
+        llvm::Twine(context) +
+        " requires lhs, rhs, and output ABI mappings from the IR-backed "
+        "callable plan before scalar element type selection");
+
+  llvm::Expected<std::string> lhsType =
+      deriveScalarElementCTypeFromPointerABI(*lhs, context);
+  if (!lhsType)
+    return lhsType.takeError();
+  llvm::Expected<std::string> rhsType =
+      deriveScalarElementCTypeFromPointerABI(*rhs, context);
+  if (!rhsType)
+    return rhsType.takeError();
+  llvm::Expected<std::string> outType =
+      deriveScalarElementCTypeFromPointerABI(*out, context);
+  if (!outType)
+    return outType.takeError();
+
+  if (*lhsType != *rhsType || *lhsType != *outType)
+    return makeModuleMicrokernelError(
+        llvm::Twine(context) +
+        " requires lhs, rhs, and output ABI pointer scalar types to agree "
+        "before scalar EmitC source rendering");
+  return std::move(*lhsType);
+}
+
 class ScalarBinaryEmitCLowerable final : public TCRVEmitCLowerableInterface {
 public:
   explicit ScalarBinaryEmitCLowerable(const ScalarMicrokernelRecord &record)
@@ -1759,8 +1815,13 @@ public:
         "typed-scalar-family-op-to-emitc-call-opaque");
     route.addHeader("stddef.h");
     route.addHeader("stdint.h");
-    llvm::StringRef scalarCType = record.family->rvvFamily->scalarCType;
-    route.addTypeMapping(record.family->rvvFamily->dtypeID, scalarCType);
+    llvm::Expected<std::string> scalarElementCType =
+        deriveScalarElementCTypeFromCallableABI(
+            record.runtimeABIParameters, "scalar binary EmitC route");
+    if (!scalarElementCType)
+      return scalarElementCType.takeError();
+    route.addTypeMapping(record.family->rvvFamily->dtypeID,
+                         *scalarElementCType);
     for (const support::RuntimeABIParameter &parameter :
          record.runtimeABIParameters)
       route.addABIValueMapping(parameter, parameter.cName);
@@ -1771,12 +1832,12 @@ public:
     computeStep.sourceOp.opInterface = record.emitcSourceOpInterface;
     computeStep.callee = getScalarEmitCCallee(*record.family);
     computeStep.operands.push_back(
-        {(llvm::Twine(lhs->cName) + "[index]").str(), scalarCType.str()});
+        {(llvm::Twine(lhs->cName) + "[index]").str(), *scalarElementCType});
     computeStep.operands.push_back(
-        {(llvm::Twine(rhs->cName) + "[index]").str(), scalarCType.str()});
+        {(llvm::Twine(rhs->cName) + "[index]").str(), *scalarElementCType});
     llvm::StringRef resultName = getScalarEmitCResultName(*record.family);
     computeStep.result =
-        TCRVEmitCCallOpaqueResult{resultName.str(), scalarCType.str()};
+        TCRVEmitCCallOpaqueResult{resultName.str(), *scalarElementCType};
     route.addCallOpaqueStep(std::move(computeStep));
 
     TCRVEmitCCallOpaqueStep storeStep;
@@ -1786,7 +1847,7 @@ public:
     storeStep.callee = getScalarEmitCStoreCallee(*record.family);
     storeStep.operands.push_back(
         {(llvm::Twine("&") + out->cName + "[index]").str(), out->cType});
-    storeStep.operands.push_back({resultName.str(), scalarCType.str()});
+    storeStep.operands.push_back({resultName.str(), *scalarElementCType});
     route.addCallOpaqueStep(std::move(storeStep));
 
     return route;
@@ -1971,11 +2032,11 @@ void printMicrokernelPrototype(
 }
 
 void printScalarRuntimeHelperDefinitions(
-    llvm::raw_ostream &os, const ScalarI32MicrokernelFamilySpec &family) {
-  llvm::StringRef scalarCType = family.rvvFamily->scalarCType;
-  os << "static inline " << scalarCType << " "
-     << getScalarEmitCCallee(family) << "(" << scalarCType << " lhs, "
-     << scalarCType << " rhs) {\n";
+    llvm::raw_ostream &os, const ScalarI32MicrokernelFamilySpec &family,
+    llvm::StringRef scalarElementCType) {
+  os << "static inline " << scalarElementCType << " "
+     << getScalarEmitCCallee(family) << "(" << scalarElementCType << " lhs, "
+     << scalarElementCType << " rhs) {\n";
   switch (family.rvvFamily->arithmetic) {
   case RVVBinaryArithmeticKind::Add:
     os << "  return lhs + rhs;\n";
@@ -1990,7 +2051,8 @@ void printScalarRuntimeHelperDefinitions(
   os << "}\n\n";
 
   os << "static inline void " << getScalarEmitCStoreCallee(family) << "("
-     << scalarCType << " *out, " << scalarCType << " value) {\n";
+     << scalarElementCType << " *out, " << scalarElementCType
+     << " value) {\n";
   os << "  *out = value;\n";
   os << "}\n\n";
 }
@@ -2061,7 +2123,13 @@ llvm::Error printMicrokernelSource(const ScalarMicrokernelRecord &record,
     return makeModuleMicrokernelError(
         "scalar microkernel source export requires a typed scalar EmitC "
         "lowerable route before production C source rendering");
-  printScalarRuntimeHelperDefinitions(os, *record.family);
+  llvm::Expected<std::string> scalarElementCType =
+      deriveScalarElementCTypeFromCallableABI(
+          record.runtimeABIParameters, "scalar runtime helper emission");
+  if (!scalarElementCType)
+    return scalarElementCType.takeError();
+  printScalarRuntimeHelperDefinitions(os, *record.family,
+                                      *scalarElementCType);
   printRecordComment(os, record, functionName,
                      emitcRoute ? &*emitcRoute : nullptr);
   if (llvm::Error error =

@@ -125,7 +125,7 @@ module @rvv_microkernel_i64_vsub_export_input {
 // SOURCE: /* executable_microkernel: tcrv_rvv.i64_vsub_microkernel */
 // SOURCE: /* arithmetic_family: i64-vsub */
 // SOURCE: /* dtype: i64 */
-// SOURCE: /* arithmetic_c_operator: - */
+// SOURCE: /* arithmetic_source: typed op tcrv_rvv.i64_sub via generated EmitC route and IR-backed callable ABI */
 // SOURCE: /* active_route: tcrv-export-rvv-i64-vsub-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_sub -> tcrv_rvv.i64_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */

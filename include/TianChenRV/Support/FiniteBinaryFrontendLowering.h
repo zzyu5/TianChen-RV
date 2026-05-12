@@ -31,7 +31,6 @@ struct FiniteBinaryFrontendContract {
   unsigned elementBitWidth = 32;
   llvm::StringRef familyID;
   llvm::StringRef frontendLowering;
-  llvm::StringRef scalarCType;
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
 };
@@ -44,7 +43,6 @@ getI32VAddFiniteBinaryFrontendContract() {
       32,
       "i32-vadd",
       "i32-vadd",
-      "int32_t",
       "const int32_t *",
       "int32_t *"};
   return contract;
@@ -58,7 +56,6 @@ getI32VSubFiniteBinaryFrontendContract() {
       32,
       "i32-vsub",
       "i32-vsub",
-      "int32_t",
       "const int32_t *",
       "int32_t *"};
   return contract;
@@ -72,7 +69,6 @@ getI32VMulFiniteBinaryFrontendContract() {
       32,
       "i32-vmul",
       "i32-vmul",
-      "int32_t",
       "const int32_t *",
       "int32_t *"};
   return contract;
@@ -86,7 +82,6 @@ getI64VAddFiniteBinaryFrontendContract() {
       64,
       "i64-vadd",
       "i64-vadd",
-      "int64_t",
       "const int64_t *",
       "int64_t *"};
   return contract;
@@ -100,7 +95,6 @@ getI64VSubFiniteBinaryFrontendContract() {
       64,
       "i64-vsub",
       "i64-vsub",
-      "int64_t",
       "const int64_t *",
       "int64_t *"};
   return contract;
@@ -114,7 +108,6 @@ getI64VMulFiniteBinaryFrontendContract() {
       64,
       "i64-vmul",
       "i64-vmul",
-      "int64_t",
       "const int64_t *",
       "int64_t *"};
   return contract;

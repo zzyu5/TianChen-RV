@@ -124,12 +124,6 @@ public:
   llvm::StringRef getArithmeticVerb() const {
     return family ? family->arithmeticVerb : llvm::StringRef();
   }
-  llvm::StringRef getCOperator() const {
-    return family ? family->cOperator : llvm::StringRef();
-  }
-  llvm::StringRef getScalarCType() const {
-    return family ? family->scalarCType : llvm::StringRef();
-  }
   llvm::StringRef getConstInputPointerCType() const {
     return family ? family->constInputPointerCType : llvm::StringRef();
   }
@@ -233,7 +227,6 @@ public:
     stream << "selected_binary_config: dtype=" << getDTypeID()
            << ", family=" << getFamilyID()
            << ", operator=" << getArithmeticVerb()
-           << ", lowering_descriptor=" << getLoweringDescriptor()
            << ", shape=" << getShapeID() << ", sew=" << getSEWBits()
            << ", lmul=" << getLMUL()
            << ", tail_policy=" << getTailPolicy()

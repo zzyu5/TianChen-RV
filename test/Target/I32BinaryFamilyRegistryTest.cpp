@@ -474,9 +474,6 @@ int expectStaleFamilyMismatchGuards() {
       if (int result = expect(lhs->scalar.routeID != rhs->scalar.routeID,
                               "scalar source routes are pairwise distinct"))
         return result;
-      if (int result = expect(lhs->scalar.cOperator != rhs->scalar.cOperator,
-                              "scalar operators are pairwise distinct"))
-        return result;
       if (int result = expect(lhs->dispatch.selfCheckSuccessMarker !=
                                   rhs->dispatch.selfCheckSuccessMarker,
                               "dispatch self-check markers are pairwise "
@@ -693,17 +690,6 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
                               "intrinsic from shape"))
         return result;
 
-      std::string expectedCheck =
-          (llvm::Twine("lhs[index] ") + family->dispatch.cOperator +
-           " rhs[index]")
-              .str();
-      if (int result = expect(descriptor.getCArithmeticCheckExpression(
-                                  "lhs[index]", "rhs[index]") ==
-                                  expectedCheck,
-                              "RVV i32 selected intrinsic helper derives C arithmetic "
-                              "check expression"))
-        return result;
-
       llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
           descriptor.getSelectedShapeCapabilityIDs();
       if (int result =
@@ -752,11 +738,6 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
                                     "__riscv_vmul_vv_i32m2",
                                 "RVV selected intrinsic helper derives vmul i32m2 "
                                 "intrinsic"))
-          return result;
-        if (int result = expect(descriptor.getCArithmeticCheckExpression(
-                                    "lhs[index]", "rhs[index]") ==
-                                    "lhs[index] * rhs[index]",
-                                "RVV selected intrinsic helper derives vmul caller check"))
           return result;
         if (int result = expect(descriptor.getDispatchSourceRouteID() ==
                                     "tcrv-export-rvv-scalar-i32-vmul-"
@@ -837,13 +818,12 @@ int expectRVVBinaryFamilyRegistryShape() {
 
     llvm::StringRef scalarType =
         family->dtype == rvv::RVVBinaryDTypeKind::I64 ? "int64_t" : "int32_t";
-    if (int result = expect(family->scalarCType == scalarType &&
-                                family->constInputPointerCType ==
+    if (int result = expect(family->constInputPointerCType ==
                                     (llvm::Twine("const ") + scalarType + " *")
                                         .str() &&
                                 family->outputPointerCType ==
                                     (llvm::Twine(scalarType) + " *").str(),
-                            "RVV registry owns scalar and pointer C types"))
+                            "RVV registry owns runtime ABI pointer C types"))
       return result;
     if (int result = expect(!family->routeID.empty() &&
                                 !family->headerRouteID.empty() &&
@@ -869,8 +849,8 @@ int expectRVVBinaryFamilyRegistryShape() {
     return result;
   if (int result = expect(
           rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering("i64-vadd")
-              ->scalarCType == "int64_t",
-          "RVV registry owns i64-vadd scalar C type"))
+              ->constInputPointerCType == "const int64_t *",
+          "RVV registry owns i64-vadd input pointer C type"))
     return result;
   if (int result = expect(
           rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering("i64-vsub")
@@ -955,7 +935,6 @@ int expectRVVBinaryI64DescriptorShape() {
       return result;
     if (int result = expect(descriptor.getDTypeID() == "i64" &&
                                 descriptor.getShapeID() == "i64m1" &&
-                                descriptor.getScalarCType() == "int64_t" &&
                                 descriptor.getConstInputPointerCType() ==
                                     "const int64_t *" &&
                                 descriptor.getOutputPointerCType() ==
@@ -1065,12 +1044,11 @@ int expectRVVScalarBinaryBridgeShape() {
   struct I64BridgeCase {
     const bridge::RVVScalarBinaryFamilyDescriptor *family;
     llvm::StringRef stem;
-    llvm::StringRef cOperator;
   };
   const I64BridgeCase i64Cases[] = {
-      {&bridge::getI64VAddFamilyRegistrationRecord(), "i64_vadd", "+"},
-      {&bridge::getI64VSubFamilyRegistrationRecord(), "i64_vsub", "-"},
-      {&bridge::getI64VMulFamilyRegistrationRecord(), "i64_vmul", "*"},
+      {&bridge::getI64VAddFamilyRegistrationRecord(), "i64_vadd"},
+      {&bridge::getI64VSubFamilyRegistrationRecord(), "i64_vsub"},
+      {&bridge::getI64VMulFamilyRegistrationRecord(), "i64_vmul"},
   };
 
   for (const I64BridgeCase &entry : i64Cases) {
@@ -1087,8 +1065,7 @@ int expectRVVScalarBinaryBridgeShape() {
                 i64.scalar.runtimeABIName ==
                     (llvm::Twine("scalar-") + i64.familyID +
                      "-runtime-callable-c-function.v1")
-                        .str() &&
-                i64.scalar.cOperator == entry.cOperator,
+                        .str(),
             "RVV+scalar bridge owns i64 scalar fallback names"))
       return result;
     if (int result = expect(

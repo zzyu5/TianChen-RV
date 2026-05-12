@@ -183,29 +183,29 @@ llvm::Error validateDispatchPairComponentAuthorities(const DispatchPair &pair);
 
 llvm::Error makeModuleDispatchError(llvm::Twine message);
 
-llvm::Expected<BinarySelfCheckArithmeticKind>
-resolveSelfCheckArithmeticFromSelectedFamily(llvm::StringRef familyID) {
-  if (familyID.ends_with("-vadd"))
-    return BinarySelfCheckArithmeticKind::Add;
-  if (familyID.ends_with("-vsub"))
-    return BinarySelfCheckArithmeticKind::Sub;
-  if (familyID.ends_with("-vmul"))
-    return BinarySelfCheckArithmeticKind::Mul;
-  return makeModuleDispatchError(
-      llvm::Twine("selected RVV+scalar dispatch family '") + familyID +
-      "' does not map to a finite typed binary self-check arithmetic");
-}
-
 llvm::Expected<BinarySelfCheckExpectation>
 buildDispatchSelfCheckExpectation(const DispatchPair &pair) {
-  llvm::Expected<BinarySelfCheckArithmeticKind> arithmetic =
-      resolveSelfCheckArithmeticFromSelectedFamily(
-          pair.composite.diagnosticName);
-  if (!arithmetic)
-    return arithmetic.takeError();
+  if (!pair.family || !pair.family->rvvFamily)
+    return makeModuleDispatchError(
+        "RVV+scalar dispatch harness requires a validated typed binary "
+        "family before self-check expectation emission");
+
+  BinarySelfCheckArithmeticKind arithmetic =
+      BinarySelfCheckArithmeticKind::Add;
+  switch (pair.family->rvvFamily->arithmetic) {
+  case tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add:
+    arithmetic = BinarySelfCheckArithmeticKind::Add;
+    break;
+  case tianchenrv::target::rvv::RVVBinaryArithmeticKind::Sub:
+    arithmetic = BinarySelfCheckArithmeticKind::Sub;
+    break;
+  case tianchenrv::target::rvv::RVVBinaryArithmeticKind::Mul:
+    arithmetic = BinarySelfCheckArithmeticKind::Mul;
+    break;
+  }
 
   return tianchenrv::target::buildBinarySelfCheckExpectationFromRuntimeABI(
-      pair.abiPlan.parameters, *arithmetic,
+      pair.abiPlan.parameters, arithmetic,
       "validated RVV dispatch-case component + validated scalar fallback "
       "component + IR-backed dispatch ABI",
       "RVV+scalar dispatch harness");
@@ -2646,14 +2646,15 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
      << "_self_check_one(size_t runtime_n, int " << guardParameterName
      << ") {\n";
   os << "  enum { kCapacity = 32 };\n";
-  os << "  " << expectation.scalarCType << " lhs[kCapacity];\n";
-  os << "  " << expectation.scalarCType << " rhs[kCapacity];\n";
-  os << "  " << expectation.scalarCType << " out[kCapacity];\n";
+  os << "  " << expectation.scalarElementCType << " lhs[kCapacity];\n";
+  os << "  " << expectation.scalarElementCType << " rhs[kCapacity];\n";
+  os << "  " << expectation.scalarElementCType << " out[kCapacity];\n";
   os << "  for (size_t index = 0; index < (size_t)kCapacity; ++index) {\n";
-  os << "    lhs[index] = (" << expectation.scalarCType << ")index;\n";
-  os << "    rhs[index] = (" << expectation.scalarCType
+  os << "    lhs[index] = (" << expectation.scalarElementCType << ")index;\n";
+  os << "    rhs[index] = (" << expectation.scalarElementCType
      << ")(31 - (int)index);\n";
-  os << "    out[index] = (" << expectation.scalarCType << ")-12345;\n";
+  os << "    out[index] = (" << expectation.scalarElementCType
+     << ")-12345;\n";
   os << "  }\n";
   os << "  " << dispatcherFunctionName
      << "(lhs, rhs, out, runtime_n, " << guardParameterName << ");\n";
@@ -2665,7 +2666,7 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n";
   os << "  for (size_t index = runtime_n; index < (size_t)kCapacity; "
         "++index) {\n";
-  os << "    if (out[index] != (" << expectation.scalarCType
+  os << "    if (out[index] != (" << expectation.scalarElementCType
      << ")-12345)\n";
   os << "      return 2;\n";
   os << "  }\n";

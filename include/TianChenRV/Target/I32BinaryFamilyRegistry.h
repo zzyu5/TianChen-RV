@@ -47,7 +47,6 @@ struct ScalarI32MicrokernelFamilyDescriptor {
   llvm::StringRef runtimeABIKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeGlueRole;
-  llvm::StringRef cOperator;
 };
 
 struct DispatchI32FamilyDescriptor {
@@ -56,7 +55,6 @@ struct DispatchI32FamilyDescriptor {
   llvm::StringRef operationNoun;
   llvm::StringRef functionStem;
   llvm::StringRef headerGuardStem;
-  llvm::StringRef cOperator;
   llvm::StringRef selfCheckSuccessMarker;
   llvm::StringRef rvvRouteID;
   llvm::StringRef rvvEmissionKind;
@@ -129,14 +127,12 @@ inline const I32BinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
        "scalar-i32-vadd-runtime-callable-c-abi.v1",
        "scalar-runtime-callable-c-abi",
        "scalar-i32-vadd-runtime-callable-c-function.v1",
-       "runtime-callable-i32-vadd-fallback-function",
-       "+"},
+       "runtime-callable-i32-vadd-fallback-function"},
       {I32BinaryFamilyKind::Add,
        "i32-vadd",
        "i32 vector-add",
        "i32_vadd",
        "I32_VADD",
-       "+",
        "tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok",
        "tcrv-export-rvv-microkernel-c",
        "rvv-explicit-i32-vadd-microkernel-c-source",
@@ -196,14 +192,12 @@ inline const I32BinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
        "scalar-i32-vsub-runtime-callable-c-abi.v1",
        "scalar-runtime-callable-c-abi",
        "scalar-i32-vsub-runtime-callable-c-function.v1",
-       "runtime-callable-i32-vsub-fallback-function",
-       "-"},
+       "runtime-callable-i32-vsub-fallback-function"},
       {I32BinaryFamilyKind::Sub,
        "i32-vsub",
        "i32 vector-subtract",
        "i32_vsub",
        "I32_VSUB",
-       "-",
        "tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok",
        "tcrv-export-rvv-i32-vsub-microkernel-c",
        "rvv-explicit-i32-vsub-microkernel-c-source",
@@ -263,14 +257,12 @@ inline const I32BinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
        "scalar-i32-vmul-runtime-callable-c-abi.v1",
        "scalar-runtime-callable-c-abi",
        "scalar-i32-vmul-runtime-callable-c-function.v1",
-       "runtime-callable-i32-vmul-fallback-function",
-       "*"},
+       "runtime-callable-i32-vmul-fallback-function"},
       {I32BinaryFamilyKind::Mul,
        "i32-vmul",
        "i32 vector-multiply",
        "i32_vmul",
        "I32_VMUL",
-       "*",
        "tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok",
        "tcrv-export-rvv-i32-vmul-microkernel-c",
        "rvv-explicit-i32-vmul-microkernel-c-source",

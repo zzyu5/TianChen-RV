@@ -235,7 +235,7 @@
 # VSUB-M2-PLAN-DRY: "vector_shape": "i32m2"
 
 # VSUB-M2-SOURCE: /* selected_kernel: @frontend_bundle_i32m2_vsub */
-# VSUB-M2-SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, lowering_descriptor=i32-vsub-microkernel.v1, shape=i32m2, sew=32, lmul=m2
+# VSUB-M2-SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, shape=i32m2, sew=32, lmul=m2
 # VSUB-M2-SOURCE-SAME: runtime_element_count_c_name=n
 # VSUB-M2-SOURCE-SAME: dispatch_availability_c_name=rvv_available
 # VSUB-M2-SOURCE-SAME: descriptor_element_count=16

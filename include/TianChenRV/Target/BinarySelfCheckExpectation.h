@@ -23,10 +23,10 @@ enum class BinarySelfCheckArithmeticKind {
 struct BinarySelfCheckExpectation {
   BinarySelfCheckArithmeticKind arithmetic =
       BinarySelfCheckArithmeticKind::Add;
-  std::string scalarCType;
+  std::string scalarElementCType;
   std::string provenance;
 
-  llvm::StringRef getCOperator() const {
+  llvm::StringRef getArithmeticToken() const {
     switch (arithmetic) {
     case BinarySelfCheckArithmeticKind::Add:
       return "+";
@@ -40,7 +40,9 @@ struct BinarySelfCheckExpectation {
 
   std::string formatExpression(llvm::StringRef lhs,
                                llvm::StringRef rhs) const {
-    return (llvm::Twine(lhs) + " " + getCOperator() + " " + rhs).str();
+    return (llvm::Twine(lhs) + " " + getArithmeticToken() + " " +
+            rhs)
+        .str();
   }
 };
 
@@ -126,7 +128,7 @@ buildBinarySelfCheckExpectationFromRuntimeABI(
 
   BinarySelfCheckExpectation expectation;
   expectation.arithmetic = arithmetic;
-  expectation.scalarCType = std::move(*lhsType);
+  expectation.scalarElementCType = std::move(*lhsType);
   expectation.provenance = provenance.str();
   return expectation;
 }
