@@ -3417,6 +3417,14 @@ def selected_input_path(args: argparse.Namespace) -> Path:
     return Path(default_input)
 
 
+def selected_input_source_label(args: argparse.Namespace) -> str:
+    if profile_replay_requested(args):
+        return "rvv-profile-replay"
+    if getattr(args, "lower_linalg_frontend", False):
+        return "linalg-frontend"
+    return "existing-mlir"
+
+
 def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]]:
     if profile_replay_requested(args):
         return (
@@ -3650,11 +3658,14 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "bundle_index": relative_to_repo(index_path, root),
         "bundle_index_summary": bundle_records_summary(records),
         "rvv_config": source_flags["vector_config"],
+        "input_source": selected_input_source_label(args),
         "local_object_export_clang": sanitize_text(local_clang),
         "selected_bundle_records": {
             label: bundle_records_summary([record])[0]
             for label, record in selected_records.items()
         },
+        "source_export_route": str(selected_records["source"]["route"]),
+        "target_artifact_front_door": bundle_export_mode,
         "selected_artifact_paths": {
             "bundle_index": relative_to_repo(index_path, root),
             "source": relative_to_repo(source_path, root),
@@ -4165,7 +4176,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "input_source": (
             profile_replay_metadata.get("input_source", "existing-mlir")
             if profile_replay_metadata
-            else "existing-mlir"
+            else selected_input_source_label(args)
         ),
         "claim_scope": (
             (
@@ -5414,7 +5425,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "In target artifact bundle mode, call the C++ tcrv-translate "
             "plan-and-export bundle front door instead of orchestrating "
-            "tcrv-opt followed by bundle export"
+            "tcrv-opt followed by bundle export. With --lower-linalg-frontend, "
+            "the source fixture is passed directly to that front door."
         ),
     )
     parser.add_argument("--self-test", action="store_true")
@@ -5454,13 +5466,6 @@ def main(argv: list[str]) -> int:
             "cannot be combined with --input, --lower-linalg-frontend, "
             "--use-target-artifact-bundle, --generic-route, or "
             "--self-check-harness",
-            file=sys.stderr,
-        )
-        return 1
-    if args.lower_linalg_frontend and args.use_plan_and_export_bundle_front_door:
-        print(
-            "rvv_microkernel_e2e: --lower-linalg-frontend is not supported "
-            "with --use-plan-and-export-bundle-front-door",
             file=sys.stderr,
         )
         return 1

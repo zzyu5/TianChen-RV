@@ -3,7 +3,7 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id lit-rvv-microkernel-e2e-vsub --overwrite | FileCheck %s --check-prefix=VSUB-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --vector-shape=i32m2 --run-id lit-rvv-microkernel-e2e-vsub-i32m2 --overwrite | FileCheck %s --check-prefix=VSUB-M2-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-e2e-vmul --overwrite | FileCheck %s --check-prefix=VMUL-DRY
-# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --lower-linalg-frontend --expect-selected-kernel=frontend_i32_vadd --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-e2e-i32-vadd-frontend --overwrite | FileCheck %s --check-prefix=I32-VADD-FRONTEND-DRY
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --lower-linalg-frontend --expect-selected-kernel=frontend_i32_vadd --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-e2e-i32-vadd-frontend --overwrite | FileCheck %s --check-prefix=I32-VADD-FRONTEND-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --lower-linalg-frontend --expect-selected-kernel=frontend_i32_vmul --run-id lit-rvv-microkernel-e2e-i32-vmul-frontend --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vmul-to-rvv-artifact.mlir | FileCheck %s --check-prefix=I32-VMUL-FRONTEND-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --run-id lit-rvv-microkernel-e2e-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-DRY
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i64-vadd --profile-replay-evidence-json %S/../Fixtures/rvv_probe/sanitized-success.json --run-id lit-rvv-microkernel-e2e-i64-profile-replay --overwrite | FileCheck %s --check-prefix=PROFILE-REPLAY-DRY
@@ -18,7 +18,7 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.c
-# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-microkernel-c.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay/profile_replay_input.mlir
@@ -33,7 +33,8 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.h
-# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-microkernel-header.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-microkernel-object.o
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay/rvv_microkernel.h
@@ -52,8 +53,10 @@
 # RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/evidence.json
 # RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/evidence.json
-# RUN: FileCheck %s --check-prefix=I32-VADD-FRONTEND-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/evidence.json
-# RUN: FileCheck %s --check-prefix=I32-VADD-FRONTEND-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/rvv_microkernel.c
+# RUN: FileCheck %s --check-prefix=I32-VADD-FRONTEND-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/evidence.json
+# RUN: FileCheck %s --check-prefix=I32-VADD-FRONTEND-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-microkernel-c.c
+# RUN: FileCheck %s --check-prefix=I32-VADD-FRONTEND-SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/command_summary.json
+# RUN: FileCheck %s --check-prefix=I32-VADD-FRONTEND-INDEX < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
 # RUN: FileCheck %s --check-prefix=I32-VMUL-FRONTEND-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/evidence.json
 # RUN: FileCheck %s --check-prefix=I32-VMUL-FRONTEND-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vmul-frontend/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=I64-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd/evidence.json
@@ -135,10 +138,12 @@
 # VMUL-DRY-NOT: hunter2
 
 # I32-VADD-FRONTEND-DRY: "arithmetic_family": "i32-vadd"
-# I32-VADD-FRONTEND-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend"
+# I32-VADD-FRONTEND-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend"
+# I32-VADD-FRONTEND-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
 # I32-VADD-FRONTEND-DRY: "expected_selected_kernel": "frontend_i32_vadd"
+# I32-VADD-FRONTEND-DRY: "input_source": "linalg-frontend"
 # I32-VADD-FRONTEND-DRY: "mode": "dry-run"
-# I32-VADD-FRONTEND-DRY: "planned_pipeline": "tcrv-lower-linalg-rvv-binary-to-exec + tcrv-execution-planning-pipeline"
+# I32-VADD-FRONTEND-DRY: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
 # I32-VADD-FRONTEND-DRY: "runtime_element_counts": [
 # I32-VADD-FRONTEND-DRY-NEXT: 7,
 # I32-VADD-FRONTEND-DRY-NEXT: 16,
@@ -372,11 +377,11 @@
 # VMUL-EVIDENCE-NOT: hunter2
 
 # I32-VADD-FRONTEND-EVIDENCE: "arithmetic_family": "i32-vadd"
-# I32-VADD-FRONTEND-EVIDENCE: "selected_kernel": "frontend_i32_vadd"
+# I32-VADD-FRONTEND-EVIDENCE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
 # I32-VADD-FRONTEND-EVIDENCE: "function_symbol": "tcrv_rvv_i32_vadd_microkernel_frontend_i32_vadd_rvv_first_slice"
 # I32-VADD-FRONTEND-EVIDENCE: "input": "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir"
-# I32-VADD-FRONTEND-EVIDENCE: "runtime_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1"
-# I32-VADD-FRONTEND-EVIDENCE: "planned_pipeline": "tcrv-lower-linalg-rvv-binary-to-exec + tcrv-execution-planning-pipeline"
+# I32-VADD-FRONTEND-EVIDENCE: "input_source": "linalg-frontend"
+# I32-VADD-FRONTEND-EVIDENCE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
 # I32-VADD-FRONTEND-EVIDENCE: "runtime_element_counts": [
 # I32-VADD-FRONTEND-EVIDENCE-NEXT: 7,
 # I32-VADD-FRONTEND-EVIDENCE-NEXT: 16,
@@ -386,7 +391,12 @@
 # I32-VADD-FRONTEND-EVIDENCE-DAG: "__riscv_vle32_v_i32m1"
 # I32-VADD-FRONTEND-EVIDENCE-DAG: "__riscv_vadd_vv_i32m1"
 # I32-VADD-FRONTEND-EVIDENCE-DAG: "__riscv_vse32_v_i32m1"
+# I32-VADD-FRONTEND-EVIDENCE: "selected_bundle_records"
+# I32-VADD-FRONTEND-EVIDENCE: "runtime_abi_name": "rvv-i32-vadd-runtime-callable-c-function.v1"
+# I32-VADD-FRONTEND-EVIDENCE: "source_export_route": "tcrv-export-rvv-microkernel-c"
 # I32-VADD-FRONTEND-EVIDENCE: "ssh_evidence": false
+# I32-VADD-FRONTEND-EVIDENCE: "target_artifact_front_door": "plan-and-export-target-artifact-bundle"
+# I32-VADD-FRONTEND-EVIDENCE-NOT: direct_helper_artifacts
 # I32-VADD-FRONTEND-EVIDENCE-NOT: runtime_success
 # I32-VADD-FRONTEND-EVIDENCE-NOT: throughput
 # I32-VADD-FRONTEND-EVIDENCE-NOT: latency
@@ -408,6 +418,26 @@
 # I32-VADD-FRONTEND-SOURCE-NOT: runtime_success
 # I32-VADD-FRONTEND-SOURCE-NOT: throughput
 # I32-VADD-FRONTEND-SOURCE-NOT: latency
+
+# I32-VADD-FRONTEND-SUMMARY: --tcrv-plan-and-export-target-artifact-bundle
+# I32-VADD-FRONTEND-SUMMARY: test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir
+# I32-VADD-FRONTEND-SUMMARY: "name": "plan_and_export_target_artifact_bundle"
+# I32-VADD-FRONTEND-SUMMARY-NOT: export_rvv_microkernel_c
+# I32-VADD-FRONTEND-SUMMARY-NOT: tcrv_opt_linalg_frontend_execution_planning_pipeline
+
+# I32-VADD-FRONTEND-INDEX: bundle_status: "complete"
+# I32-VADD-FRONTEND-INDEX: artifact_count: 3
+# I32-VADD-FRONTEND-INDEX: route: "tcrv-export-rvv-microkernel-c"
+# I32-VADD-FRONTEND-INDEX: owner: "rvv-plugin"
+# I32-VADD-FRONTEND-INDEX: runtime_abi_parameter[3]:
+# I32-VADD-FRONTEND-INDEX-NEXT: c_name: "n"
+# I32-VADD-FRONTEND-INDEX-NEXT: c_type: "size_t"
+# I32-VADD-FRONTEND-INDEX-NEXT: role: "runtime-element-count"
+# I32-VADD-FRONTEND-INDEX-NEXT: ownership: "target-export-abi-owned"
+# I32-VADD-FRONTEND-INDEX: name: "tcrv_rvv.runtime_avl_source"
+# I32-VADD-FRONTEND-INDEX: value: "runtime-element-count-abi-parameter"
+# I32-VADD-FRONTEND-INDEX: name: "tcrv_rvv.emitc_lowerable_op_interface"
+# I32-VADD-FRONTEND-INDEX: value: "TCRVEmitCLowerableOpInterface"
 
 # I32-VMUL-FRONTEND-EVIDENCE: "arithmetic_family": "i32-vmul"
 # I32-VMUL-FRONTEND-EVIDENCE: "selected_kernel": "frontend_i32_vmul"

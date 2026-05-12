@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 49
+- **Total Sessions**: 50
 - **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1594 | Active |
+| `journal-4.md` | ~1627 | Active |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 50 | 2026-05-13 | Source-fronted RVV target artifact front door | `3315606` | `main` |
 | 49 | 2026-05-13 | Source-fronted RVV runtime artifact proof | this commit | `main` |
 | 48 | 2026-05-13 | RVV dispatch AVL/VL contract consumption | - | `main` |
 | 47 | 2026-05-13 | RVV exact-family runtime ABI hardware proof | - | `main` |
