@@ -34,12 +34,6 @@ struct TCRVEmitCSourceAuthorityOptions {
   bool declareVariablesAtTop = false;
 };
 
-struct TCRVEmitCLegacyDiagnosticSourceRenderOptions {
-  std::string functionName = "tcrv_emitc_route";
-  std::string loopIndexName = "offset";
-  bool requireInterfaceBackedCompute = true;
-};
-
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
 materializeTCRVEmitCLowerableRoute(
     mlir::MLIRContext &context, const TCRVEmitCLowerableRoute &route,
@@ -57,10 +51,6 @@ materializeTCRVEmitCLowerableRouteSourceAuthority(
 llvm::Error emitTCRVEmitCLowerableRouteAsCppSource(
     const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
     const TCRVEmitCSourceAuthorityOptions &options = {});
-
-llvm::Error renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(
-    const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
-    const TCRVEmitCLegacyDiagnosticSourceRenderOptions &options = {});
 
 } // namespace tianchenrv::conversion::emitc
 

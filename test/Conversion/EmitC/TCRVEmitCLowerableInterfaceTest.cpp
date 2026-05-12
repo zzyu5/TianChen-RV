@@ -241,34 +241,6 @@ makeMinimalMaterializerRoute(llvm::StringRef arithmeticSourceOp,
   return route;
 }
 
-TCRVEmitCLowerableRoute makeRouteWithNonAVLFirstStep() {
-  TCRVEmitCLowerableRoute route(
-      "tcrv-export-rvv-microkernel-c",
-      "extension-family-ops-to-emitc-call-opaque");
-  route.addHeader("riscv_vector.h");
-  route.addTypeMapping("!tcrv_rvv.vl", "size_t");
-  addStandardABI(route);
-
-  TCRVEmitCCallOpaqueStep load;
-  load.sourceOp = {"tcrv_rvv.i32_load", "buffer-load"};
-  load.callee = "__riscv_vle32_v_i32m1";
-  load.operands.push_back({"&lhs[offset]", "const int32_t *"});
-  load.operands.push_back({"n", "size_t"});
-  load.result = TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"};
-  route.addCallOpaqueStep(std::move(load));
-
-  TCRVEmitCCallOpaqueStep arithmetic;
-  arithmetic.sourceOp = {"tcrv_rvv.i32_add", "compute",
-                         kEmitCLowerableOpInterfaceName.str()};
-  arithmetic.callee = "__riscv_vadd_vv_i32m1";
-  arithmetic.operands.push_back({"lhs_vec", "vint32m1_t"});
-  arithmetic.operands.push_back({"lhs_vec", "vint32m1_t"});
-  arithmetic.operands.push_back({"n", "size_t"});
-  arithmetic.result = TCRVEmitCCallOpaqueResult{"sum_vec", "vint32m1_t"};
-  route.addCallOpaqueStep(std::move(arithmetic));
-  return route;
-}
-
 void addStandardScalarABI(TCRVEmitCLowerableRoute &route,
                           bool includeRuntimeElementCount = true) {
   using tianchenrv::support::RuntimeABIParameter;
@@ -483,54 +455,6 @@ int expectMaterializationFails(const TCRVEmitCLowerableRoute &route,
   return expect(llvm::StringRef(message).contains(expectedDiagnostic),
                 llvm::Twine("diagnostic contains '") + expectedDiagnostic +
                     "'");
-}
-
-int expectRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
-                              llvm::StringRef functionName,
-                              llvm::StringRef arithmeticCallee,
-                              llvm::StringRef resultName) {
-  TCRVEmitCLegacyDiagnosticSourceRenderOptions options;
-  options.functionName = functionName.str();
-  options.loopIndexName = "offset";
-  std::string source;
-  llvm::raw_string_ostream os(source);
-  if (llvm::Error error =
-          renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
-                                                                   options))
-    return fail(llvm::Twine("expected route to render C source: ") +
-                llvm::toString(std::move(error)));
-  os.flush();
-
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     (llvm::Twine("void ") + functionName + "(").str()),
-                 "route-rendered source contains function signature"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains("while (offset < n)"),
-                 "route-rendered source uses runtime element-count ABI bound"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     (llvm::Twine("size_t vl = __riscv_vsetvl_e32m1("
-                                  "n - offset)")
-                          .str())),
-                 "route-rendered source emits setvl from call_opaque step"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(arithmeticCallee),
-                 "route-rendered source emits arithmetic callee from route"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     (llvm::Twine("vint32m1_t ") + resultName + " =").str()),
-                 "route-rendered source emits route result binding"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains("offset += vl;"),
-                 "route-rendered source advances by route VL result"))
-    return result;
-  return 0;
 }
 
 int expectRouteEmitsCppSourceAuthority(const TCRVEmitCLowerableRoute &route,
@@ -763,71 +687,6 @@ int expectDispatchRouteSourceAuthorityFails(
                     expectedDiagnostic + "'");
 }
 
-int expectScalarRouteRendersCSource(const TCRVEmitCLowerableRoute &route,
-                                    llvm::StringRef functionName) {
-  TCRVEmitCLegacyDiagnosticSourceRenderOptions options;
-  options.functionName = functionName.str();
-  options.loopIndexName = "index";
-  std::string source;
-  llvm::raw_string_ostream os(source);
-  if (llvm::Error error =
-          renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
-                                                                   options))
-    return fail(llvm::Twine("expected scalar route to render C source: ") +
-                llvm::toString(std::move(error)));
-  os.flush();
-
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     (llvm::Twine("void ") + functionName + "(").str()),
-                 "scalar route-rendered source contains function signature"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "for (size_t index = 0; index < n; ++index)"),
-                 "scalar route-rendered source uses runtime element-count "
-                 "loop"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "int32_t sum = tcrv_scalar_i32_add(lhs[index], "
-                     "rhs[index]);"),
-                 "scalar route-rendered source emits compute call from route"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_scalar_i32_store(&out[index], sum);"),
-                 "scalar route-rendered source emits store call from route"))
-    return result;
-  if (int result = expect(!llvm::StringRef(source).contains("offset += "),
-                          "scalar route-rendered source does not use a VL "
-                          "increment"))
-    return result;
-  return 0;
-}
-
-int expectRouteRenderingFails(const TCRVEmitCLowerableRoute &route,
-                              llvm::StringRef expectedDiagnostic) {
-  TCRVEmitCLegacyDiagnosticSourceRenderOptions options;
-  options.functionName = "tcrv_emitc_bad_render";
-  std::string source;
-  llvm::raw_string_ostream os(source);
-  llvm::Error error =
-      renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction(route, os,
-                                                               options);
-  if (!error)
-    return fail("expected route C source rendering to fail closed");
-  os.flush();
-  if (int result =
-          expect(source.empty(),
-                 "failed route rendering does not emit partial C source"))
-    return result;
-  std::string message = llvm::toString(std::move(error));
-  return expect(llvm::StringRef(message).contains(expectedDiagnostic),
-                llvm::Twine("route renderer diagnostic contains '") +
-                    expectedDiagnostic + "'");
-}
-
 } // namespace
 
 int main() {
@@ -908,9 +767,6 @@ int main() {
           context, *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1",
           "tcrv_rvv.i32_add"))
     return result;
-  if (int result = expectRouteRendersCSource(
-          *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1", "sum_vec"))
-    return result;
   if (int result = expectRouteEmitsCppSourceAuthority(
           *route, "tcrv_emitc_test_add", "__riscv_vadd_vv_i32m1",
           "tcrv_rvv.i32_add"))
@@ -927,11 +783,6 @@ int main() {
   if (int result = expectRouteMaterializes(
           context, *subRoute, "tcrv_emitc_test_sub", "__riscv_vsub_vv_i32m1",
           "tcrv_rvv.i32_sub"))
-    return result;
-  if (int result =
-          expectRouteRendersCSource(*subRoute, "tcrv_emitc_test_sub",
-                                    "__riscv_vsub_vv_i32m1",
-                                    "difference_vec"))
     return result;
   if (int result = expectRouteEmitsCppSourceAuthority(
           *subRoute, "tcrv_emitc_test_sub", "__riscv_vsub_vv_i32m1",
@@ -950,10 +801,6 @@ int main() {
           context, *mulRoute, "tcrv_emitc_test_mul", "__riscv_vmul_vv_i32m1",
           "tcrv_rvv.i32_mul"))
     return result;
-  if (int result =
-          expectRouteRendersCSource(*mulRoute, "tcrv_emitc_test_mul",
-                                    "__riscv_vmul_vv_i32m1", "product_vec"))
-    return result;
   if (int result = expectRouteEmitsCppSourceAuthority(
           *mulRoute, "tcrv_emitc_test_mul", "__riscv_vmul_vv_i32m1",
           "tcrv_rvv.i32_mul"))
@@ -968,10 +815,6 @@ int main() {
           scalarRoute, "tcrv_emitc_scalar_test_add", {"index"}))
     return fail(llvm::Twine("expected scalar route to materialize: ") +
                 llvm::toString(std::move(error)));
-  if (int result =
-          expectScalarRouteRendersCSource(scalarRoute,
-                                          "tcrv_emitc_scalar_test_add"))
-    return result;
   if (int result = expectRouteEmitsCppSourceAuthority(
           scalarRoute, "tcrv_emitc_scalar_test_add", "tcrv_scalar_i32_add",
           "tcrv_scalar.i32_vadd_microkernel", "index"))
@@ -1013,20 +856,6 @@ int main() {
                                        "lhs", "vl", "lhs_value"),
           "ABI value mapping"))
     return result;
-  if (int result = expectRouteRenderingFails(
-          makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
-                                       "__riscv_vadd_vv_i32m1", "sum_vec",
-                                       "lhs", "vl", "lhs", ""),
-          "requires generated op-interface provenance"))
-    return result;
-  if (int result =
-          expectRouteRenderingFails(makeRouteWithNonAVLFirstStep(),
-                                    "non-compute call_opaque result"))
-    return result;
-  if (int result = expectRouteRenderingFails(
-          makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/false),
-          "requires exactly one runtime-element-count ABI mapping"))
-    return result;
   if (int result = expectRouteSourceAuthorityFails(
           makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/false),
           "requires exactly one runtime-element-count ABI mapping", "index"))
@@ -1045,13 +874,6 @@ int main() {
                                    /*firstRole=*/"compute"),
           "source role 'dispatch-case-call'"))
     return result;
-  if (int result = expectRouteRenderingFails(
-          makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
-                                       "__riscv_vadd_vv_i32m1", "sum_vec",
-                                       "missing_vec"),
-          "unknown value name"))
-    return result;
-
   InvalidMissingCalleeLowerable invalid;
   llvm::Expected<TCRVEmitCLowerableRoute> badRoute =
       buildTCRVEmitCLowerableRoute(invalid);

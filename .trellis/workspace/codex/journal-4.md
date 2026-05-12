@@ -1008,3 +1008,51 @@ Quarantined scalar fallback descriptor-only selected-boundary materialization wh
 ### Next Steps
 
 - None - task complete
+
+
+## Session 40: EmitC source authority legacy renderer removal
+
+**Date**: 2026-05-12
+**Task**: EmitC Source Authority Owner
+**Branch**: `main`
+
+### Summary
+
+Removed the remaining legacy route-to-C renderer from the conversion/EmitC
+public API and implementation. The conversion library now exposes route
+materialization to MLIR EmitC and MLIR Cpp source-authority emission, but no
+longer offers a direct custom C renderer for `TCRVEmitCLowerableRoute`.
+
+### Main Changes
+
+- Removed `TCRVEmitCLegacyDiagnosticSourceRenderOptions` and
+  `renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction` from
+  `TCRVEmitCLowerableMaterializer.h`.
+- Deleted the internal `LegacyDiagnosticRouteCSourceRenderer` implementation
+  from `TCRVEmitCLowerableMaterializer.cpp`.
+- Updated `tianchenrv-emitc-lowerable-interface-test` to cover only MLIR EmitC
+  materialization and `mlir::emitc::translateToCpp` source-authority behavior.
+- Kept RVV, scalar fallback, and RVV+scalar dispatch production source routes
+  on the existing MLIR EmitC source-authority path; no runtime evidence claim
+  was made.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVConversionEmitC tianchenrv-emitc-lowerable-interface-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-emitc-lowerable-interface-test`
+- From `artifacts/tmp/tianchenrv-build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'target-source-artifact-routes|scalar-target-source-artifact-routes|scalar-target-vmul-source-artifact-routes|rvv-microkernel-family-(sub|mul)|rvv-scalar-i32-vmul-dispatch-generic-route'`
+  with 8/8 selected tests passed.
+- `rg -n "renderTCRVEmitCLowerableRouteAsLegacyDiagnosticCFunction|TCRVEmitCLegacyDiagnosticSourceRenderOptions|LegacyDiagnosticRouteCSourceRenderer|legacy diagnostic EmitC C source renderer" include lib test`
+  returned no hits.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-emitc-source-authority-owner`
+
+### Status
+
+[OK] Completed. No `ssh rvv` runtime, correctness, or performance claim was
+made.
+
+### Next Steps
+
+- None - task complete

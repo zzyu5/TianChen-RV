@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, unified TCRV, EmitC route, and descriptor boundary invariants"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC source authority and descriptor/custom renderer boundary for route materialization"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact source authority, bounded legacy debt, and production export contracts"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Shared interface and plugin-local lowering/emission boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit and C++ test expectations for compiler behavior"}

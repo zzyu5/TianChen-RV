@@ -1,0 +1,30 @@
+{
+  "id": "emitc-source-authority-owner",
+  "name": "emitc-source-authority-owner",
+  "title": "EmitC Source Authority Owner",
+  "description": "Make typed extension family ops materialize through the common EmitC route so MLIR EmitC source authority, not descriptor/direct custom C export, owns production generated source.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "single-repo",
+  "package": null,
+  "priority": "P0",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-12",
+  "completedAt": "2026-05-12",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h",
+    "lib/Conversion/EmitC/TCRVEmitCLowerableMaterializer.cpp",
+    "test/Conversion/EmitC/TCRVEmitCLowerableInterfaceTest.cpp"
+  ],
+  "notes": "Removed the legacy route-to-C renderer API and implementation so conversion/EmitC exposes only MLIR EmitC materialization and MLIR Cpp source-authority source emission for lowerable routes.",
+  "meta": {}
+}
