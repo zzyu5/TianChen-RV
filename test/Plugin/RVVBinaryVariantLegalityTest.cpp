@@ -184,6 +184,28 @@ module {
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_binary_dtype = "i32",
+      tcrv_rvv.selected_binary_family = "i32-vadd",
+      tcrv_rvv.selected_binary_operator = "add",
+      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+
+    tcrv.exec.variant @i32_default_missing_selected_source attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -396,7 +418,13 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
     return result;
   if (int result = expectSuccess(
           verifyVariant("i32_default_typed"),
-          "direct module accepts descriptorless default i32 typed RVV variant"))
+          "direct module accepts descriptorless default i32 typed RVV variant "
+          "only with selected-source metadata"))
+    return result;
+  if (int result = expectErrorContains(
+          verifyVariant("i32_default_missing_selected_source"),
+          {"requires typed RVV family/body or selected-source authority",
+           "legacy descriptor metadata is mirror-only"}))
     return result;
   if (int result = expectSuccess(
           verifyVariant("i32_vadd_mirror"),

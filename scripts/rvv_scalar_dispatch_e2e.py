@@ -4134,12 +4134,12 @@ artifact[2]:
   selected_plan_metadata[1]:
     name: "tcrv_rvv.selected_binary_family"
     value: "i32-vadd"
-    role: "selected-rvv-binary-descriptor"
+    role: "typed-rvv-binary-source"
     note: "bounded"
   selected_plan_metadata[2]:
     name: "tcrv_scalar.selected_binary_family"
     value: "i32-vadd"
-    role: "selected-scalar-binary-descriptor"
+    role: "typed-scalar-binary-source"
     note: "bounded"
 """.rstrip()
     sample_bundle_index = sample_bundle_index.replace(

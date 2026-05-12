@@ -75,6 +75,57 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 40: RVV selected variant descriptor attribute exit
+
+**Date**: 2026-05-12
+**Task**: rvv-selected-variant-descriptor-attr-exit
+**Branch**: `main`
+
+### Summary
+
+Removed the remaining implicit default selected-family legality path that let a
+descriptorless RVV selected variant with only `tcrv_rvv.element_count` stand in
+for typed i32-vadd authority. Default selected RVV binary identity now needs
+typed selected-source metadata, kernel frontend authority, or an actual typed
+RVV microkernel body; descriptor metadata remains legacy mirror/quarantine only.
+
+### Main Changes
+
+- Removed the implicit element-count-only i32-vadd fallback from RVV binary
+  variant legality.
+- Added a negative C++ legality case proving descriptorless
+  `element_count`-only metadata no longer establishes selected-family
+  authority.
+- Updated the default selected-lowering-boundary fixture to carry typed
+  selected-source metadata.
+- Updated RVV direct and RVV+scalar e2e tooling samples to validate typed
+  selected-family/EmitC authority instead of selected descriptor role names.
+- Recorded PRD completion notes and inventory classification in the Trellis
+  task.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-variant-legality-test tianchenrv-rvv-selected-lowering-boundary-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVBuiltinTargetArtifactExporters tcrv-opt tcrv-translate tianchenrv-rvv-binary-planning-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- Focused C++ tests for RVV planning, legality, selected lowering boundary,
+  extension plugin, and target artifact export.
+- Focused lit filters for RVV microkernel, RVV+scalar dispatch, and
+  frontend-to-artifact descriptor absence/quarantine paths, 15/15 passed.
+- `git diff --check`
+- `git diff --cached --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed. No `ssh rvv` runtime, correctness, or performance claim was
+made.
+
+
 ## Session 38: RVV self-check typed authority descriptor exit
 
 **Date**: 2026-05-12

@@ -99,7 +99,6 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "diagnostic_name": "i32-vmul",
         "default_input": Path("test/Target/RVVMicrokernel/rvv-microkernel-family-mul.mlir"),
         "default_vector_shape": "i32m1",
-        "lowering_descriptor": "i32-vmul-microkernel.v1",
         "selected_variant": "rvv_mul_slice",
         "microkernel_op_name": "tcrv_rvv.i32_vmul_microkernel",
         "arithmetic_op_name": "tcrv_rvv.i32_mul",
@@ -1376,42 +1375,25 @@ def require_direct_manifest_artifacts(
                 f"{context} selected binary family does not match requested "
                 f"{selected_family}"
             )
-        if family_dtype(ACTIVE_ARITHMETIC_FAMILY) == "i32":
-            expected_emitc_source_op = str(
-                ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"]
+        expected_emitc_source_op = str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+        if (
+            manifest_metadata_value(record, "tcrv_rvv.emitc_source_op", context)
+            != expected_emitc_source_op
+        ):
+            raise BridgeError(
+                f"{context} typed EmitC source op does not match requested "
+                f"{expected_emitc_source_op}"
             )
-            if (
-                manifest_metadata_value(record, "tcrv_rvv.emitc_source_op", context)
-                != expected_emitc_source_op
-            ):
-                raise BridgeError(
-                    f"{context} typed EmitC source op does not match requested "
-                    f"{expected_emitc_source_op}"
-                )
-            if (
-                manifest_metadata_value(
-                    record, "tcrv_rvv.emitc_lowerable_op_interface", context
-                )
-                != "TCRVEmitCLowerableOpInterface"
-            ):
-                raise BridgeError(
-                    f"{context} typed EmitC source op is missing "
-                    "TCRVEmitCLowerableOpInterface authority"
-                )
-        else:
-            expected_lowering_descriptor = str(
-                ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
+        if (
+            manifest_metadata_value(
+                record, "tcrv_rvv.emitc_lowerable_op_interface", context
             )
-            if expected_lowering_descriptor and (
-                manifest_metadata_value(
-                    record, "tcrv_rvv.selected_lowering_descriptor", context
-                )
-                != expected_lowering_descriptor
-            ):
-                raise BridgeError(
-                    f"{context} selected lowering descriptor does not match "
-                    f"requested {expected_lowering_descriptor}"
-                )
+            != "TCRVEmitCLowerableOpInterface"
+        ):
+            raise BridgeError(
+                f"{context} typed EmitC source op is missing "
+                "TCRVEmitCLowerableOpInterface authority"
+            )
         if (
             manifest_metadata_value(
                 record, "tcrv_rvv.selected_vector_shape", context
@@ -1433,16 +1415,9 @@ def build_selected_binary_source_authority(
         "tcrv_rvv.selected_binary_dtype",
         "tcrv_rvv.selected_binary_family",
         "tcrv_rvv.selected_binary_operator",
+        "tcrv_rvv.emitc_source_op",
+        "tcrv_rvv.emitc_lowerable_op_interface",
     ]
-    if family_dtype(ACTIVE_ARITHMETIC_FAMILY) == "i32":
-        metadata_names.extend(
-            [
-                "tcrv_rvv.emitc_source_op",
-                "tcrv_rvv.emitc_lowerable_op_interface",
-            ]
-        )
-    else:
-        metadata_names.append("tcrv_rvv.selected_lowering_descriptor")
     authority = {
         name.removeprefix("tcrv_rvv."): manifest_metadata_value(
             record, name, context
@@ -1455,31 +1430,17 @@ def build_selected_binary_source_authority(
             f"{context} selected binary family does not match requested "
             f"{selected_family}"
         )
-    if family_dtype(ACTIVE_ARITHMETIC_FAMILY) == "i32":
-        expected_emitc_source_op = str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
-        if authority["emitc_source_op"] != expected_emitc_source_op:
-            raise BridgeError(
-                f"{context} typed EmitC source op does not match requested "
-                f"{expected_emitc_source_op}"
-            )
-        if authority["emitc_lowerable_op_interface"] != "TCRVEmitCLowerableOpInterface":
-            raise BridgeError(
-                f"{context} typed EmitC source op is missing "
-                "TCRVEmitCLowerableOpInterface authority"
-            )
-    else:
-        expected_lowering_descriptor = str(
-            ACTIVE_ARITHMETIC_FAMILY.get("lowering_descriptor", "")
+    expected_emitc_source_op = str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
+    if authority["emitc_source_op"] != expected_emitc_source_op:
+        raise BridgeError(
+            f"{context} typed EmitC source op does not match requested "
+            f"{expected_emitc_source_op}"
         )
-        if (
-            expected_lowering_descriptor
-            and authority["selected_lowering_descriptor"]
-            != expected_lowering_descriptor
-        ):
-            raise BridgeError(
-                f"{context} selected lowering descriptor does not match requested "
-                f"{expected_lowering_descriptor}"
-            )
+    if authority["emitc_lowerable_op_interface"] != "TCRVEmitCLowerableOpInterface":
+        raise BridgeError(
+            f"{context} typed EmitC source op is missing "
+            "TCRVEmitCLowerableOpInterface authority"
+        )
     return authority
 
 
@@ -5301,7 +5262,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="",
         help=(
             "Bounded typed RVV vector shape to validate; defaults to the "
-            "selected family's descriptor-backed shape"
+            "selected family's typed vector shape"
         ),
     )
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))

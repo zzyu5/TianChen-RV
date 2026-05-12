@@ -539,20 +539,6 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
   if (frontendAuthority->family)
     return std::move(*frontendAuthority);
 
-  if (!variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName) &&
-      variant->hasAttr(kRVVElementCountAttrName) &&
-      shape.dtypeID == target::rvv::getI32M1VectorShapeConfig().dtypeID) {
-    RVVFiniteBinaryTypedAuthority defaultAuthority;
-    defaultAuthority.family =
-        &target::rvv::getI32VAddFamilyRegistrationRecord();
-    defaultAuthority.sourceKind = getRVVDefaultTypedBinarySourceKind().str();
-    if (llvm::Error error = verifyFamilyMatchesSelectedShape(
-            variant, *defaultAuthority.family, shape,
-            "descriptorless default RVV typed selected-source authority"))
-      return std::move(error);
-    return defaultAuthority;
-  }
-
   return RVVFiniteBinaryTypedAuthority();
 }
 
