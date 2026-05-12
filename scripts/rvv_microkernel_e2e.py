@@ -46,6 +46,9 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
     "i32-vadd": {
         "diagnostic_name": "i32-vadd",
         "default_input": DEFAULT_INPUT,
+        "default_frontend_input": Path(
+            "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir"
+        ),
         "default_vector_shape": "i32m1",
         "selected_variant": "rvv_first_slice",
         "microkernel_op_name": "tcrv_rvv.i32_vadd_microkernel",
@@ -134,11 +137,8 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "result_vec": "sum_vec",
         "arithmetic_token": "+",
         "source_route": "tcrv-export-rvv-i64-vadd-microkernel-c",
-        "source_translation_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-i64-vadd-microkernel-header",
-        "header_translation_route": "tcrv-export-rvv-microkernel-header",
         "object_route": "tcrv-export-rvv-i64-vadd-microkernel-object",
-        "object_translation_route": "tcrv-export-rvv-microkernel-object",
         "emission_kind": "rvv-explicit-i64-vadd-microkernel-c-source",
         "runtime_abi": "rvv-i64-vadd-runtime-callable-c-abi.v1",
         "runtime_abi_kind": "rvv-runtime-callable-c-abi",
@@ -164,11 +164,8 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "result_vec": "difference_vec",
         "arithmetic_token": "-",
         "source_route": "tcrv-export-rvv-i64-vsub-microkernel-c",
-        "source_translation_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-i64-vsub-microkernel-header",
-        "header_translation_route": "tcrv-export-rvv-microkernel-header",
         "object_route": "tcrv-export-rvv-i64-vsub-microkernel-object",
-        "object_translation_route": "tcrv-export-rvv-microkernel-object",
         "emission_kind": "rvv-explicit-i64-vsub-microkernel-c-source",
         "runtime_abi": "rvv-i64-vsub-runtime-callable-c-abi.v1",
         "runtime_abi_kind": "rvv-runtime-callable-c-abi",
@@ -194,11 +191,8 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "result_vec": "product_vec",
         "arithmetic_token": "*",
         "source_route": "tcrv-export-rvv-i64-vmul-microkernel-c",
-        "source_translation_route": "tcrv-export-rvv-microkernel-c",
         "header_route": "tcrv-export-rvv-i64-vmul-microkernel-header",
-        "header_translation_route": "tcrv-export-rvv-microkernel-header",
         "object_route": "tcrv-export-rvv-i64-vmul-microkernel-object",
-        "object_translation_route": "tcrv-export-rvv-microkernel-object",
         "emission_kind": "rvv-explicit-i64-vmul-microkernel-c-source",
         "runtime_abi": "rvv-i64-vmul-runtime-callable-c-abi.v1",
         "runtime_abi_kind": "rvv-runtime-callable-c-abi",
@@ -478,6 +472,7 @@ RVV_BUNDLE_ROUTES = make_rvv_bundle_routes(ACTIVE_ARITHMETIC_FAMILY)
 
 def make_expected_dataflow_provenance(
     family: dict[str, str | Path],
+    runtime_element_count_c_name: str = "n",
 ) -> dict[str, list[str]]:
     result_vec = str(family["result_vec"])
     dtype = family_dtype(family)
@@ -486,7 +481,8 @@ def make_expected_dataflow_provenance(
             "lhs_load.buffer_role=lhs-input-buffer",
             "rhs_load.buffer_role=rhs-input-buffer",
             "store.buffer_role=output-buffer",
-            "runtime n remains the target/export-owned runtime element-count ABI parameter",
+            "runtime " + runtime_element_count_c_name,
+            "remains the target/export-owned runtime element-count ABI parameter",
         ],
         "dataflow_emission_step[0]": [
             "op=tcrv_rvv." + dtype + "_load",
@@ -1884,8 +1880,19 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
 
 def validate_dataflow_provenance(source: str) -> dict[str, str]:
     provenance: dict[str, str] = {}
+    runtime_abi_parameters = parse_runtime_abi_parameters_from_source(source)
+    runtime_names = [
+        parameter["c_name"]
+        for parameter in runtime_abi_parameters
+        if parameter["role"] == "runtime-element-count"
+    ]
+    if len(runtime_names) != 1 or not runtime_names[0]:
+        raise BridgeError(
+            "generated RVV microkernel C source must expose exactly one "
+            "runtime-element-count ABI parameter before dataflow validation"
+        )
     for field, required_fragments in make_expected_dataflow_provenance(
-        ACTIVE_ARITHMETIC_FAMILY
+        ACTIVE_ARITHMETIC_FAMILY, runtime_names[0]
     ).items():
         value = parse_source_comment(source, field, required=True)
         missing = [fragment for fragment in required_fragments if fragment not in value]
@@ -2094,6 +2101,19 @@ def c_scalar_type_from_abi_type(c_type: str) -> str:
     return normalized
 
 
+def format_c_scalar_initializer(values: Any) -> str:
+    rendered = [str(int(value)) for value in values]
+    if not rendered:
+        raise BridgeError("external caller initializer cannot be empty")
+    rows = [
+        ", ".join(rendered[index : index + 8])
+        for index in range(0, len(rendered), 8)
+    ]
+    if len(rows) == 1:
+        return "{" + rows[0] + "}"
+    return "{\n      " + ",\n      ".join(rows) + "\n  }"
+
+
 def build_external_caller_source(
     function_name: str,
     header_file_name: str = "rvv_microkernel.h",
@@ -2120,10 +2140,19 @@ def build_external_caller_source(
     counts = runtime_counts or DIRECT_EXTERNAL_RUNTIME_COUNTS
     if len(counts) < 2:
         raise BridgeError("external caller evidence requires at least two runtime counts")
+    if any(count <= 0 for count in counts):
+        raise BridgeError("external caller runtime counts must be positive")
+    if any(count > 4096 for count in counts):
+        raise BridgeError("external caller runtime counts must remain bounded")
     escaped_header = header_file_name.replace("\\", "\\\\").replace('"', '\\"')
     family_name = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
     runtime_counts_list = ", ".join(str(count) for count in counts)
     runtime_counts_csv = ",".join(str(count) for count in counts)
+    element_count = max(counts)
+    lhs_initializer = format_c_scalar_initializer(range(element_count))
+    rhs_initializer = format_c_scalar_initializer(
+        ((31 - (index * 3)) for index in range(element_count))
+    )
     return f"""\
 #include <stddef.h>
 #include <stdint.h>
@@ -2132,11 +2161,9 @@ def build_external_caller_source(
 #include "{escaped_header}"
 
 int main(void) {{
-  enum {{ kElements = 16 }};
-  const {scalar_c_type} lhs[kElements] = {{0, 1, 2, 3, 4, 5, 6, 7,
-                                           8, 9, 10, 11, 12, 13, 14, 15}};
-  const {scalar_c_type} rhs[kElements] = {{31, 29, 23, 19, 17, 13, 11, 7,
-                                           5, 3, 2, 1, -1, -3, -5, -7}};
+  enum {{ kElements = {element_count} }};
+  const {scalar_c_type} lhs[kElements] = {lhs_initializer};
+  const {scalar_c_type} rhs[kElements] = {rhs_initializer};
   {scalar_c_type} out[kElements] = {{0}};
   const size_t runtime_counts[] = {{{runtime_counts_list}}};
 
@@ -3429,6 +3456,17 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
     return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
 
 
+def selected_external_runtime_counts(args: argparse.Namespace) -> list[int]:
+    counts = list(args.runtime_count or DIRECT_EXTERNAL_RUNTIME_COUNTS)
+    if len(counts) < 2:
+        raise BridgeError("external caller evidence requires at least two runtime counts")
+    if any(count <= 0 for count in counts):
+        raise BridgeError("external caller runtime counts must be positive")
+    if any(count > 4096 for count in counts):
+        raise BridgeError("external caller runtime counts must remain bounded")
+    return counts
+
+
 def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root()
     if args.evidence_note:
@@ -3439,6 +3477,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         selected_artifact_root(args), run_id, root, args.overwrite
     )
     commands: list[dict[str, Any]] = []
+    runtime_counts = selected_external_runtime_counts(args)
 
     profile_replay_metadata: dict[str, Any] = {}
     if profile_replay_requested(args):
@@ -3552,7 +3591,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         str(selected_records["header"]["file_name"]),
         source_flags["runtime_abi_parameters"],
         source_flags["arithmetic_token"],
-        DIRECT_EXTERNAL_RUNTIME_COUNTS,
+        runtime_counts,
     )
     caller_path = artifact_dir / "rvv_microkernel_external_caller.c"
     write_generated_text(
@@ -3628,6 +3667,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "compiler_path_context": source_flags["compiler_path_context"],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_token": source_flags["arithmetic_token"],
+        "runtime_element_counts": runtime_counts,
         "expected_selected_kernel": expected_selected_kernel,
         "external_caller": {
             "kind": "generated-c-caller",
@@ -3637,7 +3677,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "arithmetic_check": "lhs "
             + source_flags["arithmetic_token"]
             + " rhs",
-            "runtime_element_counts": DIRECT_EXTERNAL_RUNTIME_COUNTS,
+            "runtime_element_counts": runtime_counts,
         },
         "selected_compile_flags": remote_compile_flags(source_flags),
         "expected_stdout_marker": EXTERNAL_ABI_SUCCESS_MARKER,
@@ -3752,6 +3792,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         selected_artifact_root(args), run_id, root, args.overwrite
     )
     commands: list[dict[str, Any]] = []
+    runtime_counts = selected_external_runtime_counts(args)
 
     profile_replay_metadata: dict[str, Any] = {}
     if profile_replay_requested(args):
@@ -3900,7 +3941,10 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     direct_helper_artifacts: dict[str, str] = {}
     if uses_direct_family_helpers:
         direct_helper_artifacts["source"] = relative_to_repo(source_path, root)
-    should_export_direct_header = uses_direct_family_helpers
+    selected_role = source_flags["compiler_path_context"]["selected_role"]
+    should_export_direct_header = (
+        uses_direct_family_helpers and selected_role == "direct variant"
+    )
     if should_export_direct_header:
         header_translation_route = direct_helper_translation_routes["header"]
         header_text, _, _ = run_command(
@@ -3923,6 +3967,19 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         )
         header_sha256 = sha256_text(header_text)
         direct_helper_artifacts["header"] = relative_to_repo(header_path, root)
+
+    if (
+        uses_direct_family_helpers
+        and selected_role != "direct variant"
+        and not args.dry_run
+        and not use_harness
+    ):
+        raise BridgeError(
+            "direct source/header/object external ABI evidence requires a "
+            "direct selected RVV variant; selected role is "
+            + selected_role
+            + ". Use target artifact bundle mode for dispatch-case evidence."
+        )
 
     if not args.dry_run and not use_harness:
         object_translation_route = direct_helper_translation_routes["object"]
@@ -3949,7 +4006,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             header_path.name,
             source_flags["runtime_abi_parameters"],
             source_flags["arithmetic_token"],
-            DIRECT_EXTERNAL_RUNTIME_COUNTS,
+            runtime_counts,
         )
         write_generated_text(
             caller_path, "generated RVV microkernel external caller", caller_text
@@ -4087,6 +4144,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "compiler_path_context": source_flags["compiler_path_context"],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_token": source_flags["arithmetic_token"],
+        "runtime_element_counts": runtime_counts,
         "expected_selected_kernel": expected_selected_kernel,
         "expected_stdout_marker": (
             SUCCESS_MARKER if use_harness else EXTERNAL_ABI_SUCCESS_MARKER
@@ -4179,7 +4237,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
                 "arithmetic_check": "lhs "
                 + source_flags["arithmetic_token"]
                 + " rhs",
-                "runtime_element_counts": DIRECT_EXTERNAL_RUNTIME_COUNTS,
+                "runtime_element_counts": runtime_counts,
             }
 
     if not args.dry_run:
@@ -5020,6 +5078,21 @@ void tcrv_rvv_i64_vadd_microkernel_self_test(const int64_t *lhs, const int64_t *
         "counts=7,16" in i64_caller,
         "i64 external caller did not record the expected runtime counts",
     )
+    i64_extended_caller = build_external_caller_source(
+        i64_function_name,
+        "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i64-vadd-microkernel-header.h",
+        i64_flags["runtime_abi_parameters"],
+        i64_flags["arithmetic_token"],
+        [7, 16, 23],
+    )
+    assert_self_test(
+        "enum { kElements = 23 }" in i64_extended_caller,
+        "custom runtime counts did not size the external caller capacity",
+    )
+    assert_self_test(
+        "counts=7,16,23" in i64_extended_caller,
+        "custom runtime counts were not recorded in the external caller marker",
+    )
     assert_self_test(
         EXTERNAL_ABI_SUCCESS_MARKER in i64_caller,
         "i64 external ABI caller success marker missing",
@@ -5277,6 +5350,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--ssh-option", action="append", default=[])
     parser.add_argument("--evidence-note", default="")
     parser.add_argument(
+        "--runtime-count",
+        action="append",
+        type=int,
+        default=None,
+        help=(
+            "Runtime n value for generated external caller evidence; repeat "
+            "to cover multiple bounded values"
+        ),
+    )
+    parser.add_argument(
         "--lower-linalg-frontend",
         action="store_true",
         help="Run bounded linalg frontend lowering before execution planning",
@@ -5390,6 +5473,14 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+    if args.runtime_count and args.self_check_harness:
+        print(
+            "rvv_microkernel_e2e: --runtime-count applies to generated "
+            "external caller evidence and cannot be combined with "
+            "--self-check-harness",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         evidence = run_bridge(args)
@@ -5426,6 +5517,7 @@ def main(argv: list[str]) -> int:
                 ),
                 "source_export_mode": evidence["source_export_mode"],
                 "source_export_route": evidence.get("source_export_route", ""),
+                "runtime_element_counts": evidence.get("runtime_element_counts", []),
                 "ssh_evidence": ssh_evidence_succeeded(evidence["ssh_evidence"]),
                 "claim_scope": evidence["claim_scope"],
             },

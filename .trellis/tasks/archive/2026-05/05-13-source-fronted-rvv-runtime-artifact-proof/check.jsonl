@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack, capability, plugin, and non-goal boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check the task preserved the EmitC/RVV intrinsic route and did not add descriptor-driven compute."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact export, ABI metadata, object/header/source, and bundle contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local materialization/export behavior and bounded evidence interpretation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required focused build, lit, object inspection, ssh rvv evidence, and claim boundaries."}

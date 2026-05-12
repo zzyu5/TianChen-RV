@@ -1553,3 +1553,42 @@ or performance claim.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 49: Source-fronted RVV runtime artifact proof
+
+**Date**: 2026-05-13
+**Task**: Source-fronted RVV runtime artifact proof
+**Branch**: `main`
+
+### Summary
+
+Proved the linalg/source i32-vadd route through generated RVV source/header/object artifacts and an ssh rvv external ABI correctness run for n=7,16,23.
+
+### Main Changes
+
+- Extended `scripts/rvv_microkernel_e2e.py` so `--lower-linalg-frontend` for i32-vadd defaults to `test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir` and the generated external caller accepts repeated `--runtime-count` values.
+- Sized the external caller's input buffers from the maximum runtime count, preserving bounded evidence while covering below/equal/above the descriptor-local first-slice capacity.
+- Repaired stale i64 direct helper translation route aliases and made dispatch-case direct external ABI evidence fail closed unless the bundle path is used.
+- Added focused script lit checks for the source-fronted i32-vadd selected kernel, runtime counts, generated ABI, runtime AVL provenance, and EmitC route provenance.
+
+### Testing
+
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-microkernel-e2e'` from `build/test`: 1/1 selected passed.
+- Runtime proof: `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family i32-vadd --lower-linalg-frontend --expect-selected-kernel frontend_i32_vadd --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --run-id 20260513T-source-fronted-i32-vadd-runtime-artifact-proof --overwrite --timeout 120`, with `ssh_evidence=true` and both source-built and exported-object remote runs printing `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
+- `file` and `llvm-readobj-20 --file-headers --symbols` on `artifacts/tmp/rvv_microkernel_e2e/20260513T-source-fronted-i32-vadd-runtime-artifact-proof/rvv_microkernel.o` confirmed a RISC-V ELF relocatable with function symbol `tcrv_rvv_i32_vadd_microkernel_frontend_i32_vadd_rvv_first_slice`.
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'LinalgToExec|RVVMicrokernel|EmissionManifest|TargetArtifactBundleExport|rvv-microkernel-e2e'` from `build/test`: 73/73 selected passed.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-13-source-fronted-rvv-runtime-artifact-proof`
+
+### Status
+
+[OK] Completed and archived. Claim is bounded to this source-fronted i32-vadd generated callable runtime proof; no performance or generic RVV backend claim is made.
+
+### Next Steps
+
+- None - task complete
