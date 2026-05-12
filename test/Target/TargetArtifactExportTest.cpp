@@ -4077,7 +4077,10 @@ module @rvv_microkernel_descriptor_body_mismatch_input {
   std::string output;
   llvm::raw_string_ostream stream(output);
   if (!expectErrorContains(
-          tianchenrv::target::rvv::exportRVVMicrokernelC(*module, stream),
+          tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
+              *module,
+              tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord(),
+              stream),
           "RVV direct export rejects descriptor/body family mismatch",
           {"tcrv_rvv.lowering_descriptor 'i32-vmul-microkernel.v1'",
            "requires tcrv_rvv.i32_vmul_microkernel",
@@ -4600,8 +4603,8 @@ bool expectRVVI64TargetExportBodyAuthority() {
   std::string matchingOutput;
   llvm::raw_string_ostream matchingOutputStream(matchingOutput);
   if (!expectSuccess(
-          tianchenrv::target::rvv::exportRVVMicrokernelC(
-              *matchingMirrorModule, matchingOutputStream),
+          tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
+              *matchingMirrorModule, vsubFamily, matchingOutputStream),
           "matching i64 descriptor mirror accepted after typed body authority"))
     return false;
   matchingOutputStream.flush();
@@ -4633,8 +4636,8 @@ bool expectRVVI64TargetExportBodyAuthority() {
   std::string staleOutput;
   llvm::raw_string_ostream staleOutputStream(staleOutput);
   if (!expectErrorContains(
-          tianchenrv::target::rvv::exportRVVMicrokernelC(*staleMirrorModule,
-                                                         staleOutputStream),
+          tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
+              *staleMirrorModule, vsubFamily, staleOutputStream),
           "stale i64 descriptor mirror rejected after typed body authority",
           {"tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'",
            "non-authoritative legacy mirror metadata",
@@ -4661,8 +4664,8 @@ bool expectRVVI64TargetExportBodyAuthority() {
   std::string descriptorOnlyOutput;
   llvm::raw_string_ostream descriptorOnlyOutputStream(descriptorOnlyOutput);
   if (!expectErrorContains(
-          tianchenrv::target::rvv::exportRVVMicrokernelC(*descriptorOnlyModule,
-                                                         descriptorOnlyOutputStream),
+          tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
+              *descriptorOnlyModule, vmulFamily, descriptorOnlyOutputStream),
           "descriptor-only i64 export rejected before output",
           {"tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'",
            "no selected typed RVV i64 microkernel body",

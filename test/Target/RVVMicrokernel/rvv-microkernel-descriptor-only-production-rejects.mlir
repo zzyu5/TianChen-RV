@@ -1,4 +1,5 @@
 // RUN: not tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c %s 2>&1 | FileCheck %s --check-prefix=DIRECT --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="tcrv_emitc.source_authority" --implicit-check-not="void tcrv_rvv"
+// RUN: not tcrv-translate --tcrv-export-rvv-microkernel-c %s 2>&1 | FileCheck %s --check-prefix=LEGACY-NAMED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="tcrv_emitc.source_authority" --implicit-check-not="void tcrv_rvv"
 
 module @descriptor_only_i32_input {
   tcrv.exec.kernel @descriptor_only_i32 {
@@ -101,3 +102,8 @@ module @descriptor_only_i32_input {
 // DIRECT-SAME: descriptor metadata is non-authoritative mirror metadata
 // DIRECT-SAME: cannot make a direct RVV binary variant legal without typed RVV family/body or selected-source authority
 // DIRECT: artifact-backed direct translate route 'tcrv-export-rvv-i32-vmul-microkernel-c' failed during execution planning before exact target artifact export
+
+// LEGACY-NAMED: has descriptor-only finite RVV binary legality metadata 'i32-vmul-microkernel.v1'
+// LEGACY-NAMED-SAME: descriptor metadata is non-authoritative mirror metadata
+// LEGACY-NAMED-SAME: cannot make a direct RVV binary variant legal without typed RVV family/body or selected-source authority
+// LEGACY-NAMED: artifact-backed direct translate route 'tcrv-export-rvv-microkernel-c' failed during execution planning before exact target artifact export

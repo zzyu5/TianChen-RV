@@ -64,8 +64,9 @@ llvm::Error exportRVVMicrokernelDirectRoute(
     mlir::ModuleOp module, const RVVMicrokernelDirectRouteManifestEntry &route,
     llvm::raw_ostream &os);
 
-llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
-                                  llvm::raw_ostream &os);
+llvm::Error exportRVVMicrokernelCForBinaryFamily(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::raw_ostream &os);
 
 llvm::Error exportRVVMicrokernelCForFamily(
     mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,
@@ -79,15 +80,17 @@ llvm::Error validateRVVMicrokernelSourceAuthority(
 llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
                                            llvm::raw_ostream &os);
 
-llvm::Error exportRVVMicrokernelHeader(mlir::ModuleOp module,
-                                       llvm::raw_ostream &os);
+llvm::Error exportRVVMicrokernelHeaderForBinaryFamily(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::raw_ostream &os);
 
 llvm::Error exportRVVMicrokernelHeaderForFamily(
     mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,
     llvm::raw_ostream &os);
 
-llvm::Error exportRVVMicrokernelObject(mlir::ModuleOp module,
-                                       llvm::raw_ostream &os);
+llvm::Error exportRVVMicrokernelObjectForBinaryFamily(
+    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::raw_ostream &os);
 
 llvm::Error exportRVVMicrokernelObjectForFamily(
     mlir::ModuleOp module, i32_binary::I32BinaryFamilyKind family,

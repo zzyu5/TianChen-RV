@@ -2554,8 +2554,13 @@ llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
   if (llvm::Error error = validateDispatchPairComponentAuthorities(pair))
     return error;
 
+  if (!pair.family || !pair.family->rvvFamily)
+    return makeModuleDispatchError("RVV dispatch embedding requires an exact "
+                                   "selected RVV binary family");
+
   llvm::raw_string_ostream rvvStream(rvvSource);
-  if (llvm::Error error = rvv::exportRVVMicrokernelC(module, rvvStream))
+  if (llvm::Error error = rvv::exportRVVMicrokernelCForBinaryFamily(
+          module, *pair.family->rvvFamily, rvvStream))
     return error;
   rvvStream.flush();
   if (llvm::Error error =
