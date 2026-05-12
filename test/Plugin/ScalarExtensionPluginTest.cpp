@@ -1444,7 +1444,8 @@ module {
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(request, readiness),
           llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
-              " readiness fails closed without descriptor-derived support"))
+              " readiness remains metadata-only without descriptor-derived "
+              "support"))
     return result;
   if (int result =
           expect(readiness.isMetadataOnly() && !readiness.isSupported() &&
@@ -1458,7 +1459,8 @@ module {
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(request, plan),
           llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
-              " emission plan fails closed without descriptor-derived support"))
+              " emission plan remains metadata-only without "
+              "descriptor-derived support"))
     return result;
   if (int result =
           expect(plan.isMetadataOnly() && !plan.isSupported() &&
@@ -1474,20 +1476,29 @@ module {
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToEnd(&kernel.getBody().front());
-    if (int result = expectSuccess(
+    if (int result = expectErrorContains(
             registry.materializeSelectedLoweringBoundary(
                 VariantLoweringBoundaryRequest(
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
-                " boundary materializes metadata-only path"))
+            {"legacy descriptor-only metadata",
+             "tcrv_scalar.lowering_descriptor",
+             "tcrv_scalar.element_count",
+             "typed scalar microkernel body",
+             "descriptorless typed default materialization",
+             "cannot create tcrv_scalar.lowering_boundary"}))
       return result;
   }
   if (int result =
-          expect(boundaryResult.isMaterialized(),
+          expect(!boundaryResult.isMaterialized(),
                  llvm::Twine("descriptor-only scalar ") + diagnosticLabel +
-                     " keeps only selected boundary metadata"))
+                     " does not materialize selected boundary metadata"))
+    return result;
+  if (int result = expect(!findScalarBoundary(kernel, variant.getSymName()),
+                          llvm::Twine("descriptor-only scalar ") +
+                              diagnosticLabel +
+                              " leaves no scalar lowering boundary"))
     return result;
   if (int result = expect(
           !findScalarMicrokernelOperationByName(

@@ -943,14 +943,17 @@ Rules:
   `required_capabilities`;
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
-- when the selected scalar fallback variant carries the bounded descriptor
-  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
-  `"i32-vsub-microkernel.v1"` and a valid descriptor-local
-  `tcrv_scalar.element_count`, scalar plugin-local boundary materialization
-  also creates exactly one matching direct-child
-  `tcrv_scalar.i32_vadd_microkernel` or
-  `tcrv_scalar.i32_vsub_microkernel`; this is an explicit portable C source
-  microkernel attachment, not generic scalar lowering;
+- for the bounded scalar i32/i64 add/sub/mul source slice, scalar
+  plugin-local boundary materialization must identify typed selected-path
+  authority before creating the boundary: either a matching explicit
+  `tcrv_scalar.*_microkernel` direct child or a descriptorless typed default
+  materialization selected from the kernel frontend marker/default family;
+- a selected scalar fallback variant carrying only legacy
+  `tcrv_scalar.lowering_descriptor` and/or `tcrv_scalar.element_count`
+  metadata must fail closed before `tcrv_scalar.lowering_boundary` creation.
+  Those fields are optional mirror metadata only after typed scalar
+  microkernel authority exists, and stale mirrors must fail as mirror
+  mismatches;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.
@@ -1483,7 +1486,12 @@ This is still compiler-decision metadata. It does not prove that TianChen-RV
 emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
-reporting executable support.
+reporting executable support. This metadata-only readiness/plan result also
+does not license descriptor-only selected-boundary materialization: legacy
+`tcrv_scalar.lowering_descriptor` / `tcrv_scalar.element_count` metadata must
+not create `tcrv_scalar.lowering_boundary` unless a typed scalar microkernel
+body or descriptorless typed default materialization is already the
+selected-path authority.
 
 The selected scalar fallback boundary is slightly more concrete than an
 emission-plan diagnostic because it is a scalar extension-dialect op:

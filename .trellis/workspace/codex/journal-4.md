@@ -969,3 +969,42 @@ Rewired the production RVV+scalar dispatch wrapper to build a verified MLIR Emit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 39: Scalar selected-boundary descriptor-only quarantine
+
+**Date**: 2026-05-12
+**Task**: Scalar selected-boundary descriptor-only quarantine
+**Branch**: `main`
+
+### Summary
+
+Quarantined scalar fallback descriptor-only selected-boundary materialization while preserving descriptorless typed default and explicit typed scalar microkernel source-export paths.
+
+### Main Changes
+
+- Rewired `ScalarExtensionPlugin::materializeSelectedLoweringBoundary` so a selected scalar fallback variant carrying only legacy `tcrv_scalar.lowering_descriptor` and/or `tcrv_scalar.element_count` metadata fails before `tcrv_scalar.lowering_boundary` creation.
+- Preserved descriptorless default typed scalar materialization for finite i32/i64 add/sub/mul families and explicit typed scalar microkernel paths.
+- Kept legacy scalar descriptor metadata as optional mirror data only after typed scalar microkernel authority exists; stale mirrors still fail as mirror mismatches.
+- Added C++ regression coverage for descriptor-only boundary rejection across finite scalar families and lit coverage for a valid scalar i32-vadd descriptor-only selected-boundary quarantine fixture.
+- Updated scalar fallback and emission-runtime specs so descriptor-only scalar selected-boundary materialization is quarantined and typed scalar family ops remain the production authority.
+- Checks passed: `tianchenrv-scalar-extension-plugin-test`, focused lit filter for scalar lowering-boundary/emission/artifact fixtures, `git diff --check`, Trellis task validation, and full `check-tianchenrv` with 210/210 tests passing.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

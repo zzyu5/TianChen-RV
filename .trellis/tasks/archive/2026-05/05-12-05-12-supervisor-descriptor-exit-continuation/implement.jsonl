@@ -1,0 +1,6 @@
+{"file":".trellis/spec/index.md","reason":"Confirmed global architecture boundary: descriptor-driven computation is implementation debt, compiler behavior stays in C++/MLIR/TableGen/CMake, and tcrv.exec remains compute-free."}
+{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Scalar plugin contract for descriptorless typed scalar fallback source authority, optional legacy descriptor mirrors, and selected-boundary materialization."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Selected lowering-boundary and emission-plan layering: plugin-owned boundary metadata must not claim executable lowering or descriptor-driven compute authority."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Current main route is typed extension family ops through common EmitC, with descriptors limited to legacy mirror or transition metadata."}
+{"file":".trellis/spec/guides/compute-boundary-review-guide.md","reason":"Checked that the change keeps computation in the scalar extension family and does not add compute semantics to tcrv.exec."}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Confirmed scalar-specific selected-boundary policy belongs in the scalar plugin and not in shared orchestration."}

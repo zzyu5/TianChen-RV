@@ -254,6 +254,12 @@ bool isDescriptorlessDefaultScalarTypedFamily(
               tianchenrv::target::rvv::RVVBinaryDTypeKind::I64);
 }
 
+bool hasLegacyScalarDescriptorMirrorMetadata(tcrv::exec::VariantOp variant) {
+  return variant &&
+         (variant->hasAttr(kScalarLoweringDescriptorAttrName) ||
+          variant->hasAttr(kScalarElementCountAttrName));
+}
+
 const ScalarMicrokernelFamilySpec *
 lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
     llvm::StringRef descriptor) {
@@ -1166,6 +1172,19 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   if (microkernelPlan) {
     callableMicrokernelFamily = microkernelPlan->family;
     selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
+  }
+
+  if (!selectedPathHasCallableMicrokernel &&
+      hasLegacyScalarDescriptorMirrorMetadata(request.getVariant())) {
+    return makeScalarPluginError(
+        llvm::Twine("selected scalar fallback variant @") +
+        request.getVariant().getSymName() +
+        " carries legacy descriptor-only metadata '" +
+        kScalarLoweringDescriptorAttrName + "' and/or '" +
+        kScalarElementCountAttrName +
+        "' without a typed scalar microkernel body or descriptorless typed "
+        "default materialization; descriptor metadata is non-authoritative "
+        "mirror metadata and cannot create tcrv_scalar.lowering_boundary");
   }
 
   if (microkernelPlan)

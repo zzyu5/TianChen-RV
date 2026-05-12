@@ -34,8 +34,8 @@ materialized requires form: requires = [@scalar_fallback] for an exact scalar
   `implies` id `scalar.fallback`
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
-lowering descriptor attr: tcrv_scalar.lowering_descriptor
-lowering descriptor values:
+legacy lowering descriptor mirror attr: tcrv_scalar.lowering_descriptor
+legacy lowering descriptor mirror values:
   i32-vadd-microkernel.v1
   i32-vsub-microkernel.v1
   i32-vmul-microkernel.v1
@@ -54,8 +54,12 @@ explicit structured relation-provider capability whose `provides` or `implies`
 list satisfies id `scalar.fallback`. Missing or unavailable fallback capability
 must produce no proposal rather than an implicit always-available variant.
 
-The proposal also carries a finite plugin-owned lowering descriptor for the
-bounded i32/i64 vector add/sub/mul fallback source slice:
+The default proposal for the bounded i32/i64 vector add/sub/mul fallback source
+slice is descriptorless. Typed scalar microkernel family ops, either
+materialized by the scalar plugin's descriptorless default path or
+hand-authored explicitly for the selected path, are the selected-path compute
+authority. The legacy descriptor fields below may appear only as optional
+mirror metadata after typed scalar authority exists:
 
 ```text
 tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
@@ -67,16 +71,16 @@ tcrv_scalar.lowering_descriptor = "i64-vmul-microkernel.v1"
 tcrv_scalar.element_count = 16 : i64
 ```
 
-The descriptor is a compiler decision handle for one tiny plugin-owned
-microkernel attachment. `tcrv_scalar.element_count` is descriptor-local bounded
-metadata only; it is not high-level shape, problem size, AVL, vl, runtime loop
-trip count, or performance evidence.
+The descriptor is no longer a compiler decision handle for creating a scalar
+microkernel attachment or selected lowering boundary. `tcrv_scalar.element_count`
+is descriptor-local bounded mirror metadata only; it is not high-level shape,
+problem size, AVL, vl, runtime loop trip count, or performance evidence.
 Bounded frontend lowering may preserve
 `tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, `"i32-vmul"`,
 `"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"` on the generated kernel. The
-scalar plugin must select the matching descriptor and must not use another
-family descriptor, route id, ABI name, runtime glue role, operation label, C
-type, or emitted arithmetic for subtract or multiply.
+scalar plugin must select the matching typed scalar family/default
+materialization and must not use a descriptor, route id, ABI name, runtime glue
+role, operation label, C type, or emitted arithmetic from another family.
 
 ## Capability And Legality
 
@@ -130,13 +134,22 @@ family-specific `tcrv_scalar.i32_*_microkernel` or
 `tcrv_scalar.i64_*_microkernel`. It does not mean that
 TianChen-RV emitted LLVM IR, generated an object, linked a runtime, executed a
 scalar kernel, proved correctness, or measured performance.
+It also does not authorize descriptor-only selected lowering-boundary
+materialization: a selected scalar fallback variant carrying only legacy
+`tcrv_scalar.lowering_descriptor` and/or `tcrv_scalar.element_count` metadata
+must fail closed before `tcrv_scalar.lowering_boundary` creation unless a typed
+scalar microkernel body or descriptorless typed default materialization is
+already the selected-path authority.
 
 ## Selected Lowering Boundary
 
 Scalar fallback participates in the generic selected lowering-boundary registry
 path. Its first selected-boundary slice validates the selected scalar fallback
-variant through the same plugin-local legality rules, then materializes the
-plugin-local scalar metadata operation:
+variant through the same plugin-local legality rules, then requires a typed
+selected-path authority before materializing the plugin-local scalar metadata
+operation. For the bounded finite i32/i64 add/sub/mul source slice, that
+authority is either a matching explicit `tcrv_scalar.*_microkernel` direct
+child or the scalar plugin's descriptorless typed default materialization.
 
 ```mlir
 tcrv_scalar.lowering_boundary {
@@ -169,20 +182,25 @@ variant's required capability symbol references. It must not materialize
 cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
-When the selected variant carries
-`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
-`"i32-vsub-microkernel.v1"` or `"i32-vmul-microkernel.v1"` or
-`"i64-vadd-microkernel.v1"` or `"i64-vsub-microkernel.v1"` or
-`"i64-vmul-microkernel.v1"` and a valid descriptor-local
-`tcrv_scalar.element_count`, the same plugin-local materialization step must
-also create exactly one matching direct-child
-`tcrv_scalar.i32_vadd_microkernel` or `tcrv_scalar.i32_vsub_microkernel` or
-`tcrv_scalar.i32_vmul_microkernel` or `tcrv_scalar.i64_vadd_microkernel` or
-`tcrv_scalar.i64_vsub_microkernel` or
+When the selected variant is descriptorless and its kernel frontend marker
+selects one of the finite i32/i64 add/sub/mul scalar families, or when no
+frontend marker is present and the default i32-vadd family applies, the same
+plugin-local materialization step must also create exactly one matching
+direct-child `tcrv_scalar.i32_vadd_microkernel`,
+`tcrv_scalar.i32_vsub_microkernel`, `tcrv_scalar.i32_vmul_microkernel`,
+`tcrv_scalar.i64_vadd_microkernel`, `tcrv_scalar.i64_vsub_microkernel`, or
 `tcrv_scalar.i64_vmul_microkernel`. A pre-existing matching scalar microkernel
-for that selected path is rejected during descriptor materialization so that
-the descriptor has a single owner and stale hand-authored fallback bodies
-cannot silently replace the plugin-owned proposal.
+for that selected path is rejected during descriptorless default
+materialization so the selected typed body has a single owner.
+
+When a matching explicit scalar microkernel body already exists for the
+selected path, lowering-boundary materialization preserves that typed body and
+validates optional legacy `tcrv_scalar.lowering_descriptor` /
+`tcrv_scalar.element_count` metadata only as non-authoritative mirror data. A
+stale descriptor mirror must fail as a mirror mismatch. A selected scalar
+fallback variant carrying only legacy descriptor and/or element-count metadata
+with no typed body and no descriptorless typed default materialization must
+fail closed before `tcrv_scalar.lowering_boundary` creation.
 
 Downstream emission planning may consume this boundary as the validated
 selected-path attachment point before materializing either metadata-only
@@ -219,8 +237,9 @@ When the selected scalar fallback path has exactly one matching
 `tcrv_scalar.i32_vsub_microkernel` or
 `tcrv_scalar.i32_vmul_microkernel` or `tcrv_scalar.i64_vadd_microkernel` or
 `tcrv_scalar.i64_vsub_microkernel` or `tcrv_scalar.i64_vmul_microkernel`,
-including the microkernel materialized from the finite descriptor above, the
-scalar plugin may return a supported runtime-callable C source export route:
+including a microkernel materialized by the descriptorless typed default path,
+the scalar plugin may return a supported runtime-callable C source export
+route:
 
 ```text
 add emission kind: scalar-explicit-i32-vadd-microkernel-c-source
@@ -324,8 +343,10 @@ the C source, C header, and RISC-V relocatable object with matching selected
 path and runtime ABI metadata. These helpers still do not add generic scalar
 lowering, arbitrary scalar source export, linking, runtime dispatch
 integration, broad correctness coverage, RVV hardware evidence, or performance
-evidence. Scalar fallback selected paths without a valid descriptor or explicit
-matching microkernel remain metadata-only. Header/object helper routes are
+evidence. Scalar fallback selected paths without typed scalar microkernel
+authority may remain metadata-only readiness/plan diagnostics, but
+descriptor-only legacy metadata must not materialize a selected lowering
+boundary or source-exportable typed body. Header/object helper routes are
 bounded to the same finite add/sub/mul i32/i64 scalar family set as the source
 routes; a helper route must reject stale source candidates from a different
 family before header/object output.
