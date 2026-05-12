@@ -1,5 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline --tcrv-check-emission-paths | FileCheck %s --check-prefix=READY
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed '/tcrv_rvv.i32_vadd_microkernel/,/^    }/d' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BODY --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --check-prefix=EXPORT --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
@@ -162,3 +163,8 @@ module @rvv_auto_microkernel_input {
 // EXPORT: __riscv_vadd_vv_i32m1
 // EXPORT: __riscv_vse32_v_i32m1
 // EXPORT: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
+
+// MISSING-BODY: TianChen-RV target source artifact export failed:
+// MISSING-BODY-SAME: runtime ABI role contract preflight failed
+// MISSING-BODY-SAME: TianChen-RV RVV microkernel C export failed for kernel @auto_i32_vadd
+// MISSING-BODY-SAME: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel

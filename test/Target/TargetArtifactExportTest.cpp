@@ -3613,32 +3613,49 @@ TargetArtifactCandidate makeScalarMulDispatchFallbackCandidate(
   return candidate;
 }
 
+std::string makeDispatchComponentAuthorityFixture();
+bool replaceFirst(std::string &text, llvm::StringRef from,
+                  llvm::StringRef to);
+
 bool expectDispatchCompositeRejectsFallbackMismatchForRoute(
     mlir::MLIRContext &context, const TargetArtifactExporterRegistry &registry,
     llvm::StringRef routeID) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @dispatch_link_mismatch {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback"}
-    tcrv.exec.mem_window @abi_lhs_input_buffer {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
-    tcrv.exec.mem_window @abi_rhs_input_buffer {abi_role = "rhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
-    tcrv.exec.mem_window @abi_output_buffer {abi_role = "output-buffer", access = "write", binding = "kernel-argument", c_type = "int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
-    tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
-    tcrv.exec.runtime_param @abi_dispatch_availability_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
-    tcrv.exec.variant @rvv_first_slice attributes {origin = "rvv-plugin", requires = [@rvv]} {
+  std::string source = makeDispatchComponentAuthorityFixture();
+  if (routeID.contains("i32-vadd")) {
+    if (!replaceFirst(source, "tcrv_rvv.i32_vmul_microkernel",
+                      "tcrv_rvv.i32_vadd_microkernel") ||
+        !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_add") ||
+        !replaceFirst(source, "i32-vmul-microkernel.v1",
+                      "i32-vadd-microkernel.v1")) {
+      llvm::errs() << "failed to build fallback mismatch RVV vadd fixture\n";
+      return false;
     }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
-    }
-    tcrv.exec.variant @scalar_ir_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
-    }
-    tcrv.exec.dispatch {
-      tcrv.exec.case @rvv_first_slice {condition = "rvv_available", runtime_guard = @abi_dispatch_availability_guard, runtime_guard_required = true}
-      tcrv.exec.fallback @scalar_ir_fallback
+  } else if (routeID.contains("i32-vsub")) {
+    if (!replaceFirst(source, "tcrv_rvv.i32_vmul_microkernel",
+                      "tcrv_rvv.i32_vsub_microkernel") ||
+        !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_sub") ||
+        !replaceFirst(source, "i32-vmul-microkernel.v1",
+                      "i32-vsub-microkernel.v1")) {
+      llvm::errs() << "failed to build fallback mismatch RVV vsub fixture\n";
+      return false;
     }
   }
-}
-)mlir";
+  if (!replaceFirst(
+          source, "    tcrv.exec.dispatch {",
+          "    tcrv.exec.variant @scalar_ir_fallback attributes "
+          "{fallback_role = \"conservative\", origin = \"scalar-plugin\", "
+          "policy = \"portable_scalar_fallback_first_slice\", requires = "
+          "[@scalar_fallback]} {\n"
+          "    }\n"
+          "    tcrv.exec.dispatch {")) {
+    llvm::errs() << "failed to add fallback mismatch target fixture\n";
+    return false;
+  }
+  if (!replaceFirst(source, "tcrv.exec.fallback @scalar_fallback_first_slice",
+                    "tcrv.exec.fallback @scalar_ir_fallback")) {
+    llvm::errs() << "failed to retarget the fallback mismatch fixture\n";
+    return false;
+  }
 
   mlir::OwningOpRef<mlir::ModuleOp> module =
       mlir::parseSourceString<mlir::ModuleOp>(source, &context);
@@ -3648,7 +3665,7 @@ module {
   }
 
   tianchenrv::tcrv::exec::KernelOp kernel =
-      findKernel(*module, "dispatch_link_mismatch");
+      findKernel(*module, "dispatch_component_authority");
   if (!kernel) {
     llvm::errs() << "dispatch fallback mismatch fixture missing kernel\n";
     return false;
@@ -3712,8 +3729,23 @@ module {
 }
 
 bool expectDispatchCompositeRejectsFallbackMismatch(
-    mlir::MLIRContext &context,
-    const TargetArtifactExporterRegistry &registry) {
+    mlir::MLIRContext &, const TargetArtifactExporterRegistry &registry) {
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+                     "register RVV plugin for dispatch fallback mismatch "
+                     "fixture"))
+    return false;
+  if (!expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(plugins),
+                     "register scalar plugin for dispatch fallback mismatch "
+                     "fixture"))
+    return false;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
   return expectDispatchCompositeRejectsFallbackMismatchForRoute(
              context, registry,
              "tcrv-export-rvv-scalar-i32-vadd-dispatch-c") &&

@@ -1435,33 +1435,6 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   return validateRVVMicrokernelSelectedPlanMetadata(candidate, *selectedConfig);
 }
 
-bool hasMatchingRVVMicrokernelAttachmentForCandidate(
-    const TargetArtifactCandidate &candidate,
-    const RVVBinaryFamilyDescriptor &family) {
-  KernelOp kernel = candidate.kernel;
-  if (!kernel || kernel.getBody().empty())
-    return false;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVBinaryFamilyDescriptor *opFamily = getI32MicrokernelFamilyForOp(&op);
-    if (!opFamily)
-      opFamily = getI64MicrokernelFamilyForOp(&op);
-    if (!opFamily || opFamily->familyID != family.familyID)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    auto role =
-        op.getAttrOfType<mlir::StringAttr>(execDiagnostic::kRoleAttrName);
-    if (selectedVariant && role &&
-        selectedVariant.getValue() == candidate.selectedVariant &&
-        role.getValue() == candidate.role)
-      return true;
-  }
-
-  return false;
-}
-
 llvm::Expected<const RVVI32VectorShapeConfig *>
 getSelectedRVVConfig(KernelOp kernel, VariantOp variant,
                      const TargetCapabilitySet &capabilities) {
@@ -3501,7 +3474,7 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
   if (llvm::Error error =
           validateRVVMicrokernelSelectedPlanMetadata(candidate, descriptor))
     return error;
-  if (hasMatchingRVVMicrokernelAttachmentForCandidate(candidate, family)) {
+  if (candidate.kernel) {
     mlir::ModuleOp module =
         candidate.kernel->getParentOfType<mlir::ModuleOp>();
     if (!module)

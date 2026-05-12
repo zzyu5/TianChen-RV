@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV boundaries: unified RISC-V MLIR, C++/MLIR stack, plugin-local extension semantics, descriptor-debt constraints."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV first-slice selected vector-shape, policy, runtime AVL/VL, lowering-boundary, and microkernel materialization contract."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Current extension family ops -> EmitC -> intrinsic/runtime C/C++ route and descriptor boundary."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Generic selected-path, lowering-boundary, emission-plan, target artifact export, and runtime ABI ownership contracts."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused lit/FileCheck/C++ evidence requirements for RVV microkernel materialization and artifact export."}
