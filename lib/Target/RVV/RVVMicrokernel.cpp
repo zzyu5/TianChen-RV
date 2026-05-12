@@ -4149,7 +4149,7 @@ llvm::Error registerRVVMicrokernelTargetTranslateRoutes(
             [routePtr](mlir::ModuleOp module, llvm::raw_ostream &os) {
               return exportRVVMicrokernelDirectRoute(module, *routePtr, os);
             },
-            route.requiresBinaryStdout())))
+            route.requiresBinaryStdout(), route.getRouteID())))
       return error;
   }
   return llvm::Error::success();

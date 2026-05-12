@@ -166,5 +166,7 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(16, 1)
 // HARNESS: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
-// ROUTE-MISMATCH: direct source export route expected i32-vmul dispatch artifacts, got i32-vsub
-// SHAPE-MISMATCH: selected vector-shape shape must be 'i32m1'
+// ROUTE-MISMATCH: TianChen-RV target source artifact export failed
+// ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vmul-dispatch-c'
+// ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
+// SHAPE-MISMATCH: selected vector-shape id must be 'i32m1'

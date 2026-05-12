@@ -49,5 +49,5 @@ module {
 // IR-SAME: role = "dispatch fallback"
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
 
-// OBJECT-MISMATCH: RVV+scalar binary dispatch object export failed
-// OBJECT-MISMATCH: selected RVV dispatch case variant @rvv_first_slice 'tcrv_rvv.required_march' metadata is not satisfied by preserved selected_march capability metadata
+// OBJECT-MISMATCH: TianChen-RV selected lowering-boundary materialization failed
+// OBJECT-MISMATCH: 'tcrv_rvv.required_march' metadata is not satisfied by preserved capability property 'selected_march'

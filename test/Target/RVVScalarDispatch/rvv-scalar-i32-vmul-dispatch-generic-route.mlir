@@ -157,11 +157,13 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // HARNESS: tcrv_dispatch_i32_vmul_frontend_dispatch_i32_vmul_self_check_one(16, 1)
 // HARNESS: tcrv_rvv_scalar_i32_vmul_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
-// ROUTE-MISMATCH: direct source export route expected i32-vadd dispatch artifacts, got i32-vmul
+// ROUTE-MISMATCH: TianChen-RV target source artifact export failed
+// ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vadd-dispatch-c'
+// ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
 
-// STALE-RVV-BODY: selected RVV dispatch case component body authority failed before RVV+scalar dispatch artifact emission
-// STALE-RVV-BODY-SAME: supported emission-plan route 'tcrv-export-rvv-i32-vmul-microkernel-c'
-// STALE-RVV-BODY-SAME: does not match RVV binary microkernel descriptor 'tcrv-export-rvv-microkernel-c'
+// STALE-RVV-BODY: TianChen-RV selected lowering-boundary materialization failed
+// STALE-RVV-BODY-SAME: typed microkernel body authority 'i32-vadd'
+// STALE-RVV-BODY-SAME: typed selected-source metadata names 'i32-vmul'
 
 // STALE-SCALAR-BODY: selected scalar dispatch fallback component body authority failed before RVV+scalar dispatch artifact emission
 // STALE-SCALAR-BODY-SAME: supported emission-plan route 'tcrv-export-scalar-i32-vmul-microkernel-c'

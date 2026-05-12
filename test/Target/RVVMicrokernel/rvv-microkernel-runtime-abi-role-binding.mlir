@@ -200,13 +200,11 @@ module @rvv_runtime_abi_role_binding {
 // ALT: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice
 
 // STALE-NAME: runtime ABI callable plan validation failed
-// STALE-NAME-SAME: supported RVV microkernel emission-plan runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
+// STALE-NAME-SAME: selected RVV target artifact candidate runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
 // DUPLICATE: duplicate runtime ABI parameter role 'lhs-input-buffer'
 // UNKNOWN: unsupported runtime ABI parameter role 'unknown-length'
-// OWNERSHIP: runtime ABI callable plan validation failed
-// OWNERSHIP-SAME: supported RVV microkernel emission-plan runtime ABI parameter role 'output-buffer' must mirror IR-backed callable ABI parameter
-// TYPE: runtime ABI callable plan validation failed
-// TYPE-SAME: supported RVV microkernel emission-plan runtime ABI parameter role 'runtime-element-count' must mirror IR-backed callable ABI parameter
+// OWNERSHIP: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'output-buffer' must use c type 'int32_t *' and ownership 'target-export-abi-owned'
+// TYPE: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'runtime-element-count' must use c type 'size_t'
 // MISSING-RUNTIME-N: runtime ABI runtime_param validation failed
 // MISSING-RUNTIME-N-SAME: requires exactly one tcrv.exec.runtime_param with ABI role 'runtime-element-count'
 // MISSING-RUNTIME-CNAME: 'tcrv.exec.runtime_param' op requires non-empty string attribute 'c_name'

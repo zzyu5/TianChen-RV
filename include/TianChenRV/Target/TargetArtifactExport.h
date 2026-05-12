@@ -518,6 +518,10 @@ llvm::Error exportTargetHeaderArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::raw_ostream &os);
 
+llvm::Error exportTargetArtifactRoute(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::StringRef routeID, llvm::raw_ostream &os);
+
 llvm::Error exportTargetArtifactBundle(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
     llvm::StringRef outputDirectory);

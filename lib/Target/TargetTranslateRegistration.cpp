@@ -21,9 +21,11 @@ llvm::Error makeTranslateRegistryError(llvm::Twine message) {
 TargetTranslateRoute::TargetTranslateRoute(llvm::StringRef routeID,
                                            llvm::StringRef description,
                                            TargetTranslateExportFn exportFn,
-                                           bool requiresBinaryStdout)
+                                           bool requiresBinaryStdout,
+                                           llvm::StringRef targetArtifactRouteID)
     : routeID(routeID.str()), description(description.str()),
-      exportFn(std::move(exportFn)), binaryStdout(requiresBinaryStdout) {}
+      exportFn(std::move(exportFn)), binaryStdout(requiresBinaryStdout),
+      targetArtifactRouteID(targetArtifactRouteID.str()) {}
 
 llvm::Error
 TargetTranslateRouteRegistry::registerRoute(const TargetTranslateRoute &route) {
@@ -33,6 +35,10 @@ TargetTranslateRouteRegistry::registerRoute(const TargetTranslateRoute &route) {
     return makeTranslateRegistryError("route description must be non-empty");
   if (!route.getExportFn())
     return makeTranslateRegistryError("route export callback must be non-null");
+  if (!route.getTargetArtifactRouteID().empty() &&
+      route.getTargetArtifactRouteID().trim().empty())
+    return makeTranslateRegistryError(
+        "target artifact route id must be non-empty when present");
   if (lookup(route.getRouteID()))
     return makeTranslateRegistryError(llvm::Twine("duplicate route id '") +
                                       route.getRouteID() + "'");

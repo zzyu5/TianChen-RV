@@ -51,5 +51,6 @@ module {
   }
 }
 
-// CHECK: RVV microkernel C export failed for kernel @offload_only_microkernel_export
-// CHECK-SAME: requires one selected rvv-plugin path
+// CHECK: TianChen-RV target source artifact export failed
+// CHECK-SAME: exact target artifact route 'tcrv-export-rvv-microkernel-c'
+// CHECK-SAME: requires exactly one selected emission-plan candidate; found none

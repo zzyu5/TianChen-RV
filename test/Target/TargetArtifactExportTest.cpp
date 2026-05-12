@@ -2885,7 +2885,8 @@ bool expectRVVScalarDispatchRouteManifestLookup() {
 bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
                           llvm::StringRef routeID,
                           bool expectedBinaryStdout,
-                          llvm::StringRef expectedDescriptionFragment) {
+                          llvm::StringRef expectedDescriptionFragment,
+                          llvm::StringRef expectedTargetArtifactRouteID = {}) {
   const TargetTranslateRoute *route = registry.lookup(routeID);
   if (!route) {
     llvm::errs() << "missing target translate route '" << routeID << "'\n";
@@ -2905,6 +2906,13 @@ bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
     llvm::errs() << "target translate route '" << routeID
                  << "' has unexpected description '"
                  << route->getDescription() << "'\n";
+    return false;
+  }
+  if (route->getTargetArtifactRouteID() != expectedTargetArtifactRouteID) {
+    llvm::errs() << "target translate route '" << routeID
+                 << "' has target artifact route id '"
+                 << route->getTargetArtifactRouteID() << "', expected '"
+                 << expectedTargetArtifactRouteID << "'\n";
     return false;
   }
   return true;
@@ -2948,6 +2956,14 @@ bool expectTargetTranslateRouteRegistryShape() {
           {"target translate route registry failed",
            "route export callback must be non-null"}))
     return false;
+  if (!expectErrorContains(
+          registry.registerRoute(TargetTranslateRoute(
+              "tcrv-bad-artifact-route", "bad artifact route", noopExporter,
+              /*requiresBinaryStdout=*/false, "   ")),
+          "blank target artifact route id rejected",
+          {"target translate route registry failed",
+           "target artifact route id must be non-empty when present"}))
+    return false;
 
   TargetTranslateRouteRegistry builtinRoutes;
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
@@ -2965,17 +2981,20 @@ bool expectTargetTranslateRouteRegistryShape() {
 
   if (!expectTranslateRoute(builtinRoutes, "tcrv-export-rvv-microkernel-c",
                             /*expectedBinaryStdout=*/false,
-                            "runtime-callable RVV i32-vadd"))
+                            "runtime-callable RVV i32-vadd",
+                            "tcrv-export-rvv-microkernel-c"))
     return false;
   if (!expectTranslateRoute(
           builtinRoutes, "tcrv-export-rvv-i64-vsub-microkernel-object",
           /*expectedBinaryStdout=*/true,
-          "RVV i64-vsub microkernel library object"))
+          "RVV i64-vsub microkernel library object",
+          "tcrv-export-rvv-i64-vsub-microkernel-object"))
     return false;
   if (!expectTranslateRoute(
           builtinRoutes, "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
           /*expectedBinaryStdout=*/false,
-          "RVV+scalar binary dispatch C source"))
+          "RVV+scalar binary dispatch C source",
+          "tcrv-export-rvv-scalar-i32-vadd-dispatch-c"))
     return false;
   if (!expectTranslateRoute(
           builtinRoutes,

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture and stack invariants"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC and descriptor-boundary route constraints"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact exporter, coherence preflight, and direct helper route boundaries"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "unified TCRV extension-family boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and evidence-claim policy"}

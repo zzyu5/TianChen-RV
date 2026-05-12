@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 39
+- **Total Sessions**: 45
 - **Last Active**: 2026-05-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1010 | Active |
+| `journal-4.md` | ~1270 | Active |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 45 | 2026-05-12 | Direct target translate route artifact coherence | this commit | `main` |
 | 39 | 2026-05-12 | Scalar selected-boundary descriptor-only quarantine | this commit | `main` |
 | 38 | 2026-05-12 | RVV+scalar dispatch EmitC source authority production route | this commit | `main` |
 | 37 | 2026-05-12 | RVV variant legality descriptor exit | this commit | `main` |

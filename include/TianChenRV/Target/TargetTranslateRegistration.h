@@ -24,18 +24,26 @@ class TargetTranslateRoute {
 public:
   TargetTranslateRoute(llvm::StringRef routeID, llvm::StringRef description,
                        TargetTranslateExportFn exportFn,
-                       bool requiresBinaryStdout = false);
+                       bool requiresBinaryStdout = false,
+                       llvm::StringRef targetArtifactRouteID = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getDescription() const { return description; }
   const TargetTranslateExportFn &getExportFn() const { return exportFn; }
   bool requiresBinaryStdout() const { return binaryStdout; }
+  llvm::StringRef getTargetArtifactRouteID() const {
+    return targetArtifactRouteID;
+  }
+  bool hasTargetArtifactRouteID() const {
+    return !targetArtifactRouteID.empty();
+  }
 
 private:
   std::string routeID;
   std::string description;
   TargetTranslateExportFn exportFn;
   bool binaryStdout = false;
+  std::string targetArtifactRouteID;
 };
 
 class TargetTranslateRouteRegistry {

@@ -2426,6 +2426,95 @@ llvm::Error exportTargetArtifactImpl(
   return exporter->getExportFn()(module, os);
 }
 
+void groupTargetArtifactCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    llvm::SmallVectorImpl<TargetArtifactCandidateGroup> &groups) {
+  for (const TargetArtifactCandidate &candidate : candidates) {
+    if (groups.empty() || groups.back().kernel != candidate.kernel) {
+      TargetArtifactCandidateGroup group;
+      group.kernel = candidate.kernel;
+      groups.push_back(std::move(group));
+    }
+    groups.back().candidates.push_back(candidate);
+  }
+}
+
+llvm::Error exportStandaloneTargetArtifactRoute(
+    mlir::ModuleOp module, llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactExporter &exporter, llvm::raw_ostream &os) {
+  llvm::SmallVector<const TargetArtifactCandidate *, 2> matches;
+  for (const TargetArtifactCandidate &candidate : candidates)
+    if (candidate.routeID == exporter.getRouteID())
+      matches.push_back(&candidate);
+
+  if (matches.empty())
+    return makeModuleArtifactExportError(
+        llvm::Twine("exact target artifact route '") +
+        exporter.getRouteID() +
+        "' requires exactly one selected emission-plan candidate; found none");
+  if (matches.size() > 1)
+    return makeModuleArtifactExportError(
+        llvm::Twine("exact target artifact route '") +
+        exporter.getRouteID() +
+        "' requires exactly one selected emission-plan candidate; found "
+        "multiple");
+
+  if (llvm::Error error =
+          validateTargetArtifactCandidateAgainstExporter(*matches.front(),
+                                                        exporter))
+    return error;
+
+  return exporter.getExportFn()(module, os);
+}
+
+llvm::Error exportCompositeTargetArtifactRoute(
+    mlir::ModuleOp module, llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactCompositeExporter &exporter, llvm::raw_ostream &os) {
+  TargetArtifactCompositeMatchFn matchFn = exporter.getMatchFn();
+  if (!matchFn)
+    return makeModuleArtifactExportError(
+        llvm::Twine("composite exact target artifact route '") +
+        exporter.getRouteID() + "' has no registered match callback");
+
+  llvm::SmallVector<TargetArtifactCandidateGroup, 4> groups;
+  groupTargetArtifactCandidates(candidates, groups);
+
+  llvm::SmallVector<const TargetArtifactCandidateGroup *, 2> matches;
+  for (const TargetArtifactCandidateGroup &group : groups) {
+    llvm::Expected<bool> matched = matchFn(group.candidates);
+    if (!matched)
+      return matched.takeError();
+    if (*matched)
+      matches.push_back(&group);
+  }
+
+  if (matches.empty())
+    return makeModuleArtifactExportError(
+        llvm::Twine("exact composite target artifact route '") +
+        exporter.getRouteID() +
+        "' requires exactly one selected emission-plan candidate group; found "
+        "none");
+  if (matches.size() > 1)
+    return makeModuleArtifactExportError(
+        llvm::Twine("exact composite target artifact route '") +
+        exporter.getRouteID() +
+        "' requires exactly one selected emission-plan candidate group; found "
+        "multiple");
+
+  if (TargetArtifactCompositeCandidateValidationFn validationFn =
+          exporter.getCandidateValidationFn()) {
+    if (llvm::Error error = validationFn(matches.front()->candidates)) {
+      std::string message = llvm::toString(std::move(error));
+      return makeModuleArtifactExportError(
+          llvm::Twine("exact composite target artifact route '") +
+          exporter.getRouteID() +
+          "' runtime ABI role contract preflight failed: " + message);
+    }
+  }
+
+  return exporter.getExportFn()(module, os);
+}
+
 } // namespace
 
 TargetArtifactRouteClaimField::TargetArtifactRouteClaimField(
@@ -3124,6 +3213,32 @@ llvm::Error exportTargetHeaderArtifact(
   return exportTargetArtifactImpl(module, registry,
                                   ArtifactSelectionMode::HeaderOnly,
                                   "header artifact", os);
+}
+
+llvm::Error exportTargetArtifactRoute(
+    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    llvm::StringRef routeID, llvm::raw_ostream &os) {
+  routeID = routeID.trim();
+  if (routeID.empty())
+    return makeModuleArtifactExportError(
+        "exact target artifact export requires a non-empty route id");
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  if (llvm::Error error = collectTargetArtifactCandidates(module, candidates))
+    return error;
+
+  if (const TargetArtifactExporter *exporter = registry.lookup(routeID))
+    return exportStandaloneTargetArtifactRoute(module, candidates, *exporter,
+                                               os);
+
+  if (const TargetArtifactCompositeExporter *exporter =
+          registry.lookupComposite(routeID))
+    return exportCompositeTargetArtifactRoute(module, candidates, *exporter,
+                                              os);
+
+  return makeModuleArtifactExportError(
+      llvm::Twine("unknown exact target artifact export route id '") + routeID +
+      "'");
 }
 
 llvm::Error exportTargetArtifactBundle(

@@ -136,7 +136,7 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32m2_vsub_self_check_one(16, 1)
 // HARNESS: tcrv_rvv_scalar_i32_vsub_dispatch_self_check_ok runtime_counts=7,16 branches=scalar_and_rvv
 
-// SHAPE-MISMATCH: selected vector-shape shape must be 'i32m2'
+// SHAPE-MISMATCH: selected vector-shape id must be 'i32m2'
 // PLAN-METADATA-MISMATCH: selected_plan_metadata 'tcrv_rvv.selected_vector_suffix' vector suffix must be 'i32m2'
 // SELECTED-CONFIG-MISMATCH: selected RVV dispatch case callable route 'tcrv-export-rvv-i32-vsub-microkernel-c' for i64-vsub has stale route id
 // SELECTED-CONFIG-MISMATCH: expected 'tcrv-export-rvv-i64-vsub-microkernel-c'

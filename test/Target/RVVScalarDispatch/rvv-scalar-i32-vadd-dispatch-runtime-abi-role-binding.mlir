@@ -42,20 +42,15 @@
 // ROLE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice
 // ROLE-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_dispatch_vadd_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
-// MISSING: target source artifact export failed
-// MISSING-SAME: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'
+// MISSING: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'
 
-// DUPLICATE: target source artifact export failed
-// DUPLICATE-SAME: duplicate runtime ABI parameter role 'lhs-input-buffer'
+// DUPLICATE: duplicate runtime ABI parameter role 'lhs-input-buffer'
 
-// WRONG-TYPE: target source artifact export failed
-// WRONG-TYPE-SAME: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'runtime-element-count' must use c type 'size_t'
+// WRONG-TYPE: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'runtime-element-count' must use c type 'size_t'
 
-// WRONG-OWNERSHIP: target source artifact export failed
-// WRONG-OWNERSHIP-SAME: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'lhs-input-buffer' must use c type 'const int32_t *' and ownership 'target-export-abi-owned'
+// WRONG-OWNERSHIP: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'lhs-input-buffer' must use c type 'const int32_t *' and ownership 'target-export-abi-owned'
 
-// UNKNOWN: target source artifact export failed
-// UNKNOWN-SAME: unsupported runtime ABI parameter role 'mystery-runtime-count'
+// UNKNOWN: unsupported runtime ABI parameter role 'mystery-runtime-count'
 
 // GUARD-TYPE: RVV+scalar binary dispatch C export failed
 // GUARD-TYPE-SAME: runtime ABI runtime_param validation failed

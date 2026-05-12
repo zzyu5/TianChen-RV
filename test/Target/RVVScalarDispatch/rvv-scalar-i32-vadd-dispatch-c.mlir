@@ -355,9 +355,15 @@ module @rvv_scalar_dispatch_input {
 // HELP-DAG: tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-object
 // HELP: tcrv-export-target-header-artifact
 
-// ROUTE-MISMATCH: direct source export route expected i32-vsub dispatch artifacts, got i32-vadd
-// HEADER-ROUTE-MISMATCH: direct header export route expected i32-vsub dispatch artifacts, got i32-vadd
-// OBJECT-ROUTE-MISMATCH: direct object export route expected i32-vsub dispatch artifacts, got i32-vadd
+// ROUTE-MISMATCH: TianChen-RV target source artifact export failed
+// ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vsub-dispatch-c'
+// ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
+// HEADER-ROUTE-MISMATCH: TianChen-RV target source artifact export failed
+// HEADER-ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vsub-dispatch-header'
+// HEADER-ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
+// OBJECT-ROUTE-MISMATCH: TianChen-RV target source artifact export failed
+// OBJECT-ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vsub-dispatch-object'
+// OBJECT-ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
 // SELFCHECK-ROUTE-MISMATCH: self-check export route expected i32-vsub dispatch artifacts, got i32-vadd
 // SELFCHECK-OBJECT-ROUTE-MISMATCH: self-check object export route expected i32-vsub dispatch artifacts, got i32-vadd
 
@@ -366,8 +372,8 @@ module @rvv_scalar_dispatch_input {
 
 // OBJECT-BAD-ABI: unsupported runtime ABI parameter role 'malformed-runtime-element-count'
 
-// OBJECT-MISSING-ARCH: RVV+scalar binary dispatch object export failed
-// OBJECT-MISSING-ARCH-SAME: architecture must be bounded non-empty compile metadata
+// OBJECT-MISSING-ARCH: TianChen-RV selected lowering-boundary materialization failed
+// OBJECT-MISSING-ARCH-SAME: capability id 'rvv' requires preserved property 'architecture'
 
 // MISSING-MEM-WINDOW: RVV+scalar binary dispatch C export failed
 // MISSING-MEM-WINDOW-SAME: runtime ABI mem_window validation failed
@@ -385,11 +391,13 @@ module @rvv_scalar_dispatch_input {
 
 // MISSING-RUNTIME-GUARD: runtime_guard references unknown runtime_param @abi_dispatch_availability_guard
 
-// MISSING-CASE-RUNTIME-GUARD: RVV+scalar binary dispatch C export failed
-// MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
+// MISSING-CASE-RUNTIME-GUARD: execution plan coherence check failed
+// MISSING-CASE-RUNTIME-GUARD-SAME: dispatch case @rvv_first_slice carries typed runtime_guard_required = true
+// MISSING-CASE-RUNTIME-GUARD-SAME: missing runtime_guard linkage
 
-// HEADER-MISSING-CASE-RUNTIME-GUARD: RVV+scalar binary dispatch header export failed
-// HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference
+// HEADER-MISSING-CASE-RUNTIME-GUARD: execution plan coherence check failed
+// HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: dispatch case @rvv_first_slice carries typed runtime_guard_required = true
+// HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: missing runtime_guard linkage
 
 // GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD: execution plan coherence check failed
 // GENERIC-HEADER-MISSING-CASE-RUNTIME-GUARD-SAME: dispatch case @rvv_first_slice carries typed runtime_guard_required = true

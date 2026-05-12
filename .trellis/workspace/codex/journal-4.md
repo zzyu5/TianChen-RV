@@ -179,6 +179,54 @@ self-check executable correctness only.
 - None - task complete
 
 
+## Session 45: Direct target translate route artifact coherence
+
+**Date**: 2026-05-12
+**Task**: Direct target translate route artifact coherence
+**Branch**: `main`
+
+### Summary
+
+Rewired emission-plan-backed direct `tcrv-translate` RVV and RVV+scalar
+source/header/object routes onto the same generic target artifact exporter and
+execution-plan coherence surface used by `--tcrv-export-target-*`.
+
+### Main Changes
+
+- Added an exact-route generic target artifact export API for registered
+  standalone and composite route ids.
+- Extended target translate route registration with optional target artifact
+  route metadata and validation.
+- Marked direct RVV microkernel and RVV+scalar dispatch source/header/object
+  routes with their target artifact route ids while leaving self-check helper
+  routes target-local.
+- Updated `tcrv-translate` so marked direct routes with emission-plan
+  diagnostics populate built-in registries, run execution-plan coherence, and
+  invoke the generic exact-route exporter.
+- Updated C++ and lit coverage for route metadata, exact-route diagnostics,
+  coherence preflight, and target-local helper preservation.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'RVVScalarDispatch|RVVMicrokernel|target-source-artifact-routes|target-artifact-export-registry'`
+  with 45/45 selected tests passed.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-05-12-direct-target-translate-route-artifact-coherence`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-12-05-12-direct-target-translate-route-artifact-coherence`
+
+### Status
+
+[OK] Completed. No `ssh rvv` runtime, correctness, or performance claim was
+made.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 44: RVV+scalar dispatch common EmitC source boundary
 
 **Date**: 2026-05-12

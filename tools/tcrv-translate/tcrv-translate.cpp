@@ -1,4 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
@@ -13,6 +14,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
@@ -30,6 +32,8 @@ namespace {
 using TargetArtifactExportFn = llvm::Error (*)(
     mlir::ModuleOp, const tianchenrv::target::TargetArtifactExporterRegistry &,
     llvm::raw_ostream &);
+
+namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
 
 llvm::cl::opt<std::string> targetArtifactBundleOutputDirectory(
     "tcrv-target-artifact-bundle-output-dir",
@@ -121,6 +125,11 @@ mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   return mlir::success();
 }
 
+bool hasEmissionPlanDiagnostics(mlir::ModuleOp module);
+
+mlir::LogicalResult exportCoherenceGatedTargetArtifactRoute(
+    mlir::ModuleOp module, llvm::raw_ostream &os, llvm::StringRef routeID);
+
 mlir::LogicalResult
 exportTargetTranslateRoute(mlir::ModuleOp module,
                            const tianchenrv::target::TargetTranslateRoute &route,
@@ -133,6 +142,10 @@ exportTargetTranslateRoute(mlir::ModuleOp module,
       return mlir::failure();
     }
   }
+
+  if (route.hasTargetArtifactRouteID() && hasEmissionPlanDiagnostics(module))
+    return exportCoherenceGatedTargetArtifactRoute(
+        module, os, route.getTargetArtifactRouteID());
 
   if (llvm::Error error = route.getExportFn()(module, os)) {
     std::string message = llvm::toString(std::move(error));
@@ -184,6 +197,19 @@ void registerBuiltinTargetTranslateRouteTranslations() {
   }
 }
 
+bool hasEmissionPlanDiagnostics(mlir::ModuleOp module) {
+  bool found = false;
+  module->walk([&](mlir::Operation *op) {
+    auto reason =
+        op->getAttrOfType<mlir::StringAttr>(execDiagnostic::kReasonAttrName);
+    if (!reason || !execDiagnostic::isEmissionPlanReason(reason.getValue()))
+      return mlir::WalkResult::advance();
+    found = true;
+    return mlir::WalkResult::interrupt();
+  });
+  return found;
+}
+
 mlir::LogicalResult
 exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
                                    TargetArtifactExportFn exportFn) {
@@ -202,6 +228,31 @@ exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
   }
 
   if (llvm::Error error = exportFn(module, exporters, os)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult exportCoherenceGatedTargetArtifactRoute(
+    mlir::ModuleOp module, llvm::raw_ostream &os, llvm::StringRef routeID) {
+  tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
+  if (mlir::failed(
+          populateBuiltinPlanningRegistries(module, plugins, exporters)))
+    return mlir::failure();
+
+  if (llvm::Error error =
+          tianchenrv::transforms::checkExecutionPlanCoherence(module, plugins,
+                                                              exporters)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (llvm::Error error = tianchenrv::target::exportTargetArtifactRoute(
+          module, exporters, routeID, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

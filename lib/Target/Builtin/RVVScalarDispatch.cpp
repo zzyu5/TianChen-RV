@@ -3663,12 +3663,23 @@ llvm::Error registerRVVScalarDispatchTargetTranslateRoutes(
   for (const RVVScalarDispatchRouteManifestEntry &route :
        getRVVScalarDispatchRouteManifest()) {
     const RVVScalarDispatchRouteManifestEntry *routePtr = &route;
+    llvm::StringRef targetArtifactRouteID;
+    switch (route.routeKind) {
+    case DispatchRouteKind::Source:
+    case DispatchRouteKind::Header:
+    case DispatchRouteKind::Object:
+      targetArtifactRouteID = route.routeID;
+      break;
+    case DispatchRouteKind::SelfCheckSource:
+    case DispatchRouteKind::SelfCheckObject:
+      break;
+    }
     if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
             route.routeID, route.description,
             [routePtr](mlir::ModuleOp module, llvm::raw_ostream &os) {
               return exportRVVScalarDispatchRoute(module, *routePtr, os);
             },
-            route.requiresBinaryStdout)))
+            route.requiresBinaryStdout, targetArtifactRouteID)))
       return error;
   }
   return llvm::Error::success();
