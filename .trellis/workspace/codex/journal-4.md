@@ -1369,3 +1369,54 @@ Verified the existing descriptor-free typed RVV i32-vadd exact-family source/hea
 ### Next Steps
 
 - None - task complete
+
+
+## Session 48: RVV+scalar dispatch runtime ABI artifact path
+
+**Date**: 2026-05-13
+**Task**: RVV+scalar dispatch runtime ABI artifact path
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task/PRD from the Hermes brief, repaired the local
+dispatch/scalar object compiler lookup to match the existing RVV direct
+microkernel `clang`/`clang-20` behavior, and verified the bounded RVV+scalar
+`i32-vadd` dispatch bundle external ABI on real `ssh rvv`.
+
+### Main Changes
+
+- `RVVScalarDispatch.cpp` dispatch object export now falls back to `clang-20`
+  when unsuffixed `clang` is not on PATH.
+- `ScalarMicrokernel.cpp` scalar fallback object export now uses the same
+  `clang`/`clang-20` lookup behavior.
+- Added Trellis PRD/context for the composite dispatch source/header/object
+  runtime ABI artifact path.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit over RVVScalarDispatch, RVVMicrokernel, target artifact routes,
+  TargetArtifactBundleExport, and dispatch bundle e2e: 62/62 passed.
+- Focused lit over scalar source/header/object routes plus RVVScalarDispatch:
+  16/16 passed.
+- Manual direct dispatch source/header/object/generic/bundle artifact export
+  under `artifacts/tmp/rvv_scalar_dispatch_runtime_abi_manual/`.
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Dry-run bundle external caller construction for `i32-vadd`.
+- Real `ssh rvv` bundle external ABI run:
+  `20260513T-rvv-scalar-dispatch-i32-vadd-external-abi`.
+  Both source-built and generated bundle-object linked callers ran with
+  stdout `tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok runtime_counts=7,16 branches=scalar_and_rvv`.
+
+### Status
+
+[OK] Completed. Claim scope is bounded to RVV+scalar `i32-vadd`
+target-artifact bundle external caller correctness only; no performance,
+generic lowering, broad RVV runtime, or dynamic runtime integration claim was
+made.
+
+### Next Steps
+
+- None - task complete

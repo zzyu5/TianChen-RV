@@ -2988,9 +2988,12 @@ llvm::Error compileGeneratedDispatchSourceToObject(
   llvm::ErrorOr<std::string> clangPath =
       llvm::sys::findProgramByName("clang");
   if (!clangPath)
+    clangPath = llvm::sys::findProgramByName("clang-20");
+  if (!clangPath)
     return makeDispatchObjectError(
-        kernel, "requires clang on PATH to compile the bounded dispatch C "
-                "source into an object file");
+        kernel,
+        "requires clang or clang-20 on PATH to compile the bounded dispatch C "
+        "source into an object file");
 
   TemporaryFile sourceFile;
   if (llvm::Error error = writeTempSource(source, sourceFile))

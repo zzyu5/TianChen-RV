@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor boundary for production artifact emission."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, dispatch ABI parameter layering, and builtin exporter registration contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV exact-family authority, selected vector shape, and runtime-vs-compile-time boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/ssh evidence forms for RVV+scalar dispatch artifacts."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-exact-family-runtime-abi-hardware-proof/prd.md", "reason": "Prior direct RVV exact-family runtime ABI evidence boundary and non-goals."}

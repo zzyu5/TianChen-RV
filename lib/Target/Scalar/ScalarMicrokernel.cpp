@@ -2485,10 +2485,12 @@ llvm::Error compileGeneratedMicrokernelSourceToObject(
   llvm::ErrorOr<std::string> clangPath =
       llvm::sys::findProgramByName("clang");
   if (!clangPath)
+    clangPath = llvm::sys::findProgramByName("clang-20");
+  if (!clangPath)
     return makeMicrokernelObjectError(
         record.kernelSymbol,
-        "requires clang on PATH to compile the bounded scalar microkernel C "
-        "source into a RISC-V object file");
+        "requires clang or clang-20 on PATH to compile the bounded scalar "
+        "microkernel C source into a RISC-V object file");
 
   TemporaryFile sourceFile;
   if (llvm::Error error = writeTempSource(source, sourceFile))

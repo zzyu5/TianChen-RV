@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve global TianChen-RV project invariants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC route and descriptor boundary remain intact."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export, runtime ABI, and dispatch guard contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify exact RVV family authority and capability-scoped RVV boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify local and ssh evidence claims match the testing contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-exact-family-runtime-abi-hardware-proof/prd.md", "reason": "Ensure this task does not repackage the prior standalone microkernel proof."}
