@@ -107,7 +107,6 @@ struct RVVBinarySelectedPlan {
 
   llvm::StringRef getFamilyID() const;
   llvm::StringRef getDTypeID() const;
-  llvm::StringRef getLoweringDescriptor() const;
   llvm::StringRef getMicrokernelOpName() const;
   llvm::StringRef getArithmeticOpName() const;
   llvm::StringRef getEmissionKind() const;
@@ -139,11 +138,9 @@ struct RVVBinaryProposalPlan {
   std::string guard;
   std::string policy;
   std::string sourceKind;
-  bool attachLoweringDescriptorAttr = true;
 
   llvm::StringRef getFamilyID() const;
   llvm::StringRef getDTypeID() const;
-  llvm::StringRef getLoweringDescriptor() const;
   const target::rvv::RVVBinaryFamilyDescriptor &getFamily() const;
   const target::rvv::RVVVectorShapeConfig &getSelectedShape() const;
   llvm::ArrayRef<std::string> getRequiredCapabilityIDs() const;
@@ -152,9 +149,6 @@ struct RVVBinaryProposalPlan {
   llvm::StringRef getPolicy() const;
   llvm::StringRef getSourceKind() const;
   bool hasCapacityMetadata() const;
-  bool shouldAttachLoweringDescriptorAttr() const {
-    return attachLoweringDescriptorAttr;
-  }
 };
 
 struct RVVBinaryFamilyPlanningResolution {
@@ -168,9 +162,6 @@ struct RVVBinaryFamilyPlanningResolution {
   }
   llvm::StringRef getFrontendLowering() const {
     return family ? family->frontendLowering : llvm::StringRef();
-  }
-  llvm::StringRef getLoweringDescriptor() const {
-    return family ? family->loweringDescriptor : llvm::StringRef();
   }
   llvm::StringRef getSourceKind() const { return sourceKind; }
   llvm::StringRef getDirectSelectedShapeID() const {

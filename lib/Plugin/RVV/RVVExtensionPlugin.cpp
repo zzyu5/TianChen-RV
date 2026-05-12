@@ -34,8 +34,6 @@ constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
-constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorAttrName(
-    "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
     "tcrv_rvv.smoke_probe_descriptor");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorValue(
@@ -231,13 +229,6 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
         mlir::StringAttr::get(request.getKernel()->getContext(),
                               kRVVSmokeProbeDescriptorValue));
     return proposal;
-  }
-  if (plan->shouldAttachLoweringDescriptorAttr()) {
-    proposal.addPluginAttribute(
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              kRVVI32VAddLoweringDescriptorAttrName),
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              plan->getLoweringDescriptor()));
   }
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),

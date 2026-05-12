@@ -446,10 +446,10 @@ int runProposalPlanRequirementMetadataTest() {
     return result;
   if (int result =
           expect(i64Plan.getFamilyID() == "i64-vmul" &&
-                     i64Plan.getLoweringDescriptor() ==
-                         "i64-vmul-microkernel.v1" &&
+                     i64Plan.getSourceKind() == "frontend-lowering" &&
                      i64Plan.getSelectedShape().shapeID == "i64m1",
-                 "i64 proposal plan preserves finite family and i64m1 shape"))
+                 "i64 proposal plan preserves typed family, frontend source "
+                 "kind, and i64m1 shape"))
     return result;
   if (int result =
           expect(i64Plan.getRequiredCapabilityIDs().size() == 5 &&
@@ -536,9 +536,10 @@ module {
           expect(plan.getFamilyID() == "i32-vadd" &&
                      plan.getSelectedShape().shapeID == "i32m1" &&
                      plan.selectedPlan.elementCount == 16 &&
-                     !plan.shouldAttachLoweringDescriptorAttr(),
-                 "default proposal selects i32m1 and refuses to reattach "
-                 "descriptor compute authority"))
+                     plan.getSourceKind() ==
+                         "default-i32-vadd-typed-body-materialization",
+                 "default proposal selects i32m1 typed body materialization "
+                 "without descriptor compute authority"))
     return result;
 
   return expect(plan.getRequiredCapabilityIDs().size() == 5 &&
@@ -670,16 +671,14 @@ module {
               i64Kernel, "unit direct i64 descriptor contract"),
           i64Resolution, "resolve direct i64 descriptor contract"))
     return result;
-	  if (int result =
-	          expect(i64Resolution.getFamilyID() == "i64-vadd" &&
-	                     i64Resolution.getLoweringDescriptor() ==
-	                         "i64-vadd-microkernel.v1" &&
-	                     i64Resolution.getSourceKind() ==
-	                         "direct-typed-microkernel-body" &&
-	                     i64Resolution.getDirectSelectedShapeID() == "i64m1",
-	                 "direct i64 typed body with optional descriptor resolves "
-	                 "family and shape"))
-	    return result;
+  if (int result =
+          expect(i64Resolution.getFamilyID() == "i64-vadd" &&
+                     i64Resolution.getSourceKind() ==
+                         "direct-typed-microkernel-body" &&
+                     i64Resolution.getDirectSelectedShapeID() == "i64m1",
+                 "direct i64 typed body with optional legacy mirror resolves "
+                 "typed family and shape"))
+    return result;
 
   llvm::SmallVector<llvm::StringRef, 4> i64CapabilityIDs =
       i64Resolution.getDirectSelectedCapabilityIDs();
@@ -699,21 +698,22 @@ module {
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
               i64Capabilities, i64Kernel, "unit direct i64 proposal"),
-	          i64Plan,
-	          "build proposal from direct i64 typed body compatibility contract"))
-	    return result;
-	  if (int result =
-	          expect(i64Plan.getFamilyID() == "i64-vadd" &&
-	                     i64Plan.getSelectedShape().shapeID == "i64m1" &&
-	                     !i64Plan.shouldAttachLoweringDescriptorAttr() &&
-	                     i64Plan.getRequiredCapabilityIDs().size() == 5 &&
-	                     i64Plan.getRequiredCapabilityIDs()[1] ==
-	                         "rvv.i64_m1.sew64" &&
+          i64Plan,
+          "build proposal from direct i64 typed body compatibility contract"))
+    return result;
+  if (int result =
+          expect(i64Plan.getFamilyID() == "i64-vadd" &&
+                     i64Plan.getSelectedShape().shapeID == "i64m1" &&
+                     i64Plan.getSourceKind() ==
+                         "direct-typed-microkernel-body" &&
+                     i64Plan.getRequiredCapabilityIDs().size() == 5 &&
+                     i64Plan.getRequiredCapabilityIDs()[1] ==
+                         "rvv.i64_m1.sew64" &&
                      i64Plan.getRequiredCapabilityIDs()[4] ==
                          "rvv.i64_m1.mask_policy.agnostic",
-	                 "direct i64 proposal uses centralized contract capability "
-	                 "ids without reattaching descriptor compute authority"))
-	    return result;
+                 "direct i64 proposal uses typed source-kind and centralized "
+                 "contract capability ids without descriptor compute authority"))
+    return result;
 
   KernelOp i32Kernel = findKernel(*module, "direct_i32m2_contract");
   RVVBinaryFamilyPlanningResolution i32Resolution;
@@ -742,7 +742,8 @@ module {
     return result;
   return expect(i32Plan.getFamilyID() == "i32-vadd" &&
                     i32Plan.getSelectedShape().shapeID == "i32m2" &&
-                    !i32Plan.shouldAttachLoweringDescriptorAttr() &&
+                    i32Plan.getSourceKind() ==
+                        "direct-typed-microkernel-body" &&
                     i32Plan.getRequiredCapabilityIDs()[1] ==
                         "rvv.i32_m2.sew32" &&
                     i32Plan.getRequiredCapabilityIDs()[2] ==

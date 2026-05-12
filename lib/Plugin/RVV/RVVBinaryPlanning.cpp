@@ -1157,10 +1157,6 @@ llvm::StringRef RVVBinarySelectedPlan::getDTypeID() const {
   return family ? family->dtypeID : llvm::StringRef();
 }
 
-llvm::StringRef RVVBinarySelectedPlan::getLoweringDescriptor() const {
-  return family ? family->loweringDescriptor : llvm::StringRef();
-}
-
 llvm::StringRef RVVBinarySelectedPlan::getMicrokernelOpName() const {
   return family ? family->microkernelOpName : llvm::StringRef();
 }
@@ -1227,10 +1223,6 @@ llvm::StringRef RVVBinaryProposalPlan::getFamilyID() const {
 
 llvm::StringRef RVVBinaryProposalPlan::getDTypeID() const {
   return selectedPlan.getDTypeID();
-}
-
-llvm::StringRef RVVBinaryProposalPlan::getLoweringDescriptor() const {
-  return selectedPlan.getLoweringDescriptor();
 }
 
 const target::rvv::RVVBinaryFamilyDescriptor &
@@ -1708,7 +1700,6 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
     const support::TargetCapabilitySet &capabilities,
     const target::rvv::RVVBinaryFamilyDescriptor &requestedFamily,
     const target::rvv::RVVVectorShapeConfig *directSelectedShape,
-    bool attachLoweringDescriptorAttr,
     llvm::StringRef diagnosticContext) {
   llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
       registeredFamily = getRegisteredRVVBinaryFamily(requestedFamily);
@@ -1754,7 +1745,6 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
   plan.guard = kProposalGuard.str();
   plan.policy = kProposalPolicy.str();
   plan.sourceKind = kDefaultTypedMicrokernelBodySourceKind.str();
-  plan.attachLoweringDescriptorAttr = attachLoweringDescriptorAttr;
   return plan;
 }
 
@@ -1841,9 +1831,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const target::rvv::RVVBinaryFamilyDescriptor &family,
     llvm::StringRef diagnosticContext) {
   return buildRVVBinaryProposalPlanForFamily(
-      capabilities, family, /*directSelectedShape=*/nullptr,
-      /*attachLoweringDescriptorAttr=*/!isTypedSourceRVVBinaryFamily(family),
-      diagnosticContext);
+      capabilities, family, /*directSelectedShape=*/nullptr, diagnosticContext);
 }
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
@@ -1877,10 +1865,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
           : nullptr;
   llvm::Expected<RVVBinaryProposalPlan> plan =
       buildRVVBinaryProposalPlanForFamily(
-          capabilities, *requestedFamily, requiredShape,
-          /*attachLoweringDescriptorAttr=*/
-          !isTypedSourceRVVBinaryFamily(*requestedFamily),
-          diagnosticContext);
+          capabilities, *requestedFamily, requiredShape, diagnosticContext);
   if (!plan)
     return plan.takeError();
   plan->sourceKind = sourceKind.str();
@@ -1895,14 +1880,10 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
   if (!resolution)
     return resolution.takeError();
 
-  bool attachLoweringDescriptorAttr = true;
-  if (isTypedSourceRVVBinaryFamily(*resolution->family))
-    attachLoweringDescriptorAttr = false;
-
   llvm::Expected<RVVBinaryProposalPlan> plan =
       buildRVVBinaryProposalPlanForFamily(
           capabilities, *resolution->family, resolution->directSelectedShape,
-          attachLoweringDescriptorAttr, diagnosticContext);
+          diagnosticContext);
   if (!plan)
     return plan.takeError();
   plan->sourceKind = resolution->sourceKind;

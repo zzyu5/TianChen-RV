@@ -1052,10 +1052,10 @@ void appendSelectedBinaryMetadata(
     if (useTypedSourceMetadata) {
       legacyMirrorMetadata.push_back(
           {target::rvv::getRVVSelectedLoweringDescriptorMetadataName(),
-           contract.getLoweringDescriptor(),
+           contract.getLegacyLoweringDescriptorMirror(),
            target::rvv::getRVVLegacyDescriptorMirrorMetadataRole(),
            target::rvv::getRVVLegacyDescriptorMirrorMetadataNote(),
-           "selected lowering descriptor"});
+           "legacy lowering descriptor mirror"});
     } else {
       target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
           contract, legacyMirrorMetadata);

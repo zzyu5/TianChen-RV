@@ -218,15 +218,19 @@ chooses that selected-path sample size as four M1 i32 vectors, capped at 64
 elements; without structured capacity evidence it uses the fixed first-slice
 fallback sample size `16`. This is a compiler selected-plan decision, not a
 runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.
-The generic string policy remains the input for core selection/dispatch; the
-typed policy, required march, optional capacity metadata,
-selected vector-shape metadata, element count, and optional legacy descriptor
-mirror are plugin-local metadata preserved by the generic
-proposal/materialization path and validated by `RVVExtensionPlugin` when
-present on a materialized variant. These fields are
-compiler-visible metadata for the existing generic materialization, legality,
-capability, and selection helpers. They are not generic tensor semantics,
-arbitrary RVV lowering, runtime correctness evidence, or performance evidence.
+The generic string policy remains the input for core selection/dispatch. The
+typed policy, required march, optional capacity metadata, selected vector-shape
+metadata, and element count are default plugin-local metadata preserved by the
+generic proposal/materialization path and validated by `RVVExtensionPlugin`
+when present on a materialized variant. Default typed RVV binary proposals must
+not attach `tcrv_rvv.lowering_descriptor`; if that attribute is present on
+hand-authored or legacy MLIR, it is optional legacy mirror metadata validated
+only after typed family/body authority is known. The optional legacy descriptor
+mirror is not a default production authority and is not emitted by typed RVV
+proposal planning. These fields are compiler-visible metadata for the existing
+generic materialization, legality, capability, and selection helpers. They are
+not generic tensor semantics, arbitrary RVV lowering, runtime correctness
+evidence, or performance evidence.
 
 ## Scenario: Capability-Backed RVV i32m1 Config Policy Slice
 

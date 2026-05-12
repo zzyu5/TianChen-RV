@@ -115,7 +115,7 @@ public:
   llvm::StringRef getFrontendLowering() const {
     return family ? family->frontendLowering : llvm::StringRef();
   }
-  llvm::StringRef getLoweringDescriptor() const {
+  llvm::StringRef getLegacyLoweringDescriptorMirror() const {
     return family ? family->loweringDescriptor : llvm::StringRef();
   }
   llvm::StringRef getArithmeticOpName() const {
@@ -373,8 +373,8 @@ inline void appendRVVBinaryLegacyDescriptorMirrorMetadata(
                  contract.getArithmeticVerb(), descriptorRole, descriptorNote,
                  "selected binary operator"});
   out.push_back({getRVVSelectedLoweringDescriptorMetadataName(),
-                 contract.getLoweringDescriptor(), descriptorRole,
-                 descriptorNote, "selected lowering descriptor"});
+                 contract.getLegacyLoweringDescriptorMirror(), descriptorRole,
+                 descriptorNote, "legacy lowering descriptor mirror"});
   out.push_back({getRVVRuntimeElementCountCNameMetadataName(),
                  contract.getRuntimeElementCountCName(),
                  getRVVRuntimeControlNameMetadataRole(),

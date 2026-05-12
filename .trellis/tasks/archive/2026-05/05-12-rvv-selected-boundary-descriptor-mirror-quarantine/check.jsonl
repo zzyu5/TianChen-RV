@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants: C++/MLIR stack, Python tooling-only, and descriptor boundary."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Verify refactor preserves unified TCRV extension-family architecture."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify default source authority remains extension family ops through EmitC."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify selected-boundary, emission-plan, and target artifact evidence contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected family/body authority and descriptor mirror quarantine behavior."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify changes stay plugin-local and avoid family-specific common-core branches."}

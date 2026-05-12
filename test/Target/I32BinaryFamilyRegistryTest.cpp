@@ -640,10 +640,10 @@ int expectRVVI32BinaryIntrinsicDescriptorShape() {
                                   family->familyID,
                               "RVV i32 selected intrinsic helper reports family id"))
         return result;
-      if (int result = expect(descriptor.getLoweringDescriptor() ==
+      if (int result = expect(descriptor.getLegacyLoweringDescriptorMirror() ==
                                   family->loweringDescriptor,
-                              "RVV i32 selected intrinsic helper reports lowering "
-                              "descriptor"))
+                              "RVV i32 selected intrinsic helper reports legacy "
+                              "lowering descriptor mirror"))
         return result;
       if (int result = expect(descriptor.getRVVOperationName() ==
                                   family->rvv.arithmeticOpName,

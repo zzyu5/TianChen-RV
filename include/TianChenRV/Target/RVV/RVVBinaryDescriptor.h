@@ -130,7 +130,7 @@ struct RVVBinaryIntrinsicDescriptor {
 
   llvm::StringRef getDTypeID() const { return family.dtypeID; }
   llvm::StringRef getArithmeticFamilyID() const { return family.familyID; }
-  llvm::StringRef getLoweringDescriptor() const {
+  llvm::StringRef getLegacyLoweringDescriptorMirror() const {
     return family.loweringDescriptor;
   }
   llvm::StringRef getRVVOperationName() const {

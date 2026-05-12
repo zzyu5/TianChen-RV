@@ -5,6 +5,59 @@
 
 ---
 
+## Session 40: RVV selected-boundary descriptor mirror quarantine
+
+**Date**: 2026-05-12
+**Task**: rvv-selected-boundary-descriptor-mirror-quarantine
+**Branch**: `main`
+
+### Summary
+
+Quarantined the remaining RVV selected-boundary proposal descriptor mirror
+surface so default typed RVV family/body proposal planning no longer exposes or
+uses a lowering-descriptor attach switch.
+
+### Main Changes
+
+- Removed `attachLoweringDescriptorAttr`, `shouldAttachLoweringDescriptorAttr`,
+  and RVV plugin proposal/selected-plan `getLoweringDescriptor()` APIs.
+- Removed the RVV extension plugin branch that could attach
+  `tcrv_rvv.lowering_descriptor` to default proposal metadata.
+- Renamed RVV target/selected-config descriptor access consumed by RVV plugin
+  code to `getLegacyLoweringDescriptorMirror()`.
+- Updated RVV planning/registry tests to assert typed family, source-kind,
+  selected shape, and capability authority.
+- Updated the RVV plugin spec to state default typed RVV proposals must not
+  emit `tcrv_rvv.lowering_descriptor`.
+
+### Testing
+
+- Focused C++ builds:
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-i32-binary-family-registry-test`,
+  `tianchenrv-rvv-selected-lowering-boundary-test`,
+  `tianchenrv-rvv-binary-variant-legality-test`, `tcrv-opt`,
+  `tcrv-translate`.
+- Focused C++ test binaries above all passed.
+- Focused lit filter over Plugin/RVV, LoweringBoundary, LinalgToExec,
+  RVVMicrokernel, RVVScalarDispatch, and TargetArtifactBundleExport passed
+  87/87 selected tests.
+- Ref-scan found no remaining RVV proposal attach/getter API; remaining
+  descriptor references are target registration, explicit legacy mirror
+  validation, stale-mirror negative tests, or quarantine tests.
+- `git diff --check` passed.
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed. Default RVV selected-boundary proposal/materialization is
+typed-family/body plus selected-config plus EmitC/source-authority driven;
+remaining RVV descriptor references are legacy mirror/quarantine only. No
+`ssh rvv` runtime, correctness, or performance claim was made.
+
 
 
 ## Session 35: RVV selected emission descriptor exit

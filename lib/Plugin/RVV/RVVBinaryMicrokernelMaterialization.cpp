@@ -106,10 +106,11 @@ llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
   if (descriptor.getArithmeticFamilyID() != contract.getFamilyID())
     return failMismatch("descriptor-family", contract.getFamilyID(),
                         descriptor.getArithmeticFamilyID());
-  if (descriptor.getLoweringDescriptor() != contract.getLoweringDescriptor())
-    return failMismatch("lowering-descriptor",
-                        contract.getLoweringDescriptor(),
-                        descriptor.getLoweringDescriptor());
+  if (descriptor.getLegacyLoweringDescriptorMirror() !=
+      contract.getLegacyLoweringDescriptorMirror())
+    return failMismatch("legacy-lowering-descriptor-mirror",
+                        contract.getLegacyLoweringDescriptorMirror(),
+                        descriptor.getLegacyLoweringDescriptorMirror());
   if (descriptor.getRVVMicrokernelOpName() !=
       contract.getFamily().microkernelOpName)
     return failMismatch("microkernel-op",
