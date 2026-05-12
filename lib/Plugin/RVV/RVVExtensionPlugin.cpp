@@ -201,6 +201,29 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
                             plan->capabilityView.selectedMarch));
   rvv::addRVVSelectedVectorShapeMetadataToProposal(
       proposal, request.getKernel()->getContext(), plan->getSelectedShape());
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(
+          request.getKernel()->getContext(),
+          tianchenrv::target::rvv::getRVVSelectedBinaryDTypeMetadataName()),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            plan->getDTypeID()));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(
+          request.getKernel()->getContext(),
+          tianchenrv::target::rvv::getRVVSelectedBinaryFamilyMetadataName()),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            plan->getFamilyID()));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(
+          request.getKernel()->getContext(),
+          tianchenrv::target::rvv::getRVVSelectedBinaryOperatorMetadataName()),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            plan->getFamily().arithmeticVerb));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            rvv::getRVVSelectedBinarySourceKindAttrName()),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            plan->getSourceKind()));
   if (hasAvailableRVVSmokeProbeCapability(request.getCapabilities())) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),

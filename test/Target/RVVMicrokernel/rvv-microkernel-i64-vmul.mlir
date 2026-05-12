@@ -146,7 +146,6 @@ module @rvv_microkernel_i64_vmul_export_input {
 // MIRROR: /* active_route: tcrv-export-rvv-i64-vmul-microkernel-c */
 // MIRROR: __riscv_vmul_vv_i64m1
 
-// STALE-DESC: tcrv_rvv.lowering_descriptor 'i64-vsub-microkernel.v1'
-// STALE-DESC: non-authoritative legacy mirror metadata
-// STALE-DESC: selected typed RVV i64 microkernel body is tcrv_rvv.i64_vmul_microkernel
-// STALE-DESC: typed body is authoritative
+// STALE-DESC: legacy RVV binary descriptor mirror 'i64-vsub-microkernel.v1'
+// STALE-DESC: typed RVV authority from direct-typed-microkernel-body names family 'i64-vmul'
+// STALE-DESC: descriptor metadata is non-authoritative mirror metadata

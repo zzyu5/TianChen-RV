@@ -71,6 +71,9 @@ constexpr llvm::StringLiteral kDirectTypedMicrokernelBodySourceKind(
     "direct-typed-microkernel-body");
 constexpr llvm::StringLiteral kDefaultTypedMicrokernelBodySourceKind(
     "default-i32-vadd-typed-body-materialization");
+constexpr llvm::StringLiteral kFrontendLoweringSourceKind("frontend-lowering");
+constexpr llvm::StringLiteral kSelectedBinarySourceKindAttrName(
+    "tcrv_rvv.selected_binary_source_kind");
 constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 
 llvm::Error makeRVVBinaryPlanningError(llvm::Twine message) {
@@ -985,6 +988,69 @@ llvm::Expected<bool> validateDirectLegacyDescriptorMirrorForVariant(
   return true;
 }
 
+llvm::Error preserveExistingSelectedSourceKindForVariant(
+    tcrv::exec::VariantOp variant,
+    RVVBinaryFamilyPlanningResolution &typedAuthority,
+    llvm::StringRef diagnosticContext) {
+  if (!variant || !typedAuthority.family)
+    return llvm::Error::success();
+
+  auto origin = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!origin || origin.getValue() != kRVVPluginName)
+    return llvm::Error::success();
+
+  auto sourceKind = variant->getAttrOfType<mlir::StringAttr>(
+      kSelectedBinarySourceKindAttrName);
+  if (!sourceKind)
+    return llvm::Error::success();
+
+  std::string context =
+      (llvm::Twine("direct RVV binary selected-source metadata on variant @") +
+       variant.getSymName())
+          .str();
+  llvm::StringRef sourceValue = sourceKind.getValue().trim();
+  if (sourceValue.empty())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " requires non-empty string attribute '" +
+        kSelectedBinarySourceKindAttrName + "'");
+  if (llvm::Error error = validateRVVPlanningText(
+          context, kSelectedBinarySourceKindAttrName, sourceValue))
+    return std::move(error);
+
+  if (sourceValue != kFrontendLoweringSourceKind &&
+      sourceValue != kDefaultTypedMicrokernelBodySourceKind &&
+      sourceValue != kDirectTypedMicrokernelBodySourceKind)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " source kind '" + sourceValue +
+        "' is not a recognized typed RVV binary selected-source boundary");
+
+  auto family =
+      variant->getAttrOfType<mlir::StringAttr>(
+          target::rvv::getRVVSelectedBinaryFamilyMetadataName());
+  if (!family || family.getValue().trim().empty())
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(context) + " requires non-empty string attribute '" +
+        target::rvv::getRVVSelectedBinaryFamilyMetadataName() +
+        "' when selected-source metadata is present");
+
+  llvm::StringRef familyValue = family.getValue().trim();
+  if (llvm::Error error = validateRVVPlanningText(
+          context, target::rvv::getRVVSelectedBinaryFamilyMetadataName(),
+          familyValue))
+    return std::move(error);
+
+  if (familyValue != typedAuthority.family->familyID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) +
+        " has stale direct RVV binary selected-source metadata for family '" +
+        familyValue + "' but typed RVV microkernel body authority is family '" +
+        typedAuthority.family->familyID +
+        "'; selected-source metadata cannot override typed body authority");
+
+  typedAuthority.sourceKind = sourceValue.str();
+  return llvm::Error::success();
+}
+
 llvm::Expected<DirectRVVBinaryFamilyCandidate>
 buildDirectTypedBodyCandidateFromMicrokernel(mlir::Operation *op) {
   DirectRVVBinaryFamilyCandidate candidate;
@@ -1190,6 +1256,10 @@ llvm::StringRef RVVBinaryProposalPlan::getGuard() const { return guard; }
 
 llvm::StringRef RVVBinaryProposalPlan::getPolicy() const { return policy; }
 
+llvm::StringRef RVVBinaryProposalPlan::getSourceKind() const {
+  return sourceKind;
+}
+
 bool RVVBinaryProposalPlan::hasCapacityMetadata() const {
   return capabilityView.vlenbBytes && capabilityView.i32M1LaneCount;
 }
@@ -1226,6 +1296,22 @@ getRVVBoundarySelectedVectorShapeMetadataNames() {
       kBoundarySelectedVectorSuffixAttrName,
       kBoundarySelectedSetVLSuffixAttrName};
   return names;
+}
+
+llvm::StringRef getRVVSelectedBinarySourceKindAttrName() {
+  return kSelectedBinarySourceKindAttrName;
+}
+
+llvm::StringRef getRVVFrontendLoweringSourceKind() {
+  return kFrontendLoweringSourceKind;
+}
+
+llvm::StringRef getRVVDirectTypedMicrokernelBodySourceKind() {
+  return kDirectTypedMicrokernelBodySourceKind;
+}
+
+llvm::StringRef getRVVDefaultTypedBinarySourceKind() {
+  return kDefaultTypedMicrokernelBodySourceKind;
 }
 
 llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind() {
@@ -1667,6 +1753,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
   plan.condition = kProposalCondition.str();
   plan.guard = kProposalGuard.str();
   plan.policy = kProposalPolicy.str();
+  plan.sourceKind = kDefaultTypedMicrokernelBodySourceKind.str();
   plan.attachLoweringDescriptorAttr = attachLoweringDescriptorAttr;
   return plan;
 }
@@ -1700,7 +1787,7 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
 
       RVVBinaryFamilyPlanningResolution resolution;
       resolution.family = family;
-      resolution.sourceKind = "frontend-lowering";
+      resolution.sourceKind = kFrontendLoweringSourceKind.str();
       return resolution;
     }
   }
@@ -1730,12 +1817,16 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
               variant, typedBodyResolution, diagnosticContext);
       if (!validatedMirror)
         return validatedMirror.takeError();
+      if (llvm::Error error = preserveExistingSelectedSourceKindForVariant(
+              variant, typedBodyResolution, diagnosticContext))
+        return std::move(error);
     }
   }
 
   if (typedBodyResolution.family) {
-    typedBodyResolution.sourceKind =
-        kDirectTypedMicrokernelBodySourceKind.str();
+    if (typedBodyResolution.sourceKind.empty())
+      typedBodyResolution.sourceKind =
+          kDirectTypedMicrokernelBodySourceKind.str();
     return typedBodyResolution;
   }
 
@@ -1761,6 +1852,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
   const target::rvv::RVVBinaryFamilyDescriptor *requestedFamily =
       &target::rvv::getI32VAddFamilyRegistrationRecord();
   llvm::StringRef trimmedFrontendLowering = frontendLowering.trim();
+  llvm::StringRef sourceKind = kDefaultTypedMicrokernelBodySourceKind;
   if (!trimmedFrontendLowering.empty()) {
     if (llvm::Error error = validateRVVPlanningText(
             diagnosticContext, "tcrv_frontend_lowering",
@@ -1776,17 +1868,23 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
           " frontend lowering family must be " +
           formatRVVBinaryFamilyFrontendLoweringList());
     requestedFamily = lookup;
+    sourceKind = kFrontendLoweringSourceKind;
   }
 
   const target::rvv::RVVVectorShapeConfig *requiredShape =
       requestedFamily->dtype == target::rvv::RVVBinaryDTypeKind::I64
           ? &target::rvv::getI64M1VectorShapeConfig()
           : nullptr;
-  return buildRVVBinaryProposalPlanForFamily(
-      capabilities, *requestedFamily, requiredShape,
-      /*attachLoweringDescriptorAttr=*/
-      !isTypedSourceRVVBinaryFamily(*requestedFamily),
-      diagnosticContext);
+  llvm::Expected<RVVBinaryProposalPlan> plan =
+      buildRVVBinaryProposalPlanForFamily(
+          capabilities, *requestedFamily, requiredShape,
+          /*attachLoweringDescriptorAttr=*/
+          !isTypedSourceRVVBinaryFamily(*requestedFamily),
+          diagnosticContext);
+  if (!plan)
+    return plan.takeError();
+  plan->sourceKind = sourceKind.str();
+  return std::move(*plan);
 }
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
@@ -1801,9 +1899,14 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
   if (isTypedSourceRVVBinaryFamily(*resolution->family))
     attachLoweringDescriptorAttr = false;
 
-  return buildRVVBinaryProposalPlanForFamily(
-      capabilities, *resolution->family, resolution->directSelectedShape,
-      attachLoweringDescriptorAttr, diagnosticContext);
+  llvm::Expected<RVVBinaryProposalPlan> plan =
+      buildRVVBinaryProposalPlanForFamily(
+          capabilities, *resolution->family, resolution->directSelectedShape,
+          attachLoweringDescriptorAttr, diagnosticContext);
+  if (!plan)
+    return plan.takeError();
+  plan->sourceKind = resolution->sourceKind;
+  return std::move(*plan);
 }
 
 llvm::Expected<RVVBinarySelectedPlan>

@@ -46,11 +46,25 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 
 ### Git Commits
 
-(No commits - planning session)
+| Hash | Message |
+|------|---------|
+| this commit | feat(rvv): require typed variant legality authority |
 
 ### Testing
 
-- [OK] (Add test results)
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-variant-legality-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'linalg-i32-vadd-to-exec|rvv.*artifact'`
+- Targeted rerun of the 6 lit tests that first exposed stale descriptor/quarantine diagnostics.
+- `git diff --check`
+- `git diff --cached --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-variant-legality-descriptor-exit`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-12-rvv-variant-legality-descriptor-exit`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
 
 ### Status
 
@@ -442,6 +456,41 @@ archived.
 - `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-12-rvv-i64-target-export-body-authority`
 - `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
   209/209 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 37: RVV variant legality descriptor exit
+
+**Date**: 2026-05-12
+**Task**: RVV variant legality descriptor exit
+**Branch**: `main`
+
+### Summary
+
+RVV finite binary legality now requires typed RVV body or selected-source authority before descriptor mirrors; descriptor-only direct variants fail closed.
+
+### Main Changes
+
+- Rewired RVV variant legality to resolve typed body, selected-source metadata, frontend lowering authority, or the existing descriptorless default i32 route before accepting finite RVV binary metadata.
+- Added proposal selected binary dtype, family, operator, and source-kind metadata, with planning preserving existing source kind across pipeline reruns.
+- Updated RVV legality/plugin/lit tests for descriptor-only i32 and i64 rejection, stale descriptor mirror failures, typed i32/i64 legality, and smoke-probe separation.
+- Checks passed: focused RVV C++ tests, focused RVV artifact lit filter, targeted failed lit files, git diff checks, Trellis validate before and after archive, and full check-tianchenrv.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

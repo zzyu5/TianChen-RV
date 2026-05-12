@@ -138,6 +138,7 @@ struct RVVBinaryProposalPlan {
   std::string condition;
   std::string guard;
   std::string policy;
+  std::string sourceKind;
   bool attachLoweringDescriptorAttr = true;
 
   llvm::StringRef getFamilyID() const;
@@ -149,6 +150,7 @@ struct RVVBinaryProposalPlan {
   llvm::StringRef getCondition() const;
   llvm::StringRef getGuard() const;
   llvm::StringRef getPolicy() const;
+  llvm::StringRef getSourceKind() const;
   bool hasCapacityMetadata() const;
   bool shouldAttachLoweringDescriptorAttr() const {
     return attachLoweringDescriptorAttr;
@@ -193,6 +195,14 @@ getRVVVariantSelectedVectorShapeMetadataNames();
 
 const RVVSelectedVectorShapeMetadataNames &
 getRVVBoundarySelectedVectorShapeMetadataNames();
+
+llvm::StringRef getRVVSelectedBinarySourceKindAttrName();
+
+llvm::StringRef getRVVFrontendLoweringSourceKind();
+
+llvm::StringRef getRVVDirectTypedMicrokernelBodySourceKind();
+
+llvm::StringRef getRVVDefaultTypedBinarySourceKind();
 
 llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind();
 

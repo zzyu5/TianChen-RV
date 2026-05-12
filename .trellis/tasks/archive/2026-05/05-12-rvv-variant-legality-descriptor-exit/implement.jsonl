@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries: unified RISC-V MLIR, C++/MLIR stack, compute-free tcrv.exec, descriptor debt."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Descriptor-driven compute is non-architecture; RVV remains an extension family inside unified TCRV."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body/source authority, selected shape metadata, smoke-probe separation, and finite binary descriptor mirror rules."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin locality and prohibition on RVV-specific branches in generic core orchestration."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Typed extension op to EmitC route and descriptor boundary for finite RVV binary paths."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected emission/export authority, runtime ABI layering, and descriptor mirror constraints."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Plugin variant legality routing boundary before selection and descriptorless frontend typed family route."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-plugin-proposal-planning-descriptor-exit/prd.md", "reason": "Predecessor evidence for typed-authority-first RVV proposal planning."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-descriptor-only-production-quarantine/prd.md", "reason": "Prior selected-boundary/production quarantine for descriptor-only finite RVV binary paths."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-selected-emission-descriptor-exit/prd.md", "reason": "Selected emission now builds from typed microkernel body and treats descriptors as mirrors."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-i64-target-export-body-authority/prd.md", "reason": "i64 target export body-first authority and descriptor-only rejection precedent."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-scalar-descriptor-registry-quarantine/prd.md", "reason": "Registry quarantine precedent: descriptor tables are registration/mirror metadata, not production compute authority."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVBinaryPlanning.h", "reason": "Added selected-source kind API for typed RVV proposal metadata."}
+{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "Carries typed selected-source kind through proposal planning and preserves it on pipeline rerun."}
+{"file": "lib/Plugin/RVV/RVVBinaryVariantLegality.cpp", "reason": "Rewired finite RVV binary legality to require typed body or selected-source authority before descriptor mirrors."}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "Emits typed selected binary family/dtype/operator/source metadata on RVV proposals."}

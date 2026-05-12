@@ -54,5 +54,6 @@ module {
   }
 }
 
-// CHECK: direct legacy-registration-only RVV binary lowering-boundary materialization for family 'i64-vmul' is legacy-quarantined
-// CHECK-SAME: add a typed tcrv_rvv.i64_vmul_microkernel body
+// CHECK: descriptor-only finite RVV binary legality metadata 'i64-vmul-microkernel.v1'
+// CHECK-SAME: descriptor metadata is non-authoritative mirror metadata
+// CHECK-SAME: typed RVV family/body or selected-source authority

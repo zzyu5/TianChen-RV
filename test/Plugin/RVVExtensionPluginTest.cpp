@@ -3216,7 +3216,7 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 11,
+          expect(proposalAttributes.size() == 15,
                  "RVV proposal carries typed policy, selected vector-shape, "
                  "and property evidence attributes"))
     return result;
@@ -3237,6 +3237,19 @@ module {
     return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_binary_dtype", "i32"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_binary_family", "i32-vadd"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_binary_operator", "add"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposals[0], "tcrv_rvv.selected_binary_source_kind",
+          "default-i32-vadd-typed-body-materialization"))
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))

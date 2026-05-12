@@ -177,6 +177,70 @@ module {
     } {
     }
 
+    tcrv.exec.variant @i32_default_typed attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+
+    tcrv.exec.variant @i32_vadd_mirror attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_binary_dtype = "i32",
+      tcrv_rvv.selected_binary_family = "i32-vadd",
+      tcrv_rvv.selected_binary_operator = "add",
+      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+
+    tcrv.exec.variant @i32_stale_mirror attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_binary_dtype = "i32",
+      tcrv_rvv.selected_binary_family = "i32-vadd",
+      tcrv_rvv.selected_binary_operator = "add",
+      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
+    } {
+    }
+
     tcrv.exec.variant @i64_vmul attributes {
       origin = "rvv-plugin",
       requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
@@ -184,6 +248,56 @@ module {
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.lowering_descriptor = "i64-vmul-microkernel.v1",
+      tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_binary_dtype = "i64",
+      tcrv_rvv.selected_binary_family = "i64-vmul",
+      tcrv_rvv.selected_binary_operator = "multiply",
+      tcrv_rvv.selected_binary_source_kind = "direct-typed-microkernel-body",
+      tcrv_rvv.selected_vector_shape = "i64m1",
+      tcrv_rvv.selected_vector_sew = 64 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint64m1_t",
+      tcrv_rvv.selected_vector_suffix = "i64m1",
+      tcrv_rvv.selected_setvl_suffix = "e64m1"
+    } {
+    }
+
+    tcrv_rvv.i64_vmul_microkernel attributes {
+      element_count = 16 : i64,
+      origin = "rvv-plugin",
+      required_capabilities = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
+      required_march = "rv64gcv",
+      role = "direct variant",
+      selected_variant = @i64_vmul,
+      selected_vector_shape = "i64m1",
+      selected_vector_sew = 64 : i64,
+      selected_vector_lmul = "m1",
+      selected_tail_policy = "agnostic",
+      selected_mask_policy = "agnostic",
+      selected_vector_type = "vint64m1_t",
+      selected_vector_suffix = "i64m1",
+      selected_setvl_suffix = "e64m1",
+      source_kernel = "rvv_variant_legality"
+    } {
+    ^bb0(%runtime_n: index):
+      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} {
+        %lhs = tcrv_rvv.i64_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1
+        %rhs = tcrv_rvv.i64_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1
+        %product = tcrv_rvv.i64_mul %lhs, %rhs, %vl : !tcrv_rvv.i64m1, !tcrv_rvv.i64m1, !tcrv_rvv.vl -> !tcrv_rvv.i64m1
+        tcrv_rvv.i64_store %product, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i64m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+
+    tcrv.exec.variant @i64_vsub attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
+      policy = "metadata_only_first_slice",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_vector_shape = "i64m1",
       tcrv_rvv.selected_vector_sew = 64 : i64,
@@ -196,14 +310,17 @@ module {
     } {
     }
 
-    tcrv.exec.variant @i64_vsub attributes {
+    tcrv.exec.variant @i64_direct_source_without_body attributes {
       origin = "rvv-plugin",
       requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
+      tcrv_rvv.selected_binary_dtype = "i64",
+      tcrv_rvv.selected_binary_family = "i64-vmul",
+      tcrv_rvv.selected_binary_operator = "multiply",
+      tcrv_rvv.selected_binary_source_kind = "direct-typed-microkernel-body",
       tcrv_rvv.selected_vector_shape = "i64m1",
       tcrv_rvv.selected_vector_sew = 64 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -272,14 +389,38 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
         tianchenrv::plugin::rvv::getRVVExtensionPluginName());
   };
 
-  if (int result = expectSuccess(verifyVariant("i32_vadd"),
-                                 "direct module accepts i32 RVV variant"))
+  if (int result = expectErrorContains(
+          verifyVariant("i32_vadd"),
+          {"descriptor-only finite RVV binary legality metadata",
+           "non-authoritative mirror metadata"}))
+    return result;
+  if (int result = expectSuccess(
+          verifyVariant("i32_default_typed"),
+          "direct module accepts descriptorless default i32 typed RVV variant"))
+    return result;
+  if (int result = expectSuccess(
+          verifyVariant("i32_vadd_mirror"),
+          "direct module accepts matching i32 descriptor mirror only after "
+          "typed selected-source authority"))
+    return result;
+  if (int result = expectErrorContains(
+          verifyVariant("i32_stale_mirror"),
+          {"descriptor metadata is non-authoritative mirror metadata",
+           "i32-vsub", "i32-vadd"}))
     return result;
   if (int result = expectSuccess(verifyVariant("i64_vmul"),
-                                 "direct module accepts i64-vmul RVV variant"))
+                                 "direct module accepts i64-vmul RVV variant "
+                                 "with typed body authority"))
     return result;
-  if (int result = expectSuccess(verifyVariant("i64_vsub"),
-                                 "direct module accepts i64-vsub RVV variant"))
+  if (int result = expectErrorContains(
+          verifyVariant("i64_vsub"),
+          {"descriptor-only finite RVV binary legality metadata",
+           "non-authoritative mirror metadata"}))
+    return result;
+  if (int result = expectErrorContains(
+          verifyVariant("i64_direct_source_without_body"),
+          {"direct-typed-microkernel-body",
+           "requires an actual typed tcrv_rvv.*_microkernel body"}))
     return result;
 
   VariantOp smokeProbe = findVariant(kernel, "smoke_probe");

@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify task stays inside global TianChen-RV architectural and implementation boundaries."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Check that tcrv.exec remains compute-free and descriptors do not regain compute authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local legality, typed authority, selected shape, and smoke-probe behavior."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check plugin locality and absence of RVV-specific core orchestration branches."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check descriptor mirror-only handling against the typed family-op route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check downstream selected emission/export authority remains typed and ABI-layered."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check legality remains the plugin-local pre-selection boundary and frontend typed routes remain intact."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-variant-legality-descriptor-exit/prd.md", "reason": "Check implemented behavior against this task's acceptance criteria and non-goals."}
+{"file": "test/Plugin/RVVBinaryVariantLegalityTest.cpp", "reason": "Covers descriptor-only i32/i64 rejection, typed i32/i64 legality, stale descriptor mirrors, and smoke-probe separation."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Checks proposal selected binary typed-source metadata."}
+{"file": "test/Transforms/LoweringBoundary/rvv-i32-vadd-descriptor-only-legacy-quarantine.mlir", "reason": "Checks descriptor-only i32 legality now fails before lowering-boundary materialization."}
+{"file": "test/Transforms/LoweringBoundary/rvv-i64-vsub-descriptor-only-legacy-quarantine.mlir", "reason": "Checks descriptor-only i64-vsub legality now fails before lowering-boundary materialization."}
+{"file": "test/Transforms/LoweringBoundary/rvv-i64-vmul-descriptor-only-legacy-quarantine.mlir", "reason": "Checks descriptor-only i64-vmul legality now fails before lowering-boundary materialization."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vsub.mlir", "reason": "Updates stale descriptor mirror export diagnostics to legality-time mirror-only wording."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vmul.mlir", "reason": "Updates stale descriptor mirror export diagnostics to legality-time mirror-only wording."}

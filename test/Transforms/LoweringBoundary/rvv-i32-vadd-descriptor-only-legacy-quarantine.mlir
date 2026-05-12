@@ -46,5 +46,6 @@ module {
   }
 }
 
-// CHECK: direct legacy-registration-only RVV binary lowering-boundary materialization for family 'i32-vadd' is legacy-quarantined
-// CHECK-SAME: add a typed tcrv_rvv.i32_vadd_microkernel body
+// CHECK: descriptor-only finite RVV binary legality metadata 'i32-vadd-microkernel.v1'
+// CHECK-SAME: descriptor metadata is non-authoritative mirror metadata
+// CHECK-SAME: typed RVV family/body or selected-source authority
