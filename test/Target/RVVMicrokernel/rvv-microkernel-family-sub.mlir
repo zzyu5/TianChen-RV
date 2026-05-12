@@ -85,6 +85,7 @@ module @rvv_microkernel_i32_vsub_export_input {
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // SOURCE: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+// SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_sub tcrv_rvv.i32_store */
 // SOURCE: /* emitc.call_opaque[3]: __riscv_vsub_vv_i32m1 from tcrv_rvv.i32_sub */

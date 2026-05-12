@@ -248,6 +248,7 @@
 # HARNESS-SOURCE: /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 # HARNESS-SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 # HARNESS-SOURCE: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
+# HARNESS-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # HARNESS-SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 # HARNESS-SOURCE: /* Harness capacity comes from descriptor-local element_count; each call still supplies runtime n through the generated C ABI. */
 # HARNESS-SOURCE: _self_check_one(size_t runtime_n)
@@ -382,6 +383,7 @@
 
 # I32-VMUL-FRONTEND-SOURCE: /* selected_kernel: @frontend_i32_vmul */
 # I32-VMUL-FRONTEND-SOURCE: /* arithmetic_family: i32-vmul */
+# I32-VMUL-FRONTEND-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # I32-VMUL-FRONTEND-SOURCE: /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
 # I32-VMUL-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 # I32-VMUL-FRONTEND-SOURCE: static void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice__tcrv_emitc_body
@@ -451,6 +453,7 @@
 
 # I64-FRONTEND-SOURCE: /* selected_kernel: @frontend_i64_vadd */
 # I64-FRONTEND-SOURCE: /* arithmetic_family: i64-vadd */
+# I64-FRONTEND-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # I64-FRONTEND-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 # I64-FRONTEND-SOURCE: static void tcrv_rvv_i64_vadd_microkernel_frontend_i64_vadd_rvv_first_slice__tcrv_emitc_body
@@ -477,6 +480,7 @@
 
 # I64-VSUB-FRONTEND-SOURCE: /* selected_kernel: @frontend_i64_vsub */
 # I64-VSUB-FRONTEND-SOURCE: /* arithmetic_family: i64-vsub */
+# I64-VSUB-FRONTEND-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # I64-VSUB-FRONTEND-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-VSUB-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 # I64-VSUB-FRONTEND-SOURCE: static void tcrv_rvv_i64_vsub_microkernel_frontend_i64_vsub_rvv_first_slice__tcrv_emitc_body
@@ -503,6 +507,7 @@
 
 # I64-VMUL-FRONTEND-SOURCE: /* selected_kernel: @frontend_i64_vmul */
 # I64-VMUL-FRONTEND-SOURCE: /* arithmetic_family: i64-vmul */
+# I64-VMUL-FRONTEND-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # I64-VMUL-FRONTEND-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 # I64-VMUL-FRONTEND-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 # I64-VMUL-FRONTEND-SOURCE: static void tcrv_rvv_i64_vmul_microkernel_frontend_i64_vmul_rvv_first_slice__tcrv_emitc_body

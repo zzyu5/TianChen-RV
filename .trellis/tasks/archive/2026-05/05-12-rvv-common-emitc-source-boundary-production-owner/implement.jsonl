@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants and source-of-truth boundary"}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified extension-family architecture and descriptor/direct-C migration boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract and interface-backed source provenance"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime-callable artifact export and RVV source/header/object emission boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local route, dataflow, capability, and evidence boundaries"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Common interface and registry ownership constraints"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin locality and common interface template"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/RVV evidence validation requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-12-common-extension-lower-to-emitc-pass-owner/prd.md", "reason": "Previous common lower-to-EmitC boundary task and scalar migration precedent"}

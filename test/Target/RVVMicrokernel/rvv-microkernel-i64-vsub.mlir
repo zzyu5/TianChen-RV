@@ -127,6 +127,7 @@ module @rvv_microkernel_i64_vsub_export_input {
 // SOURCE: /* active_route: tcrv-export-rvv-i64-vsub-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_sub -> tcrv_rvv.i64_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i64_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
+// SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */

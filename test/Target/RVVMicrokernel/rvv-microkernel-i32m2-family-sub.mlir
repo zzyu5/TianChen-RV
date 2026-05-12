@@ -58,6 +58,7 @@ module @rvv_microkernel_i32m2_vsub_export_input {
 // SOURCE: /* selected_variant: @rvv_first_slice */
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // SOURCE: /* active_route: tcrv-export-rvv-i32-vsub-microkernel-c */
+// SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 // SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */

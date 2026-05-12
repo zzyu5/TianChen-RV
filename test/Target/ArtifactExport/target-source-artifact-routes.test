@@ -14,6 +14,7 @@
 # POS: /* selected_mabi: lp64d */
 # POS: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 # POS: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
+# POS: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # POS: /* artifact_kind: runtime-callable-c-source */
 # POS: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 # POS: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */
@@ -45,6 +46,7 @@
 # AUTO-DISPATCH: /* scalar_selected_role: dispatch fallback */
 # AUTO-DISPATCH: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
 # AUTO-DISPATCH: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
+# AUTO-DISPATCH: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # AUTO-DISPATCH: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 # AUTO-DISPATCH: static void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice__tcrv_emitc_body
 # AUTO-DISPATCH: __riscv_vadd_vv_i32m1

@@ -128,6 +128,57 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 43: RVV common EmitC source boundary production owner
+
+**Date**: 2026-05-12
+**Task**: RVV Common EmitC Source Boundary Production Owner
+**Branch**: `main`
+
+### Summary
+
+Rewired RVV direct runtime-callable microkernel source emission so RVV target
+code still builds the typed family EmitC lowerable route locally, while the
+common conversion/EmitC boundary owns source-authority emission through
+`lowerTCRVEmitCLowerableToEmitCSource`.
+
+### Main Changes
+
+- `RVVMicrokernel.cpp` now constructs `RVVBinaryEmitCLowerable` locally and
+  calls the common lower-to-EmitC source boundary for both library source and
+  self-check harness body emission.
+- Removed direct RVV imports/usages of the lower-level source-authority emitter
+  APIs.
+- Added RVV generated-source comments and FileCheck coverage for
+  `emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority`.
+- Preserved RVV-local selected vector shape, intrinsic names, dataflow plan,
+  callable ABI mapping, route metadata, and harness wrapper ownership.
+- Spec update judgment: no spec files changed because the existing EmitC route,
+  RVV plugin, emission-runtime, and testing specs already describe this
+  boundary.
+
+### Testing
+
+- `cmake --build build --target TianChenRVConversionEmitC TianChenRVRVVTarget tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- Focused lit filter for RVV microkernel, RVV artifact source export,
+  `rvv-microkernel-e2e`, linalg-to-RVV artifact, module target profile, and
+  RVV probe replay checks: 40/40 passed.
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vmul --run-id codex-rvv-common-emitc-boundary-dry --overwrite`
+- `python3 scripts/rvv_microkernel_e2e.py --self-check-harness --arithmetic-family=i32-vadd --run-id codex-rvv-common-emitc-boundary-ssh --overwrite`
+- `git diff --check`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target check-tianchenrv -j2`, 210/210 passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-common-emitc-source-boundary-production-owner`
+
+### Status
+
+[OK] Completed. The real RVV claim is bounded to generated i32-vadd
+self-check executable correctness only.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 39: Descriptor mirror retirement from production source-authority surfaces
 
 **Date**: 2026-05-12

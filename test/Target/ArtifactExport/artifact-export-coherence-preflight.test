@@ -2,6 +2,7 @@
 # RVV-OK: /* TianChen-RV RVV runtime-callable microkernel C export. */
 # RVV-OK: /* selected_kernel: @rvv_microkernel_manifest */
 # RVV-OK: /* selected_variant: @rvv_first_slice */
+# RVV-OK: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # RVV-OK: /* artifact_kind: runtime-callable-c-source */
 # RVV-OK: #include <riscv_vector.h>
 # RVV-OK: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter

@@ -122,6 +122,7 @@ module @rvv_microkernel_input {
 // LIB: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // LIB: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 // LIB: /* emitc_lowerable_interface: TCRVEmitCLowerableInterface */
+// LIB: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // LIB: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
 // LIB: /* emitc_materialization_function: @tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
 // LIB: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */

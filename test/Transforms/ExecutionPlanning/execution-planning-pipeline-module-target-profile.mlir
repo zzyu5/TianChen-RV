@@ -5,6 +5,7 @@
 // EXPORT: /* selected_kernel: @module_profile_pipeline */
 // EXPORT: /* selected_variant: @rvv_first_slice */
 // EXPORT: /* selected_march: rv64gcv */
+// EXPORT: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // EXPORT: /* required_capabilities: @module_rvv_profile */
 // EXPORT: #include <riscv_vector.h>
 // EXPORT: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter

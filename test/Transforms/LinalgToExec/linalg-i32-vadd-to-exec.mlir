@@ -120,6 +120,7 @@ module {
 // SOURCE: /* arithmetic_family: i32-vadd */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 // SOURCE: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+// SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
 // SOURCE: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 // SOURCE: /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */

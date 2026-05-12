@@ -104,6 +104,7 @@ module {
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_source: derived from verified tcrv_rvv.with_vl body order, SSA chain, and buffer_role attributes */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
+// SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
 // SOURCE: /* emitc_materialization_function: @tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice */
 // SOURCE: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */

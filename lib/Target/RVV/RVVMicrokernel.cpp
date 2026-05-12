@@ -1,7 +1,7 @@
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
+#include "TianChenRV/Conversion/EmitC/TCRVLowerToEmitC.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
@@ -56,9 +56,10 @@ using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueResult;
 using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::buildTCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::emitTCRVEmitCLowerableRouteAsCppSource;
-using tianchenrv::conversion::emitc::TCRVEmitCSourceAuthorityOptions;
+using tianchenrv::conversion::emitc::TCRVLowerToEmitCSourceOptions;
+using tianchenrv::conversion::emitc::TCRVLowerToEmitCSourceResult;
+using tianchenrv::conversion::emitc::
+    lowerTCRVEmitCLowerableToEmitCSource;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::DispatchOp;
@@ -2882,14 +2883,19 @@ private:
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
-llvm::Expected<TCRVEmitCLowerableRoute> buildRVVEmitCIntrinsicRoute(
+llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     const RVVBinaryIntrinsicDescriptor &descriptor,
     const RVVIntrinsicConfig &intrinsicConfig,
     const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
-    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+    llvm::StringRef functionName) {
   RVVBinaryEmitCLowerable lowerable(descriptor, intrinsicConfig, dataflowPlan,
                                     runtimeABIParameters);
-  return buildTCRVEmitCLowerableRoute(lowerable);
+  TCRVLowerToEmitCSourceOptions options;
+  options.sourceAuthorityOptions.functionName = functionName.str();
+  options.sourceAuthorityOptions.loopIndexName = "offset";
+  options.sourceAuthorityOptions.requireInterfaceBackedCompute = true;
+  return lowerTCRVEmitCLowerableToEmitCSource(lowerable, options);
 }
 
 void printDataflowPlanMetadata(
@@ -2931,6 +2937,8 @@ void printEmitCRouteMetadata(llvm::raw_ostream &os,
   os << "/* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV "
         "intrinsic C/C++ */\n";
   os << "/* emitc_lowerable_interface: TCRVEmitCLowerableInterface */\n";
+  os << "/* emitc_common_lower_to_emitc_boundary: "
+        "TCRVLowerToEmitCSourceAuthority */\n";
   os << "/* emitc_materialization_boundary: verified MLIR EmitC module with "
         "emitc.include, emitc.func, emitc.if, emitc.call_opaque, and "
         "emitc.call before MLIR Cpp emitter production source output */\n";
@@ -3108,16 +3116,6 @@ void printRecordComment(llvm::raw_ostream &os,
   os << ") */\n";
 }
 
-llvm::Error printMicrokernelFunction(
-    llvm::raw_ostream &os, llvm::StringRef functionName,
-    const TCRVEmitCLowerableRoute &emitcRoute) {
-  TCRVEmitCSourceAuthorityOptions options;
-  options.functionName = functionName.str();
-  options.loopIndexName = "offset";
-  options.requireInterfaceBackedCompute = true;
-  return emitTCRVEmitCLowerableRouteAsCppSource(emitcRoute, os, options);
-}
-
 void printMicrokernelPrototype(llvm::raw_ostream &os,
                                llvm::StringRef functionName,
                                llvm::ArrayRef<support::RuntimeABIParameter>
@@ -3240,19 +3238,20 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
                                    RVVMicrokernelCExportMode mode) {
   std::string functionName = makeMicrokernelFunctionName(record);
   bool includeHarness = mode == RVVMicrokernelCExportMode::SelfCheckHarness;
-  llvm::Expected<TCRVEmitCLowerableRoute> emitcRoute =
-      buildRVVEmitCIntrinsicRoute(record.descriptor, record.intrinsicConfig,
+  llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
+      lowerRVVBinaryToEmitCSource(record.descriptor, record.intrinsicConfig,
                                   record.dataflowPlan,
-                                  record.runtimeABIParameters);
-  if (!emitcRoute)
-    return emitcRoute.takeError();
+                                  record.runtimeABIParameters, functionName);
+  if (!loweredSource)
+    return loweredSource.takeError();
+  const TCRVEmitCLowerableRoute &emitcRoute = loweredSource->getRoute();
 
   os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
   os << "/* Scope: library-style C source for exactly one "
      << record.descriptor.getRVVMicrokernelOpName() << ". */\n";
   os << "/* Route: verified RVV family ops build the common EmitC lowerable "
-        "route; MLIR EmitC plus the MLIR Cpp emitter produce the production "
-        "source body. */\n";
+        "route emitted by the common lower-to-EmitC source-authority "
+        "boundary. */\n";
   os << "/* Default artifact shape: runtime-callable C ABI function with no "
         "embedded main or self-check harness. */\n";
   if (includeHarness)
@@ -3262,10 +3261,8 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
         "rvv evidence; this source is not generic TianChen-RV lowering or "
         "performance evidence. */\n\n";
 
-  printRecordComment(os, record, functionName, *emitcRoute);
-  if (llvm::Error error =
-          printMicrokernelFunction(os, functionName, *emitcRoute))
-    return error;
+  printRecordComment(os, record, functionName, emitcRoute);
+  os << loweredSource->getSource();
   if (includeHarness) {
     os << "#include <stdio.h>\n\n";
     if (record.descriptor.family.dtype != RVVBinaryDTypeKind::I32)
