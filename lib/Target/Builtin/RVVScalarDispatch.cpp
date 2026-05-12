@@ -6,6 +6,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/BinarySelfCheckExpectation.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
@@ -44,6 +45,8 @@ using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::target::BinarySelfCheckArithmeticKind;
+using tianchenrv::target::BinarySelfCheckExpectation;
 using tianchenrv::tcrv::exec::DispatchOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
 using tianchenrv::tcrv::exec::FallbackOp;
@@ -177,6 +180,36 @@ llvm::Error validateEmbeddedRVVSourceSelectedShape(
     const DispatchPair &pair, llvm::StringRef rvvSource);
 
 llvm::Error validateDispatchPairComponentAuthorities(const DispatchPair &pair);
+
+llvm::Error makeModuleDispatchError(llvm::Twine message);
+
+llvm::Expected<BinarySelfCheckArithmeticKind>
+resolveSelfCheckArithmeticFromSelectedFamily(llvm::StringRef familyID) {
+  if (familyID.ends_with("-vadd"))
+    return BinarySelfCheckArithmeticKind::Add;
+  if (familyID.ends_with("-vsub"))
+    return BinarySelfCheckArithmeticKind::Sub;
+  if (familyID.ends_with("-vmul"))
+    return BinarySelfCheckArithmeticKind::Mul;
+  return makeModuleDispatchError(
+      llvm::Twine("selected RVV+scalar dispatch family '") + familyID +
+      "' does not map to a finite typed binary self-check arithmetic");
+}
+
+llvm::Expected<BinarySelfCheckExpectation>
+buildDispatchSelfCheckExpectation(const DispatchPair &pair) {
+  llvm::Expected<BinarySelfCheckArithmeticKind> arithmetic =
+      resolveSelfCheckArithmeticFromSelectedFamily(
+          pair.composite.diagnosticName);
+  if (!arithmetic)
+    return arithmetic.takeError();
+
+  return tianchenrv::target::buildBinarySelfCheckExpectationFromRuntimeABI(
+      pair.abiPlan.parameters, *arithmetic,
+      "validated RVV dispatch-case component + validated scalar fallback "
+      "component + IR-backed dispatch ABI",
+      "RVV+scalar dispatch harness");
+}
 
 struct TemporaryFile {
   llvm::SmallString<128> path;
@@ -2590,8 +2623,8 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
 }
 
 void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
-                                   const RVVI32BinaryIntrinsicDescriptor
-                                       &descriptor,
+                                   const BinarySelfCheckExpectation
+                                       &expectation,
                                    llvm::StringRef dispatcherFunctionName,
                                    llvm::StringRef runtimeElementCountName,
                                    llvm::StringRef guardParameterName,
@@ -2605,31 +2638,34 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "/* Runtime element count is a target/export-owned ABI parameter in "
         "this harness; "
         "descriptor-local element_count remains metadata only. */\n";
+  os << "/* self_check_expectation_source: " << expectation.provenance
+     << "; legacy descriptor mirrors cannot select expected arithmetic or "
+        "scalar element type. */\n";
   os << "int puts(const char *);\n\n";
   os << "static int " << dispatcherFunctionName
      << "_self_check_one(size_t runtime_n, int " << guardParameterName
      << ") {\n";
   os << "  enum { kCapacity = 32 };\n";
-  os << "  " << descriptor.getScalarCType() << " lhs[kCapacity];\n";
-  os << "  " << descriptor.getScalarCType() << " rhs[kCapacity];\n";
-  os << "  " << descriptor.getScalarCType() << " out[kCapacity];\n";
+  os << "  " << expectation.scalarCType << " lhs[kCapacity];\n";
+  os << "  " << expectation.scalarCType << " rhs[kCapacity];\n";
+  os << "  " << expectation.scalarCType << " out[kCapacity];\n";
   os << "  for (size_t index = 0; index < (size_t)kCapacity; ++index) {\n";
-  os << "    lhs[index] = (" << descriptor.getScalarCType() << ")index;\n";
-  os << "    rhs[index] = (" << descriptor.getScalarCType()
+  os << "    lhs[index] = (" << expectation.scalarCType << ")index;\n";
+  os << "    rhs[index] = (" << expectation.scalarCType
      << ")(31 - (int)index);\n";
-  os << "    out[index] = (" << descriptor.getScalarCType() << ")-12345;\n";
+  os << "    out[index] = (" << expectation.scalarCType << ")-12345;\n";
   os << "  }\n";
   os << "  " << dispatcherFunctionName
      << "(lhs, rhs, out, runtime_n, " << guardParameterName << ");\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
   os << "    if (out[index] != "
-     << descriptor.getCArithmeticCheckExpression("lhs[index]", "rhs[index]")
+     << expectation.formatExpression("lhs[index]", "rhs[index]")
      << ")\n";
   os << "      return 1;\n";
   os << "  }\n";
   os << "  for (size_t index = runtime_n; index < (size_t)kCapacity; "
         "++index) {\n";
-  os << "    if (out[index] != (" << descriptor.getScalarCType()
+  os << "    if (out[index] != (" << expectation.scalarCType
      << ")-12345)\n";
   os << "      return 2;\n";
   os << "  }\n";
@@ -2737,10 +2773,11 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   printDispatcherFunction(os, dispatcherFunctionName, rvvFunctionName,
                           scalarFunctionName, dispatchParameters, *bindings);
   if (includeSelfCheck) {
-    RVVI32BinaryIntrinsicDescriptor descriptor =
-        tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
-            *pair.family->rvvFamily, *pair.selectedShape);
-    printDispatchSelfCheckHarness(os, descriptor, dispatcherFunctionName,
+    llvm::Expected<BinarySelfCheckExpectation> expectation =
+        buildDispatchSelfCheckExpectation(pair);
+    if (!expectation)
+      return expectation.takeError();
+    printDispatchSelfCheckHarness(os, *expectation, dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
                                   bindings->dispatchAvailabilityGuard->cName,
                                   pair.composite.selfCheckSuccessMarker);

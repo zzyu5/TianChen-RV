@@ -153,6 +153,7 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // HARNESS: __riscv_vsub_vv_i32m1
 // HARNESS: int32_t difference = tcrv_scalar_i32_sub(lhs[index], rhs[index]);
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
+// HARNESS: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type.
 // HARNESS: if (out[index] != lhs[index] - rhs[index])
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(7, 0)
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(16, 1)

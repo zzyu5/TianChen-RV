@@ -75,6 +75,53 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 38: RVV self-check typed authority descriptor exit
+
+**Date**: 2026-05-12
+**Task**: rvv-self-check-typed-authority
+**Branch**: `main`
+
+### Summary
+
+Removed descriptor compute authority from the touched direct RVV and
+RVV+scalar dispatch self-check default artifact paths.
+
+### Main Changes
+
+- Added a shared typed self-check expectation boundary that derives the scalar
+  element C type from IR-backed runtime ABI pointer roles and formats expected
+  arithmetic from typed family/dataflow authority.
+- Rewired direct RVV microkernel self-check generation to use verified typed
+  dataflow/body provenance plus generated EmitC route and ABI authority instead
+  of descriptor `getScalarCType()` or `getCArithmeticCheckExpression()`.
+- Rewired RVV+scalar dispatch self-check generation to use validated selected
+  RVV/scalar component family authority plus shared dispatch ABI instead of
+  descriptor compute helpers.
+- Updated direct RVV and dispatch lit tests, including a stale descriptor mirror
+  negative case for direct RVV self-check export.
+
+### Testing
+
+- `git diff --check`
+- Focused build:
+  `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVRVVTarget TianChenRVBuiltinTargetArtifactExporters TianChenRVScalarTarget tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit filter:
+  `rvv-microkernel-(family-sub|pipeline)|rvv-scalar-i32-vadd-dispatch-c|rvv-scalar-i32-vsub-dispatch-generic-route|rvv-scalar-i64-vmul-dispatch-generic-route`,
+  6/6 passed.
+- Focused frontend-to-artifact lit filter: `linalg-i32-vadd-to-exec`, 2/2
+  passed.
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-12-rvv-self-check-typed-authority`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed and ready to archive. Python stayed tooling-only, `tcrv.exec`
+stayed compute-free, and no `ssh rvv` runtime, correctness, or performance
+claim was made.
+
+
 ## Session 36: Scalar selected emission descriptor exit
 
 **Date**: 2026-05-12

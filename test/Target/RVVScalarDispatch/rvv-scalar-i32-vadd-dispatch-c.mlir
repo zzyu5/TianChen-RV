@@ -289,6 +289,7 @@ module @rvv_scalar_dispatch_input {
 // HARNESS: /* Harness scope: calls the generated dispatcher with explicit n values 7 and 16 for rvv_available = 0 and rvv_available = 1. */
 // HARNESS: Runtime element count is a target/export-owned ABI parameter
 // HARNESS: descriptor-local element_count remains metadata only
+// HARNESS: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type.
 // HARNESS: int puts(const char *);
 // HARNESS-LABEL: {{^}}static int tcrv_dispatch_i32_vadd_dispatch_vadd_self_check_one(size_t runtime_n, int rvv_available)
 // HARNESS: enum { kCapacity = 32 };

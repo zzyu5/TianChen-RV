@@ -111,6 +111,7 @@ module {
 // GENERIC-HDR: #endif /* TIANCHENRV_RVV_SCALAR_I64_VMUL_DISPATCH_CONFLICT_PLANNED_I64_VMUL_DISPATCH_H */
 
 // SELF: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c */
+// SELF: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type.
 // SELF: static int tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch_self_check_one(size_t runtime_n, int rvv_available)
 // SELF: int64_t lhs[kCapacity];
 // SELF: int64_t rhs[kCapacity];

@@ -10,6 +10,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/BinarySelfCheckExpectation.h"
 #include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -49,6 +50,8 @@ namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
 
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::target::BinarySelfCheckArithmeticKind;
+using tianchenrv::target::BinarySelfCheckExpectation;
 using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueResult;
 using tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableInterface;
@@ -2671,6 +2674,66 @@ std::string getEmitCCallOpaqueCalleeForStep(
   return "";
 }
 
+llvm::Expected<BinarySelfCheckArithmeticKind>
+getSelfCheckArithmeticFromDataflowPlan(
+    const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+    llvm::StringRef context) {
+  std::optional<BinarySelfCheckArithmeticKind> arithmetic;
+  for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
+    std::optional<BinarySelfCheckArithmeticKind> candidate;
+    switch (step.kind) {
+    case RVVI32VAddDataflowStepKind::Load:
+    case RVVI32VAddDataflowStepKind::Store:
+      continue;
+    case RVVI32VAddDataflowStepKind::Add:
+      candidate = BinarySelfCheckArithmeticKind::Add;
+      break;
+    case RVVI32VAddDataflowStepKind::Sub:
+      candidate = BinarySelfCheckArithmeticKind::Sub;
+      break;
+    case RVVI32VAddDataflowStepKind::Mul:
+      candidate = BinarySelfCheckArithmeticKind::Mul;
+      break;
+    }
+
+    if (arithmetic)
+      return makeModuleMicrokernelError(
+          llvm::Twine(context) +
+          " requires exactly one typed compute dataflow step before "
+          "self-check expectation emission");
+    if (step.sourceOpRole != "compute" || step.sourceOpInterface.empty())
+      return makeModuleMicrokernelError(
+          llvm::Twine(context) +
+          " requires the typed compute dataflow step to carry generated "
+          "EmitC lowerable interface provenance before self-check expectation "
+          "emission");
+    arithmetic = *candidate;
+  }
+
+  if (!arithmetic)
+    return makeModuleMicrokernelError(
+        llvm::Twine(context) +
+        " requires one typed compute dataflow step before self-check "
+        "expectation emission");
+  return *arithmetic;
+}
+
+llvm::Expected<BinarySelfCheckExpectation>
+buildMicrokernelSelfCheckExpectation(const RVVMicrokernelRecord &record) {
+  llvm::Expected<BinarySelfCheckArithmeticKind> arithmetic =
+      getSelfCheckArithmeticFromDataflowPlan(
+          record.dataflowPlan,
+          "RVV direct microkernel harness");
+  if (!arithmetic)
+    return arithmetic.takeError();
+
+  return tianchenrv::target::buildBinarySelfCheckExpectationFromRuntimeABI(
+      record.runtimeABIParameters, *arithmetic,
+      "verified RVV dataflow body + generated EmitC route + IR-backed "
+      "callable ABI",
+      "RVV direct microkernel harness");
+}
+
 const support::RuntimeABIParameter *lookupParameterByRole(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     support::RuntimeABIParameterRole role) {
@@ -3070,18 +3133,24 @@ void printMicrokernelPrototype(llvm::raw_ostream &os,
 
 void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
-                                      const RVVBinaryIntrinsicDescriptor
-                                          &descriptor,
+                                      const BinarySelfCheckExpectation
+                                          &expectation,
                                       const RVVIntrinsicConfig &intrinsicConfig,
                                       std::int64_t elementCount) {
   os << "/* Harness capacity comes from descriptor-local element_count; each "
         "call still supplies runtime n through the generated C ABI. */\n";
+  os << "/* self_check_expectation_source: " << expectation.provenance
+     << "; legacy descriptor mirrors cannot select expected arithmetic or "
+        "scalar element type. */\n";
   os << "static int " << functionName
      << "_self_check_one(size_t runtime_n) {\n";
   os << "  enum { kTCRVMicrokernelCapacity = " << elementCount << " };\n";
-  os << "  int32_t lhs[kTCRVMicrokernelCapacity];\n";
-  os << "  int32_t rhs[kTCRVMicrokernelCapacity];\n";
-  os << "  int32_t out[kTCRVMicrokernelCapacity];\n\n";
+  os << "  " << expectation.scalarCType
+     << " lhs[kTCRVMicrokernelCapacity];\n";
+  os << "  " << expectation.scalarCType
+     << " rhs[kTCRVMicrokernelCapacity];\n";
+  os << "  " << expectation.scalarCType
+     << " out[kTCRVMicrokernelCapacity];\n\n";
   os << "  if (runtime_n == 0 || runtime_n > (size_t)kTCRVMicrokernelCapacity) "
         "{\n";
   os << "    fprintf(stderr, \"invalid rvv microkernel runtime_n=%zu\\n\", "
@@ -3090,9 +3159,11 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n\n";
   os << "  for (size_t index = 0; index < (size_t)kTCRVMicrokernelCapacity; "
         "++index) {\n";
-  os << "    lhs[index] = index + 1;\n";
-  os << "    rhs[index] = 100 - index;\n";
-  os << "    out[index] = -12345;\n";
+  os << "    lhs[index] = (" << expectation.scalarCType
+     << ")(index + 1);\n";
+  os << "    rhs[index] = (" << expectation.scalarCType
+     << ")(100 - (int)index);\n";
+  os << "    out[index] = (" << expectation.scalarCType << ")-12345;\n";
   os << "  }\n\n";
   os << "  size_t first_vl = " << intrinsicConfig.setvlIntrinsicName
      << "(runtime_n);\n";
@@ -3102,8 +3173,8 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n\n";
   os << "  " << functionName << "(lhs, rhs, out, runtime_n);\n\n";
   os << "  for (size_t index = 0; index < runtime_n; ++index) {\n";
-  os << "    int32_t expected = "
-     << descriptor.getCArithmeticCheckExpression("lhs[index]", "rhs[index]")
+  os << "    " << expectation.scalarCType << " expected = "
+     << expectation.formatExpression("lhs[index]", "rhs[index]")
      << ";\n";
   os << "    if (out[index] != expected) {\n";
   os << "      fprintf(stderr, \"rvv microkernel mismatch at %zu\\n\", index);\n";
@@ -3112,7 +3183,8 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "  }\n";
   os << "  for (size_t index = runtime_n; "
         "index < (size_t)kTCRVMicrokernelCapacity; ++index) {\n";
-  os << "    if (out[index] != -12345) {\n";
+  os << "    if (out[index] != (" << expectation.scalarCType
+     << ")-12345) {\n";
   os << "      fprintf(stderr, \"rvv microkernel wrote past runtime_n at "
         "%zu\\n\", index);\n";
   os << "      return 4;\n";
@@ -3206,7 +3278,11 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
       return makeModuleMicrokernelError(
           "RVV self-check harness export is currently bounded to i32 "
           "microkernel records");
-    printMicrokernelSelfCheckHarness(os, functionName, record.descriptor,
+    llvm::Expected<BinarySelfCheckExpectation> expectation =
+        buildMicrokernelSelfCheckExpectation(record);
+    if (!expectation)
+      return expectation.takeError();
+    printMicrokernelSelfCheckHarness(os, functionName, *expectation,
                                      record.intrinsicConfig,
                                      record.elementCount);
   }

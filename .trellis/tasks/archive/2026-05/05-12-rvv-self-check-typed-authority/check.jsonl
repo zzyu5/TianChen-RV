@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Review global red lines: C++/MLIR stack, compute-free tcrv.exec, descriptor-driven computation debt."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV body/dataflow authority, stale descriptor failure behavior, and self-check evidence boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review typed EmitC lowerable provenance and descriptor boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review target artifact, dispatch, ABI, and parameter layering contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Review expected focused lit/C++ validation and RVV ssh evidence claim limits."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Review hardware evidence requirements if runtime correctness is claimed."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-self-check-typed-authority/prd.md", "reason": "Check implementation against task-specific requirements and acceptance criteria."}
+{"file": "artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused target artifact export C++ test passed after rebuilding RVV, scalar, dispatch, tcrv-opt, and tcrv-translate targets."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir", "reason": "Focused lit passed, including direct typed self-check arithmetic and stale descriptor mirror rejection before artifact output."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-pipeline.mlir", "reason": "Focused lit passed for default direct RVV self-check export provenance and expression."}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir", "reason": "Focused lit passed for RVV+scalar vadd dispatch self-check provenance."}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir", "reason": "Focused lit passed for RVV+scalar vsub dispatch self-check provenance and typed expected expression."}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i64-vmul-dispatch-generic-route.mlir", "reason": "Focused lit passed for RVV+scalar i64 vmul dispatch self-check provenance and typed expected expression."}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir", "reason": "Focused frontend-to-artifact lit slice passed for the default route touched by this module."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-self-check-typed-authority/prd.md", "reason": "Broad validation command completed: cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2, 209/209 TianChen-RV lit tests passed."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-self-check-typed-authority/prd.md", "reason": "Whitespace validation command completed: git diff --check passed."}

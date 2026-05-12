@@ -153,9 +153,11 @@ module @rvv_microkernel_input {
 // HARNESS: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
 // HARNESS: __riscv_vadd_vv_i32m1
 // HARNESS: /* Harness capacity comes from descriptor-local element_count; each call still supplies runtime n through the generated C ABI. */
+// HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type. */
 // HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one(size_t runtime_n)
 // HARNESS: enum { kTCRVMicrokernelCapacity = 16 };
 // HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, runtime_n);
+// HARNESS: int32_t expected = lhs[index] + rhs[index];
 // HARNESS: for (size_t index = runtime_n; index < (size_t)kTCRVMicrokernelCapacity; ++index)
 // HARNESS-LABEL: int main(void)
 // HARNESS: enum { kTCRVMicrokernelShortRuntimeN = kTCRVMicrokernelCapacity >= 7 ? 7 : kTCRVMicrokernelCapacity };
