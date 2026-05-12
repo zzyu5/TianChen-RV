@@ -50,14 +50,14 @@ repository root, single-worker execution, real-repo inspection, current Trellis
 task handling, the one-round Trellis flow, stack discipline, short red lines,
 validation expectations, commit expectations, and final report requirements.
 Detailed architecture constraints are injected through the current Trellis task,
-Hermes task brief, and relevant `.trellis/spec/` files.
+Hermes Direction Brief, and relevant `.trellis/spec/` files.
 
 Hermes review output is strict JSON. It must contain exactly these keys:
 
 ```json
 {
   "continue": true,
-  "next_prompt": "module-sized task brief appended under the base prompt; required when continue is true",
+  "next_prompt": "Hermes Direction Brief appended under the base prompt; required when continue is true",
   "base_prompt_edits": [],
   "delta": "",
   "reason": "brief audit conclusion and why the next prompt is shaped this way",
@@ -65,11 +65,12 @@ Hermes review output is strict JSON. It must contain exactly these keys:
 }
 ```
 
-When `continue=true`, `next_prompt` must be a complete module-sized task brief.
+When `continue=true`, `next_prompt` must be a non-empty Hermes Direction Brief.
+The worker turns that brief into or repairs a Trellis PRD before implementation.
 The runner prepends the canonical Codex base prompt to that brief. The runner
 may keep legacy `base_prompt_edits` and `delta` handling for fallback
-compatibility, but the normal path is base prompt plus Hermes-selected task
-brief.
+compatibility, but the normal path is base prompt plus Hermes-selected
+direction brief.
 
 Manual steering is a first-class supervisor input. The runner may read a durable
 manual steering file, defaulting to the supervisor artifact root, and include it
@@ -80,9 +81,12 @@ architecture invariants. It is not itself proof of repository state.
 The runner may also read a one-shot manual steering file, defaulting to
 `manual_steering_once.md` under the supervisor artifact root. One-shot steering
 is included in the next official Hermes review prompt, then archived under the
-loop artifact directory and cleared before later rounds can read it again.
-Ask-only Hermes self-checks may inspect durable steering, but they must not
-consume one-shot steering intended for the next official review.
+loop artifact directory and cleared only after Hermes returns parseable strict
+JSON and the review/next-prompt artifacts are written. If Hermes times out,
+exits non-zero, returns malformed JSON, or returns `continue=true` without a
+non-empty `next_prompt`, the one-shot steering must remain for the next
+official review. Ask-only Hermes self-checks may inspect durable steering, but
+they must not consume one-shot steering intended for the next official review.
 
 The runner may resume the latest saved Hermes chat session across loop restarts. A user-provided `--hermes-session-id` remains the strongest selector. Auto-resume must be visible in loop, start, and status artifacts and must have an explicit disable path.
 
@@ -94,8 +98,8 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 
 | Condition | Required behavior |
 |---|---|
-| Hermes returns malformed JSON | runner marks parse error and uses the existing safe fallback behavior |
-| Hermes returns `continue=true` with empty `next_prompt` | runner must not silently treat that as a successful task brief review |
+| Hermes returns malformed JSON | runner marks parse error and stops/fails closed after any short JSON repair attempt; it must not fall back to the base prompt |
+| Hermes returns `continue=true` with empty `next_prompt` | runner must not silently treat that as a successful Direction Brief review |
 | Hermes evidence conflicts with Codex final summary | Hermes must trust repository state, then `repo_audit.md`, then `review_input.md`, then Codex summary |
 | Codex claims RVV runtime/correctness/performance without `ssh rvv` evidence | Hermes must redirect or block that claim in the next prompt |
 | Codex implements compiler internals in Python | Hermes must redirect back to C++ / MLIR / LLVM / TableGen / CMake |
@@ -103,14 +107,18 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 | Prompt rendering fails or base prompt is empty | runner command must fail rather than launch a worker with an empty prompt |
 | No-exec rendering is requested | runner must package evidence without launching Codex |
 | Durable steering exists | Hermes review prompt must include it as control-plane steering, not repository proof |
-| One-shot steering exists | Hermes review prompt must include it once, archive it in loop artifacts, and clear it before later rounds |
+| One-shot steering exists | Hermes review prompt must include it and clear it only after a successful strict-JSON official review |
 | ask-only self-check is requested | runner must not launch Codex or mutate source files |
 
 ### 5. Good / Base / Bad Cases
 
-Good: Hermes audits live file contents, notices a Python-only compiler drift, and returns one module-sized task brief assigning one C++/MLIR owner with required checks.
+Good: Hermes audits live file contents, notices a Python-only compiler drift,
+and returns one Direction Brief assigning one C++/MLIR owner with required
+checks.
 
-Base: Hermes sees aligned progress and returns a task brief that continues or expands the current Trellis task without repeating the canonical base prompt.
+Base: Hermes sees aligned progress and returns a Direction Brief that continues
+or expands the current module direction without repeating the canonical base
+prompt.
 
 Bad: Hermes returns only `"continue": true` and an empty `next_prompt`, trusts the Codex summary over the checked-out files, or asks the worker to implement `tcrv.exec` as Python dictionaries.
 
@@ -142,7 +150,7 @@ Correct:
 
 ```text
 Use Hermes as a read-only reviewer that emits a strict JSON next-prompt contract.
-Require a non-empty module-sized next_prompt task brief whenever continue is true.
+Require a non-empty Direction Brief whenever continue is true.
 Keep Python limited to supervision, probing, artifact parsing, and support tooling.
 Require real ssh rvv evidence before accepting RVV runtime, correctness, or performance claims.
 ```
@@ -193,7 +201,7 @@ Hermes must return strict JSON with exactly these keys:
 ```json
 {
   "continue": true,
-  "next_prompt": "module-sized task brief appended under the base prompt; required when continue is true",
+  "next_prompt": "Hermes Direction Brief appended under the base prompt; required when continue is true",
   "base_prompt_edits": [],
   "delta": "",
   "reason": "brief audit conclusion and why the next prompt is shaped this way",
@@ -201,10 +209,11 @@ Hermes must return strict JSON with exactly these keys:
 }
 ```
 
-When `continue=true`, `next_prompt` must be a complete module-sized task brief
+When `continue=true`, `next_prompt` must be a non-empty Hermes Direction Brief
 for the next worker turn. It must not be empty and must not depend on an
 unstated delta. Hermes must not repeat the whole canonical base prompt inside
-`next_prompt`; the runner composes the short base prompt with the task brief.
+`next_prompt`; the runner composes the short base prompt with the direction
+brief, and Codex creates or repairs the Trellis PRD before implementation.
 
 Hermes is the planner/reviewer. It chooses one coherent engineering owner and
 does not ask Codex to choose among several candidates. Internally Hermes should

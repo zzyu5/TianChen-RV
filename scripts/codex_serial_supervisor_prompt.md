@@ -114,6 +114,7 @@ Report briefly:
 
 ## Current Task Brief
 
-Hermes or the user may append the current module-sized task brief below. Execute
-that task; do not replace it with your own task selection unless it is unsafe,
-stale, or impossible under current repository evidence.
+Hermes or the user may append the current Direction Brief below. Treat it as
+direction input, then create or repair the Trellis PRD before implementation.
+Execute that task; do not replace it with your own task selection unless it is
+unsafe, stale, or impossible under current repository evidence.

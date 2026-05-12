@@ -10,9 +10,9 @@ brief derived from repository evidence.
 from __future__ import annotations
 
 import argparse
-import csv
 import datetime as dt
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -109,6 +109,66 @@ def tail_text(path: Path, max_chars: int = 6000) -> str:
     if len(text) <= max_chars:
         return text
     return text[-max_chars:]
+
+
+def file_sha256(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return ""
+
+
+def compact_text(text: str, max_chars: int = 2000, max_lines: int = 80) -> str:
+    stripped = text.strip()
+    if not stripped:
+        return ""
+    lines = stripped.splitlines()
+    if len(lines) > max_lines:
+        head_count = max(1, max_lines // 2)
+        tail_count = max(1, max_lines - head_count)
+        lines = [
+            *lines[:head_count],
+            f"...[truncated {len(stripped.splitlines()) - max_lines} lines]...",
+            *lines[-tail_count:],
+        ]
+    compacted = "\n".join(lines)
+    if len(compacted) > max_chars:
+        return (
+            compacted[: max_chars // 2]
+            + "\n...[truncated]...\n"
+            + compacted[-max_chars // 2 :]
+        )
+    return compacted
+
+
+def summarize_previous_prompt(text: str, max_chars: int = 1200) -> str:
+    stripped = text.strip()
+    if not stripped:
+        return "(none)"
+    if len(stripped) <= max_chars:
+        return stripped
+    wanted_prefixes = (
+        "Task title",
+        "Direction title",
+        "Module owner",
+        "Why now",
+        "Module deliverable",
+        "What capability",
+        "If unfinished",
+        "Final report",
+    )
+    lines = stripped.splitlines()
+    selected: list[str] = [f"[previous prompt summarized from {len(stripped)} chars]"]
+    for index, line in enumerate(lines):
+        if line.strip().startswith(wanted_prefixes):
+            selected.append(line.strip())
+            for follow in lines[index + 1 : index + 4]:
+                if follow.strip():
+                    selected.append(f"  {follow.strip()}")
+                    break
+    if len(selected) == 1:
+        selected.extend(lines[:20])
+    return compact_text("\n".join(selected), max_chars=max_chars, max_lines=40)
 
 
 def load_json(path: Path) -> Any:
@@ -254,65 +314,8 @@ def active_tasks(repo: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def csv_summary(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {"exists": False}
-    try:
-        with path.open(newline="", encoding="utf-8") as fh:
-            rows = list(csv.DictReader(fh))
-    except Exception as exc:  # noqa: BLE001
-        return {"exists": True, "error": str(exc)}
-    summary: dict[str, Any] = {"exists": True, "rows": len(rows)}
-    if path.name == "provider29_four_ratio.csv":
-        active = [r for r in rows if r.get("active_import") == "true"]
-        first_missing: dict[str, int] = {}
-        states: dict[str, int] = {}
-        for row in rows:
-            key = row.get("first_missing_layer") or "<none>"
-            first_missing[key] = first_missing.get(key, 0) + 1
-            state = row.get("provider_state") or "<none>"
-            states[state] = states.get(state, 0) + 1
-        summary.update(
-            {
-                "active_import_rows": len(active),
-                "provider_state_counts": states,
-                "first_missing_layer_counts": first_missing,
-                "active_frontier_rows": [
-                    {
-                        "provider": r.get("provider"),
-                        "kernel": r.get("kernel"),
-                        "state": r.get("provider_state"),
-                        "first_missing_layer": r.get("first_missing_layer"),
-                        "local": r.get("local_paired_status"),
-                        "remote": r.get("remote_paired_status"),
-                        "four_gate": r.get("four_gate_status"),
-                        "blocker": r.get("blocker"),
-                    }
-                    for r in active
-                    if r.get("first_missing_layer") or r.get("blocker")
-                ][:20],
-            }
-        )
-    return summary
-
-
-def json_artifact_summary(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {"exists": False}
-    data = load_json(path)
-    if isinstance(data, dict):
-        keys = sorted(str(k) for k in data.keys())
-        return {
-            "exists": True,
-            "path": str(path),
-            "top_level_keys": keys[:40],
-        }
-    return {"exists": True, "path": str(path), "parseable_json_object": False}
-
-
 def collect_snapshot(repo: Path) -> dict[str, Any]:
     workspace_index = repo / ".trellis" / "workspace" / "index.md"
-    provider_csv = repo / "experiments" / "provider29_four_ratio.csv"
     head = run_git(repo, ["rev-parse", "HEAD"])
     return {
         "repo": str(repo),
@@ -328,13 +331,6 @@ def collect_snapshot(repo: Path) -> dict[str, Any]:
             "current_task": current_task(repo),
             "active_tasks": active_tasks(repo),
             "workspace_index": read_text(workspace_index, max_chars=8000),
-        },
-        "experiments": {
-            "provider29_four_ratio": csv_summary(provider_csv),
-        },
-        "artifacts": {
-            "provider29_optguide": json_artifact_summary(repo / "artifacts" / "provider29_optguide" / "summary.json"),
-            "provider29_four_ratio": json_artifact_summary(repo / "artifacts" / "provider29_four_ratio" / "summary.json"),
         },
     }
 
@@ -404,7 +400,7 @@ def read_review_steering(repo: Path, args: argparse.Namespace, max_chars: int = 
         sections.append(
             "## One-Shot Manual Steering\n"
             f"path: {once_path}\n"
-            "This one-shot steering is consumed after it is included in an official Hermes review prompt.\n\n"
+            "This one-shot steering is consumed only after an official Hermes review returns parseable strict JSON.\n\n"
             f"{once}"
         )
     return "\n\n".join(sections)
@@ -997,12 +993,6 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "",
         ((after.get("git") or {}).get("status_short") or {}).get("stdout", ""),
         "",
-        "## Experiment Summary After",
-        "",
-        "```json",
-        json.dumps(after.get("experiments", {}), ensure_ascii=False, indent=2)[:12000],
-        "```",
-        "",
         "## Codex Last Message Tail",
         "",
         tail_text(run_dir / "last_message.md", max_chars=6000),
@@ -1022,7 +1012,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
         "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and descriptor-local boundaries?",
-        "- If continuing, Hermes must generate a module-sized task brief from current evidence; the runner prepends the base prompt.",
+        "- If continuing, Hermes must generate a focused Direction Brief from current evidence; the runner prepends the base prompt.",
     ]
     (run_dir / "review_input.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
@@ -1265,7 +1255,7 @@ def normalize_review(raw_text: str) -> dict[str, Any]:
             "delta": "",
             "next_prompt": "",
             "base_prompt_edits": [],
-            "reason": "Hermes review output was not valid JSON; continuing is blocked until a non-empty next_prompt task brief is available.",
+            "reason": "Hermes review output was not valid JSON; continuing is blocked until a non-empty next_prompt Direction Brief is available.",
             "telegram_note": "",
             "raw": raw_text[:4000],
             "parse_error": True,
@@ -1320,19 +1310,57 @@ def build_review_prompt(
     max_chars: int,
     manual_steering: str = "",
 ) -> str:
-    max_chars = max(max_chars, 12000)
-    review_input = read_text(run_dir / "review_input.md", max_chars=int(max_chars * 0.30))
-    repo_audit = read_text(run_dir / "repo_audit.md", max_chars=int(max_chars * 0.34))
-    last_message = read_text(run_dir / "last_message.md", max_chars=int(max_chars * 0.14))
-    canonical_base_prompt = read_text(base_prompt, max_chars=int(max_chars * 0.20))
-    manifest = read_text(run_dir / "manifest.json", max_chars=6000)
-    loop_history = tail_text(loop_dir / "events.jsonl", max_chars=int(max_chars * 0.08))
-    stderr_tail = tail_text(run_dir / "codex.stderr.log", max_chars=int(max_chars * 0.06))
+    del max_chars  # The review prompt now carries evidence entry points, not bulk evidence.
+    before = load_json(run_dir / "snapshot_before.json")
+    after = load_json(run_dir / "snapshot_after.json")
+    if not isinstance(before, dict):
+        before = {}
+    if not isinstance(after, dict):
+        after = {}
+    repo = Path(str(after.get("repo") or before.get("repo") or "/home/kingdom/phdworks/TianchenRV"))
+    manifest = load_json(run_dir / "manifest.json")
+    if not isinstance(manifest, dict):
+        manifest = {}
+    diff = git_range(repo, before, after)
+    changed_files_result = diff.get("changed_files") if isinstance(diff.get("changed_files"), dict) else {}
+    stat_result = diff.get("stat") if isinstance(diff.get("stat"), dict) else {}
+    new_commits_result = diff.get("new_commits") if isinstance(diff.get("new_commits"), dict) else {}
+    changed_files = compact_text(str(changed_files_result.get("stdout") or ""), max_chars=1800, max_lines=60)
+    diff_stat = compact_text(str(stat_result.get("stdout") or ""), max_chars=1800, max_lines=60)
+    new_commits = compact_text(str(new_commits_result.get("stdout") or ""), max_chars=1400, max_lines=40)
+    git_status = compact_text(str((run_git(repo, ["status", "--short"]).get("stdout") or "")), max_chars=1000, max_lines=40)
+    latest_commit = compact_text(
+        str(
+            run_git(
+                repo,
+                ["show", "--name-status", "--stat", "--oneline", "--decorate", "--no-renames", "HEAD"],
+            ).get("stdout")
+            or ""
+        ),
+        max_chars=2400,
+        max_lines=80,
+    )
+    after_task = ((after.get("trellis") or {}).get("current_task") or {})
+    after_task_json = after_task.get("task_json") if isinstance(after_task, dict) else None
+    after_task_status = ""
+    after_task_title = ""
+    if isinstance(after_task_json, dict):
+        after_task_status = str(after_task_json.get("status") or "")
+        after_task_title = str(after_task_json.get("title") or "")
+    codex_exit_code = manifest.get("codex_exit_code", "")
+    previous_context = summarize_previous_prompt(previous_delta)
+    base_prompt_hash = file_sha256(base_prompt)
+    base_prompt_note = (
+        f"path: {base_prompt}\n"
+        f"sha256: {base_prompt_hash or '(missing)'}\n"
+        "The runner prepends this canonical Codex base prompt to your Direction Brief. "
+        "Do not repeat the base prompt. Codex will turn your brief into or repair a Trellis PRD."
+    )
     return f"""You are Hermes supervisor for the TianChen-RV MLIR repository.
 
-You are a read-only planner and reviewer. You review the Codex worker run that
-just finished and produce the next module-sized Trellis task brief. You do not
-edit files and you do not implement code.
+You are a read-only planner and reviewer. Review the Codex worker run that just
+finished and produce the next Hermes Direction Brief. You do not edit files and
+you do not implement code.
 
 Repository root:
 
@@ -1341,15 +1369,15 @@ Repository root:
 ```
 
 The runner will prepend the canonical Codex base prompt to your `next_prompt`.
-Therefore `next_prompt` should be a focused task brief, not a repeated copy of
-the base prompt and not a long architecture document.
+Therefore `next_prompt` must be a focused Direction Brief, not a full PRD, not
+a repeated copy of the base prompt, and not a long architecture document.
 
 ## Evidence Priority
 
 Use evidence in this order:
 
 1. Real repository state and file contents from the live checkout.
-2. `repo_audit.md` generated by the runner.
+2. Artifact entry points listed below, especially `repo_audit.md` when useful.
 3. `review_input.md`, run manifest, stderr, and last Codex message.
 4. Codex final summary.
 
@@ -1357,6 +1385,17 @@ If Codex says one thing and repository evidence says another, trust repository
 evidence. You may use read-only inspection commands when tool access exists:
 `pwd`, `git status --short`, `git log`, `git show`, `find`, and text search over
 source, tests, specs, task files, and loop artifacts. Never modify files.
+
+Useful read-only commands:
+
+```bash
+pwd
+git status --short
+git log --oneline -12
+git show --name-status --stat --oneline --decorate HEAD
+find include lib tools test tests cmake .trellis/spec scripts -maxdepth 4 -type f 2>/dev/null | sort | sed -n '1,260p'
+grep -R "tcrv.exec\\|TCRV\\|EmitC\\|descriptor\\|Extension Manifest\\|extension family\\|Plugin\\|RVV\\|IME\\|offload" -n include lib tools test tests cmake .trellis/spec scripts 2>/dev/null | head -240
+```
 
 ## Active Human Steering
 
@@ -1369,15 +1408,17 @@ as newer than the base prompt, but not as proof of repository state.
 
 ## Review Job
 
-Decide exactly one of these internal cases. Do not ask Codex to choose among
-candidate tasks. In `reason`, name the case and explain how the next owner will
-make a compiler path more real. If you cannot answer that, the task is too
-small and you must choose a larger owner.
+Codex task completion is normal. Review the completed task's contribution to
+the current module direction. Decide exactly one next direction. Do not ask
+Codex to choose among candidate tasks. In `reason`, name the case and explain
+how the next owner will make a compiler path more real. If you cannot answer
+that, the task is too small and you must choose a larger owner.
 
 ```text
-continue current module: previous task is unfinished but direction is right
-expand current module: previous work was too small and should become one coherent PRD/module
-switch module: current module converged, is stale, or is causing repeated stall
+continue same direction: current owner is still the right bottleneck
+expand same direction: previous work was too small and should become one coherent module
+switch direction: current module converged, is stale, or is causing repeated stall
+redirect direction: previous task drifted from the current architecture or evidence
 ```
 
 The next owner should be large enough to move a real compiler path or workflow
@@ -1454,38 +1495,42 @@ treats prompt/report/smoke/helper work as the main result.
 ```
 
 Detailed architecture rules live in `.trellis/spec/`; point Codex to the
-relevant specs instead of restating all rules in the task brief.
+relevant specs instead of restating all rules in the Direction Brief.
 
 ## Required next_prompt Shape
 
-When `continue=true`, `next_prompt` must be a complete module-sized task brief
-to append under the base prompt. Include:
+When `continue=true`, `next_prompt` must be a non-empty Hermes Direction Brief
+to append under the base prompt. Codex will create or repair the Trellis PRD
+from this brief. Include:
 
 ```text
-Task title and Trellis task handling:
-  existing task to continue, or instruction to create/repair a task and PRD
+Direction title:
+  concise name of the next owner
 Module owner:
   the single owner for this round
 Why now:
   evidence-based reason this owner is the next bottleneck
+Previous completed task contributed:
+  one sentence on what the last commit/task made real
+Capability to improve next:
+  the compiler path, IR boundary, route, artifact, or plugin surface that should become more real
 Read first:
   specific specs, task files, and code directories
-Module deliverable:
-  functional behavior to complete this round
+What Codex should turn into a Trellis PRD:
+  module goal, boundary, and acceptance criteria, not detailed implementation steps
 Non-goals:
   what Codex must not do
-Minimal validation:
+Minimal evidence expected:
   focused checks and evidence only for this module
-If unfinished:
-  how to keep the Trellis task open and record the continuation point
 Final report:
   task id/title, phase, files changed, checks, self-repair, finish/archive, commit
 ```
 
-The brief must not contain three candidate tasks for Codex to choose from. If
-the PRD is unclear, tell Codex to repair the PRD first rather than choosing a
-different direction. If the module is too large, tell Codex to finish one
-coherent submodule and keep the task state truthful for the next Hermes round.
+The brief must not contain three candidate tasks for Codex to choose from. Do
+not write a full PRD or detailed implementation plan. If the PRD is unclear,
+tell Codex to repair the PRD first rather than choosing a different direction.
+If the module is too large, tell Codex to finish one coherent submodule and
+keep the task state truthful for the next Hermes round.
 
 ## Stop Conditions
 
@@ -1502,7 +1547,7 @@ The JSON must be parseable by Python `json.loads` and contain exactly:
 ```json
 {{
   "continue": true,
-  "next_prompt": "module-sized task brief appended under the base prompt; required when continue is true",
+  "next_prompt": "Hermes Direction Brief appended under the base prompt; required when continue is true",
   "base_prompt_edits": [],
   "delta": "",
   "reason": "brief audit conclusion and why this module owner was chosen",
@@ -1517,36 +1562,74 @@ place literal unescaped line breaks inside the JSON string.
 
 round_index: {round_index}
 run_dir: {run_dir}
-previous_delta: {previous_delta or "(none)"}
+codex_exit_code: {codex_exit_code}
+before_head: {diff.get("before", "")}
+after_head: {diff.get("after", "")}
+current_trellis_task: {after_task.get("ref", "") or "(none)"}
+current_trellis_task_status: {after_task_status or "(unknown)"}
+current_trellis_task_title: {after_task_title or "(unknown)"}
 previous_prompt_mode: {previous_prompt_mode or "base"}
+previous_direction_summary:
+{previous_context}
 
-## Canonical Base Prompt
+## Canonical Codex Base Prompt
 
-{canonical_base_prompt or "(missing)"}
+{base_prompt_note}
 
-## Loop History Tail
+## Live Summary
 
-{loop_history or "(empty)"}
+git status --short:
+```text
+{git_status or "(clean)"}
+```
 
-## Run Manifest
+new commits:
+```text
+{new_commits or "(none)"}
+```
 
-{manifest or "(missing)"}
+changed files:
+```text
+{changed_files or "(none)"}
+```
 
-## review_input.md
+diff stat:
+```text
+{diff_stat or "(none)"}
+```
 
-{review_input or "(missing)"}
+latest commit summary:
+```text
+{latest_commit or "(missing)"}
+```
 
-## repo_audit.md
+## Artifact Entry Points
 
-{repo_audit or "(missing)"}
+repo_audit.md:
+  path: {run_dir / "repo_audit.md"}
+  note: cached read-only evidence; inspect the live repo first, open repo_audit only when useful.
+review_input.md:
+  path: {run_dir / "review_input.md"}
+manifest:
+  path: {run_dir / "manifest.json"}
+last_message.md:
+  path: {run_dir / "last_message.md"}
+stderr:
+  path: {run_dir / "codex.stderr.log"}
+snapshot_before:
+  path: {run_dir / "snapshot_before.json"}
+snapshot_after:
+  path: {run_dir / "snapshot_after.json"}
+loop_manifest:
+  path: {loop_dir / "loop_manifest.json"}
+events:
+  path: {loop_dir / "events.jsonl"}
 
-## last_message.md
+## Run Manifest Summary
 
-{last_message or "(missing)"}
-
-## stderr tail
-
-{stderr_tail or "(empty)"}
+```json
+{json.dumps({k: manifest.get(k) for k in ("run_dir", "repo", "codex_exit_code", "prompt", "review_input", "snapshot_before", "snapshot_after", "stdout", "stderr", "last_message", "repo_audit", "prompt_source", "runner_error") if k in manifest}, ensure_ascii=False, indent=2)}
+```
 """
 
 
@@ -1569,7 +1652,7 @@ def hermes_review(
                 "create or repair a module-sized Trellis task before implementation."
             ),
             "base_prompt_edits": [],
-            "reason": "review_no_llm was set; using a minimal task brief with the canonical base prompt.",
+            "reason": "review_no_llm was set; using a minimal Direction Brief with the canonical base prompt.",
             "telegram_note": "",
             "raw": "",
             "parse_error": False,
@@ -1593,7 +1676,6 @@ def hermes_review(
     )
     review_prompt_path = loop_dir / f"round_{round_index:04d}_hermes_review_prompt.md"
     review_prompt_path.write_text(prompt, encoding="utf-8")
-    one_shot_consumption = consume_manual_steering_once(repo, args, loop_dir, round_index, review_prompt_path)
 
     def build_cmd(review_prompt: str, max_turns: int) -> list[str]:
         if args.hermes_review_mode == "oneshot":
@@ -1694,7 +1776,12 @@ def hermes_review(
                 "hermes_session_name": args.hermes_session_name,
                 "hermes_session_lookup": session_lookup,
                 "hermes_session_rename": rename_result,
-                "manual_steering_once_consumption": one_shot_consumption,
+                "manual_steering_once_consumption": {
+                    "path": str(manual_steering_once_path(repo, args)),
+                    "consumed": False,
+                    "reason": "pending_successful_official_review",
+                    "review_prompt": str(review_prompt_path),
+                },
             }
         )
         if proc.returncode != 0:
@@ -1724,36 +1811,61 @@ def hermes_review(
     retry_count = max(0, int(getattr(args, "hermes_review_retries", 0)))
     if review.get("parse_error") and retry_count:
         failed_raw = str(review.get("raw") or "")
-        retry_prompt = (
-            prompt
-            + "\n\n## Strict JSON Retry After Invalid Hermes Review\n\n"
-            + "The previous Hermes review invocation did not return the required strict JSON object. "
-            + "Run the official review again using the real repository evidence already embedded above. "
-            + "Use read-only inspection only if absolutely necessary. "
-            + "Return exactly one strict JSON object with keys: continue, next_prompt, base_prompt_edits, delta, reason, telegram_note. "
-            + "Do not return markdown, prose, summaries, or code fences outside the JSON object. "
-            + "If a complete next_prompt cannot be produced, set continue=false and explain why in reason.\n\n"
-            + "## Previous Invalid Hermes Output Prefix\n\n"
-            + failed_raw[:4000]
-            + "\n"
+        raw_lower = failed_raw.lower()
+        has_repairable_review = bool(failed_raw.strip()) and (
+            "next_prompt" in raw_lower
+            or "continue" in raw_lower
+            or "module owner" in raw_lower
+            or "direction" in raw_lower
         )
-        retry_prompt_path = loop_dir / f"round_{round_index:04d}_hermes_review_retry_prompt.md"
-        retry_prompt_path.write_text(retry_prompt, encoding="utf-8")
-        retry_turns = max(args.hermes_retry_max_turns, args.hermes_max_turns * 2)
-        for attempt_index in range(1, retry_count + 1):
-            review = run_attempt(attempt_index, retry_prompt, retry_turns)
+        if has_repairable_review:
+            retry_prompt = (
+                "Convert the previous Hermes supervisor output into exactly one strict JSON object. "
+                "Do not perform new repository review and do not add new reasoning. Preserve the intended "
+                "decision and direction brief from the raw output when present.\n\n"
+                "Required JSON keys exactly:\n"
+                "continue, next_prompt, base_prompt_edits, delta, reason, telegram_note\n\n"
+                "Rules:\n"
+                "- Return only JSON, no markdown and no code fence.\n"
+                "- If the raw output does not contain enough information for a non-empty next_prompt, set continue=false.\n"
+                "- next_prompt must be a single JSON string when continue=true.\n\n"
+                "Raw output prefix:\n"
+                "```text\n"
+                + failed_raw[:6000]
+                + "\n```\n\n"
+                "Raw output tail:\n"
+                "```text\n"
+                + failed_raw[-6000:]
+                + "\n```\n"
+            )
+            retry_prompt_path = loop_dir / f"round_{round_index:04d}_hermes_review_retry_prompt.md"
+            retry_prompt_path.write_text(retry_prompt, encoding="utf-8")
+            retry_turns = max(4, args.hermes_retry_max_turns)
+            for attempt_index in range(1, retry_count + 1):
+                review = run_attempt(attempt_index, retry_prompt, retry_turns)
+                attempts.append(
+                    {
+                        "attempt": review.get("attempt", attempt_index),
+                        "parse_error": review.get("parse_error", False),
+                        "returncode": review.get("returncode", 0),
+                        "hermes_max_turns": review.get("hermes_max_turns", retry_turns),
+                        "raw_prefix": str(review.get("raw") or "")[:500],
+                        "reason": review.get("reason", ""),
+                    }
+                )
+                if not review.get("parse_error"):
+                    break
+        else:
             attempts.append(
                 {
-                    "attempt": review.get("attempt", attempt_index),
-                    "parse_error": review.get("parse_error", False),
+                    "attempt": "repair_skipped",
+                    "parse_error": True,
                     "returncode": review.get("returncode", 0),
-                    "hermes_max_turns": review.get("hermes_max_turns", retry_turns),
-                    "raw_prefix": str(review.get("raw") or "")[:500],
-                    "reason": review.get("reason", ""),
+                    "hermes_max_turns": 0,
+                    "raw_prefix": failed_raw[:500],
+                    "reason": "Hermes raw output was not repairable without rerunning the full review.",
                 }
             )
-            if not review.get("parse_error"):
-                break
     review["hermes_attempts"] = attempts
     if review.get("parse_error"):
         review["continue"] = False
@@ -1762,7 +1874,7 @@ def hermes_review(
         review["base_prompt_edits"] = []
         review["reason"] = (
             "Hermes review did not return valid strict JSON after official Hermes retry attempts; "
-            "supervisor must stop instead of falling back to a Codex-authored task brief."
+            "supervisor must stop instead of falling back to a Codex-authored Direction Brief."
         )
         review["telegram_note"] = "Hermes review JSON failed after retry; supervisor stopped."
     return review
@@ -2411,7 +2523,7 @@ def command_loop(args: argparse.Namespace) -> int:
                     "base_prompt_edits": [],
                     "reason": (
                         f"Hermes review exception: {type(exc).__name__}: {exc}; "
-                        "supervisor stopped instead of falling back to a Codex-authored task brief."
+                        "supervisor stopped instead of falling back to a Codex-authored Direction Brief."
                     ),
                     "telegram_note": (
                         "Hermes review raised an exception; supervisor stopped."
@@ -2434,13 +2546,28 @@ def command_loop(args: argparse.Namespace) -> int:
                         "supervisor stopped instead of using Codex fallback."
                     )
                 else:
-                    review["reason"] = "Hermes review did not provide required non-empty next_prompt task brief."
+                    review["reason"] = "Hermes review did not provide required non-empty next_prompt Direction Brief."
             next_prompt_path = loop_dir / f"round_{next_round:04d}_next_prompt.md"
             next_prompt_path.write_text(next_prompt + ("\n" if next_prompt else ""), encoding="utf-8")
             review["prompt_edit_results"] = prompt_edit_results
             review["next_prompt_path"] = str(next_prompt_path)
             review["next_prompt_chars"] = len(next_prompt)
-            write_json(loop_dir / f"round_{next_round:04d}_review.json", review)
+            review_path = loop_dir / f"round_{next_round:04d}_review.json"
+            write_json(review_path, review)
+            if not review.get("parse_error") and (
+                not review.get("continue", True) or bool(next_prompt)
+            ):
+                review_prompt_path = Path(str(review.get("review_prompt") or ""))
+                if not review_prompt_path.exists():
+                    review_prompt_path = loop_dir / f"round_{next_round:04d}_hermes_review_prompt.md"
+                review["manual_steering_once_consumption"] = consume_manual_steering_once(
+                    repo,
+                    args,
+                    loop_dir,
+                    next_round,
+                    review_prompt_path,
+                )
+                write_json(review_path, review)
             if review.get("hermes_session_id") and not args.hermes_session_id:
                 args.hermes_session_id = str(review.get("hermes_session_id"))
             write_json(
@@ -2488,7 +2615,8 @@ def command_loop(args: argparse.Namespace) -> int:
                     "telegram_note": review.get("telegram_note", ""),
                     "hermes_review_mode": review.get("hermes_review_mode", args.hermes_review_mode),
                     "hermes_session_id": review.get("hermes_session_id", args.hermes_session_id),
-                    "review_path": str(loop_dir / f"round_{next_round:04d}_review.json"),
+                    "review_path": str(review_path),
+                    "manual_steering_once_consumption": review.get("manual_steering_once_consumption", {}),
                 },
             )
 
@@ -2600,8 +2728,8 @@ def add_prompt_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-prompt", default=str(DEFAULT_BASE_PROMPT))
     parser.add_argument("--delta", default="", help="Legacy short Hermes steering delta for this run.")
     parser.add_argument("--delta-file", default="", help="File containing a legacy steering delta.")
-    parser.add_argument("--prompt-override", default="", help="Transient task brief appended below the base prompt for this run.")
-    parser.add_argument("--prompt-override-file", default="", help="File containing a transient task brief appended below the base prompt.")
+    parser.add_argument("--prompt-override", default="", help="Transient Direction Brief appended below the base prompt for this run.")
+    parser.add_argument("--prompt-override-file", default="", help="File containing a transient Direction Brief appended below the base prompt.")
     parser.add_argument("--run-id", default="", help="Override run id.")
 
 
@@ -2705,8 +2833,8 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--hermes-retry-max-turns",
         type=int,
-        default=100,
-        help="Hermes max tool-calling turns for a strict JSON review retry.",
+        default=12,
+        help="Hermes max tool-calling turns for the short strict-JSON repair retry.",
     )
     parser.add_argument(
         "--codex-transient-retries",
