@@ -47,6 +47,24 @@ PROXY_KEYS = (
 NO_PROXY_LOCAL = ("127.0.0.1", "localhost", "::1")
 HERMES_HOME = Path.home() / ".hermes"
 TELEGRAM_API = "https://api.telegram.org"
+CODEX_TRANSIENT_ERROR_PATTERNS = (
+    "openai api error",
+    "stream error",
+    "connection reset",
+    "timeout",
+    "timed out",
+    "rate limit",
+    "server error",
+    "temporarily unavailable",
+    "model unavailable",
+    "selected model is at capacity",
+    "empty/aborted response",
+    "transport error",
+    "turn.failed",
+    "error sending request",
+    "connection error",
+    "reconnecting",
+)
 
 
 def utc_run_id() -> str:
@@ -98,6 +116,65 @@ def load_json(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _snapshot_git_field(snapshot: Any, key: str) -> str:
+    if not isinstance(snapshot, dict):
+        return ""
+    git = snapshot.get("git")
+    if not isinstance(git, dict):
+        return ""
+    item = git.get(key)
+    if not isinstance(item, dict):
+        return ""
+    return str(item.get("stdout") or "").strip()
+
+
+def codex_transient_failure_reason(run_dir: Path) -> str:
+    """Return a short reason when a failed Codex run looks transient."""
+    manifest = load_json(run_dir / "manifest.json")
+    if not isinstance(manifest, dict):
+        return ""
+    code = manifest.get("codex_exit_code")
+    if code in (None, 0, "0"):
+        return ""
+    evidence = "\n".join(
+        [
+            str(manifest.get("runner_error") or ""),
+            read_text(run_dir / "codex.stderr.log", max_chars=40000),
+            read_text(run_dir / "codex.stdout.jsonl", max_chars=80000),
+            read_text(run_dir / "last_message.md", max_chars=12000),
+        ]
+    ).lower()
+    for pattern in CODEX_TRANSIENT_ERROR_PATTERNS:
+        if pattern in evidence:
+            return f"codex_transient:{pattern}"
+    return ""
+
+
+def codex_retry_blocker(run_dir: Path) -> str:
+    """Return why a failed worker must not be automatically retried."""
+    before = load_json(run_dir / "snapshot_before.json")
+    after = load_json(run_dir / "snapshot_after.json")
+    before_head = _snapshot_git_field(before, "head")
+    after_head = _snapshot_git_field(after, "head")
+    if before_head and after_head and before_head != after_head:
+        return "git_head_changed"
+    before_status = _snapshot_git_field(before, "status_short")
+    after_status = _snapshot_git_field(after, "status_short")
+    if before_status != after_status:
+        return "git_status_changed"
+    return ""
+
+
+def write_stop_request(path: Path, reason: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "requested_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "pid": os.getpid(),
+        "reason": reason,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -1879,6 +1956,8 @@ def build_loop_subprocess_cmd(args: argparse.Namespace, loop_id: str) -> list[st
         args.hermes_source,
         "--hermes-max-turns",
         str(args.hermes_max_turns),
+        "--codex-transient-retries",
+        str(args.codex_transient_retries),
     ]
     if args.stop_file:
         cmd.extend(["--stop-file", args.stop_file])
@@ -2124,6 +2203,115 @@ def command_loop(args: argparse.Namespace) -> int:
                 },
             )
 
+            retry_reason = codex_transient_failure_reason(Path(worker["run_dir"]))
+            if retry_reason and args.codex_transient_retries > 0:
+                retry_blocker = codex_retry_blocker(Path(worker["run_dir"]))
+                if retry_blocker:
+                    exit_reason = f"codex_transient_retry_skipped_{retry_blocker}"
+                    append_jsonl(
+                        events_path,
+                        {
+                            "event": "codex_transient_retry_skipped",
+                            "round": next_round,
+                            "run_id": run_id,
+                            "reason": retry_reason,
+                            "blocker": retry_blocker,
+                            "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                        },
+                    )
+                    write_stop_request(stop_file, exit_reason)
+                    append_jsonl(
+                        events_path,
+                        {
+                            "event": "loop_stop",
+                            "round": next_round,
+                            "reason": exit_reason,
+                            "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                        },
+                    )
+                    break
+
+                retry_run_id = f"{run_id}-retry1"
+                append_jsonl(
+                    events_path,
+                    {
+                        "event": "codex_transient_retry_start",
+                        "round": next_round,
+                        "attempt": 2,
+                        "previous_run_id": run_id,
+                        "run_id": retry_run_id,
+                        "reason": retry_reason,
+                        "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                    },
+                )
+                retry_worker = run_worker_subprocess(
+                    args,
+                    repo,
+                    loop_dir,
+                    next_round,
+                    retry_run_id,
+                    delta,
+                    prompt_override,
+                )
+                retry_worker["attempt"] = 2
+                write_json(
+                    active_loop_path,
+                    {
+                        "pid": os.getpid(),
+                        "loop_id": loop_id,
+                        "loop_dir": str(loop_dir),
+                        "repo": str(repo),
+                        "latest_run_dir": retry_worker["run_dir"],
+                        "latest_round": next_round,
+                        "stop_file": str(stop_file),
+                        "manual_steering_file": str(manual_steering_file),
+                        "manual_steering_once_file": str(manual_steering_once_file),
+                        "hermes_review_mode": args.hermes_review_mode,
+                        "hermes_session_id": args.hermes_session_id,
+                        "hermes_session_name": args.hermes_session_name,
+                        "codex_multi_agent_disabled": True,
+                        "current_prompt_mode": prompt_mode,
+                        "current_prompt_override_chars": len(prompt_override),
+                        "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                    },
+                )
+                append_jsonl(
+                    events_path,
+                    {
+                        "event": "worker_finished",
+                        "round": next_round,
+                        "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                        **retry_worker,
+                    },
+                )
+                retry_again_reason = codex_transient_failure_reason(Path(retry_worker["run_dir"]))
+                if retry_again_reason:
+                    exit_reason = "codex_transient_retry_failed"
+                    append_jsonl(
+                        events_path,
+                        {
+                            "event": "codex_transient_retry_failed",
+                            "round": next_round,
+                            "first_run_id": run_id,
+                            "retry_run_id": retry_run_id,
+                            "first_reason": retry_reason,
+                            "retry_reason": retry_again_reason,
+                            "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                        },
+                    )
+                    write_stop_request(stop_file, exit_reason)
+                    append_jsonl(
+                        events_path,
+                        {
+                            "event": "loop_stop",
+                            "round": next_round,
+                            "reason": exit_reason,
+                            "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                        },
+                    )
+                    break
+                worker = retry_worker
+
             run_dir = Path(worker["run_dir"])
             if not (run_dir / "review_input.md").exists():
                 exit_reason = f"review_input_missing_after_round_{next_round}"
@@ -2326,13 +2514,7 @@ def command_status(args: argparse.Namespace) -> int:
 def command_stop(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
     path = stop_file_path(repo, args)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "requested_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "pid": os.getpid(),
-        "reason": args.reason,
-    }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_stop_request(path, args.reason)
     print(path)
     return 0
 
@@ -2446,6 +2628,12 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--hermes-source", default="cli", help="Hermes session source tag.")
     parser.add_argument("--hermes-max-turns", type=int, default=8, help="Hermes review max tool-calling turns.")
+    parser.add_argument(
+        "--codex-transient-retries",
+        type=int,
+        default=1,
+        help="Retry a Codex worker once when its artifacts indicate a transient API/stream/model failure and the repo snapshot is unchanged.",
+    )
     parser.add_argument(
         "--hermes-model",
         default=DEFAULT_SUPERVISOR_MODEL,
