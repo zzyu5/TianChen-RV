@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and descriptor boundary invariants."}
+{"file": ".trellis/spec/architecture/unified-riscv-mlir.md", "reason": "Unified extension-family architecture and non-architecture descriptor surfaces."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin proposal, typed microkernel body, selected vector-shape, and descriptor metadata contracts."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Plugin locality and common-interface boundaries for extension families."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Typed extension op to EmitC route and descriptor mirror boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan and target-export authority boundaries, including prior i64 body-authority text."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Plugin proposal and materialization pipeline contracts."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-plugin-proposal-planning-descriptor-exit/prd.md", "reason": "Current task requirements and acceptance criteria."}
+{"file": ".trellis/tasks/archive/2026-05/05-12-rvv-i64-target-export-body-authority/prd.md", "reason": "Prior completed target-export body-authority boundary this task must not reopen."}

@@ -189,32 +189,39 @@ validated `rvv.probe.compile_run.selected_march` property, optional
 capability-derived `tcrv_rvv.vlenb_bytes` and
 `tcrv_rvv.base_i32_m1_lanes` integer attributes when structured vlenb/lane
 capabilities are available, a complete selected vector-shape metadata group,
-and a finite plugin-owned lowering descriptor for the bounded i32 RVV
-C-intrinsic microkernel family. The selected vector-shape group records the
+and typed finite RVV binary family/body authority for the bounded RVV
+C-intrinsic microkernel family. A legacy `tcrv_rvv.lowering_descriptor`, when
+present beside that typed authority, is non-authoritative mirror metadata only.
+The selected vector-shape group records the
 plugin/target-owned compile-time choice: shape id, SEW, LMUL, tail policy,
 mask policy, C vector type, intrinsic suffix, setvl suffix, and the backing
 capability ids through selected-plan metadata and generated source comments.
 It is required to match exactly one finite config shape and is distinct from
 base i32 M1 lane capacity. The current supported family members are
-`i32-vadd-microkernel.v1`, `i32-vsub-microkernel.v1`, and
-`i32-vmul-microkernel.v1`, all using the same runtime-callable i32 binary ABI
-shape and bounded descriptor-local integer `tcrv_rvv.element_count`. The default
-automatic first-slice proposal still selects `i32-vadd-microkernel.v1`; bounded frontend
-lowering may preserve `tcrv_frontend_lowering = "i32-vsub"` or
-`"i32-vmul"` on the generated `tcrv.exec.kernel`, in which case the RVV plugin
-selects the matching descriptor through the same plugin-owned proposal,
-materialization, and export contract. Hand-authored or test TianChen-RV MLIR
-may also select `i32-vsub-microkernel.v1` or `i32-vmul-microkernel.v1`
-explicitly to exercise the same contract. When structured
+`i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`,
+all using the runtime-callable binary ABI shape for their dtype and the bounded
+selected-path integer `tcrv_rvv.element_count`. The default automatic
+first-slice proposal still requests typed `i32-vadd` body materialization;
+bounded frontend lowering may preserve `tcrv_frontend_lowering = "i32-vsub"`,
+`"i32-vmul"`, `"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"` on the generated
+`tcrv.exec.kernel`, in which case the RVV plugin derives the matching proposal
+identity from that typed frontend family and later typed family/body evidence.
+Hand-authored or test TianChen-RV MLIR may also provide typed direct
+`tcrv_rvv.i32_*_microkernel` or `tcrv_rvv.i64_*_microkernel` bodies to
+exercise the same contract. Direct descriptor-only RVV variants must fail
+closed or remain explicitly unsupported metadata; they must not select family,
+dtype, shape, route id, artifact kind, callable ABI, required capabilities,
+selected vector config, or emitted body. When structured
 `rvv.i32_m1_lane_count` capacity evidence is present through an exact
 capability provider or a relation-provider target profile, the RVV plugin
-chooses that descriptor-local sample size as four M1 i32 vectors, capped at 64
+chooses that selected-path sample size as four M1 i32 vectors, capped at 64
 elements; without structured capacity evidence it uses the fixed first-slice
-fallback sample size `16`. This is a compiler descriptor decision, not a
+fallback sample size `16`. This is a compiler selected-plan decision, not a
 runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.
 The generic string policy remains the input for core selection/dispatch; the
-typed policy, required march, optional capacity metadata, lowering descriptor,
-selected vector-shape metadata, and element count are plugin-local metadata preserved by the generic
+typed policy, required march, optional capacity metadata,
+selected vector-shape metadata, element count, and optional legacy descriptor
+mirror are plugin-local metadata preserved by the generic
 proposal/materialization path and validated by `RVVExtensionPlugin` when
 present on a materialized variant. These fields are
 compiler-visible metadata for the existing generic materialization, legality,
@@ -1067,8 +1074,10 @@ route before printing RVV intrinsic C/C++.
 
 - The computation op is the RVV family op in the verified body, not the
   lowering descriptor string.
-- Descriptor/config metadata may select the bounded family, dtype, shape, and
-  intrinsic spelling, but it must not replace body verification.
+- Typed family/body authority selects the bounded family, dtype, shape, and
+  intrinsic spelling before descriptor text is considered. Descriptor metadata
+  may only mirror that already-selected typed authority; stale or descriptor-only
+  metadata fails closed before source output.
 - `emitc.call_opaque` callees map from verified family ops:
   setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
   to the selected RVV load, arithmetic, and store intrinsics.

@@ -794,7 +794,7 @@ module {
 )mlir";
   if (int result =
           expectResolutionError(unknownDescriptor, "unknown_direct_descriptor",
-                                "registered finite RVV binary lowering"))
+                                "registered finite RVV binary mirror descriptor"))
     return result;
 
   constexpr llvm::StringLiteral descriptorOnlyI32VAdd = R"mlir(
@@ -816,36 +816,38 @@ module {
   }
 }
 )mlir";
-	  if (int result = expectResolutionError(
-	          descriptorOnlyI32VAdd, "descriptor_only_i32_vadd",
-	          "direct legacy-registration-only RVV binary planning for family 'i32-vadd' "
-	          "is legacy-quarantined"))
-	    return result;
+  if (int result = expectResolutionError(
+          descriptorOnlyI32VAdd, "descriptor_only_i32_vadd",
+          "descriptor-only direct RVV binary planning metadata "
+          "'i32-vadd-microkernel.v1' before typed RVV microkernel body "
+          "authority"))
+    return result;
 
-	  constexpr llvm::StringLiteral descriptorOnlyI64VSub = R"mlir(
-	module {
-	  tcrv.exec.kernel @descriptor_only_i64_vsub {
-	    tcrv.exec.capability @rvv {
-	      id = "rvv",
-	      kind = "isa-vector",
-	      status = "available"
-	    }
-	    tcrv.exec.variant @rvv_bad attributes {
-	      origin = "rvv-plugin",
-	      requires = [@rvv],
-	      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
-	      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-	      tcrv_rvv.required_march = "rv64gcv"
-	    } {
-	    }
-	  }
-	}
-	)mlir";
-	  if (int result = expectResolutionError(
-	          descriptorOnlyI64VSub, "descriptor_only_i64_vsub",
-	          "direct legacy-registration-only RVV binary planning for family 'i64-vsub' "
-	          "is legacy-quarantined"))
-	    return result;
+  constexpr llvm::StringLiteral descriptorOnlyI64VSub = R"mlir(
+module {
+  tcrv.exec.kernel @descriptor_only_i64_vsub {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_bad attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv"
+    } {
+    }
+  }
+}
+)mlir";
+  if (int result = expectResolutionError(
+          descriptorOnlyI64VSub, "descriptor_only_i64_vsub",
+          "descriptor-only direct RVV binary planning metadata "
+          "'i64-vsub-microkernel.v1' before typed RVV microkernel body "
+          "authority"))
+    return result;
 
   constexpr llvm::StringLiteral typedBodyDescriptorMismatch = R"mlir(
 module {
@@ -894,7 +896,9 @@ module {
 )mlir";
   if (int result = expectResolutionError(
           typedBodyDescriptorMismatch, "typed_body_descriptor_mismatch",
-          "ambiguous direct RVV binary registration records"))
+          "stale legacy descriptor mirror 'i32-vadd-microkernel.v1' for "
+          "tcrv_rvv.i32_vadd_microkernel but typed RVV microkernel body "
+          "authority is tcrv_rvv.i32_vsub_microkernel"))
     return result;
 
   constexpr llvm::StringLiteral ambiguousDescriptors = R"mlir(
@@ -922,7 +926,9 @@ module {
 )mlir";
   if (int result = expectResolutionError(
           ambiguousDescriptors, "ambiguous_direct_descriptors",
-          "ambiguous direct RVV binary registration records"))
+          "descriptor-only direct RVV binary planning metadata "
+          "'i64-vadd-microkernel.v1' before typed RVV microkernel body "
+          "authority"))
     return result;
 
   constexpr llvm::StringLiteral shapeMismatch = R"mlir(
@@ -952,7 +958,8 @@ module {
 )mlir";
   return expectResolutionError(
       shapeMismatch, "descriptor_shape_mismatch",
-      "does not belong to finite RVV binary registration family 'i64-vadd'");
+      "descriptor-only direct RVV binary planning metadata "
+      "'i64-vadd-microkernel.v1' before typed RVV microkernel body authority");
 }
 
 int runNegativeSelectedPlanTest() {

@@ -109,6 +109,54 @@ for the bounded i32/i64 add/sub/mul typed microkernel families.
 performance claim was made.
 
 
+## Session 38: RVV plugin proposal planning descriptor exit
+
+**Date**: 2026-05-12
+**Task**: RVV plugin proposal planning descriptor exit
+**Branch**: `main`
+
+### Summary
+
+Removed legacy `tcrv_rvv.lowering_descriptor` authority from direct RVV binary
+proposal planning. Direct proposal identity now comes from typed RVV frontend
+family/body authority; descriptor text is accepted only as post-authority mirror
+metadata.
+
+### Main Changes
+
+- Replaced the direct legacy descriptor candidate route in
+  `resolveRVVBinaryFamilyForProposal` with typed-body-first resolution plus
+  descriptor mirror validation.
+- Descriptor-only direct RVV planning now fails closed as a recoverable proposal
+  decline and cannot select a supported RVV binary proposal plan.
+- Stale descriptor mirrors beside typed bodies now fail with diagnostics naming
+  typed RVV microkernel body authority.
+- Updated RVV plugin tests to cover descriptor-only rejection, matching mirror
+  acceptance after typed authority, and stale mirror rejection.
+- Updated the RVV plugin spec to record descriptor text as mirror metadata after
+  typed authority, not plugin planning authority.
+
+### Testing
+
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-binary-planning-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-planning-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-extension-plugin-test`
+- `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-variant-legality-test -j2`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `artifacts/tmp/tianchenrv-build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- Focused lit filters for RVV linalg artifact and RVV microkernel paths, 15/15
+  and 8/8 passed.
+- `git diff --check`
+- `cmake --build artifacts/tmp/tianchenrv-build --target check-tianchenrv -j2`,
+  209/209 passed.
+
+### Status
+
+[OK] Completed and ready to archive. No `ssh rvv` runtime, correctness, or
+performance claim was made.
+
+
 ## Session 39: RVV i64 binary descriptor-exit closure
 
 **Date**: 2026-05-12

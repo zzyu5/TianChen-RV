@@ -71,10 +71,6 @@ constexpr llvm::StringLiteral kDirectTypedMicrokernelBodySourceKind(
     "direct-typed-microkernel-body");
 constexpr llvm::StringLiteral kDefaultTypedMicrokernelBodySourceKind(
     "default-i32-vadd-typed-body-materialization");
-constexpr llvm::StringLiteral kDirectLegacyLoweringRegistrationSourceKind(
-    "direct-legacy-lowering-registration");
-constexpr llvm::StringLiteral kDirectRVVBinaryRegistrationMirrorSourceKind(
-    "direct-rvv-binary-registration-mirror");
 constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 
 llvm::Error makeRVVBinaryPlanningError(llvm::Twine message) {
@@ -438,14 +434,6 @@ resolveDirectSelectedShapeMetadata(
 bool isSameRVVBinaryFamily(const target::rvv::RVVBinaryFamilyDescriptor &lhs,
                            const target::rvv::RVVBinaryFamilyDescriptor &rhs) {
   return lhs.dtype == rhs.dtype && lhs.arithmetic == rhs.arithmetic;
-}
-
-bool isDirectTypedSourceKind(llvm::StringRef sourceKind) {
-  return sourceKind == kDirectTypedMicrokernelBodySourceKind;
-}
-
-bool isLegacyRegistrationSourceKind(llvm::StringRef sourceKind) {
-  return sourceKind == kDirectLegacyLoweringRegistrationSourceKind;
 }
 
 std::string stringifyType(mlir::Type type) {
@@ -901,9 +889,9 @@ llvm::Error mergeDirectRVVBinaryFamilyCandidate(
   if (resolution.family->familyID != candidate.family->familyID)
     return makeRVVBinaryPlanningError(
         llvm::Twine(diagnosticContext) +
-        " has ambiguous direct RVV binary registration records: '" +
-        resolution.family->loweringDescriptor + "' and '" +
-        candidate.family->loweringDescriptor +
+        " has ambiguous direct typed RVV binary microkernel bodies: '" +
+        resolution.family->microkernelOpName + "' and '" +
+        candidate.family->microkernelOpName +
         "' resolve to different finite families");
 
   if (resolution.directSelectedShape && candidate.selectedShape &&
@@ -919,33 +907,29 @@ llvm::Error mergeDirectRVVBinaryFamilyCandidate(
 
   if (!resolution.directSelectedShape)
     resolution.directSelectedShape = candidate.selectedShape;
-  if (resolution.sourceKind != candidate.source) {
-    if (isDirectTypedSourceKind(candidate.source))
-      resolution.sourceKind = candidate.source;
-    else if (!isDirectTypedSourceKind(resolution.sourceKind))
-      resolution.sourceKind = kDirectRVVBinaryRegistrationMirrorSourceKind.str();
-  }
   return llvm::Error::success();
 }
 
-llvm::Expected<DirectRVVBinaryFamilyCandidate>
-buildDirectLegacyRegistrationCandidateFromVariant(
-    tcrv::exec::VariantOp variant) {
-  DirectRVVBinaryFamilyCandidate candidate;
+llvm::Expected<bool> validateDirectLegacyDescriptorMirrorForVariant(
+    tcrv::exec::VariantOp variant,
+    const RVVBinaryFamilyPlanningResolution &typedAuthority,
+    llvm::StringRef diagnosticContext) {
   if (!variant)
-    return candidate;
+    return false;
 
   auto origin = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!origin || origin.getValue() != kRVVPluginName)
-    return candidate;
+    return false;
 
   auto descriptor =
       variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
   if (!descriptor)
-    return candidate;
+    return false;
   llvm::StringRef descriptorValue = descriptor.getValue().trim();
   std::string context =
-      (llvm::Twine("direct RVV binary variant @") + variant.getSymName()).str();
+      (llvm::Twine("direct RVV binary descriptor mirror on variant @") +
+       variant.getSymName())
+          .str();
   if (descriptorValue.empty())
     return makeRVVBinaryPlanningError(
         llvm::Twine(context) + " requires non-empty string attribute '" +
@@ -959,21 +943,46 @@ buildDirectLegacyRegistrationCandidateFromVariant(
           descriptorValue);
   if (!family)
     return makeRVVBinaryPlanningError(
-        llvm::Twine(context) + " direct lowering descriptor '" +
+        llvm::Twine(context) + " legacy lowering descriptor '" +
         descriptorValue +
-        "' must be one registered finite RVV binary lowering registration");
+        "' must be one registered finite RVV binary mirror descriptor");
+
+  if (!typedAuthority.family)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) +
+        " has descriptor-only direct RVV binary planning metadata '" +
+        descriptorValue +
+        "' before typed RVV microkernel body authority; descriptor text is "
+        "non-authoritative legacy mirror metadata and cannot select a "
+        "supported direct RVV binary proposal plan");
+
+  if (family->familyID != typedAuthority.family->familyID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) + " has stale legacy descriptor mirror '" +
+        descriptorValue + "' for " + family->microkernelOpName +
+        " but typed RVV microkernel body authority is " +
+        typedAuthority.family->microkernelOpName + " for family '" +
+        typedAuthority.family->familyID +
+        "'; descriptor text is non-authoritative metadata after typed "
+        "authority");
 
   llvm::Expected<const target::rvv::RVVVectorShapeConfig *> selectedShape =
       resolveDirectSelectedShapeMetadata(
-          variant.getOperation(), *family,
+          variant.getOperation(), *typedAuthority.family,
           getRVVVariantSelectedVectorShapeMetadataNames(), context);
   if (!selectedShape)
     return selectedShape.takeError();
+  if (*selectedShape && typedAuthority.directSelectedShape &&
+      (*selectedShape)->shapeID != typedAuthority.directSelectedShape->shapeID)
+    return makeRVVBinaryPlanningError(
+        llvm::Twine(diagnosticContext) +
+        " has stale legacy descriptor mirror selected vector-shape '" +
+        (*selectedShape)->shapeID +
+        "' but typed RVV microkernel body authority selected shape '" +
+        typedAuthority.directSelectedShape->shapeID +
+        "'; descriptor mirror metadata cannot override typed authority");
 
-  candidate.family = family;
-  candidate.selectedShape = *selectedShape;
-  candidate.source = kDirectLegacyLoweringRegistrationSourceKind.str();
-  return candidate;
+  return true;
 }
 
 llvm::Expected<DirectRVVBinaryFamilyCandidate>
@@ -1697,7 +1706,6 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
   }
 
   RVVBinaryFamilyPlanningResolution typedBodyResolution;
-  RVVBinaryFamilyPlanningResolution legacyRegistrationResolution;
   if (!kernel.getBody().empty()) {
     for (mlir::Operation &operation : kernel.getBody().front()) {
       if (llvm::isa<tcrv::exec::VariantOp>(operation))
@@ -1717,42 +1725,18 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
       if (!variant)
         continue;
 
-      llvm::Expected<DirectRVVBinaryFamilyCandidate> candidate =
-          buildDirectLegacyRegistrationCandidateFromVariant(variant);
-      if (!candidate)
-        return candidate.takeError();
-      if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
-              legacyRegistrationResolution, *candidate, diagnosticContext))
-        return std::move(error);
+      llvm::Expected<bool> validatedMirror =
+          validateDirectLegacyDescriptorMirrorForVariant(
+              variant, typedBodyResolution, diagnosticContext);
+      if (!validatedMirror)
+        return validatedMirror.takeError();
     }
   }
 
   if (typedBodyResolution.family) {
-    if (llvm::Error error = mergeDirectRVVBinaryFamilyCandidate(
-            typedBodyResolution,
-            DirectRVVBinaryFamilyCandidate{legacyRegistrationResolution.family,
-                                           legacyRegistrationResolution
-                                               .directSelectedShape,
-                                           legacyRegistrationResolution
-                                               .sourceKind},
-            diagnosticContext))
-      return std::move(error);
     typedBodyResolution.sourceKind =
         kDirectTypedMicrokernelBodySourceKind.str();
     return typedBodyResolution;
-  }
-
-  if (legacyRegistrationResolution.family) {
-    if (isTypedSourceRVVBinaryFamily(*legacyRegistrationResolution.family))
-      return makeRVVBinaryPlanningError(
-          llvm::Twine(diagnosticContext) +
-          " direct legacy-registration-only RVV binary planning for family '" +
-          legacyRegistrationResolution.family->familyID +
-          "' is legacy-quarantined; add a typed " +
-          legacyRegistrationResolution.family->microkernelOpName +
-          " body or use frontend-derived typed family lowering so compute "
-          "identity comes from RVV family ops");
-    return legacyRegistrationResolution;
   }
 
   RVVBinaryFamilyPlanningResolution defaultResolution;
@@ -1814,8 +1798,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     return resolution.takeError();
 
   bool attachLoweringDescriptorAttr = true;
-  if (isTypedSourceRVVBinaryFamily(*resolution->family) &&
-      !isLegacyRegistrationSourceKind(resolution->sourceKind))
+  if (isTypedSourceRVVBinaryFamily(*resolution->family))
     attachLoweringDescriptorAttr = false;
 
   return buildRVVBinaryProposalPlanForFamily(

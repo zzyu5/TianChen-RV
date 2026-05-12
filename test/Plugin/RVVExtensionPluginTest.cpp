@@ -2975,18 +2975,20 @@ module {
   llvm::StringRef reason = declines.front().getReason();
   if (int result = expect(
           reason.contains(
-              "direct legacy-registration-only RVV binary planning for family "
-              "'i64-vadd'"),
-          "quarantine decline names the legacy-registration-only RVV i64 "
-          "family"))
+              "descriptor-only direct RVV binary planning metadata "
+              "'i64-vadd-microkernel.v1' before typed RVV microkernel body "
+              "authority"),
+          "quarantine decline names descriptor-only planning before typed "
+          "authority"))
     return result;
   if (int result =
-          expect(reason.contains("legacy-quarantined"),
-                 "quarantine decline reports legacy-quarantined status"))
+          expect(reason.contains("cannot select a supported direct RVV binary "
+                                 "proposal plan"),
+                 "quarantine decline reports no supported proposal selection"))
     return result;
   return expect(
-      reason.contains("typed tcrv_rvv.i64_vadd_microkernel body"),
-      "quarantine decline requires typed RVV i64 microkernel authority");
+      reason.contains("non-authoritative legacy mirror metadata"),
+      "quarantine decline preserves non-authoritative mirror boundary");
 }
 
 int runDescriptorOnlySelectedEmissionFailsClosedTest(
