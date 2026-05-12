@@ -3332,6 +3332,62 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
   std::string includeGuard = makeMicrokernelHeaderIncludeGuard(record);
   std::string functionName = makeMicrokernelFunctionName(record);
 
+  os << "/* TianChen-RV RVV runtime-callable microkernel C header. */\n";
+  os << "/* Scope: declaration-only external C ABI for exactly one "
+     << record.descriptor.getRVVMicrokernelOpName() << ". */\n";
+  os << "/* selected_body_authority: "
+     << record.descriptor.getRVVMicrokernelOpName() << " */\n";
+  os << "/* selected_kernel: @" << record.kernelSymbol << " */\n";
+  os << "/* selected_variant: @" << record.variantSymbol << " */\n";
+  os << "/* selected_role: " << record.role << " */\n";
+  os << "/* selected_march: " << record.selectedMarch << " */\n";
+  if (record.selectedMABI)
+    os << "/* selected_mabi: " << *record.selectedMABI << " */\n";
+  os << "/* lowering_boundary: tcrv_rvv.lowering_boundary */\n";
+  os << "/* executable_microkernel: "
+     << record.descriptor.getRVVMicrokernelOpName()
+     << " */\n";
+  os << "/* arithmetic_family: "
+     << record.descriptor.getArithmeticFamilyID() << " */\n";
+  os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
+  os << "/* " << record.selectedConfigContract.formatSummaryCommentBody()
+     << " */\n";
+  os << "/* "
+     << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
+     << " */\n";
+  os << "/* control_plane_runtime_avl: body index argument maps to "
+        "target/export-owned runtime "
+     << record.selectedConfigContract.getRuntimeElementCountCName()
+     << " ABI parameter */\n";
+  os << "/* control_plane_vl: !tcrv_rvv.vl value consumed by "
+        "tcrv_rvv.with_vl */\n";
+  os << "/* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, "
+        "rhs_load.buffer_role=rhs-input-buffer, "
+        "store.buffer_role=output-buffer; runtime "
+     << record.selectedConfigContract.getRuntimeElementCountCName()
+     << " remains the target/export-owned runtime element-count ABI "
+        "parameter */\n";
+  printCallableBoundaryMetadata(os, record);
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    os << "/* runtime_abi_parameter[" << index << "]: c_name="
+       << parameter.cName << ", c_type=" << parameter.cType
+       << ", role="
+       << support::stringifyRuntimeABIParameterRole(parameter.role)
+       << ", ownership="
+       << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+       << " */\n";
+  }
+  os << "/* runtime_callable_abi: void " << functionName
+     << "(";
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") */\n";
+
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
   os << "#include <stddef.h>\n";

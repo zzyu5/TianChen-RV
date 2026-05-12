@@ -1,6 +1,9 @@
 // RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --check-prefix=ALT --implicit-check-not="while (offset < n)"
 // RUN: tcrv-translate --tcrv-export-target-source-artifact %s | FileCheck %s --check-prefix=ALT --implicit-check-not="while (offset < n)"
+// RUN: tcrv-translate --tcrv-export-rvv-microkernel-header %s | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv" --implicit-check-not=") {"
 // RUN: sed 's#c_name = "lhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#c_name = "a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-NAME --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed 's#c_name = "lhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#c_name = "a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#' %s | not tcrv-translate --tcrv-export-rvv-microkernel-header 2>&1 | FileCheck %s --check-prefix=HEADER-STALE-NAME --implicit-check-not="#ifndef"
+// RUN: sed 's#c_name = "lhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#c_name = "a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#' %s | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=OBJECT-STALE-NAME --implicit-check-not="ELF"
 // RUN: sed 's#c_name = "rhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "rhs-input-buffer"#c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=DUPLICATE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: sed 's/c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "unknown-length"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=UNKNOWN --implicit-check-not="#include <riscv_vector.h>"
 // RUN: sed 's/c_name = "out", c_type = "int32_t \*", ownership = "target-export-abi-owned", role = "output-buffer"/c_name = "out", c_type = "int32_t *", ownership = "ir-modeled", role = "output-buffer"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=OWNERSHIP --implicit-check-not="#include <riscv_vector.h>"
@@ -203,8 +206,25 @@ module @rvv_runtime_abi_role_binding {
 // ALT: __riscv_vse32_v_i32m1
 // ALT: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice
 
+// HEADER: /* selected_body_authority: tcrv_rvv.i32_vadd_microkernel */
+// HEADER: /* selected_binary_config: dtype=i32, family=i32-vadd
+// HEADER-SAME: runtime_element_count_c_name=len
+// HEADER-SAME: selected_role=direct variant */
+// HEADER: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime len ABI parameter */
+// HEADER: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime len remains the target/export-owned runtime element-count ABI parameter */
+// HEADER: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer
+// HEADER-SAME: c_type=const int32_t *
+// HEADER: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=len, c_type=size_t, ownership=target-export-abi-owned */
+// HEADER: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// HEADER: /* runtime_abi_parameter[3]: c_name=len, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// HEADER: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len);
+
 // STALE-NAME: runtime ABI callable plan validation failed
 // STALE-NAME-SAME: runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
+// HEADER-STALE-NAME: runtime ABI callable plan validation failed
+// HEADER-STALE-NAME-SAME: runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
+// OBJECT-STALE-NAME: composite target artifact route 'tcrv-export-rvv-microkernel-object' runtime ABI role contract preflight failed
+// OBJECT-STALE-NAME-SAME: runtime ABI parameter role 'lhs-input-buffer' must mirror IR-backed callable ABI parameter c_name='lhs'
 // DUPLICATE: duplicate runtime ABI parameter role 'lhs-input-buffer'
 // UNKNOWN: unsupported runtime ABI parameter role 'unknown-length'
 // OWNERSHIP: route id 'tcrv-export-rvv-microkernel-c' runtime ABI parameter role 'output-buffer' must use c type 'int32_t *' and ownership 'target-export-abi-owned'

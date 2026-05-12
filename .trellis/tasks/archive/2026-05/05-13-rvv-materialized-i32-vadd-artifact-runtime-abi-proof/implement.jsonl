@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation invariants for compiler stack, unified RISC-V extension families, descriptor boundary, and RVV evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin first-slice selected vector shape, materialized typed body, runtime callable ABI, and bounded artifact route contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current extension-family ops to EmitC to RVV intrinsic C route and descriptor-to-C boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission planning, target artifact export, runtime ABI role contract, source/header/object route, and bundle preflight requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/build and ssh rvv evidence expectations for RVV artifact/runtime claims."}

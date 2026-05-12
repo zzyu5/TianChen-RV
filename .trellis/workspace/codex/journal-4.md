@@ -1669,3 +1669,42 @@ new `ssh rvv` runtime correctness claim was made.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 51: RVV materialized i32-vadd artifact runtime ABI proof
+
+**Date**: 2026-05-13
+**Task**: RVV materialized i32-vadd artifact runtime ABI proof
+**Branch**: `main`
+
+### Summary
+
+Exposed the selected materialized RVV body and IR-backed runtime ABI role contract in generated i32-vadd header artifacts, preserved source/header/object bundle authority, and refreshed bounded ssh rvv correctness evidence.
+
+### Main Changes
+
+- Extended `lib/Target/RVV/RVVMicrokernel.cpp` so generated RVV microkernel headers carry declaration-only selected-body authority, selected config/runtime AVL/VL boundary, callable boundary provenance, runtime ABI parameter roles, and the emitted C callable ABI before the include guard.
+- Added lit coverage for direct and generic header export, stale runtime ABI role binding fail-closed behavior before header/object output, and bundle index/header role metadata for source/header/object agreement.
+- Generated direct source/header/object artifacts with `build/bin/tcrv-opt test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | build/bin/tcrv-translate --tcrv-export-target-source-artifact` and sibling header/object exporters under `artifacts/tmp/rvv_materialized_i32_vadd_artifact_runtime_abi_proof/direct`.
+- Ran the plan-and-export bundle front door under `artifacts/tmp/rvv_materialized_i32_vadd_artifact_runtime_abi_proof/bundle` and confirmed source/header/object bundle records expose runtime ABI roles, selected vector shape, runtime AVL/VL, and RISC-V ELF object output.
+- Fresh `ssh rvv` evidence: `python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --lower-linalg-frontend --input test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir --expect-selected-kernel=frontend_i32_vadd --runtime-count=7 --runtime-count=16 --runtime-count=23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --run-id 20260513T-materialized-i32-vadd-artifact-runtime-abi-proof --overwrite --timeout 120`, with source and bundle-object remote runs printing `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
+- Checks passed: focused build of `TianChenRVTarget TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`, `./build/bin/tianchenrv-target-artifact-export-test`, focused lit for `RVVMicrokernel|TargetArtifactBundleExport|EmissionManifest|LoweringBoundary|LinalgToExec`, `git diff --check`, `git diff --cached --check`, and Trellis validation before and after archive.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `final round commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

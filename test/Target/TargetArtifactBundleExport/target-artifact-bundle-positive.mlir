@@ -100,6 +100,12 @@ module @target_artifact_bundle_positive_input {
 // DIRECT-INDEX: owner: "rvv-plugin"
 // DIRECT-INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
 // DIRECT-INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// DIRECT-INDEX: runtime_abi_parameter[0]:
+// DIRECT-INDEX: role: "lhs-input-buffer"
+// DIRECT-INDEX: runtime_abi_parameter[1]:
+// DIRECT-INDEX: role: "rhs-input-buffer"
+// DIRECT-INDEX: runtime_abi_parameter[2]:
+// DIRECT-INDEX: role: "output-buffer"
 // DIRECT-INDEX: runtime_abi_parameter[3]:
 // DIRECT-INDEX: role: "runtime-element-count"
 // DIRECT-INDEX: route_claim[0]:
@@ -116,6 +122,12 @@ module @target_artifact_bundle_positive_input {
 // DIRECT-INDEX: owner: "rvv-plugin"
 // DIRECT-INDEX: runtime_abi_kind: "rvv-runtime-callable-c-abi"
 // DIRECT-INDEX: runtime_abi_name: "rvv-i32-vadd-runtime-callable-c-function.v1"
+// DIRECT-INDEX: runtime_abi_parameter[0]:
+// DIRECT-INDEX: role: "lhs-input-buffer"
+// DIRECT-INDEX: runtime_abi_parameter[1]:
+// DIRECT-INDEX: role: "rhs-input-buffer"
+// DIRECT-INDEX: runtime_abi_parameter[2]:
+// DIRECT-INDEX: role: "output-buffer"
 // DIRECT-INDEX: runtime_abi_parameter[3]:
 // DIRECT-INDEX: role: "runtime-element-count"
 // DIRECT-INDEX: route_claim[0]:
@@ -140,6 +152,13 @@ module @target_artifact_bundle_positive_input {
 // DIRECT-SOURCE: __riscv_vse32_v_i32m1
 // DIRECT-SOURCE: void tcrv_rvv_i32_vadd_microkernel_bundle_i32_vadd_rvv_first_slice
 
+// DIRECT-HEADER: /* selected_body_authority: tcrv_rvv.i32_vadd_microkernel */
+// DIRECT-HEADER: /* selected_binary_config: dtype=i32, family=i32-vadd
+// DIRECT-HEADER-SAME: runtime_element_count_c_name=n
+// DIRECT-HEADER-SAME: selected_role=direct variant */
+// DIRECT-HEADER: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
+// DIRECT-HEADER: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// DIRECT-HEADER: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // DIRECT-HEADER: #ifndef TIANCHENRV_RVV_I32_VADD_MICROKERNEL_BUNDLE_I32_VADD_RVV_FIRST_SLICE_H
 // DIRECT-HEADER: void tcrv_rvv_i32_vadd_microkernel_bundle_i32_vadd_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 // DIRECT-HEADER: #endif /* TIANCHENRV_RVV_I32_VADD_MICROKERNEL_BUNDLE_I32_VADD_RVV_FIRST_SLICE_H */

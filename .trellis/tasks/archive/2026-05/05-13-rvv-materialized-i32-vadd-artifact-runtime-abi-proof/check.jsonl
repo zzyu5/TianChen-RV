@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global project boundaries, descriptor limits, compiler stack, and RVV evidence claims."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected RVV body, selected vector shape, and bounded i32-vadd first-slice behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that artifact emission stays on extension family ops -> EmitC/RVV intrinsic source route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact route preflight, runtime ABI role binding, and source/header/object bundle metadata."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused build/lit/C++/ssh evidence selection and claim discipline."}
