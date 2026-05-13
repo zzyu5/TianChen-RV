@@ -21,6 +21,11 @@ class Operation;
 class OpBuilder;
 } // namespace mlir
 
+namespace tianchenrv::target {
+class ExtensionBundle;
+class TargetTranslateRouteRegistry;
+} // namespace tianchenrv::target
+
 namespace tianchenrv::plugin {
 
 inline constexpr llvm::StringLiteral kVariantFallbackRoleAttrName(
@@ -638,6 +643,10 @@ public:
       VariantLoweringBoundaryResult &out) const;
   virtual llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const;
+  virtual llvm::Error
+  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle) const;
+  virtual llvm::Error registerTargetSupportTranslateRoutes(
+      target::TargetTranslateRouteRegistry &registry) const;
 };
 
 class ExtensionPluginRegistry {

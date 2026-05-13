@@ -14,6 +14,7 @@ add_mlir_library(TianChenRVRVVPlugin
   LINK_LIBS PUBLIC
   TianChenRVRVVDialect
   TianChenRVPlugin
+  TianChenRVRVVTarget
   TianChenRVSupport
   MLIRIR
   MLIRPass

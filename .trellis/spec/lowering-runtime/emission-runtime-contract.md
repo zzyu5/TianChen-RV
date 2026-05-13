@@ -501,7 +501,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 - The caller owns the `TargetArtifactExporterRegistry`.
 - The helper registers every currently supported built-in target artifact route
-  by delegating to target-owned registration functions.
+  by delegating to target-owned registration functions or, for route groups
+  with an extension plugin manifest hook, by asking that plugin to configure
+  its target-support `ExtensionBundle` contribution.
 - The current non-plugin single-candidate route set is:
   - RVV standalone smoke-probe C source, artifact kind
     `standalone-c-source`, selected only when a plugin-owned smoke-probe
@@ -567,9 +569,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
     target-owned RVV+scalar dispatch exporter code as an external caller ABI
     surface with artifact kind `runtime-callable-c-header`. Its registration
     must include the same callable component candidate preflight.
-- The helper may include RVV/scalar/offload target headers and call their
-  target-owned registration functions, but it must not duplicate route
-  semantics or artifact validation.
+- The helper may include scalar/offload/Toy/template target headers for
+  current legacy bundle composition, but target-support-enabled extensions must
+  activate their route contribution through the plugin/manifest hook. In
+  particular, central built-in code must not include the RVV target-support
+  bundle header, directly call the RVV target-support helper, or iterate RVV
+  direct/RVV+scalar dispatch manifests as central route truth.
 - Generic public translate helpers should call this helper once and then call
   `exportTargetSourceArtifact`, `exportTargetArtifact`, or
   `exportTargetHeaderArtifact`.
@@ -594,11 +599,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   not silently publish their plugin-owned target routes. Later selected-plan
   export then fails closed as an unknown or unavailable route/origin instead of
   falling back to a central extension-specific exporter branch.
-  For the finite RVV binary route set, the central built-in extension bundle
-  composition must delegate RVV direct microkernel route metadata and
-  RVV+scalar dispatch route metadata to RVV target-support bundle code. It must
-  not iterate RVV direct or RVV+scalar dispatch manifests as central built-in
-  route truth.
+  For the finite RVV binary route set, the RVV extension plugin manifest hook
+  must declare the target-support bundle contribution that delegates RVV direct
+  microkernel route metadata and RVV+scalar dispatch route metadata to RVV
+  target-support bundle code. Central built-in composition may perform generic
+  built-in plugin registration/linkage, but it must not know which
+  RVV-specific target-support helper to call.
 
 #### 4. Validation & Error Matrix
 
@@ -738,13 +744,15 @@ registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
 - The public translate tool owns the MLIR `TranslateFromMLIRRegistration`
   object lifetime and attaches its dialect-registration hook generically while
   iterating `TargetTranslateRouteRegistry::getRoutes()`.
-- Built-in target translate route registration delegates to target-owned
-  registration functions. Current route-family contributors are RVV direct
-  binary microkernel routes and RVV+scalar dispatch routes.
-- The RVV route-family contributor is the RVV target-support bundle. It may
-  aggregate RVV direct binary helper routes and RVV+scalar dispatch helper
-  routes, while public `tcrv-translate` registration still iterates only the
-  generic `TargetTranslateRouteRegistry`.
+- Built-in target translate route registration iterates enabled extension
+  plugins and asks each plugin's target-support manifest hook to contribute
+  direct helper routes. Current route-family contributors are RVV direct binary
+  microkernel routes and RVV+scalar dispatch routes.
+- The RVV route-family contributor is the RVV extension plugin manifest hook,
+  which delegates to the RVV target-support bundle. It may aggregate RVV direct
+  binary helper routes and RVV+scalar dispatch helper routes, while public
+  `tcrv-translate` registration still iterates only the generic
+  `TargetTranslateRouteRegistry`.
 - `tcrv-translate` must not manually loop over RVV direct or RVV+scalar
   dispatch manifests. It should call `registerBuiltinTargetTranslateRoutes`
   once and then register each contributed route generically.

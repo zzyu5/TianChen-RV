@@ -2520,6 +2520,64 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
   return true;
 }
 
+bool expectRVVPluginManifestTargetSupportActivation() {
+  tianchenrv::plugin::rvv::RVVExtensionPlugin rvvPlugin;
+  ExtensionBundle bundle("rvv-extension-bundle", rvvPlugin.getName(),
+                         tianchenrv::plugin::registerRVVExtensionPlugin);
+  if (!expectSuccess(
+          rvvPlugin.configureTargetSupportExtensionBundle(bundle),
+          "activate RVV target-support extension bundle through plugin "
+          "manifest hook"))
+    return false;
+  if (!containsString(bundle.getRequiredDialectNames(), "tcrv_rvv") ||
+      !containsString(bundle.getLoweringBoundaryOps(),
+                      "tcrv_rvv.lowering_boundary") ||
+      !bundle.getTargetArtifactExporterBundleRegistrationFn() ||
+      !bundle.requiresTargetArtifactRouteMetadata()) {
+    llvm::errs() << "RVV plugin manifest hook did not configure the "
+                    "target-support extension bundle\n";
+    return false;
+  }
+
+  TargetTranslateRouteRegistry pluginRoutes;
+  if (!expectSuccess(
+          rvvPlugin.registerTargetSupportTranslateRoutes(pluginRoutes),
+          "activate RVV target translate routes through plugin manifest hook"))
+    return false;
+
+  const TargetTranslateRoute *directRoute =
+      pluginRoutes.lookup("tcrv-export-rvv-i32-vsub-microkernel-c");
+  if (!directRoute || directRoute->getTargetArtifactRouteID() !=
+                          "tcrv-export-rvv-i32-vsub-microkernel-c") {
+    llvm::errs() << "RVV plugin manifest hook did not publish direct "
+                    "artifact-backed translate route\n";
+    return false;
+  }
+
+  const TargetTranslateRoute *dispatchRoute =
+      pluginRoutes.lookup("tcrv-export-rvv-scalar-i32-vsub-dispatch-c");
+  if (!dispatchRoute || dispatchRoute->getTargetArtifactRouteID() !=
+                            "tcrv-export-rvv-scalar-i32-vsub-dispatch-c") {
+    llvm::errs() << "RVV plugin manifest hook did not publish dispatch "
+                    "artifact-backed translate route\n";
+    return false;
+  }
+
+  TargetTranslateRouteRegistry builtinRoutes;
+  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
+                     "register built-in target translate routes through "
+                     "generic plugin manifest aggregation"))
+    return false;
+  if (!builtinRoutes.lookup("tcrv-export-rvv-i32-vsub-microkernel-c") ||
+      !builtinRoutes.lookup("tcrv-export-rvv-scalar-i32-vsub-dispatch-c")) {
+    llvm::errs() << "built-in target translate route aggregation did not "
+                    "consume RVV plugin manifest target-support routes\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectParameter(const RuntimeABIParameter &parameter,
                      llvm::StringRef cName, llvm::StringRef cType,
                      RuntimeABIParameterRole role,
@@ -5951,6 +6009,8 @@ int main() {
   if (!expectPluginOwnedRVVScalarDispatchTargetExporterRegistration())
     return 1;
   if (!expectRVVTargetSupportBundleExtractionRegistration())
+    return 1;
+  if (!expectRVVPluginManifestTargetSupportActivation())
     return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;

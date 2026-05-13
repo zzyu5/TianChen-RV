@@ -629,6 +629,18 @@ llvm::Error ExtensionPlugin::validateSelectedLoweringBoundary(
   return llvm::Error::success();
 }
 
+llvm::Error ExtensionPlugin::configureTargetSupportExtensionBundle(
+    target::ExtensionBundle &bundle) const {
+  (void)bundle;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::registerTargetSupportTranslateRoutes(
+    target::TargetTranslateRouteRegistry &registry) const {
+  (void)registry;
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::registerPlugin(
     const ExtensionPlugin &plugin) {
   llvm::StringRef name = plugin.getName();

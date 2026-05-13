@@ -65,6 +65,72 @@ Vector source arithmetic-family adapter registry.
 - None - task complete
 
 
+## Session 56: Extension manifest target-support route activation
+
+**Date**: 2026-05-13
+**Task**: Extension manifest target-support route activation
+**Branch**: `main`
+
+### Summary
+
+Activated RVV target-support artifact and translate routes through a generic
+extension plugin manifest hook, leaving central built-in route setup as generic
+aggregation rather than a direct RVV helper caller.
+
+### Main Changes
+
+- Added default `ExtensionPlugin` target-support hooks for extension bundle
+  configuration and target translate route contribution.
+- Implemented the RVV hook in `RVVExtensionPlugin`, delegating RVV direct and
+  RVV+scalar dispatch route activation to the existing RVV target-support
+  bundle.
+- Rewired built-in target artifact setup to configure the RVV extension bundle
+  through generic plugin manifest aggregation.
+- Rewired built-in target translate route registration to iterate enabled
+  plugins and invoke their target-support translate hook.
+- Added C++ coverage for RVV plugin manifest activation and built-in translate
+  aggregation.
+- Updated plugin-protocol and lowering-runtime specs for the new durable hook.
+
+### Evidence
+
+- Direct artifacts:
+  `artifacts/tmp/extension_manifest_target_support_route_activation/direct/vector_dynamic_i32_vsub/`
+  and
+  `artifacts/tmp/extension_manifest_target_support_route_activation/direct/vector_dynamic_i32_vadd/`.
+- Bundle artifacts:
+  `artifacts/tmp/extension_manifest_target_support_route_activation/bundle/vector_dynamic_i32_vsub/`
+  and
+  `artifacts/tmp/extension_manifest_target_support_route_activation/bundle/vector_dynamic_i32_vadd/`.
+- ssh rvv evidence:
+  `artifacts/tmp/extension_manifest_target_support_route_activation/e2e/20260513T-extension-manifest-target-support-route-activation-vsub/evidence.json`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts `7`,
+  `16`, and `23`.
+
+### Checks
+
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-05-13-extension-manifest-target-support-route-activation`
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target tianchenrv-plugin-registry-test tianchenrv-rvv-extension-plugin-test tianchenrv-i32-binary-family-registry-test -j2`
+- `./build/bin/tianchenrv-plugin-registry-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit filter covering dynamic vector add/sub, invalid vector
+  diagnostics, fixed-vector vadd, bundle export, RVV microkernel, emission
+  manifest, and linalg add/sub with 68 selected tests passed.
+- Broader lit filter
+  `VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest`
+  with 80 selected tests passed.
+- Direct and bundle artifact commands recorded in the archived task PRD.
+- `git diff --check`, `git diff --cached --check`, Trellis validation before
+  finish/archive and after archive.
+
+### Status
+
+[OK] Completed and archived.
+
+
 ## Session 56: RVV target-support artifact bundle extraction
 
 **Date**: 2026-05-13

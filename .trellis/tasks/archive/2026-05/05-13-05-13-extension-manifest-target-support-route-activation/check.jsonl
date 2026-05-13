@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the change stays inside the C++/MLIR plugin and target-route architecture boundaries."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check that core route setup uses generic registry/interface APIs rather than RVV route branches."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Check plugin-local route activation and central aggregation boundaries."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check future extension plugin integration remains plugin-local plus build linkage."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact route metadata, owner/dependency, and built-in registration boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++, lit, artifact, and RVV evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-05-13-extension-manifest-target-support-route-activation/prd.md", "reason": "Verify implementation against current task acceptance criteria."}

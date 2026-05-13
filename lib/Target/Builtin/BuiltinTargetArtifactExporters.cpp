@@ -8,15 +8,27 @@
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
-#include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/Errc.h"
+
+#include <string>
+
 namespace tianchenrv::target {
 namespace {
+
+llvm::Error makeBuiltinExtensionBundleError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV built-in extension bundle registration "
+                  "failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
 
 llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry) {
@@ -28,15 +40,37 @@ llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(
   return scalar::registerScalarMicrokernelPluginTargetExporterBundle(registry);
 }
 
-llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
-  ExtensionBundle bundle("rvv-extension-bundle",
-                         plugin::rvv::getRVVExtensionPluginName(),
-                         plugin::registerRVVExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_rvv");
-  bundle.addLoweringBoundaryOp("tcrv_rvv.lowering_boundary");
-  if (llvm::Error error = rvv::configureRVVTargetSupportExtensionBundle(bundle))
+llvm::Expected<const plugin::ExtensionPlugin *>
+registerSingleManifestPlugin(ExtensionPluginRegistrationFn registrationFn,
+                             llvm::StringRef bundleID) {
+  plugin::ExtensionPluginRegistry plugins;
+  if (llvm::Error error = registrationFn(plugins))
     return error;
+  if (plugins.size() != 1)
+    return makeBuiltinExtensionBundleError(
+        llvm::Twine("extension bundle '") + bundleID +
+        "' expected one manifest plugin registration but got " +
+        llvm::Twine(plugins.size()));
+  return plugins.getAllPlugins().front();
+}
 
+llvm::Error registerManifestOwnedExtensionBundle(
+    ExtensionBundleRegistry &registry, llvm::StringRef bundleID,
+    ExtensionPluginRegistrationFn registrationFn) {
+  llvm::Expected<const plugin::ExtensionPlugin *> plugin =
+      registerSingleManifestPlugin(registrationFn, bundleID);
+  if (!plugin)
+    return plugin.takeError();
+
+  ExtensionBundle bundle(bundleID, (*plugin)->getName(), registrationFn);
+  if (llvm::Error error =
+          (*plugin)->configureTargetSupportExtensionBundle(bundle)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeBuiltinExtensionBundleError(
+        llvm::Twine("extension bundle '") + bundleID +
+        "' target-support manifest hook for plugin '" + (*plugin)->getName() +
+        "' failed: " + message);
+  }
   return registry.registerBundle(bundle);
 }
 
@@ -104,7 +138,8 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
 } // namespace
 
 llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
-  if (llvm::Error error = registerRVVExtensionBundle(registry))
+  if (llvm::Error error = registerManifestOwnedExtensionBundle(
+          registry, "rvv-extension-bundle", plugin::registerRVVExtensionPlugin))
     return error;
   if (llvm::Error error = registerOffloadExtensionBundle(registry))
     return error;

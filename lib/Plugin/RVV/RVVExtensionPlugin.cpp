@@ -6,7 +6,9 @@
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedLoweringBoundary.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryVariantLegality.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -566,6 +568,18 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
       [this](const VariantLegalityRequest &legality) {
         return verifyVariantLegality(legality);
       });
+}
+
+llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(
+    target::ExtensionBundle &bundle) const {
+  bundle.addRequiredDialectName("tcrv_rvv");
+  bundle.addLoweringBoundaryOp("tcrv_rvv.lowering_boundary");
+  return target::rvv::configureRVVTargetSupportExtensionBundle(bundle);
+}
+
+llvm::Error RVVExtensionPlugin::registerTargetSupportTranslateRoutes(
+    target::TargetTranslateRouteRegistry &registry) const {
+  return target::rvv::registerRVVTargetSupportTargetTranslateRoutes(registry);
 }
 
 } // namespace rvv

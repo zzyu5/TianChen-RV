@@ -589,6 +589,8 @@ Each plugin registers:
 - tuning parameters;
 - cost model;
 - emission paths;
+- target-support extension bundle and target translate route contribution hooks
+  when the plugin owns target artifact or direct helper routes;
 - fallback behavior.
 
 ## Built-In Registration API
