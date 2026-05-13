@@ -84,8 +84,6 @@ void appendRVVSelectedPlanMetadata(
       metadata;
   tianchenrv::target::rvv::appendRVVVectorShapeSelectedPlanMetadata(shape,
                                                                    metadata);
-  tianchenrv::target::rvv::appendRVVRuntimeVLBoundarySelectedPlanMetadata(
-      metadata);
   llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigContract>
       contract = tianchenrv::target::rvv::buildRVVBinarySelectedConfigContract(
           family, shape, candidate.selectedVariant, candidate.role,
@@ -96,6 +94,8 @@ void appendRVVSelectedPlanMetadata(
                  << llvm::toString(contract.takeError()) << "\n";
     return;
   }
+  tianchenrv::target::rvv::appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
+      *contract, metadata);
   if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
       family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
@@ -107,13 +107,15 @@ void appendRVVSelectedPlanMetadata(
     candidate.selectedPlanMetadata.push_back(
         {entry.name, entry.value, entry.role, entry.note});
   }
-  candidate.selectedPlanMetadata.push_back(
-      {tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName().str(),
-       std::to_string(contract->getDescriptorElementCount()),
-       tianchenrv::target::rvv::
-           getRVVDescriptorElementCountCapacityMetadataRole().str(),
-       tianchenrv::target::rvv::
-           getRVVDescriptorElementCountCapacityMetadataNote().str()});
+  llvm::SmallVector<
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 1>
+      descriptorMetadata;
+  tianchenrv::target::rvv::appendRVVRuntimeLengthDescriptorElementCountMetadata(
+      contract->getRuntimeLengthContract(), descriptorMetadata);
+  for (const auto &entry : descriptorMetadata) {
+    candidate.selectedPlanMetadata.push_back(
+        {entry.name, entry.value, entry.role, entry.note});
+  }
 }
 
 void appendScalarSelectedPlanMetadata(
@@ -364,6 +366,85 @@ bool expectErrorContains(llvm::Error error, llvm::StringRef context,
       return false;
     }
   }
+  return true;
+}
+
+bool expectRVVRuntimeLengthContractMetadata() {
+  using namespace tianchenrv::target::rvv;
+
+  RVVRuntimeLengthContract runtimeLength("len", 16);
+  if (!expectSuccess(validateRVVRuntimeLengthContract(runtimeLength),
+                     "valid RVV runtime length contract"))
+    return false;
+
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 4>
+      runtimeMetadata;
+  appendRVVRuntimeLengthSelectedPlanMetadata(runtimeLength, runtimeMetadata);
+  if (runtimeMetadata.size() != 4 ||
+      runtimeMetadata[0].name != getRVVRuntimeAVLSourceMetadataName() ||
+      runtimeMetadata[0].value != getRVVRuntimeAVLSourceMetadataValue() ||
+      runtimeMetadata[1].name != getRVVRuntimeAVLRoleMetadataName() ||
+      runtimeMetadata[1].value != getRVVRuntimeAVLRoleMetadataValue() ||
+      runtimeMetadata[2].name != getRVVRuntimeVLSourceMetadataName() ||
+      runtimeMetadata[2].value != getRVVRuntimeVLSourceMetadataValue() ||
+      runtimeMetadata[3].name != getRVVRuntimeVLScopeMetadataName() ||
+      runtimeMetadata[3].value != getRVVRuntimeVLScopeMetadataValue()) {
+    llvm::errs() << "RVV runtime length contract emitted malformed AVL/VL "
+                    "metadata\n";
+    return false;
+  }
+
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 1>
+      descriptorMetadata;
+  appendRVVRuntimeLengthDescriptorElementCountMetadata(runtimeLength,
+                                                      descriptorMetadata);
+  if (descriptorMetadata.size() != 1 ||
+      descriptorMetadata[0].name != getRVVDescriptorElementCountMetadataName() ||
+      descriptorMetadata[0].value != "16" ||
+      descriptorMetadata[0].role !=
+          getRVVDescriptorElementCountCapacityMetadataRole()) {
+    llvm::errs() << "RVV runtime length contract emitted malformed "
+                    "descriptor-local count metadata\n";
+    return false;
+  }
+
+  llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
+      buildRVVBinarySelectedConfigContract(
+          getI32VAddFamilyRegistrationRecord(), getI32M1VectorShapeConfig(),
+          "rvv_first_slice", "direct variant",
+          /*descriptorElementCount=*/16, "len");
+  if (!selectedConfig) {
+    llvm::errs() << "failed to build selected config from runtime length "
+                    "contract: "
+                 << llvm::toString(selectedConfig.takeError()) << "\n";
+    return false;
+  }
+  if (selectedConfig->getRuntimeLengthContract()
+              .getRuntimeElementCountCName() != "len" ||
+      !llvm::StringRef(selectedConfig->formatRuntimeVLBoundaryCommentBody())
+           .contains("runtime_element_count_c_name=len")) {
+    llvm::errs() << "selected config did not consume runtime length "
+                    "contract\n";
+    return false;
+  }
+
+  llvm::Expected<RVVBinarySelectedConfigContract> staleDescriptorAuthority =
+      buildRVVBinarySelectedConfigContract(
+          getI32VAddFamilyRegistrationRecord(), getI32M1VectorShapeConfig(),
+          "rvv_first_slice", "direct variant",
+          /*descriptorElementCount=*/65, "n");
+  if (staleDescriptorAuthority) {
+    llvm::errs() << "descriptor-only length authority unexpectedly passed "
+                    "RVV runtime length validation\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          staleDescriptorAuthority.takeError(),
+          "descriptor-local count rejected by RVV runtime length contract",
+          {"RVV runtime length contract failed",
+           "descriptor-local element_count"}))
+    return false;
+
   return true;
 }
 
@@ -5906,6 +5987,9 @@ int main() {
   tianchenrv::registerAllDialects(dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
+
+  if (!expectRVVRuntimeLengthContractMetadata())
+    return 1;
 
   TargetArtifactExporterRegistry registry;
 

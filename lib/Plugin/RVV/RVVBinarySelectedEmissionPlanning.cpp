@@ -1116,15 +1116,10 @@ void appendSelectedBinaryMetadata(
           contract, legacyMirrorMetadata);
     }
   }
+  target::rvv::appendRVVRuntimeLengthDescriptorElementCountMetadata(
+      contract.getRuntimeLengthContract(), legacyMirrorMetadata);
   for (const auto &entry : legacyMirrorMetadata)
     metadata.push_back({entry.name, entry.value, entry.role, entry.note});
-  if (contract.getDescriptorElementCount() > 0) {
-    metadata.push_back({
-        target::rvv::getRVVDescriptorElementCountMetadataName().str(),
-        std::to_string(contract.getDescriptorElementCount()),
-        target::rvv::getRVVDescriptorElementCountCapacityMetadataRole().str(),
-        target::rvv::getRVVDescriptorElementCountCapacityMetadataNote().str()});
-  }
 }
 
 } // namespace

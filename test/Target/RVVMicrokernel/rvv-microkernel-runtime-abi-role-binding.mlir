@@ -10,6 +10,7 @@
 // RUN: sed 's/c_name = "len", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "len", c_type = "uint64_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=TYPE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: sed '/^    tcrv.exec.runtime_param @abi_runtime_element_count/,/^    }/d' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-N --implicit-check-not="#include <riscv_vector.h>"
 // RUN: sed '/^    tcrv.exec.runtime_param @abi_runtime_element_count/,/^    }/ s/c_name = "len",//' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-CNAME --implicit-check-not="#include <riscv_vector.h>"
+// RUN: sed 's/{name = "tcrv_rvv.runtime_avl_source", value = "runtime-element-count-abi-parameter"/{name = "tcrv_rvv.runtime_avl_source", value = "descriptor-element-count"/' %s | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="#include <riscv_vector.h>"
 
 module @rvv_runtime_abi_role_binding {
   tcrv.exec.kernel @abi_names {
@@ -239,3 +240,5 @@ module @rvv_runtime_abi_role_binding {
 // MISSING-RUNTIME-N: runtime ABI runtime_param validation failed
 // MISSING-RUNTIME-N-SAME: requires exactly one tcrv.exec.runtime_param with ABI role 'runtime-element-count'
 // MISSING-RUNTIME-CNAME: 'tcrv.exec.runtime_param' op requires non-empty string attribute 'c_name'
+// STALE-AVL: selected_plan_metadata 'tcrv_rvv.runtime_avl_source'
+// STALE-AVL-SAME: must use value 'runtime-element-count-abi-parameter'

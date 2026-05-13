@@ -1,0 +1,175 @@
+#ifndef TIANCHENRV_TARGET_RVV_RVVRUNTIMELENGTHCONTRACT_H
+#define TIANCHENRV_TARGET_RVV_RVVRUNTIMELENGTHCONTRACT_H
+
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <cstdint>
+#include <string>
+
+namespace tianchenrv::target::rvv {
+
+inline llvm::StringRef getRVVDescriptorElementCountMetadataName() {
+  return "tcrv_rvv.descriptor_element_count";
+}
+
+inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataRole() {
+  return "rvv-descriptor-local-component-capacity";
+}
+
+inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataNote() {
+  return "bounded descriptor-local component capacity cross-checked after "
+         "typed selected-plan authority; not legacy descriptor mirror, "
+         "compute, ABI, source, runtime AVL/VL, hardware capacity, or "
+         "performance authority";
+}
+
+inline llvm::StringRef getRVVRuntimeElementCountCNameMetadataName() {
+  return "tcrv_rvv.runtime_element_count_c_name";
+}
+
+inline llvm::StringRef getRVVRuntimeControlNameMetadataRole() {
+  return "rvv-runtime-control-name-boundary";
+}
+
+inline llvm::StringRef getRVVRuntimeControlNameMetadataNote() {
+  return "runtime ABI/control C name resolved from tcrv.exec runtime boundary; "
+         "not a compile-time vector-shape config or descriptor element_count";
+}
+
+class RVVRuntimeLengthContract {
+public:
+  RVVRuntimeLengthContract() = default;
+
+  RVVRuntimeLengthContract(llvm::StringRef runtimeElementCountCName,
+                           std::int64_t descriptorElementCount)
+      : runtimeElementCountCName(runtimeElementCountCName.trim().str()),
+        descriptorElementCount(descriptorElementCount) {
+    if (this->runtimeElementCountCName.empty())
+      this->runtimeElementCountCName = "n";
+  }
+
+  llvm::StringRef getRuntimeElementCountCName() const {
+    return runtimeElementCountCName;
+  }
+
+  std::int64_t getDescriptorElementCount() const {
+    return descriptorElementCount;
+  }
+
+  llvm::StringRef getRuntimeAVLSource() const {
+    return getRVVRuntimeAVLSourceMetadataValue();
+  }
+
+  llvm::StringRef getRuntimeAVLRole() const {
+    return getRVVRuntimeAVLRoleMetadataValue();
+  }
+
+  llvm::StringRef getRuntimeVLSource() const {
+    return getRVVRuntimeVLSourceMetadataValue();
+  }
+
+  llvm::StringRef getRuntimeVLScope() const {
+    return getRVVRuntimeVLScopeMetadataValue();
+  }
+
+  void setRuntimeElementCountCName(llvm::StringRef cName) {
+    llvm::StringRef trimmed = cName.trim();
+    runtimeElementCountCName = trimmed.empty() ? "n" : trimmed.str();
+  }
+
+  void setDescriptorElementCount(std::int64_t count) {
+    descriptorElementCount = count;
+  }
+
+  std::string formatRuntimeVLBoundaryCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "selected_runtime_vl_boundary: runtime_element_count_c_name="
+           << getRuntimeElementCountCName()
+           << ", runtime_avl_source=" << getRuntimeAVLSource()
+           << ", runtime_avl_role=" << getRuntimeAVLRole()
+           << ", runtime_vl_source=" << getRuntimeVLSource()
+           << ", runtime_vl_scope=" << getRuntimeVLScope()
+           << ", descriptor_element_count=" << getDescriptorElementCount();
+    stream.flush();
+    return text;
+  }
+
+private:
+  std::string runtimeElementCountCName = "n";
+  std::int64_t descriptorElementCount = 0;
+};
+
+inline llvm::Error makeRVVRuntimeLengthContractError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV runtime length contract failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+inline llvm::Error
+validateRVVRuntimeLengthContract(const RVVRuntimeLengthContract &contract) {
+  if (contract.getRuntimeElementCountCName().empty())
+    return makeRVVRuntimeLengthContractError(
+        "runtime element-count C name must be non-empty");
+
+  if (contract.getDescriptorElementCount() < 0 ||
+      contract.getDescriptorElementCount() > 64)
+    return makeRVVRuntimeLengthContractError(
+        "descriptor-local element_count must be in [1, 64] when present; it "
+        "is not runtime AVL/VL control authority");
+
+  if (contract.getRuntimeAVLSource() !=
+          getRVVRuntimeAVLSourceMetadataValue() ||
+      contract.getRuntimeAVLRole() != getRVVRuntimeAVLRoleMetadataValue() ||
+      contract.getRuntimeVLSource() != getRVVRuntimeVLSourceMetadataValue() ||
+      contract.getRuntimeVLScope() != getRVVRuntimeVLScopeMetadataValue())
+    return makeRVVRuntimeLengthContractError(
+        "runtime AVL/VL authority must stay on the runtime element-count ABI "
+        "parameter and tcrv_rvv.setvl/tcrv_rvv.with_vl control surface");
+
+  return llvm::Error::success();
+}
+
+inline void appendRVVRuntimeLengthSelectedPlanMetadata(
+    const RVVRuntimeLengthContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef runtimeRole = getRVVRuntimeVLBoundaryMetadataRole();
+  llvm::StringRef runtimeNote = getRVVRuntimeVLBoundaryMetadataNote();
+  out.push_back({getRVVRuntimeAVLSourceMetadataName(),
+                 contract.getRuntimeAVLSource(), runtimeRole, runtimeNote,
+                 "runtime AVL source"});
+  out.push_back({getRVVRuntimeAVLRoleMetadataName(),
+                 contract.getRuntimeAVLRole(), runtimeRole, runtimeNote,
+                 "runtime AVL role"});
+  out.push_back({getRVVRuntimeVLSourceMetadataName(),
+                 contract.getRuntimeVLSource(), runtimeRole, runtimeNote,
+                 "runtime VL source"});
+  out.push_back({getRVVRuntimeVLScopeMetadataName(),
+                 contract.getRuntimeVLScope(), runtimeRole, runtimeNote,
+                 "runtime VL scope"});
+}
+
+inline void appendRVVRuntimeLengthDescriptorElementCountMetadata(
+    const RVVRuntimeLengthContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  if (contract.getDescriptorElementCount() <= 0)
+    return;
+
+  out.push_back({getRVVDescriptorElementCountMetadataName(),
+                 std::to_string(contract.getDescriptorElementCount()),
+                 getRVVDescriptorElementCountCapacityMetadataRole(),
+                 getRVVDescriptorElementCountCapacityMetadataNote(),
+                 "descriptor-local element count"});
+}
+
+} // namespace tianchenrv::target::rvv
+
+#endif // TIANCHENRV_TARGET_RVV_RVVRUNTIMELENGTHCONTRACT_H

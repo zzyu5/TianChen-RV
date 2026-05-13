@@ -6,6 +6,7 @@
 #include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVRuntimeLengthContract.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -35,25 +36,6 @@ inline llvm::StringRef getRVVSelectedBinaryOperatorMetadataName() {
 
 inline llvm::StringRef getRVVSelectedLoweringDescriptorMetadataName() {
   return "tcrv_rvv.selected_lowering_descriptor";
-}
-
-inline llvm::StringRef getRVVDescriptorElementCountMetadataName() {
-  return "tcrv_rvv.descriptor_element_count";
-}
-
-inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataRole() {
-  return "rvv-descriptor-local-component-capacity";
-}
-
-inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataNote() {
-  return "bounded descriptor-local component capacity cross-checked after "
-         "typed selected-plan authority; not legacy descriptor mirror, "
-         "compute, ABI, source, runtime AVL/VL, hardware capacity, or "
-         "performance authority";
-}
-
-inline llvm::StringRef getRVVRuntimeElementCountCNameMetadataName() {
-  return "tcrv_rvv.runtime_element_count_c_name";
 }
 
 inline llvm::StringRef getRVVEmitCSourceOpMetadataName() {
@@ -96,15 +78,6 @@ inline llvm::StringRef getRVVEmitCSourceOpMetadataNote() {
 inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataNote() {
   return "generated RVV op interface queried before building the common EmitC "
          "lowerable route; not descriptor-selected computation";
-}
-
-inline llvm::StringRef getRVVRuntimeControlNameMetadataRole() {
-  return "rvv-runtime-control-name-boundary";
-}
-
-inline llvm::StringRef getRVVRuntimeControlNameMetadataNote() {
-  return "runtime ABI/control C name resolved from tcrv.exec runtime boundary; "
-         "not a compile-time vector-shape config or descriptor element_count";
 }
 
 class RVVBinarySelectedConfigContract {
@@ -173,25 +146,28 @@ public:
   }
   llvm::StringRef getSelectedRole() const { return selectedRole; }
   std::int64_t getDescriptorElementCount() const {
-    return descriptorElementCount;
+    return runtimeLength.getDescriptorElementCount();
   }
   llvm::StringRef getRuntimeElementCountCName() const {
-    return runtimeElementCountCName;
+    return runtimeLength.getRuntimeElementCountCName();
   }
   llvm::StringRef getDispatchAvailabilityGuardCName() const {
     return dispatchAvailabilityGuardCName;
   }
   llvm::StringRef getRuntimeAVLSource() const {
-    return getRVVRuntimeAVLSourceMetadataValue();
+    return runtimeLength.getRuntimeAVLSource();
   }
   llvm::StringRef getRuntimeAVLRole() const {
-    return getRVVRuntimeAVLRoleMetadataValue();
+    return runtimeLength.getRuntimeAVLRole();
   }
   llvm::StringRef getRuntimeVLSource() const {
-    return getRVVRuntimeVLSourceMetadataValue();
+    return runtimeLength.getRuntimeVLSource();
   }
   llvm::StringRef getRuntimeVLScope() const {
-    return getRVVRuntimeVLScopeMetadataValue();
+    return runtimeLength.getRuntimeVLScope();
+  }
+  const RVVRuntimeLengthContract &getRuntimeLengthContract() const {
+    return runtimeLength;
   }
   const std::optional<support::FixedVectorSourceExtentContract> &
   getFixedVectorSourceExtentContract() const {
@@ -208,12 +184,11 @@ public:
   }
 
   void setDescriptorElementCount(std::int64_t count) {
-    descriptorElementCount = count;
+    runtimeLength.setDescriptorElementCount(count);
   }
 
   void setRuntimeElementCountCName(llvm::StringRef cName) {
-    llvm::StringRef trimmed = cName.trim();
-    runtimeElementCountCName = trimmed.empty() ? "n" : trimmed.str();
+    runtimeLength.setRuntimeElementCountCName(cName);
   }
 
   void setDispatchAvailabilityGuardCName(llvm::StringRef cName) {
@@ -246,13 +221,13 @@ public:
   llvm::SmallVector<support::RuntimeABIParameter, 4>
   getCallableRuntimeABIParameters() const {
     return getRVVBinaryCallableRuntimeABIParameters(
-        getFamily(), runtimeElementCountCName);
+        getFamily(), getRuntimeElementCountCName());
   }
 
   llvm::SmallVector<support::RuntimeABIParamSpec, 1>
   getRuntimeElementCountParamSpecs() const {
     return getRVVBinaryRuntimeElementCountParamSpecs(
-        getFamily(), runtimeElementCountCName);
+        getFamily(), getRuntimeElementCountCName());
   }
 
   support::RuntimeABIParameter getDispatchAvailabilityGuardParameter() const {
@@ -282,8 +257,8 @@ public:
            << getRuntimeElementCountCName()
            << ", dispatch_availability_c_name="
            << getDispatchAvailabilityGuardCName();
-    if (descriptorElementCount > 0)
-      stream << ", descriptor_element_count=" << descriptorElementCount;
+    if (getDescriptorElementCount() > 0)
+      stream << ", descriptor_element_count=" << getDescriptorElementCount();
     if (fixedSourceExtent)
       stream << ", fixed_source_vector_extent="
              << fixedSourceExtent->sourceVectorExtent
@@ -313,13 +288,7 @@ public:
   std::string formatRuntimeVLBoundaryCommentBody() const {
     std::string text;
     llvm::raw_string_ostream stream(text);
-    stream << "selected_runtime_vl_boundary: runtime_element_count_c_name="
-           << getRuntimeElementCountCName()
-           << ", runtime_avl_source=" << getRuntimeAVLSource()
-           << ", runtime_avl_role=" << getRuntimeAVLRole()
-           << ", runtime_vl_source=" << getRuntimeVLSource()
-           << ", runtime_vl_scope=" << getRuntimeVLScope()
-           << ", descriptor_element_count=" << getDescriptorElementCount();
+    stream << runtimeLength.formatRuntimeVLBoundaryCommentBody();
     if (fixedSourceExtent)
       stream << ", fixed_source_vector_extent="
              << fixedSourceExtent->sourceVectorExtent
@@ -351,8 +320,7 @@ private:
   const RVVVectorShapeConfig *shape = nullptr;
   std::string selectedVariantSymbol;
   std::string selectedRole;
-  std::int64_t descriptorElementCount = 0;
-  std::string runtimeElementCountCName = "n";
+  RVVRuntimeLengthContract runtimeLength;
   std::string dispatchAvailabilityGuardCName = "rvv_available";
   std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
   std::optional<support::DynamicVectorRuntimeExtentContract>
@@ -420,6 +388,12 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
         family.familyID +
         "' disagrees with the source-derived frontend marker/ABI "
         "contract");
+
+  if (llvm::Error error =
+          validateRVVRuntimeLengthContract(contract.getRuntimeLengthContract())) {
+    std::string message = llvm::toString(std::move(error));
+    return makeRVVSelectedConfigContractError(message);
+  }
 
   if (contract.getDescriptorElementCount() < 0 ||
       contract.getDescriptorElementCount() > 64)
@@ -509,20 +483,8 @@ inline void appendRVVBinarySelectedVectorShapeMetadata(
 inline void appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
     const RVVBinarySelectedConfigContract &contract,
     llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  llvm::StringRef role = getRVVRuntimeVLBoundaryMetadataRole();
-  llvm::StringRef note = getRVVRuntimeVLBoundaryMetadataNote();
-  out.push_back({getRVVRuntimeAVLSourceMetadataName(),
-                 contract.getRuntimeAVLSource(), role, note,
-                 "runtime AVL source"});
-  out.push_back({getRVVRuntimeAVLRoleMetadataName(),
-                 contract.getRuntimeAVLRole(), role, note,
-                 "runtime AVL role"});
-  out.push_back({getRVVRuntimeVLSourceMetadataName(),
-                 contract.getRuntimeVLSource(), role, note,
-                 "runtime VL source"});
-  out.push_back({getRVVRuntimeVLScopeMetadataName(),
-                 contract.getRuntimeVLScope(), role, note,
-                 "runtime VL scope"});
+  appendRVVRuntimeLengthSelectedPlanMetadata(contract.getRuntimeLengthContract(),
+                                            out);
 }
 
 inline void appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(

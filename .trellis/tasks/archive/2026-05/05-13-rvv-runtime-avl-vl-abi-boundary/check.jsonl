@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global TianChen-RV boundaries and source-of-truth discipline."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check no unsupported RVV runtime/correctness/performance claim is made without ssh rvv evidence."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check runtime_param use stays generic and core remains target-neutral."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check runtime AVL/VL, selected config, and descriptor-local count boundaries remain RVV plugin/target owned."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check hardware facts, compile-time config, runtime values, and descriptor-local values stay layered."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check source/header/object export validates runtime ABI and selected-plan metadata before artifact output."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated RVV C remains on the common EmitC/intrinsic route and descriptors stay non-authoritative."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused build, lit, C++ tests, and evidence wording match project policy."}

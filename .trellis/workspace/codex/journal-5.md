@@ -527,7 +527,7 @@ and generated artifact output consume the same manifest.
 
 ### Status
 
-[OK] Implementation checks passed; finish/archive and commit pending.
+[OK] Implementation checks and Trellis archive passed; commit pending.
 
 
 ## Session 60: RVV op-owned object artifact evidence closure
@@ -992,3 +992,64 @@ claim.
 ### Status
 
 [OK] Implementation checks passed; finish/archive and commit pending.
+
+## Session 61: RVV runtime AVL/VL ABI boundary
+
+**Date**: 2026-05-13
+**Task**: RVV runtime AVL/VL ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Materialized the RVV runtime-length boundary as a target-owned contract
+consumed by selected config, planning metadata, and target artifact validation
+for the existing i32-vadd RVV microkernel route.
+
+### Main Changes
+
+- Added `RVVRuntimeLengthContract` for runtime element-count C name, runtime
+  AVL source/role, runtime VL source/scope, and descriptor-local
+  element-count metadata.
+- Rewired `RVVBinarySelectedConfigContract` to delegate runtime length state to
+  that contract.
+- Rewired RVV selected emission planning to append descriptor-local
+  `tcrv_rvv.descriptor_element_count` via the runtime-length contract.
+- Updated C++ target artifact export test helpers to consume runtime metadata
+  from the selected-config contract, matching production planning/export.
+- Added C++ coverage for runtime-length metadata emission and descriptor-only
+  length authority rejection.
+- Added lit fail-closed coverage for stale
+  `tcrv_rvv.runtime_avl_source = "descriptor-element-count"` before source
+  export.
+- Confirmed no changes under `lib/Transforms`,
+  `include/TianChenRV/Dialect/Exec`, or `lib/Dialect/Exec`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVRVVTarget tianchenrv-target-artifact-export-test tcrv-translate -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVMicrokernel/rvv-microkernel-runtime-abi-role-binding.mlir` from `build/test`
+- `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVScalarTarget tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused 10-test lit set covering RVV runtime ABI role binding, auto
+  materialization, source/header/object, descriptor-only quarantine, stale
+  boundary/config, missing policy, selected shape metadata, and RVV+scalar
+  runtime ABI binding.
+- Broader RVV lit filter
+  `rvv-microkernel|RVVScalarDispatch|RVVSmokeProbe|LoweringBoundary|rvv-`:
+  104 selected tests passed.
+- `git diff --check`
+- Trellis validation before finish and after archive passed.
+- `git diff --cached --check`
+
+No `ssh rvv` evidence was run because generated RVV intrinsic source/body
+semantics, object bytes, runtime behavior, correctness, and performance claims
+were not changed.
+
+### Status
+
+[OK] Implementation checks and Trellis archive passed; commit pending.
