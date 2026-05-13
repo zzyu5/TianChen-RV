@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and spec routing for this task."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware truth, descriptor non-goals, and no high-level tensor IR boundary."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec envelope neutrality and no RVV semantic branches in core."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Bounded RVV first-slice selected config, typed source authority, and descriptor quarantine contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, runtime ABI roles, source/header/object route, and selected source identity contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated interface-backed source-op provenance contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/runtime evidence expectations for RVV artifact routes."}

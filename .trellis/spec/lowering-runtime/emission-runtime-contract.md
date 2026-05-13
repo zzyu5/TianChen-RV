@@ -184,6 +184,14 @@ non-source runtime-callable object route while
 `--tcrv-export-target-source-artifact` remains source-only. The object and
 header routes are still bounded target artifacts; they do not link, run
 hardware, perform automatic probing, prove correctness, or measure performance.
+The direct RVV microkernel library-object source may embed a bounded read-only
+artifact evidence section in the produced object, such as
+`.rodata.tianchenrv.rvv_artifact`, derived from the same selected source
+identity, selected vector config, runtime AVL/VL authority, and ordered runtime
+ABI role contract as the validated source/header route. This object section is
+compiler-artifact provenance only: it must not contain runtime logs, hardware
+success text, artifact paths, credentials, correctness claims, or performance
+claims.
 The self-check object route remains an explicit target-owned helper command for
 evidence collection, not the generic artifact front door.
 For the direct RVV i32/i64 add/sub/mul microkernel paths, the runtime-callable C

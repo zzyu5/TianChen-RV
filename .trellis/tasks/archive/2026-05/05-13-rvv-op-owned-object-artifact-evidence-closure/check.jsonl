@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global compiler stack, descriptor, and RVV evidence boundaries."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check RVV hardware claims use focused ssh rvv evidence and no descriptor-driven architecture drift."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check generic/core layers remain target-neutral."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected source/config/runtime ABI metadata stays plugin/target owned."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check source/header/object artifact export and runtime ABI role preflight behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check typed op/interface-backed EmitC provenance remains authoritative over descriptors."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused build, lit, object, and remote evidence match project policy."}

@@ -28,6 +28,7 @@ from typing import Any
 
 SCRIPT_NAME = "tianchenrv-rvv-microkernel-e2e"
 SCHEMA_VERSION = 1
+OBJECT_ARTIFACT_EVIDENCE_SCHEMA = "rvv-op-owned-object-artifact.v1"
 DEFAULT_INPUT = Path("test/Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir")
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_microkernel_e2e")
 DEFAULT_PROFILE_REPLAY_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_i64_profile_replay_e2e")
@@ -2227,6 +2228,87 @@ def validate_generated_header(
     return function_name
 
 
+def arithmetic_verb_for_active_family() -> str:
+    token = str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_token"])
+    if token == "+":
+        return "add"
+    if token == "-":
+        return "sub"
+    if token == "*":
+        return "mul"
+    raise BridgeError(f"unsupported RVV arithmetic token: {token}")
+
+
+def validate_generated_object_artifact(
+    object_path: Path,
+    *,
+    source_flags: dict[str, Any],
+    object_route: str,
+) -> dict[str, Any]:
+    data = object_path.read_bytes()
+    if len(data) < 4 or data[:4] != b"\x7fELF":
+        raise BridgeError(
+            "generated RVV microkernel object must be a non-empty ELF relocatable"
+        )
+
+    context = source_flags["compiler_path_context"]
+    required_fields = [
+        f"tianchenrv.rvv.artifact={OBJECT_ARTIFACT_EVIDENCE_SCHEMA}",
+        "owner=rvv-plugin",
+        "artifact_kind=riscv-elf-relocatable-object",
+        f"object_route={object_route}",
+        f"source_route={context['active_route']}",
+        f"selected_kernel={context['selected_kernel']}",
+        f"selected_variant={context['selected_variant']}",
+        f"selected_role={context['selected_role']}",
+        f"selected_binary_dtype={family_dtype(ACTIVE_ARITHMETIC_FAMILY)}",
+        f"selected_binary_family={ACTIVE_ARITHMETIC_FAMILY['diagnostic_name']}",
+        f"selected_binary_operator={arithmetic_verb_for_active_family()}",
+        f"selected_binary_microkernel_op={ACTIVE_ARITHMETIC_FAMILY['microkernel_op_name']}",
+        f"emitc_source_op={ACTIVE_ARITHMETIC_FAMILY['arithmetic_op_name']}",
+        "emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface",
+        f"selected_vector_shape={ACTIVE_VECTOR_SHAPE['shape']}",
+        f"selected_vector_sew={ACTIVE_VECTOR_SHAPE['sew_bits']}",
+        f"selected_vector_lmul={ACTIVE_VECTOR_SHAPE['lmul']}",
+        f"selected_tail_policy={ACTIVE_VECTOR_SHAPE['tail_policy']}",
+        f"selected_mask_policy={ACTIVE_VECTOR_SHAPE['mask_policy']}",
+        f"selected_vector_type={ACTIVE_VECTOR_SHAPE['vector_type']}",
+        f"selected_vector_suffix={ACTIVE_VECTOR_SHAPE['vector_suffix']}",
+        f"selected_setvl_suffix={ACTIVE_VECTOR_SHAPE['setvl_suffix']}",
+        f"runtime_abi={ACTIVE_ARITHMETIC_FAMILY['runtime_abi']}",
+        f"runtime_abi_kind={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_kind']}",
+        f"runtime_abi_name={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_name']}",
+        f"runtime_glue_role={ACTIVE_ARITHMETIC_FAMILY['runtime_glue_role']}",
+        "descriptor_compute_authority=quarantined-after-typed-rvv-source-authority",
+    ]
+    if str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]) == "i32-vadd":
+        required_fields.append("selected_binary_source_kind=")
+    for index, parameter in enumerate(source_flags["runtime_abi_parameters"]):
+        required_fields.append(
+            f"runtime_abi_parameter[{index}]="
+            f"c_name={parameter['c_name']},"
+            f"c_type={parameter['c_type']},"
+            f"role={parameter['role']},"
+            f"ownership={parameter['ownership']}"
+        )
+
+    missing = [
+        field for field in required_fields if field.encode("utf-8") not in data
+    ]
+    if missing:
+        raise BridgeError(
+            "generated RVV microkernel object is missing op-owned artifact "
+            "evidence fields: "
+            + ", ".join(missing[:4])
+        )
+
+    return {
+        "schema": OBJECT_ARTIFACT_EVIDENCE_SCHEMA,
+        "section": ".rodata.tianchenrv.rvv_artifact",
+        "validated_fields": required_fields,
+    }
+
+
 def validate_bundle_file_name(file_name: str) -> None:
     if not file_name:
         raise BridgeError("bundle index artifact file_name must be non-empty")
@@ -4135,6 +4217,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     object_sha256 = ""
     header_sha256 = ""
     caller_sha256 = ""
+    object_artifact_evidence: dict[str, Any] | None = None
     direct_helper_routes = direct_helper_routes_for_family(ACTIVE_ARITHMETIC_FAMILY)
     direct_helper_translation_routes = {
         role: direct_helper_translation_route(ACTIVE_ARITHMETIC_FAMILY, role)
@@ -4208,8 +4291,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             commands=commands,
             timeout_seconds=args.timeout,
         )
-        if object_path.stat().st_size < 4 or object_path.read_bytes()[:4] != b"\x7fELF":
-            raise BridgeError("generated RVV microkernel object must be a non-empty ELF relocatable")
+        object_artifact_evidence = validate_generated_object_artifact(
+            object_path,
+            source_flags=source_flags,
+            object_route=object_translation_route,
+        )
         object_sha256 = sha256_file(object_path)
         direct_helper_artifacts["object"] = relative_to_repo(object_path, root)
 
@@ -4354,6 +4440,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_emitc_route_provenance": source_flags["emitc_route_provenance"],
         "selected_binary_source_authority": selected_binary_source_authority,
         "compiler_path_context": source_flags["compiler_path_context"],
+        "object_artifact_evidence": object_artifact_evidence,
         "fixed_source_extent_contract": source_flags[
             "fixed_source_extent_contract"
         ],

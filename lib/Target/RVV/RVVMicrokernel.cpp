@@ -197,6 +197,7 @@ struct RVVMicrokernelRecord {
   RVVBinaryDataflowEmissionPlan dataflowPlan;
   RVVIntrinsicConfig intrinsicConfig;
   const RVVI32VectorShapeConfig *selectedShape = nullptr;
+  std::string selectedBinarySourceKind;
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
@@ -1770,7 +1771,8 @@ llvm::Error requireBoundarySourceIdentityAttr(KernelOp kernel,
 llvm::Error validateBoundarySourceIdentityForRecord(
     KernelOp kernel, const SelectedPath &path, LoweringBoundaryOp boundary,
     const RVVBinaryIntrinsicDescriptor &descriptor,
-    bool requireBoundarySourceIdentity) {
+    bool requireBoundarySourceIdentity,
+    std::string *selectedBinarySourceKind = nullptr) {
   if (!hasAnyBoundaryBinarySourceIdentity(boundary)) {
     if (requireBoundarySourceIdentity)
       return makeMicrokernelError(
@@ -1824,6 +1826,8 @@ llvm::Error validateBoundarySourceIdentityForRecord(
             sourceKind +
             "' is not a recognized typed RVV binary source boundary for @" +
             getPathVariantSymbol(path));
+  if (selectedBinarySourceKind)
+    *selectedBinarySourceKind = std::move(sourceKind);
 
   return llvm::Error::success();
 }
@@ -2656,7 +2660,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     if (llvm::Error error =
             validateBoundarySourceIdentityForRecord(
                 kernel, path, boundary, record.descriptor,
-                requireBoundarySourceIdentity))
+                requireBoundarySourceIdentity,
+                &record.selectedBinarySourceKind))
       return std::move(error);
     return record;
   }
@@ -2716,7 +2721,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error =
           validateBoundarySourceIdentityForRecord(
               kernel, path, boundary, record.descriptor,
-              requireBoundarySourceIdentity))
+              requireBoundarySourceIdentity, &record.selectedBinarySourceKind))
     return std::move(error);
   return record;
 }
@@ -3787,6 +3792,152 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   return llvm::Error::success();
 }
 
+void printCStringLiteralEscaped(llvm::raw_ostream &os,
+                                llvm::StringRef text) {
+  for (char character : text) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    switch (character) {
+    case '\\':
+      os << "\\\\";
+      break;
+    case '"':
+      os << "\\\"";
+      break;
+    case '\n':
+      os << "\\n";
+      break;
+    case '\r':
+      os << "\\r";
+      break;
+    case '\t':
+      os << "\\t";
+      break;
+    default:
+      if (std::isprint(byte)) {
+        os << character;
+      } else {
+        const char *hex = "0123456789abcdef";
+        os << "\\x" << hex[(byte >> 4) & 0x0f] << hex[byte & 0x0f];
+      }
+      break;
+    }
+  }
+}
+
+void printObjectEvidenceLine(llvm::raw_ostream &os, llvm::StringRef key,
+                             llvm::StringRef value) {
+  os << "  \"";
+  printCStringLiteralEscaped(os, key);
+  os << "=";
+  printCStringLiteralEscaped(os, value);
+  os << "\\n\"\n";
+}
+
+void appendMicrokernelObjectEvidenceSection(
+    const RVVMicrokernelRecord &record, std::string &source) {
+  std::string section;
+  llvm::raw_string_ostream os(section);
+
+  os << "\n/* Object-only RVV artifact evidence: compiler-artifact metadata "
+        "for the relocatable object, not runtime/correctness/performance "
+        "evidence. */\n";
+  os << "#if defined(__clang__) || defined(__GNUC__)\n";
+  os << "__attribute__((used, "
+        "section(\".rodata.tianchenrv.rvv_artifact\")))\n";
+  os << "#endif\n";
+  os << "static const char "
+        "tianchenrv_rvv_microkernel_object_artifact_evidence[] =\n";
+
+  printObjectEvidenceLine(os, "tianchenrv.rvv.artifact",
+                          "rvv-op-owned-object-artifact.v1");
+  printObjectEvidenceLine(os, "owner", kRVVPluginName);
+  printObjectEvidenceLine(os, "artifact_kind",
+                          kMicrokernelObjectArtifactKind);
+  printObjectEvidenceLine(os, "object_route",
+                          record.descriptor.getRVVObjectRouteID());
+  printObjectEvidenceLine(os, "source_route",
+                          record.descriptor.getRVVRouteID());
+  printObjectEvidenceLine(os, "selected_kernel", record.kernelSymbol);
+  printObjectEvidenceLine(os, "selected_variant", record.variantSymbol);
+  printObjectEvidenceLine(os, "selected_role", record.role);
+  printObjectEvidenceLine(os, "selected_march", record.selectedMarch);
+  if (record.selectedMABI)
+    printObjectEvidenceLine(os, "selected_mabi", *record.selectedMABI);
+  printObjectEvidenceLine(os, "selected_binary_dtype",
+                          record.descriptor.getDTypeID());
+  if (!record.selectedBinarySourceKind.empty())
+    printObjectEvidenceLine(os, "selected_binary_source_kind",
+                            record.selectedBinarySourceKind);
+  printObjectEvidenceLine(os, "selected_binary_family",
+                          record.descriptor.getArithmeticFamilyID());
+  printObjectEvidenceLine(os, "selected_binary_operator",
+                          record.descriptor.family.arithmeticVerb);
+  printObjectEvidenceLine(os, "selected_binary_microkernel_op",
+                          record.descriptor.getRVVMicrokernelOpName());
+  printObjectEvidenceLine(os, "emitc_source_op",
+                          record.descriptor.getRVVOperationName());
+  printObjectEvidenceLine(os, "emitc_lowerable_op_interface",
+                          kEmitCLowerableOpInterfaceName);
+  printObjectEvidenceLine(os, "selected_vector_shape",
+                          record.descriptor.getShapeID());
+  printObjectEvidenceLine(
+      os, "selected_vector_sew",
+      std::to_string(record.descriptor.getSEWBits()));
+  printObjectEvidenceLine(os, "selected_vector_lmul",
+                          record.descriptor.getLMUL());
+  printObjectEvidenceLine(os, "selected_tail_policy",
+                          record.descriptor.getTailPolicy());
+  printObjectEvidenceLine(os, "selected_mask_policy",
+                          record.descriptor.getMaskPolicy());
+  printObjectEvidenceLine(os, "selected_vector_type",
+                          record.descriptor.getVectorType());
+  printObjectEvidenceLine(os, "selected_vector_suffix",
+                          record.descriptor.getVectorSuffix());
+  printObjectEvidenceLine(os, "selected_setvl_suffix",
+                          record.descriptor.getSetVLSuffix());
+  printObjectEvidenceLine(os, "runtime_avl_source",
+                          getRVVRuntimeAVLSourceMetadataValue());
+  printObjectEvidenceLine(os, "runtime_avl_role",
+                          getRVVRuntimeAVLRoleMetadataValue());
+  printObjectEvidenceLine(os, "runtime_vl_source",
+                          getRVVRuntimeVLSourceMetadataValue());
+  printObjectEvidenceLine(os, "runtime_vl_scope",
+                          getRVVRuntimeVLScopeMetadataValue());
+  printObjectEvidenceLine(os, "runtime_abi",
+                          record.descriptor.getRVVRuntimeABI());
+  printObjectEvidenceLine(os, "runtime_abi_kind",
+                          record.descriptor.getRVVRuntimeABIKind());
+  printObjectEvidenceLine(os, "runtime_abi_name",
+                          record.descriptor.getRVVRuntimeABIName());
+  printObjectEvidenceLine(os, "runtime_glue_role",
+                          record.descriptor.getRVVRuntimeGlueRole());
+  printObjectEvidenceLine(
+      os, "descriptor_compute_authority",
+      "quarantined-after-typed-rvv-source-authority");
+
+  for (auto [index, parameter] :
+       llvm::enumerate(record.runtimeABIParameters)) {
+    std::string value;
+    llvm::raw_string_ostream valueStream(value);
+    valueStream << "c_name=" << parameter.cName
+                << ",c_type=" << parameter.cType
+                << ",role="
+                << support::stringifyRuntimeABIParameterRole(parameter.role)
+                << ",ownership="
+                << support::stringifyRuntimeABIParameterOwnership(
+                       parameter.ownership);
+    valueStream.flush();
+    printObjectEvidenceLine(
+        os, (llvm::Twine("runtime_abi_parameter[") + llvm::Twine(index) + "]")
+                .str(),
+        value);
+  }
+
+  os << "  ;\n";
+  os.flush();
+  source += section;
+}
+
 TargetArtifactRouteMetadata
 buildRVVMicrokernelSourceRouteMetadata(
     const RVVBinaryFamilyDescriptor &family);
@@ -4727,6 +4878,7 @@ llvm::Error exportRVVMicrokernelDirectRoute(
           record->kernelSymbol,
           "validated RVV microkernel C source must be non-empty before object "
           "export");
+    appendMicrokernelObjectEvidenceSection(*record, source);
     return compileGeneratedMicrokernelSourceToObject(*record, source, os);
   }
   }

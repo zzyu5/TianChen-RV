@@ -530,6 +530,83 @@ and generated artifact output consume the same manifest.
 [OK] Implementation checks passed; finish/archive and commit pending.
 
 
+## Session 60: RVV op-owned object artifact evidence closure
+
+**Date**: 2026-05-13
+**Task**: RVV op-owned object artifact evidence closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded RVV i32-vadd source/header/object route by embedding
+op-owned selected source/config/runtime ABI provenance into the generated
+RISC-V relocatable object and proving the source-built and generated-object
+external ABI path on `ssh rvv`.
+
+### Main Changes
+
+- Added an object-only `.rodata.tianchenrv.rvv_artifact` section to the direct
+  RVV microkernel object export path.
+- The object evidence section is derived from the same `RVVMicrokernelRecord`
+  as source/header export: selected source kind, dtype/family/operator,
+  microkernel op, EmitC source op/interface, selected vector shape,
+  runtime AVL/VL authority, runtime ABI kind/name/glue role, and ordered ABI
+  parameters.
+- Preserved default source/header as library-style runtime-callable artifacts
+  without hidden `main` or self-check harnesses.
+- Extended `scripts/rvv_microkernel_e2e.py` so the runner validates the object
+  evidence payload before remote external-ABI evidence.
+- Updated `rvv-microkernel-object.mlir` to check direct and generic object
+  evidence section payloads and to fail closed when selected-boundary source
+  identity is stripped before object export.
+- Updated the lowering-runtime spec to document the bounded object evidence
+  section as compiler-artifact provenance only.
+- Confirmed no core `tcrv.exec` or `lib/Transforms` RVV semantic branches were
+  added.
+
+### Evidence
+
+- Artifact directory:
+  `artifacts/tmp/rvv_op_owned_object_artifact_evidence_closure/20260513T-rvv-op-owned-object-artifact-evidence-closure-i32-vadd/`
+- Evidence JSON:
+  `artifacts/tmp/rvv_op_owned_object_artifact_evidence_closure/20260513T-rvv-op-owned-object-artifact-evidence-closure-i32-vadd/evidence.json`
+- `ssh rvv` source-built external caller:
+  `tcrv_rvv_microkernel_external_abi_ok counts=7,16`
+- `ssh rvv` generated-object external caller:
+  `tcrv_rvv_microkernel_external_abi_ok counts=7,16`
+- Object section:
+  `.rodata.tianchenrv.rvv_artifact`,
+  schema `rvv-op-owned-object-artifact.v1`, 32 validated fields.
+
+### Checks
+
+- `cmake --build build --target TianChenRVRVVTarget tcrv-translate -j2`
+- `python3 -m py_compile scripts/rvv_microkernel_e2e.py`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVScalarTarget tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused 9-test lit set for RVV microkernel object/source/header/runtime ABI,
+  stale boundary/config, missing policy, descriptor-only quarantine, and
+  RVV+scalar ABI role binding.
+- Broader lit filter:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='rvv-microkernel|RVVScalarDispatch|RVVSmokeProbe|LoweringBoundary|rvv-'`
+  from `build/test`: 104 selected tests passed.
+- Focused `ssh rvv` e2e command:
+  `python3 scripts/rvv_microkernel_e2e.py --artifact-root artifacts/tmp/rvv_op_owned_object_artifact_evidence_closure --run-id 20260513T-rvv-op-owned-object-artifact-evidence-closure-i32-vadd --overwrite --expect-selected-kernel rvv_microkernel_manifest`
+- `git diff --check`
+- Core neutrality scan:
+  `git diff -- lib/Transforms include/TianChenRV/Dialect/Exec lib/Dialect/Exec`
+
+### Status
+
+[OK] Implementation checks and `ssh rvv` evidence passed; finish/archive and
+commit pending.
+
+
 ## Session 59: RVV selected-boundary extension-op production route
 
 **Date**: 2026-05-13
