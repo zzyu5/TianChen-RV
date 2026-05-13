@@ -1,12 +1,10 @@
 #ifndef TIANCHENRV_PLUGIN_TEMPLATE_TEMPLATECONSTRUCTIONPROTOCOL_H
 #define TIANCHENRV_PLUGIN_TEMPLATE_TEMPLATECONSTRUCTIONPROTOCOL_H
 
-#include "llvm/ADT/ArrayRef.h"
+#include "TianChenRV/Plugin/ConstructionProtocol.h"
+
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
-
-#include <string>
-#include <vector>
 
 namespace mlir {
 class Operation;
@@ -14,84 +12,21 @@ class Operation;
 
 namespace tianchenrv::plugin::template_ext {
 
-struct TemplateConstructionSemanticRole {
-  llvm::StringRef role;
-  unsigned order = 0;
-  llvm::StringRef operationName;
-  llvm::StringRef commonInterfaces;
-  llvm::StringRef description;
-};
-
-struct TemplateConstructionFamilyDeclaration {
-  llvm::StringRef familyName;
-  llvm::StringRef architecturalNamespace;
-  llvm::StringRef concreteNamespace;
-  llvm::StringRef pluginName;
-  llvm::StringRef capabilityID;
-  llvm::StringRef capabilityKind;
-  llvm::StringRef firstSliceVariantName;
-};
-
-struct TemplateConstructionEmitCMapping {
-  llvm::StringRef routeID;
-  llvm::StringRef emissionKind;
-  llvm::StringRef artifactKind;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
-  llvm::StringRef requiredHeader;
-  llvm::StringRef roleToCallMap;
-};
-
-struct TemplateConstructionManifest {
-  llvm::StringRef protocolVersion;
-  llvm::StringRef archetype;
-  llvm::StringRef semanticRoleGraph;
-  TemplateConstructionFamilyDeclaration family;
-  llvm::ArrayRef<TemplateConstructionSemanticRole> semanticRoles;
-  TemplateConstructionEmitCMapping emitcRoute;
-  llvm::StringRef evidenceProfile;
-};
-
-struct TemplateTypedRoleInterfaceRealization {
-  llvm::StringRef typedRoleID;
-  llvm::StringRef role;
-  unsigned order = 0;
-  llvm::StringRef operationName;
-  llvm::StringRef commonInterfaces;
-  llvm::StringRef roleSpecificInterface;
-  llvm::StringRef emitCLowerableInterface;
-  llvm::StringRef emitCCall;
-};
-
-struct TemplateTypedRoleGraphRealization {
-  llvm::StringRef protocolVersion;
-  llvm::StringRef archetype;
-  llvm::StringRef semanticRoleGraph;
-  llvm::StringRef familyName;
-  llvm::StringRef realizationSummary;
-  llvm::ArrayRef<TemplateTypedRoleInterfaceRealization> roles;
-  llvm::StringRef evidenceProfile;
-};
-
-struct TemplateGeneratedOutputStep {
-  std::string typedRoleID;
-  std::string role;
-  unsigned order = 0;
-  std::string operationName;
-  std::string commonInterfaces;
-  std::string roleSpecificInterface;
-  std::string emitCLowerableInterface;
-  std::string emitCCall;
-  std::string sourceLine;
-};
-
-struct TemplateGeneratedOutputRoute {
-  std::string functionName;
-  std::string requiredHeader;
-  std::vector<TemplateGeneratedOutputStep> steps;
-};
+using TemplateConstructionSemanticRole =
+    tianchenrv::plugin::construction::SemanticRole;
+using TemplateConstructionFamilyDeclaration =
+    tianchenrv::plugin::construction::FamilyDeclaration;
+using TemplateConstructionEmitCMapping =
+    tianchenrv::plugin::construction::EmitCMapping;
+using TemplateConstructionManifest = tianchenrv::plugin::construction::Manifest;
+using TemplateTypedRoleInterfaceRealization =
+    tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
+using TemplateTypedRoleGraphRealization =
+    tianchenrv::plugin::construction::TypedRoleGraphRealization;
+using TemplateGeneratedOutputStep =
+    tianchenrv::plugin::construction::GeneratedOutputStep;
+using TemplateGeneratedOutputRoute =
+    tianchenrv::plugin::construction::GeneratedOutputRoute;
 
 llvm::StringRef getTemplateConstructionProtocolVersion();
 llvm::StringRef getTemplateConstructionArchetype();

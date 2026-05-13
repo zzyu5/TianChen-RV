@@ -530,6 +530,59 @@ and generated artifact output consume the same manifest.
 [OK] Implementation checks passed; finish/archive and commit pending.
 
 
+## Session 60: Common construction-protocol artifact route
+
+**Date**: 2026-05-13
+**Task**: Common construction-protocol artifact route
+**Branch**: `main`
+
+### Summary
+
+Factored the repeated Template/Toy/TensorExtLite construction-protocol
+validation and generated-output route into a shared C++ construction protocol
+module consumed by all three existing extension families.
+
+### Main Changes
+
+- Added `TianChenRVPluginConstructionProtocol` with common manifest,
+  semantic-role, typed-role, role-op interface, EmitC mapping, evidence-profile,
+  generated-route, and generated-output emission helpers.
+- Converted Template, Toy, and TensorExtLite construction protocol data types
+  to aliases of the shared construction data model while preserving their
+  extension-local public API names.
+- Rewired Template, Toy, and TensorExtLite verifier/build functions to call the
+  shared route with extension-local specs.
+- Rewired Template/Toy/TensorExtLite target metadata artifacts to emit typed
+  role and generated-output records through common helpers.
+- Added `tianchenrv-construction-protocol-common-test` to prove the shared
+  model and generated-output emitter are consumed by all three families.
+- Confirmed no Template/Toy/TensorExtLite semantic branch was added to
+  `tcrv.exec`, `lib/Transforms`, or common orchestration passes.
+
+### Checks
+
+- `cmake --build build --target TianChenRVPluginConstructionProtocol TianChenRVTemplatePlugin TianChenRVToyPlugin TianChenRVTensorExtLitePlugin -j2`
+- `cmake --build build --target TianChenRVPluginConstructionProtocol TianChenRVTemplateDialect TianChenRVTemplatePlugin TianChenRVTemplateTarget tianchenrv-template-extension-plugin-test TianChenRVToyDialect TianChenRVToyPlugin TianChenRVToyTarget tianchenrv-toy-extension-plugin-test TianChenRVTensorExtLiteDialect TianChenRVTensorExtLitePlugin TianChenRVTensorExtLiteTarget tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-construction-protocol-common-test`
+- `./build/bin/tianchenrv-template-extension-plugin-test`
+- `./build/bin/tianchenrv-toy-extension-plugin-test`
+- `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='ConstructionProtocol|Template|template|Toy|toy|TensorExtLite|tensorext-lite|tensorext_lite'` from `build/test`
+- Core neutrality and duplicate-route ref scans.
+- `git diff --check`
+- `git diff --cached --check`
+- Trellis validation before finish/archive and after archive.
+
+No `ssh rvv` evidence was run because this task changes non-executable
+construction metadata validation and generated artifact emission only.
+
+### Status
+
+[OK] Finished, archived, and ready to commit.
+
+
 ## Session 59: TensorExtLite construction-protocol extension instantiation
 
 **Date**: 2026-05-13

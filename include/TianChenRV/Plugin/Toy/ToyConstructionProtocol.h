@@ -1,12 +1,10 @@
 #ifndef TIANCHENRV_PLUGIN_TOY_TOYCONSTRUCTIONPROTOCOL_H
 #define TIANCHENRV_PLUGIN_TOY_TOYCONSTRUCTIONPROTOCOL_H
 
-#include "llvm/ADT/ArrayRef.h"
+#include "TianChenRV/Plugin/ConstructionProtocol.h"
+
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
-
-#include <string>
-#include <vector>
 
 namespace mlir {
 class Operation;
@@ -14,84 +12,21 @@ class Operation;
 
 namespace tianchenrv::plugin::toy {
 
-struct ToyConstructionSemanticRole {
-  llvm::StringRef role;
-  unsigned order = 0;
-  llvm::StringRef operationName;
-  llvm::StringRef commonInterfaces;
-  llvm::StringRef description;
-};
-
-struct ToyConstructionFamilyDeclaration {
-  llvm::StringRef familyName;
-  llvm::StringRef architecturalNamespace;
-  llvm::StringRef concreteNamespace;
-  llvm::StringRef pluginName;
-  llvm::StringRef capabilityID;
-  llvm::StringRef capabilityKind;
-  llvm::StringRef firstSliceVariantName;
-};
-
-struct ToyConstructionEmitCMapping {
-  llvm::StringRef routeID;
-  llvm::StringRef emissionKind;
-  llvm::StringRef artifactKind;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
-  llvm::StringRef requiredHeader;
-  llvm::StringRef roleToCallMap;
-};
-
-struct ToyConstructionManifest {
-  llvm::StringRef protocolVersion;
-  llvm::StringRef archetype;
-  llvm::StringRef semanticRoleGraph;
-  ToyConstructionFamilyDeclaration family;
-  llvm::ArrayRef<ToyConstructionSemanticRole> semanticRoles;
-  ToyConstructionEmitCMapping emitcRoute;
-  llvm::StringRef evidenceProfile;
-};
-
-struct ToyTypedRoleInterfaceRealization {
-  llvm::StringRef typedRoleID;
-  llvm::StringRef role;
-  unsigned order = 0;
-  llvm::StringRef operationName;
-  llvm::StringRef commonInterfaces;
-  llvm::StringRef roleSpecificInterface;
-  llvm::StringRef emitCLowerableInterface;
-  llvm::StringRef emitCCall;
-};
-
-struct ToyTypedRoleGraphRealization {
-  llvm::StringRef protocolVersion;
-  llvm::StringRef archetype;
-  llvm::StringRef semanticRoleGraph;
-  llvm::StringRef familyName;
-  llvm::StringRef realizationSummary;
-  llvm::ArrayRef<ToyTypedRoleInterfaceRealization> roles;
-  llvm::StringRef evidenceProfile;
-};
-
-struct ToyGeneratedOutputStep {
-  std::string typedRoleID;
-  std::string role;
-  unsigned order = 0;
-  std::string operationName;
-  std::string commonInterfaces;
-  std::string roleSpecificInterface;
-  std::string emitCLowerableInterface;
-  std::string emitCCall;
-  std::string sourceLine;
-};
-
-struct ToyGeneratedOutputRoute {
-  std::string functionName;
-  std::string requiredHeader;
-  std::vector<ToyGeneratedOutputStep> steps;
-};
+using ToyConstructionSemanticRole =
+    tianchenrv::plugin::construction::SemanticRole;
+using ToyConstructionFamilyDeclaration =
+    tianchenrv::plugin::construction::FamilyDeclaration;
+using ToyConstructionEmitCMapping =
+    tianchenrv::plugin::construction::EmitCMapping;
+using ToyConstructionManifest = tianchenrv::plugin::construction::Manifest;
+using ToyTypedRoleInterfaceRealization =
+    tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
+using ToyTypedRoleGraphRealization =
+    tianchenrv::plugin::construction::TypedRoleGraphRealization;
+using ToyGeneratedOutputStep =
+    tianchenrv::plugin::construction::GeneratedOutputStep;
+using ToyGeneratedOutputRoute =
+    tianchenrv::plugin::construction::GeneratedOutputRoute;
 
 llvm::StringRef getToyConstructionInterfaceRealization();
 llvm::StringRef getToyTypedRoleRealizationSummary();

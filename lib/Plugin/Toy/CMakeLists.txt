@@ -5,6 +5,7 @@ add_mlir_library(TianChenRVToyPlugin
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
   TianChenRVPlugin
+  TianChenRVPluginConstructionProtocol
   TianChenRVSupport
   TianChenRVToyDialect
   MLIRIR

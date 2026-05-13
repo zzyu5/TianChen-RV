@@ -21,6 +21,7 @@ namespace tianchenrv::target::toy {
 namespace {
 
 namespace execDiagnostic = tianchenrv::tcrv::exec::diagnostic;
+namespace construction = tianchenrv::plugin::construction;
 namespace pluginToy = tianchenrv::plugin::toy;
 
 using tianchenrv::support::CapabilityDescriptor;
@@ -678,61 +679,6 @@ void printSelectedPlanMetadata(
   }
 }
 
-void printGeneratedOutputRoute(
-    llvm::raw_ostream &os,
-    const pluginToy::ToyGeneratedOutputRoute &route) {
-  printField(os, "generated_output_kind", "role-graph-emitc-source-skeleton");
-  printField(os, "generated_function", route.functionName);
-  printField(os, "generated_required_header", route.requiredHeader);
-  for (auto [index, step] : llvm::enumerate(route.steps)) {
-    os << "generated_emitc_step[" << index << "]:\n";
-    printField(os, "  role", step.role);
-    os << "  order: " << step.order << "\n";
-    printField(os, "  typed_role", step.typedRoleID);
-    printField(os, "  operation", step.operationName);
-    printField(os, "  common_interfaces", step.commonInterfaces);
-    printField(os, "  role_specific_interface", step.roleSpecificInterface);
-    printField(os, "  emitc_lowerable_interface",
-               step.emitCLowerableInterface);
-    printField(os, "  emitc_call", step.emitCCall);
-    printField(os, "  source_line", step.sourceLine);
-  }
-
-  os << "generated_source:\n";
-  os << "  #include \"";
-  for (char character : route.requiredHeader) {
-    if (character == '\\' || character == '"')
-      os << '\\';
-    os << character;
-  }
-  os << "\"\n";
-  os << "  void " << route.functionName << "(void) {\n";
-  for (const pluginToy::ToyGeneratedOutputStep &step : route.steps) {
-    os << "    /* role[" << step.order << "] " << step.role
-       << " via " << step.operationName << " */\n";
-    os << "    " << step.sourceLine << "\n";
-  }
-  os << "  }\n";
-}
-
-void printTypedRoleGraphRealization(
-    llvm::raw_ostream &os,
-    const pluginToy::ToyTypedRoleGraphRealization &realization) {
-  printField(os, "typed_role_realization", realization.realizationSummary);
-  for (auto [index, role] : llvm::enumerate(realization.roles)) {
-    os << "typed_role[" << index << "]:\n";
-    printField(os, "  typed_role", role.typedRoleID);
-    printField(os, "  role", role.role);
-    os << "  order: " << role.order << "\n";
-    printField(os, "  operation", role.operationName);
-    printField(os, "  common_interfaces", role.commonInterfaces);
-    printField(os, "  role_specific_interface", role.roleSpecificInterface);
-    printField(os, "  emitc_lowerable_interface",
-               role.emitCLowerableInterface);
-    printField(os, "  emitc_call", role.emitCCall);
-  }
-}
-
 void printValidatedRoleOpBoundary(llvm::raw_ostream &os,
                                   ComputeSkeletonOp computeRole) {
   printField(os, "validated_role_op", ComputeSkeletonOp::getOperationName());
@@ -874,14 +820,14 @@ llvm::Error exportToyMetadataArtifact(mlir::ModuleOp module,
   printField(os, "common_interface_realization",
              pluginToy::getToyConstructionInterfaceRealization());
   printValidatedRoleOpBoundary(os, *computeRole);
-  printTypedRoleGraphRealization(os, realization);
+  construction::emitTypedRoleGraphRealization(os, realization);
   printField(os, "emitc_route_id", manifest.emitcRoute.routeID);
   printField(os, "emitc_emission_kind", manifest.emitcRoute.emissionKind);
   printField(os, "emitc_artifact_kind", manifest.emitcRoute.artifactKind);
   printField(os, "emitc_required_header", manifest.emitcRoute.requiredHeader);
   printField(os, "emitc_role_to_call_map", manifest.emitcRoute.roleToCallMap);
   printField(os, "evidence_profile", manifest.evidenceProfile);
-  printGeneratedOutputRoute(os, *route);
+  construction::emitGeneratedOutputRoute(os, *route);
   printSelectedPlanMetadata(os, candidate->selectedPlanMetadata);
   return llvm::Error::success();
 }

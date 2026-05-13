@@ -8,6 +8,7 @@ add_mlir_library(TianChenRVPlugin
   MLIRSupport
 )
 
+add_subdirectory(Construction)
 add_subdirectory(RVV)
 add_subdirectory(Offload)
 add_subdirectory(Scalar)

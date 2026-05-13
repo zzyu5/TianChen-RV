@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve global project invariants."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check plugin-locality and construction protocol compliance."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check shared route still implements the construction protocol fields."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check no core orchestration branches or independent backend dialect drift."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/interface boundaries remain target-neutral."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated output route remains an EmitC-like construction route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact no-runtime/no-correctness/no-performance claim boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused build, C++ tests, lit/FileCheck, and diff hygiene coverage."}

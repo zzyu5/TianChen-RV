@@ -222,6 +222,19 @@ target_link_libraries(tianchenrv-tensorext-lite-extension-plugin-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-construction-protocol-common-test
+  Plugin/ConstructionProtocolCommonTest.cpp
+)
+
+target_link_libraries(tianchenrv-construction-protocol-common-test
+  PRIVATE
+  TianChenRVPluginConstructionProtocol
+  TianChenRVTemplatePlugin
+  TianChenRVTensorExtLitePlugin
+  TianChenRVToyPlugin
+  MLIRSupport
+)
+
 add_executable(tianchenrv-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )
