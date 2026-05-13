@@ -32,6 +32,7 @@ namespace tianchenrv::transforms {
 #define GEN_PASS_DEF_LOWERLINALGRVVBINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32BINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32VADDTOEXEC
+#define GEN_PASS_DEF_LOWERSOURCERVVBINARYTOEXEC
 #define GEN_PASS_DEF_LOWERVECTORRVVI32VADDTOEXEC
 #include "TianChenRV/Transforms/Passes.h.inc"
 
@@ -89,12 +90,14 @@ struct InferredFrontendBinarySource {
   llvm::StringRef arithmeticOpName;
 };
 
-struct FrontendBinarySpec {
-  const support::FiniteBinaryFrontendContract *contract = nullptr;
-  llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
-  llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeElementCountSpecs;
-  std::optional<std::int64_t> fixedSourceVectorExtent;
-  bool dynamicRuntimeExtentFromSCFUpperBound = false;
+struct SourceFrontendLoweringRequest {
+  mlir::Operation *sourceOp = nullptr;
+  mlir::Operation *eraseOp = nullptr;
+  llvm::StringRef frontendName;
+  mlir::StringAttr kernelAttr;
+  mlir::FlatSymbolRefAttr targetRef;
+  mlir::Attribute capabilityProviderRefs;
+  support::FiniteBinarySourceFrontendLoweringContract loweringContract;
 };
 
 llvm::StringRef getSourceArithmeticOpName(SourceBinaryArithmeticKind kind) {
@@ -137,17 +140,6 @@ std::string getInferredFamilyID(support::FiniteBinaryElementKind elementKind,
   return (llvm::Twine(getElementKindDTypeID(elementKind)) + "-" +
           getSourceArithmeticFrontendSuffix(arithmetic))
       .str();
-}
-
-FrontendBinarySpec makeFrontendBinarySpec(
-    const support::FiniteBinaryFrontendContract &contract) {
-  FrontendBinarySpec spec;
-  spec.contract = &contract;
-  spec.bufferMemWindowSpecs =
-      support::getFiniteBinaryFrontendBufferMemWindowSpecs(contract);
-  spec.runtimeElementCountSpecs =
-      support::getFiniteBinaryFrontendRuntimeElementCountParamSpecs(contract);
-  return spec;
 }
 
 std::string formatSupportedFrontendLowerings() {
@@ -444,20 +436,20 @@ mlir::Operation *findTopLevelSymbol(mlir::ModuleOp module,
 
 mlir::LogicalResult requireTopLevelTargetProfile(
     mlir::ModuleOp module, mlir::Operation *sourceOp,
-    llvm::StringRef targetName, TargetOp &out) {
+    llvm::StringRef frontendName, llvm::StringRef targetName, TargetOp &out) {
   mlir::Operation *target = findTopLevelSymbol(module, targetName);
   if (!target)
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend target @" << targetName
+           << "TianChen-RV " << frontendName << " target @" << targetName
            << " must resolve to a module-level tcrv.exec.target";
   if (!llvm::isa<TargetOp>(target))
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend target @" << targetName
+           << "TianChen-RV " << frontendName << " target @" << targetName
            << " resolves to a top-level symbol that is not tcrv.exec.target";
   out = llvm::cast<TargetOp>(target);
   if (!tcrv::exec::isCapabilityProviderTarget(out))
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend target @" << targetName
+           << "TianChen-RV " << frontendName << " target @" << targetName
            << " must be a capability-provider tcrv.exec.target with "
               "non-empty id/kind";
 
@@ -471,18 +463,20 @@ mlir::LogicalResult requireTopLevelTargetProfile(
 }
 
 mlir::LogicalResult recordProviderIdentityForImportValidation(
-    mlir::Operation *sourceOp, llvm::StringRef context,
-    mlir::Operation *provider, llvm::StringSet<> &seenSymbols,
+    mlir::Operation *sourceOp, llvm::StringRef frontendName,
+    llvm::StringRef context, mlir::Operation *provider,
+    llvm::StringSet<> &seenSymbols,
     llvm::StringSet<> &seenIDs) {
   llvm::StringRef symbol = tcrv::exec::getCapabilityProviderSymbolName(provider);
   if (symbol.empty())
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend " << context
+           << "TianChen-RV " << frontendName << " " << context
            << " provider must carry a symbol name";
 
   if (!seenSymbols.insert(symbol).second)
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend " << context << " provider @"
+           << "TianChen-RV " << frontendName << " " << context
+           << " provider @"
            << symbol
            << " duplicates the selected target profile, target-composed "
               "provider, or another supplemental import";
@@ -490,12 +484,14 @@ mlir::LogicalResult recordProviderIdentityForImportValidation(
   llvm::StringRef id = tcrv::exec::getCapabilityProviderID(provider);
   if (id.trim().empty())
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend " << context << " provider @"
+           << "TianChen-RV " << frontendName << " " << context
+           << " provider @"
            << symbol << " must carry a non-empty capability id";
 
   if (!seenIDs.insert(id).second)
     return sourceOp->emitError()
-           << "TianChen-RV linalg frontend " << context << " provider @"
+           << "TianChen-RV " << frontendName << " " << context
+           << " provider @"
            << symbol << " duplicates capability id '" << id
            << "' with the selected target profile, target-composed provider, "
               "or another supplemental import";
@@ -504,11 +500,12 @@ mlir::LogicalResult recordProviderIdentityForImportValidation(
 }
 
 mlir::LogicalResult seedSelectedTargetProviderScope(
-    mlir::Operation *sourceOp, TargetOp selectedTarget,
-    llvm::StringSet<> &seenSymbols, llvm::StringSet<> &seenIDs) {
+    mlir::Operation *sourceOp, llvm::StringRef frontendName,
+    TargetOp selectedTarget, llvm::StringSet<> &seenSymbols,
+    llvm::StringSet<> &seenIDs) {
   if (mlir::failed(recordProviderIdentityForImportValidation(
-          sourceOp, "selected target", selectedTarget.getOperation(),
-          seenSymbols, seenIDs)))
+          sourceOp, frontendName, "selected target",
+          selectedTarget.getOperation(), seenSymbols, seenIDs)))
     return mlir::failure();
 
   llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
@@ -520,7 +517,8 @@ mlir::LogicalResult seedSelectedTargetProviderScope(
 
   for (mlir::Operation *provider : *providers)
     if (mlir::failed(recordProviderIdentityForImportValidation(
-            sourceOp, "target-composed", provider, seenSymbols, seenIDs)))
+            sourceOp, frontendName, "target-composed", provider, seenSymbols,
+            seenIDs)))
       return mlir::failure();
 
   return mlir::success();
@@ -528,27 +526,29 @@ mlir::LogicalResult seedSelectedTargetProviderScope(
 
 mlir::LogicalResult collectCapabilityProviderImports(
     mlir::ModuleOp module, mlir::Operation *sourceOp,
+    llvm::StringRef frontendName,
     TargetOp selectedTarget, mlir::ArrayAttr providerRefs,
     llvm::SmallVectorImpl<mlir::Operation *> &imports) {
   llvm::StringSet<> seenSymbols;
   llvm::StringSet<> seenIDs;
 
-  if (mlir::failed(seedSelectedTargetProviderScope(sourceOp, selectedTarget,
-                                                   seenSymbols, seenIDs)))
+  if (mlir::failed(seedSelectedTargetProviderScope(
+          sourceOp, frontendName, selectedTarget, seenSymbols, seenIDs)))
     return mlir::failure();
 
   for (mlir::Attribute attr : providerRefs) {
     auto ref = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(attr);
     if (!ref || ref.getValue().empty())
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend capability-provider imports "
+             << "TianChen-RV " << frontendName
+             << " capability-provider imports "
                 "expect an array of non-empty module symbol references in '"
              << kFrontendCapabilityProvidersAttrName << "'";
 
     llvm::StringRef symbolName = ref.getValue();
     if (!seenSymbols.insert(symbolName).second)
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend supplemental "
+             << "TianChen-RV " << frontendName << " supplemental "
                 "capability-provider import @"
              << symbolName
              << " duplicates the selected target profile, target-composed "
@@ -557,13 +557,13 @@ mlir::LogicalResult collectCapabilityProviderImports(
     mlir::Operation *provider = findTopLevelSymbol(module, symbolName);
     if (!provider)
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend supplemental "
+             << "TianChen-RV " << frontendName << " supplemental "
                 "capability-provider import @"
              << symbolName << " must resolve to a module-level symbol";
 
     if (!tcrv::exec::isCapabilityProviderOperation(provider))
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend supplemental "
+             << "TianChen-RV " << frontendName << " supplemental "
                 "capability-provider import @"
              << symbolName
              << " must resolve to a module-level tcrv.exec.capability or "
@@ -572,7 +572,7 @@ mlir::LogicalResult collectCapabilityProviderImports(
     llvm::StringRef id = tcrv::exec::getCapabilityProviderID(provider);
     if (id.empty())
       return sourceOp->emitError()
-             << "TianChen-RV linalg frontend supplemental "
+             << "TianChen-RV " << frontendName << " supplemental "
                 "capability-provider import @"
              << symbolName << " must carry a non-empty capability id";
     if (!seenIDs.insert(id).second)
@@ -593,8 +593,8 @@ mlir::LogicalResult collectCapabilityProviderImports(
 
       for (mlir::Operation *composedProvider : *providers)
         if (mlir::failed(recordProviderIdentityForImportValidation(
-                sourceOp, "supplemental target-composed", composedProvider,
-                seenSymbols, seenIDs)))
+                sourceOp, frontendName, "supplemental target-composed",
+                composedProvider, seenSymbols, seenIDs)))
           return mlir::failure();
     }
 
@@ -606,11 +606,12 @@ mlir::LogicalResult collectCapabilityProviderImports(
 
 mlir::LogicalResult requireNoDuplicateKernelSymbol(mlir::ModuleOp module,
                                                    mlir::Operation *sourceOp,
+                                                   llvm::StringRef frontendName,
                                                    llvm::StringRef kernelName) {
   if (!findTopLevelSymbol(module, kernelName))
     return mlir::success();
   return sourceOp->emitError()
-         << "TianChen-RV linalg frontend kernel symbol @" << kernelName
+         << "TianChen-RV " << frontendName << " kernel symbol @" << kernelName
          << " already exists";
 }
 
@@ -977,7 +978,8 @@ mlir::LogicalResult crossCheckFrontendMarker(
 KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
                           llvm::StringRef kernelName,
                           mlir::FlatSymbolRefAttr targetRef,
-                          const FrontendBinarySpec &spec) {
+                          const support::FiniteBinarySourceFrontendLoweringContract
+                              &spec) {
   const support::FiniteBinaryFrontendContract &contract = *spec.contract;
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPoint(sourceFunc);
@@ -1033,7 +1035,8 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
 }
 
 mlir::LogicalResult materializeFrontendSourceRuntimeParamAttrs(
-    KernelOp kernel, const FrontendBinarySpec &spec) {
+    KernelOp kernel,
+    const support::FiniteBinarySourceFrontendLoweringContract &spec) {
   if (!spec.fixedSourceVectorExtent &&
       !spec.dynamicRuntimeExtentFromSCFUpperBound)
     return mlir::success();
@@ -1097,7 +1100,8 @@ void materializeCapabilityProviderImports(
 }
 
 mlir::LogicalResult materializeFrontendBinaryABI(
-    KernelOp kernel, const FrontendBinarySpec &spec) {
+    KernelOp kernel,
+    const support::FiniteBinarySourceFrontendLoweringContract &spec) {
   mlir::OpBuilder builder(kernel.getContext());
   builder.setInsertionPointToEnd(&kernel.getBody().front());
 
@@ -1115,6 +1119,68 @@ mlir::LogicalResult materializeFrontendBinaryABI(
   }
 
   return materializeFrontendSourceRuntimeParamAttrs(kernel, spec);
+}
+
+mlir::LogicalResult
+lowerOneSourceFrontendRequest(mlir::ModuleOp module,
+                              const SourceFrontendLoweringRequest &request) {
+  mlir::Operation *sourceOp = request.sourceOp;
+  mlir::Operation *eraseOp = request.eraseOp ? request.eraseOp : sourceOp;
+  if (!sourceOp || !eraseOp || !request.loweringContract.contract)
+    return module.emitError()
+           << "TianChen-RV source frontend lowering received an incomplete "
+              "adapter request";
+
+  if (!request.kernelAttr || !isBareSymbolName(request.kernelAttr.getValue()))
+    return sourceOp->emitError()
+           << "TianChen-RV " << request.frontendName
+           << " requires non-empty bare-symbol string attribute '"
+           << kFrontendKernelAttrName << "'";
+
+  if (!request.targetRef || request.targetRef.getValue().empty())
+    return sourceOp->emitError()
+           << "TianChen-RV " << request.frontendName
+           << " requires module target symbol attribute '"
+           << kFrontendTargetAttrName << "'";
+
+  TargetOp selectedTarget;
+  if (mlir::failed(requireTopLevelTargetProfile(
+          module, sourceOp, request.frontendName, request.targetRef.getValue(),
+          selectedTarget)))
+    return mlir::failure();
+  if (mlir::failed(requireNoDuplicateKernelSymbol(
+          module, sourceOp, request.frontendName,
+          request.kernelAttr.getValue())))
+    return mlir::failure();
+
+  llvm::SmallVector<mlir::Operation *, 4> providerImports;
+  if (request.capabilityProviderRefs) {
+    auto providerRefs =
+        llvm::dyn_cast<mlir::ArrayAttr>(request.capabilityProviderRefs);
+    if (!providerRefs)
+      return sourceOp->emitError()
+             << "TianChen-RV " << request.frontendName << " expects '"
+             << kFrontendCapabilityProvidersAttrName
+             << "' to be an array of module symbol references";
+
+    if (mlir::failed(collectCapabilityProviderImports(
+            module, sourceOp, request.frontendName, selectedTarget,
+            providerRefs, providerImports)))
+      return mlir::failure();
+  }
+
+  KernelOp kernel = createExecKernel(
+      module, eraseOp, request.kernelAttr.getValue(), request.targetRef,
+      request.loweringContract);
+  materializeCapabilityProviderImports(kernel, providerImports);
+  if (mlir::failed(
+          materializeFrontendBinaryABI(kernel, request.loweringContract))) {
+    kernel.erase();
+    return mlir::failure();
+  }
+
+  eraseOp->erase();
+  return mlir::success();
 }
 
 mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
@@ -1139,56 +1205,18 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   if (mlir::failed(requireNoLegacyDescriptorMetadata(funcOp, linalgOp)))
     return mlir::failure();
 
-  FrontendBinarySpec spec = makeFrontendBinarySpec(*source.contract);
-
-  mlir::StringAttr kernelAttr = getKernelName(linalgOp, funcOp);
-  if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))
-    return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV bounded binary requires "
-              "non-empty bare-symbol string attribute '"
-           << kFrontendKernelAttrName << "'";
-
-  mlir::FlatSymbolRefAttr targetRef = getTargetRef(linalgOp, funcOp);
-  if (!targetRef || targetRef.getValue().empty())
-    return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV bounded binary requires "
-              "module target symbol attribute '"
-           << kFrontendTargetAttrName << "'";
-
-  TargetOp selectedTarget;
-  if (mlir::failed(requireTopLevelTargetProfile(module, linalgOp,
-                                                targetRef.getValue(),
-                                                selectedTarget)))
-    return mlir::failure();
-  if (mlir::failed(requireNoDuplicateKernelSymbol(module, linalgOp,
-                                                  kernelAttr.getValue())))
-    return mlir::failure();
-
-  llvm::SmallVector<mlir::Operation *, 4> providerImports;
-  if (mlir::Attribute rawProviderRefs =
-          getCapabilityProviderRefsAttr(linalgOp, funcOp)) {
-    auto providerRefs = llvm::dyn_cast<mlir::ArrayAttr>(rawProviderRefs);
-    if (!providerRefs)
-      return linalgOp->emitError()
-             << "marked linalg.generic for TianChen-RV bounded binary expects '"
-             << kFrontendCapabilityProvidersAttrName
-             << "' to be an array of module symbol references";
-
-    if (mlir::failed(collectCapabilityProviderImports(
-            module, linalgOp, selectedTarget, providerRefs, providerImports)))
-      return mlir::failure();
-  }
-
-  KernelOp kernel =
-      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef, spec);
-  materializeCapabilityProviderImports(kernel, providerImports);
-  if (mlir::failed(materializeFrontendBinaryABI(kernel, spec))) {
-    kernel.erase();
-    return mlir::failure();
-  }
-
-  funcOp->erase();
-  return mlir::success();
+  SourceFrontendLoweringRequest request;
+  request.sourceOp = linalgOp;
+  request.eraseOp = funcOp;
+  request.frontendName = "linalg source frontend";
+  request.kernelAttr = getKernelName(linalgOp, funcOp);
+  request.targetRef = getTargetRef(linalgOp, funcOp);
+  request.capabilityProviderRefs =
+      getCapabilityProviderRefsAttr(linalgOp, funcOp);
+  request.loweringContract =
+      support::makeFiniteBinarySourceFrontendLoweringContract(
+          *source.contract);
+  return lowerOneSourceFrontendRequest(module, request);
 }
 
 mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
@@ -1207,9 +1235,7 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
           "source vector/arith body and typed operands")))
     return mlir::failure();
 
-  const support::FiniteBinaryFrontendContract &contract =
-      support::getI32VAddFiniteBinaryFrontendContract();
-  FrontendBinarySpec spec = makeFrontendBinarySpec(contract);
+  support::FiniteBinarySourceFrontendLoweringContract loweringContract;
   if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend expects one single-block "
@@ -1218,11 +1244,13 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
   if (body.getNumArguments() == 3) {
     if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
       return mlir::failure();
-    spec.fixedSourceVectorExtent = kVectorI32VAddSourceElements;
+    loweringContract =
+        support::makeFixedVectorI32VAddSourceFrontendLoweringContract();
   } else if (body.getNumArguments() == 4) {
     if (mlir::failed(requireDynamicVectorI32VAddSourceWrapper(funcOp)))
       return mlir::failure();
-    spec.dynamicRuntimeExtentFromSCFUpperBound = true;
+    loweringContract =
+        support::makeDynamicVectorI32VAddSourceFrontendLoweringContract();
   } else {
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend expects either the fixed "
@@ -1230,53 +1258,15 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
               "three-buffer plus runtime %n: index SCF wrapper";
   }
 
-  mlir::StringAttr kernelAttr = getKernelName(funcOp, funcOp);
-  if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))
-    return funcOp->emitError()
-           << "TianChen-RV vector i32-vadd frontend requires non-empty "
-              "bare-symbol string attribute '"
-           << kFrontendKernelAttrName << "'";
-
-  mlir::FlatSymbolRefAttr targetRef = getTargetRef(funcOp, funcOp);
-  if (!targetRef || targetRef.getValue().empty())
-    return funcOp->emitError()
-           << "TianChen-RV vector i32-vadd frontend requires module target "
-              "symbol attribute '"
-           << kFrontendTargetAttrName << "'";
-
-  TargetOp selectedTarget;
-  if (mlir::failed(requireTopLevelTargetProfile(
-          module, funcOp, targetRef.getValue(), selectedTarget)))
-    return mlir::failure();
-  if (mlir::failed(requireNoDuplicateKernelSymbol(module, funcOp,
-                                                  kernelAttr.getValue())))
-    return mlir::failure();
-
-  llvm::SmallVector<mlir::Operation *, 4> providerImports;
-  if (mlir::Attribute rawProviderRefs =
-          getCapabilityProviderRefsAttr(funcOp, funcOp)) {
-    auto providerRefs = llvm::dyn_cast<mlir::ArrayAttr>(rawProviderRefs);
-    if (!providerRefs)
-      return funcOp->emitError()
-             << "TianChen-RV vector i32-vadd frontend expects '"
-             << kFrontendCapabilityProvidersAttrName
-             << "' to be an array of module symbol references";
-
-    if (mlir::failed(collectCapabilityProviderImports(
-            module, funcOp, selectedTarget, providerRefs, providerImports)))
-      return mlir::failure();
-  }
-
-  KernelOp kernel =
-      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef, spec);
-  materializeCapabilityProviderImports(kernel, providerImports);
-  if (mlir::failed(materializeFrontendBinaryABI(kernel, spec))) {
-    kernel.erase();
-    return mlir::failure();
-  }
-
-  funcOp->erase();
-  return mlir::success();
+  SourceFrontendLoweringRequest request;
+  request.sourceOp = funcOp;
+  request.eraseOp = funcOp;
+  request.frontendName = "vector source frontend";
+  request.kernelAttr = getKernelName(funcOp, funcOp);
+  request.targetRef = getTargetRef(funcOp, funcOp);
+  request.capabilityProviderRefs = getCapabilityProviderRefsAttr(funcOp, funcOp);
+  request.loweringContract = std::move(loweringContract);
+  return lowerOneSourceFrontendRequest(module, request);
 }
 
 mlir::LogicalResult lowerMarkedFrontendBinaryLinalgInModule(
@@ -1326,6 +1316,22 @@ lowerMarkedFrontendVectorI32VAddInModule(mlir::ModuleOp module) {
   return mlir::success();
 }
 
+mlir::LogicalResult lowerMarkedSourceRVVBinaryFrontendsInModule(
+    mlir::ModuleOp module) {
+  if (mlir::failed(lowerMarkedFrontendVectorI32VAddInModule(module)))
+    return mlir::failure();
+  return lowerMarkedFrontendBinaryLinalgInModule(module);
+}
+
+struct LowerSourceRVVBinaryToExecPass
+    : impl::LowerSourceRVVBinaryToExecBase<LowerSourceRVVBinaryToExecPass> {
+  void runOnOperation() override {
+    if (mlir::failed(
+            lowerMarkedSourceRVVBinaryFrontendsInModule(getOperation())))
+      signalPassFailure();
+  }
+};
+
 struct LowerVectorRVVI32VAddToExecPass
     : impl::LowerVectorRVVI32VAddToExecBase<
           LowerVectorRVVI32VAddToExecPass> {
@@ -1361,6 +1367,10 @@ struct LowerLinalgI32VAddToExecPass
 };
 
 } // namespace
+
+std::unique_ptr<mlir::Pass> createLowerSourceRVVBinaryToExecPass() {
+  return std::make_unique<LowerSourceRVVBinaryToExecPass>();
+}
 
 std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VAddToExecPass() {
   return std::make_unique<LowerVectorRVVI32VAddToExecPass>();

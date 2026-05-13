@@ -42,6 +42,18 @@ struct FiniteBinaryFrontendContract {
   llvm::StringRef outputPointerCType;
 };
 
+// Shared source-frontdoor lowering contract for finite binary source adapters.
+// Adapters own source-shape recognition; this contract owns the common
+// tcrv.exec runtime ABI surface plus any source extent authority metadata that
+// downstream artifact routes validate before output.
+struct FiniteBinarySourceFrontendLoweringContract {
+  const FiniteBinaryFrontendContract *contract = nullptr;
+  llvm::SmallVector<RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
+  llvm::SmallVector<RuntimeABIParamSpec, 1> runtimeElementCountSpecs;
+  std::optional<std::int64_t> fixedSourceVectorExtent;
+  bool dynamicRuntimeExtentFromSCFUpperBound = false;
+};
+
 inline constexpr llvm::StringLiteral kFrontendSourceKindAttrName(
     "tcrv_frontend_source_kind");
 inline constexpr llvm::StringLiteral kFrontendSourceAuthorityAttrName(
@@ -665,6 +677,37 @@ getFiniteBinaryFrontendRuntimeElementCountParamSpecs(
   llvm::SmallVector<RuntimeABIParamSpec, 1> specs;
   specs.push_back(getFiniteBinaryFrontendRuntimeElementCountParamSpec(cName));
   return specs;
+}
+
+inline FiniteBinarySourceFrontendLoweringContract
+makeFiniteBinarySourceFrontendLoweringContract(
+    const FiniteBinaryFrontendContract &contract) {
+  FiniteBinarySourceFrontendLoweringContract sourceContract;
+  sourceContract.contract = &contract;
+  sourceContract.bufferMemWindowSpecs =
+      getFiniteBinaryFrontendBufferMemWindowSpecs(contract);
+  sourceContract.runtimeElementCountSpecs =
+      getFiniteBinaryFrontendRuntimeElementCountParamSpecs(contract);
+  return sourceContract;
+}
+
+inline FiniteBinarySourceFrontendLoweringContract
+makeFixedVectorI32VAddSourceFrontendLoweringContract() {
+  FiniteBinarySourceFrontendLoweringContract sourceContract =
+      makeFiniteBinarySourceFrontendLoweringContract(
+          getI32VAddFiniteBinaryFrontendContract());
+  sourceContract.fixedSourceVectorExtent =
+      kFrontendFixedVectorI32VAddSourceExtent;
+  return sourceContract;
+}
+
+inline FiniteBinarySourceFrontendLoweringContract
+makeDynamicVectorI32VAddSourceFrontendLoweringContract() {
+  FiniteBinarySourceFrontendLoweringContract sourceContract =
+      makeFiniteBinarySourceFrontendLoweringContract(
+          getI32VAddFiniteBinaryFrontendContract());
+  sourceContract.dynamicRuntimeExtentFromSCFUpperBound = true;
+  return sourceContract;
 }
 
 } // namespace tianchenrv::support

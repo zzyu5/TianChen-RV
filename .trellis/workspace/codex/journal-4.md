@@ -128,6 +128,54 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 55: Source frontend lowering ownership split
+
+**Date**: 2026-05-13
+**Task**: Source frontend lowering ownership split
+**Branch**: `main`
+
+### Summary
+
+Split the bounded source-frontdoor lowering owner out of the linalg-named
+transform surface while preserving linalg, fixed-vector, and dynamic-vector
+i32-vadd behavior.
+
+### Main Changes
+
+- Added production `--tcrv-lower-source-rvv-binary-to-exec` and rewired
+  `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` to use that
+  single route.
+- Moved `LowerLinalgRVVBinaryToExec.cpp` to
+  `LowerSourceRVVBinaryToExec.cpp`; old linalg/vector pass names remain
+  explicit adapter/compat entries.
+- Added `FiniteBinarySourceFrontendLoweringContract` and shared
+  `SourceFrontendLoweringRequest` materialization for target/profile,
+  capability imports, exec kernel creation, ABI construction, and fixed/dynamic
+  source-authority metadata.
+- Added representative neutral-pass lit coverage for linalg, fixed vector, and
+  dynamic vector source lowering.
+
+### Evidence
+
+- Focused build:
+  `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`.
+- `./build/bin/tianchenrv-target-artifact-export-test`.
+- Focused lit filter over `LinalgToExec|VectorToExec|plan-vector-dynamic-i32-vadd|plan-vector-i32-vadd|RVVMicrokernel|TargetArtifactBundleExport|EmissionManifest|LoweringBoundary` passed 92/92.
+- Generated direct and bundle artifacts under
+  `artifacts/tmp/source_frontend_lowering_ownership_split/`.
+- Fresh `ssh rvv` dynamic vector plan-and-export evidence:
+  `artifacts/tmp/source_frontend_lowering_ownership_split/e2e/dynamic_vector_plan_export_source_owner/evidence.json`,
+  `status=success`, `runtime_element_counts=[7,16,23]`, both source and bundle
+  object remote callers printed `tcrv_rvv_microkernel_external_abi_ok
+  counts=7,16,23`.
+- `git diff --check` passed.
+
+### Status
+
+[OK] Completed pending Trellis archive and commit. No performance or generic
+vector backend claim is made.
+
+
 ## Session 53: Vector frontend runtime AVL authority boundary
 
 **Date**: 2026-05-13

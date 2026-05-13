@@ -3,21 +3,54 @@
 
 include "mlir/Pass/PassBase.td"
 
+def LowerSourceRVVBinaryToExec
+    : Pass<"tcrv-lower-source-rvv-binary-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Lower bounded MLIR source RVV binary frontends to tcrv.exec";
+  let description = [{
+    Production bounded source-frontend lowering owner for the current finite
+    RVV binary source front doors. It consumes explicit bounded source
+    adapters for marked linalg.generic finite binary wrappers, the fixed
+    vector<16xi32> i32-vadd wrapper, and the dynamic vector/SCF i32-vadd
+    wrapper, then materializes the shared TianChen-RV execution boundary
+    consumed by the existing plugin planning pipeline.
+
+    The common contract owns selected target/profile validation,
+    supplemental capability-provider imports, finite binary runtime ABI
+    mem_window/runtime_param construction, fixed source-vector extent metadata,
+    and dynamic source %n runtime-AVL metadata. Individual source adapters
+    remain explicit and bounded; this pass does not infer arbitrary linalg or
+    vector semantics.
+
+    This is the default source-frontdoor production path. The older linalg and
+    vector pass names remain explicit adapter/compatibility entry points. This
+    pass does not add generic tcrv compute ops, select variants, branch on
+    RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
+    runtime correctness/performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createLowerSourceRVVBinaryToExecPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def LowerVectorRVVI32VAddToExec
     : Pass<"tcrv-lower-vector-rvv-i32-vadd-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Lower one bounded MLIR vector i32 add wrapper to tcrv.exec";
+  let summary = "Lower one bounded MLIR vector i32 add source adapter to tcrv.exec";
   let description = [{
-    Consumes exactly one marked hand-written/test MLIR vector/arith i32 add
-    wrapper shape and materializes the TianChen-RV execution boundary consumed
-    by the existing RVV plugin planning pipeline. The accepted source shape is
-    intentionally narrow: a func.func with three memref<?xi32> block
+    Explicit bounded vector source adapter for the production source-frontend
+    lowering owner. It consumes exactly one marked hand-written/test MLIR
+    vector/arith i32 add wrapper shape and materializes the TianChen-RV
+    execution boundary consumed by the existing RVV plugin planning pipeline.
+    The accepted source shape is intentionally narrow: a func.func with three
+    memref<?xi32> block
     arguments, a zero index, zero i32 padding, two vector.transfer_read
     operations, one arith.addi over vector<16xi32>, one vector.transfer_write
     to the output buffer, and func.return. It also accepts exactly one dynamic
     vector/SCF i32-vadd shape: three memref<?xi32> buffers plus one runtime
     %n: index, with one scf.for from zero to %n in step 16 containing the same
     vector transfer-read/add/transfer-write body at the induction variable.
-    The pass creates a tcrv.exec.kernel with a selected module target profile
+    The adapter creates a tcrv.exec.kernel with a selected module target profile
     reference, validates optional supplemental capability-provider imports,
     materializes the existing finite i32-vadd runtime ABI
     mem_window/runtime_param surface, records either the fixed vector<16xi32>
@@ -41,11 +74,13 @@ def LowerVectorRVVI32VAddToExec
 
 def LowerLinalgRVVBinaryToExec
     : Pass<"tcrv-lower-linalg-rvv-binary-to-exec", "::mlir::ModuleOp"> {
-  let summary = "Lower bounded marked linalg RVV binary wrappers to tcrv.exec";
+  let summary = "Lower bounded marked linalg RVV binary source adapters to tcrv.exec";
   let description = [{
-    Consumes explicitly marked hand-written/test linalg.generic finite RVV
-    binary add/sub/mul wrappers and materializes the TianChen-RV execution
-    boundary consumed by the existing plugin planning pipeline. The pass
+    Explicit bounded linalg source adapter for the production source-frontend
+    lowering owner. It consumes explicitly marked hand-written/test
+    linalg.generic finite RVV binary add/sub/mul wrappers and materializes the
+    TianChen-RV execution boundary consumed by the existing plugin planning
+    pipeline. The adapter
     creates a tcrv.exec.kernel with a selected module target profile reference,
     derives finite dtype/arithmetic identity from the source memrefs, scalar
     region arguments, and arith.addi/subi/muli feeding linalg.yield, checks the
@@ -55,7 +90,7 @@ def LowerLinalgRVVBinaryToExec
     the kernel capability scope, and materializes the bounded binary runtime ABI
     mem_window/runtime_param surface, then removes the source wrapper.
 
-    This is a narrow frontend lowering slice. It does not add generic tcrv
+    This is a narrow frontend adapter. It does not add generic tcrv
     compute ops, infer arbitrary linalg semantics, select variants, branch on
     RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
     runtime correctness/performance.

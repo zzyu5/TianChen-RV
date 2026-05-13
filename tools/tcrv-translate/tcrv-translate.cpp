@@ -385,14 +385,13 @@ mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
 mlir::LogicalResult lowerBoundedSourceFrontendsForPlanning(
     mlir::ModuleOp module, llvm::StringRef frontDoorName) {
   mlir::PassManager pm(module.getContext());
-  pm.addPass(tianchenrv::transforms::createLowerVectorRVVI32VAddToExecPass());
-  pm.addPass(tianchenrv::transforms::createLowerLinalgRVVBinaryToExecPass());
+  pm.addPass(tianchenrv::transforms::createLowerSourceRVVBinaryToExecPass());
   if (mlir::succeeded(pm.run(module)))
     return mlir::success();
 
   module.emitError() << "TianChen-RV " << frontDoorName
-                     << " failed during bounded source RVV binary "
-                        "frontend lowering";
+                     << " failed during production bounded source RVV "
+                        "binary frontend lowering";
   return mlir::failure();
 }
 
