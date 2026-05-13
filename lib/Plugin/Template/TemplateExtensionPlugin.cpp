@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
+#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -28,6 +29,18 @@ constexpr llvm::StringLiteral kTemplateIntegrationContractAttrName(
     "tcrv_template.integration_contract");
 constexpr llvm::StringLiteral kTemplateHandoffKindAttrName(
     "tcrv_template.handoff_kind");
+constexpr llvm::StringLiteral kTemplateConstructionProtocolAttrName(
+    "tcrv_template.construction_protocol");
+constexpr llvm::StringLiteral kTemplateConstructionArchetypeAttrName(
+    "tcrv_template.archetype");
+constexpr llvm::StringLiteral kTemplateSemanticRoleGraphAttrName(
+    "tcrv_template.semantic_role_graph");
+constexpr llvm::StringLiteral kTemplateCommonInterfaceRealizationAttrName(
+    "tcrv_template.common_interface_realization");
+constexpr llvm::StringLiteral kTemplateEmitCRouteMappingAttrName(
+    "tcrv_template.emitc_route_mapping");
+constexpr llvm::StringLiteral kTemplateEvidenceProfileAttrName(
+    "tcrv_template.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "template-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -77,6 +90,11 @@ llvm::Error makeTemplatePluginError(llvm::Twine message) {
       llvm::Twine("TianChen-RV Template extension plugin template failed: ") +
           message,
       llvm::errc::invalid_argument);
+}
+
+llvm::Error verifyTemplateConstructionProtocolReady() {
+  return template_ext::verifyTemplateConstructionManifest(
+      template_ext::getTemplateConstructionManifest());
 }
 
 bool hasAvailableTemplateExtensionCapability(
@@ -211,11 +229,16 @@ std::string sanitizeTemplateDeclineReason(llvm::StringRef reason) {
 
 llvm::Expected<VariantProposal>
 buildTemplateExtensionProposal(const VariantProposalRequest &request) {
+  if (llvm::Error error = verifyTemplateConstructionProtocolReady())
+    return std::move(error);
+
   llvm::Expected<TemplateExtensionCapabilityView> capabilityView =
       buildTemplateExtensionCapabilityView(request.getCapabilities());
   if (!capabilityView)
     return capabilityView.takeError();
 
+  const template_ext::TemplateConstructionManifest &manifest =
+      template_ext::getTemplateConstructionManifest();
   VariantProposal proposal(kTemplateExtensionFirstSliceVariantName, kTemplatePluginName);
   proposal.addRequiredCapabilityID(kTemplateExtensionCapabilityID);
   proposal.setCondition(kTemplateExtensionCondition);
@@ -231,6 +254,37 @@ buildTemplateExtensionProposal(const VariantProposalRequest &request) {
                             kTemplateHandoffKindAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             capabilityView->handoffKind));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateConstructionProtocolAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            manifest.protocolVersion));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateConstructionArchetypeAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            manifest.archetype));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateSemanticRoleGraphAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            manifest.semanticRoleGraph));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateCommonInterfaceRealizationAttrName),
+      mlir::StringAttr::get(
+          request.getKernel()->getContext(),
+          template_ext::getTemplateConstructionInterfaceRealization()));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateEmitCRouteMappingAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            manifest.emitcRoute.routeID));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateEvidenceProfileAttrName),
+      mlir::StringAttr::get(request.getKernel()->getContext(),
+                            manifest.evidenceProfile));
   return proposal;
 }
 
@@ -266,6 +320,11 @@ variantRequiresTemplateExtension(tcrv::exec::VariantOp variant,
 llvm::Error verifyTemplateVariantMetadata(
     tcrv::exec::VariantOp variant,
     const TemplateExtensionCapabilityView &capabilityView) {
+  if (llvm::Error error = verifyTemplateConstructionProtocolReady())
+    return error;
+
+  const template_ext::TemplateConstructionManifest &manifest =
+      template_ext::getTemplateConstructionManifest();
   auto integrationContract =
       variant->getAttrOfType<mlir::StringAttr>(kTemplateIntegrationContractAttrName);
   if (!integrationContract || integrationContract.getValue().trim().empty())
@@ -292,6 +351,59 @@ llvm::Error verifyTemplateVariantMetadata(
                               variant.getSymName() +
                               " handoff kind metadata is not satisfied by "
                               "preserved capability property 'handoff_kind'");
+
+  auto constructionProtocol =
+      variant->getAttrOfType<mlir::StringAttr>(
+          kTemplateConstructionProtocolAttrName);
+  if (!constructionProtocol ||
+      constructionProtocol.getValue() != manifest.protocolVersion)
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry construction protocol metadata '" +
+        kTemplateConstructionProtocolAttrName + "'");
+
+  auto archetype = variant->getAttrOfType<mlir::StringAttr>(
+      kTemplateConstructionArchetypeAttrName);
+  if (!archetype || archetype.getValue() != manifest.archetype)
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry extension archetype metadata '" +
+        kTemplateConstructionArchetypeAttrName + "'");
+
+  auto roleGraph = variant->getAttrOfType<mlir::StringAttr>(
+      kTemplateSemanticRoleGraphAttrName);
+  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry semantic role graph metadata '" +
+        kTemplateSemanticRoleGraphAttrName + "'");
+
+  auto interfaces = variant->getAttrOfType<mlir::StringAttr>(
+      kTemplateCommonInterfaceRealizationAttrName);
+  if (!interfaces ||
+      interfaces.getValue() !=
+          template_ext::getTemplateConstructionInterfaceRealization())
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry common interface realization metadata '" +
+        kTemplateCommonInterfaceRealizationAttrName + "'");
+
+  auto emitcRoute = variant->getAttrOfType<mlir::StringAttr>(
+      kTemplateEmitCRouteMappingAttrName);
+  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry EmitC route mapping metadata '" +
+        kTemplateEmitCRouteMappingAttrName + "'");
+
+  auto evidenceProfile = variant->getAttrOfType<mlir::StringAttr>(
+      kTemplateEvidenceProfileAttrName);
+  if (!evidenceProfile ||
+      evidenceProfile.getValue() != manifest.evidenceProfile)
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry evidence profile metadata '" +
+        kTemplateEvidenceProfileAttrName + "'");
 
   return llvm::Error::success();
 }
@@ -630,6 +742,42 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
       kSelectedPlanScopeName, "zero-core-integration", "evidence-scope",
       "records that this route is a non-executable future-extension "
       "integration template");
+  const template_ext::TemplateConstructionManifest &manifest =
+      template_ext::getTemplateConstructionManifest();
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateConstructionProtocolMetadataName(),
+      manifest.protocolVersion,
+      template_ext::getTemplateConstructionProtocolMetadataRole(),
+      "records the construction protocol version consumed by this Template "
+      "extension path");
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateConstructionArchetypeMetadataName(),
+      manifest.archetype,
+      template_ext::getTemplateConstructionArchetypeMetadataRole(),
+      "records the minimal future-extension archetype used by the Template "
+      "path");
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateSemanticRoleGraphMetadataName(),
+      manifest.semanticRoleGraph,
+      template_ext::getTemplateSemanticRoleGraphMetadataRole(),
+      "records the ordered semantic role graph for generated extension "
+      "skeletons");
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateCommonInterfaceRealizationMetadataName(),
+      template_ext::getTemplateConstructionInterfaceRealization(),
+      template_ext::getTemplateCommonInterfaceRealizationMetadataRole(),
+      "records the common TCRV interfaces expected for each Template role");
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateEmitCRouteMappingMetadataName(),
+      manifest.emitcRoute.routeID,
+      template_ext::getTemplateEmitCRouteMappingMetadataRole(),
+      "records the plugin-owned EmitC route mapping for Template construction");
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateEvidenceProfileMetadataName(),
+      manifest.evidenceProfile,
+      template_ext::getTemplateEvidenceProfileMetadataRole(),
+      "records the focused evidence profile required before a generated "
+      "extension skeleton can claim integration");
   return llvm::Error::success();
 }
 

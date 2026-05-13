@@ -435,6 +435,53 @@ RVV plugin-owned artifact route registration.
 - None - task complete
 
 
+## Session 57: Executable extension-family construction template
+
+**Date**: 2026-05-13
+**Task**: Executable extension-family construction template
+**Branch**: `main`
+
+### Summary
+
+Converted the Template extension path into a C++-consumable construction
+manifest for the Extension-Family Plugin Construction Protocol and validated
+that plugin proposal, legality, emission planning, target artifact validation,
+and generated artifact output consume the same manifest.
+
+### Main Changes
+
+- Added `TemplateConstructionProtocol` with protocol version, archetype,
+  semantic role graph, family declaration, common-interface realization, EmitC
+  route mapping, and evidence profile.
+- Attached construction metadata to Template variant proposals and verified it
+  during Template variant legality.
+- Emitted construction selected-plan metadata from Template emission planning.
+- Made the Template target artifact exporter validate and print construction
+  protocol fields from the C++ manifest.
+- Added a plugin-protocol code-spec scenario for the executable construction
+  template manifest contract.
+- Removed the stale clarification task and replaced it with the real Trellis
+  task for this direction.
+
+### Checks
+
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-executable-extension-family-construction-template`
+- `cmake --build build --target TianChenRVTemplatePlugin TianChenRVTemplateTarget tianchenrv-template-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-template-extension-plugin-test`
+- Template pipeline/export direct commands with `tcrv-opt` and `tcrv-translate`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='template-extension-plugin|TemplateMetadataArtifact'` from `build/test`
+- `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `git diff --check`
+- `git diff --cached --check`
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.
+
+
 ## Session 56: RVV op-owned EmitC artifact production route
 
 **Date**: 2026-05-13

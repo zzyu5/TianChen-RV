@@ -319,6 +319,92 @@ create a reviewable skeleton, but the generated skeleton is not success by
 itself. A family is accepted only when the evidence profile proves the family
 declaration, interface realization, and EmitC route are executable.
 
+## Scenario: Executable Construction Template Manifest
+
+### 1. Scope / Trigger
+
+Use this contract when the repository exposes a compiler-owned construction
+template for a future extension family. The template must be consumed by C++
+plugin, target/export, and test code; a prose checklist or passive metadata
+file is not enough.
+
+### 2. Signatures
+
+- C++ manifest entry:
+  `const TemplateConstructionManifest &getTemplateConstructionManifest()`.
+- C++ verifier:
+  `llvm::Error verifyTemplateConstructionManifest(const
+  TemplateConstructionManifest &manifest)`.
+- Manifest payload:
+  protocol version, archetype, semantic role graph, family declaration,
+  semantic roles with common-interface realization, EmitC route mapping, and
+  evidence profile.
+
+### 3. Contracts
+
+- Plugin proposal materialization must attach manifest-derived construction
+  fields to the materialized variant.
+- Plugin legality must validate those fields against the C++ manifest before
+  readiness or emission planning accepts the variant.
+- Emission planning must serialize construction selected-plan metadata for the
+  protocol, archetype, role graph, common-interface realization, EmitC route,
+  and evidence profile.
+- Target artifact validation must consume the same manifest-derived route
+  metadata and fail closed for stale selected-plan fields.
+- Generated construction output must print the archetype, role graph, family
+  declaration, interface realization, EmitC mapping, and evidence profile.
+
+### 4. Validation & Error Matrix
+
+- Empty protocol, archetype, role graph, family fields, route fields, or
+  evidence profile -> manifest verifier error.
+- Non-contiguous role ordering or duplicate roles -> manifest verifier error.
+- Role missing `TCRVExtensionOpInterface` or `TCRVEmitCLowerableInterface` ->
+  manifest verifier error.
+- Materialized variant missing construction metadata -> plugin legality error.
+- Selected-plan metadata value disagrees with route registration metadata ->
+  target artifact preflight error before generated output.
+
+### 5. Good/Base/Bad Cases
+
+- Good: Template plugin proposal, legality, emission plan, target exporter,
+  and generated artifact all consume one C++ manifest.
+- Base: Existing RVV-specific route mappings remain plugin/target-owned and may
+  be used as reference evidence without expanding RVV coverage.
+- Bad: A YAML/Markdown-only manifest, a metadata-only artifact that is not
+  validated by code, or a core pass branch on a concrete extension name.
+
+### 6. Tests Required
+
+- C++ test asserting the manifest shape and agreement with plugin capability,
+  variant, emission-plan, and selected-plan metadata.
+- lit/FileCheck test proving generated artifact output includes construction
+  protocol, archetype, role graph, family, interface, EmitC route, and evidence
+  fields.
+- Target artifact registry/preflight test proving selected-plan route metadata
+  requirements are registered and reject stale values.
+- Focused regression that existing built-in plugin registration still reaches
+  RVV plugin routes when the Template path changes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+spec checklist -> passive manifest text -> target artifact prints comments
+```
+
+Correct:
+
+```text
+C++ construction manifest
+  -> plugin proposal metadata
+  -> plugin legality validation
+  -> emission-plan selected metadata
+  -> target route preflight
+  -> generated construction artifact
+```
+
 ## Fast Plugin Addition
 
 "Fast" plugin addition means reducing architecture decision search. It does

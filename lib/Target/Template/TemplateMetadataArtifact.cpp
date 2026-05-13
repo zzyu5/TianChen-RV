@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
+#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -44,7 +45,7 @@ constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kMetadataArtifactVersion("1");
 constexpr llvm::StringLiteral kArtifactStatus(
-    "compiler-handoff-template-artifact");
+    "compiler-construction-template-artifact");
 constexpr llvm::StringLiteral kNoRuntimeClaim("none");
 
 struct TemplateCapabilityRecord {
@@ -294,12 +295,14 @@ llvm::Error requireSelectedPlanMetadata(
 
 llvm::Error validateTemplateSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate) {
-  if (candidate.selectedPlanMetadata.size() != 3)
+  if (candidate.selectedPlanMetadata.size() != 9)
     return makeTemplateArtifactError(
         candidate.kernel,
-        "Template artifact candidate requires exactly three selected plan metadata "
+        "Template artifact candidate requires exactly nine selected plan metadata "
         "entries");
 
+  const pluginTemplate::TemplateConstructionManifest &manifest =
+      pluginTemplate::getTemplateConstructionManifest();
   if (llvm::Error error = requireSelectedPlanMetadata(
           candidate, "template_extension_capability_id",
           pluginTemplate::getTemplateExtensionCapabilityID(), "capability-requirement"))
@@ -313,11 +316,48 @@ llvm::Error validateTemplateSelectedPlanMetadata(
           candidate, "template_extension_scope", "zero-core-integration",
           "evidence-scope"))
     return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate,
+          pluginTemplate::getTemplateConstructionProtocolMetadataName(),
+          manifest.protocolVersion,
+          pluginTemplate::getTemplateConstructionProtocolMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate,
+          pluginTemplate::getTemplateConstructionArchetypeMetadataName(),
+          manifest.archetype,
+          pluginTemplate::getTemplateConstructionArchetypeMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginTemplate::getTemplateSemanticRoleGraphMetadataName(),
+          manifest.semanticRoleGraph,
+          pluginTemplate::getTemplateSemanticRoleGraphMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate,
+          pluginTemplate::getTemplateCommonInterfaceRealizationMetadataName(),
+          pluginTemplate::getTemplateConstructionInterfaceRealization(),
+          pluginTemplate::getTemplateCommonInterfaceRealizationMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginTemplate::getTemplateEmitCRouteMappingMetadataName(),
+          manifest.emitcRoute.routeID,
+          pluginTemplate::getTemplateEmitCRouteMappingMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginTemplate::getTemplateEvidenceProfileMetadataName(),
+          manifest.evidenceProfile,
+          pluginTemplate::getTemplateEvidenceProfileMetadataRole()))
+    return error;
   return llvm::Error::success();
 }
 
 llvm::Error validateTemplateMetadataCandidate(
     const TargetArtifactCandidate &candidate) {
+  if (llvm::Error error = pluginTemplate::verifyTemplateConstructionManifest(
+          pluginTemplate::getTemplateConstructionManifest()))
+    return error;
+
   KernelOp kernel = candidate.kernel;
   if (!kernel)
     return makeTemplateArtifactError(
@@ -500,6 +540,8 @@ void printSelectedPlanMetadata(
 } // namespace
 
 static TargetArtifactRouteMetadata buildTemplateMetadataArtifactRouteMetadata() {
+  const pluginTemplate::TemplateConstructionManifest &manifest =
+      pluginTemplate::getTemplateConstructionManifest();
   TargetArtifactRouteMetadata metadata(
       pluginTemplate::getTemplateExpectedIntegrationContract(),
       pluginTemplate::getTemplateMetadataRuntimeABIKind(),
@@ -515,6 +557,30 @@ static TargetArtifactRouteMetadata buildTemplateMetadataArtifactRouteMetadata() 
   metadata.addSelectedPlanMetadataRequirement("template_extension_scope",
                                               "zero-core-integration",
                                               "evidence-scope");
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateConstructionProtocolMetadataName(),
+      manifest.protocolVersion,
+      pluginTemplate::getTemplateConstructionProtocolMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateConstructionArchetypeMetadataName(),
+      manifest.archetype,
+      pluginTemplate::getTemplateConstructionArchetypeMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateSemanticRoleGraphMetadataName(),
+      manifest.semanticRoleGraph,
+      pluginTemplate::getTemplateSemanticRoleGraphMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateCommonInterfaceRealizationMetadataName(),
+      pluginTemplate::getTemplateConstructionInterfaceRealization(),
+      pluginTemplate::getTemplateCommonInterfaceRealizationMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateEmitCRouteMappingMetadataName(),
+      manifest.emitcRoute.routeID,
+      pluginTemplate::getTemplateEmitCRouteMappingMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateEvidenceProfileMetadataName(),
+      manifest.evidenceProfile,
+      pluginTemplate::getTemplateEvidenceProfileMetadataRole());
   metadata.addClaimField("artifact_status", kArtifactStatus);
   metadata.addClaimField("runtime_execution_claim", kNoRuntimeClaim);
   metadata.addClaimField("hardware_execution_claim", kNoRuntimeClaim);
@@ -535,11 +601,14 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
   if (!requiredCapabilitySymbol)
     return requiredCapabilitySymbol.takeError();
 
+  const pluginTemplate::TemplateConstructionManifest &manifest =
+      pluginTemplate::getTemplateConstructionManifest();
+
   os << "tianchenrv.template_metadata_artifact.version: "
      << kMetadataArtifactVersion << "\n";
   printField(os, "artifact_status", kArtifactStatus);
   printField(os, "artifact_description",
-             "Template extension compiler handoff manifest only");
+             "Template extension construction manifest artifact");
   printField(os, "runtime_execution_claim", kNoRuntimeClaim);
   printField(os, "hardware_execution_claim", kNoRuntimeClaim);
   printField(os, "correctness_claim", kNoRuntimeClaim);
@@ -563,6 +632,32 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
              pluginTemplate::getTemplateExtensionCapabilityID());
   printField(os, "required_capability_kind",
              pluginTemplate::getTemplateExtensionCapabilityKind());
+  printField(os, "construction_protocol", manifest.protocolVersion);
+  printField(os, "extension_archetype", manifest.archetype);
+  printField(os, "semantic_role_graph", manifest.semanticRoleGraph);
+  printField(os, "family_name", manifest.family.familyName);
+  printField(os, "family_architectural_namespace",
+             manifest.family.architecturalNamespace);
+  printField(os, "family_concrete_namespace",
+             manifest.family.concreteNamespace);
+  printField(os, "family_plugin", manifest.family.pluginName);
+  printField(os, "family_first_slice_variant",
+             manifest.family.firstSliceVariantName);
+  for (auto [index, role] : llvm::enumerate(manifest.semanticRoles)) {
+    os << "semantic_role[" << index << "]:\n";
+    printField(os, "  role", role.role);
+    os << "  order: " << role.order << "\n";
+    printField(os, "  operation", role.operationName);
+    printField(os, "  common_interfaces", role.commonInterfaces);
+  }
+  printField(os, "common_interface_realization",
+             pluginTemplate::getTemplateConstructionInterfaceRealization());
+  printField(os, "emitc_route_id", manifest.emitcRoute.routeID);
+  printField(os, "emitc_emission_kind", manifest.emitcRoute.emissionKind);
+  printField(os, "emitc_artifact_kind", manifest.emitcRoute.artifactKind);
+  printField(os, "emitc_required_header", manifest.emitcRoute.requiredHeader);
+  printField(os, "emitc_role_to_call_map", manifest.emitcRoute.roleToCallMap);
+  printField(os, "evidence_profile", manifest.evidenceProfile);
   printSelectedPlanMetadata(os, candidate->selectedPlanMetadata);
   return llvm::Error::success();
 }

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Re-check global stack and architecture invariants after implementation."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Re-check plugin construction protocol and core neutrality acceptance criteria."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify implemented template covers the required protocol sequence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify EmitC route mapping remains plugin/local and descriptor-free as a template."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++ and lit/FileCheck evidence is appropriate."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Audit changed files for extension-locality and absence of concrete core semantic branches."}

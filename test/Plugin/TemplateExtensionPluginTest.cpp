@@ -1,5 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
+#include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -29,6 +30,7 @@ using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
+using tianchenrv::plugin::VariantSelectedPlanMetadata;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
@@ -139,6 +141,101 @@ int expectProposalStringAttr(const VariantProposal &proposal,
                     " preserves expected value");
 }
 
+const VariantSelectedPlanMetadata *
+findEmissionPlanMetadata(const VariantEmissionPlan &plan,
+                         llvm::StringRef name) {
+  for (const VariantSelectedPlanMetadata &metadata :
+       plan.getSelectedPlanMetadata()) {
+    if (metadata.name == name)
+      return &metadata;
+  }
+  return nullptr;
+}
+
+int expectEmissionPlanMetadata(const VariantEmissionPlan &plan,
+                               llvm::StringRef name,
+                               llvm::StringRef expectedValue,
+                               llvm::StringRef expectedRole) {
+  const VariantSelectedPlanMetadata *metadata =
+      findEmissionPlanMetadata(plan, name);
+  if (int result =
+          expect(metadata, llvm::Twine("emission plan carries metadata ") + name))
+    return result;
+  return expect(metadata->value == expectedValue && metadata->role == expectedRole &&
+                    !metadata->note.empty(),
+                llvm::Twine("emission plan metadata ") + name +
+                    " preserves expected value and role");
+}
+
+int runConstructionManifestTest() {
+  const auto &manifest =
+      tianchenrv::plugin::template_ext::getTemplateConstructionManifest();
+  if (int result = expectSuccess(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateConstructionManifest(manifest),
+          "Template construction manifest verifies"))
+    return result;
+
+  if (int result = expect(
+          manifest.protocolVersion ==
+                  "extension-family-construction-protocol.v1" &&
+              manifest.archetype == "custom-riscv-extension-minimal" &&
+              manifest.semanticRoleGraph == "configure->load->compute->store",
+          "Template manifest exposes construction protocol, archetype, and role graph"))
+    return result;
+  if (int result = expect(
+          manifest.family.pluginName ==
+                  tianchenrv::plugin::template_ext::
+                      getTemplateExtensionPluginName() &&
+              manifest.family.capabilityID ==
+                  tianchenrv::plugin::template_ext::
+                      getTemplateExtensionCapabilityID() &&
+              manifest.family.concreteNamespace == "tcrv_template",
+          "Template manifest family declaration agrees with plugin metadata"))
+    return result;
+  if (int result =
+          expect(manifest.semanticRoles.size() == 4 &&
+                     manifest.semanticRoles[0].role == "configure" &&
+                     manifest.semanticRoles[1].role == "load" &&
+                     manifest.semanticRoles[2].role == "compute" &&
+                     manifest.semanticRoles[3].role == "store",
+                 "Template manifest records ordered semantic role graph"))
+    return result;
+  for (const auto &role : manifest.semanticRoles) {
+    if (int result = expect(
+            role.commonInterfaces.contains("TCRVExtensionOpInterface") &&
+                role.commonInterfaces.contains("TCRVEmitCLowerableInterface"),
+            llvm::Twine("Template role realizes common interfaces: ") +
+                role.role))
+      return result;
+  }
+  if (int result = expect(
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionInterfaceRealization()
+                  .contains("compute=TCRVExtensionOpInterface") &&
+              tianchenrv::plugin::template_ext::
+                  getTemplateConstructionInterfaceRealization()
+                      .contains("TCRVComputeOpInterface"),
+          "Template manifest exposes common-interface realization mapping"))
+    return result;
+  if (int result = expect(
+          manifest.emitcRoute.routeID ==
+                  tianchenrv::plugin::template_ext::
+                      getTemplateMetadataRouteID() &&
+              manifest.emitcRoute.requiredHeader ==
+                  "template_extension_intrinsics.h" &&
+              manifest.emitcRoute.roleToCallMap.contains(
+                  "compute=__tcrv_template_compute"),
+          "Template manifest exposes plugin-owned EmitC route mapping"))
+    return result;
+  return expect(
+      manifest.evidenceProfile.contains("parse_verify") &&
+          manifest.evidenceProfile.contains("interface") &&
+          manifest.evidenceProfile.contains("emitc_route_mapping") &&
+          manifest.evidenceProfile.contains("generated_output"),
+      "Template manifest records focused evidence profile");
+}
+
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
@@ -164,6 +261,16 @@ int runRegistrationAndCapabilityMetadataTest() {
                          tianchenrv::plugin::template_ext::
                              getTemplateExtensionCapabilityKind(),
                  "Template extension capability metadata is registered"))
+    return result;
+
+  const auto &manifest =
+      tianchenrv::plugin::template_ext::getTemplateConstructionManifest();
+  if (int result =
+          expect(manifest.family.pluginName == plugin->getName() &&
+                     manifest.family.capabilityID == capability->getID() &&
+                     manifest.family.capabilityKind == capability->getKind(),
+                 "Template construction manifest agrees with registered plugin "
+                 "capability"))
     return result;
 
   return expectErrorContains(
@@ -270,6 +377,35 @@ module {
           proposal, tianchenrv::plugin::template_ext::getTemplateHandoffKindAttrName(),
           tianchenrv::plugin::template_ext::getTemplateExpectedHandoffKind()))
     return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.construction_protocol",
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionProtocolVersion()))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.archetype",
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionArchetype()))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.semantic_role_graph",
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionSemanticRoleGraph()))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.common_interface_realization",
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionInterfaceRealization()))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.emitc_route_mapping",
+          tianchenrv::plugin::template_ext::getTemplateMetadataRouteID()))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.evidence_profile",
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionEvidenceProfile()))
+    return result;
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
     TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -371,6 +507,27 @@ module {
                          .getValue() ==
                      tianchenrv::plugin::template_ext::getTemplateExpectedIntegrationContract(),
                  "Template variant carries integration contract metadata"))
+    return result;
+  if (int result =
+          expect(templateVariant
+                         ->getAttrOfType<mlir::StringAttr>(
+                             "tcrv_template.construction_protocol")
+                         .getValue() ==
+                     tianchenrv::plugin::template_ext::
+                         getTemplateConstructionProtocolVersion() &&
+                     templateVariant
+                             ->getAttrOfType<mlir::StringAttr>(
+                                 "tcrv_template.semantic_role_graph")
+                             .getValue() ==
+                         tianchenrv::plugin::template_ext::
+                             getTemplateConstructionSemanticRoleGraph() &&
+                     templateVariant
+                             ->getAttrOfType<mlir::StringAttr>(
+                                 "tcrv_template.common_interface_realization")
+                             .getValue()
+                             .contains("TCRVComputeOpInterface"),
+                 "Template variant carries code-consumed construction manifest "
+                 "metadata"))
     return result;
 
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
@@ -506,6 +663,47 @@ module {
                  "Template emission plan records stable exportable metadata route"))
     return result;
 
+  if (int result =
+          expect(emissionPlan.getSelectedPlanMetadata().size() == 9,
+                 "Template emission plan records full construction selected-plan "
+                 "metadata"))
+    return result;
+  if (int result = expectEmissionPlanMetadata(
+          emissionPlan,
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionProtocolMetadataName(),
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionProtocolVersion(),
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionProtocolMetadataRole()))
+    return result;
+  if (int result = expectEmissionPlanMetadata(
+          emissionPlan,
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionArchetypeMetadataName(),
+          tianchenrv::plugin::template_ext::getTemplateConstructionArchetype(),
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionArchetypeMetadataRole()))
+    return result;
+  if (int result = expectEmissionPlanMetadata(
+          emissionPlan,
+          tianchenrv::plugin::template_ext::
+              getTemplateCommonInterfaceRealizationMetadataName(),
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionInterfaceRealization(),
+          tianchenrv::plugin::template_ext::
+              getTemplateCommonInterfaceRealizationMetadataRole()))
+    return result;
+  if (int result = expectEmissionPlanMetadata(
+          emissionPlan,
+          tianchenrv::plugin::template_ext::
+              getTemplateEvidenceProfileMetadataName(),
+          tianchenrv::plugin::template_ext::
+              getTemplateConstructionEvidenceProfile(),
+          tianchenrv::plugin::template_ext::
+              getTemplateEvidenceProfileMetadataRole()))
+    return result;
+
   return 0;
 }
 
@@ -525,6 +723,8 @@ int main() {
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
+  if (int result = runConstructionManifestTest())
+    return result;
   if (int result = runRegistrationAndCapabilityMetadataTest())
     return result;
   if (int result = runProposalGatingAndDeclineTest(context))
