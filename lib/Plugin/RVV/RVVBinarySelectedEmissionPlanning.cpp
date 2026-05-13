@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVBinaryMicrokernelMaterialization.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
+#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace tianchenrv::plugin::rvv {
 namespace {
@@ -982,8 +984,7 @@ void appendSelectedVectorShapeMetadata(
   target::rvv::appendRVVBinarySelectedVectorShapeMetadata(contract,
                                                          shapeMetadata);
   for (const auto &entry : shapeMetadata)
-    metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
-                        entry.note.str()});
+    metadata.push_back({entry.name, entry.value, entry.role, entry.note});
 }
 
 llvm::Error appendSelectedCapacityMetadata(
@@ -1018,8 +1019,19 @@ void appendRuntimeVLBoundaryMetadata(
   target::rvv::appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
       contract, runtimeMetadata);
   for (const auto &entry : runtimeMetadata)
-    metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
-                        entry.note.str()});
+    metadata.push_back({entry.name, entry.value, entry.role, entry.note});
+}
+
+void appendFixedVectorSourceExtentMetadata(
+    const target::rvv::RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
+  llvm::SmallVector<
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 4>
+      sourceExtentMetadata;
+  target::rvv::appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(
+      contract, sourceExtentMetadata);
+  for (const auto &entry : sourceExtentMetadata)
+    metadata.push_back({entry.name, entry.value, entry.role, entry.note});
 }
 
 llvm::Error bindSelectedConfigRuntimeControlNames(
@@ -1042,6 +1054,28 @@ llvm::Error bindSelectedConfigRuntimeControlNames(
 
   selectedPlan.selectedConfig.getContract().setRuntimeElementCountCName(
       runtimeElementCountCName);
+  return target::rvv::validateRVVBinarySelectedConfigContract(
+      selectedPlan.getSelectedConfig().getContract());
+}
+
+llvm::Error bindFixedVectorSourceExtentContract(
+    tcrv::exec::KernelOp kernel, RVVBinarySelectedPlan &selectedPlan) {
+  llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
+      support::buildFiniteBinaryCallableABIPlan(
+          kernel,
+          target::rvv::getRVVBinaryRuntimeABIContract(
+              selectedPlan.descriptor.family));
+  if (!callablePlan)
+    return callablePlan.takeError();
+
+  llvm::Expected<std::optional<support::FixedVectorSourceExtentContract>>
+      sourceExtent = support::getFixedVectorSourceExtentContract(
+          kernel, callablePlan->runtimeElementCountParam);
+  if (!sourceExtent)
+    return sourceExtent.takeError();
+
+  selectedPlan.selectedConfig.getContract().setFixedVectorSourceExtentContract(
+      std::move(*sourceExtent));
   return target::rvv::validateRVVBinarySelectedConfigContract(
       selectedPlan.getSelectedConfig().getContract());
 }
@@ -1073,8 +1107,7 @@ void appendSelectedBinaryMetadata(
     }
   }
   for (const auto &entry : legacyMirrorMetadata)
-    metadata.push_back({entry.name.str(), entry.value.str(), entry.role.str(),
-                        entry.note.str()});
+    metadata.push_back({entry.name, entry.value, entry.role, entry.note});
   if (contract.getDescriptorElementCount() > 0) {
     metadata.push_back({
         target::rvv::getRVVDescriptorElementCountMetadataName().str(),
@@ -1163,6 +1196,9 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
   if (llvm::Error error = bindSelectedConfigRuntimeControlNames(
           plan.selectedPlan, plan.runtimeABIParameters))
     return std::move(error);
+  if (llvm::Error error = bindFixedVectorSourceExtentContract(
+          request.getKernel(), plan.selectedPlan))
+    return std::move(error);
   appendSelectedVectorShapeMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       plan.selectedPlanMetadata);
@@ -1170,6 +1206,9 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
           request.getVariant(), plan.selectedPlanMetadata))
     return std::move(error);
   appendRuntimeVLBoundaryMetadata(
+      plan.selectedPlan.getSelectedConfig().getContract(),
+      plan.selectedPlanMetadata);
+  appendFixedVectorSourceExtentMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       plan.selectedPlanMetadata);
   bool includeLegacyDescriptorMirrorMetadata =

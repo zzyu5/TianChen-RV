@@ -4,6 +4,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVLowerToEmitC.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
@@ -2089,7 +2090,8 @@ buildDispatchPairSelectedConfigContract(
   return tianchenrv::target::rvv::buildRVVBinarySelectedConfigContract(
       *pair.family->rvvFamily, shape, pair.rvv.selectedVariant, pair.rvv.role,
       directContract->getDescriptorElementCount(), runtimeElementCountCName,
-      dispatchGuardCName);
+      dispatchGuardCName,
+      directContract->getFixedVectorSourceExtentContract());
 }
 
 llvm::Error requireEmbeddedRVVSourceSnippet(const DispatchPair &pair,
@@ -2667,6 +2669,10 @@ llvm::Error emitDispatchFunctionFromEmitC(
   options.sourceAuthorityOptions.functionName = dispatcherFunctionName.str();
   options.sourceAuthorityOptions.dispatchGuardValueName =
       bindings.dispatchAvailabilityGuard->cName;
+  if (pair.selectedConfig.getFixedVectorSourceExtentContract())
+    options.sourceAuthorityOptions.fixedRuntimeElementCount =
+        pair.selectedConfig.getFixedVectorSourceExtentContract()
+            ->sourceVectorExtent;
   options.sourceAuthorityOptions.requireInterfaceBackedCompute = false;
 
   llvm::Expected<tianchenrv::conversion::emitc::TCRVLowerToEmitCSourceResult>
@@ -2703,6 +2709,16 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
      << " */\n";
+  if (pair.selectedConfig.getFixedVectorSourceExtentContract()) {
+    const support::FixedVectorSourceExtentContract &sourceExtent =
+        *pair.selectedConfig.getFixedVectorSourceExtentContract();
+    os << "/* " << sourceExtent.formatCommentBody() << " */\n";
+    os << "/* dispatch_runtime_element_count_constraint: "
+       << pair.selectedConfig.getRuntimeElementCountCName()
+       << " must equal fixed source vector extent "
+       << sourceExtent.sourceVectorExtent
+       << " before dispatching to RVV or scalar callable branches */\n";
+  }
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
   os << "#include <stddef.h>\n";
@@ -2732,13 +2748,22 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
                                    llvm::StringRef dispatcherFunctionName,
                                    llvm::StringRef runtimeElementCountName,
                                    llvm::StringRef guardParameterName,
-                                   llvm::StringRef successMarker) {
+                                   llvm::StringRef successMarker,
+                                   std::optional<std::int64_t>
+                                       fixedSourceVectorExtent) {
   os << "\n/* Explicit bounded self-check harness for RVV+scalar dispatch "
         "runtime invocation evidence. */\n";
-  os << "/* Harness scope: calls the generated dispatcher with explicit "
-     << runtimeElementCountName << " values 7 and 16 for "
-     << guardParameterName << " = 0 and " << guardParameterName
-     << " = 1. */\n";
+  if (fixedSourceVectorExtent) {
+    os << "/* Harness scope: calls the generated dispatcher with fixed "
+       << runtimeElementCountName << " value " << *fixedSourceVectorExtent
+       << " for " << guardParameterName << " = 0 and " << guardParameterName
+       << " = 1 because the vector source extent is fixed. */\n";
+  } else {
+    os << "/* Harness scope: calls the generated dispatcher with explicit "
+       << runtimeElementCountName << " values 7 and 16 for "
+       << guardParameterName << " = 0 and " << guardParameterName
+       << " = 1. */\n";
+  }
   os << "/* Runtime element count is a target/export-owned ABI parameter in "
         "this harness; "
         "descriptor-local element_count remains metadata only. */\n";
@@ -2777,6 +2802,20 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   os << "  return 0;\n";
   os << "}\n\n";
   os << "int main(void) {\n";
+  if (fixedSourceVectorExtent) {
+    os << "  if (" << dispatcherFunctionName << "_self_check_one("
+       << *fixedSourceVectorExtent << ", 0))\n";
+    os << "    return 1;\n";
+    os << "  if (" << dispatcherFunctionName << "_self_check_one("
+       << *fixedSourceVectorExtent << ", 1))\n";
+    os << "    return 2;\n";
+    os << "  puts(\"" << successMarker
+       << " runtime_counts=" << *fixedSourceVectorExtent
+       << " branches=scalar_and_rvv\");\n";
+    os << "  return 0;\n";
+    os << "}\n";
+    return;
+  }
   os << "  if (" << dispatcherFunctionName << "_self_check_one(7, 0))\n";
   os << "    return 1;\n";
   os << "  if (" << dispatcherFunctionName << "_self_check_one(16, 0))\n";
@@ -2844,6 +2883,16 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
      << " parameter; no automatic hardware probe is generated. */\n";
   os << "/* selected_kernel: @" << kernel.getSymName() << " */\n";
   os << "/* " << pair.selectedConfig.formatSummaryCommentBody() << " */\n";
+  if (pair.selectedConfig.getFixedVectorSourceExtentContract()) {
+    const support::FixedVectorSourceExtentContract &sourceExtent =
+        *pair.selectedConfig.getFixedVectorSourceExtentContract();
+    os << "/* " << sourceExtent.formatCommentBody() << " */\n";
+    os << "/* dispatch_runtime_element_count_constraint: "
+       << bindings->runtimeElementCount->cName
+       << " must equal fixed source vector extent "
+       << sourceExtent.sourceVectorExtent
+       << " before dispatching to RVV or scalar callable branches */\n";
+  }
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
      << " */\n";
@@ -2904,7 +2953,14 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
                                   dispatcherFunctionName,
                                   bindings->runtimeElementCount->cName,
                                   bindings->dispatchAvailabilityGuard->cName,
-                                  pair.composite.selfCheckSuccessMarker);
+                                  pair.composite.selfCheckSuccessMarker,
+                                  pair.selectedConfig
+                                          .getFixedVectorSourceExtentContract()
+                                      ? std::optional<std::int64_t>(
+                                            pair.selectedConfig
+                                                .getFixedVectorSourceExtentContract()
+                                                ->sourceVectorExtent)
+                                      : std::nullopt);
   }
   return llvm::Error::success();
 }

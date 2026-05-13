@@ -6,6 +6,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
@@ -183,6 +184,7 @@ struct RVVMicrokernelRecord {
   std::int64_t elementCount = 0;
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
+  std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
 };
 
 struct TemporaryFile {
@@ -1393,6 +1395,8 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 24> expected;
   appendRVVBinarySelectedVectorShapeMetadata(contract, expected);
   appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(contract, expected);
+  appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(contract,
+                                                            expected);
   if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
     appendRVVBinarySelectedTypedSourceMetadata(contract, expected);
@@ -2366,7 +2370,31 @@ buildRVVMicrokernelSelectedConfigContract(KernelOp kernel,
 
   return buildRVVBinarySelectedConfigContract(
       *registeredFamily, *record.selectedShape, record.variantSymbol,
-      record.role, record.elementCount, (*runtimeElementCount)->cName);
+      record.role, record.elementCount, (*runtimeElementCount)->cName,
+      /*dispatchAvailabilityGuardCName=*/"rvv_available",
+      record.fixedSourceExtent);
+}
+
+llvm::Error attachFixedVectorSourceExtentContract(KernelOp kernel,
+                                                  RVVMicrokernelRecord &record) {
+  llvm::Expected<std::optional<support::FixedVectorSourceExtentContract>>
+      sourceExtent = support::getFixedVectorSourceExtentContract(
+          kernel, record.runtimeElementCountParam);
+  if (!sourceExtent)
+    return sourceExtent.takeError();
+  record.fixedSourceExtent = std::move(*sourceExtent);
+  if (!record.fixedSourceExtent)
+    return llvm::Error::success();
+
+  if (record.fixedSourceExtent->sourceVectorExtent != record.elementCount)
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("fixed vector source extent ") +
+            llvm::Twine(record.fixedSourceExtent->sourceVectorExtent) +
+            " must match selected descriptor-local element_count " +
+            llvm::Twine(record.elementCount) +
+            " before runtime AVL/VL artifact export");
+  return llvm::Error::success();
 }
 
 llvm::Expected<RVVMicrokernelRecord>
@@ -2495,6 +2523,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     record.elementCount = elementCount;
     record.controlPlaneSEW = controlPlaneSEW;
     record.controlPlaneLMUL = std::move(controlPlaneLMUL);
+    if (llvm::Error error =
+            attachFixedVectorSourceExtentContract(kernel, record))
+      return std::move(error);
     llvm::Expected<RVVBinarySelectedConfigContract> selectedConfigContract =
         buildRVVMicrokernelSelectedConfigContract(kernel, record);
     if (!selectedConfigContract)
@@ -2547,6 +2578,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.elementCount = elementCount;
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
+  if (llvm::Error error =
+          attachFixedVectorSourceExtentContract(kernel, record))
+    return std::move(error);
   llvm::Expected<RVVBinarySelectedConfigContract> selectedConfigContract =
       buildRVVMicrokernelSelectedConfigContract(kernel, record);
   if (!selectedConfigContract)
@@ -2990,13 +3024,16 @@ llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     const RVVIntrinsicConfig &intrinsicConfig,
     const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
-    llvm::StringRef functionName) {
+    llvm::StringRef functionName,
+    std::int64_t fixedRuntimeElementCount = 0) {
   RVVBinaryEmitCLowerable lowerable(descriptor, intrinsicConfig, dataflowPlan,
                                     runtimeABIParameters);
   TCRVLowerToEmitCSourceOptions options;
   options.sourceAuthorityOptions.functionName = functionName.str();
   options.sourceAuthorityOptions.loopIndexName = "offset";
   options.sourceAuthorityOptions.requireInterfaceBackedCompute = true;
+  options.sourceAuthorityOptions.fixedRuntimeElementCount =
+      fixedRuntimeElementCount;
   return lowerTCRVEmitCLowerableToEmitCSource(lowerable, options);
 }
 
@@ -3151,6 +3188,14 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* "
      << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
      << " */\n";
+  if (record.fixedSourceExtent) {
+    os << "/* " << record.fixedSourceExtent->formatCommentBody() << " */\n";
+    os << "/* runtime_element_count_constraint: "
+       << record.selectedConfigContract.getRuntimeElementCountCName()
+       << " must equal fixed source vector extent "
+       << record.fixedSourceExtent->sourceVectorExtent
+       << " before runtime AVL/VL execution */\n";
+  }
   os << "/* arithmetic_source: typed op "
      << record.descriptor.getRVVOperationName()
      << " via generated EmitC route and IR-backed callable ABI */\n";
@@ -3245,9 +3290,15 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       const BinarySelfCheckExpectation
                                           &expectation,
                                       const RVVIntrinsicConfig &intrinsicConfig,
-                                      std::int64_t elementCount) {
+                                      std::int64_t elementCount,
+                                      std::optional<std::int64_t>
+                                          fixedSourceVectorExtent) {
   os << "/* Harness capacity comes from descriptor-local element_count; each "
         "call still supplies runtime n through the generated C ABI. */\n";
+  if (fixedSourceVectorExtent)
+    os << "/* Harness fixed source extent constraint: runtime_n must equal "
+       << *fixedSourceVectorExtent
+       << " for this vector-fronted source fixture. */\n";
   os << "/* self_check_expectation_source: " << expectation.provenance
      << "; legacy descriptor mirrors cannot select expected arithmetic or "
         "scalar element type. */\n";
@@ -3305,6 +3356,18 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
 
   os << "int main(void) {\n";
   os << "  enum { kTCRVMicrokernelCapacity = " << elementCount << " };\n";
+  if (fixedSourceVectorExtent) {
+    os << "  int status = " << functionName
+       << "_self_check_one((size_t)" << *fixedSourceVectorExtent << ");\n";
+    os << "  if (status != 0)\n";
+    os << "    return status;\n";
+    os << "  printf(\"tcrv_rvv_microkernel_ok runtime_counts=%zu\\n\", "
+          "(size_t)"
+       << *fixedSourceVectorExtent << ");\n";
+    os << "  return 0;\n";
+    os << "}\n";
+    return;
+  }
   os << "  enum { kTCRVMicrokernelShortRuntimeN = "
         "kTCRVMicrokernelCapacity >= 7 ? 7 : kTCRVMicrokernelCapacity };\n";
   os << "  int status = " << functionName
@@ -3350,6 +3413,14 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
   os << "/* "
      << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
      << " */\n";
+  if (record.fixedSourceExtent) {
+    os << "/* " << record.fixedSourceExtent->formatCommentBody() << " */\n";
+    os << "/* runtime_element_count_constraint: "
+       << record.selectedConfigContract.getRuntimeElementCountCName()
+       << " must equal fixed source vector extent "
+       << record.fixedSourceExtent->sourceVectorExtent
+       << " before runtime AVL/VL execution */\n";
+  }
   os << "/* control_plane_runtime_avl: body index argument maps to "
         "target/export-owned runtime "
      << record.selectedConfigContract.getRuntimeElementCountCName()
@@ -3408,7 +3479,11 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
       lowerRVVBinaryToEmitCSource(record.descriptor, record.intrinsicConfig,
                                   record.dataflowPlan,
-                                  record.runtimeABIParameters, functionName);
+                                  record.runtimeABIParameters, functionName,
+                                  record.fixedSourceExtent
+                                      ? record.fixedSourceExtent
+                                            ->sourceVectorExtent
+                                      : 0);
   if (!loweredSource)
     return loweredSource.takeError();
   const TCRVEmitCLowerableRoute &emitcRoute = loweredSource->getRoute();
@@ -3442,7 +3517,12 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
       return expectation.takeError();
     printMicrokernelSelfCheckHarness(os, functionName, *expectation,
                                      record.intrinsicConfig,
-                                     record.elementCount);
+                                     record.elementCount,
+                                     record.fixedSourceExtent
+                                         ? std::optional<std::int64_t>(
+                                               record.fixedSourceExtent
+                                                   ->sourceVectorExtent)
+                                         : std::nullopt);
   }
   return llvm::Error::success();
 }

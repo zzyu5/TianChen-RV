@@ -16,8 +16,11 @@ def LowerVectorRVVI32VAddToExec
     to the output buffer, and func.return. The pass creates a tcrv.exec.kernel
     with a selected module target profile reference, validates optional
     supplemental capability-provider imports, materializes the existing finite
-    i32-vadd runtime ABI mem_window/runtime_param surface, then removes the
-    source wrapper.
+    i32-vadd runtime ABI mem_window/runtime_param surface, records the fixed
+    vector<16xi32> source extent as source-frontdoor authority on both the
+    kernel and runtime element-count parameter, then removes the source wrapper.
+    Downstream artifact routes must keep the selected finite RVV element_count
+    and runtime n/VL contract consistent with that fixed source extent.
 
     This is a bounded frontend adapter. It does not add a generic vector
     backend, infer arbitrary vector semantics, select variants, branch on

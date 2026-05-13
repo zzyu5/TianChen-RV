@@ -3,6 +3,7 @@
 
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
@@ -14,7 +15,9 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <utility>
 
 namespace tianchenrv::target::rvv {
 
@@ -179,6 +182,10 @@ public:
   llvm::StringRef getRuntimeVLScope() const {
     return getRVVRuntimeVLScopeMetadataValue();
   }
+  const std::optional<support::FixedVectorSourceExtentContract> &
+  getFixedVectorSourceExtentContract() const {
+    return fixedSourceExtent;
+  }
 
   void setSelectedPath(llvm::StringRef variantSymbol, llvm::StringRef role) {
     selectedVariantSymbol = variantSymbol.trim().str();
@@ -198,6 +205,11 @@ public:
     llvm::StringRef trimmed = cName.trim();
     dispatchAvailabilityGuardCName =
         trimmed.empty() ? "rvv_available" : trimmed.str();
+  }
+
+  void setFixedVectorSourceExtentContract(
+      std::optional<support::FixedVectorSourceExtentContract> contract) {
+    fixedSourceExtent = std::move(contract);
   }
 
   llvm::SmallVector<llvm::StringRef, 4> getSelectedShapeCapabilityIDs() const {
@@ -252,6 +264,11 @@ public:
            << getDispatchAvailabilityGuardCName();
     if (descriptorElementCount > 0)
       stream << ", descriptor_element_count=" << descriptorElementCount;
+    if (fixedSourceExtent)
+      stream << ", fixed_source_vector_extent="
+             << fixedSourceExtent->sourceVectorExtent
+             << ", runtime_element_count_constraint="
+             << fixedSourceExtent->runtimeElementCountConstraint;
     if (!selectedVariantSymbol.empty())
       stream << ", selected_variant=@" << selectedVariantSymbol;
     if (!selectedRole.empty())
@@ -270,6 +287,11 @@ public:
            << ", runtime_vl_source=" << getRuntimeVLSource()
            << ", runtime_vl_scope=" << getRuntimeVLScope()
            << ", descriptor_element_count=" << getDescriptorElementCount();
+    if (fixedSourceExtent)
+      stream << ", fixed_source_vector_extent="
+             << fixedSourceExtent->sourceVectorExtent
+             << ", runtime_element_count_constraint="
+             << fixedSourceExtent->runtimeElementCountConstraint;
     if (!selectedVariantSymbol.empty())
       stream << ", selected_variant=@" << selectedVariantSymbol;
     if (!selectedRole.empty())
@@ -286,6 +308,7 @@ private:
   std::int64_t descriptorElementCount = 0;
   std::string runtimeElementCountCName = "n";
   std::string dispatchAvailabilityGuardCName = "rvv_available";
+  std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
 };
 
 inline llvm::Error makeRVVSelectedConfigContractError(llvm::Twine message) {
@@ -363,6 +386,23 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
   if (contract.getDispatchAvailabilityGuardCName().empty())
     return makeRVVSelectedConfigContractError(
         "dispatch availability guard C name must be non-empty");
+  if (contract.getFixedVectorSourceExtentContract()) {
+    const support::FixedVectorSourceExtentContract &sourceExtent =
+        *contract.getFixedVectorSourceExtentContract();
+    if (!sourceExtent.isValid())
+      return makeRVVSelectedConfigContractError(
+          "fixed vector source extent contract is incomplete");
+    if (contract.getDescriptorElementCount() <= 0)
+      return makeRVVSelectedConfigContractError(
+          "fixed vector source extent contract requires a positive "
+          "descriptor-local element_count for cross-checking");
+    if (sourceExtent.sourceVectorExtent != contract.getDescriptorElementCount())
+      return makeRVVSelectedConfigContractError(
+          llvm::Twine("fixed vector source extent ") +
+          llvm::Twine(sourceExtent.sourceVectorExtent) +
+          " must match descriptor-local element_count " +
+          llvm::Twine(contract.getDescriptorElementCount()));
+  }
 
   return llvm::Error::success();
 }
@@ -375,12 +415,15 @@ buildRVVBinarySelectedConfigContract(
     llvm::StringRef selectedRole = llvm::StringRef(),
     std::int64_t descriptorElementCount = 0,
     llvm::StringRef runtimeElementCountCName = "n",
-    llvm::StringRef dispatchAvailabilityGuardCName = "rvv_available") {
+    llvm::StringRef dispatchAvailabilityGuardCName = "rvv_available",
+    std::optional<support::FixedVectorSourceExtentContract>
+        fixedSourceExtent = std::nullopt) {
   RVVBinarySelectedConfigContract contract(family, shape);
   contract.setSelectedPath(selectedVariantSymbol, selectedRole);
   contract.setDescriptorElementCount(descriptorElementCount);
   contract.setRuntimeElementCountCName(runtimeElementCountCName);
   contract.setDispatchAvailabilityGuardCName(dispatchAvailabilityGuardCName);
+  contract.setFixedVectorSourceExtentContract(std::move(fixedSourceExtent));
   if (llvm::Error error = validateRVVBinarySelectedConfigContract(contract))
     return std::move(error);
   return contract;
@@ -409,6 +452,31 @@ inline void appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
   out.push_back({getRVVRuntimeVLScopeMetadataName(),
                  contract.getRuntimeVLScope(), role, note,
                  "runtime VL scope"});
+}
+
+inline void appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  if (!contract.getFixedVectorSourceExtentContract())
+    return;
+
+  const support::FixedVectorSourceExtentContract &sourceExtent =
+      *contract.getFixedVectorSourceExtentContract();
+  llvm::StringRef role = support::getFrontendSourceExtentMetadataRole();
+  llvm::StringRef note = support::getFrontendSourceExtentMetadataNote();
+  out.push_back({support::getFrontendSourceKindMetadataName(),
+                 sourceExtent.sourceKind, role, note,
+                 "frontend source kind"});
+  out.push_back({support::getFrontendSourceAuthorityMetadataName(),
+                 sourceExtent.sourceAuthority, role, note,
+                 "frontend source authority"});
+  out.push_back({support::getFrontendSourceVectorExtentMetadataName(),
+                 std::to_string(sourceExtent.sourceVectorExtent), role, note,
+                 "frontend source vector extent"});
+  out.push_back(
+      {support::getFrontendRuntimeElementCountConstraintMetadataName(),
+       sourceExtent.runtimeElementCountConstraint, role, note,
+       "frontend runtime element-count constraint"});
 }
 
 inline void appendRVVBinaryLegacyDescriptorMirrorMetadata(

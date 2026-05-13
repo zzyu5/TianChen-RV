@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final verification"}
+{"file": ".trellis/spec/core-dialect/index.md", "reason": "Check that new source extent metadata stays execution-boundary metadata"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV config/runtime AVL/descriptor separation"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifacts still use the common EmitC route"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check source extent/runtime ABI failure and artifact metadata boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check evidence and test coverage scope"}

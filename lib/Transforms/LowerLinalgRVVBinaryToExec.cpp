@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace tianchenrv::transforms {
 
@@ -51,7 +52,8 @@ constexpr llvm::StringLiteral kVectorTransferReadOpName(
     "vector.transfer_read");
 constexpr llvm::StringLiteral kVectorTransferWriteOpName(
     "vector.transfer_write");
-constexpr std::int64_t kVectorI32VAddSourceElements = 16;
+constexpr std::int64_t kVectorI32VAddSourceElements =
+    support::kFrontendFixedVectorI32VAddSourceExtent;
 
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
@@ -89,6 +91,7 @@ struct FrontendBinarySpec {
   const support::FiniteBinaryFrontendContract *contract = nullptr;
   llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeElementCountSpecs;
+  std::optional<std::int64_t> fixedSourceVectorExtent;
 };
 
 llvm::StringRef getSourceArithmeticOpName(SourceBinaryArithmeticKind kind) {
@@ -833,11 +836,56 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
   state.addAttribute("target", targetRef);
   state.addAttribute(kFrontendLoweringAttrName,
                      builder.getStringAttr(contract.frontendLowering));
+  if (spec.fixedSourceVectorExtent) {
+    state.addAttribute(support::kFrontendSourceKindAttrName,
+                       builder.getStringAttr(
+                           support::kFrontendFixedVectorI32VAddSourceKind));
+    state.addAttribute(
+        support::kFrontendSourceAuthorityAttrName,
+        builder.getStringAttr(support::kFrontendFixedVectorSourceAuthority));
+    state.addAttribute(
+        support::kFrontendSourceVectorExtentAttrName,
+        builder.getI64IntegerAttr(*spec.fixedSourceVectorExtent));
+    state.addAttribute(
+        support::kFrontendRuntimeElementCountConstraintAttrName,
+        builder.getStringAttr(
+            support::kFrontendRuntimeElementCountMustEqualSourceExtent));
+  }
   state.addRegion();
 
   auto kernel = llvm::cast<KernelOp>(builder.create(state));
   kernel.getBody().push_back(new mlir::Block());
   return kernel;
+}
+
+mlir::LogicalResult materializeFixedSourceExtentRuntimeParamAttrs(
+    KernelOp kernel, const FrontendBinarySpec &spec) {
+  if (!spec.fixedSourceVectorExtent)
+    return mlir::success();
+
+  llvm::SmallVector<tcrv::exec::RuntimeParamOp, 1> runtimeParams;
+  if (llvm::Error error = support::collectRuntimeABIParams(
+          kernel, spec.runtimeElementCountSpecs, runtimeParams)) {
+    kernel.emitError() << llvm::toString(std::move(error));
+    return mlir::failure();
+  }
+
+  mlir::Builder builder(kernel.getContext());
+  tcrv::exec::RuntimeParamOp runtimeElementCount = runtimeParams.front();
+  runtimeElementCount->setAttr(
+      support::kFrontendSourceKindAttrName,
+      builder.getStringAttr(support::kFrontendFixedVectorI32VAddSourceKind));
+  runtimeElementCount->setAttr(
+      support::kFrontendSourceAuthorityAttrName,
+      builder.getStringAttr(support::kFrontendFixedVectorSourceAuthority));
+  runtimeElementCount->setAttr(
+      support::kFrontendSourceVectorExtentAttrName,
+      builder.getI64IntegerAttr(*spec.fixedSourceVectorExtent));
+  runtimeElementCount->setAttr(
+      support::kFrontendRuntimeElementCountConstraintAttrName,
+      builder.getStringAttr(
+          support::kFrontendRuntimeElementCountMustEqualSourceExtent));
+  return mlir::success();
 }
 
 void materializeCapabilityProviderImports(
@@ -866,7 +914,7 @@ mlir::LogicalResult materializeFrontendBinaryABI(
     return mlir::failure();
   }
 
-  return mlir::success();
+  return materializeFixedSourceExtentRuntimeParamAttrs(kernel, spec);
 }
 
 mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
@@ -964,6 +1012,7 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
   const support::FiniteBinaryFrontendContract &contract =
       support::getI32VAddFiniteBinaryFrontendContract();
   FrontendBinarySpec spec = makeFrontendBinarySpec(contract);
+  spec.fixedSourceVectorExtent = kVectorI32VAddSourceElements;
 
   mlir::StringAttr kernelAttr = getKernelName(funcOp, funcOp);
   if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))

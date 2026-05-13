@@ -13,6 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
+#include <string>
 
 namespace tianchenrv::conversion::emitc {
 namespace {
@@ -468,6 +469,11 @@ private:
           route.getRouteID(),
           "source-authority helper function name must differ from the public "
           "function name");
+    if (options.fixedRuntimeElementCount < 0)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "source-authority fixed runtime-element-count constraint must be "
+          "non-negative");
     return llvm::Error::success();
   }
 
@@ -953,12 +959,53 @@ private:
   }
 
   llvm::Error
+  materializeFixedRuntimeElementCountConstraint(mlir::Location loc) {
+    if (options.fixedRuntimeElementCount <= 0)
+      return llvm::Error::success();
+
+    mlir::Value runtimeN = lookupRequiredValue(runtimeElementCountValueName);
+    if (!runtimeN)
+      return makeMaterializerError(
+          route.getRouteID(),
+          "fixed runtime-element-count source-authority constraint is missing "
+          "the runtime n value");
+
+    builder.create<mlir::emitc::VerbatimOp>(
+        loc,
+        "// tcrv_emitc.runtime_element_count_constraint="
+        "must-equal-fixed-source-vector-extent");
+    mlir::Type sizeTType = mlir::emitc::SizeTType::get(&context);
+    mlir::Value expected =
+        builder
+            .create<mlir::emitc::LiteralOp>(
+                loc, sizeTType,
+                std::to_string(options.fixedRuntimeElementCount))
+            .getResult();
+    mlir::Value mismatch =
+        builder
+            .create<mlir::emitc::CmpOp>(
+                loc, builder.getI1Type(), mlir::emitc::CmpPredicate::ne,
+                runtimeN, expected)
+            .getResult();
+    mlir::emitc::IfOp ifOp = builder.create<mlir::emitc::IfOp>(loc, mismatch);
+    mlir::Block &thenBlock = ifOp.getThenRegion().front();
+    builder.setInsertionPoint(thenBlock.getTerminator());
+    builder.create<mlir::emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, "__builtin_trap", mlir::ValueRange{});
+    builder.setInsertionPointAfter(ifOp);
+    return llvm::Error::success();
+  }
+
+  llvm::Error
   materializeDispatchControlBody(mlir::emitc::FuncOp publicFunction) {
     mlir::Block &entry = publicFunction.getBody().front();
     builder.setInsertionPointToStart(&entry);
     initializeFunctionValueMap(&entry, /*includeLoopIndexArgument=*/false);
 
     mlir::Location loc = builder.getUnknownLoc();
+    if (llvm::Error error = materializeFixedRuntimeElementCountConstraint(loc))
+      return error;
+
     mlir::Value guard = lookupRequiredValue(options.dispatchGuardValueName);
     if (!guard)
       return makeMaterializerError(
@@ -1000,6 +1047,9 @@ private:
     initializeFunctionValueMap(&entry, /*includeLoopIndexArgument=*/false);
 
     mlir::Location loc = builder.getUnknownLoc();
+    if (llvm::Error error = materializeFixedRuntimeElementCountConstraint(loc))
+      return error;
+
     mlir::Value zero =
         builder
             .create<mlir::emitc::LiteralOp>(

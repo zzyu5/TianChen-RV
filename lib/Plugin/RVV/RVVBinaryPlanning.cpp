@@ -2023,8 +2023,8 @@ llvm::Error addRVVSelectedVectorShapeMetadataToPlan(
       metadata;
   target::rvv::appendRVVI32VectorShapeSelectedPlanMetadata(shape, metadata);
   for (const auto &entry : metadata)
-    plan.addSelectedPlanMetadata(entry.name.str(), entry.value.str(),
-                                 entry.role.str(), entry.note.str());
+    plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
+                                 entry.note);
   return llvm::Error::success();
 }
 

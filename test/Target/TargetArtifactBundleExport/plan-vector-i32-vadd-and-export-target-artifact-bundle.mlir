@@ -72,6 +72,10 @@ module @plan_vector_i32_vadd_bundle_input {
 // IR: tcrv.exec.kernel @frontend_vector_bundle_i32_vadd
 // IR-SAME: target = @vector_bundle_profile
 // IR-SAME: tcrv_frontend_lowering = "i32-vadd"
+// IR-SAME: tcrv_frontend_runtime_element_count_constraint = "must-equal-source-vector-extent"
+// IR-SAME: tcrv_frontend_source_authority = "source-vector-transfer-read-write-fixed-extent"
+// IR-SAME: tcrv_frontend_source_kind = "mlir-vector-transfer-fixed-i32-vadd.v1"
+// IR-SAME: tcrv_frontend_source_vector_extent = 16 : i64
 // IR: tcrv.exec.mem_window @abi_lhs_input_buffer
 // IR-SAME: abi_role = "lhs-input-buffer"
 // IR-SAME: c_type = "const int32_t *"
@@ -79,6 +83,10 @@ module @plan_vector_i32_vadd_bundle_input {
 // IR-SAME: abi_role = "runtime-element-count"
 // IR-SAME: c_name = "n"
 // IR-SAME: c_type = "size_t"
+// IR-SAME: tcrv_frontend_runtime_element_count_constraint = "must-equal-source-vector-extent"
+// IR-SAME: tcrv_frontend_source_authority = "source-vector-transfer-read-write-fixed-extent"
+// IR-SAME: tcrv_frontend_source_kind = "mlir-vector-transfer-fixed-i32-vadd.v1"
+// IR-SAME: tcrv_frontend_source_vector_extent = 16 : i64
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR-SAME: c_name = "rvv_available"
@@ -156,6 +164,18 @@ module @plan_vector_i32_vadd_bundle_input {
 // INDEX: name: "tcrv_rvv.selected_vector_shape"
 // INDEX-NEXT: value: "i32m1"
 // INDEX-NEXT: role: "selected-rvv-vector-shape-config"
+// INDEX: name: "tcrv_frontend.source_kind"
+// INDEX-NEXT: value: "mlir-vector-transfer-fixed-i32-vadd.v1"
+// INDEX-NEXT: role: "source-frontdoor-extent-authority"
+// INDEX: name: "tcrv_frontend.source_authority"
+// INDEX-NEXT: value: "source-vector-transfer-read-write-fixed-extent"
+// INDEX-NEXT: role: "source-frontdoor-extent-authority"
+// INDEX: name: "tcrv_frontend.source_vector_extent"
+// INDEX-NEXT: value: "16"
+// INDEX-NEXT: role: "source-frontdoor-extent-authority"
+// INDEX: name: "tcrv_frontend.runtime_element_count_constraint"
+// INDEX-NEXT: value: "must-equal-source-vector-extent"
+// INDEX-NEXT: role: "source-frontdoor-extent-authority"
 // INDEX: name: "tcrv_rvv.dispatch_contract_runtime_element_count_c_name"
 // INDEX-NEXT: value: "n"
 // INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
@@ -170,6 +190,9 @@ module @plan_vector_i32_vadd_bundle_input {
 // INDEX: artifact_kind: "riscv-elf-relocatable-object"
 
 // SOURCE: /* selected_kernel: @frontend_vector_bundle_i32_vadd */
+// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, fixed_source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent
+// SOURCE: /* source_frontend_extent_authority: source_kind=mlir-vector-transfer-fixed-i32-vadd.v1, source_authority=source-vector-transfer-read-write-fixed-extent, source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent */
+// SOURCE: /* dispatch_runtime_element_count_constraint: n must equal fixed source vector extent 16 before dispatching to RVV or scalar callable branches */
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_frontend_vector_bundle_i32_vadd_rvv_first_slice */
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 // SOURCE: /* Embedded selected RVV runtime-callable source artifact. */
@@ -180,7 +203,12 @@ module @plan_vector_i32_vadd_bundle_input {
 // SOURCE: __riscv_vadd_vv_i32m1
 // SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_vector_bundle_i32_vadd_rvv_first_slice
 // SOURCE: void tcrv_dispatch_i32_vadd_frontend_vector_bundle_i32_vadd
+// SOURCE: // tcrv_emitc.runtime_element_count_constraint=must-equal-fixed-source-vector-extent
+// SOURCE: bool {{.*}} = {{.*}} != 16;
+// SOURCE: __builtin_trap();
 
+// HEADER: /* source_frontend_extent_authority: source_kind=mlir-vector-transfer-fixed-i32-vadd.v1, source_authority=source-vector-transfer-read-write-fixed-extent, source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent */
+// HEADER: /* dispatch_runtime_element_count_constraint: n must equal fixed source vector extent 16 before dispatching to RVV or scalar callable branches */
 // HEADER: void tcrv_dispatch_i32_vadd_frontend_vector_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
 
 // OBJ: Format: elf64-littleriscv

@@ -103,8 +103,7 @@ void appendRVVSelectedPlanMetadata(
         *contract, metadata);
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
-        {entry.name.str(), entry.value.str(), entry.role.str(),
-         entry.note.str()});
+        {entry.name, entry.value, entry.role, entry.note});
   }
   candidate.selectedPlanMetadata.push_back(
       {tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName().str(),

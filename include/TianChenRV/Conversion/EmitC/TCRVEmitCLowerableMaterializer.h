@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstdint>
 #include <string>
 
 namespace llvm {
@@ -29,6 +30,7 @@ struct TCRVEmitCSourceAuthorityOptions {
   std::string loopIndexName = "offset";
   std::string helperFunctionName;
   std::string dispatchGuardValueName;
+  std::int64_t fixedRuntimeElementCount = 0;
   bool requireInterfaceBackedCompute = true;
   bool verifyModule = true;
   bool declareVariablesAtTop = false;

@@ -1610,6 +1610,58 @@ def validate_compiler_path_context(source: str) -> dict[str, str]:
     return context
 
 
+def parse_fixed_source_extent_contract(source: str) -> dict[str, Any] | None:
+    raw_contract = parse_source_comment(
+        source, "source_frontend_extent_authority", required=False
+    )
+    if not raw_contract:
+        return None
+    match = re.fullmatch(
+        r"source_kind=([^,]+), source_authority=([^,]+), "
+        r"source_vector_extent=([0-9]+), "
+        r"runtime_element_count_constraint=([^,]+)",
+        raw_contract,
+    )
+    if not match:
+        raise BridgeError(
+            "generated C source has malformed source_frontend_extent_authority "
+            "metadata"
+        )
+    source_extent = int(match.group(3))
+    if source_extent <= 0 or source_extent > 4096:
+        raise BridgeError(
+            "generated C source fixed source vector extent must be positive "
+            "and bounded"
+        )
+    contract = {
+        "source_kind": match.group(1),
+        "source_authority": match.group(2),
+        "source_vector_extent": source_extent,
+        "runtime_element_count_constraint": match.group(4),
+    }
+    if (
+        contract["runtime_element_count_constraint"]
+        != "must-equal-source-vector-extent"
+    ):
+        raise BridgeError(
+            "generated C source fixed source extent contract must require "
+            "runtime element-count to equal the source vector extent"
+        )
+    for snippet in (
+        "runtime_element_count_constraint: n must equal fixed source vector "
+        f"extent {source_extent}",
+        "tcrv_emitc.runtime_element_count_constraint="
+        "must-equal-fixed-source-vector-extent",
+        "__builtin_trap();",
+    ):
+        if snippet not in source:
+            raise BridgeError(
+                "generated C source fixed source extent contract is missing "
+                f"runtime guard snippet: {snippet}"
+            )
+    return contract
+
+
 def validate_expected_selected_kernel(
     compiler_path_context: dict[str, str], expected_selected_kernel: str
 ) -> str:
@@ -1754,6 +1806,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     provenance = validate_dataflow_provenance(source)
     emitc_route_provenance = validate_emitc_route_provenance(source)
     compiler_path_context = validate_compiler_path_context(source)
+    fixed_source_extent_contract = parse_fixed_source_extent_contract(source)
     runtime_abi_parameters = validate_runtime_abi_signature(
         parse_runtime_abi_parameters_from_source(source), ACTIVE_ARITHMETIC_FAMILY
     )
@@ -1766,6 +1819,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "dataflow_provenance": provenance,
         "emitc_route_provenance": emitc_route_provenance,
         "compiler_path_context": compiler_path_context,
+        "fixed_source_extent_contract": fixed_source_extent_contract,
         "runtime_abi_parameters": runtime_abi_parameters,
     }
 
@@ -2138,8 +2192,6 @@ def build_external_caller_source(
             f"unsupported arithmetic token: {selected_arithmetic_token}"
         )
     counts = runtime_counts or DIRECT_EXTERNAL_RUNTIME_COUNTS
-    if len(counts) < 2:
-        raise BridgeError("external caller evidence requires at least two runtime counts")
     if any(count <= 0 for count in counts):
         raise BridgeError("external caller runtime counts must be positive")
     if any(count > 4096 for count in counts):
@@ -3466,13 +3518,33 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
 
 def selected_external_runtime_counts(args: argparse.Namespace) -> list[int]:
     counts = list(args.runtime_count or DIRECT_EXTERNAL_RUNTIME_COUNTS)
-    if len(counts) < 2:
-        raise BridgeError("external caller evidence requires at least two runtime counts")
     if any(count <= 0 for count in counts):
         raise BridgeError("external caller runtime counts must be positive")
     if any(count > 4096 for count in counts):
         raise BridgeError("external caller runtime counts must remain bounded")
     return counts
+
+
+def validate_runtime_counts_against_source_contract(
+    source_flags: dict[str, Any], runtime_counts: list[int]
+) -> list[int]:
+    fixed_contract = source_flags.get("fixed_source_extent_contract")
+    if fixed_contract:
+        expected = int(fixed_contract["source_vector_extent"])
+        if runtime_counts != [expected]:
+            raise BridgeError(
+                "fixed source-vector extent external caller evidence requires "
+                f"exactly one runtime count equal to {expected}; observed "
+                + ",".join(str(count) for count in runtime_counts)
+            )
+        return runtime_counts
+    if len(runtime_counts) < 2:
+        raise BridgeError(
+            "external caller evidence requires at least two runtime counts "
+            "unless the generated source declares a fixed source-vector extent "
+            "contract"
+        )
+    return runtime_counts
 
 
 def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
@@ -3576,6 +3648,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_flags = validate_generated_source(source_text, require_harness=False)
+    runtime_counts = validate_runtime_counts_against_source_contract(
+        source_flags, runtime_counts
+    )
     selected_bundle_variant = str(selected_records["source"]["selected_variant"])
     if (
         source_flags["compiler_path_context"]["selected_variant"]
@@ -3676,6 +3751,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_export_mode": "runtime-callable-library",
         "source_dataflow_provenance": source_flags["dataflow_provenance"],
         "compiler_path_context": source_flags["compiler_path_context"],
+        "fixed_source_extent_contract": source_flags[
+            "fixed_source_extent_contract"
+        ],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_token": source_flags["arithmetic_token"],
         "runtime_element_counts": runtime_counts,
@@ -3922,6 +4000,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_flags = validate_generated_source(
         source_text, require_harness=use_harness
     )
+    runtime_counts = validate_runtime_counts_against_source_contract(
+        source_flags, runtime_counts
+    )
     expected_selected_kernel = validate_expected_selected_kernel(
         source_flags["compiler_path_context"], args.expect_selected_kernel
     )
@@ -4153,6 +4234,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "source_emitc_route_provenance": source_flags["emitc_route_provenance"],
         "selected_binary_source_authority": selected_binary_source_authority,
         "compiler_path_context": source_flags["compiler_path_context"],
+        "fixed_source_extent_contract": source_flags[
+            "fixed_source_extent_contract"
+        ],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_token": source_flags["arithmetic_token"],
         "runtime_element_counts": runtime_counts,
@@ -4772,6 +4856,49 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
         == "rvv_microkernel_manifest",
         "expected selected-kernel normalization failed",
     )
+    fixed_sample_source = sample_source.replace(
+        "/* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC "
+        "route and IR-backed callable ABI */",
+        "/* source_frontend_extent_authority: "
+        "source_kind=mlir-vector-transfer-fixed-i32-vadd.v1, "
+        "source_authority=source-vector-transfer-read-write-fixed-extent, "
+        "source_vector_extent=16, "
+        "runtime_element_count_constraint=must-equal-source-vector-extent */\n"
+        "/* runtime_element_count_constraint: n must equal fixed source vector "
+        "extent 16 before runtime AVL/VL execution */\n"
+        "/* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC "
+        "route and IR-backed callable ABI */",
+    ).replace(
+        "#include <riscv_vector.h>",
+        "#include <riscv_vector.h>\n"
+        "void fixed_guard(size_t n) {\n"
+        "  // tcrv_emitc.runtime_element_count_constraint="
+        "must-equal-fixed-source-vector-extent\n"
+        "  if (n != 16) __builtin_trap();\n"
+        "}",
+    )
+    fixed_flags = validate_generated_source(
+        fixed_sample_source, require_harness=True
+    )
+    assert_self_test(
+        fixed_flags["fixed_source_extent_contract"]["source_vector_extent"]
+        == 16,
+        "fixed source extent contract parser lost vector extent",
+    )
+    assert_self_test(
+        validate_runtime_counts_against_source_contract(fixed_flags, [16])
+        == [16],
+        "fixed source extent contract rejected the exact runtime count",
+    )
+    try:
+        validate_runtime_counts_against_source_contract(fixed_flags, [7, 16])
+    except BridgeError as error:
+        assert_self_test(
+            "exactly one runtime count equal to 16" in str(error),
+            "fixed source extent count diagnostic changed",
+        )
+    else:
+        raise AssertionError("fixed source extent accepted multiple counts")
     try:
         validate_expected_selected_kernel(
             source_flags["compiler_path_context"], "frontend_i32_vsub"

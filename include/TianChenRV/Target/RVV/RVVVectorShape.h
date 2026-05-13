@@ -6,6 +6,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
+#include <string>
 
 namespace tianchenrv::target::rvv {
 
@@ -31,11 +32,20 @@ using RVVSelectedVectorShapeConfig = RVVVectorShapeConfig;
 using RVVI32VectorShapeConfig = RVVSelectedVectorShapeConfig;
 
 struct RVVVectorShapeSelectedPlanMetadataDescriptor {
-  llvm::StringRef name;
-  llvm::StringRef value;
-  llvm::StringRef role;
-  llvm::StringRef note;
-  llvm::StringRef diagnosticSpelling;
+  RVVVectorShapeSelectedPlanMetadataDescriptor() = default;
+  RVVVectorShapeSelectedPlanMetadataDescriptor(llvm::StringRef name,
+                                               llvm::StringRef value,
+                                               llvm::StringRef role,
+                                               llvm::StringRef note,
+                                               llvm::StringRef diagnosticSpelling)
+      : name(name.str()), value(value.str()), role(role.str()),
+        note(note.str()), diagnosticSpelling(diagnosticSpelling.str()) {}
+
+  std::string name;
+  std::string value;
+  std::string role;
+  std::string note;
+  std::string diagnosticSpelling;
 };
 
 using RVVI32VectorShapeSelectedPlanMetadataDescriptor =

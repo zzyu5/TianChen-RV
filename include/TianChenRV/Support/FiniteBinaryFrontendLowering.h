@@ -5,13 +5,20 @@
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <utility>
 
 namespace tianchenrv::support {
 
@@ -34,6 +41,216 @@ struct FiniteBinaryFrontendContract {
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
 };
+
+inline constexpr llvm::StringLiteral kFrontendSourceKindAttrName(
+    "tcrv_frontend_source_kind");
+inline constexpr llvm::StringLiteral kFrontendSourceAuthorityAttrName(
+    "tcrv_frontend_source_authority");
+inline constexpr llvm::StringLiteral kFrontendSourceVectorExtentAttrName(
+    "tcrv_frontend_source_vector_extent");
+inline constexpr llvm::StringLiteral
+    kFrontendRuntimeElementCountConstraintAttrName(
+        "tcrv_frontend_runtime_element_count_constraint");
+
+inline constexpr llvm::StringLiteral kFrontendFixedVectorI32VAddSourceKind(
+    "mlir-vector-transfer-fixed-i32-vadd.v1");
+inline constexpr std::int64_t kFrontendFixedVectorI32VAddSourceExtent = 16;
+inline constexpr llvm::StringLiteral kFrontendFixedVectorSourceAuthority(
+    "source-vector-transfer-read-write-fixed-extent");
+inline constexpr llvm::StringLiteral
+    kFrontendRuntimeElementCountMustEqualSourceExtent(
+        "must-equal-source-vector-extent");
+
+inline llvm::StringRef getFrontendSourceKindMetadataName() {
+  return "tcrv_frontend.source_kind";
+}
+
+inline llvm::StringRef getFrontendSourceAuthorityMetadataName() {
+  return "tcrv_frontend.source_authority";
+}
+
+inline llvm::StringRef getFrontendSourceVectorExtentMetadataName() {
+  return "tcrv_frontend.source_vector_extent";
+}
+
+inline llvm::StringRef
+getFrontendRuntimeElementCountConstraintMetadataName() {
+  return "tcrv_frontend.runtime_element_count_constraint";
+}
+
+inline llvm::StringRef getFrontendSourceExtentMetadataRole() {
+  return "source-frontdoor-extent-authority";
+}
+
+inline llvm::StringRef getFrontendSourceExtentMetadataNote() {
+  return "fixed MLIR vector frontdoor source extent; runtime element-count "
+         "must match this source authority; not selected RVV config, "
+         "descriptor element_count, VL, correctness evidence, or performance "
+         "evidence";
+}
+
+struct FixedVectorSourceExtentContract {
+  std::string sourceKind;
+  std::string sourceAuthority;
+  std::int64_t sourceVectorExtent = 0;
+  std::string runtimeElementCountConstraint;
+
+  bool isValid() const {
+    return sourceKind == kFrontendFixedVectorI32VAddSourceKind &&
+           sourceAuthority == kFrontendFixedVectorSourceAuthority &&
+           runtimeElementCountConstraint ==
+               kFrontendRuntimeElementCountMustEqualSourceExtent &&
+           sourceVectorExtent == kFrontendFixedVectorI32VAddSourceExtent;
+  }
+
+  std::string formatCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "source_frontend_extent_authority: source_kind=" << sourceKind
+           << ", source_authority=" << sourceAuthority
+           << ", source_vector_extent=" << sourceVectorExtent
+           << ", runtime_element_count_constraint="
+           << runtimeElementCountConstraint;
+    stream.flush();
+    return text;
+  }
+};
+
+inline llvm::Error makeFixedVectorSourceExtentError(
+    tcrv::exec::KernelOp kernel, llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "fixed vector source extent authority validation failed";
+  if (kernel)
+    stream << " for kernel @" << kernel.getSymName();
+  else
+    stream << " for kernel <missing>";
+  stream << ": " << message;
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
+inline bool hasAnyFixedVectorSourceExtentAttr(mlir::Operation *op) {
+  return op && (op->hasAttr(kFrontendSourceKindAttrName) ||
+                op->hasAttr(kFrontendSourceAuthorityAttrName) ||
+                op->hasAttr(kFrontendSourceVectorExtentAttrName) ||
+                op->hasAttr(kFrontendRuntimeElementCountConstraintAttrName));
+}
+
+inline llvm::StringRef getFrontendSourceStringAttr(mlir::Operation *op,
+                                                   llvm::StringRef attrName) {
+  auto attr =
+      op ? op->getAttrOfType<mlir::StringAttr>(attrName) : mlir::StringAttr();
+  if (!attr)
+    return {};
+  return attr.getValue();
+}
+
+inline llvm::Expected<std::int64_t>
+getFrontendSourceVectorExtentAttr(tcrv::exec::KernelOp kernel,
+                                  mlir::Operation *op,
+                                  llvm::StringRef owner) {
+  auto attr = op ? op->getAttrOfType<mlir::IntegerAttr>(
+                       kFrontendSourceVectorExtentAttrName)
+                 : mlir::IntegerAttr();
+  if (!attr)
+    return makeFixedVectorSourceExtentError(
+        kernel, llvm::Twine(owner) + " requires integer attribute '" +
+                    kFrontendSourceVectorExtentAttrName + "'");
+  if (attr.getInt() <= 0 || attr.getInt() > 64)
+    return makeFixedVectorSourceExtentError(
+        kernel, llvm::Twine(owner) + " attribute '" +
+                    kFrontendSourceVectorExtentAttrName +
+                    "' must be in the bounded range [1, 64]");
+  return attr.getInt();
+}
+
+inline llvm::Expected<std::optional<FixedVectorSourceExtentContract>>
+getFixedVectorSourceExtentContract(
+    tcrv::exec::KernelOp kernel,
+    tcrv::exec::RuntimeParamOp runtimeElementCountParam) {
+  mlir::Operation *kernelOp = kernel.getOperation();
+  mlir::Operation *paramOp = runtimeElementCountParam.getOperation();
+  bool kernelHasAttrs = hasAnyFixedVectorSourceExtentAttr(kernelOp);
+  bool paramHasAttrs = hasAnyFixedVectorSourceExtentAttr(paramOp);
+  if (!kernelHasAttrs && !paramHasAttrs)
+    return std::optional<FixedVectorSourceExtentContract>();
+  if (!kernelHasAttrs || !paramHasAttrs)
+    return makeFixedVectorSourceExtentError(
+        kernel,
+        "fixed vector source extent authority requires matching metadata on "
+        "both tcrv.exec.kernel and the runtime-element-count "
+        "tcrv.exec.runtime_param");
+
+  auto requireMatchingString =
+      [&](llvm::StringRef attrName,
+          llvm::StringRef expected) -> llvm::Expected<std::string> {
+    llvm::StringRef kernelValue = getFrontendSourceStringAttr(kernelOp,
+                                                              attrName);
+    llvm::StringRef paramValue = getFrontendSourceStringAttr(paramOp,
+                                                             attrName);
+    if (kernelValue.empty() || paramValue.empty())
+      return makeFixedVectorSourceExtentError(
+          kernel,
+          llvm::Twine("fixed vector source extent authority requires string "
+                      "attribute '") +
+              attrName + "' on both kernel and runtime_param");
+    if (kernelValue != paramValue)
+      return makeFixedVectorSourceExtentError(
+          kernel,
+          llvm::Twine("fixed vector source extent authority attribute '") +
+              attrName + "' is stale between kernel value '" + kernelValue +
+              "' and runtime_param value '" + paramValue + "'");
+    if (kernelValue != expected)
+      return makeFixedVectorSourceExtentError(
+          kernel,
+          llvm::Twine("fixed vector source extent authority attribute '") +
+              attrName + "' must be '" + expected + "'");
+    return kernelValue.str();
+  };
+
+  llvm::Expected<std::string> sourceKind =
+      requireMatchingString(kFrontendSourceKindAttrName,
+                            kFrontendFixedVectorI32VAddSourceKind);
+  if (!sourceKind)
+    return sourceKind.takeError();
+  llvm::Expected<std::string> sourceAuthority =
+      requireMatchingString(kFrontendSourceAuthorityAttrName,
+                            kFrontendFixedVectorSourceAuthority);
+  if (!sourceAuthority)
+    return sourceAuthority.takeError();
+  llvm::Expected<std::string> constraint = requireMatchingString(
+      kFrontendRuntimeElementCountConstraintAttrName,
+      kFrontendRuntimeElementCountMustEqualSourceExtent);
+  if (!constraint)
+    return constraint.takeError();
+
+  llvm::Expected<std::int64_t> kernelExtent =
+      getFrontendSourceVectorExtentAttr(kernel, kernelOp, "kernel");
+  if (!kernelExtent)
+    return kernelExtent.takeError();
+  llvm::Expected<std::int64_t> paramExtent =
+      getFrontendSourceVectorExtentAttr(kernel, paramOp, "runtime_param");
+  if (!paramExtent)
+    return paramExtent.takeError();
+  if (*kernelExtent != *paramExtent)
+    return makeFixedVectorSourceExtentError(
+        kernel,
+        llvm::Twine("source vector extent is stale between kernel value ") +
+            llvm::Twine(*kernelExtent) + " and runtime_param value " +
+            llvm::Twine(*paramExtent));
+
+  FixedVectorSourceExtentContract contract;
+  contract.sourceKind = std::move(*sourceKind);
+  contract.sourceAuthority = std::move(*sourceAuthority);
+  contract.sourceVectorExtent = *kernelExtent;
+  contract.runtimeElementCountConstraint = std::move(*constraint);
+  if (!contract.isValid())
+    return makeFixedVectorSourceExtentError(
+        kernel, "fixed vector source extent contract is incomplete");
+  return std::optional<FixedVectorSourceExtentContract>(std::move(contract));
+}
 
 inline const FiniteBinaryFrontendContract &
 getI32VAddFiniteBinaryFrontendContract() {

@@ -128,6 +128,68 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 53: Vector frontend runtime AVL authority boundary
+
+**Date**: 2026-05-13
+**Task**: Vector frontend runtime AVL authority boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the bounded vector i32-vadd front door so the accepted
+`vector<16xi32>` source extent is explicit source-frontdoor authority, selected
+RVV `element_count` must agree with it, and generated direct/bundle public
+callables fail closed when runtime `n` is not 16.
+
+### Main Changes
+
+- Added fixed vector source extent metadata on the lowered
+  `tcrv.exec.kernel` and runtime-element-count `tcrv.exec.runtime_param`.
+- Carried the fixed source extent through RVV selected-plan metadata and target
+  export validation, including stale selected-plan metadata and missing runtime
+  param extent fail-closed checks.
+- Added source-authority runtime guards to the common EmitC materializer so
+  direct RVV and RVV+scalar dispatch public callables emit `n == 16` checks
+  before RVV AVL/VL execution or dispatch.
+- Exposed the fixed source boundary in direct RVV source/header artifacts and
+  bundle source/header/index metadata.
+- Updated `scripts/rvv_microkernel_e2e.py` so fixed-source evidence accepts a
+  single runtime count only when the generated source declares the fixed extent
+  contract, and rejects `n = 7` for this vector fixture before ssh evidence.
+
+### Evidence
+
+- Direct artifacts:
+  `artifacts/tmp/vector_frontend_runtime_avl_authority_boundary/direct`
+- Plan-and-export bundle:
+  `artifacts/tmp/vector_frontend_runtime_avl_authority_boundary/bundle`
+- Fresh `ssh rvv` evidence:
+  `artifacts/tmp/vector_frontend_runtime_avl_authority_boundary/e2e/20260513T-vector-frontend-runtime-avl-authority-boundary/evidence.json`
+  with `runtime_element_counts = [16]`,
+  `fixed_source_extent_contract.source_vector_extent = 16`, and
+  `stdout_marker_observed = true`.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'VectorToExec|plan-vector-i32-vadd|RVVMicrokernel|TargetArtifactBundleExport|EmissionManifest|LinalgToExec'`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-13-vector-frontend-runtime-avl-authority-boundary`
+- `git diff --check`
+
+### Status
+
+[OK] Completed. The vector-fronted runtime evidence is intentionally fixed to
+runtime count 16; prior counts 7 and 23 are no longer truthful for this fixed
+source fixture. No generic vector lowering or performance claim is made.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 54: Bounded MLIR vector-to-RVV materialization front door
 
 **Date**: 2026-05-13
