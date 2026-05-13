@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check Template-specific work stays plugin/target-local and construction-manifest-driven"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check role graph, common interfaces, EmitC mapping, evidence profile, and fail-closed matrix"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated output remains a bounded EmitC-route skeleton, not descriptor-driven computation"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact metadata and claim boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck coverage"}

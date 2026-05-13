@@ -5,6 +5,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <string>
+#include <vector>
+
 namespace tianchenrv::plugin::template_ext {
 
 struct TemplateConstructionSemanticRole {
@@ -47,6 +50,21 @@ struct TemplateConstructionManifest {
   llvm::StringRef evidenceProfile;
 };
 
+struct TemplateGeneratedOutputStep {
+  std::string role;
+  unsigned order = 0;
+  std::string operationName;
+  std::string commonInterfaces;
+  std::string emitCCall;
+  std::string sourceLine;
+};
+
+struct TemplateGeneratedOutputRoute {
+  std::string functionName;
+  std::string requiredHeader;
+  std::vector<TemplateGeneratedOutputStep> steps;
+};
+
 llvm::StringRef getTemplateConstructionProtocolVersion();
 llvm::StringRef getTemplateConstructionArchetype();
 llvm::StringRef getTemplateConstructionSemanticRoleGraph();
@@ -70,6 +88,8 @@ llvm::StringRef getTemplateEvidenceProfileMetadataRole();
 const TemplateConstructionManifest &getTemplateConstructionManifest();
 llvm::Error
 verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest);
+llvm::Expected<TemplateGeneratedOutputRoute>
+buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest &manifest);
 
 } // namespace tianchenrv::plugin::template_ext
 

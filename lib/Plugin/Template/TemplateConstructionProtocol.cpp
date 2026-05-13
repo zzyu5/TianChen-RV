@@ -1,10 +1,16 @@
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 
+#include <cctype>
 #include <string>
+#include <utility>
 
 namespace tianchenrv::plugin::template_ext {
 namespace {
@@ -84,6 +90,20 @@ bool containsToken(llvm::StringRef text, llvm::StringRef token) {
   return text.contains(token);
 }
 
+bool isValidCIdentifier(llvm::StringRef value) {
+  if (value.empty())
+    return false;
+  unsigned char first = static_cast<unsigned char>(value.front());
+  if (!(std::isalpha(first) || value.front() == '_'))
+    return false;
+  for (char character : value.drop_front()) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (!(std::isalnum(byte) || character == '_'))
+      return false;
+  }
+  return true;
+}
+
 bool hasEvidence(llvm::StringRef profile, llvm::StringRef evidence) {
   std::string prefix = (evidence + "|").str();
   std::string suffix = ("|" + evidence).str();
@@ -98,6 +118,105 @@ llvm::Error requireNonEmpty(llvm::StringRef fieldName,
     return makeConstructionManifestError(llvm::Twine("requires non-empty ") +
                                          fieldName);
   return llvm::Error::success();
+}
+
+llvm::StringRef expectedRoleNameForIndex(size_t index) {
+  static constexpr llvm::StringLiteral kRoleNames[] = {"configure", "load",
+                                                       "compute", "store"};
+  constexpr size_t kRoleCount = sizeof(kRoleNames) / sizeof(kRoleNames[0]);
+  if (index >= kRoleCount)
+    return {};
+  return kRoleNames[index];
+}
+
+llvm::StringRef requiredRoleSpecificInterface(llvm::StringRef role) {
+  return llvm::StringSwitch<llvm::StringRef>(role)
+      .Case("configure", "TCRVConfigOpInterface")
+      .Cases("load", "store", "TCRVMemoryOpInterface")
+      .Case("compute", "TCRVComputeOpInterface")
+      .Default({});
+}
+
+llvm::Error requireRoleInterfaces(llvm::StringRef role,
+                                  llvm::StringRef commonInterfaces) {
+  if (!containsToken(commonInterfaces, "TCRVExtensionOpInterface") ||
+      !containsToken(commonInterfaces, "TCRVEmitCLowerableInterface"))
+    return makeConstructionManifestError(
+        llvm::Twine("semantic role '") + role +
+        "' must realize extension and EmitC lowerable interfaces");
+
+  llvm::StringRef roleSpecificInterface = requiredRoleSpecificInterface(role);
+  if (roleSpecificInterface.empty())
+    return makeConstructionManifestError(
+        llvm::Twine("semantic role '") + role +
+        "' is not part of the Template role graph");
+  if (!containsToken(commonInterfaces, roleSpecificInterface))
+    return makeConstructionManifestError(
+        llvm::Twine("semantic role '") + role +
+        "' must realize role-specific common interface '" +
+        roleSpecificInterface + "'");
+  if ((role == "load" || role == "store" || role == "compute") &&
+      !containsToken(commonInterfaces, "TCRVResourceOpInterface"))
+    return makeConstructionManifestError(
+        llvm::Twine("semantic role '") + role +
+        "' must realize TCRVResourceOpInterface");
+  return llvm::Error::success();
+}
+
+llvm::Expected<llvm::StringMap<std::string>>
+parseInterfaceRealizationSummary(llvm::StringRef summary) {
+  llvm::StringMap<std::string> interfacesByRole;
+  llvm::SmallVector<llvm::StringRef, 4> entries;
+  summary.split(entries, ';', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (llvm::StringRef entry : entries) {
+    auto [role, interfaces] = entry.split('=');
+    role = role.trim();
+    interfaces = interfaces.trim();
+    if (role.empty() || interfaces.empty())
+      return makeConstructionManifestError(
+          "common interface realization entries require role and interface "
+          "list");
+    if (!interfacesByRole.try_emplace(role, interfaces.str()).second)
+      return makeConstructionManifestError(
+          llvm::Twine("duplicate common interface realization for role '") +
+          role + "'");
+  }
+  return interfacesByRole;
+}
+
+llvm::Expected<llvm::StringMap<std::string>>
+parseRoleToCallMapInManifestOrder(
+    llvm::StringRef roleToCallMap,
+    llvm::ArrayRef<TemplateConstructionSemanticRole> semanticRoles) {
+  llvm::SmallVector<llvm::StringRef, 4> entries;
+  roleToCallMap.split(entries, ';', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (entries.size() != semanticRoles.size())
+    return makeConstructionManifestError(
+        "EmitC role-to-call mapping must contain exactly one entry per "
+        "semantic role");
+
+  llvm::StringMap<std::string> callsByRole;
+  for (auto [index, entry] : llvm::enumerate(entries)) {
+    auto [role, call] = entry.split('=');
+    role = role.trim();
+    call = call.trim();
+    if (role.empty() || call.empty())
+      return makeConstructionManifestError(
+          "EmitC role-to-call mapping entries require role and call name");
+    if (role != semanticRoles[index].role)
+      return makeConstructionManifestError(
+          llvm::Twine("EmitC role-to-call mapping entry '") + role +
+          "' is not ordered with semantic role '" + semanticRoles[index].role +
+          "'");
+    if (!isValidCIdentifier(call))
+      return makeConstructionManifestError(
+          llvm::Twine("EmitC call for role '") + role +
+          "' must be a valid C identifier");
+    if (!callsByRole.try_emplace(role, call.str()).second)
+      return makeConstructionManifestError(
+          llvm::Twine("duplicate EmitC call mapping for role '") + role + "'");
+  }
+  return callsByRole;
 }
 
 const TemplateConstructionSemanticRole kSemanticRoles[] = {
@@ -248,12 +367,31 @@ verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest)
     return makeConstructionManifestError(
         "semantic role graph requires exactly four roles");
 
+  llvm::SmallVector<llvm::StringRef, 4> roleGraphEntries;
+  manifest.semanticRoleGraph.split(roleGraphEntries, "->", /*MaxSplit=*/-1,
+                                   /*KeepEmpty=*/false);
+  if (roleGraphEntries.size() != manifest.semanticRoles.size())
+    return makeConstructionManifestError(
+        "semantic role graph must contain exactly one entry per semantic role");
+
+  llvm::Expected<llvm::StringMap<std::string>> interfaceSummary =
+      parseInterfaceRealizationSummary(getTemplateConstructionInterfaceRealization());
+  if (!interfaceSummary)
+    return interfaceSummary.takeError();
+
   llvm::StringSet<> seenRoles;
   for (auto [index, role] : llvm::enumerate(manifest.semanticRoles)) {
     if (role.order != index)
       return makeConstructionManifestError(
           llvm::Twine("semantic role '") + role.role +
           "' has non-contiguous order");
+    if (role.role != expectedRoleNameForIndex(index) ||
+        roleGraphEntries[index].trim() != role.role)
+      return makeConstructionManifestError(
+          llvm::Twine("semantic role graph entry '") +
+          roleGraphEntries[index].trim() +
+          "' does not match Template role order '" +
+          expectedRoleNameForIndex(index) + "'");
     if (role.role.empty() || role.operationName.empty() ||
         role.commonInterfaces.empty())
       return makeConstructionManifestError(
@@ -261,12 +399,20 @@ verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest)
     if (!seenRoles.insert(role.role).second)
       return makeConstructionManifestError(
           llvm::Twine("duplicate semantic role '") + role.role + "'");
-    if (!containsToken(role.commonInterfaces, "TCRVExtensionOpInterface") ||
-        !containsToken(role.commonInterfaces, "TCRVEmitCLowerableInterface"))
+    if (llvm::Error error =
+            requireRoleInterfaces(role.role, role.commonInterfaces))
+      return error;
+    auto summaryIt = interfaceSummary->find(role.role);
+    if (summaryIt == interfaceSummary->end() ||
+        summaryIt->getValue() != role.commonInterfaces)
       return makeConstructionManifestError(
           llvm::Twine("semantic role '") + role.role +
-          "' must realize extension and EmitC lowerable interfaces");
+          "' must match the Template common interface realization summary");
   }
+  if (interfaceSummary->size() != manifest.semanticRoles.size())
+    return makeConstructionManifestError(
+        "common interface realization summary must contain exactly one entry "
+        "per semantic role");
 
   if (!containsToken(getTemplateConstructionInterfaceRealization(),
                      "configure=TCRVExtensionOpInterface") ||
@@ -286,6 +432,14 @@ verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest)
       route.requiredHeader.empty() || route.roleToCallMap.empty())
     return makeConstructionManifestError(
         "EmitC route mapping must preserve Template route metadata");
+  if (route.requiredHeader != kTemplateRequiredHeader)
+    return makeConstructionManifestError(
+        "EmitC route mapping must preserve the Template required header");
+  if (llvm::Expected<llvm::StringMap<std::string>> callsByRole =
+          parseRoleToCallMapInManifestOrder(route.roleToCallMap,
+                                            manifest.semanticRoles);
+      !callsByRole)
+    return callsByRole.takeError();
 
   for (llvm::StringRef requiredEvidence :
        {"parse_verify", "capability", "interface",
@@ -297,6 +451,54 @@ verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest)
   }
 
   return llvm::Error::success();
+}
+
+llvm::Expected<TemplateGeneratedOutputRoute>
+buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest &manifest) {
+  if (llvm::Error error = verifyTemplateConstructionManifest(manifest))
+    return std::move(error);
+
+  llvm::Expected<llvm::StringMap<std::string>> callsByRole =
+      parseRoleToCallMapInManifestOrder(manifest.emitcRoute.roleToCallMap,
+                                        manifest.semanticRoles);
+  if (!callsByRole)
+    return callsByRole.takeError();
+
+  if (!hasEvidence(manifest.evidenceProfile, "generated_output"))
+    return makeConstructionManifestError(
+        "evidence profile must include generated_output before constructing "
+        "Template generated output");
+
+  TemplateGeneratedOutputRoute route;
+  route.functionName =
+      (manifest.family.concreteNamespace + "_generated_" +
+       manifest.family.firstSliceVariantName)
+          .str();
+  route.requiredHeader = manifest.emitcRoute.requiredHeader.str();
+  if (!isValidCIdentifier(route.functionName))
+    return makeConstructionManifestError(
+        "generated output function name must be a valid C identifier");
+
+  route.steps.reserve(manifest.semanticRoles.size());
+  for (const TemplateConstructionSemanticRole &semanticRole :
+       manifest.semanticRoles) {
+    auto callIt = callsByRole->find(semanticRole.role);
+    if (callIt == callsByRole->end())
+      return makeConstructionManifestError(
+          llvm::Twine("EmitC route mapping missing semantic role '") +
+          semanticRole.role + "'");
+
+    TemplateGeneratedOutputStep step;
+    step.role = semanticRole.role.str();
+    step.order = semanticRole.order;
+    step.operationName = semanticRole.operationName.str();
+    step.commonInterfaces = semanticRole.commonInterfaces.str();
+    step.emitCCall = callIt->getValue();
+    step.sourceLine = step.emitCCall + "();";
+    route.steps.push_back(std::move(step));
+  }
+
+  return route;
 }
 
 } // namespace tianchenrv::plugin::template_ext

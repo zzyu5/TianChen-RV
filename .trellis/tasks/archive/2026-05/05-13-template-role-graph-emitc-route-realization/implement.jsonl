@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol pre-development checklist and core/plugin boundary"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol, manifest, role graph, EmitC mapping, and evidence profile contract"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Extension-local integration boundary and common orchestration constraints"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Common TCRV interface and registry routing contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route and lowerable interface boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and selected-plan validation contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++ and lit/FileCheck evidence expectations"}

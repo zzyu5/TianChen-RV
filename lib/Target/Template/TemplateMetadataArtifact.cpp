@@ -357,6 +357,11 @@ llvm::Error validateTemplateMetadataCandidate(
   if (llvm::Error error = pluginTemplate::verifyTemplateConstructionManifest(
           pluginTemplate::getTemplateConstructionManifest()))
     return error;
+  if (llvm::Expected<pluginTemplate::TemplateGeneratedOutputRoute> route =
+          pluginTemplate::buildTemplateGeneratedOutputRoute(
+              pluginTemplate::getTemplateConstructionManifest());
+      !route)
+    return route.takeError();
 
   KernelOp kernel = candidate.kernel;
   if (!kernel)
@@ -537,6 +542,39 @@ void printSelectedPlanMetadata(
   }
 }
 
+void printGeneratedOutputRoute(
+    llvm::raw_ostream &os,
+    const pluginTemplate::TemplateGeneratedOutputRoute &route) {
+  printField(os, "generated_output_kind", "role-graph-emitc-source-skeleton");
+  printField(os, "generated_function", route.functionName);
+  printField(os, "generated_required_header", route.requiredHeader);
+  for (auto [index, step] : llvm::enumerate(route.steps)) {
+    os << "generated_emitc_step[" << index << "]:\n";
+    printField(os, "  role", step.role);
+    os << "  order: " << step.order << "\n";
+    printField(os, "  operation", step.operationName);
+    printField(os, "  common_interfaces", step.commonInterfaces);
+    printField(os, "  emitc_call", step.emitCCall);
+    printField(os, "  source_line", step.sourceLine);
+  }
+
+  os << "generated_source:\n";
+  os << "  #include \"";
+  for (char character : route.requiredHeader) {
+    if (character == '\\' || character == '"')
+      os << '\\';
+    os << character;
+  }
+  os << "\"\n";
+  os << "  void " << route.functionName << "(void) {\n";
+  for (const pluginTemplate::TemplateGeneratedOutputStep &step : route.steps) {
+    os << "    /* role[" << step.order << "] " << step.role
+       << " via " << step.operationName << " */\n";
+    os << "    " << step.sourceLine << "\n";
+  }
+  os << "  }\n";
+}
+
 } // namespace
 
 static TargetArtifactRouteMetadata buildTemplateMetadataArtifactRouteMetadata() {
@@ -603,6 +641,10 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
 
   const pluginTemplate::TemplateConstructionManifest &manifest =
       pluginTemplate::getTemplateConstructionManifest();
+  llvm::Expected<pluginTemplate::TemplateGeneratedOutputRoute> route =
+      pluginTemplate::buildTemplateGeneratedOutputRoute(manifest);
+  if (!route)
+    return route.takeError();
 
   os << "tianchenrv.template_metadata_artifact.version: "
      << kMetadataArtifactVersion << "\n";
@@ -658,6 +700,7 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
   printField(os, "emitc_required_header", manifest.emitcRoute.requiredHeader);
   printField(os, "emitc_role_to_call_map", manifest.emitcRoute.roleToCallMap);
   printField(os, "evidence_profile", manifest.evidenceProfile);
+  printGeneratedOutputRoute(os, *route);
   printSelectedPlanMetadata(os, candidate->selectedPlanMetadata);
   return llvm::Error::success();
 }

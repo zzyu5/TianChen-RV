@@ -11,6 +11,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
@@ -18,6 +19,7 @@
 
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
@@ -234,6 +236,133 @@ int runConstructionManifestTest() {
           manifest.evidenceProfile.contains("emitc_route_mapping") &&
           manifest.evidenceProfile.contains("generated_output"),
       "Template manifest records focused evidence profile");
+}
+
+int runGeneratedOutputRouteTest() {
+  namespace template_ext = tianchenrv::plugin::template_ext;
+  const auto &manifest = template_ext::getTemplateConstructionManifest();
+
+  llvm::Expected<template_ext::TemplateGeneratedOutputRoute> route =
+      template_ext::buildTemplateGeneratedOutputRoute(manifest);
+  if (!route)
+    return fail("Template generated output route failed: " +
+                llvm::toString(route.takeError()));
+
+  if (int result =
+          expect(route->functionName ==
+                         "tcrv_template_generated_template_zero_core_first_slice" &&
+                     route->requiredHeader ==
+                         "template_extension_intrinsics.h" &&
+                     route->steps.size() == 4,
+                 "Template generated output route is manifest-derived"))
+    return result;
+  if (int result =
+          expect(route->steps[0].role == "configure" &&
+                     route->steps[0].emitCCall ==
+                         "__tcrv_template_config" &&
+                     route->steps[0].sourceLine ==
+                         "__tcrv_template_config();",
+                 "Template generated output route realizes configure role"))
+    return result;
+  if (int result =
+          expect(route->steps[2].role == "compute" &&
+                     route->steps[2].commonInterfaces.find(
+                         "TCRVComputeOpInterface") != std::string::npos &&
+                     route->steps[2].emitCCall ==
+                         "__tcrv_template_compute" &&
+                     route->steps[2].sourceLine ==
+                         "__tcrv_template_compute();",
+                 "Template generated output route realizes compute role"))
+    return result;
+
+  {
+    template_ext::TemplateConstructionManifest bad = manifest;
+    llvm::SmallVector<template_ext::TemplateConstructionSemanticRole, 4> roles(
+        manifest.semanticRoles.begin(), manifest.semanticRoles.end());
+    std::swap(roles[1], roles[2]);
+    roles[1].order = 1;
+    roles[2].order = 2;
+    bad.semanticRoles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(bad);
+    if (badRoute)
+      return fail("reordered Template role graph unexpectedly generated output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"semantic role graph entry", "Template role order"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateConstructionManifest bad = manifest;
+    bad.emitcRoute.roleToCallMap =
+        "configure=__tcrv_template_config;load=__tcrv_template_load;"
+        "store=__tcrv_template_store";
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(bad);
+    if (badRoute)
+      return fail("missing Template EmitC call unexpectedly generated output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"EmitC role-to-call mapping", "exactly one entry per semantic role"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateConstructionManifest bad = manifest;
+    bad.emitcRoute.roleToCallMap =
+        "configure=__tcrv_template_config;compute=__tcrv_template_compute;"
+        "load=__tcrv_template_load;store=__tcrv_template_store";
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(bad);
+    if (badRoute)
+      return fail("reordered Template EmitC call map unexpectedly generated output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"EmitC role-to-call mapping entry", "not ordered"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateConstructionManifest bad = manifest;
+    llvm::SmallVector<template_ext::TemplateConstructionSemanticRole, 4> roles(
+        manifest.semanticRoles.begin(), manifest.semanticRoles.end());
+    roles[2].commonInterfaces =
+        "TCRVExtensionOpInterface+TCRVEmitCLowerableInterface";
+    bad.semanticRoles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(bad);
+    if (badRoute)
+      return fail("mismatched Template interface mapping unexpectedly generated "
+                  "output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"semantic role 'compute'", "TCRVComputeOpInterface"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateConstructionManifest bad = manifest;
+    bad.evidenceProfile =
+        "parse_verify|capability|interface|selected_boundary_or_route|"
+        "emitc_route_mapping";
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(bad);
+    if (badRoute)
+      return fail("Template route without generated_output evidence "
+                  "unexpectedly generated output");
+    if (int result = expectErrorContains(badRoute.takeError(),
+                                         {"evidence profile missing",
+                                          "generated_output"}))
+      return result;
+  }
+
+  return 0;
 }
 
 int runRegistrationAndCapabilityMetadataTest() {
@@ -724,6 +853,8 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runConstructionManifestTest())
+    return result;
+  if (int result = runGeneratedOutputRouteTest())
     return result;
   if (int result = runRegistrationAndCapabilityMetadataTest())
     return result;

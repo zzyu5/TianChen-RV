@@ -543,3 +543,40 @@ RVV op-owned EmitC artifact production route.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 57: Template role-graph EmitC route realization
+
+**Date**: 2026-05-13
+**Task**: Template role-graph EmitC route realization
+**Branch**: `main`
+
+### Summary
+
+Realized Template construction manifest as a generated role-graph-to-EmitC source-like artifact route.
+
+### Main Changes
+
+- Added TemplateGeneratedOutputRoute / TemplateGeneratedOutputStep and buildTemplateGeneratedOutputRoute.
+- Template target artifact now validates and prints generated_emitc_step records plus generated_source derived from role-to-EmitC mapping.
+- Focused C++ and lit coverage added for positive route output and stale/missing/reordered/mismatched failure cases.
+- No core tcrv.exec or lib/Transforms Template semantic branches were added.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

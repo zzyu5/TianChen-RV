@@ -81,6 +81,28 @@ module {
     // ARTIFACT: emitc_required_header: "template_extension_intrinsics.h"
     // ARTIFACT: emitc_role_to_call_map: "configure=__tcrv_template_config;load=__tcrv_template_load;compute=__tcrv_template_compute;store=__tcrv_template_store"
     // ARTIFACT: evidence_profile: "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|generated_output"
+    // ARTIFACT: generated_output_kind: "role-graph-emitc-source-skeleton"
+    // ARTIFACT: generated_function: "tcrv_template_generated_template_zero_core_first_slice"
+    // ARTIFACT: generated_required_header: "template_extension_intrinsics.h"
+    // ARTIFACT: generated_emitc_step[0]:
+    // ARTIFACT:   role: "configure"
+    // ARTIFACT:   operation: "tcrv_template.config_skeleton"
+    // ARTIFACT:   emitc_call: "__tcrv_template_config"
+    // ARTIFACT:   source_line: "__tcrv_template_config();"
+    // ARTIFACT: generated_emitc_step[2]:
+    // ARTIFACT:   role: "compute"
+    // ARTIFACT:   operation: "tcrv_template.compute_skeleton"
+    // ARTIFACT:   common_interfaces: "TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
+    // ARTIFACT:   emitc_call: "__tcrv_template_compute"
+    // ARTIFACT:   source_line: "__tcrv_template_compute();"
+    // ARTIFACT: generated_source:
+    // ARTIFACT:   #include "template_extension_intrinsics.h"
+    // ARTIFACT:   void tcrv_template_generated_template_zero_core_first_slice(void) {
+    // ARTIFACT:     /* role[0] configure via tcrv_template.config_skeleton */
+    // ARTIFACT:     __tcrv_template_config();
+    // ARTIFACT:     /* role[2] compute via tcrv_template.compute_skeleton */
+    // ARTIFACT:     __tcrv_template_compute();
+    // ARTIFACT:   }
     // ARTIFACT: selected_plan_metadata[0]:
     // ARTIFACT:   name: "template_extension_capability_id"
     // ARTIFACT:   value: "template.extension"

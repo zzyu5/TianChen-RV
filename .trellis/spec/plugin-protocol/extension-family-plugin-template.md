@@ -339,6 +339,14 @@ file is not enough.
   protocol version, archetype, semantic role graph, family declaration,
   semantic roles with common-interface realization, EmitC route mapping, and
   evidence profile.
+- Generated-output route builder:
+  `llvm::Expected<TemplateGeneratedOutputRoute>
+  buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest
+  &manifest)`.
+- Generated-output payload:
+  deterministic function name, required header, ordered role steps, each
+  step's semantic role, role order, family operation name, common-interface
+  realization, EmitC call name, and source-like call line.
 
 ### 3. Contracts
 
@@ -353,6 +361,10 @@ file is not enough.
   metadata and fail closed for stale selected-plan fields.
 - Generated construction output must print the archetype, role graph, family
   declaration, interface realization, EmitC mapping, and evidence profile.
+- Generated construction output must also include a deterministic source-like
+  role-graph-to-EmitC skeleton derived from the manifest's role-to-call
+  mapping. The skeleton is construction evidence only; it is not runtime ABI
+  glue, linked code, hardware execution, correctness, or performance evidence.
 
 ### 4. Validation & Error Matrix
 
@@ -361,6 +373,12 @@ file is not enough.
 - Non-contiguous role ordering or duplicate roles -> manifest verifier error.
 - Role missing `TCRVExtensionOpInterface` or `TCRVEmitCLowerableInterface` ->
   manifest verifier error.
+- Role missing its role-specific common interface, such as config, memory, or
+  compute interface -> manifest verifier error.
+- Role-to-EmitC mapping missing a role, reordering roles, duplicating roles, or
+  using a non-C-identifier call name -> generated-output route builder error.
+- Role common-interface data disagreeing with the common-interface realization
+  summary -> manifest verifier error.
 - Materialized variant missing construction metadata -> plugin legality error.
 - Selected-plan metadata value disagrees with route registration metadata ->
   target artifact preflight error before generated output.
@@ -378,9 +396,15 @@ file is not enough.
 
 - C++ test asserting the manifest shape and agreement with plugin capability,
   variant, emission-plan, and selected-plan metadata.
+- C++ test asserting the generated-output route's ordered role steps,
+  role-specific common-interface realization, EmitC call mapping, and
+  fail-closed behavior for reordered, missing, or mismatched route data.
 - lit/FileCheck test proving generated artifact output includes construction
   protocol, archetype, role graph, family, interface, EmitC route, and evidence
   fields.
+- lit/FileCheck test proving generated artifact output includes a deterministic
+  source-like role-graph-to-EmitC skeleton derived from the manifest mapping,
+  including at least the compute role.
 - Target artifact registry/preflight test proving selected-plan route metadata
   requirements are registered and reject stale values.
 - Focused regression that existing built-in plugin registration still reaches
