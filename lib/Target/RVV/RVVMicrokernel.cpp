@@ -3220,6 +3220,9 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* arithmetic_source: typed op "
      << record.descriptor.getRVVOperationName()
      << " via generated EmitC route and IR-backed callable ABI */\n";
+  os << "/* descriptor_mirror_status: optional legacy descriptor metadata is "
+        "compatibility/diagnostic only after typed RVV body authority; it "
+        "cannot select emitted compute semantics */\n";
   os << "/* active_route: " << record.activeRouteID << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
@@ -3450,6 +3453,9 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
        << " is the source scf.for upper bound and runtime AVL; no fixed "
           "source-extent trap is emitted for this dynamic vector route */\n";
   }
+  os << "/* descriptor_mirror_status: optional legacy descriptor metadata is "
+        "compatibility/diagnostic only after typed RVV body authority; it "
+        "cannot select emitted compute semantics */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
         "target/export-owned runtime "
      << record.selectedConfigContract.getRuntimeElementCountCName()
