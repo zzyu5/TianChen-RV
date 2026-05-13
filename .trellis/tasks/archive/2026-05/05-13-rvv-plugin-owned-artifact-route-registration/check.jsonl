@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Verify global architecture, implementation stack, and descriptor-boundary invariants are preserved."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify RVV route registration remains RVV plugin/target-owned and selected metadata remains bounded."}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Verify core/tool code consumes registries instead of hard-coding RVV/scalar route semantics."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Verify target artifact exporter and translate route registration follows the built-in registration boundary and fail-closed route metadata rules."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Verify focused build, C++ tests, lit tests, artifact commands, and RVV evidence match the changed behavior."}

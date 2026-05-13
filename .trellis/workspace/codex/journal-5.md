@@ -234,3 +234,70 @@ RVV selected config and runtime VL boundary.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 55: RVV plugin-owned artifact route registration
+
+**Date**: 2026-05-13
+**Task**: RVV plugin-owned artifact route registration
+**Branch**: `main`
+
+### Summary
+
+Moved RVV-primary dispatch artifact route registration under the RVV plugin-owned target exporter bundle with scalar as an explicit dependency, preserved direct and bundle dynamic vadd/vsub behavior, and refreshed bounded RVV evidence.
+
+### Main Changes
+
+### Task
+
+RVV plugin-owned artifact route registration.
+
+### Main Changes
+
+- Added RVV built-in target artifact bundle composition so `rvv-plugin` registers both RVV direct microkernel routes and RVV-primary RVV+scalar dispatch source/header/object routes.
+- Changed RVV+scalar dispatch target exporter bundle registration from `scalar-plugin` owner with `rvv-plugin` dependency to `rvv-plugin` owner with `scalar-plugin` dependency.
+- Kept scalar standalone fallback target artifact routes under `scalar-plugin` only.
+- Moved RVV+scalar dispatch route metadata requirements from the scalar extension bundle to the RVV extension bundle.
+- Updated `TargetArtifactExportTest.cpp` coverage for owner/dependency failures, duplicate bundle rejection, extension-bundle metadata ownership, and route metadata preservation.
+- Updated the lowering-runtime spec to document RVV-owned dispatch route registration with scalar dependency.
+
+### Evidence
+
+- Direct artifacts: `artifacts/tmp/rvv_plugin_owned_route_registration/direct/vector_dynamic_i32_vsub/` and `artifacts/tmp/rvv_plugin_owned_route_registration/direct/vector_dynamic_i32_vadd/`.
+- Bundle artifacts: `artifacts/tmp/rvv_plugin_owned_route_registration/bundle/vector_dynamic_i32_vsub/` and `artifacts/tmp/rvv_plugin_owned_route_registration/bundle/vector_dynamic_i32_vadd/`.
+- ssh rvv evidence: `artifacts/tmp/rvv_plugin_owned_route_registration/e2e/20260513T-rvv-plugin-owned-route-registration-vsub/evidence.json`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts `7`, `16`, and `23`.
+
+### Checks
+
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-plugin-owned-artifact-route-registration`
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit filter covering dynamic vector add/sub, invalid vector diagnostics, fixed-vector vadd, bundle export, RVV microkernel, emission manifest, and linalg add/sub.
+- Broader lit filter `VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest` with 80 selected tests passed.
+- Direct and bundle artifact commands recorded in the archived task PRD.
+- `git diff --check`
+- Trellis validation before finish/archive.
+
+### Status
+
+[OK] Completed and archived.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -442,7 +442,7 @@ into bundle records, and let extension bundles require metadata for composite
 route ids, but it must not interpret RVV/scalar/offload family semantics from
 that metadata.
 If a route metadata requirement depends on an additional enabled plugin, such
-as scalar-owned RVV+scalar dispatch routes that also require `rvv-plugin`, the
+as RVV-owned RVV+scalar dispatch routes that also require `scalar-plugin`, the
 requirement must declare that plugin dependency and is enforced only when the
 dependency is enabled.
 When a registered target artifact route declares required runtime ABI roles or
@@ -552,11 +552,11 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV+scalar explicit finite binary host dispatch runtime-callable C source,
     matched by target-owned RVV+scalar dispatch exporter code from the selected
     RVV dispatch-case callable route and scalar dispatch-fallback callable
-    route. These routes are registered by the `scalar-plugin` target-exporter
-    bundle and require an enabled `rvv-plugin`; disabled or missing RVV/scalar
-    plugins must not publish the dispatch route group. Registration must
-    preflight both callable component candidates against their direct route ABI
-    role contracts before deriving the dispatcher ABI.
+    route. These RVV-primary routes are registered by the `rvv-plugin`
+    target-exporter bundle and require an enabled `scalar-plugin`; disabled or
+    missing RVV/scalar plugins must not publish the dispatch route group.
+    Registration must preflight both callable component candidates against
+    their direct route ABI role contracts before deriving the dispatcher ABI.
   - RVV+scalar explicit finite binary host dispatch runtime-callable RISC-V
     ELF relocatable library object, matched from the same selected callable
     candidates and emitted by the target-owned RVV+scalar dispatch exporter

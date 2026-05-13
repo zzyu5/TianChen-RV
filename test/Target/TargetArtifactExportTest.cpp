@@ -1011,12 +1011,16 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   }
   const std::size_t rvvArtifactRouteCount =
       tianchenrv::target::rvv::getRVVMicrokernelDirectRouteCount();
+  const auto scalarFamilies =
+      tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords();
+  const std::size_t dispatchCompositeRouteCount = scalarFamilies.size() * 3;
   if (rvvBundle->getTargetArtifactRouteMetadata().size() !=
-      rvvArtifactRouteCount) {
+      rvvArtifactRouteCount + dispatchCompositeRouteCount) {
     llvm::errs() << "RVV extension bundle frontdoor expected "
                  << rvvArtifactRouteCount
-                 << " finite source/header/object route metadata "
-                    "requirements, got "
+                 << " finite source/header/object plus "
+                 << dispatchCompositeRouteCount
+                 << " RVV+scalar dispatch route metadata requirements, got "
                  << rvvBundle->getTargetArtifactRouteMetadata().size()
                  << "\n";
     return false;
@@ -1040,6 +1044,44 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       return false;
     }
   }
+  using DispatchRouteKind =
+      tianchenrv::target::rvv_scalar::RVVScalarDispatchRouteKind;
+  for (const auto &route :
+       tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteManifest()) {
+    bool requiredRoute = false;
+    switch (route.routeKind) {
+    case DispatchRouteKind::Source:
+    case DispatchRouteKind::Header:
+    case DispatchRouteKind::Object:
+      requiredRoute = true;
+      break;
+    case DispatchRouteKind::SelfCheckSource:
+    case DispatchRouteKind::SelfCheckObject:
+      break;
+    }
+    if (!requiredRoute)
+      continue;
+
+    bool found = false;
+    for (const ExtensionBundleTargetArtifactRouteMetadata &metadata :
+         rvvBundle->getTargetArtifactRouteMetadata()) {
+      if (metadata.routeID == route.routeID &&
+          metadata.artifactKind == route.artifactKind &&
+          metadata.requireRouteMetadata &&
+          metadata.requiredPluginNames.size() == 1 &&
+          metadata.requiredPluginNames.front() ==
+              tianchenrv::plugin::scalar::getScalarExtensionPluginName()) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      llvm::errs() << "RVV extension bundle frontdoor is missing "
+                      "RVV+scalar dispatch route metadata requirement for "
+                   << route.routeID << "\n";
+      return false;
+    }
+  }
 
   const ExtensionBundle *scalarBundle =
       bundles.lookupPluginBundle(
@@ -1049,15 +1091,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                     "route metadata ownership\n";
     return false;
   }
-  const auto scalarFamilies =
-      tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords();
   const std::size_t scalarSourceRouteCount = scalarFamilies.size();
-  const std::size_t dispatchCompositeRouteCount = scalarFamilies.size() * 3;
   if (scalarBundle->getTargetArtifactRouteMetadata().size() !=
-      scalarSourceRouteCount + dispatchCompositeRouteCount) {
+      scalarSourceRouteCount) {
     llvm::errs() << "Scalar extension bundle frontdoor expected scalar "
-                    "source plus RVV+scalar dispatch route metadata "
-                    "requirements, got "
+                    "source route metadata requirements only, got "
                  << scalarBundle->getTargetArtifactRouteMetadata().size()
                  << "\n";
     return false;
@@ -1080,42 +1118,16 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       return false;
     }
   }
-  using DispatchRouteKind =
-      tianchenrv::target::rvv_scalar::RVVScalarDispatchRouteKind;
   for (const auto &route :
        tianchenrv::target::rvv_scalar::getRVVScalarDispatchRouteManifest()) {
-    bool requiredRoute = false;
-    switch (route.routeKind) {
-    case DispatchRouteKind::Source:
-    case DispatchRouteKind::Header:
-    case DispatchRouteKind::Object:
-      requiredRoute = true;
-      break;
-    case DispatchRouteKind::SelfCheckSource:
-    case DispatchRouteKind::SelfCheckObject:
-      break;
-    }
-    if (!requiredRoute)
-      continue;
-
-    bool found = false;
     for (const ExtensionBundleTargetArtifactRouteMetadata &metadata :
          scalarBundle->getTargetArtifactRouteMetadata()) {
-      if (metadata.routeID == route.routeID &&
-          metadata.artifactKind == route.artifactKind &&
-          metadata.requireRouteMetadata &&
-          metadata.requiredPluginNames.size() == 1 &&
-          metadata.requiredPluginNames.front() ==
-              tianchenrv::plugin::rvv::getRVVExtensionPluginName()) {
-        found = true;
-        break;
+      if (metadata.routeID == route.routeID) {
+        llvm::errs() << "Scalar extension bundle frontdoor must not own "
+                        "RVV+scalar dispatch route metadata requirement for "
+                     << route.routeID << "\n";
+        return false;
       }
-    }
-    if (!found) {
-      llvm::errs() << "Scalar extension bundle frontdoor is missing "
-                      "RVV+scalar dispatch route metadata requirement for "
-                   << route.routeID << "\n";
-      return false;
     }
   }
 
@@ -2114,7 +2126,7 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
                   pluginExporters),
           "duplicate RVV+scalar dispatch plugin-owned target exporter bundle "
           "rejected",
-          {"duplicate plugin-owned target exporter bundle", "scalar-plugin"}))
+          {"duplicate plugin-owned target exporter bundle", "rvv-plugin"}))
     return false;
 
   ExtensionPluginRegistry plugins;
@@ -2141,11 +2153,11 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!expectErrorContains(
           emptyPluginExporters.registerExportersForPlugin(
               plugins,
-              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
               missingBundleRegistry),
           "explicit missing RVV+scalar dispatch target exporter bundle "
           "registration rejected",
-          {"no registered target artifact exporter bundle", "scalar-plugin"}))
+          {"no registered target artifact exporter bundle", "rvv-plugin"}))
     return false;
 
   TargetArtifactExporterRegistry registry;
@@ -2212,7 +2224,7 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!expectErrorContains(
           pluginExporters.registerExportersForPlugin(
               plugins,
-              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
               registry),
           "duplicate plugin-owned RVV+scalar dispatch target exporter route "
           "rejected",
@@ -2244,10 +2256,10 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!expectErrorContains(
           pluginExporters.registerExportersForPlugin(
               disabledScalarPlugins,
-              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
               disabledScalarRegistry),
           "explicit disabled scalar dispatch exporter registration rejected",
-          {"disabled extension plugin", "scalar-plugin"}))
+          {"requires disabled extension plugin", "scalar-plugin"}))
     return false;
 
   ExtensionPluginRegistry missingScalarPlugins;
@@ -2258,7 +2270,8 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   TargetArtifactExporterRegistry missingScalarRegistry;
   if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
                          missingScalarPlugins, missingScalarRegistry),
-                     "skip dispatch exporters when scalar owner is missing"))
+                     "skip dispatch exporters when scalar dependency is "
+                     "missing"))
     return false;
   if (missingScalarRegistry.lookupComposite(dispatchSourceRouteID) ||
       missingScalarRegistry.lookupComposite(dispatchHeaderRouteID) ||
@@ -2270,10 +2283,10 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!expectErrorContains(
           pluginExporters.registerExportersForPlugin(
               missingScalarPlugins,
-              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
               missingScalarRegistry),
           "explicit missing scalar dispatch exporter registration rejected",
-          {"unknown extension plugin", "scalar-plugin"}))
+          {"requires missing extension plugin", "scalar-plugin"}))
     return false;
 
   DisabledRVVTargetExporterPlugin disabledRVV;
@@ -2288,8 +2301,7 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   TargetArtifactExporterRegistry disabledRVVRegistry;
   if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
                          disabledRVVPlugins, disabledRVVRegistry),
-                     "skip dispatch exporters for disabled required RVV "
-                     "plugin"))
+                     "skip dispatch exporters for disabled RVV owner plugin"))
     return false;
   if (disabledRVVRegistry.lookupComposite(dispatchSourceRouteID) ||
       disabledRVVRegistry.lookupComposite(dispatchHeaderRouteID) ||
@@ -2301,11 +2313,10 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!expectErrorContains(
           pluginExporters.registerExportersForPlugin(
               disabledRVVPlugins,
-              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
               disabledRVVRegistry),
-          "explicit disabled required RVV dispatch exporter dependency "
-          "rejected",
-          {"requires disabled extension plugin", "rvv-plugin"}))
+          "explicit disabled RVV dispatch exporter owner rejected",
+          {"disabled extension plugin", "rvv-plugin"}))
     return false;
 
   ExtensionPluginRegistry missingRVVPlugins;
@@ -2316,8 +2327,7 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   TargetArtifactExporterRegistry missingRVVRegistry;
   if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
                          missingRVVPlugins, missingRVVRegistry),
-                     "skip dispatch exporters for missing required RVV "
-                     "plugin"))
+                     "skip dispatch exporters for missing RVV owner plugin"))
     return false;
   if (missingRVVRegistry.lookupComposite(dispatchSourceRouteID) ||
       missingRVVRegistry.lookupComposite(dispatchHeaderRouteID) ||
@@ -2329,11 +2339,10 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!expectErrorContains(
           pluginExporters.registerExportersForPlugin(
               missingRVVPlugins,
-              tianchenrv::plugin::scalar::getScalarExtensionPluginName(),
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
               missingRVVRegistry),
-          "explicit missing required RVV dispatch exporter dependency "
-          "rejected",
-          {"requires missing extension plugin", "rvv-plugin"}))
+          "explicit missing RVV dispatch exporter owner rejected",
+          {"unknown extension plugin", "rvv-plugin"}))
     return false;
 
   TargetArtifactExporterRegistry scalarOnlyBuiltinRegistry;
@@ -2369,7 +2378,7 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   }
   if (!rvvOnlyBuiltinRegistry.lookup("tcrv-export-rvv-i32-vmul-microkernel-c")) {
     llvm::errs() << "RVV plugin-owned selected route should remain available "
-                    "when scalar dispatch owner is missing\n";
+                    "when scalar dispatch dependency is missing\n";
     return false;
   }
 

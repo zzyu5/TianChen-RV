@@ -3743,9 +3743,9 @@ llvm::Error registerRVVScalarDispatchTargetExporters(
 
 llvm::Error registerRVVScalarDispatchPluginTargetExporterBundle(
     PluginTargetArtifactExporterRegistry &registry) {
-  static const llvm::StringRef requiredPlugins[] = {kRVVPluginName};
+  static const llvm::StringRef requiredPlugins[] = {kScalarPluginName};
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
-      kScalarPluginName, registerRVVScalarDispatchTargetExporters,
+      kRVVPluginName, registerRVVScalarDispatchTargetExporters,
       requiredPlugins));
 }
 

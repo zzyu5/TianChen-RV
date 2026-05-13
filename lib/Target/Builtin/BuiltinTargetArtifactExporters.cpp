@@ -34,13 +34,18 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
   return rvv::registerRVVSmokeProbeTargetExporters(registry);
 }
 
-llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(
+llvm::Error registerRVVBuiltinTargetArtifactExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
   if (llvm::Error error =
-          scalar::registerScalarMicrokernelPluginTargetExporterBundle(registry))
+          rvv::registerRVVMicrokernelPluginTargetExporterBundle(registry))
     return error;
   return rvv_scalar::registerRVVScalarDispatchPluginTargetExporterBundle(
       registry);
+}
+
+llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return scalar::registerScalarMicrokernelPluginTargetExporterBundle(registry);
 }
 
 llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
@@ -50,7 +55,7 @@ llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.addRequiredDialectName("tcrv_rvv");
   bundle.addLoweringBoundaryOp("tcrv_rvv.lowering_boundary");
   bundle.setTargetArtifactExporterBundleRegistrationFn(
-      rvv::registerRVVMicrokernelPluginTargetExporterBundle);
+      registerRVVBuiltinTargetArtifactExporterBundles);
 
   bool sawArtifactRoute = false;
   for (const rvv::RVVMicrokernelDirectRouteManifestEntry &route :
@@ -63,6 +68,26 @@ llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
     return makeBuiltinExtensionBundleError(
         "missing finite RVV binary source/header/object routes for route "
         "metadata registration");
+
+  static const llvm::StringRef requiredDispatchPlugins[] = {
+      plugin::scalar::getScalarExtensionPluginName()};
+  for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &route :
+       rvv_scalar::getRVVScalarDispatchRouteManifest()) {
+    switch (route.routeKind) {
+    case rvv_scalar::RVVScalarDispatchRouteKind::Source:
+    case rvv_scalar::RVVScalarDispatchRouteKind::Header:
+    case rvv_scalar::RVVScalarDispatchRouteKind::Object:
+      bundle.addTargetArtifactRouteMetadataRequirement(route.routeID,
+                                                       route.artifactKind,
+                                                       /*requireRouteMetadata=*/
+                                                       true,
+                                                       requiredDispatchPlugins);
+      break;
+    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckSource:
+    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckObject:
+      break;
+    }
+  }
 
   return registry.registerBundle(bundle);
 }
@@ -124,25 +149,6 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
        rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
     bundle.addTargetArtifactRouteMetadataRequirement(
         family->scalar.routeID, "runtime-callable-c-source");
-  }
-  static const llvm::StringRef requiredDispatchPlugins[] = {
-      plugin::rvv::getRVVExtensionPluginName()};
-  for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &route :
-       rvv_scalar::getRVVScalarDispatchRouteManifest()) {
-    switch (route.routeKind) {
-    case rvv_scalar::RVVScalarDispatchRouteKind::Source:
-    case rvv_scalar::RVVScalarDispatchRouteKind::Header:
-    case rvv_scalar::RVVScalarDispatchRouteKind::Object:
-      bundle.addTargetArtifactRouteMetadataRequirement(route.routeID,
-                                                       route.artifactKind,
-                                                       /*requireRouteMetadata=*/
-                                                       true,
-                                                       requiredDispatchPlugins);
-      break;
-    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckSource:
-    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckObject:
-      break;
-    }
   }
   return registry.registerBundle(bundle);
 }

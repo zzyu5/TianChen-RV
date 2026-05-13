@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 54
+- **Total Sessions**: 55
 - **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~187 | Active |
+| `journal-5.md` | ~303 | Active |
 | `journal-4.md` | ~1979 | Archived |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 55 | 2026-05-13 | RVV plugin-owned artifact route registration | this commit | `main` |
 | 54 | 2026-05-13 | RVV selected config and runtime VL boundary | this commit | `main` |
 | 52 | 2026-05-13 | Vector source arithmetic-family adapter registry | this commit | `main` |
 | 51 | 2026-05-13 | RVV materialized i32-vadd artifact runtime ABI proof | final round commit | `main` |

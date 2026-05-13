@@ -1,0 +1,8 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV MLIR architecture, stack, and descriptor-boundary invariants."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin responsibilities, finite-binary selected config, family metadata, and artifact route ownership context."}
+{"file":".trellis/spec/plugin-protocol/index.md","reason":"Plugin ownership and registry/interface rules for avoiding family-specific central branches."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Extension plugin registry and provider boundaries used by built-in route registration."}
+{"file":".trellis/spec/plugin-protocol/locality-contract.md","reason":"Plugin-owned versus core-owned responsibilities for emission and route metadata."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Built-in target artifact exporter registration, target translate route registration, bundle export, and fail-closed route metadata contracts."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC route and descriptor-boundary constraints for finite binary source emission."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused C++/lit/artifact/RVV evidence requirements for route ownership changes."}
