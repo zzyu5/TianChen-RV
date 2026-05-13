@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline --tcrv-check-emission-paths | FileCheck %s --check-prefix=READY
-// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed '/tcrv_rvv.i32_vadd_microkernel/,/^    }/d' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BODY --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed '/^[[:space:]]*tcrv_rvv.i32_vadd_microkernel attributes/,/^    }/d' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BODY --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed 's/emitc_source_op = "tcrv_rvv.i32_add"/emitc_source_op = "tcrv_rvv.i32_sub"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BOUNDARY-SOURCE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=EXPORT --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --check-prefix=EXPORT --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
@@ -55,7 +56,7 @@ module @rvv_auto_microkernel_input {
 
 // IR-LABEL: tcrv.exec.kernel @auto_i32_vadd
 // READY-LABEL: tcrv.exec.kernel @auto_i32_vadd
-// READY: tcrv_rvv.i32_vadd_microkernel
+// READY: tcrv_rvv.i32_vadd_microkernel attributes
 // READY-SAME: element_count = 16 : i64
 // READY-SAME: required_march = "rv64gcv"
 // READY: tcrv.exec.diagnostic
@@ -73,8 +74,15 @@ module @rvv_auto_microkernel_input {
 // IR-SAME: selection_kind = "static-variant"
 // IR-SAME: target = @rvv_first_slice
 // IR: tcrv_rvv.lowering_boundary
+// IR-SAME: emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface"
+// IR-SAME: emitc_source_op = "tcrv_rvv.i32_add"
 // IR-SAME: required_capabilities = [@rvv]
 // IR-SAME: role = "direct variant"
+// IR-SAME: selected_binary_dtype = "i32"
+// IR-SAME: selected_binary_family = "i32-vadd"
+// IR-SAME: selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel"
+// IR-SAME: selected_binary_operator = "add"
+// IR-SAME: selected_binary_source_kind = "default-i32-vadd-typed-body-materialization"
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "auto_i32_vadd"
 // IR-SAME: status = "unsupported"
@@ -168,3 +176,8 @@ module @rvv_auto_microkernel_input {
 // MISSING-BODY-SAME: runtime ABI role contract preflight failed
 // MISSING-BODY-SAME: TianChen-RV RVV microkernel C export failed for kernel @auto_i32_vadd
 // MISSING-BODY-SAME: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel
+
+// STALE-BOUNDARY-SOURCE: TianChen-RV target source artifact export failed:
+// STALE-BOUNDARY-SOURCE-SAME: runtime ABI role contract preflight failed
+// STALE-BOUNDARY-SOURCE-SAME: TianChen-RV RVV microkernel C export failed for kernel @auto_i32_vadd
+// STALE-BOUNDARY-SOURCE-SAME: tcrv_rvv.lowering_boundary emitc_source_op 'tcrv_rvv.i32_sub' does not match selected RVV typed source op 'tcrv_rvv.i32_add'

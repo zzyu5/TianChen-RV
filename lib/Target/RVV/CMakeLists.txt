@@ -11,6 +11,7 @@ add_mlir_library(TianChenRVRVVTarget
   TianChenRVRVVDialect
   TianChenRVScalarTarget
   TianChenRVSupport
+  TianChenRVTarget
   MLIRIR
   MLIRSupport
 )

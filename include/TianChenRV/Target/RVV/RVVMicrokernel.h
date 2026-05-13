@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_TARGET_RVV_RVVMICROKERNEL_H
 #define TIANCHENRV_TARGET_RVV_RVVMICROKERNEL_H
 
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 
@@ -97,6 +98,12 @@ llvm::Error validateRVVMicrokernelSourceAuthority(
 llvm::Expected<RVVBinarySelectedConfigContract>
 resolveRVVMicrokernelSelectedConfigContractAuthority(
     mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID);
+
+llvm::Expected<RVVBinarySelectedConfigContract>
+resolveRVVMicrokernelSelectedConfigContractAuthority(
+    tcrv::exec::KernelOp kernel, const RVVBinaryFamilyDescriptor &family,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID);
 

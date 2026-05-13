@@ -665,6 +665,13 @@ tcrv_rvv.lowering_boundary {
   role = "dispatch case",
   status = "unsupported",
   required_capabilities = [@rvv],
+  selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+  selected_binary_dtype = "i32",
+  selected_binary_family = "i32-vadd",
+  selected_binary_operator = "add",
+  selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel",
+  emitc_source_op = "tcrv_rvv.i32_add",
+  emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface",
   capability_summary = "rvv",
   unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
 }
@@ -689,6 +696,15 @@ variant or dispatch-case roles. It also carries generic selected-boundary
 contract metadata (`origin = "rvv-plugin"` and `required_capabilities`
 matching the selected variant requirement references) so target-neutral
 emission planning can validate the boundary before materializing diagnostics.
+When the selected path has a bounded typed RVV binary microkernel source, the
+boundary may also carry selected binary source identity: source kind, dtype,
+family, operator, executable microkernel op, EmitC source op, and generated
+EmitC lowerable interface name. RVV target artifact preflight must validate
+that this plugin-owned selected-boundary identity agrees with the actual typed
+microkernel body before source/header/object bytes are emitted. These fields
+are selected route metadata only; they do not make the lowering boundary a
+descriptor owner, executable lowering, runtime ABI implementation, hardware
+execution, correctness proof, or performance claim.
 These surfaces are not vector registers, masks, memory operations, RVV
 intrinsics, LLVM/RISC-V lowering, runtime ABI, executable emission, correctness
 evidence, or performance evidence.
@@ -800,6 +816,11 @@ Rules:
   successful selected boundary. Missing, unavailable, or mismatched
   SEW/LMUL/tail/mask capability evidence must fail there before any source,
   object, or bundle export route can claim support.
+- If a selected RVV binary microkernel path materializes typed source identity
+  on `tcrv_rvv.lowering_boundary`, the target exporter must consume it as a
+  selected-boundary preflight contract and reject stale dtype/family/operator,
+  microkernel op, EmitC source op, or interface metadata before artifact bytes
+  are emitted.
 - The boundary is a compiler structure/evidence boundary only; it must not be
   reported as hardware execution, correctness, or performance evidence.
 

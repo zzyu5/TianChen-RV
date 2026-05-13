@@ -5,7 +5,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=__riscv --implicit-check-not="out[index]" --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c 2>&1 | FileCheck %s --check-prefix=ROUTE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
-// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import sys; text=sys.stdin.read(); text=text.replace("tcrv_rvv.i32_vmul_microkernel", "tcrv_rvv.i32_vadd_microkernel", 1).replace("tcrv_rvv.i32_mul", "tcrv_rvv.i32_add", 1); sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-RVV-BODY --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import sys; text=sys.stdin.read(); text=text.replace("tcrv_rvv.i32_vmul_microkernel attributes", "tcrv_rvv.i32_vadd_microkernel attributes", 1).replace("tcrv_rvv.i32_mul %", "tcrv_rvv.i32_add %", 1); sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-RVV-BODY --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import sys; text=sys.stdin.read(); text=text.replace("tcrv_scalar.i32_vmul_microkernel", "tcrv_scalar.i32_vadd_microkernel", 1); sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR-BODY --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 #map = affine_map<(d0) -> (d0)>
@@ -81,7 +81,7 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // IR-SAME: runtime_guard = @abi_dispatch_availability_guard
 // IR-SAME: runtime_guard_required = true
 // IR: tcrv.exec.fallback @scalar_fallback_first_slice
-// IR: tcrv_rvv.i32_vmul_microkernel
+// IR: tcrv_rvv.i32_vmul_microkernel attributes
 // IR-SAME: role = "dispatch case"
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "frontend_dispatch_i32_vmul"

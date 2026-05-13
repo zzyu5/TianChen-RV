@@ -530,6 +530,64 @@ and generated artifact output consume the same manifest.
 [OK] Implementation checks passed; finish/archive and commit pending.
 
 
+## Session 59: RVV selected-boundary extension-op production route
+
+**Date**: 2026-05-13
+**Task**: RVV selected-boundary extension-op production route
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded RVV selected-boundary production-route migration for the
+existing i32 binary microkernel path. The selected boundary now carries typed
+RVV source identity into target artifact preflight, and target export validates
+that identity against the actual `tcrv_rvv` typed microkernel body before
+emitting source/header/object artifacts.
+
+### Main Changes
+
+- Added verifier-backed typed binary source identity attrs to
+  `tcrv_rvv.lowering_boundary`: selected source kind, dtype, family, operator,
+  executable microkernel op, EmitC source op, and generated EmitC lowerable
+  interface.
+- Updated RVV selected-boundary materialization to copy plugin-selected binary
+  source identity from the selected variant/plan into the materialized
+  boundary.
+- Updated RVV target artifact preflight to validate selected boundary source
+  identity against the typed microkernel body before artifact output.
+- Made RVV source-authority candidate validation kernel-local for the selected
+  variant/role, while preserving singleton-record constraints for direct
+  standalone source/header/object exports.
+- Declared direct `TianChenRVTarget` link dependencies for RVV and Scalar
+  target libraries.
+- Updated RVV microkernel and scalar-dispatch lit tests for the new boundary
+  identity attrs and stale source/body fail-closed cases.
+- Confirmed no core `tcrv.exec` or generic transform changes were introduced.
+
+### Checks
+
+- `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVScalarTarget tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `cmake --build build --target tianchenrv-rvv-binary-variant-legality-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-runtime-abi-role-binding.mlir Transforms/VariantMaterialization/plugin-variant-materialization-rvv-selected-shape.mlir` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='rvv-microkernel-auto-materialization|RVVScalarDispatch|RVVSmokeProbe|LoweringBoundary|rvv-'` from `build/test`
+- `git diff --check`
+- Core neutrality scan:
+  `git diff -- lib/Transforms include/TianChenRV/Dialect/Exec lib/Dialect/Exec`
+
+No `ssh rvv` evidence was run because generated RVV intrinsic body/header/object
+semantics were not changed and this session makes no RVV runtime, correctness,
+or performance claim.
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.
+
+
 ## Session 60: Common construction-protocol artifact route
 
 **Date**: 2026-05-13

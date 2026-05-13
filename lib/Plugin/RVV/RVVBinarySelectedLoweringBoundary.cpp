@@ -37,6 +37,22 @@ constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
 constexpr llvm::StringLiteral kRVVBoundaryVLenBBytesAttrName("vlenb_bytes");
 constexpr llvm::StringLiteral kRVVBoundaryI32M1LanesAttrName(
     "base_i32_m1_lanes");
+constexpr llvm::StringLiteral kBoundarySelectedBinarySourceKindAttrName(
+    "selected_binary_source_kind");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryDTypeAttrName(
+    "selected_binary_dtype");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryFamilyAttrName(
+    "selected_binary_family");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryOperatorAttrName(
+    "selected_binary_operator");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryMicrokernelOpAttrName(
+    "selected_binary_microkernel_op");
+constexpr llvm::StringLiteral kBoundaryEmitCSourceOpAttrName(
+    "emitc_source_op");
+constexpr llvm::StringLiteral kBoundaryEmitCLowerableOpInterfaceAttrName(
+    "emitc_lowerable_op_interface");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
@@ -277,6 +293,59 @@ llvm::Error copyCapacityMetadataToBoundary(mlir::OperationState &state,
   return llvm::Error::success();
 }
 
+llvm::Expected<std::string>
+getSelectedBinarySourceKindForBoundary(tcrv::exec::VariantOp variant) {
+  auto sourceKind = variant->getAttrOfType<mlir::StringAttr>(
+      getRVVSelectedBinarySourceKindAttrName());
+  if (!sourceKind || sourceKind.getValue().trim().empty())
+    return getRVVDirectTypedMicrokernelBodySourceKind().str();
+
+  llvm::StringRef value = sourceKind.getValue().trim();
+  if (llvm::Error error = validateRVVPropertyText(
+          (llvm::Twine("selected RVV variant @") + variant.getSymName()).str(),
+          getRVVSelectedBinarySourceKindAttrName(), value))
+    return std::move(error);
+
+  if (value != getRVVFrontendLoweringSourceKind() &&
+      value != getRVVDefaultTypedBinarySourceKind() &&
+      value != getRVVDirectTypedMicrokernelBodySourceKind())
+    return makeRVVBinarySelectedBoundaryError(
+        llvm::Twine("selected RVV variant @") + variant.getSymName() +
+        " has unrecognized typed binary source kind '" + value + "'");
+
+  return value.str();
+}
+
+llvm::Error copySelectedBinarySourceIdentityToBoundary(
+    mlir::OperationState &state, tcrv::exec::VariantOp variant,
+    mlir::OpBuilder &builder, const RVVBinarySelectedPlan *selectedPlan) {
+  if (!selectedPlan || !selectedPlan->family)
+    return llvm::Error::success();
+
+  llvm::Expected<std::string> sourceKind =
+      getSelectedBinarySourceKindForBoundary(variant);
+  if (!sourceKind)
+    return sourceKind.takeError();
+
+  state.addAttribute(kBoundarySelectedBinarySourceKindAttrName,
+                     builder.getStringAttr(*sourceKind));
+  state.addAttribute(kBoundarySelectedBinaryDTypeAttrName,
+                     builder.getStringAttr(selectedPlan->getDTypeID()));
+  state.addAttribute(kBoundarySelectedBinaryFamilyAttrName,
+                     builder.getStringAttr(selectedPlan->getFamilyID()));
+  state.addAttribute(
+      kBoundarySelectedBinaryOperatorAttrName,
+      builder.getStringAttr(selectedPlan->family->arithmeticVerb));
+  state.addAttribute(kBoundarySelectedBinaryMicrokernelOpAttrName,
+                     builder.getStringAttr(
+                         selectedPlan->getMicrokernelOpName()));
+  state.addAttribute(kBoundaryEmitCSourceOpAttrName,
+                     builder.getStringAttr(selectedPlan->getArithmeticOpName()));
+  state.addAttribute(kBoundaryEmitCLowerableOpInterfaceAttrName,
+                     builder.getStringAttr(kEmitCLowerableOpInterfaceName));
+  return llvm::Error::success();
+}
+
 llvm::Error validateBoundaryCapacityMetadata(tcrv::exec::VariantOp variant,
                                              mlir::Operation *boundary) {
   llvm::Expected<std::optional<RVVCapacityMetadata>> variantMetadata =
@@ -355,7 +424,8 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
     llvm::StringRef originPlugin, llvm::StringRef capabilitySummary,
-    const RVVVectorShapeConfig &selectedConfig) {
+    const RVVVectorShapeConfig &selectedConfig,
+    const RVVBinarySelectedPlan *selectedPlan) {
   auto requiredCapabilities =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
@@ -374,6 +444,9 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   addRVVSelectedVectorShapeMetadataToOperationState(
       state, builder.getContext(), selectedConfig);
+  if (llvm::Error error = copySelectedBinarySourceIdentityToBoundary(
+          state, variant, builder, selectedPlan))
+    return std::move(error);
   if (llvm::Error error =
           copyCapacityMetadataToBoundary(state, variant, builder))
     return std::move(error);
@@ -660,6 +733,14 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
             selectedDescriptor->getBufferMemWindowSpecs()))
       return error;
 
+  const RVVBinarySelectedPlan *selectedSourcePlan = nullptr;
+  if (i32MicrokernelPlan)
+    selectedSourcePlan = &i32MicrokernelPlan->selectedPlan;
+  else if (i64MicrokernelPlan)
+    selectedSourcePlan = &i64MicrokernelPlan->selectedPlan;
+  else if (existingSelectedEmissionAttachment)
+    selectedSourcePlan = &existingSelectedEmissionAttachment->selectedPlan;
+
   if (selectedPathHasCallableMicrokernel) {
     llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
     if (!selectedDescriptor)
@@ -677,7 +758,8 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
   llvm::Expected<tcrv::rvv::LoweringBoundaryOp> boundary =
       materializeRVVBoundaryOp(request.getBuilder(), kernel, variant,
                                request.getRole(), originPlugin,
-                               *capabilitySummary, **selectedConfig);
+                               *capabilitySummary, **selectedConfig,
+                               selectedSourcePlan);
   if (!boundary)
     return boundary.takeError();
 

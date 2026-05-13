@@ -62,6 +62,19 @@ constexpr llvm::StringLiteral kSelectedVectorSuffixAttrName(
     "selected_vector_suffix");
 constexpr llvm::StringLiteral kSelectedSetVLSuffixAttrName(
     "selected_setvl_suffix");
+constexpr llvm::StringLiteral kSelectedBinarySourceKindAttrName(
+    "selected_binary_source_kind");
+constexpr llvm::StringLiteral kSelectedBinaryDTypeAttrName(
+    "selected_binary_dtype");
+constexpr llvm::StringLiteral kSelectedBinaryFamilyAttrName(
+    "selected_binary_family");
+constexpr llvm::StringLiteral kSelectedBinaryOperatorAttrName(
+    "selected_binary_operator");
+constexpr llvm::StringLiteral kSelectedBinaryMicrokernelOpAttrName(
+    "selected_binary_microkernel_op");
+constexpr llvm::StringLiteral kEmitCSourceOpAttrName("emitc_source_op");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceAttrName(
+    "emitc_lowerable_op_interface");
 constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
 constexpr llvm::StringLiteral kAVLAttrName("avl");
@@ -154,6 +167,16 @@ bool hasRVVVectorHint(llvm::StringRef hints) {
 
 bool isAllowedLoweringBoundaryRole(llvm::StringRef role) {
   return role == kDirectVariantRoleValue || role == kDispatchCaseRoleValue;
+}
+
+bool hasAnySelectedBinarySourceIdentityMetadata(mlir::Operation *op) {
+  return op && (op->hasAttr(kSelectedBinarySourceKindAttrName) ||
+                op->hasAttr(kSelectedBinaryDTypeAttrName) ||
+                op->hasAttr(kSelectedBinaryFamilyAttrName) ||
+                op->hasAttr(kSelectedBinaryOperatorAttrName) ||
+                op->hasAttr(kSelectedBinaryMicrokernelOpAttrName) ||
+                op->hasAttr(kEmitCSourceOpAttrName) ||
+                op->hasAttr(kEmitCLowerableOpInterfaceAttrName));
 }
 
 mlir::LogicalResult verifyBoundedMetadata(mlir::Operation *op,
@@ -1676,6 +1699,32 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
       return emitOpError()
              << "selected capacity metadata requires base_i32_m1_lanes to "
                 "equal vlenb_bytes divided by four";
+  }
+
+  if (hasAnySelectedBinarySourceIdentityMetadata(op)) {
+    for (llvm::StringRef attrName :
+         {kSelectedBinarySourceKindAttrName, kSelectedBinaryDTypeAttrName,
+          kSelectedBinaryFamilyAttrName, kSelectedBinaryOperatorAttrName,
+          kSelectedBinaryMicrokernelOpAttrName, kEmitCSourceOpAttrName,
+          kEmitCLowerableOpInterfaceAttrName}) {
+      auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+      if (!attr || attr.getValue().trim().empty())
+        return emitOpError()
+               << "selected binary source identity metadata requires "
+                  "non-empty string attribute '"
+               << attrName << "'";
+      if (mlir::failed(
+              verifyBoundedMetadata(op, attrName, attr.getValue().trim())))
+        return mlir::failure();
+    }
+
+    auto interface = op->getAttrOfType<mlir::StringAttr>(
+        kEmitCLowerableOpInterfaceAttrName);
+    if (interface.getValue() != "TCRVEmitCLowerableOpInterface")
+      return emitOpError()
+             << "selected binary source identity metadata requires '"
+             << kEmitCLowerableOpInterfaceAttrName
+             << "' to be 'TCRVEmitCLowerableOpInterface'";
   }
 
   return mlir::success();

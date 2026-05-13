@@ -79,7 +79,7 @@ module @rvv_scalar_i32_vsub_i32m2_dispatch_generic_route {
 // IR: tcrv.exec.case @rvv_first_slice
 // IR-SAME: runtime_guard = @abi_dispatch_availability_guard
 // IR: tcrv.exec.fallback @scalar_fallback_first_slice
-// IR: tcrv_rvv.i32_vsub_microkernel
+// IR: tcrv_rvv.i32_vsub_microkernel attributes
 // IR-SAME: role = "dispatch case"
 // IR-SAME: selected_variant = @rvv_first_slice
 // IR-SAME: source_kernel = "frontend_dispatch_i32m2_vsub"

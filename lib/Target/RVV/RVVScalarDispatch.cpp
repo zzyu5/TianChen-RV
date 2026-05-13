@@ -2073,7 +2073,7 @@ buildDispatchPairSelectedConfigContract(
       directContract =
           tianchenrv::target::rvv::
               resolveRVVMicrokernelSelectedConfigContractAuthority(
-                  module, *pair.family->rvvFamily, pair.rvv.selectedVariant,
+                  kernel, *pair.family->rvvFamily, pair.rvv.selectedVariant,
                   pair.rvv.role, pair.family->rvvRouteID);
   if (!directContract)
     return directContract.takeError();

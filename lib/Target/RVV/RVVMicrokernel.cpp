@@ -128,6 +128,22 @@ constexpr llvm::StringLiteral kBoundarySelectedVectorSuffixAttrName(
     "selected_vector_suffix");
 constexpr llvm::StringLiteral kBoundarySelectedSetVLSuffixAttrName(
     "selected_setvl_suffix");
+constexpr llvm::StringLiteral kBoundarySelectedBinarySourceKindAttrName(
+    "selected_binary_source_kind");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryDTypeAttrName(
+    "selected_binary_dtype");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryFamilyAttrName(
+    "selected_binary_family");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryOperatorAttrName(
+    "selected_binary_operator");
+constexpr llvm::StringLiteral kBoundarySelectedBinaryMicrokernelOpAttrName(
+    "selected_binary_microkernel_op");
+constexpr llvm::StringLiteral kBoundaryEmitCSourceOpAttrName(
+    "emitc_source_op");
+constexpr llvm::StringLiteral kBoundaryEmitCLowerableOpInterfaceAttrName(
+    "emitc_lowerable_op_interface");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
@@ -1722,6 +1738,87 @@ llvm::Error validateBoundaryForPath(KernelOp kernel, const SelectedPath &path,
   return llvm::Error::success();
 }
 
+bool hasAnyBoundaryBinarySourceIdentity(LoweringBoundaryOp boundary) {
+  return boundary &&
+         (boundary->hasAttr(kBoundarySelectedBinarySourceKindAttrName) ||
+          boundary->hasAttr(kBoundarySelectedBinaryDTypeAttrName) ||
+          boundary->hasAttr(kBoundarySelectedBinaryFamilyAttrName) ||
+          boundary->hasAttr(kBoundarySelectedBinaryOperatorAttrName) ||
+          boundary->hasAttr(kBoundarySelectedBinaryMicrokernelOpAttrName) ||
+          boundary->hasAttr(kBoundaryEmitCSourceOpAttrName) ||
+          boundary->hasAttr(kBoundaryEmitCLowerableOpInterfaceAttrName));
+}
+
+llvm::Error requireBoundarySourceIdentityAttr(KernelOp kernel,
+                                             LoweringBoundaryOp boundary,
+                                             llvm::StringRef attrName,
+                                             llvm::StringRef expectedValue,
+                                             llvm::StringRef description) {
+  std::string value;
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, boundary.getOperation(), attrName,
+                                "tcrv_rvv.lowering_boundary", value))
+    return error;
+  if (value != expectedValue)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("tcrv_rvv.lowering_boundary ") + attrName +
+                    " '" + value + "' does not match selected RVV " +
+                    description + " '" + expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateBoundarySourceIdentityForRecord(
+    KernelOp kernel, const SelectedPath &path, LoweringBoundaryOp boundary,
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
+  if (!hasAnyBoundaryBinarySourceIdentity(boundary))
+    return llvm::Error::success();
+
+  if (llvm::Error error = requireBoundarySourceIdentityAttr(
+          kernel, boundary, kBoundarySelectedBinaryDTypeAttrName,
+          descriptor.getDTypeID(), "typed source dtype"))
+    return error;
+  if (llvm::Error error = requireBoundarySourceIdentityAttr(
+          kernel, boundary, kBoundarySelectedBinaryFamilyAttrName,
+          descriptor.getArithmeticFamilyID(), "typed source family"))
+    return error;
+  if (llvm::Error error = requireBoundarySourceIdentityAttr(
+          kernel, boundary, kBoundarySelectedBinaryOperatorAttrName,
+          descriptor.family.arithmeticVerb, "typed source operator"))
+    return error;
+  if (llvm::Error error = requireBoundarySourceIdentityAttr(
+          kernel, boundary, kBoundarySelectedBinaryMicrokernelOpAttrName,
+          descriptor.getRVVMicrokernelOpName(), "typed microkernel op"))
+    return error;
+  if (llvm::Error error = requireBoundarySourceIdentityAttr(
+          kernel, boundary, kBoundaryEmitCSourceOpAttrName,
+          descriptor.getRVVOperationName(), "typed source op"))
+    return error;
+  if (llvm::Error error = requireBoundarySourceIdentityAttr(
+          kernel, boundary, kBoundaryEmitCLowerableOpInterfaceAttrName,
+          kEmitCLowerableOpInterfaceName,
+          "generated EmitC lowerable interface"))
+    return error;
+
+  std::string sourceKind;
+  if (llvm::Error error = requireSafeStringAttr(
+          kernel, boundary.getOperation(),
+          kBoundarySelectedBinarySourceKindAttrName,
+          "tcrv_rvv.lowering_boundary", sourceKind))
+    return error;
+  if (sourceKind != "frontend-lowering" &&
+      sourceKind != "default-i32-vadd-typed-body-materialization" &&
+      sourceKind != "direct-typed-microkernel-body")
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("tcrv_rvv.lowering_boundary selected_binary_source_kind "
+                    "'") +
+            sourceKind +
+            "' is not a recognized typed RVV binary source boundary for @" +
+            getPathVariantSymbol(path));
+
+  return llvm::Error::success();
+}
+
 llvm::Error findAndValidateBoundary(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys,
@@ -2546,6 +2643,10 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     if (!selectedConfigContract)
       return selectedConfigContract.takeError();
     record.selectedConfigContract = std::move(*selectedConfigContract);
+    if (llvm::Error error =
+            validateBoundarySourceIdentityForRecord(kernel, path, boundary,
+                                                    record.descriptor))
+      return std::move(error);
     return record;
   }
 
@@ -2601,6 +2702,10 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (!selectedConfigContract)
     return selectedConfigContract.takeError();
   record.selectedConfigContract = std::move(*selectedConfigContract);
+  if (llvm::Error error =
+          validateBoundarySourceIdentityForRecord(kernel, path, boundary,
+                                                  record.descriptor))
+    return std::move(error);
   return record;
 }
 
@@ -2714,6 +2819,82 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecordForRVVBinaryFamily(
         record->descriptor.getRVVMicrokernelOpName());
   }
 
+  return std::move(*record);
+}
+
+llvm::Expected<RVVMicrokernelRecord> buildKernelRecordForRVVBinaryFamily(
+    KernelOp kernel, const RVVBinaryFamilyDescriptor &expectedFamily,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID) {
+  if (!kernel)
+    return makeModuleMicrokernelError(
+        "requires a tcrv.exec.kernel operation for selected RVV source "
+        "authority resolution");
+
+  llvm::StringMap<VariantOp> directVariants;
+  llvm::StringMap<mlir::Operation *> directSymbols;
+  collectDirectKernelSymbols(kernel, directVariants, directSymbols);
+
+  llvm::SmallVector<SelectedPath, 4> selectedPaths;
+  if (llvm::Error error =
+          collectSelectedPaths(kernel, directVariants, directSymbols,
+                               selectedPaths))
+    return std::move(error);
+
+  llvm::SmallVector<SelectedPath, 2> matchingRVVPaths;
+  for (const SelectedPath &path : selectedPaths) {
+    const bool matchesSelectedRoute =
+        getPathVariantSymbol(path) == selectedVariant &&
+        llvm::StringRef(path.role) == role;
+    if (!isRVVPluginSelectedPath(path)) {
+      if (matchesSelectedRoute && hasRVVLikeOrigin(path))
+        return makeMicrokernelError(
+            kernel, llvm::Twine("selected RVV-like path @") +
+                        getPathVariantSymbol(path) +
+                        " uses unknown origin; RVV microkernel source "
+                        "authority only accepts registered origin "
+                        "'rvv-plugin'");
+      continue;
+    }
+    if (matchesSelectedRoute)
+      matchingRVVPaths.push_back(path);
+  }
+
+  if (matchingRVVPaths.empty())
+    return makeMicrokernelError(
+        kernel, llvm::Twine("route '") + routeID +
+                    "' requires selected RVV source authority path @" +
+                    selectedVariant + " with role '" + role + "'");
+  if (matchingRVVPaths.size() != 1)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("route '") + routeID +
+                    "' requires exactly one selected RVV source authority "
+                    "path @" +
+                    selectedVariant + " with role '" + role + "'");
+
+  llvm::StringSet<> selectedRVVPathKeys;
+  selectedRVVPathKeys.insert(
+      makePathKey(getPathVariantSymbol(matchingRVVPaths.front()),
+                  matchingRVVPaths.front().role));
+
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  llvm::Expected<RVVMicrokernelRecord> record = buildMicrokernelRecord(
+      kernel, matchingRVVPaths.front(), *capabilities, selectedRVVPathKeys,
+      routeID);
+  if (!record)
+    return record.takeError();
+
+  if (!isSameRVVBinaryFamily(record->descriptor.family, expectedFamily))
+    return makeMicrokernelError(
+        kernel, llvm::Twine("route '") + routeID + "' requires " +
+                    expectedFamily.microkernelOpName +
+                    " but the selected RVV source authority path @" +
+                    selectedVariant + " produced " +
+                    record->descriptor.getRVVMicrokernelOpName());
   return std::move(*record);
 }
 
@@ -3673,9 +3854,7 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
           validateRVVMicrokernelSelectedPlanMetadata(candidate, descriptor))
     return error;
   if (candidate.kernel) {
-    mlir::ModuleOp module =
-        candidate.kernel->getParentOfType<mlir::ModuleOp>();
-    if (!module)
+    if (!candidate.kernel->getParentOfType<mlir::ModuleOp>())
       return makeMicrokernelError(
           candidate.kernel,
           "selected RVV target artifact candidate requires an enclosing "
@@ -3683,7 +3862,7 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
           "validation");
     llvm::Expected<RVVBinarySelectedConfigContract> selectedContract =
         resolveRVVMicrokernelSelectedConfigContractAuthority(
-            module, family, candidate.selectedVariant, candidate.role,
+            candidate.kernel, family, candidate.selectedVariant, candidate.role,
             candidate.routeID);
     if (!selectedContract)
       return selectedContract.takeError();
@@ -4603,6 +4782,39 @@ resolveRVVMicrokernelSelectedConfigContractAuthority(
         routeID + "' requires " + family.microkernelOpName +
         " but typed RVV record is " +
         record->descriptor.getRVVMicrokernelOpName());
+  return record->selectedConfigContract;
+}
+
+llvm::Expected<RVVBinarySelectedConfigContract>
+resolveRVVMicrokernelSelectedConfigContractAuthority(
+    KernelOp kernel, const RVVBinaryFamilyDescriptor &family,
+    llvm::StringRef selectedVariant, llvm::StringRef role,
+    llvm::StringRef routeID) {
+  llvm::Expected<RVVMicrokernelRecord> record =
+      buildKernelRecordForRVVBinaryFamily(kernel, family, selectedVariant, role,
+                                          routeID);
+  if (!record)
+    return record.takeError();
+
+  if (llvm::Error error = requireRVVSourceAuthorityField(
+          "selected variant", record->variantSymbol, selectedVariant, routeID,
+          selectedVariant))
+    return std::move(error);
+  if (llvm::Error error = requireRVVSourceAuthorityField(
+          "role", record->role, role, routeID, selectedVariant))
+    return std::move(error);
+  if (llvm::Error error = requireRVVSourceAuthorityField(
+          "active route", record->activeRouteID, routeID, routeID,
+          selectedVariant))
+    return std::move(error);
+
+  if (record->descriptor.getRVVMicrokernelOpName() !=
+      family.microkernelOpName)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV component authority for route '") +
+                    routeID + "' requires " + family.microkernelOpName +
+                    " but typed RVV record is " +
+                    record->descriptor.getRVVMicrokernelOpName());
   return record->selectedConfigContract;
 }
 
