@@ -504,6 +504,11 @@ buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
 
   RVVBinaryMicrokernelMaterializationPlan plan;
   plan.selectedPlan = std::move(*selectedPlan);
+  llvm::Expected<std::string> sourceKind =
+      getSelectedBinarySourceKindForBoundary(variant);
+  if (!sourceKind)
+    return sourceKind.takeError();
+  plan.sourceKind = std::move(*sourceKind);
   return plan;
 }
 

@@ -1833,6 +1833,90 @@ llvm::Error validateBoundarySourceIdentityForRecord(
   return llvm::Error::success();
 }
 
+bool hasAnyMicrokernelBinarySourceIdentity(mlir::Operation *microkernel) {
+  return microkernel &&
+         (microkernel->hasAttr(kBoundarySelectedBinarySourceKindAttrName) ||
+          microkernel->hasAttr(kBoundarySelectedBinaryDTypeAttrName) ||
+          microkernel->hasAttr(kBoundarySelectedBinaryFamilyAttrName) ||
+          microkernel->hasAttr(kBoundarySelectedBinaryOperatorAttrName) ||
+          microkernel->hasAttr(kBoundarySelectedBinaryMicrokernelOpAttrName) ||
+          microkernel->hasAttr(kBoundaryEmitCSourceOpAttrName) ||
+          microkernel->hasAttr(kBoundaryEmitCLowerableOpInterfaceAttrName));
+}
+
+llvm::Error requireMicrokernelSourceIdentityAttr(
+    KernelOp kernel, mlir::Operation *microkernel, llvm::StringRef attrName,
+    llvm::StringRef expectedValue, llvm::StringRef description) {
+  std::string value;
+  if (llvm::Error error = requireSafeStringAttr(
+          kernel, microkernel, attrName, microkernel->getName().getStringRef(),
+          value))
+    return error;
+  if (value != expectedValue)
+    return makeMicrokernelError(
+        kernel, llvm::Twine(microkernel->getName().getStringRef()) + " " +
+                    attrName + " '" + value +
+                    "' does not match selected RVV " + description + " '" +
+                    expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateMicrokernelSourceIdentityForRecord(
+    KernelOp kernel, mlir::Operation *microkernel,
+    const RVVBinaryIntrinsicDescriptor &descriptor,
+    llvm::StringRef selectedBinarySourceKind) {
+  if (!microkernel)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV path requires matching ") +
+                    descriptor.getRVVMicrokernelOpName());
+
+  bool hasIdentity = hasAnyMicrokernelBinarySourceIdentity(microkernel);
+  if (!hasIdentity) {
+    if (selectedBinarySourceKind == "frontend-lowering")
+      return makeMicrokernelError(
+          kernel,
+          llvm::Twine(descriptor.getRVVMicrokernelOpName()) +
+              " requires op-owned selected RVV binary source identity for "
+              "frontend-lowering before target artifact export");
+    return llvm::Error::success();
+  }
+
+  if (selectedBinarySourceKind.empty())
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine(descriptor.getRVVMicrokernelOpName()) +
+            " carries op-owned selected RVV binary source identity without a "
+            "matching selected lowering-boundary source identity");
+
+  if (llvm::Error error = requireMicrokernelSourceIdentityAttr(
+          kernel, microkernel, kBoundarySelectedBinarySourceKindAttrName,
+          selectedBinarySourceKind, "typed source kind"))
+    return error;
+  if (llvm::Error error = requireMicrokernelSourceIdentityAttr(
+          kernel, microkernel, kBoundarySelectedBinaryDTypeAttrName,
+          descriptor.getDTypeID(), "typed source dtype"))
+    return error;
+  if (llvm::Error error = requireMicrokernelSourceIdentityAttr(
+          kernel, microkernel, kBoundarySelectedBinaryFamilyAttrName,
+          descriptor.getArithmeticFamilyID(), "typed source family"))
+    return error;
+  if (llvm::Error error = requireMicrokernelSourceIdentityAttr(
+          kernel, microkernel, kBoundarySelectedBinaryOperatorAttrName,
+          descriptor.family.arithmeticVerb, "typed source operator"))
+    return error;
+  if (llvm::Error error = requireMicrokernelSourceIdentityAttr(
+          kernel, microkernel, kBoundarySelectedBinaryMicrokernelOpAttrName,
+          descriptor.getRVVMicrokernelOpName(), "typed microkernel op"))
+    return error;
+  if (llvm::Error error = requireMicrokernelSourceIdentityAttr(
+          kernel, microkernel, kBoundaryEmitCSourceOpAttrName,
+          descriptor.getRVVOperationName(), "typed source op"))
+    return error;
+  return requireMicrokernelSourceIdentityAttr(
+      kernel, microkernel, kBoundaryEmitCLowerableOpInterfaceAttrName,
+      kEmitCLowerableOpInterfaceName, "generated EmitC lowerable interface");
+}
+
 llvm::Error findAndValidateBoundary(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys,
@@ -2754,6 +2838,10 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                 requireBoundarySourceIdentity,
                 &record.selectedBinarySourceKind))
       return std::move(error);
+    if (llvm::Error error = validateMicrokernelSourceIdentityForRecord(
+            kernel, i64Microkernel, record.descriptor,
+            record.selectedBinarySourceKind))
+      return std::move(error);
     return record;
   }
 
@@ -2822,6 +2910,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           validateBoundarySourceIdentityForRecord(
               kernel, path, boundary, record.descriptor,
               requireBoundarySourceIdentity, &record.selectedBinarySourceKind))
+    return std::move(error);
+  if (llvm::Error error = validateMicrokernelSourceIdentityForRecord(
+          kernel, microkernel, record.descriptor, record.selectedBinarySourceKind))
     return std::move(error);
   return record;
 }

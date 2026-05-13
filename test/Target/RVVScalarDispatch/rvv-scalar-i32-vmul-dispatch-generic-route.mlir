@@ -161,9 +161,7 @@ module @rvv_scalar_i32_vmul_dispatch_generic_route {
 // ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vadd-dispatch-c'
 // ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
 
-// STALE-RVV-BODY: TianChen-RV selected lowering-boundary materialization failed
-// STALE-RVV-BODY-SAME: typed microkernel body authority 'i32-vadd'
-// STALE-RVV-BODY-SAME: typed selected-source metadata names 'i32-vmul'
+// STALE-RVV-BODY: selected RVV binary source identity attribute 'selected_binary_family' value 'i32-vmul' must match family 'i32-vadd'
 
 // STALE-SCALAR-BODY: selected scalar dispatch fallback component body authority failed before RVV+scalar dispatch artifact emission
 // STALE-SCALAR-BODY-SAME: supported emission-plan route 'tcrv-export-scalar-i32-vmul-microkernel-c'

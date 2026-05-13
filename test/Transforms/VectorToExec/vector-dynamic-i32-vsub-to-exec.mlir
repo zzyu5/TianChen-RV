@@ -75,8 +75,15 @@ module {
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
 // PIPE-SAME: tcrv_rvv.selected_binary_family = "i32-vsub"
 // PIPE-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
-// PIPE: tcrv_rvv.i32_vsub_microkernel
+// PIPE: tcrv_rvv.i32_vsub_microkernel attributes
 // PIPE-SAME: element_count = 16 : i64
+// PIPE-SAME: emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface"
+// PIPE-SAME: emitc_source_op = "tcrv_rvv.i32_sub"
+// PIPE-SAME: selected_binary_dtype = "i32"
+// PIPE-SAME: selected_binary_family = "i32-vsub"
+// PIPE-SAME: selected_binary_microkernel_op = "tcrv_rvv.i32_vsub_microkernel"
+// PIPE-SAME: selected_binary_operator = "subtract"
+// PIPE-SAME: selected_binary_source_kind = "frontend-lowering"
 // PIPE: ^bb0(%[[N:.*]]: index):
 // PIPE: %[[VL:.*]] = tcrv_rvv.setvl %[[N]]
 // PIPE: tcrv_rvv.with_vl %[[VL]]

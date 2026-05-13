@@ -46,7 +46,14 @@ module {
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
       role = "direct variant",
+      selected_binary_dtype = "i32",
+      selected_binary_family = "i32-vadd",
+      selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel",
+      selected_binary_operator = "add",
+      selected_binary_source_kind = "direct-typed-microkernel-body",
       selected_variant = @rvv_first_slice,
+      emitc_source_op = "tcrv_rvv.i32_add",
+      emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface",
       source_kernel = "generic_missing_microkernel",
       status = "unsupported",
       unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
@@ -89,7 +96,8 @@ module {
         {name = "tcrv_rvv.runtime_avl_source", value = "runtime-element-count-abi-parameter", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
         {name = "tcrv_rvv.runtime_avl_role", value = "runtime-element-count", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
         {name = "tcrv_rvv.runtime_vl_source", value = "tcrv_rvv.setvl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
-        {name = "tcrv_rvv.runtime_vl_scope", value = "tcrv_rvv.with_vl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"}
+        {name = "tcrv_rvv.runtime_vl_scope", value = "tcrv_rvv.with_vl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
+        {name = "tcrv_rvv.descriptor_element_count", value = "16", role = "rvv-descriptor-local-component-capacity", note = "bounded descriptor-local component capacity cross-checked after typed selected-plan authority; not legacy descriptor mirror, compute, ABI, source, runtime AVL/VL, hardware capacity, or performance authority"}
       ],
       status = "supported",
       target = @rvv_first_slice

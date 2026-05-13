@@ -86,8 +86,15 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // IR: tcrv.exec.dispatch
 // IR: tcrv.exec.case @rvv_first_slice
 // IR-SAME: runtime_guard = @abi_dispatch_availability_guard
-// IR: tcrv_rvv.i32_vsub_microkernel
+// IR: tcrv_rvv.i32_vsub_microkernel attributes
+// IR-SAME: emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface"
+// IR-SAME: emitc_source_op = "tcrv_rvv.i32_sub"
 // IR-SAME: role = "dispatch case"
+// IR-SAME: selected_binary_dtype = "i32"
+// IR-SAME: selected_binary_family = "i32-vsub"
+// IR-SAME: selected_binary_microkernel_op = "tcrv_rvv.i32_vsub_microkernel"
+// IR-SAME: selected_binary_operator = "subtract"
+// IR-SAME: selected_binary_source_kind = "frontend-lowering"
 // IR-SAME: selected_vector_shape = "i32m1"
 // IR: tcrv_rvv.i32_sub
 // IR: tcrv_scalar.i32_vsub_microkernel

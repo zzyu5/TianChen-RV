@@ -7,6 +7,8 @@
 // RUN: llvm-readobj --file-headers --symbols %t.linalg-i32-vadd.o | FileCheck %s --check-prefix=OBJECT --implicit-check-not="Name: main"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '/^[[:space:]]*tcrv_rvv.i32_vadd_microkernel attributes/,/^    }/d' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BODY --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed -e '/tcrv_rvv.lowering_boundary/s/emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface", //' -e '/tcrv_rvv.lowering_boundary/s/emitc_source_op = "tcrv_rvv.i32_add", //' -e '/tcrv_rvv.lowering_boundary/s/selected_binary_dtype = "i32", //' -e '/tcrv_rvv.lowering_boundary/s/selected_binary_family = "i32-vadd", //' -e '/tcrv_rvv.lowering_boundary/s/selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel", //' -e '/tcrv_rvv.lowering_boundary/s/selected_binary_operator = "add", //' -e '/tcrv_rvv.lowering_boundary/s/selected_binary_source_kind = "frontend-lowering", //' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY-SOURCE --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/emitc_source_op = "tcrv_rvv.i32_add", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_dtype = "i32", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_family = "i32-vadd", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_operator = "add", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_source_kind = "frontend-lowering", //' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-OP-SOURCE --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_family = "i32-vadd"/selected_binary_family = "i32-vsub"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OP-SOURCE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_suffix = "i32m1"/s//tcrv_rvv.selected_vector_suffix = "i32m2"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONFIG --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "runtime-element-count"/s//value = "descriptor-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="#include <riscv_vector.h>"
 
@@ -125,8 +127,15 @@ module {
 // PIPE-SAME: source_kernel = "frontend_i32_vadd"
 // PIPE: tcrv_rvv.i32_vadd_microkernel
 // PIPE-SAME: element_count = 16 : i64
+// PIPE-SAME: emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface"
+// PIPE-SAME: emitc_source_op = "tcrv_rvv.i32_add"
 // PIPE-SAME: required_capabilities = [@frontend_rvv_scalar_profile]
 // PIPE-SAME: role = "direct variant"
+// PIPE-SAME: selected_binary_dtype = "i32"
+// PIPE-SAME: selected_binary_family = "i32-vadd"
+// PIPE-SAME: selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel"
+// PIPE-SAME: selected_binary_operator = "add"
+// PIPE-SAME: selected_binary_source_kind = "frontend-lowering"
 // PIPE-SAME: selected_variant = @rvv_first_slice
 // PIPE-SAME: selected_vector_lmul = "m1"
 // PIPE-SAME: selected_vector_shape = "i32m1"
@@ -226,6 +235,10 @@ module {
 // MISSING-BODY: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel
 
 // MISSING-BOUNDARY-SOURCE: tcrv_rvv.lowering_boundary for @rvv_first_slice requires selected RVV binary source identity before target artifact export
+
+// MISSING-OP-SOURCE: tcrv_rvv.i32_vadd_microkernel requires op-owned selected RVV binary source identity for frontend-lowering before target artifact export
+
+// STALE-OP-SOURCE: selected RVV binary source identity attribute 'selected_binary_family' value 'i32-vsub' must match family 'i32-vadd'
 
 // STALE-CONFIG: selected RVV variant @rvv_first_slice
 // STALE-CONFIG-SAME: selected vector-shape vector suffix must be 'i32m1'

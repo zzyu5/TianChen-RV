@@ -25,6 +25,21 @@ constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kMicrokernelRequiredMarchAttrName(
     "required_march");
 constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
+constexpr llvm::StringLiteral kSelectedBinarySourceKindAttrName(
+    "selected_binary_source_kind");
+constexpr llvm::StringLiteral kSelectedBinaryDTypeAttrName(
+    "selected_binary_dtype");
+constexpr llvm::StringLiteral kSelectedBinaryFamilyAttrName(
+    "selected_binary_family");
+constexpr llvm::StringLiteral kSelectedBinaryOperatorAttrName(
+    "selected_binary_operator");
+constexpr llvm::StringLiteral kSelectedBinaryMicrokernelOpAttrName(
+    "selected_binary_microkernel_op");
+constexpr llvm::StringLiteral kEmitCSourceOpAttrName("emitc_source_op");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceAttrName(
+    "emitc_lowerable_op_interface");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
@@ -299,6 +314,25 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
   if (selectedPlan.selectedMABI)
     state.addAttribute(kSelectedMABIAttrName,
                        builder.getStringAttr(*selectedPlan.selectedMABI));
+  llvm::StringRef sourceKind = plan.sourceKind.empty()
+                                   ? getRVVDefaultTypedBinarySourceKind()
+                                   : llvm::StringRef(plan.sourceKind);
+  state.addAttribute(kSelectedBinarySourceKindAttrName,
+                     builder.getStringAttr(sourceKind));
+  state.addAttribute(kSelectedBinaryDTypeAttrName,
+                     builder.getStringAttr(selectedPlan.getDTypeID()));
+  state.addAttribute(kSelectedBinaryFamilyAttrName,
+                     builder.getStringAttr(selectedPlan.getFamilyID()));
+  state.addAttribute(kSelectedBinaryOperatorAttrName,
+                     builder.getStringAttr(
+                         selectedPlan.family->arithmeticVerb));
+  state.addAttribute(
+      kSelectedBinaryMicrokernelOpAttrName,
+      builder.getStringAttr(selectedPlan.getMicrokernelOpName()));
+  state.addAttribute(kEmitCSourceOpAttrName,
+                     builder.getStringAttr(selectedPlan.getArithmeticOpName()));
+  state.addAttribute(kEmitCLowerableOpInterfaceAttrName,
+                     builder.getStringAttr(kEmitCLowerableOpInterfaceName));
 
   mlir::Region *body = state.addRegion();
   auto *block = new mlir::Block();

@@ -26,6 +26,7 @@ namespace tianchenrv::plugin::rvv {
 
 struct RVVBinaryMicrokernelMaterializationPlan {
   RVVBinarySelectedPlan selectedPlan;
+  std::string sourceKind;
 
   const target::rvv::RVVBinaryIntrinsicDescriptor &getDescriptor() const {
     return selectedPlan.descriptor;

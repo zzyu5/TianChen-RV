@@ -106,6 +106,13 @@ constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
+constexpr llvm::StringLiteral kFrontendLoweringSourceKind("frontend-lowering");
+constexpr llvm::StringLiteral kDefaultTypedMicrokernelBodySourceKind(
+    "default-i32-vadd-typed-body-materialization");
+constexpr llvm::StringLiteral kDirectTypedMicrokernelBodySourceKind(
+    "direct-typed-microkernel-body");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
@@ -179,6 +186,12 @@ bool hasAnySelectedBinarySourceIdentityMetadata(mlir::Operation *op) {
                 op->hasAttr(kEmitCLowerableOpInterfaceAttrName));
 }
 
+bool isAllowedSelectedBinarySourceKind(llvm::StringRef value) {
+  return value == kFrontendLoweringSourceKind ||
+         value == kDefaultTypedMicrokernelBodySourceKind ||
+         value == kDirectTypedMicrokernelBodySourceKind;
+}
+
 mlir::LogicalResult verifyBoundedMetadata(mlir::Operation *op,
                                           llvm::StringRef attrName,
                                           llvm::StringRef value) {
@@ -238,6 +251,13 @@ bool isAllowedMicrokernelAttr(llvm::StringRef name) {
          name == kSelectedVectorTypeAttrName ||
          name == kSelectedVectorSuffixAttrName ||
          name == kSelectedSetVLSuffixAttrName ||
+         name == kSelectedBinarySourceKindAttrName ||
+         name == kSelectedBinaryDTypeAttrName ||
+         name == kSelectedBinaryFamilyAttrName ||
+         name == kSelectedBinaryOperatorAttrName ||
+         name == kSelectedBinaryMicrokernelOpAttrName ||
+         name == kEmitCSourceOpAttrName ||
+         name == kEmitCLowerableOpInterfaceAttrName ||
          name == kSelectedMABIAttrName;
 }
 
@@ -466,6 +486,7 @@ enum class I32MicrokernelArithmetic {
 
 struct I32MicrokernelFamilySpec {
   I32MicrokernelArithmetic arithmetic;
+  llvm::StringRef familyID;
   llvm::StringRef microkernelOpName;
   llvm::StringRef arithmeticOpName;
   llvm::StringRef arithmeticVerb;
@@ -475,13 +496,16 @@ struct I32MicrokernelFamilySpec {
 const I32MicrokernelFamilySpec &
 getI32MicrokernelFamilySpec(I32MicrokernelArithmetic arithmetic) {
   static const I32MicrokernelFamilySpec addSpec{
-      I32MicrokernelArithmetic::Add, "tcrv_rvv.i32_vadd_microkernel",
+      I32MicrokernelArithmetic::Add, "i32-vadd",
+      "tcrv_rvv.i32_vadd_microkernel",
       "tcrv_rvv.i32_add", "add", "sum"};
   static const I32MicrokernelFamilySpec subSpec{
-      I32MicrokernelArithmetic::Sub, "tcrv_rvv.i32_vsub_microkernel",
+      I32MicrokernelArithmetic::Sub, "i32-vsub",
+      "tcrv_rvv.i32_vsub_microkernel",
       "tcrv_rvv.i32_sub", "subtract", "difference"};
   static const I32MicrokernelFamilySpec mulSpec{
-      I32MicrokernelArithmetic::Mul, "tcrv_rvv.i32_vmul_microkernel",
+      I32MicrokernelArithmetic::Mul, "i32-vmul",
+      "tcrv_rvv.i32_vmul_microkernel",
       "tcrv_rvv.i32_mul", "multiply", "product"};
   switch (arithmetic) {
   case I32MicrokernelArithmetic::Add:
@@ -513,6 +537,7 @@ enum class I64MicrokernelArithmetic {
 
 struct I64MicrokernelFamilySpec {
   I64MicrokernelArithmetic arithmetic;
+  llvm::StringRef familyID;
   llvm::StringRef microkernelOpName;
   llvm::StringRef arithmeticOpName;
   llvm::StringRef arithmeticVerb;
@@ -521,13 +546,16 @@ struct I64MicrokernelFamilySpec {
 const I64MicrokernelFamilySpec &
 getI64MicrokernelFamilySpec(I64MicrokernelArithmetic arithmetic) {
   static const I64MicrokernelFamilySpec addSpec{
-      I64MicrokernelArithmetic::Add, "tcrv_rvv.i64_vadd_microkernel",
+      I64MicrokernelArithmetic::Add, "i64-vadd",
+      "tcrv_rvv.i64_vadd_microkernel",
       "tcrv_rvv.i64_add", "add"};
   static const I64MicrokernelFamilySpec subSpec{
-      I64MicrokernelArithmetic::Sub, "tcrv_rvv.i64_vsub_microkernel",
+      I64MicrokernelArithmetic::Sub, "i64-vsub",
+      "tcrv_rvv.i64_vsub_microkernel",
       "tcrv_rvv.i64_sub", "subtract"};
   static const I64MicrokernelFamilySpec mulSpec{
-      I64MicrokernelArithmetic::Mul, "tcrv_rvv.i64_vmul_microkernel",
+      I64MicrokernelArithmetic::Mul, "i64-vmul",
+      "tcrv_rvv.i64_vmul_microkernel",
       "tcrv_rvv.i64_mul", "multiply"};
   switch (arithmetic) {
   case I64MicrokernelArithmetic::Add:
@@ -576,6 +604,78 @@ mlir::LogicalResult verifyNestedI64DataflowOp(
   }
   if (op->getNumRegions() != 0)
     return op->emitOpError() << "does not own regions";
+  return mlir::success();
+}
+
+mlir::LogicalResult requireSelectedBinarySourceIdentityAttr(
+    mlir::Operation *op, llvm::StringRef attrName,
+    llvm::StringRef expectedValue, llvm::StringRef description) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return op->emitOpError()
+           << "requires non-empty selected RVV binary source identity "
+              "attribute '"
+           << attrName << "' when any op-owned source identity is present";
+
+  llvm::StringRef value = attr.getValue().trim();
+  if (mlir::failed(verifyBoundedMetadata(op, attrName, value)))
+    return mlir::failure();
+  if (value != expectedValue)
+    return op->emitOpError()
+           << "selected RVV binary source identity attribute '" << attrName
+           << "' value '" << value << "' must match " << description << " '"
+           << expectedValue << "'";
+  return mlir::success();
+}
+
+mlir::LogicalResult verifyOptionalSelectedBinarySourceIdentity(
+    mlir::Operation *op, llvm::StringRef dtypeID, llvm::StringRef familyID,
+    llvm::StringRef arithmeticVerb, llvm::StringRef microkernelOpName,
+    llvm::StringRef emitCSourceOpName) {
+  if (!hasAnySelectedBinarySourceIdentityMetadata(op))
+    return mlir::success();
+
+  auto sourceKind =
+      op->getAttrOfType<mlir::StringAttr>(kSelectedBinarySourceKindAttrName);
+  if (!sourceKind || sourceKind.getValue().trim().empty())
+    return op->emitOpError()
+           << "requires non-empty selected RVV binary source identity "
+              "attribute '"
+           << kSelectedBinarySourceKindAttrName
+           << "' when any op-owned source identity is present";
+  llvm::StringRef sourceKindValue = sourceKind.getValue().trim();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kSelectedBinarySourceKindAttrName, sourceKindValue)))
+    return mlir::failure();
+  if (!isAllowedSelectedBinarySourceKind(sourceKindValue))
+    return op->emitOpError()
+           << "selected RVV binary source identity attribute '"
+           << kSelectedBinarySourceKindAttrName << "' value '"
+           << sourceKindValue
+           << "' is not a recognized typed RVV binary source boundary";
+
+  if (mlir::failed(requireSelectedBinarySourceIdentityAttr(
+          op, kSelectedBinaryDTypeAttrName, dtypeID, "dtype")))
+    return mlir::failure();
+  if (mlir::failed(requireSelectedBinarySourceIdentityAttr(
+          op, kSelectedBinaryFamilyAttrName, familyID, "family")))
+    return mlir::failure();
+  if (mlir::failed(requireSelectedBinarySourceIdentityAttr(
+          op, kSelectedBinaryOperatorAttrName, arithmeticVerb, "operator")))
+    return mlir::failure();
+  if (mlir::failed(requireSelectedBinarySourceIdentityAttr(
+          op, kSelectedBinaryMicrokernelOpAttrName, microkernelOpName,
+          "microkernel op")))
+    return mlir::failure();
+  if (mlir::failed(requireSelectedBinarySourceIdentityAttr(
+          op, kEmitCSourceOpAttrName, emitCSourceOpName,
+          "EmitC source op")))
+    return mlir::failure();
+  if (mlir::failed(requireSelectedBinarySourceIdentityAttr(
+          op, kEmitCLowerableOpInterfaceAttrName,
+          kEmitCLowerableOpInterfaceName, "generated EmitC lowerable "
+                                          "interface")))
+    return mlir::failure();
   return mlir::success();
 }
 
@@ -1767,12 +1867,21 @@ verifyI32MicrokernelOp(mlir::Operation *op,
 
   for (llvm::StringRef attrName :
        {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName,
-        kRequiredMarchAttrName, kSelectedMABIAttrName}) {
+        kRequiredMarchAttrName, kSelectedMABIAttrName,
+        kSelectedBinarySourceKindAttrName, kSelectedBinaryDTypeAttrName,
+        kSelectedBinaryFamilyAttrName, kSelectedBinaryOperatorAttrName,
+        kSelectedBinaryMicrokernelOpAttrName, kEmitCSourceOpAttrName,
+        kEmitCLowerableOpInterfaceAttrName}) {
     if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
       if (mlir::failed(
               verifyBoundedMetadata(op, attrName, attr.getValue().trim())))
         return mlir::failure();
   }
+
+  if (mlir::failed(verifyOptionalSelectedBinarySourceIdentity(
+          op, "i32", family.familyID, family.arithmeticVerb,
+          family.microkernelOpName, family.arithmeticOpName)))
+    return mlir::failure();
 
   auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (origin.getValue() != kRVVPluginName)
@@ -1959,12 +2068,21 @@ mlir::LogicalResult verifyI64MicrokernelOp(
 
   for (llvm::StringRef attrName :
        {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName,
-        kRequiredMarchAttrName, kSelectedMABIAttrName}) {
+        kRequiredMarchAttrName, kSelectedMABIAttrName,
+        kSelectedBinarySourceKindAttrName, kSelectedBinaryDTypeAttrName,
+        kSelectedBinaryFamilyAttrName, kSelectedBinaryOperatorAttrName,
+        kSelectedBinaryMicrokernelOpAttrName, kEmitCSourceOpAttrName,
+        kEmitCLowerableOpInterfaceAttrName}) {
     if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
       if (mlir::failed(
               verifyBoundedMetadata(op, attrName, attr.getValue().trim())))
         return mlir::failure();
   }
+
+  if (mlir::failed(verifyOptionalSelectedBinarySourceIdentity(
+          op, "i64", family.familyID, family.arithmeticVerb,
+          family.microkernelOpName, family.arithmeticOpName)))
+    return mlir::failure();
 
   auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (origin.getValue() != kRVVPluginName)
