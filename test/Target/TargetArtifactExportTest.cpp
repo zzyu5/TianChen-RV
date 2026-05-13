@@ -13,9 +13,10 @@
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
+#include "TianChenRV/Target/RVV/RVVScalarDispatch.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
+#include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
-#include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -2379,6 +2380,140 @@ bool expectPluginOwnedRVVScalarDispatchTargetExporterRegistration() {
   if (!rvvOnlyBuiltinRegistry.lookup("tcrv-export-rvv-i32-vmul-microkernel-c")) {
     llvm::errs() << "RVV plugin-owned selected route should remain available "
                     "when scalar dispatch dependency is missing\n";
+    return false;
+  }
+
+  return true;
+}
+
+bool expectRVVTargetSupportBundleExtractionRegistration() {
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              registerRVVTargetSupportPluginTargetExporterBundles(
+                  pluginExporters),
+          "register RVV target-support artifact exporter bundles"))
+    return false;
+  if (pluginExporters.size() != 2) {
+    llvm::errs() << "RVV target-support bundle expected direct RVV and "
+                    "RVV+scalar dispatch bundle contributions\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              registerRVVTargetSupportPluginTargetExporterBundles(
+                  pluginExporters),
+          "duplicate RVV target-support artifact exporter bundle rejected",
+          {"duplicate plugin-owned target exporter bundle", "rvv-plugin"}))
+    return false;
+
+  ExtensionBundle bundle("rvv-extension-bundle",
+                         tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+                         tianchenrv::plugin::registerRVVExtensionPlugin);
+  bundle.addRequiredDialectName("tcrv_rvv");
+  bundle.addLoweringBoundaryOp("tcrv_rvv.lowering_boundary");
+  if (!expectSuccess(
+          tianchenrv::target::rvv::configureRVVTargetSupportExtensionBundle(
+              bundle),
+          "configure RVV target-support extension bundle metadata"))
+    return false;
+  if (!bundle.getTargetArtifactExporterBundleRegistrationFn() ||
+      !bundle.requiresTargetArtifactRouteMetadata()) {
+    llvm::errs() << "RVV target-support bundle did not install exporter "
+                    "registration and route metadata requirements\n";
+    return false;
+  }
+
+  const std::size_t directRouteCount =
+      tianchenrv::target::rvv::getRVVMicrokernelDirectRouteCount();
+  const std::size_t dispatchRouteCount =
+      tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords()
+          .size() *
+      3;
+  if (bundle.getTargetArtifactRouteMetadata().size() !=
+      directRouteCount + dispatchRouteCount) {
+    llvm::errs() << "RVV target-support extension bundle owns "
+                 << bundle.getTargetArtifactRouteMetadata().size()
+                 << " route metadata requirements, expected "
+                 << directRouteCount + dispatchRouteCount << "\n";
+    return false;
+  }
+
+  bool sawDispatchDependency = false;
+  for (const ExtensionBundleTargetArtifactRouteMetadata &metadata :
+       bundle.getTargetArtifactRouteMetadata()) {
+    if (metadata.routeID == "tcrv-export-rvv-scalar-i32-vsub-dispatch-c" &&
+        metadata.artifactKind == "runtime-callable-c-source" &&
+        metadata.requireRouteMetadata &&
+        metadata.requiredPluginNames.size() == 1 &&
+        metadata.requiredPluginNames.front() ==
+            tianchenrv::plugin::scalar::getScalarExtensionPluginName()) {
+      sawDispatchDependency = true;
+      break;
+    }
+  }
+  if (!sawDispatchDependency) {
+    llvm::errs() << "RVV target-support bundle did not own RVV+scalar "
+                    "dispatch route metadata with scalar dependency\n";
+    return false;
+  }
+
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+                     "register RVV plugin for target-support bundle") ||
+      !expectSuccess(
+          tianchenrv::plugin::registerScalarExtensionPlugin(plugins),
+          "register scalar plugin for target-support bundle"))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         plugins, registry),
+                     "populate RVV target-support exporters"))
+    return false;
+
+  const std::size_t familyCount =
+      tianchenrv::target::rvv::getRVVBinaryFamilyRegistrationRecords().size();
+  const std::size_t dispatchFamilyCount =
+      tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords()
+          .size();
+  if (registry.size() != familyCount ||
+      registry.compositeSize() != familyCount * 2 + dispatchFamilyCount * 3) {
+    llvm::errs() << "RVV target-support exporter bundle expected "
+                 << familyCount << " direct source routes and "
+                 << familyCount * 2 + dispatchFamilyCount * 3
+                 << " composite direct/dispatch routes, got "
+                 << registry.size() << " and " << registry.compositeSize()
+                 << "\n";
+    return false;
+  }
+  if (!expectRVVSourceRouteRegistrationMetadata(
+          registry,
+          tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()))
+    return false;
+  if (!expectCompositeRouteConservativeClaimFields(
+          registry, "tcrv-export-rvv-scalar-i32-vsub-dispatch-c"))
+    return false;
+
+  ExtensionPluginRegistry rvvOnlyPlugins;
+  if (!expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(rvvOnlyPlugins),
+          "register RVV plugin without scalar for target-support bundle"))
+    return false;
+  TargetArtifactExporterRegistry rvvOnlyRegistry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         rvvOnlyPlugins, rvvOnlyRegistry),
+                     "populate RVV-only target-support exporters"))
+    return false;
+  if (!rvvOnlyRegistry.lookup("tcrv-export-rvv-i32-vsub-microkernel-c")) {
+    llvm::errs() << "RVV target-support direct route disappeared when scalar "
+                    "dependency is absent\n";
+    return false;
+  }
+  if (rvvOnlyRegistry.lookupComposite(
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-c")) {
+    llvm::errs() << "RVV target-support dispatch route was published without "
+                    "the scalar dependency\n";
     return false;
   }
 
@@ -5814,6 +5949,8 @@ int main() {
   if (!expectPluginOwnedScalarMicrokernelTargetExporterRegistration())
     return 1;
   if (!expectPluginOwnedRVVScalarDispatchTargetExporterRegistration())
+    return 1;
+  if (!expectRVVTargetSupportBundleExtractionRegistration())
     return 1;
 
   TargetArtifactExporterRegistry builtinRegistry;

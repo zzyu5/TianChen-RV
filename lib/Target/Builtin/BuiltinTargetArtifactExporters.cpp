@@ -7,40 +7,20 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
-#include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
+#include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
-#include "TianChenRV/Target/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
-#include "llvm/Support/Errc.h"
-
 namespace tianchenrv::target {
 namespace {
-
-llvm::Error makeBuiltinExtensionBundleError(llvm::Twine message) {
-  return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV built-in extension bundle registration "
-                  "failed: ") +
-          message,
-      llvm::errc::invalid_argument);
-}
 
 llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry) {
   return rvv::registerRVVSmokeProbeTargetExporters(registry);
-}
-
-llvm::Error registerRVVBuiltinTargetArtifactExporterBundles(
-    PluginTargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error =
-          rvv::registerRVVMicrokernelPluginTargetExporterBundle(registry))
-    return error;
-  return rvv_scalar::registerRVVScalarDispatchPluginTargetExporterBundle(
-      registry);
 }
 
 llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(
@@ -54,40 +34,8 @@ llvm::Error registerRVVExtensionBundle(ExtensionBundleRegistry &registry) {
                          plugin::registerRVVExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_rvv");
   bundle.addLoweringBoundaryOp("tcrv_rvv.lowering_boundary");
-  bundle.setTargetArtifactExporterBundleRegistrationFn(
-      registerRVVBuiltinTargetArtifactExporterBundles);
-
-  bool sawArtifactRoute = false;
-  for (const rvv::RVVMicrokernelDirectRouteManifestEntry &route :
-       rvv::getRVVMicrokernelArtifactRouteAuthority()) {
-    sawArtifactRoute = true;
-    bundle.addTargetArtifactRouteMetadataRequirement(route.getRouteID(),
-                                                     route.getArtifactKind());
-  }
-  if (!sawArtifactRoute)
-    return makeBuiltinExtensionBundleError(
-        "missing finite RVV binary source/header/object routes for route "
-        "metadata registration");
-
-  static const llvm::StringRef requiredDispatchPlugins[] = {
-      plugin::scalar::getScalarExtensionPluginName()};
-  for (const rvv_scalar::RVVScalarDispatchRouteManifestEntry &route :
-       rvv_scalar::getRVVScalarDispatchRouteManifest()) {
-    switch (route.routeKind) {
-    case rvv_scalar::RVVScalarDispatchRouteKind::Source:
-    case rvv_scalar::RVVScalarDispatchRouteKind::Header:
-    case rvv_scalar::RVVScalarDispatchRouteKind::Object:
-      bundle.addTargetArtifactRouteMetadataRequirement(route.routeID,
-                                                       route.artifactKind,
-                                                       /*requireRouteMetadata=*/
-                                                       true,
-                                                       requiredDispatchPlugins);
-      break;
-    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckSource:
-    case rvv_scalar::RVVScalarDispatchRouteKind::SelfCheckObject:
-      break;
-    }
-  }
+  if (llvm::Error error = rvv::configureRVVTargetSupportExtensionBundle(bundle))
+    return error;
 
   return registry.registerBundle(bundle);
 }

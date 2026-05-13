@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture and stack invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected config, finite binary route contracts"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "plugin/core locality checklist"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "registry/interface routing boundaries"}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "plugin-owned versus core-owned responsibilities"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "extension family target-support contribution template"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route and descriptor boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact exporter bundle and RVV dispatch artifact contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused C++/lit/RVV evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-13-rvv-target-support-artifact-bundle-extraction/prd.md", "reason": "current task requirements and acceptance criteria"}

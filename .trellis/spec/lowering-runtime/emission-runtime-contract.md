@@ -594,6 +594,11 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   not silently publish their plugin-owned target routes. Later selected-plan
   export then fails closed as an unknown or unavailable route/origin instead of
   falling back to a central extension-specific exporter branch.
+  For the finite RVV binary route set, the central built-in extension bundle
+  composition must delegate RVV direct microkernel route metadata and
+  RVV+scalar dispatch route metadata to RVV target-support bundle code. It must
+  not iterate RVV direct or RVV+scalar dispatch manifests as central built-in
+  route truth.
 
 #### 4. Validation & Error Matrix
 
@@ -736,6 +741,10 @@ registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
 - Built-in target translate route registration delegates to target-owned
   registration functions. Current route-family contributors are RVV direct
   binary microkernel routes and RVV+scalar dispatch routes.
+- The RVV route-family contributor is the RVV target-support bundle. It may
+  aggregate RVV direct binary helper routes and RVV+scalar dispatch helper
+  routes, while public `tcrv-translate` registration still iterates only the
+  generic `TargetTranslateRouteRegistry`.
 - `tcrv-translate` must not manually loop over RVV direct or RVV+scalar
   dispatch manifests. It should call `registerBuiltinTargetTranslateRoutes`
   once and then register each contributed route generically.

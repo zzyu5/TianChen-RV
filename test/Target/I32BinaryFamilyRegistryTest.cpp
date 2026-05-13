@@ -5,7 +5,7 @@
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
-#include "TianChenRV/Target/RVVScalarDispatch.h"
+#include "TianChenRV/Target/RVV/RVVScalarDispatch.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 

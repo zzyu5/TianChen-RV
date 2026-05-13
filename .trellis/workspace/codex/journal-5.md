@@ -64,6 +64,72 @@ Vector source arithmetic-family adapter registry.
 
 - None - task complete
 
+
+## Session 56: RVV target-support artifact bundle extraction
+
+**Date**: 2026-05-13
+**Task**: RVV target-support artifact bundle extraction
+**Branch**: `main`
+
+### Summary
+
+Moved RVV direct and RVV+scalar dispatch artifact route registration
+composition into an RVV target-support bundle, reduced built-in target exporter
+and translate-route code to delegation, and preserved dynamic vadd/vsub
+direct and bundle behavior with fresh RVV evidence.
+
+### Main Changes
+
+- Added `RVVTargetSupportBundle` as the RVV-owned registration surface for
+  direct RVV source/header/object routes plus RVV+scalar dispatch
+  source/header/object routes.
+- Moved `RVVScalarDispatch.cpp` from `lib/Target/Builtin/` to
+  `lib/Target/RVV/` and moved the public dispatch header under
+  `include/TianChenRV/Target/RVV/`, keeping a forwarding compatibility header.
+- Rewired `BuiltinTargetArtifactExporters.cpp` and
+  `BuiltinTargetTranslateRoutes.cpp` to call RVV target-support helpers rather
+  than iterating RVV route manifests directly.
+- Added C++ registry coverage for the combined RVV target-support bundle,
+  scalar dependency gating, direct RVV independence from scalar, and route
+  metadata preservation.
+- Updated the lowering-runtime spec with the central built-in delegation rule.
+
+### Evidence
+
+- Direct artifacts:
+  `artifacts/tmp/rvv_target_support_bundle_extraction/direct/vector_dynamic_i32_vsub/`
+  and
+  `artifacts/tmp/rvv_target_support_bundle_extraction/direct/vector_dynamic_i32_vadd/`.
+- Plan-and-export bundle artifacts:
+  `artifacts/tmp/rvv_target_support_bundle_extraction/bundle/vector_dynamic_i32_vsub/`
+  and
+  `artifacts/tmp/rvv_target_support_bundle_extraction/bundle/vector_dynamic_i32_vadd/`.
+- ssh rvv evidence:
+  `artifacts/tmp/rvv_target_support_bundle_extraction/e2e/20260513T-rvv-target-support-bundle-extraction-vsub/evidence.json`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts
+  `7`, `16`, and `23`.
+
+### Checks
+
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-target-support-artifact-bundle-extraction`
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target tianchenrv-i32-binary-family-registry-test -j2`
+- `./build/bin/tianchenrv-i32-binary-family-registry-test`
+- Focused lit filter covering dynamic vector add/sub, invalid vector
+  diagnostics, fixed-vector vadd, bundle export, RVV microkernel, emission
+  manifest, and linalg add/sub with 68 selected tests passed.
+- Broad focused lit filter
+  `VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest`
+  with 80 selected tests passed.
+- Direct and bundle artifact commands recorded in the task PRD.
+- `git diff --check`
+- `git diff --cached --check`
+
+### Status
+
+[OK] Completed and ready to archive.
+
 ## 2026-05-13 - RVV selected-config fail-closed artifact validation
 
 ### Summary
