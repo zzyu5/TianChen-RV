@@ -3,6 +3,7 @@ add_mlir_library(TianChenRVTemplatePlugin
   TemplateExtensionPlugin.cpp
 
   LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
   TianChenRVPlugin
   TianChenRVSupport
   TianChenRVTemplateDialect

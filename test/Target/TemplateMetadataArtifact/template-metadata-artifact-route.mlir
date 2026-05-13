@@ -33,6 +33,14 @@ module {
     // IR-SAME: handoff_kind = "template-extension-lowering-boundary"
     // IR-SAME: selected_variant = @template_zero_core_first_slice
     // IR-SAME: status = "metadata-only"
+    // IR: tcrv_template.compute_skeleton
+    // IR-SAME: emitc_call = "__tcrv_template_compute"
+    // IR-SAME: role_order = 2 : i64
+    // IR-SAME: role_specific_interface = "TCRVComputeOpInterface"
+    // IR-SAME: selected_variant = @template_zero_core_first_slice
+    // IR-SAME: source_role = "compute"
+    // IR-SAME: status = "role-op-boundary"
+    // IR-SAME: typed_role = "template.role.compute.compute_skeleton"
     // IR: tcrv.exec.diagnostic
     // IR-SAME: artifact_kind = "template-extension-handoff-manifest"
     // IR-SAME: emission_kind = "template-extension-manifest-route"
@@ -76,6 +84,10 @@ module {
     // ARTIFACT:   operation: "tcrv_template.compute_skeleton"
     // ARTIFACT:   common_interfaces: "TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
     // ARTIFACT: common_interface_realization: "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
+    // ARTIFACT: validated_role_op: "tcrv_template.compute_skeleton"
+    // ARTIFACT: validated_role_op_interface: "TCRVEmitCLowerableOpInterface"
+    // ARTIFACT: validated_role_op_source: "tcrv_template.compute_skeleton"
+    // ARTIFACT: validated_role_op_source_role: "compute"
     // ARTIFACT: typed_role_realization: "{{.*}}compute:template.role.compute.compute_skeleton:tcrv_template.compute_skeleton:TCRVComputeOpInterface:__tcrv_template_compute{{.*}}"
     // ARTIFACT: typed_role[2]:
     // ARTIFACT:   typed_role: "template.role.compute.compute_skeleton"

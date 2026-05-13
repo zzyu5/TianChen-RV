@@ -8,6 +8,10 @@
 #include <string>
 #include <vector>
 
+namespace mlir {
+class Operation;
+} // namespace mlir
+
 namespace tianchenrv::plugin::template_ext {
 
 struct TemplateConstructionSemanticRole {
@@ -120,6 +124,10 @@ verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest)
 llvm::Error verifyTemplateTypedRoleGraphRealization(
     const TemplateConstructionManifest &manifest,
     const TemplateTypedRoleGraphRealization &realization);
+llvm::Error verifyTemplateComputeRoleOpInterface(
+    const TemplateConstructionManifest &manifest,
+    const TemplateTypedRoleGraphRealization &realization,
+    mlir::Operation *computeRoleOp);
 llvm::Expected<TemplateGeneratedOutputRoute>
 buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest &manifest);
 llvm::Expected<TemplateGeneratedOutputRoute> buildTemplateGeneratedOutputRoute(

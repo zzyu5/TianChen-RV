@@ -65,6 +65,13 @@ constexpr llvm::StringLiteral kIntegrationContractAttrName("integration_contract
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kTemplateReasonAttrName("template_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kTemplateMetadataRouteID(
     "template-extension-zero-core-manifest");
 constexpr llvm::StringLiteral kTemplateMetadataEmissionKind(
@@ -452,6 +459,33 @@ llvm::Error rejectExistingTemplateBoundaryForVariant(
   return llvm::Error::success();
 }
 
+llvm::Error rejectExistingTemplateComputeRoleForVariant(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
+  if (!kernel || kernel.getBody().empty())
+    return llvm::Error::success();
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto compute =
+        llvm::dyn_cast<tcrv::template_ext::ComputeSkeletonOp>(op);
+    if (!compute)
+      continue;
+
+    auto target =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+    llvm::StringRef targetSymbol =
+        target ? target.getValue() : llvm::StringRef("<missing>");
+    if (targetSymbol != variant.getSymName())
+      continue;
+
+    return makeTemplatePluginError(
+        llvm::Twine("requires no pre-existing "
+                    "tcrv_template.compute_skeleton for target @") +
+        targetSymbol);
+  }
+
+  return llvm::Error::success();
+}
+
 tcrv::template_ext::LoweringBoundaryOp materializeTemplateBoundaryOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
@@ -486,6 +520,51 @@ tcrv::template_ext::LoweringBoundaryOp materializeTemplateBoundaryOp(
           "runtime execution, correctness proof, or performance measurement "
           "is produced"));
   return llvm::cast<tcrv::template_ext::LoweringBoundaryOp>(builder.create(state));
+}
+
+tcrv::template_ext::ComputeSkeletonOp materializeTemplateComputeRoleOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role) {
+  builder.getContext()->getOrLoadDialect<tcrv::template_ext::TCRVTemplateDialect>();
+
+  const template_ext::TemplateTypedRoleGraphRealization &realization =
+      template_ext::getTemplateTypedRoleGraphRealization();
+  const template_ext::TemplateTypedRoleInterfaceRealization &computeRole =
+      realization.roles[2];
+  auto requiredCapabilities =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+
+  mlir::OperationState state(
+      variant.getLoc(),
+      tcrv::template_ext::ComputeSkeletonOp::getOperationName());
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                  variant.getSymName()));
+  state.addAttribute(kOriginAttrName, builder.getStringAttr(kTemplatePluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
+  state.addAttribute(kTypedRoleAttrName,
+                     builder.getStringAttr(computeRole.typedRoleID));
+  state.addAttribute(kRoleOrderAttrName,
+                     builder.getI64IntegerAttr(computeRole.order));
+  state.addAttribute(kSourceRoleAttrName,
+                     builder.getStringAttr(computeRole.role));
+  state.addAttribute(kRoleSpecificInterfaceAttrName,
+                     builder.getStringAttr(computeRole.roleSpecificInterface));
+  state.addAttribute(kEmitCCallAttrName,
+                     builder.getStringAttr(computeRole.emitCCall));
+  state.addAttribute(
+      kTemplateReasonAttrName,
+      builder.getStringAttr(
+          "Template ODS compute role-op boundary for construction protocol "
+          "interface validation only; no lowering route, runtime execution, "
+          "correctness proof, or performance measurement is produced"));
+  return llvm::cast<tcrv::template_ext::ComputeSkeletonOp>(builder.create(state));
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
@@ -839,6 +918,8 @@ llvm::Error TemplateExtensionPlugin::materializeSelectedLoweringBoundary(
 
   if (llvm::Error error = rejectExistingTemplateBoundaryForVariant(kernel, variant))
     return error;
+  if (llvm::Error error = rejectExistingTemplateComputeRoleForVariant(kernel, variant))
+    return error;
 
   llvm::Expected<TemplateExtensionCapabilityView> capabilityView =
       buildTemplateExtensionCapabilityView(request.getCapabilities());
@@ -848,6 +929,15 @@ llvm::Error TemplateExtensionPlugin::materializeSelectedLoweringBoundary(
   tcrv::template_ext::LoweringBoundaryOp boundary = materializeTemplateBoundaryOp(
       request.getBuilder(), kernel, variant, request.getRole(),
       *capabilityView);
+  tcrv::template_ext::ComputeSkeletonOp computeRole =
+      materializeTemplateComputeRoleOp(request.getBuilder(), kernel, variant,
+                                       request.getRole());
+  if (llvm::Error error =
+          template_ext::verifyTemplateComputeRoleOpInterface(
+              template_ext::getTemplateConstructionManifest(),
+              template_ext::getTemplateTypedRoleGraphRealization(),
+              computeRole.getOperation()))
+    return error;
   out = VariantLoweringBoundaryResult::getMaterialized(
       kTemplatePluginName, kernel.getSymName(), variant.getSymName(),
       request.getRole(), boundary.getOperation());

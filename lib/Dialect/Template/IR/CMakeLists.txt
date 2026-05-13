@@ -3,8 +3,10 @@ add_mlir_dialect_library(TianChenRVTemplateDialect
 
   DEPENDS
   MLIRTemplateOpsIncGen
+  MLIRTCRVEmitCLowerableOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
   TianChenRVExecDialect
   TianChenRVSupport
   MLIRIR

@@ -1,4 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
@@ -33,10 +34,12 @@ using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::plugin::VariantSelectedPlanMetadata;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::template_ext::ComputeSkeletonOp;
 using tianchenrv::tcrv::template_ext::LoweringBoundaryOp;
 using tianchenrv::transforms::VariantSelectionKind;
 using tianchenrv::transforms::VariantSelectionPlan;
@@ -116,6 +119,25 @@ LoweringBoundaryOp findTemplateBoundary(KernelOp kernel,
         op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
     if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
       result = boundary;
+  }
+  return result;
+}
+
+ComputeSkeletonOp findTemplateComputeRoleOp(
+    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
+  ComputeSkeletonOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto compute = llvm::dyn_cast<ComputeSkeletonOp>(op);
+    if (!compute)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = compute;
   }
   return result;
 }
@@ -483,6 +505,115 @@ int runGeneratedOutputRouteTest() {
                                           "generated_output"}))
       return result;
   }
+
+  return 0;
+}
+
+int runTemplateComputeRoleOpInterfaceTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @template_compute_role_interface attributes {} {
+    tcrv.exec.capability @template_extension {
+      id = "template.extension",
+      kind = "future-extension-template",
+      status = "available",
+      integration_contract = "template-zero-core-handoff.v1",
+      handoff_kind = "template-extension-lowering-boundary"
+    }
+    tcrv.exec.variant @template_zero_core_first_slice attributes {
+      origin = "template-plugin",
+      requires = [@template_extension]
+    } {
+    }
+    tcrv_template.compute_skeleton {
+      emitc_call = "__tcrv_template_compute",
+      origin = "template-plugin",
+      required_capabilities = [@template_extension],
+      role = "direct variant",
+      role_order = 2 : i64,
+      role_specific_interface = "TCRVComputeOpInterface",
+      selected_variant = @template_zero_core_first_slice,
+      source_kernel = "template_compute_role_interface",
+      source_role = "compute",
+      status = "role-op-boundary",
+      template_reason = "Template ODS role-op boundary only",
+      typed_role = "template.role.compute.compute_skeleton"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse Template compute role-op module");
+  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
+                          "Template compute role-op module verifies"))
+    return result;
+
+  KernelOp kernel = findKernel(*module, "template_compute_role_interface");
+  ComputeSkeletonOp compute = findTemplateComputeRoleOp(
+      kernel,
+      tianchenrv::plugin::template_ext::
+          getTemplateExtensionFirstSliceVariantName());
+  if (int result =
+          expect(compute, "Template ODS compute role op is materialized"))
+    return result;
+
+  auto lowerable =
+      llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(compute.getOperation());
+  if (int result =
+          expect(lowerable,
+                 "Template compute role op implements generated "
+                 "TCRVEmitCLowerableOpInterface"))
+    return result;
+  if (int result =
+          expect(lowerable.getTCRVEmitCLowerableSourceOpName() ==
+                         ComputeSkeletonOp::getOperationName() &&
+                     lowerable.getTCRVEmitCLowerableSourceRole() == "compute",
+                 "Template compute role op exposes generated interface source "
+                 "op and role"))
+    return result;
+
+  const auto &manifest =
+      tianchenrv::plugin::template_ext::getTemplateConstructionManifest();
+  const auto &realization =
+      tianchenrv::plugin::template_ext::getTemplateTypedRoleGraphRealization();
+  if (int result = expectSuccess(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateComputeRoleOpInterface(manifest, realization,
+                                                   compute.getOperation()),
+          "Template construction validation accepts ODS compute role op"))
+    return result;
+
+  compute->setAttr("source_role", mlir::StringAttr::get(&context, "load"));
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateComputeRoleOpInterface(manifest, realization,
+                                                   compute.getOperation()),
+          {"generated TCRVEmitCLowerableOpInterface source role", "compute"}))
+    return result;
+  compute->setAttr("source_role", mlir::StringAttr::get(&context, "compute"));
+
+  compute->setAttr(
+      "typed_role",
+      mlir::StringAttr::get(&context, "template.role.compute.stale"));
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateComputeRoleOpInterface(manifest, realization,
+                                                   compute.getOperation()),
+          {"compute role op typed_role", "typed compute role realization"}))
+    return result;
+  compute->setAttr(
+      "typed_role",
+      mlir::StringAttr::get(&context,
+                            "template.role.compute.compute_skeleton"));
+
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateComputeRoleOpInterface(
+                  manifest, realization, kernel.getOperation()),
+          {"must implement generated TCRVEmitCLowerableOpInterface"}))
+    return result;
 
   return 0;
 }
@@ -870,6 +1001,42 @@ module {
                           "Template boundary module verifies"))
     return result;
 
+  ComputeSkeletonOp computeRole =
+      findTemplateComputeRoleOp(kernel, templateVariant.getSymName());
+  if (int result =
+          expect(computeRole,
+                 "Template selected path materializes ODS compute role op"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateComputeRoleOpInterface(
+                  tianchenrv::plugin::template_ext::
+                      getTemplateConstructionManifest(),
+                  tianchenrv::plugin::template_ext::
+                      getTemplateTypedRoleGraphRealization(),
+                  computeRole.getOperation()),
+          "Template selected path compute op validates against construction "
+          "manifest"))
+    return result;
+  if (int result =
+          expect(computeRole
+                         ->getAttrOfType<mlir::StringAttr>("typed_role")
+                         .getValue() ==
+                     "template.role.compute.compute_skeleton" &&
+                     computeRole
+                         ->getAttrOfType<mlir::StringAttr>("source_role")
+                         .getValue() == "compute" &&
+                     computeRole
+                         ->getAttrOfType<mlir::StringAttr>(
+                             "role_specific_interface")
+                         .getValue() == "TCRVComputeOpInterface" &&
+                     computeRole
+                         ->getAttrOfType<mlir::StringAttr>("emitc_call")
+                         .getValue() == "__tcrv_template_compute",
+                 "Template compute role op records typed role and EmitC "
+                 "mapping"))
+    return result;
+
   VariantEmissionStatus status;
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
@@ -996,6 +1163,8 @@ int main() {
   if (int result = runConstructionManifestTest())
     return result;
   if (int result = runGeneratedOutputRouteTest())
+    return result;
+  if (int result = runTemplateComputeRoleOpInterfaceTest(context))
     return result;
   if (int result = runRegistrationAndCapabilityMetadataTest())
     return result;

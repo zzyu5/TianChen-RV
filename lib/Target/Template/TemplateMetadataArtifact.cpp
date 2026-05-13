@@ -28,6 +28,7 @@ using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::target::SelectedPlanMetadataEntry;
 using tianchenrv::target::TargetArtifactCandidate;
 using tianchenrv::target::TargetArtifactExporter;
+using tianchenrv::tcrv::template_ext::ComputeSkeletonOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::template_ext::LoweringBoundaryOp;
@@ -43,6 +44,12 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kIntegrationContractAttrName("integration_contract");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kMetadataArtifactVersion("1");
 constexpr llvm::StringLiteral kArtifactStatus(
     "compiler-construction-template-artifact");
@@ -265,6 +272,126 @@ findAndValidateTemplateBoundary(const TargetArtifactCandidate &candidate,
   return matched;
 }
 
+llvm::Error requireComputeRoleStringAttr(ComputeSkeletonOp computeRole,
+                                         llvm::StringRef attrName,
+                                         llvm::StringRef expectedValue) {
+  auto attr = getStringAttr(computeRole.getOperation(), attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeTemplateArtifactError(
+        computeRole->getParentOfType<KernelOp>(),
+        llvm::Twine("Template compute role op requires non-empty attribute '") +
+            attrName + "'");
+  if (attr.getValue() != expectedValue)
+    return makeTemplateArtifactError(
+        computeRole->getParentOfType<KernelOp>(),
+        llvm::Twine("Template compute role op attribute '") + attrName +
+            "' is '" + attr.getValue() + "' but expected '" + expectedValue +
+            "'");
+  return llvm::Error::success();
+}
+
+llvm::Expected<ComputeSkeletonOp>
+findAndValidateTemplateComputeRoleOp(const TargetArtifactCandidate &candidate,
+                                     VariantOp variant) {
+  KernelOp kernel = candidate.kernel;
+  if (!kernel || kernel.getBody().empty())
+    return makeTemplateArtifactError(
+        kernel, "requires selected Template kernel with a materialized body");
+
+  ComputeSkeletonOp matched;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    if (op.getName().getStringRef() != ComputeSkeletonOp::getOperationName())
+      continue;
+
+    auto computeRole = llvm::dyn_cast<ComputeSkeletonOp>(op);
+    if (!computeRole)
+      return makeTemplateArtifactError(
+          kernel, llvm::Twine("Template role operation '") +
+                      ComputeSkeletonOp::getOperationName() +
+                      "' does not materialize as ComputeSkeletonOp");
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(
+            kSelectedVariantAttrName);
+    auto role = getStringAttr(computeRole.getOperation(), kRoleAttrName);
+    if (!selectedVariant || selectedVariant.getValue() != variant.getSymName() ||
+        !role || role.getValue() != candidate.role)
+      continue;
+
+    if (matched)
+      return makeTemplateArtifactError(
+          kernel, llvm::Twine("duplicate Template compute role ops for @") +
+                      candidate.selectedVariant + " as " + candidate.role);
+    matched = computeRole;
+  }
+
+  if (!matched)
+    return makeTemplateArtifactError(
+        kernel, llvm::Twine("selected Template candidate requires one ") +
+                    ComputeSkeletonOp::getOperationName() + " for @" +
+                    candidate.selectedVariant + " as " + candidate.role);
+
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kSourceKernelAttrName,
+                                       kernel.getSymName()))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(
+              matched, kOriginAttrName,
+              pluginTemplate::getTemplateExtensionPluginName()))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kRoleAttrName, candidate.role))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kStatusAttrName,
+                                       kRoleOpBoundaryStatusValue))
+    return std::move(error);
+
+  auto roleOrder =
+      matched->getAttrOfType<mlir::IntegerAttr>("role_order");
+  if (!roleOrder || roleOrder.getInt() != 2)
+    return makeTemplateArtifactError(
+        kernel, "Template compute role op role_order must be 2");
+
+  const pluginTemplate::TemplateTypedRoleGraphRealization &realization =
+      pluginTemplate::getTemplateTypedRoleGraphRealization();
+  const pluginTemplate::TemplateTypedRoleInterfaceRealization &compute =
+      realization.roles[2];
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kTypedRoleAttrName,
+                                       compute.typedRoleID))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kSourceRoleAttrName,
+                                       compute.role))
+    return std::move(error);
+  if (llvm::Error error = requireComputeRoleStringAttr(
+          matched, kRoleSpecificInterfaceAttrName,
+          compute.roleSpecificInterface))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kEmitCCallAttrName,
+                                       compute.emitCCall))
+    return std::move(error);
+
+  auto requiredCapabilities =
+      matched->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requiredCapabilities || requiredCapabilities != variantRequires)
+    return makeTemplateArtifactError(
+        kernel, "Template compute role op required_capabilities must match "
+                "selected variant requires metadata");
+
+  if (llvm::Error error = pluginTemplate::verifyTemplateComputeRoleOpInterface(
+          pluginTemplate::getTemplateConstructionManifest(), realization,
+          matched.getOperation()))
+    return std::move(error);
+
+  return matched;
+}
+
 const SelectedPlanMetadataEntry *
 findSelectedPlanMetadata(llvm::ArrayRef<SelectedPlanMetadataEntry> metadata,
                          llvm::StringRef name) {
@@ -458,6 +585,11 @@ llvm::Error validateTemplateMetadataCandidate(
   if (!boundary)
     return boundary.takeError();
 
+  llvm::Expected<ComputeSkeletonOp> computeRole =
+      findAndValidateTemplateComputeRoleOp(candidate, variant);
+  if (!computeRole)
+    return computeRole.takeError();
+
   return llvm::Error::success();
 }
 
@@ -608,6 +740,17 @@ void printTypedRoleGraphRealization(
   }
 }
 
+void printValidatedRoleOpBoundary(llvm::raw_ostream &os,
+                                  ComputeSkeletonOp computeRole) {
+  printField(os, "validated_role_op", ComputeSkeletonOp::getOperationName());
+  printField(os, "validated_role_op_interface",
+             "TCRVEmitCLowerableOpInterface");
+  printField(os, "validated_role_op_source",
+             computeRole.getTCRVEmitCLowerableSourceOpName());
+  printField(os, "validated_role_op_source_role",
+             computeRole.getTCRVEmitCLowerableSourceRole());
+}
+
 } // namespace
 
 static TargetArtifactRouteMetadata buildTemplateMetadataArtifactRouteMetadata() {
@@ -676,6 +819,13 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
   if (!requiredCapabilitySymbol)
     return requiredCapabilitySymbol.takeError();
 
+  VariantOp selectedVariant =
+      findDirectVariant(candidate->kernel, candidate->selectedVariant);
+  llvm::Expected<ComputeSkeletonOp> computeRole =
+      findAndValidateTemplateComputeRoleOp(*candidate, selectedVariant);
+  if (!computeRole)
+    return computeRole.takeError();
+
   const pluginTemplate::TemplateConstructionManifest &manifest =
       pluginTemplate::getTemplateConstructionManifest();
   const pluginTemplate::TemplateTypedRoleGraphRealization &realization =
@@ -733,6 +883,7 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
   }
   printField(os, "common_interface_realization",
              pluginTemplate::getTemplateConstructionInterfaceRealization());
+  printValidatedRoleOpBoundary(os, *computeRole);
   printTypedRoleGraphRealization(os, realization);
   printField(os, "emitc_route_id", manifest.emitcRoute.routeID);
   printField(os, "emitc_emission_kind", manifest.emitcRoute.emissionKind);

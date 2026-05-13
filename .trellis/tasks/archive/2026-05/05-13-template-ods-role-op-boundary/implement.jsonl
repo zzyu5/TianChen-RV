@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack and extension-family boundaries"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol checklist for extension-local role-op work"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol: archetype, role graph, family declaration, interfaces, EmitC route, evidence"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Unified extension plugin integration and core/plugin boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Common interface and registry contracts consumed by plugins"}
+{"file": ".trellis/spec/core-dialect/index.md", "reason": "Guard against moving Template compute semantics into tcrv.exec"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Generated op-interface and EmitC route provenance boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and fail-closed pre-export contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck evidence forms"}
+{"file": ".trellis/tasks/archive/2026-05/05-13-template-role-graph-emitc-route-realization/prd.md", "reason": "Prior Template generated route baseline"}
+{"file": ".trellis/tasks/archive/2026-05/05-13-05-13-template-typed-role-op-construction-path/prd.md", "reason": "Immediate predecessor typed-role realization baseline"}

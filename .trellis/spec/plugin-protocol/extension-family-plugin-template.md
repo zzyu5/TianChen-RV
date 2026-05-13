@@ -354,11 +354,24 @@ file is not enough.
   `llvm::Expected<TemplateGeneratedOutputRoute>
   buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest
   &manifest, const TemplateTypedRoleGraphRealization &realization)`.
+- Minimal ODS role-op boundary:
+  `tcrv_template.compute_skeleton`.
+- Generated role-op interface:
+  `TCRVEmitCLowerableOpInterface`, exposing source op name and source role.
+- ODS/interface-backed role verifier:
+  `llvm::Error verifyTemplateComputeRoleOpInterface(const
+  TemplateConstructionManifest &manifest, const
+  TemplateTypedRoleGraphRealization &realization, mlir::Operation
+  *computeRoleOp)`.
 - Generated-output payload:
   deterministic function name, required header, ordered role steps, each
   step's semantic role, role order, family operation name, common-interface
   realization, typed role identity, role-specific interface,
   EmitC-lowerable interface, EmitC call name, and source-like call line.
+- Role-op payload:
+  selected kernel and variant identity, origin plugin, selected-path role,
+  role-op status, required capability refs, typed role id, role order, source
+  role, role-specific interface, and EmitC call name.
 
 ### 3. Contracts
 
@@ -371,6 +384,14 @@ file is not enough.
   typed role/interface realization, and evidence profile.
 - Target artifact validation must consume the same manifest-derived route
   metadata and fail closed for stale selected-plan fields.
+- The Template selected-boundary materialization path must materialize the
+  selected lowering boundary and the minimal ODS compute role-op boundary for
+  the same selected variant.
+- Target artifact validation must require exactly one matching
+  `tcrv_template.compute_skeleton` before generated output export.
+- The compute role-op must implement `TCRVEmitCLowerableOpInterface`; target
+  and construction validation must cross-check the generated source op and
+  source role against the typed compute role realization.
 - Generated construction output must be built from a typed role/interface
   realization that has been cross-checked against the manifest role graph,
   family operations, common-interface realization, role-specific common
@@ -400,6 +421,18 @@ file is not enough.
   duplicating typed role ids, using stale family operation identity, using a
   stale role-specific interface, or disagreeing with the role-to-EmitC mapping
   -> typed-realization verifier error.
+- Missing `tcrv_template.compute_skeleton` for the selected Template candidate
+  -> target artifact preflight error before generated output.
+- Duplicate matching compute role ops for the selected variant and role ->
+  target artifact preflight error before generated output.
+- Compute role op missing `TCRVEmitCLowerableOpInterface` -> construction
+  verifier error before generated output.
+- Generated interface source op name or source role disagreeing with the typed
+  compute role realization -> construction verifier error before generated
+  output.
+- Compute role op stale typed role id, role-specific interface, source role, or
+  EmitC call -> dialect verifier or construction verifier error before
+  generated output.
 - Materialized variant missing construction metadata -> plugin legality error.
 - Selected-plan metadata value disagrees with route registration metadata ->
   target artifact preflight error before generated output.
@@ -423,6 +456,13 @@ file is not enough.
 - C++ test asserting typed role/interface realization agreement with the
   manifest and fail-closed behavior for missing, reordered, stale, or
   mismatched typed role/interface data.
+- C++ test asserting ODS role-op interface identity against the manifest,
+  typed role realization, generated `TCRVEmitCLowerableOpInterface` source op
+  and source role, role-specific interface, EmitC call, and missing-interface
+  failure.
+- lit/FileCheck test proving `tcrv_template.compute_skeleton` parses/verifies
+  and rejects stale source role, stale typed role, stale role-specific
+  interface, stale selected variant, or generic compute attributes.
 - lit/FileCheck test proving generated artifact output includes construction
   protocol, archetype, role graph, family, interface, EmitC route, and evidence
   fields.
@@ -430,6 +470,8 @@ file is not enough.
   source-like role-graph-to-EmitC skeleton derived from the typed
   role/interface realization after manifest cross-checking, including at least
   the compute role.
+- lit/FileCheck test proving missing `tcrv_template.compute_skeleton` fails
+  before target artifact export.
 - Target artifact registry/preflight test proving selected-plan route metadata
   requirements are registered and reject stale values.
 - Focused regression that existing built-in plugin registration still reaches
@@ -449,6 +491,7 @@ Correct:
 C++ construction manifest
   -> plugin proposal metadata
   -> plugin legality validation
+  -> ODS role-op boundary with generated interface provenance
   -> emission-plan selected metadata
   -> target route preflight
   -> generated construction artifact

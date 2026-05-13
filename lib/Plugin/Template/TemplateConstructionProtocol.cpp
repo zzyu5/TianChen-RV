@@ -1,5 +1,9 @@
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -94,6 +98,15 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "store:template.role.store.store_skeleton:"
     "tcrv_template.store_skeleton:TCRVMemoryOpInterface:"
     "__tcrv_template_store");
+constexpr llvm::StringLiteral kTemplateComputeOperationName(
+    "tcrv_template.compute_skeleton");
+constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
+    "template.role.compute.compute_skeleton");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 
 llvm::Error makeConstructionManifestError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -104,6 +117,10 @@ llvm::Error makeConstructionManifestError(llvm::Twine message) {
 
 bool containsToken(llvm::StringRef text, llvm::StringRef token) {
   return text.contains(token);
+}
+
+mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
+  return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
 }
 
 bool isValidCIdentifier(llvm::StringRef value) {
@@ -151,6 +168,16 @@ llvm::StringRef requiredRoleSpecificInterface(llvm::StringRef role) {
       .Cases("load", "store", "TCRVMemoryOpInterface")
       .Case("compute", "TCRVComputeOpInterface")
       .Default({});
+}
+
+const TemplateTypedRoleInterfaceRealization *
+findTypedRoleRealization(const TemplateTypedRoleGraphRealization &realization,
+                         llvm::StringRef role) {
+  for (const TemplateTypedRoleInterfaceRealization &typedRole :
+       realization.roles)
+    if (typedRole.role == role)
+      return &typedRole;
+  return nullptr;
 }
 
 llvm::Error requireRoleInterfaces(llvm::StringRef role,
@@ -653,6 +680,85 @@ llvm::Error verifyTemplateTypedRoleGraphRealization(
           llvm::Twine("typed role realization entry '") + typedRole.typedRoleID +
           "' EmitC call does not match the manifest role-to-call mapping");
   }
+
+  return llvm::Error::success();
+}
+
+llvm::Error verifyTemplateComputeRoleOpInterface(
+    const TemplateConstructionManifest &manifest,
+    const TemplateTypedRoleGraphRealization &realization,
+    mlir::Operation *computeRoleOp) {
+  if (llvm::Error error =
+          verifyTemplateTypedRoleGraphRealization(manifest, realization))
+    return error;
+  if (!computeRoleOp)
+    return makeConstructionManifestError(
+        "Template compute role op is missing before generated artifact export");
+
+  auto lowerable = llvm::dyn_cast<
+      tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface>(
+      computeRoleOp);
+  if (!lowerable)
+    return makeConstructionManifestError(
+        llvm::Twine("Template compute role op '") +
+        computeRoleOp->getName().getStringRef() +
+        "' must implement generated TCRVEmitCLowerableOpInterface");
+
+  llvm::StringRef sourceOpName =
+      lowerable.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+  const TemplateTypedRoleInterfaceRealization *typedCompute =
+      findTypedRoleRealization(realization, "compute");
+  if (!typedCompute)
+    return makeConstructionManifestError(
+        "typed role realization must include a compute role before validating "
+        "the Template ODS role op");
+
+  if (sourceOpName != kTemplateComputeOperationName ||
+      sourceOpName != typedCompute->operationName)
+    return makeConstructionManifestError(
+        llvm::Twine("generated TCRVEmitCLowerableOpInterface source op '") +
+        sourceOpName + "' does not match Template typed compute operation '" +
+        typedCompute->operationName + "'");
+  if (sourceRole != "compute" || sourceRole != typedCompute->role)
+    return makeConstructionManifestError(
+        llvm::Twine("generated TCRVEmitCLowerableOpInterface source role '") +
+        sourceRole + "' does not match Template typed compute role 'compute'");
+
+  auto typedRole = getStringAttr(computeRoleOp, kTypedRoleAttrName);
+  if (!typedRole || typedRole.getValue() != kTemplateComputeTypedRoleID ||
+      typedRole.getValue() != typedCompute->typedRoleID)
+    return makeConstructionManifestError(
+        "Template compute role op typed_role must match the typed compute role "
+        "realization");
+
+  auto sourceRoleAttr = getStringAttr(computeRoleOp, kSourceRoleAttrName);
+  if (!sourceRoleAttr || sourceRoleAttr.getValue() != typedCompute->role ||
+      sourceRoleAttr.getValue() != sourceRole)
+    return makeConstructionManifestError(
+        "Template compute role op source_role must mirror generated interface "
+        "source role");
+
+  auto roleSpecificInterface =
+      getStringAttr(computeRoleOp, kRoleSpecificInterfaceAttrName);
+  if (!roleSpecificInterface ||
+      roleSpecificInterface.getValue() !=
+          typedCompute->roleSpecificInterface ||
+      roleSpecificInterface.getValue() != "TCRVComputeOpInterface")
+    return makeConstructionManifestError(
+        "Template compute role op role_specific_interface must match "
+        "TCRVComputeOpInterface");
+
+  auto emitCCall = getStringAttr(computeRoleOp, kEmitCCallAttrName);
+  if (!emitCCall || emitCCall.getValue() != typedCompute->emitCCall ||
+      emitCCall.getValue() != "__tcrv_template_compute")
+    return makeConstructionManifestError(
+        "Template compute role op emitc_call must match the manifest "
+        "role-to-call mapping");
+
+  if (typedCompute->emitCLowerableInterface != "TCRVEmitCLowerableInterface")
+    return makeConstructionManifestError(
+        "Template typed compute role must name TCRVEmitCLowerableInterface");
 
   return llvm::Error::success();
 }

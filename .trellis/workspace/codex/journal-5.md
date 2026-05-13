@@ -628,3 +628,63 @@ Realized Template construction manifest as a generated role-graph-to-EmitC sourc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 58: Template ODS role-op boundary materialization
+
+**Date**: 2026-05-13
+**Task**: Template ODS role-op boundary materialization
+**Branch**: `main`
+
+### Summary
+
+Materialized the first real Template TableGen/ODS role-op boundary and wired it
+into the existing Template construction protocol, selected-boundary
+materialization, target artifact validation, and generated role-to-EmitC
+output.
+
+### Main Changes
+
+- Added `tcrv_template.compute_skeleton` as a minimal ODS-backed Template
+  compute role op implementing `TCRVEmitCLowerableOpInterface`.
+- Added Template dialect verifier coverage for role-op identity, selected
+  variant/capability mirror, source role, typed role id, role-specific
+  interface, EmitC call, and forbidden generic-compute/unknown attributes.
+- Added construction-protocol validation that reads the generated op interface
+  source op/source role and cross-checks it against the manifest, typed role
+  graph, EmitC mapping, and evidence profile.
+- Updated Template selected-boundary materialization to create both
+  `tcrv_template.lowering_boundary` and `tcrv_template.compute_skeleton`.
+- Updated Template target artifact preflight to require exactly one matching
+  compute role op before exporting generated output.
+- Added artifact output fields for validated role-op/interface provenance while
+  preserving deterministic `generated_emitc_step[...]` and `generated_source`.
+- Added focused C++ and lit/FileCheck coverage for positive ODS/interface
+  validation and missing/stale/wrong-role/wrong-interface failure modes.
+- Confirmed no Template semantic branches were added to core `tcrv.exec` or
+  `lib/Transforms`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTemplateDialect TianChenRVTemplatePlugin TianChenRVTemplateTarget tianchenrv-template-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-template-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='Template|template'` from `build/test`
+- `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `git diff --check`
+- Core neutrality scan:
+  `rg -n "tcrv_template|template-plugin|Template" lib/Transforms include/TianChenRV/Dialect/Exec lib/Dialect/Exec`
+
+`clang-format` was not available as `clang-format` or
+`/usr/lib/llvm-20/bin/clang-format`; formatting was kept manually consistent
+with nearby code and whitespace was checked with `git diff --check`.
+
+No `ssh rvv` evidence was run because this task changes Template construction
+and artifact validation only and makes no RVV runtime/correctness/performance
+claim.
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.
