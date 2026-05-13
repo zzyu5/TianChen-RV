@@ -185,6 +185,8 @@ struct RVVMicrokernelRecord {
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
   std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
+  std::optional<support::DynamicVectorRuntimeExtentContract>
+      dynamicRuntimeExtent;
 };
 
 struct TemporaryFile {
@@ -1397,6 +1399,7 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(contract, expected);
   appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(contract,
                                                             expected);
+  appendRVVBinaryDynamicRuntimeExtentSelectedPlanMetadata(contract, expected);
   if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
     appendRVVBinarySelectedTypedSourceMetadata(contract, expected);
@@ -2372,21 +2375,31 @@ buildRVVMicrokernelSelectedConfigContract(KernelOp kernel,
       *registeredFamily, *record.selectedShape, record.variantSymbol,
       record.role, record.elementCount, (*runtimeElementCount)->cName,
       /*dispatchAvailabilityGuardCName=*/"rvv_available",
-      record.fixedSourceExtent);
+      record.fixedSourceExtent, record.dynamicRuntimeExtent);
 }
 
-llvm::Error attachFixedVectorSourceExtentContract(KernelOp kernel,
-                                                  RVVMicrokernelRecord &record) {
+llvm::Error attachFrontendRuntimeExtentContracts(KernelOp kernel,
+                                                 RVVMicrokernelRecord &record) {
   llvm::Expected<std::optional<support::FixedVectorSourceExtentContract>>
       sourceExtent = support::getFixedVectorSourceExtentContract(
           kernel, record.runtimeElementCountParam);
   if (!sourceExtent)
     return sourceExtent.takeError();
   record.fixedSourceExtent = std::move(*sourceExtent);
-  if (!record.fixedSourceExtent)
-    return llvm::Error::success();
+  llvm::Expected<std::optional<support::DynamicVectorRuntimeExtentContract>>
+      runtimeExtent = support::getDynamicVectorRuntimeExtentContract(
+          kernel, record.runtimeElementCountParam);
+  if (!runtimeExtent)
+    return runtimeExtent.takeError();
+  record.dynamicRuntimeExtent = std::move(*runtimeExtent);
+  if (record.fixedSourceExtent && record.dynamicRuntimeExtent)
+    return makeMicrokernelError(
+        kernel,
+        "fixed source extent and dynamic runtime extent contracts are "
+        "mutually exclusive before runtime AVL/VL artifact export");
 
-  if (record.fixedSourceExtent->sourceVectorExtent != record.elementCount)
+  if (record.fixedSourceExtent &&
+      record.fixedSourceExtent->sourceVectorExtent != record.elementCount)
     return makeMicrokernelError(
         kernel,
         llvm::Twine("fixed vector source extent ") +
@@ -2524,7 +2537,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     record.controlPlaneSEW = controlPlaneSEW;
     record.controlPlaneLMUL = std::move(controlPlaneLMUL);
     if (llvm::Error error =
-            attachFixedVectorSourceExtentContract(kernel, record))
+            attachFrontendRuntimeExtentContracts(kernel, record))
       return std::move(error);
     llvm::Expected<RVVBinarySelectedConfigContract> selectedConfigContract =
         buildRVVMicrokernelSelectedConfigContract(kernel, record);
@@ -2579,7 +2592,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.controlPlaneSEW = controlPlaneSEW;
   record.controlPlaneLMUL = std::move(controlPlaneLMUL);
   if (llvm::Error error =
-          attachFixedVectorSourceExtentContract(kernel, record))
+          attachFrontendRuntimeExtentContracts(kernel, record))
     return std::move(error);
   llvm::Expected<RVVBinarySelectedConfigContract> selectedConfigContract =
       buildRVVMicrokernelSelectedConfigContract(kernel, record);
@@ -3196,6 +3209,14 @@ void printRecordComment(llvm::raw_ostream &os,
        << record.fixedSourceExtent->sourceVectorExtent
        << " before runtime AVL/VL execution */\n";
   }
+  if (record.dynamicRuntimeExtent) {
+    os << "/* " << record.dynamicRuntimeExtent->formatCommentBody()
+       << " */\n";
+    os << "/* runtime_element_count_source: "
+       << record.selectedConfigContract.getRuntimeElementCountCName()
+       << " is the source scf.for upper bound and runtime AVL; no fixed "
+          "source-extent trap is emitted for this dynamic vector route */\n";
+  }
   os << "/* arithmetic_source: typed op "
      << record.descriptor.getRVVOperationName()
      << " via generated EmitC route and IR-backed callable ABI */\n";
@@ -3420,6 +3441,14 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
        << " must equal fixed source vector extent "
        << record.fixedSourceExtent->sourceVectorExtent
        << " before runtime AVL/VL execution */\n";
+  }
+  if (record.dynamicRuntimeExtent) {
+    os << "/* " << record.dynamicRuntimeExtent->formatCommentBody()
+       << " */\n";
+    os << "/* runtime_element_count_source: "
+       << record.selectedConfigContract.getRuntimeElementCountCName()
+       << " is the source scf.for upper bound and runtime AVL; no fixed "
+          "source-extent trap is emitted for this dynamic vector route */\n";
   }
   os << "/* control_plane_runtime_avl: body index argument maps to "
         "target/export-owned runtime "

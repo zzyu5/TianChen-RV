@@ -47,6 +47,8 @@ constexpr llvm::StringLiteral kArithMulIOpName("arith.muli");
 constexpr llvm::StringLiteral kArithConstantOpName("arith.constant");
 constexpr llvm::StringLiteral kFuncFuncOpName("func.func");
 constexpr llvm::StringLiteral kFuncReturnOpName("func.return");
+constexpr llvm::StringLiteral kSCFForOpName("scf.for");
+constexpr llvm::StringLiteral kSCFYieldOpName("scf.yield");
 constexpr llvm::StringLiteral kLinalgYieldOpName("linalg.yield");
 constexpr llvm::StringLiteral kVectorTransferReadOpName(
     "vector.transfer_read");
@@ -92,6 +94,7 @@ struct FrontendBinarySpec {
   llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeElementCountSpecs;
   std::optional<std::int64_t> fixedSourceVectorExtent;
+  bool dynamicRuntimeExtentFromSCFUpperBound = false;
 };
 
 llvm::StringRef getSourceArithmeticOpName(SourceBinaryArithmeticKind kind) {
@@ -651,6 +654,16 @@ bool isIntegerConstantZero(mlir::Operation *op, mlir::Type expectedType) {
   return value && value.getValue().isZero();
 }
 
+bool isIntegerConstantValue(mlir::Operation *op, mlir::Type expectedType,
+                            std::int64_t expectedValue) {
+  if (!isOperationNamed(op, kArithConstantOpName) || op->getNumOperands() != 0 ||
+      op->getNumResults() != 1 || op->getResult(0).getType() != expectedType)
+    return false;
+
+  auto value = op->getAttrOfType<mlir::IntegerAttr>("value");
+  return value && value.getInt() == expectedValue;
+}
+
 mlir::LogicalResult requireVectorTransferRead(
     mlir::Operation *op, mlir::Value sourceBuffer, mlir::Value index,
     mlir::Value padding, llvm::StringRef role) {
@@ -770,6 +783,145 @@ mlir::LogicalResult requireVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
   return mlir::success();
 }
 
+mlir::LogicalResult
+requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
+  if (!isOperationNamed(funcOp, kFuncFuncOpName))
+    return funcOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects a "
+              "func.func wrapper";
+  if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
+    return funcOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+              "one single-block func.func body";
+
+  mlir::Block &body = funcOp->getRegion(0).front();
+  if (body.getNumArguments() != 4)
+    return funcOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+              "three memref<?xi32> buffers and one runtime %n: index";
+
+  for (mlir::BlockArgument arg : body.getArguments().take_front(3)) {
+    std::optional<unsigned> width =
+        getRankedDynamicVectorMemRefIntegerElementWidth(arg.getType());
+    if (!width || *width != 32)
+      return funcOp->emitError()
+             << "TianChen-RV dynamic vector i32-vadd frontend wrapper "
+                "expects lhs/rhs/output arguments to be rank-1 dynamic "
+                "memref<?xi32>";
+  }
+  if (!body.getArgument(3).getType().isIndex())
+    return funcOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+              "the fourth argument to be runtime %n: index";
+
+  if (!llvm::hasNItems(body.getOperations(), 4))
+    return funcOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+              "zero index, step-16 index, one scf.for, and func.return";
+
+  auto it = body.begin();
+  mlir::Operation *lowerConstant = &*it++;
+  mlir::Operation *stepConstant = &*it++;
+  mlir::Operation *forOp = &*it++;
+  mlir::Operation *ret = &*it++;
+
+  mlir::Type indexType = mlir::IndexType::get(funcOp->getContext());
+  if (!isIntegerConstantZero(lowerConstant, indexType))
+    return lowerConstant->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects the "
+              "first source operation to be arith.constant 0 : index";
+  if (!isIntegerConstantValue(stepConstant, indexType,
+                              support::kFrontendDynamicVectorI32VAddLoopStep))
+    return stepConstant->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects the "
+              "second source operation to be arith.constant 16 : index";
+  if (!isOperationNamed(forOp, kSCFForOpName) || forOp->getNumOperands() != 3 ||
+      forOp->getNumResults() != 0 || forOp->getNumRegions() != 1 ||
+      !hasOneBlock(forOp->getRegion(0)))
+    return forOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects one "
+              "scf.for without iter_args";
+  if (forOp->getOperand(0) != lowerConstant->getResult(0) ||
+      forOp->getOperand(1) != body.getArgument(3) ||
+      forOp->getOperand(2) != stepConstant->getResult(0))
+    return forOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.for "
+              "from zero to source %n in step 16";
+
+  mlir::Block &loopBody = forOp->getRegion(0).front();
+  if (loopBody.getNumArguments() != 1 ||
+      !loopBody.getArgument(0).getType().isIndex())
+    return forOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.for "
+              "to expose one index induction variable";
+  if (!llvm::hasNItems(loopBody.getOperations(), 6))
+    return forOp->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.for "
+              "body to contain zero i32 padding, two vector.transfer_read "
+              "ops, one arith.addi, one vector.transfer_write, and scf.yield";
+
+  auto loopIt = loopBody.begin();
+  mlir::Operation *paddingConstant = &*loopIt++;
+  mlir::Operation *lhsRead = &*loopIt++;
+  mlir::Operation *rhsRead = &*loopIt++;
+  mlir::Operation *add = &*loopIt++;
+  mlir::Operation *write = &*loopIt++;
+  mlir::Operation *yield = &*loopIt++;
+
+  if (!isIntegerConstantZero(paddingConstant,
+                             mlir::IntegerType::get(funcOp->getContext(), 32)))
+    return paddingConstant->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects the first "
+              "loop operation to be arith.constant 0 : i32";
+
+  mlir::Value index = loopBody.getArgument(0);
+  mlir::Value padding = paddingConstant->getResult(0);
+  if (mlir::failed(requireVectorTransferRead(
+          lhsRead, body.getArgument(0), index, padding, "lhs read")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorTransferRead(
+          rhsRead, body.getArgument(1), index, padding, "rhs read")))
+    return mlir::failure();
+
+  if (!isOperationNamed(add, kArithAddIOpName) || add->getNumOperands() != 2 ||
+      add->getNumResults() != 1)
+    return add->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects "
+              "arith.addi over the two transfer-read vector values";
+  if (add->getOperand(0) != lhsRead->getResult(0) ||
+      add->getOperand(1) != rhsRead->getResult(0) ||
+      !isRankedVectorWithIntegerElementWidth(
+          add->getResult(0).getType(), kVectorI32VAddSourceElements, 32))
+    return add->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects "
+              "arith.addi to consume lhs/rhs vector<16xi32> reads and "
+              "produce vector<16xi32>";
+
+  if (!isOperationNamed(write, kVectorTransferWriteOpName) ||
+      write->getNumOperands() != 3 || write->getNumResults() != 0)
+    return write->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects "
+              "vector.transfer_write of the add result";
+  if (write->getOperand(0) != add->getResult(0) ||
+      write->getOperand(1) != body.getArgument(2) ||
+      write->getOperand(2) != index)
+    return write->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects "
+              "vector.transfer_write to store the add result to the output "
+              "buffer at the scf.for induction variable";
+
+  if (!isOperationNamed(yield, kSCFYieldOpName) || yield->getNumOperands() != 0)
+    return yield->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.yield "
+              "without operands";
+  if (!isOperationNamed(ret, kFuncReturnOpName) || ret->getNumOperands() != 0)
+    return ret->emitError()
+           << "TianChen-RV dynamic vector i32-vadd frontend expects "
+              "func.return without operands";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
                                                   llvm::StringRef marker) {
   const support::FiniteBinaryFrontendContract *markerContract =
@@ -851,6 +1003,28 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
         builder.getStringAttr(
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
+  if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
+    state.addAttribute(support::kFrontendSourceKindAttrName,
+                       builder.getStringAttr(
+                           support::kFrontendDynamicVectorI32VAddSourceKind));
+    state.addAttribute(
+        support::kFrontendSourceAuthorityAttrName,
+        builder.getStringAttr(support::kFrontendDynamicVectorSourceAuthority));
+    state.addAttribute(support::kFrontendRuntimeExtentArgAttrName,
+                       builder.getStringAttr("n"));
+    state.addAttribute(
+        support::kFrontendSourceLoopStepAttrName,
+        builder.getI64IntegerAttr(
+            support::kFrontendDynamicVectorI32VAddLoopStep));
+    state.addAttribute(
+        support::kFrontendSourceVectorChunkExtentAttrName,
+        builder.getI64IntegerAttr(
+            support::kFrontendDynamicVectorI32VAddChunkExtent));
+    state.addAttribute(
+        support::kFrontendRuntimeElementCountConstraintAttrName,
+        builder.getStringAttr(
+            support::kFrontendRuntimeElementCountFromSourceRuntimeExtent));
+  }
   state.addRegion();
 
   auto kernel = llvm::cast<KernelOp>(builder.create(state));
@@ -858,9 +1032,10 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
   return kernel;
 }
 
-mlir::LogicalResult materializeFixedSourceExtentRuntimeParamAttrs(
+mlir::LogicalResult materializeFrontendSourceRuntimeParamAttrs(
     KernelOp kernel, const FrontendBinarySpec &spec) {
-  if (!spec.fixedSourceVectorExtent)
+  if (!spec.fixedSourceVectorExtent &&
+      !spec.dynamicRuntimeExtentFromSCFUpperBound)
     return mlir::success();
 
   llvm::SmallVector<tcrv::exec::RuntimeParamOp, 1> runtimeParams;
@@ -872,19 +1047,44 @@ mlir::LogicalResult materializeFixedSourceExtentRuntimeParamAttrs(
 
   mlir::Builder builder(kernel.getContext());
   tcrv::exec::RuntimeParamOp runtimeElementCount = runtimeParams.front();
-  runtimeElementCount->setAttr(
-      support::kFrontendSourceKindAttrName,
-      builder.getStringAttr(support::kFrontendFixedVectorI32VAddSourceKind));
-  runtimeElementCount->setAttr(
-      support::kFrontendSourceAuthorityAttrName,
-      builder.getStringAttr(support::kFrontendFixedVectorSourceAuthority));
-  runtimeElementCount->setAttr(
-      support::kFrontendSourceVectorExtentAttrName,
-      builder.getI64IntegerAttr(*spec.fixedSourceVectorExtent));
-  runtimeElementCount->setAttr(
-      support::kFrontendRuntimeElementCountConstraintAttrName,
-      builder.getStringAttr(
-          support::kFrontendRuntimeElementCountMustEqualSourceExtent));
+  if (spec.fixedSourceVectorExtent) {
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceKindAttrName,
+        builder.getStringAttr(support::kFrontendFixedVectorI32VAddSourceKind));
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceAuthorityAttrName,
+        builder.getStringAttr(support::kFrontendFixedVectorSourceAuthority));
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceVectorExtentAttrName,
+        builder.getI64IntegerAttr(*spec.fixedSourceVectorExtent));
+    runtimeElementCount->setAttr(
+        support::kFrontendRuntimeElementCountConstraintAttrName,
+        builder.getStringAttr(
+            support::kFrontendRuntimeElementCountMustEqualSourceExtent));
+  }
+  if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceKindAttrName,
+        builder.getStringAttr(
+            support::kFrontendDynamicVectorI32VAddSourceKind));
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceAuthorityAttrName,
+        builder.getStringAttr(support::kFrontendDynamicVectorSourceAuthority));
+    runtimeElementCount->setAttr(support::kFrontendRuntimeExtentArgAttrName,
+                                 builder.getStringAttr("n"));
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceLoopStepAttrName,
+        builder.getI64IntegerAttr(
+            support::kFrontendDynamicVectorI32VAddLoopStep));
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceVectorChunkExtentAttrName,
+        builder.getI64IntegerAttr(
+            support::kFrontendDynamicVectorI32VAddChunkExtent));
+    runtimeElementCount->setAttr(
+        support::kFrontendRuntimeElementCountConstraintAttrName,
+        builder.getStringAttr(
+            support::kFrontendRuntimeElementCountFromSourceRuntimeExtent));
+  }
   return mlir::success();
 }
 
@@ -914,7 +1114,7 @@ mlir::LogicalResult materializeFrontendBinaryABI(
     return mlir::failure();
   }
 
-  return materializeFixedSourceExtentRuntimeParamAttrs(kernel, spec);
+  return materializeFrontendSourceRuntimeParamAttrs(kernel, spec);
 }
 
 mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
@@ -1006,13 +1206,29 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
           funcOp, nullptr, "vector frontend",
           "source vector/arith body and typed operands")))
     return mlir::failure();
-  if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
-    return mlir::failure();
 
   const support::FiniteBinaryFrontendContract &contract =
       support::getI32VAddFiniteBinaryFrontendContract();
   FrontendBinarySpec spec = makeFrontendBinarySpec(contract);
-  spec.fixedSourceVectorExtent = kVectorI32VAddSourceElements;
+  if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects one single-block "
+              "func.func body";
+  mlir::Block &body = funcOp->getRegion(0).front();
+  if (body.getNumArguments() == 3) {
+    if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
+      return mlir::failure();
+    spec.fixedSourceVectorExtent = kVectorI32VAddSourceElements;
+  } else if (body.getNumArguments() == 4) {
+    if (mlir::failed(requireDynamicVectorI32VAddSourceWrapper(funcOp)))
+      return mlir::failure();
+    spec.dynamicRuntimeExtentFromSCFUpperBound = true;
+  } else {
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects either the fixed "
+              "three-buffer vector<16xi32> wrapper or the dynamic "
+              "three-buffer plus runtime %n: index SCF wrapper";
+  }
 
   mlir::StringAttr kernelAttr = getKernelName(funcOp, funcOp);
   if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))

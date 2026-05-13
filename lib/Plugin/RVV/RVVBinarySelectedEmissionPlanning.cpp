@@ -1026,9 +1026,11 @@ void appendFixedVectorSourceExtentMetadata(
     const target::rvv::RVVBinarySelectedConfigContract &contract,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
-      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 4>
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
       sourceExtentMetadata;
   target::rvv::appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(
+      contract, sourceExtentMetadata);
+  target::rvv::appendRVVBinaryDynamicRuntimeExtentSelectedPlanMetadata(
       contract, sourceExtentMetadata);
   for (const auto &entry : sourceExtentMetadata)
     metadata.push_back({entry.name, entry.value, entry.role, entry.note});
@@ -1076,6 +1078,14 @@ llvm::Error bindFixedVectorSourceExtentContract(
 
   selectedPlan.selectedConfig.getContract().setFixedVectorSourceExtentContract(
       std::move(*sourceExtent));
+  llvm::Expected<std::optional<support::DynamicVectorRuntimeExtentContract>>
+      runtimeExtent = support::getDynamicVectorRuntimeExtentContract(
+          kernel, callablePlan->runtimeElementCountParam);
+  if (!runtimeExtent)
+    return runtimeExtent.takeError();
+
+  selectedPlan.selectedConfig.getContract()
+      .setDynamicVectorRuntimeExtentContract(std::move(*runtimeExtent));
   return target::rvv::validateRVVBinarySelectedConfigContract(
       selectedPlan.getSelectedConfig().getContract());
 }

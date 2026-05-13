@@ -1662,6 +1662,60 @@ def parse_fixed_source_extent_contract(source: str) -> dict[str, Any] | None:
     return contract
 
 
+def parse_dynamic_runtime_extent_contract(source: str) -> dict[str, Any] | None:
+    raw_contract = parse_source_comment(
+        source, "source_frontend_runtime_avl_authority", required=False
+    )
+    if not raw_contract:
+        return None
+    match = re.fullmatch(
+        r"source_kind=([^,]+), source_authority=([^,]+), "
+        r"runtime_extent_arg=([^,]+), source_loop_step=([0-9]+), "
+        r"source_vector_chunk_extent=([0-9]+), "
+        r"runtime_element_count_constraint=([^,]+)",
+        raw_contract,
+    )
+    if not match:
+        raise BridgeError(
+            "generated C source has malformed "
+            "source_frontend_runtime_avl_authority metadata"
+        )
+    source_loop_step = int(match.group(4))
+    source_vector_chunk_extent = int(match.group(5))
+    if source_loop_step <= 0 or source_loop_step > 4096:
+        raise BridgeError(
+            "generated C source dynamic source loop step must be positive "
+            "and bounded"
+        )
+    if source_vector_chunk_extent <= 0 or source_vector_chunk_extent > 4096:
+        raise BridgeError(
+            "generated C source dynamic vector chunk extent must be positive "
+            "and bounded"
+        )
+    contract = {
+        "source_kind": match.group(1),
+        "source_authority": match.group(2),
+        "runtime_extent_arg": match.group(3),
+        "source_loop_step": source_loop_step,
+        "source_vector_chunk_extent": source_vector_chunk_extent,
+        "runtime_element_count_constraint": match.group(6),
+    }
+    if contract["runtime_element_count_constraint"] != "source-runtime-extent":
+        raise BridgeError(
+            "generated C source dynamic runtime extent contract must require "
+            "source-runtime-extent"
+        )
+    if (
+        "must-equal-fixed-source-vector-extent" in source
+        or "__builtin_trap();" in source
+    ):
+        raise BridgeError(
+            "generated C source dynamic runtime extent contract must not emit "
+            "the fixed source-vector extent trap"
+        )
+    return contract
+
+
 def validate_expected_selected_kernel(
     compiler_path_context: dict[str, str], expected_selected_kernel: str
 ) -> str:
@@ -1807,9 +1861,29 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     emitc_route_provenance = validate_emitc_route_provenance(source)
     compiler_path_context = validate_compiler_path_context(source)
     fixed_source_extent_contract = parse_fixed_source_extent_contract(source)
+    dynamic_runtime_extent_contract = parse_dynamic_runtime_extent_contract(source)
+    if fixed_source_extent_contract and dynamic_runtime_extent_contract:
+        raise BridgeError(
+            "generated C source must not declare both fixed source extent and "
+            "dynamic runtime extent source contracts"
+        )
     runtime_abi_parameters = validate_runtime_abi_signature(
         parse_runtime_abi_parameters_from_source(source), ACTIVE_ARITHMETIC_FAMILY
     )
+    if dynamic_runtime_extent_contract:
+        runtime_element_count_names = [
+            parameter["c_name"]
+            for parameter in runtime_abi_parameters
+            if parameter["role"] == "runtime-element-count"
+        ]
+        if (
+            dynamic_runtime_extent_contract["runtime_extent_arg"]
+            not in runtime_element_count_names
+        ):
+            raise BridgeError(
+                "generated C source dynamic runtime extent arg must match the "
+                "runtime element-count ABI parameter"
+            )
     return {
         "selected_march": selected_march,
         "selected_mabi": selected_mabi,
@@ -1820,6 +1894,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "emitc_route_provenance": emitc_route_provenance,
         "compiler_path_context": compiler_path_context,
         "fixed_source_extent_contract": fixed_source_extent_contract,
+        "dynamic_runtime_extent_contract": dynamic_runtime_extent_contract,
         "runtime_abi_parameters": runtime_abi_parameters,
     }
 
@@ -3448,6 +3523,11 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
 def selected_input_path(args: argparse.Namespace) -> Path:
     if args.input:
         return Path(args.input)
+    if getattr(args, "lower_vector_i32_vadd_frontend", False):
+        return Path(
+            "test/Transforms/VectorToExec/"
+            "vector-dynamic-i32-vadd-to-exec.mlir"
+        )
     if getattr(args, "lower_linalg_frontend", False):
         frontend_input = ACTIVE_ARITHMETIC_FAMILY.get("default_frontend_input")
         if frontend_input is not None:
@@ -3472,6 +3552,8 @@ def selected_input_path(args: argparse.Namespace) -> Path:
 def selected_input_source_label(args: argparse.Namespace) -> str:
     if profile_replay_requested(args):
         return "rvv-profile-replay"
+    if getattr(args, "lower_vector_i32_vadd_frontend", False):
+        return "vector-scf-frontend"
     if getattr(args, "lower_linalg_frontend", False):
         return "linalg-frontend"
     return "existing-mlir"
@@ -3488,6 +3570,14 @@ def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]
             "tcrv_opt_linalg_frontend_execution_planning_pipeline",
             [
                 "--tcrv-lower-linalg-rvv-binary-to-exec",
+                "--tcrv-execution-planning-pipeline",
+            ],
+        )
+    if getattr(args, "lower_vector_i32_vadd_frontend", False):
+        return (
+            "tcrv_opt_vector_i32_vadd_frontend_execution_planning_pipeline",
+            [
+                "--tcrv-lower-vector-rvv-i32-vadd-to-exec",
                 "--tcrv-execution-planning-pipeline",
             ],
         )
@@ -3513,6 +3603,11 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
             "tcrv-lower-linalg-rvv-binary-to-exec + "
             "tcrv-execution-planning-pipeline"
         )
+    if getattr(args, "lower_vector_i32_vadd_frontend", False):
+        return (
+            "tcrv-lower-vector-rvv-i32-vadd-to-exec + "
+            "tcrv-execution-planning-pipeline"
+        )
     return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
 
 
@@ -3529,6 +3624,7 @@ def validate_runtime_counts_against_source_contract(
     source_flags: dict[str, Any], runtime_counts: list[int]
 ) -> list[int]:
     fixed_contract = source_flags.get("fixed_source_extent_contract")
+    dynamic_contract = source_flags.get("dynamic_runtime_extent_contract")
     if fixed_contract:
         expected = int(fixed_contract["source_vector_extent"])
         if runtime_counts != [expected]:
@@ -3538,6 +3634,11 @@ def validate_runtime_counts_against_source_contract(
                 + ",".join(str(count) for count in runtime_counts)
             )
         return runtime_counts
+    if dynamic_contract and len(runtime_counts) < 2:
+        raise BridgeError(
+            "dynamic source-fronted external caller evidence requires at "
+            "least two runtime counts"
+        )
     if len(runtime_counts) < 2:
         raise BridgeError(
             "external caller evidence requires at least two runtime counts "
@@ -3753,6 +3854,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "compiler_path_context": source_flags["compiler_path_context"],
         "fixed_source_extent_contract": source_flags[
             "fixed_source_extent_contract"
+        ],
+        "dynamic_runtime_extent_contract": source_flags[
+            "dynamic_runtime_extent_contract"
         ],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_token": source_flags["arithmetic_token"],
@@ -4236,6 +4340,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "compiler_path_context": source_flags["compiler_path_context"],
         "fixed_source_extent_contract": source_flags[
             "fixed_source_extent_contract"
+        ],
+        "dynamic_runtime_extent_contract": source_flags[
+            "dynamic_runtime_extent_contract"
         ],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
         "arithmetic_token": source_flags["arithmetic_token"],
@@ -5503,6 +5610,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Run bounded linalg frontend lowering before execution planning",
     )
     parser.add_argument(
+        "--lower-vector-i32-vadd-frontend",
+        action="store_true",
+        help=(
+            "Run the bounded vector/SCF i32-vadd frontend lowering before "
+            "execution planning"
+        ),
+    )
+    parser.add_argument(
         "--profile-replay-evidence-json",
         default="",
         help=(
@@ -5552,8 +5667,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "In target artifact bundle mode, call the C++ tcrv-translate "
             "plan-and-export bundle front door instead of orchestrating "
-            "tcrv-opt followed by bundle export. With --lower-linalg-frontend, "
-            "the source fixture is passed directly to that front door."
+            "tcrv-opt followed by bundle export. With a frontend lowering "
+            "flag, the source fixture is passed directly to that front door."
         ),
     )
     parser.add_argument("--self-test", action="store_true")
@@ -5580,9 +5695,16 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+    if args.lower_linalg_frontend and args.lower_vector_i32_vadd_frontend:
+        print(
+            "rvv_microkernel_e2e: choose only one frontend lowering flag",
+            file=sys.stderr,
+        )
+        return 1
     if args.profile_replay_evidence_json and (
         args.input
         or args.lower_linalg_frontend
+        or args.lower_vector_i32_vadd_frontend
         or args.use_target_artifact_bundle
         or args.generic_route
         or args.self_check_harness

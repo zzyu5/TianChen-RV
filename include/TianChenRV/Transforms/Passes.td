@@ -13,14 +13,19 @@ def LowerVectorRVVI32VAddToExec
     intentionally narrow: a func.func with three memref<?xi32> block
     arguments, a zero index, zero i32 padding, two vector.transfer_read
     operations, one arith.addi over vector<16xi32>, one vector.transfer_write
-    to the output buffer, and func.return. The pass creates a tcrv.exec.kernel
-    with a selected module target profile reference, validates optional
-    supplemental capability-provider imports, materializes the existing finite
-    i32-vadd runtime ABI mem_window/runtime_param surface, records the fixed
-    vector<16xi32> source extent as source-frontdoor authority on both the
-    kernel and runtime element-count parameter, then removes the source wrapper.
-    Downstream artifact routes must keep the selected finite RVV element_count
-    and runtime n/VL contract consistent with that fixed source extent.
+    to the output buffer, and func.return. It also accepts exactly one dynamic
+    vector/SCF i32-vadd shape: three memref<?xi32> buffers plus one runtime
+    %n: index, with one scf.for from zero to %n in step 16 containing the same
+    vector transfer-read/add/transfer-write body at the induction variable.
+    The pass creates a tcrv.exec.kernel with a selected module target profile
+    reference, validates optional supplemental capability-provider imports,
+    materializes the existing finite i32-vadd runtime ABI
+    mem_window/runtime_param surface, records either the fixed vector<16xi32>
+    source extent or the dynamic source %n/SCF upper-bound authority on both
+    the kernel and runtime element-count parameter, then removes the source
+    wrapper. Downstream artifact routes must keep selected finite RVV
+    element_count and runtime n/VL contract distinct from source extent
+    authority.
 
     This is a bounded frontend adapter. It does not add a generic vector
     backend, infer arbitrary vector semantics, select variants, branch on

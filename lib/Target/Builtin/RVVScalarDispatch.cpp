@@ -2091,7 +2091,8 @@ buildDispatchPairSelectedConfigContract(
       *pair.family->rvvFamily, shape, pair.rvv.selectedVariant, pair.rvv.role,
       directContract->getDescriptorElementCount(), runtimeElementCountCName,
       dispatchGuardCName,
-      directContract->getFixedVectorSourceExtentContract());
+      directContract->getFixedVectorSourceExtentContract(),
+      directContract->getDynamicVectorRuntimeExtentContract());
 }
 
 llvm::Error requireEmbeddedRVVSourceSnippet(const DispatchPair &pair,
@@ -2719,6 +2720,15 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
        << sourceExtent.sourceVectorExtent
        << " before dispatching to RVV or scalar callable branches */\n";
   }
+  if (pair.selectedConfig.getDynamicVectorRuntimeExtentContract()) {
+    const support::DynamicVectorRuntimeExtentContract &runtimeExtent =
+        *pair.selectedConfig.getDynamicVectorRuntimeExtentContract();
+    os << "/* " << runtimeExtent.formatCommentBody() << " */\n";
+    os << "/* dispatch_runtime_element_count_source: "
+       << pair.selectedConfig.getRuntimeElementCountCName()
+       << " is the source scf.for upper bound and runtime AVL; no fixed "
+          "source-extent trap is emitted before dispatch */\n";
+  }
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
   os << "#include <stddef.h>\n";
@@ -2892,6 +2902,15 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
        << " must equal fixed source vector extent "
        << sourceExtent.sourceVectorExtent
        << " before dispatching to RVV or scalar callable branches */\n";
+  }
+  if (pair.selectedConfig.getDynamicVectorRuntimeExtentContract()) {
+    const support::DynamicVectorRuntimeExtentContract &runtimeExtent =
+        *pair.selectedConfig.getDynamicVectorRuntimeExtentContract();
+    os << "/* " << runtimeExtent.formatCommentBody() << " */\n";
+    os << "/* dispatch_runtime_element_count_source: "
+       << bindings->runtimeElementCount->cName
+       << " is the source scf.for upper bound and runtime AVL; no fixed "
+          "source-extent trap is emitted before dispatch */\n";
   }
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind

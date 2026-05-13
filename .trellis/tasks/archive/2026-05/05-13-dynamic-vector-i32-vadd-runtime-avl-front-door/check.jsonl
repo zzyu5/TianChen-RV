@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project red lines for validation and final review."}
+{"file": ".trellis/spec/core-dialect/index.md", "reason": "Check tcrv.exec remains an execution envelope with ABI/control metadata only."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-owned selected config and runtime AVL/VL boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifacts still route through extension family ops and common EmitC."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check direct/bundle artifact runtime ABI and selected-plan metadata coherence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build/RVV evidence coverage matches policy."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-vector-frontend-runtime-avl-authority-boundary/prd.md", "reason": "Check fixed vector front door remains fail-closed for n != 16."}
+{"file": "test/Transforms/VectorToExec/vector-dynamic-i32-vadd-to-exec.mlir", "reason": "Dynamic source wrapper lowering, metadata propagation, stale selected-plan rejection, and missing runtime_param authority rejection."}
+{"file": "test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir", "reason": "Plan-and-export bundle proof for dynamic vector-fronted dispatch ABI artifacts."}
+{"file": "test/Transforms/VectorToExec/vector-i32-vadd-invalid.mlir", "reason": "Fixed and dynamic malformed vector frontend rejection coverage."}
+{"file": "artifacts/tmp/dynamic_vector_i32_vadd_runtime_avl_front_door/e2e/dynamic_vector_i32_vadd_direct_rvv/evidence.json", "reason": "Fresh ssh rvv evidence for dynamic vector-fronted artifact with runtime counts 7, 16, and 23."}

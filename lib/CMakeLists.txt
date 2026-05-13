@@ -15,5 +15,6 @@ add_mlir_library(TianChenRVInitAll
   MLIRFuncDialect
   MLIRIR
   MLIRLinalgDialect
+  MLIRSCFDialect
   MLIRVectorDialect
 )

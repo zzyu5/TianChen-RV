@@ -186,6 +186,10 @@ public:
   getFixedVectorSourceExtentContract() const {
     return fixedSourceExtent;
   }
+  const std::optional<support::DynamicVectorRuntimeExtentContract> &
+  getDynamicVectorRuntimeExtentContract() const {
+    return dynamicRuntimeExtent;
+  }
 
   void setSelectedPath(llvm::StringRef variantSymbol, llvm::StringRef role) {
     selectedVariantSymbol = variantSymbol.trim().str();
@@ -210,6 +214,11 @@ public:
   void setFixedVectorSourceExtentContract(
       std::optional<support::FixedVectorSourceExtentContract> contract) {
     fixedSourceExtent = std::move(contract);
+  }
+
+  void setDynamicVectorRuntimeExtentContract(
+      std::optional<support::DynamicVectorRuntimeExtentContract> contract) {
+    dynamicRuntimeExtent = std::move(contract);
   }
 
   llvm::SmallVector<llvm::StringRef, 4> getSelectedShapeCapabilityIDs() const {
@@ -269,6 +278,15 @@ public:
              << fixedSourceExtent->sourceVectorExtent
              << ", runtime_element_count_constraint="
              << fixedSourceExtent->runtimeElementCountConstraint;
+    if (dynamicRuntimeExtent)
+      stream << ", runtime_extent_arg="
+             << dynamicRuntimeExtent->runtimeExtentArg
+             << ", source_loop_step="
+             << dynamicRuntimeExtent->sourceLoopStep
+             << ", source_vector_chunk_extent="
+             << dynamicRuntimeExtent->sourceVectorChunkExtent
+             << ", runtime_element_count_constraint="
+             << dynamicRuntimeExtent->runtimeElementCountConstraint;
     if (!selectedVariantSymbol.empty())
       stream << ", selected_variant=@" << selectedVariantSymbol;
     if (!selectedRole.empty())
@@ -292,6 +310,15 @@ public:
              << fixedSourceExtent->sourceVectorExtent
              << ", runtime_element_count_constraint="
              << fixedSourceExtent->runtimeElementCountConstraint;
+    if (dynamicRuntimeExtent)
+      stream << ", runtime_extent_arg="
+             << dynamicRuntimeExtent->runtimeExtentArg
+             << ", source_loop_step="
+             << dynamicRuntimeExtent->sourceLoopStep
+             << ", source_vector_chunk_extent="
+             << dynamicRuntimeExtent->sourceVectorChunkExtent
+             << ", runtime_element_count_constraint="
+             << dynamicRuntimeExtent->runtimeElementCountConstraint;
     if (!selectedVariantSymbol.empty())
       stream << ", selected_variant=@" << selectedVariantSymbol;
     if (!selectedRole.empty())
@@ -309,6 +336,8 @@ private:
   std::string runtimeElementCountCName = "n";
   std::string dispatchAvailabilityGuardCName = "rvv_available";
   std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
+  std::optional<support::DynamicVectorRuntimeExtentContract>
+      dynamicRuntimeExtent;
 };
 
 inline llvm::Error makeRVVSelectedConfigContractError(llvm::Twine message) {
@@ -403,6 +432,25 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
           " must match descriptor-local element_count " +
           llvm::Twine(contract.getDescriptorElementCount()));
   }
+  if (contract.getDynamicVectorRuntimeExtentContract()) {
+    const support::DynamicVectorRuntimeExtentContract &runtimeExtent =
+        *contract.getDynamicVectorRuntimeExtentContract();
+    if (!runtimeExtent.isValid())
+      return makeRVVSelectedConfigContractError(
+          "dynamic vector runtime extent contract is incomplete");
+    if (contract.getRuntimeElementCountCName() !=
+        runtimeExtent.runtimeExtentArg)
+      return makeRVVSelectedConfigContractError(
+          llvm::Twine("dynamic vector runtime extent arg '") +
+          runtimeExtent.runtimeExtentArg +
+          "' must match runtime element-count C name '" +
+          contract.getRuntimeElementCountCName() + "'");
+  }
+  if (contract.getFixedVectorSourceExtentContract() &&
+      contract.getDynamicVectorRuntimeExtentContract())
+    return makeRVVSelectedConfigContractError(
+        "fixed source extent and dynamic runtime extent contracts are "
+        "mutually exclusive");
 
   return llvm::Error::success();
 }
@@ -417,13 +465,17 @@ buildRVVBinarySelectedConfigContract(
     llvm::StringRef runtimeElementCountCName = "n",
     llvm::StringRef dispatchAvailabilityGuardCName = "rvv_available",
     std::optional<support::FixedVectorSourceExtentContract>
-        fixedSourceExtent = std::nullopt) {
+        fixedSourceExtent = std::nullopt,
+    std::optional<support::DynamicVectorRuntimeExtentContract>
+        dynamicRuntimeExtent = std::nullopt) {
   RVVBinarySelectedConfigContract contract(family, shape);
   contract.setSelectedPath(selectedVariantSymbol, selectedRole);
   contract.setDescriptorElementCount(descriptorElementCount);
   contract.setRuntimeElementCountCName(runtimeElementCountCName);
   contract.setDispatchAvailabilityGuardCName(dispatchAvailabilityGuardCName);
   contract.setFixedVectorSourceExtentContract(std::move(fixedSourceExtent));
+  contract.setDynamicVectorRuntimeExtentContract(
+      std::move(dynamicRuntimeExtent));
   if (llvm::Error error = validateRVVBinarySelectedConfigContract(contract))
     return std::move(error);
   return contract;
@@ -476,6 +528,37 @@ inline void appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(
   out.push_back(
       {support::getFrontendRuntimeElementCountConstraintMetadataName(),
        sourceExtent.runtimeElementCountConstraint, role, note,
+       "frontend runtime element-count constraint"});
+}
+
+inline void appendRVVBinaryDynamicRuntimeExtentSelectedPlanMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  if (!contract.getDynamicVectorRuntimeExtentContract())
+    return;
+
+  const support::DynamicVectorRuntimeExtentContract &runtimeExtent =
+      *contract.getDynamicVectorRuntimeExtentContract();
+  llvm::StringRef role = support::getFrontendRuntimeExtentMetadataRole();
+  llvm::StringRef note = support::getFrontendRuntimeExtentMetadataNote();
+  out.push_back({support::getFrontendSourceKindMetadataName(),
+                 runtimeExtent.sourceKind, role, note,
+                 "frontend source kind"});
+  out.push_back({support::getFrontendSourceAuthorityMetadataName(),
+                 runtimeExtent.sourceAuthority, role, note,
+                 "frontend source authority"});
+  out.push_back({support::getFrontendRuntimeExtentArgMetadataName(),
+                 runtimeExtent.runtimeExtentArg, role, note,
+                 "frontend runtime extent arg"});
+  out.push_back({support::getFrontendSourceLoopStepMetadataName(),
+                 std::to_string(runtimeExtent.sourceLoopStep), role, note,
+                 "frontend source loop step"});
+  out.push_back({support::getFrontendSourceVectorChunkExtentMetadataName(),
+                 std::to_string(runtimeExtent.sourceVectorChunkExtent), role,
+                 note, "frontend source vector chunk extent"});
+  out.push_back(
+      {support::getFrontendRuntimeElementCountConstraintMetadataName(),
+       runtimeExtent.runtimeElementCountConstraint, role, note,
        "frontend runtime element-count constraint"});
 }
 
