@@ -35,3 +35,5 @@ The stable project boundary is:
 - The current real hardware mainline is RVV 1.0 via `ssh rvv`, with a 64-core CPU and sudo access.
 - K3/IME is a later IME plugin integration target.
 - Sophgo/RISC-V + offload is a runtime-offload capability, not a custom RISC-V ISA extension.
+
+@RTK.md

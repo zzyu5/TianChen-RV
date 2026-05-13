@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Required runner validation checks"}
+{"file": "scripts/codex_serial_supervisor.py", "reason": "Retry behavior and prompt packaging verification"}

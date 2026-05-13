@@ -220,11 +220,82 @@ def codex_retry_blocker(run_dir: Path) -> str:
     after_head = _snapshot_git_field(after, "head")
     if before_head and after_head and before_head != after_head:
         return "git_head_changed"
+    return ""
+
+
+def codex_retry_needs_continuation(run_dir: Path) -> bool:
+    """Return True when retry should continue dirty work left by a failed worker."""
+    before = load_json(run_dir / "snapshot_before.json")
+    after = load_json(run_dir / "snapshot_after.json")
     before_status = _snapshot_git_field(before, "status_short")
     after_status = _snapshot_git_field(after, "status_short")
-    if before_status != after_status:
-        return "git_status_changed"
-    return ""
+    return before_status != after_status
+
+
+def build_codex_continuation_retry_prompt(
+    run_dir: Path,
+    retry_reason: str,
+    delta: str,
+    prompt_override: str,
+) -> str:
+    """Build a worker brief for a retry over an already-mutated worktree."""
+    before = load_json(run_dir / "snapshot_before.json")
+    after = load_json(run_dir / "snapshot_after.json")
+    before_status = _snapshot_git_field(before, "status_short") or "(clean)"
+    after_status = _snapshot_git_field(after, "status_short") or "(clean)"
+    original_brief = prompt_override.strip()
+    if not original_brief and delta.strip():
+        original_brief = "Original legacy Hermes delta:\n\n" + delta.strip()
+
+    continuation = f"""## Codex Transient Continuation Retry
+
+The previous Codex worker for this same supervisor round failed because of a
+transient model/API/stream problem: `{retry_reason}`.
+
+This is a continuation retry, not a new task selection and not a reset. The
+previous attempt may already have changed the worktree. Do not discard,
+overwrite, or revert that work unless repository evidence proves it is unsafe.
+
+Previous run artifacts:
+
+```text
+run_dir: {run_dir}
+manifest: {run_dir / "manifest.json"}
+stdout: {run_dir / "codex.stdout.jsonl"}
+stderr: {run_dir / "codex.stderr.log"}
+last_message: {run_dir / "last_message.md"}
+review_input: {run_dir / "review_input.md"}
+snapshot_before: {run_dir / "snapshot_before.json"}
+snapshot_after: {run_dir / "snapshot_after.json"}
+```
+
+Git status changed during the failed attempt:
+
+```text
+before:
+{before_status}
+
+after:
+{after_status}
+```
+
+Required continuation behavior:
+
+1. Inspect the live worktree, the active Trellis task if present, and the
+   previous run artifacts above.
+2. Continue the same task/round from the existing dirty state.
+3. If the dirty changes are coherent, validate, self-repair as needed,
+   finish/archive the task, and create one coherent commit.
+4. If the dirty changes are unsafe or incomplete beyond a bounded repair, keep
+   the task open with the exact continuation point and do not pretend it is
+   finished.
+5. Do not create an unrelated Trellis task and do not fall back to a broad
+   base-prompt-only direction.
+"""
+
+    if original_brief:
+        return original_brief + "\n\n---\n\n" + continuation
+    return continuation
 
 
 def write_stop_request(path: Path, reason: str) -> None:
@@ -2394,7 +2465,8 @@ def command_loop(args: argparse.Namespace) -> int:
 
             retry_reason = codex_transient_failure_reason(Path(worker["run_dir"]))
             if retry_reason and args.codex_transient_retries > 0:
-                retry_blocker = codex_retry_blocker(Path(worker["run_dir"]))
+                worker_run_dir = Path(worker["run_dir"])
+                retry_blocker = codex_retry_blocker(worker_run_dir)
                 if retry_blocker:
                     exit_reason = f"codex_transient_retry_skipped_{retry_blocker}"
                     append_jsonl(
@@ -2420,6 +2492,15 @@ def command_loop(args: argparse.Namespace) -> int:
                     )
                     break
 
+                continuation_retry = codex_retry_needs_continuation(worker_run_dir)
+                retry_prompt_override = prompt_override
+                if continuation_retry:
+                    retry_prompt_override = build_codex_continuation_retry_prompt(
+                        worker_run_dir,
+                        retry_reason,
+                        delta,
+                        prompt_override,
+                    )
                 retry_run_id = f"{run_id}-retry1"
                 append_jsonl(
                     events_path,
@@ -2430,6 +2511,7 @@ def command_loop(args: argparse.Namespace) -> int:
                         "previous_run_id": run_id,
                         "run_id": retry_run_id,
                         "reason": retry_reason,
+                        "continuation_retry": continuation_retry,
                         "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
                     },
                 )
@@ -2440,7 +2522,7 @@ def command_loop(args: argparse.Namespace) -> int:
                     next_round,
                     retry_run_id,
                     delta,
-                    prompt_override,
+                    retry_prompt_override,
                 )
                 retry_worker["attempt"] = 2
                 write_json(
@@ -2459,8 +2541,8 @@ def command_loop(args: argparse.Namespace) -> int:
                         "hermes_session_id": args.hermes_session_id,
                         "hermes_session_name": args.hermes_session_name,
                         "codex_multi_agent_disabled": True,
-                        "current_prompt_mode": prompt_mode,
-                        "current_prompt_override_chars": len(prompt_override),
+                        "current_prompt_mode": retry_worker["prompt_mode"],
+                        "current_prompt_override_chars": len(retry_prompt_override),
                         "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
                     },
                 )
@@ -2842,7 +2924,11 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
         "--codex-transient-retries",
         type=int,
         default=1,
-        help="Retry a Codex worker once when its artifacts indicate a transient API/stream/model failure and the repo snapshot is unchanged.",
+        help=(
+            "Retry a Codex worker once when artifacts indicate a transient "
+            "API/stream/model failure. If HEAD is unchanged but git status "
+            "changed, retry with a continuation brief over the dirty worktree."
+        ),
     )
     parser.add_argument(
         "--hermes-model",
