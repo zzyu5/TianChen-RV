@@ -92,11 +92,30 @@ module @plan_linalg_i32_vsub_bundle_input {
 // INDEX: runtime_abi_kind: "rvv-scalar-dispatch-runtime-callable-c-abi"
 // INDEX: runtime_abi_name: "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"
 // INDEX: runtime_abi_parameter[0]:
+// INDEX: c_name: "lhs"
+// INDEX: c_type: "const int32_t *"
 // INDEX: role: "lhs-input-buffer"
+// INDEX: ownership: "target-export-abi-owned"
+// INDEX: runtime_abi_parameter[1]:
+// INDEX: c_name: "rhs"
+// INDEX: c_type: "const int32_t *"
+// INDEX: role: "rhs-input-buffer"
+// INDEX: ownership: "target-export-abi-owned"
+// INDEX: runtime_abi_parameter[2]:
+// INDEX: c_name: "out"
+// INDEX: c_type: "int32_t *"
+// INDEX: role: "output-buffer"
+// INDEX: ownership: "target-export-abi-owned"
 // INDEX: runtime_abi_parameter[3]:
+// INDEX: c_name: "n"
+// INDEX: c_type: "size_t"
 // INDEX: role: "runtime-element-count"
+// INDEX: ownership: "target-export-abi-owned"
 // INDEX: runtime_abi_parameter[4]:
+// INDEX: c_name: "rvv_available"
+// INDEX: c_type: "int"
 // INDEX: role: "dispatch-availability-guard"
+// INDEX: ownership: "target-export-abi-owned"
 // INDEX: evidence_role: "compiler-artifact"
 // INDEX: artifact[1]:
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h"
@@ -117,10 +136,20 @@ module @plan_linalg_i32_vsub_bundle_input {
 // INDEX: evidence_role: "relocatable-object"
 
 // SOURCE: /* Scope: one selected RVV i32-vsub dispatch case plus one scalar i32-vsub dispatch fallback. */
+// SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub
+// SOURCE-SAME: runtime_element_count_c_name=n
+// SOURCE-SAME: selected_role=dispatch case */
 // SOURCE: /* rvv_artifact_route_id: tcrv-export-rvv-i32-vsub-microkernel-c */
+// SOURCE: /* rvv_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* rvv_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// SOURCE: /* rvv_selected_plan_metadata[14]: name=tcrv_rvv.runtime_avl_source, value=runtime-element-count-abi-parameter, role=rvv-runtime-vl-avl-boundary
+// SOURCE: /* rvv_selected_plan_metadata[16]: name=tcrv_rvv.runtime_vl_source, value=tcrv_rvv.setvl, role=rvv-runtime-vl-avl-boundary
 // SOURCE: /* scalar_artifact_route_id: tcrv-export-scalar-i32-vsub-microkernel-c */
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_bundle_i32_vsub_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_bundle_i32_vsub_scalar_fallback_first_slice */
+// SOURCE: /* dispatch_runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* dispatch_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 // SOURCE: __riscv_vsub_vv_i32m1
 // SOURCE: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
 // SOURCE: tcrv_scalar_i32_sub

@@ -1,7 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=i32-vadd-microkernel.v1 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
-// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=__riscv_vadd_vv_i32m2 --implicit-check-not=__riscv_vmul_vv_i32m2 --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_shape = "i32m2"/s//tcrv_rvv.selected_vector_shape = "i32m1"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SHAPE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not=__riscv --implicit-check-not=riscv_vector --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed 's#c_name = "rhs", c_type = "const int32_t \*", ownership = "target-export-abi-owned", role = "rhs-input-buffer"#c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"#' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI --implicit-check-not="#ifndef"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.linalg-i32m2-vsub.o
 // RUN: llvm-readobj --file-headers --symbols %t.linalg-i32m2-vsub.o | FileCheck %s --check-prefix=OBJECT --implicit-check-not="Name: main"
 
@@ -106,6 +107,10 @@ module {
 // PIPE: tcrv_rvv.with_vl
 // PIPE-SAME: lmul = "m2"
 // PIPE: tcrv_rvv.i32_load
+// PIPE-SAME: buffer_role = "lhs-input-buffer"
+// PIPE-SAME: !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+// PIPE: tcrv_rvv.i32_load
+// PIPE-SAME: buffer_role = "rhs-input-buffer"
 // PIPE-SAME: !tcrv_rvv.vl -> !tcrv_rvv.i32m2
 // PIPE: tcrv_rvv.i32_sub
 // PIPE-SAME: !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
@@ -147,9 +152,18 @@ module {
 // PIPE-SAME: target = @rvv_first_slice
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+// SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub
+// SOURCE-SAME: runtime_element_count_c_name=n
+// SOURCE-SAME: selected_role=direct variant */
+// SOURCE: /* selected_runtime_vl_boundary: runtime_element_count_c_name=n
+// SOURCE-SAME: runtime_avl_source=runtime-element-count-abi-parameter
+// SOURCE-SAME: runtime_vl_source=tcrv_rvv.setvl
+// SOURCE-SAME: runtime_vl_scope=tcrv_rvv.with_vl
 // SOURCE: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // SOURCE: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
+// SOURCE: /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
+// SOURCE: /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
@@ -157,6 +171,10 @@ module {
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
 // SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // SOURCE: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
+// SOURCE: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
+// SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// SOURCE: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// SOURCE: /* runtime_callable_abi: void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
 // SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // SOURCE: static void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice__tcrv_emitc_body
 // SOURCE: __riscv_vsetvl_e32m2
@@ -165,6 +183,19 @@ module {
 // SOURCE: __riscv_vse32_v_i32m2
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice
 
+// HEADER: /* selected_body_authority: tcrv_rvv.i32_vsub_microkernel */
+// HEADER: /* selected_binary_config: dtype=i32, family=i32-vsub
+// HEADER-SAME: runtime_element_count_c_name=n
+// HEADER-SAME: selected_role=direct variant */
+// HEADER: /* selected_runtime_vl_boundary: runtime_element_count_c_name=n
+// HEADER-SAME: runtime_avl_source=runtime-element-count-abi-parameter
+// HEADER-SAME: runtime_vl_source=tcrv_rvv.setvl
+// HEADER-SAME: runtime_vl_scope=tcrv_rvv.with_vl
+// HEADER: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
+// HEADER: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
+// HEADER: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
+// HEADER: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// HEADER: /* runtime_callable_abi: void tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
 // HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_FRONTEND_I32_VSUB_RVV_FIRST_SLICE_H
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>
@@ -178,3 +209,6 @@ module {
 
 // STALE-SHAPE: selected RVV variant @rvv_first_slice
 // STALE-SHAPE: selected vector-shape id must be 'i32m2'
+
+// STALE-ABI: TianChen-RV execution plan coherence check failed for kernel @frontend_i32_vsub
+// STALE-ABI-SAME: duplicate runtime ABI parameter role 'lhs-input-buffer'

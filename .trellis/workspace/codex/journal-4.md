@@ -127,7 +127,6 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 
 - None - task complete
 
-
 ## Session 47: RVV typed-family EmitC artifact authority
 
 **Date**: 2026-05-13
@@ -1704,6 +1703,62 @@ Exposed the selected materialized RVV body and IR-backed runtime ABI role contra
 ### Status
 
 [OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 52: RVV i32-vsub materialized artifact parity
+
+**Date**: 2026-05-13
+**Task**: RVV i32-vsub materialized artifact parity
+**Branch**: `main`
+
+### Summary
+
+Proved the source-fronted i32-vsub route preserves the same selected
+`tcrv_rvv` body and runtime ABI artifact authority that the prior i32-vadd
+round exposed, then refreshed bounded RVV hardware evidence for the generated
+vsub bundle.
+
+### Main Changes
+
+- Tightened `linalg-i32-vsub-to-rvv-artifact.mlir` so the source-fronted
+  direct artifact path checks two buffer-role loads, selected
+  `tcrv_rvv.i32_sub`, source/header selected runtime AVL/VL comments, ordered
+  runtime ABI parameters, callable ABI parity, and stale runtime ABI role
+  fail-closed behavior before header output.
+- Tightened `plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir` so
+  the plan-and-export bundle index/source checks ordered runtime ABI parameter
+  names/types/ownership, selected vsub config metadata, runtime AVL/VL
+  selected-plan metadata, and dispatch callable ABI fields.
+- Generated direct source/header/object artifacts under
+  `artifacts/tmp/rvv_i32_vsub_materialized_artifact_parity/direct` and a local
+  bundle under `artifacts/tmp/rvv_i32_vsub_materialized_artifact_parity/bundle`.
+- Fresh `ssh rvv` evidence:
+  `python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family i32-vsub --vector-shape i32m2 --lower-linalg-frontend --input test/Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir --expect-selected-kernel=frontend_i32_vsub --runtime-count=7 --runtime-count=16 --runtime-count=23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --ssh-target rvv --run-id 20260513T-materialized-i32-vsub-artifact-parity --overwrite --timeout 120`.
+  Both source-built and bundle-object remote callers printed
+  `tcrv_rvv_i32_vsub_microkernel_external_abi_ok counts=7,16,23`.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'linalg-i32-vsub-to-rvv-artifact|plan-linalg-i32-vsub-and-export-target-artifact-bundle'`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'RVVMicrokernel|TargetArtifactBundleExport|EmissionManifest|LoweringBoundary|LinalgToExec'`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-i32-vsub-materialized-artifact-parity`
+- `git diff --check`
+- `git diff --cached --check`
+
+### Status
+
+[OK] Completed. Claim remains bounded to source-fronted direct RVV i32-vsub
+target-artifact bundle external ABI correctness for runtime counts 7, 16, and
+23; no performance or generic RVV backend claim is made.
 
 ### Next Steps
 
