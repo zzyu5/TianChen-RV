@@ -433,3 +433,66 @@ RVV plugin-owned artifact route registration.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 56: RVV op-owned EmitC artifact production route
+
+**Date**: 2026-05-13
+**Task**: RVV op-owned EmitC artifact production route
+**Branch**: `main`
+
+### Summary
+
+Rewired RVV finite-binary artifact emission so arithmetic intrinsic callee selection is derived from typed tcrv_rvv compute source-op provenance and selected-family agreement; refreshed direct/bundle artifacts and ssh rvv dynamic i32-vsub evidence.
+
+### Main Changes
+
+### Task
+
+RVV op-owned EmitC artifact production route.
+
+### Main Changes
+
+- Added RVV finite-family lookup by materialized RVV arithmetic op name.
+- Rewired RVV arithmetic `emitc.call_opaque` callee selection so intrinsic spelling comes from the typed compute source op plus `TCRVEmitCLowerableOpInterface` provenance.
+- Added selected-family/source-family agreement checks before source/header/object emission.
+- Preserved descriptor mirrors as compatibility diagnostics only; they no longer independently select arithmetic intrinsic spelling for the production EmitC route.
+- Refreshed direct and bundle dynamic i32-vsub/i32-vadd artifacts under `artifacts/tmp/rvv_op_owned_emitc_artifact_route_20260513T070822Z`.
+
+### Evidence
+
+- Direct artifacts: `artifacts/tmp/rvv_op_owned_emitc_artifact_route_20260513T070822Z/direct/vector_dynamic_i32_vsub/` and `artifacts/tmp/rvv_op_owned_emitc_artifact_route_20260513T070822Z/direct/vector_dynamic_i32_vadd/`.
+- Bundle artifacts: `artifacts/tmp/rvv_op_owned_emitc_artifact_route_20260513T070822Z/bundle/vector_dynamic_i32_vsub/` and `artifacts/tmp/rvv_op_owned_emitc_artifact_route_20260513T070822Z/bundle/vector_dynamic_i32_vadd/`.
+- ssh rvv evidence: `artifacts/tmp/rvv_op_owned_emitc_artifact_route_20260513T070822Z/e2e/20260513T070822Z-rvv-op-owned-emitc-artifact-route-vsub/`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts `7`, `16`, and `23`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-i32-binary-family-registry-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-emitc-lowerable-interface-test`
+- Focused lit covering dynamic vsub/vadd, RVV microkernel, emission manifest, target artifact bundle export, fixed-vector vadd, dynamic-tail/runtime-VL authority, plugin route activation, family registry, and linalg compatibility.
+- `git diff --check`
+- Trellis validation before finish/archive and after archive.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build, C++ checks, lit, direct/bundle artifact generation, and `ssh rvv` dynamic i32-vsub evidence passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

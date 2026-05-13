@@ -2808,20 +2808,47 @@ getDataflowValueCName(RVVBinaryDataflowValue value,
   return "";
 }
 
-std::string getEmitCCallOpaqueCalleeForStep(
+llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
     const RVVBinaryDataflowStep &step,
-    const RVVIntrinsicConfig &intrinsicConfig) {
+    const RVVIntrinsicConfig &intrinsicConfig,
+    const RVVBinaryIntrinsicDescriptor &descriptor) {
   switch (step.kind) {
   case RVVBinaryDataflowStepKind::Load:
     return intrinsicConfig.loadIntrinsicName;
   case RVVBinaryDataflowStepKind::Add:
   case RVVBinaryDataflowStepKind::Sub:
-  case RVVBinaryDataflowStepKind::Mul:
-    return intrinsicConfig.arithmeticIntrinsicName;
+  case RVVBinaryDataflowStepKind::Mul: {
+    if (step.sourceOpName.empty() || step.sourceOpRole != "compute" ||
+        step.sourceOpInterface != "TCRVEmitCLowerableOpInterface")
+      return makeModuleMicrokernelError(
+          "RVV family-op to EmitC route requires every compute step to carry "
+          "typed source-op and generated op-interface provenance before "
+          "choosing an intrinsic callee");
+    const RVVBinaryFamilyDescriptor *sourceFamily =
+        lookupRVVBinaryFamilyRegistrationByRVVOperationName(
+            step.sourceOpName);
+    if (!sourceFamily)
+      return makeModuleMicrokernelError(
+          llvm::Twine("RVV family-op to EmitC route cannot map typed source "
+                      "op '") +
+          step.sourceOpName + "' to a registered finite binary family");
+    if (!isSameRVVBinaryFamily(*sourceFamily, descriptor.family))
+      return makeModuleMicrokernelError(
+          llvm::Twine("RVV family-op to EmitC route compute source op '") +
+          step.sourceOpName + "' names family '" + sourceFamily->familyID +
+          "' but the selected RVV record is '" +
+          descriptor.getArithmeticFamilyID() +
+          "'; typed source op and selected record must agree before "
+          "emitc.call_opaque callee selection");
+    return (llvm::Twine(sourceFamily->arithmeticIntrinsicPrefix) +
+            intrinsicConfig.vectorSuffix)
+        .str();
+  }
   case RVVBinaryDataflowStepKind::Store:
     return intrinsicConfig.storeIntrinsicName;
   }
-  return "";
+  return makeModuleMicrokernelError(
+      "RVV family-op to EmitC route saw an unknown dataflow step kind");
 }
 
 llvm::Expected<BinarySelfCheckArithmeticKind>
@@ -2948,8 +2975,11 @@ public:
       emitcStep.sourceOp.opName = getDataflowStepOpName(step, descriptor);
       emitcStep.sourceOp.role = getRouteSourceRole(step).str();
       emitcStep.sourceOp.opInterface = step.sourceOpInterface;
-      emitcStep.callee =
-          getEmitCCallOpaqueCalleeForStep(step, intrinsicConfig);
+      llvm::Expected<std::string> callee =
+          getEmitCCallOpaqueCalleeForStep(step, intrinsicConfig, descriptor);
+      if (!callee)
+        return callee.takeError();
+      emitcStep.callee = std::move(*callee);
       if (emitcStep.sourceOp.opName.empty() || emitcStep.callee.empty())
         return makeModuleMicrokernelError(
             "RVV family-op to EmitC route requires every dataflow step to map "

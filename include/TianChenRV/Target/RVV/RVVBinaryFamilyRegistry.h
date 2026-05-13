@@ -344,6 +344,18 @@ lookupRVVBinaryFamilyRegistrationByFrontendSource(
   return nullptr;
 }
 
+inline const RVVBinaryFamilyDescriptor *
+lookupRVVBinaryFamilyRegistrationByRVVOperationName(
+    llvm::StringRef rvvOperationName) {
+  rvvOperationName = rvvOperationName.trim();
+  for (const RVVBinaryFamilyDescriptor *descriptor :
+       getRVVBinaryFamilyRegistrationRecords()) {
+    if (descriptor->arithmeticOpName == rvvOperationName)
+      return descriptor;
+  }
+  return nullptr;
+}
+
 inline bool isRVVBinaryFamilyAcceptedByDynamicVectorSource(
     const RVVBinaryFamilyDescriptor &family) {
   return !family.dynamicVectorSourceKind.empty();
