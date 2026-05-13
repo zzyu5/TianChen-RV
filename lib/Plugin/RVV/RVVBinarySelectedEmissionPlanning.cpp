@@ -45,6 +45,21 @@ constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kControlPolicyAttrName("policy");
 constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
+constexpr llvm::StringLiteral kSelectedBinarySourceKindAttrName(
+    "selected_binary_source_kind");
+constexpr llvm::StringLiteral kSelectedBinaryDTypeAttrName(
+    "selected_binary_dtype");
+constexpr llvm::StringLiteral kSelectedBinaryFamilyAttrName(
+    "selected_binary_family");
+constexpr llvm::StringLiteral kSelectedBinaryOperatorAttrName(
+    "selected_binary_operator");
+constexpr llvm::StringLiteral kSelectedBinaryMicrokernelOpAttrName(
+    "selected_binary_microkernel_op");
+constexpr llvm::StringLiteral kEmitCSourceOpAttrName("emitc_source_op");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceAttrName(
+    "emitc_lowerable_op_interface");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
 constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
 constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
@@ -206,6 +221,175 @@ llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
         "' does not match expected selected-path value '" + expectedValue +
         "'");
   return llvm::Error::success();
+}
+
+bool hasAnySelectedBinarySourceIdentity(mlir::Operation *op) {
+  return op &&
+         (op->hasAttr(kSelectedBinarySourceKindAttrName) ||
+          op->hasAttr(kSelectedBinaryDTypeAttrName) ||
+          op->hasAttr(kSelectedBinaryFamilyAttrName) ||
+          op->hasAttr(kSelectedBinaryOperatorAttrName) ||
+          op->hasAttr(kSelectedBinaryMicrokernelOpAttrName) ||
+          op->hasAttr(kEmitCSourceOpAttrName) ||
+          op->hasAttr(kEmitCLowerableOpInterfaceAttrName));
+}
+
+llvm::Expected<std::string>
+readSelectedBinarySourceIdentityAttr(mlir::Operation *op,
+                                     llvm::StringRef context,
+                                     llvm::StringRef attrName) {
+  auto attr = getStringAttr(op, attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeRVVBinarySelectedEmissionError(
+        llvm::Twine(context) +
+        " requires non-empty selected RVV binary source identity attribute '" +
+        attrName + "'");
+
+  llvm::StringRef value = attr.getValue().trim();
+  if (llvm::Error error =
+          validateRVVPropertyText(context, attrName, value))
+    return std::move(error);
+  return value.str();
+}
+
+llvm::Error requireSelectedBinarySourceIdentityAttr(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName,
+    llvm::StringRef expectedValue, llvm::StringRef description) {
+  llvm::Expected<std::string> value =
+      readSelectedBinarySourceIdentityAttr(op, context, attrName);
+  if (!value)
+    return value.takeError();
+  if (*value != expectedValue)
+    return makeRVVBinarySelectedEmissionError(
+        llvm::Twine(context) + " selected RVV binary source identity '" +
+        attrName + "' value '" + *value + "' must match " + description +
+        " '" + expectedValue + "'");
+  return llvm::Error::success();
+}
+
+bool isRecognizedSelectedBinarySourceKind(llvm::StringRef sourceKind) {
+  return sourceKind == getRVVFrontendLoweringSourceKind() ||
+         sourceKind == getRVVDefaultTypedBinarySourceKind() ||
+         sourceKind == getRVVDirectTypedMicrokernelBodySourceKind();
+}
+
+llvm::Error validateSelectedBinarySourceIdentity(
+    mlir::Operation *op, llvm::StringRef context,
+    const RVVBinaryFamilyDescriptor &family, llvm::StringRef sourceKind) {
+  if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
+          op, context, kSelectedBinarySourceKindAttrName, sourceKind,
+          "typed source kind"))
+    return error;
+  if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
+          op, context, kSelectedBinaryDTypeAttrName, family.dtypeID,
+          "typed source dtype"))
+    return error;
+  if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
+          op, context, kSelectedBinaryFamilyAttrName, family.familyID,
+          "typed source family"))
+    return error;
+  if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
+          op, context, kSelectedBinaryOperatorAttrName, family.arithmeticVerb,
+          "typed source operator"))
+    return error;
+  if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
+          op, context, kSelectedBinaryMicrokernelOpAttrName,
+          family.microkernelOpName, "typed microkernel op"))
+    return error;
+  if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
+          op, context, kEmitCSourceOpAttrName, family.arithmeticOpName,
+          "typed EmitC source op"))
+    return error;
+  return requireSelectedBinarySourceIdentityAttr(
+      op, context, kEmitCLowerableOpInterfaceAttrName,
+      kEmitCLowerableOpInterfaceName,
+      "generated EmitC lowerable interface");
+}
+
+llvm::Expected<std::optional<std::string>>
+resolveSelectedBinarySourceKindForEmissionPlan(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    llvm::StringRef expectedRole, mlir::Operation *microkernel,
+    const RVVBinaryFamilyDescriptor &family) {
+  tcrv::rvv::LoweringBoundaryOp boundary;
+  unsigned matches = 0;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto candidate = llvm::dyn_cast<tcrv::rvv::LoweringBoundaryOp>(op);
+    if (!candidate)
+      continue;
+    auto selectedVariant =
+        candidate->getAttrOfType<mlir::FlatSymbolRefAttr>(
+            kSelectedVariantAttrName);
+    auto role = getStringAttr(candidate.getOperation(), kRoleAttrName);
+    if (!selectedVariant || !role ||
+        selectedVariant.getValue() != variant.getSymName() ||
+        role.getValue() != expectedRole)
+      continue;
+    boundary = candidate;
+    ++matches;
+  }
+
+  if (matches > 1)
+    return makeRVVBinarySelectedEmissionError(
+        llvm::Twine("selected RVV emission plan path @") +
+        variant.getSymName() + " as " + expectedRole +
+        " has duplicate RVV lowering-boundary source identities");
+
+  bool microkernelHasIdentity =
+      hasAnySelectedBinarySourceIdentity(microkernel);
+  if (!boundary) {
+    if (microkernelHasIdentity)
+      return makeRVVBinarySelectedEmissionError(
+          llvm::Twine("explicit ") + family.microkernelOpName +
+          " carries op-owned selected RVV binary source identity without a "
+          "matching selected lowering-boundary source identity");
+    return std::optional<std::string>();
+  }
+
+  bool boundaryHasIdentity =
+      hasAnySelectedBinarySourceIdentity(boundary.getOperation());
+  if (!boundaryHasIdentity) {
+    if (microkernelHasIdentity)
+      return makeRVVBinarySelectedEmissionError(
+          llvm::Twine("explicit ") + family.microkernelOpName +
+          " carries op-owned selected RVV binary source identity but the "
+          "matching tcrv_rvv.lowering_boundary has no source identity");
+    return std::optional<std::string>();
+  }
+
+  std::string boundaryContext =
+      (llvm::Twine("selected RVV lowering boundary @") +
+       variant.getSymName() + " as " + expectedRole)
+          .str();
+  llvm::Expected<std::string> sourceKind =
+      readSelectedBinarySourceIdentityAttr(
+          boundary.getOperation(), boundaryContext,
+          kSelectedBinarySourceKindAttrName);
+  if (!sourceKind)
+    return sourceKind.takeError();
+  if (!isRecognizedSelectedBinarySourceKind(*sourceKind))
+    return makeRVVBinarySelectedEmissionError(
+        llvm::Twine(boundaryContext) +
+        " selected RVV binary source identity 'selected_binary_source_kind' "
+        "value '" + *sourceKind +
+        "' is not a recognized typed RVV binary source boundary");
+
+  if (llvm::Error error = validateSelectedBinarySourceIdentity(
+          boundary.getOperation(), boundaryContext, family, *sourceKind))
+    return std::move(error);
+
+  if (*sourceKind == getRVVFrontendLoweringSourceKind() ||
+      microkernelHasIdentity) {
+    std::string microkernelContext =
+        (llvm::Twine("explicit ") + family.microkernelOpName + " @" +
+         variant.getSymName() + " as " + expectedRole)
+            .str();
+    if (llvm::Error error = validateSelectedBinarySourceIdentity(
+            microkernel, microkernelContext, family, *sourceKind))
+      return std::move(error);
+  }
+
+  return std::optional<std::string>(std::move(*sourceKind));
 }
 
 llvm::Error validateMicrokernelDataflowRoleAttr(
@@ -771,6 +955,12 @@ findI32SelectedEmissionAttachment(const VariantEmissionRequest &request,
   if (matches == 0)
     return std::optional<RVVBinarySelectedEmissionAttachment>();
 
+  llvm::Expected<std::optional<std::string>> sourceKind =
+      resolveSelectedBinarySourceKindForEmissionPlan(
+          kernel, variant, expectedRole, matchedMicrokernel, *matchedFamily);
+  if (!sourceKind)
+    return sourceKind.takeError();
+
   llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
       buildSelectedPlanFromExplicitMicrokernel(
           variant, request.getCapabilities(), *selectedShape,
@@ -780,6 +970,8 @@ findI32SelectedEmissionAttachment(const VariantEmissionRequest &request,
 
   RVVBinarySelectedEmissionAttachment attachment;
   attachment.selectedPlan = std::move(*selectedPlan);
+  if (*sourceKind)
+    attachment.sourceKind = std::move(**sourceKind);
   return attachment;
 }
 
@@ -902,6 +1094,12 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
   if (matches == 0)
     return std::optional<RVVBinarySelectedEmissionAttachment>();
 
+  llvm::Expected<std::optional<std::string>> sourceKind =
+      resolveSelectedBinarySourceKindForEmissionPlan(
+          kernel, variant, expectedRole, matchedMicrokernel, *matchedFamily);
+  if (!sourceKind)
+    return sourceKind.takeError();
+
   llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
       buildSelectedPlanFromExplicitMicrokernel(
           variant, request.getCapabilities(), *selectedShape,
@@ -911,6 +1109,8 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
 
   RVVBinarySelectedEmissionAttachment attachment;
   attachment.selectedPlan = std::move(*selectedPlan);
+  if (*sourceKind)
+    attachment.sourceKind = std::move(**sourceKind);
   return attachment;
 }
 
@@ -1122,6 +1322,19 @@ void appendSelectedBinaryMetadata(
     metadata.push_back({entry.name, entry.value, entry.role, entry.note});
 }
 
+void appendSelectedSourceIdentityMetadata(
+    const target::rvv::RVVBinarySelectedConfigContract &contract,
+    llvm::StringRef sourceKind,
+    llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
+  llvm::SmallVector<
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 2>
+      sourceIdentityMetadata;
+  target::rvv::appendRVVBinarySelectedSourceIdentityMetadata(
+      contract, sourceKind, sourceIdentityMetadata);
+  for (const auto &entry : sourceIdentityMetadata)
+    metadata.push_back({entry.name, entry.value, entry.role, entry.note});
+}
+
 } // namespace
 
 VariantEmissionStatus RVVBinarySelectedEmissionPlan::buildReadinessStatus(
@@ -1196,6 +1409,7 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
 
   RVVBinarySelectedEmissionPlan plan;
   plan.selectedPlan = std::move((*attachment)->selectedPlan);
+  plan.sourceKind = std::move((*attachment)->sourceKind);
   plan.runtimeABIParameters = std::move(*runtimeABIParameters);
   plan.requiredCapabilitySymbols = std::move(*requiredSymbols);
   if (llvm::Error error = bindSelectedConfigRuntimeControlNames(
@@ -1221,6 +1435,9 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
   appendSelectedBinaryMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       includeLegacyDescriptorMirrorMetadata, plan.selectedPlanMetadata);
+  appendSelectedSourceIdentityMetadata(
+      plan.selectedPlan.getSelectedConfig().getContract(), plan.sourceKind,
+      plan.selectedPlanMetadata);
   return plan;
 }
 

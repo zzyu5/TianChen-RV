@@ -1442,6 +1442,15 @@ resolveRVVScalarDispatchRuntimeABIParameters(
   return std::move(pair->abiPlan.parameters);
 }
 
+const SelectedPlanMetadataEntry *findFirstSelectedPlanMetadataEntry(
+    const TargetArtifactCandidate &candidate, llvm::StringRef name) {
+  for (const SelectedPlanMetadataEntry &metadata :
+       candidate.selectedPlanMetadata)
+    if (metadata.name == name)
+      return &metadata;
+  return nullptr;
+}
+
 TargetArtifactCompositeBundleMetadata
 deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
   TargetArtifactCompositeBundleMetadata metadata;
@@ -1497,6 +1506,30 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
        std::to_string(contract.getDescriptorElementCount()),
        kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
+  const SelectedPlanMetadataEntry *sourceKind =
+      findFirstSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::
+              getRVVSelectedBinarySourceKindMetadataName());
+  const SelectedPlanMetadataEntry *microkernelOp =
+      findFirstSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::
+              getRVVSelectedBinaryMicrokernelOpMetadataName());
+  if (sourceKind && microkernelOp) {
+    std::string sourceIdentity;
+    {
+      llvm::raw_string_ostream stream(sourceIdentity);
+      stream << "source_kind=" << sourceKind->value
+             << ",family=" << contract.getFamilyID()
+             << ",microkernel_op=" << microkernelOp->value;
+      stream.flush();
+    }
+    metadata.selectedPlanMetadata.push_back(
+        {"tcrv_rvv.dispatch_contract_selected_source_identity",
+         std::move(sourceIdentity), kDispatchSelectedConfigMetadataRole.str(),
+         kDispatchSelectedConfigMetadataNote.str()});
+  }
   return metadata;
 }
 

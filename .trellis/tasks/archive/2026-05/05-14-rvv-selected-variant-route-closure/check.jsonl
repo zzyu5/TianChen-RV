@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "descriptor/core/hardware evidence red lines"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify no core compute or RVV semantic branch leaked into tcrv.exec"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check selected RVV op/config/runtime materialization and fail-closed behavior"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "check plugin-owned routing and target-neutral registry boundaries"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "check planning pipeline and frontend selected route behavior"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "check parameter layering and capability/provider use"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check target artifact and bundle contract consumption"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check typed op to EmitC route and descriptor quarantine"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused evidence, fail-closed tests, and RVV claim scope"}
+{"file": "test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir", "reason": "focused lit coverage for generated vector-dynamic-i32-vadd bundle, source/header/object artifacts, and source identity fail-closed cases"}
+{"file": "test/Transforms/VectorToExec/vector-dynamic-i32-vadd-to-exec.mlir", "reason": "regression for upstream vector dynamic route materialization and runtime/source-tail contracts"}
+{"file": "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir", "reason": "regression for frontend selected RVV i32-vadd materialization and target export"}
+{"file": "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vadd-and-export-target-artifact-bundle.mlir", "reason": "regression for linalg i32-vadd bundle export under added source identity metadata"}
+{"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir", "reason": "compatibility regression for hand-authored RVV+scalar dispatch fixtures"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir", "reason": "regression for default microkernel materialization source artifact route"}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-object.mlir", "reason": "regression for op-owned object artifact/source identity behavior"}

@@ -1457,6 +1457,25 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   return validateRVVMicrokernelSelectedPlanMetadata(candidate, *selectedConfig);
 }
 
+llvm::Error validateRVVMicrokernelSelectedSourceIdentityMetadata(
+    const TargetArtifactCandidate &candidate,
+    const RVVMicrokernelRecord &sourceAuthority) {
+  if (sourceAuthority.selectedBinarySourceKind.empty())
+    return llvm::Error::success();
+  if (sourceAuthority.selectedBinarySourceKind != "frontend-lowering")
+    return llvm::Error::success();
+
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 2> expected;
+  appendRVVBinarySelectedSourceIdentityMetadata(
+      sourceAuthority.selectedConfigContract,
+      sourceAuthority.selectedBinarySourceKind, expected);
+  for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
+    if (llvm::Error error =
+            validateRVVMicrokernelSelectedPlanMetadataEntry(candidate, entry))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Expected<const RVVI32VectorShapeConfig *>
 getSelectedRVVConfig(KernelOp kernel, VariantOp variant,
                      const TargetCapabilitySet &capabilities) {
@@ -4273,6 +4292,9 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
       return sourceAuthority.takeError();
     if (llvm::Error error = validateRVVMicrokernelSelectedPlanMetadata(
             candidate, sourceAuthority->selectedConfigContract))
+      return error;
+    if (llvm::Error error = validateRVVMicrokernelSelectedSourceIdentityMetadata(
+            candidate, *sourceAuthority))
       return error;
   }
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);

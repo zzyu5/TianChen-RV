@@ -34,6 +34,14 @@ inline llvm::StringRef getRVVSelectedBinaryOperatorMetadataName() {
   return "tcrv_rvv.selected_binary_operator";
 }
 
+inline llvm::StringRef getRVVSelectedBinarySourceKindMetadataName() {
+  return "tcrv_rvv.selected_binary_source_kind";
+}
+
+inline llvm::StringRef getRVVSelectedBinaryMicrokernelOpMetadataName() {
+  return "tcrv_rvv.selected_binary_microkernel_op";
+}
+
 inline llvm::StringRef getRVVSelectedLoweringDescriptorMetadataName() {
   return "tcrv_rvv.selected_lowering_descriptor";
 }
@@ -64,6 +72,16 @@ inline llvm::StringRef getRVVTypedBinarySourceMetadataNote() {
   return "typed RVV family-op metadata selected by the RVV plugin for the "
          "common EmitC route; not descriptor-owned computation, runtime "
          "correctness evidence, or performance evidence";
+}
+
+inline llvm::StringRef getRVVTypedBinarySourceIdentityMetadataRole() {
+  return "typed-rvv-binary-source-identity";
+}
+
+inline llvm::StringRef getRVVTypedBinarySourceIdentityMetadataNote() {
+  return "op-owned RVV source identity carried from the selected lowering "
+         "boundary into selected-plan and artifact-bundle validation; not "
+         "descriptor-owned computation or runtime evidence";
 }
 
 inline llvm::StringRef getRVVEmitCSourceOpMetadataRole() {
@@ -728,6 +746,24 @@ inline void appendRVVBinarySelectedTypedSourceMetadata(
                  getRVVRuntimeControlNameMetadataRole(),
                  getRVVRuntimeControlNameMetadataNote(),
                  "runtime element-count C name"});
+}
+
+inline void appendRVVBinarySelectedSourceIdentityMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::StringRef sourceKind,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef trimmedSourceKind = sourceKind.trim();
+  if (trimmedSourceKind.empty())
+    return;
+
+  llvm::StringRef role = getRVVTypedBinarySourceIdentityMetadataRole();
+  llvm::StringRef note = getRVVTypedBinarySourceIdentityMetadataNote();
+  out.push_back({getRVVSelectedBinarySourceKindMetadataName(),
+                 trimmedSourceKind, role, note,
+                 "selected binary source kind"});
+  out.push_back({getRVVSelectedBinaryMicrokernelOpMetadataName(),
+                 contract.getFamily().microkernelOpName, role, note,
+                 "selected binary microkernel op"});
 }
 
 } // namespace tianchenrv::target::rvv

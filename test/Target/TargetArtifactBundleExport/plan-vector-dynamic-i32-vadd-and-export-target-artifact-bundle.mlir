@@ -9,6 +9,12 @@
 // RUN: FileCheck %s --check-prefix=SOURCE --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not="__builtin_trap" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password < %t.vector.dynamic.bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not="__riscv" --implicit-check-not="out[index]" --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password < %t.vector.dynamic.bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h
 // RUN: llvm-readobj --file-headers --symbols %t.vector.dynamic.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o | FileCheck %s --check-prefixes=OBJ --implicit-check-not="Name: main"
+// RUN: rm -rf %t.vector.dynamic.stale_source_identity.bundle && mkdir %t.vector.dynamic.stale_source_identity.bundle
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_rvv\.selected_binary_source_kind\"[^}]*value = )\"frontend-lowering\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"descriptor-only\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.stale_source_identity.bundle 2>&1 | FileCheck %s --check-prefix=STALE-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.stale_source_identity.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.vector.dynamic.missing_source_identity.bundle && mkdir %t.vector.dynamic.missing_source_identity.bundle
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"name = \"tcrv_rvv\.selected_binary_source_kind\""; text,count=re.subn(pattern, "name = \"tcrv_rvv.stale_selected_binary_source_kind\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.missing_source_identity.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.missing_source_identity.bundle/tianchenrv-target-artifact-bundle.index
 
 module @plan_vector_dynamic_i32_vadd_bundle_input {
   tcrv.exec.capability @no_rvv_policy {
@@ -114,6 +120,12 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // IR-SAME: value = "mlir-vector-transfer-tail-active-lanes"
 // IR: name = "tcrv_frontend.source_tail_policy"
 // IR-SAME: value = "runtime-n-bounded-transfer-tail-padding-and-store"
+// IR: name = "tcrv_rvv.selected_binary_source_kind"
+// IR-SAME: role = "typed-rvv-binary-source-identity"
+// IR-SAME: value = "frontend-lowering"
+// IR: name = "tcrv_rvv.selected_binary_microkernel_op"
+// IR-SAME: role = "typed-rvv-binary-source-identity"
+// IR-SAME: value = "tcrv_rvv.i32_vadd_microkernel"
 
 // STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
@@ -139,6 +151,12 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX-NEXT: value: "runtime-n-bounded-transfer-tail-padding-and-store"
 // INDEX: name: "tcrv_frontend.runtime_element_count_constraint"
 // INDEX-NEXT: value: "source-runtime-extent"
+// INDEX: name: "tcrv_rvv.selected_binary_source_kind"
+// INDEX-NEXT: value: "frontend-lowering"
+// INDEX-NEXT: role: "typed-rvv-binary-source-identity"
+// INDEX: name: "tcrv_rvv.selected_binary_microkernel_op"
+// INDEX-NEXT: value: "tcrv_rvv.i32_vadd_microkernel"
+// INDEX-NEXT: role: "typed-rvv-binary-source-identity"
 // INDEX: name: "tcrv_rvv.dispatch_contract_runtime_element_count_c_name"
 // INDEX-NEXT: value: "n"
 // INDEX: name: "tcrv_rvv.dispatch_contract_selected_vector_config"
@@ -147,6 +165,8 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX-NEXT: value: "runtime_element_count_c_name=n,runtime_avl_source=runtime-element-count-abi-parameter,runtime_avl_role=runtime-element-count,runtime_vl_source=tcrv_rvv.setvl,runtime_vl_scope=tcrv_rvv.with_vl"
 // INDEX: name: "tcrv_rvv.dispatch_contract_descriptor_element_count"
 // INDEX-NEXT: value: "16"
+// INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
+// INDEX-NEXT: value: "source_kind=frontend-lowering,family=i32-vadd,microkernel_op=tcrv_rvv.i32_vadd_microkernel"
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
 // INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
 
@@ -154,6 +174,8 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_source_kind, value=frontend-lowering, role=typed-rvv-binary-source-identity
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_microkernel_op, value=tcrv_rvv.i32_vadd_microkernel, role=typed-rvv-binary-source-identity
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 // SOURCE: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
 
@@ -162,3 +184,6 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // HEADER: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
 
 // OBJ: Name: tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
+
+// STALE-SOURCE-ID: selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind' selected binary source kind must be 'frontend-lowering'
+// MISSING-SOURCE-ID: requires selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind'
