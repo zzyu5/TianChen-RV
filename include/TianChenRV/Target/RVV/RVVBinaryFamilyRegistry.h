@@ -5,8 +5,13 @@
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <optional>
+#include <string>
 
 namespace tianchenrv::target::rvv {
 
@@ -32,6 +37,8 @@ struct RVVBinaryFamilyDescriptor {
   unsigned elementBitWidth = 32;
   llvm::StringRef familyID;
   llvm::StringRef frontendLowering;
+  llvm::StringRef sourceArithmeticOpName;
+  llvm::StringRef dynamicVectorSourceKind;
   llvm::StringRef loweringDescriptor;
   llvm::StringRef descriptorNoun;
   llvm::StringRef microkernelOpName;
@@ -63,6 +70,8 @@ inline const RVVBinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
       32,
       "i32-vadd",
       "i32-vadd",
+      "arith.addi",
+      support::kFrontendDynamicVectorI32VAddSourceKind,
       "i32-vadd-microkernel.v1",
       "finite RVV i32-vadd lowering descriptor",
       "tcrv_rvv.i32_vadd_microkernel",
@@ -95,6 +104,8 @@ inline const RVVBinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
       32,
       "i32-vsub",
       "i32-vsub",
+      "arith.subi",
+      support::kFrontendDynamicVectorI32VSubSourceKind,
       "i32-vsub-microkernel.v1",
       "finite RVV i32-vsub lowering descriptor",
       "tcrv_rvv.i32_vsub_microkernel",
@@ -127,6 +138,8 @@ inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
       32,
       "i32-vmul",
       "i32-vmul",
+      "arith.muli",
+      "",
       "i32-vmul-microkernel.v1",
       "finite RVV i32-vmul lowering descriptor",
       "tcrv_rvv.i32_vmul_microkernel",
@@ -159,6 +172,8 @@ inline const RVVBinaryFamilyDescriptor &getI64VAddFamilyRegistrationRecord() {
       64,
       "i64-vadd",
       "i64-vadd",
+      "arith.addi",
+      "",
       "i64-vadd-microkernel.v1",
       "finite i64-vadd lowering descriptor",
       "tcrv_rvv.i64_vadd_microkernel",
@@ -191,6 +206,8 @@ inline const RVVBinaryFamilyDescriptor &getI64VSubFamilyRegistrationRecord() {
       64,
       "i64-vsub",
       "i64-vsub",
+      "arith.subi",
+      "",
       "i64-vsub-microkernel.v1",
       "finite i64-vsub lowering descriptor",
       "tcrv_rvv.i64_vsub_microkernel",
@@ -223,6 +240,8 @@ inline const RVVBinaryFamilyDescriptor &getI64VMulFamilyRegistrationRecord() {
       64,
       "i64-vmul",
       "i64-vmul",
+      "arith.muli",
+      "",
       "i64-vmul-microkernel.v1",
       "finite i64-vmul lowering descriptor",
       "tcrv_rvv.i64_vmul_microkernel",
@@ -276,6 +295,109 @@ lookupRVVBinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowe
       return descriptor;
   }
   return nullptr;
+}
+
+inline std::optional<RVVBinaryDTypeKind>
+convertFrontendElementKindToRVVDTypeKind(
+    support::FiniteBinaryElementKind elementKind) {
+  switch (elementKind) {
+  case support::FiniteBinaryElementKind::I32:
+    return RVVBinaryDTypeKind::I32;
+  case support::FiniteBinaryElementKind::I64:
+    return RVVBinaryDTypeKind::I64;
+  }
+  return std::nullopt;
+}
+
+inline const RVVBinaryFamilyDescriptor *
+lookupRVVBinaryFamilyRegistrationByFrontendContract(
+    const support::FiniteBinaryFrontendContract &contract) {
+  const RVVBinaryFamilyDescriptor *family =
+      lookupRVVBinaryFamilyRegistrationByID(contract.familyID);
+  if (!family || !family->frontendContract ||
+      family->frontendContract->frontendLowering != contract.frontendLowering ||
+      family->frontendContract->elementKind != contract.elementKind ||
+      family->frontendContract->elementBitWidth != contract.elementBitWidth ||
+      family->frontendContract->constInputPointerCType !=
+          contract.constInputPointerCType ||
+      family->frontendContract->outputPointerCType !=
+          contract.outputPointerCType)
+    return nullptr;
+  return family;
+}
+
+inline const RVVBinaryFamilyDescriptor *
+lookupRVVBinaryFamilyRegistrationByFrontendSource(
+    support::FiniteBinaryElementKind elementKind,
+    llvm::StringRef sourceArithmeticOpName) {
+  std::optional<RVVBinaryDTypeKind> dtype =
+      convertFrontendElementKindToRVVDTypeKind(elementKind);
+  if (!dtype)
+    return nullptr;
+  sourceArithmeticOpName = sourceArithmeticOpName.trim();
+  for (const RVVBinaryFamilyDescriptor *descriptor :
+       getRVVBinaryFamilyRegistrationRecords()) {
+    if (descriptor->dtype == *dtype &&
+        descriptor->sourceArithmeticOpName == sourceArithmeticOpName)
+      return descriptor;
+  }
+  return nullptr;
+}
+
+inline bool isRVVBinaryFamilyAcceptedByDynamicVectorSource(
+    const RVVBinaryFamilyDescriptor &family) {
+  return !family.dynamicVectorSourceKind.empty();
+}
+
+inline llvm::StringRef getRVVDynamicVectorSourceKindForFamily(
+    const RVVBinaryFamilyDescriptor &family) {
+  return family.dynamicVectorSourceKind;
+}
+
+inline std::string formatRVVBinaryFrontendLoweringMarkers() {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  llvm::ArrayRef<const RVVBinaryFamilyDescriptor *> families =
+      getRVVBinaryFamilyRegistrationRecords();
+  for (auto [index, family] : llvm::enumerate(families)) {
+    if (index != 0) {
+      if (index + 1 == families.size())
+        stream << ", or ";
+      else
+        stream << ", ";
+    }
+    stream << "'" << family->frontendLowering << "'";
+  }
+  stream.flush();
+  return text;
+}
+
+inline std::string formatRVVDynamicVectorFrontendLowerings() {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  bool first = true;
+  unsigned remaining = 0;
+  for (const RVVBinaryFamilyDescriptor *family :
+       getRVVBinaryFamilyRegistrationRecords())
+    if (isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
+      ++remaining;
+
+  for (const RVVBinaryFamilyDescriptor *family :
+       getRVVBinaryFamilyRegistrationRecords()) {
+    if (!isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
+      continue;
+    if (!first) {
+      if (remaining == 1)
+        stream << " or ";
+      else
+        stream << ", ";
+    }
+    stream << "'" << family->frontendLowering << "'";
+    first = false;
+    --remaining;
+  }
+  stream.flush();
+  return text;
 }
 
 inline const RVVBinaryFamilyDescriptor *

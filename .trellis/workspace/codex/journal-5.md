@@ -63,3 +63,64 @@ Vector source arithmetic-family adapter registry.
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 53: RVV finite-binary family contract registry
+
+**Date**: 2026-05-13
+**Task**: RVV finite-binary family contract registry
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded RVV finite-binary family contract registry migration for
+the current source-frontdoor add/sub production route. Source linalg/vector
+family inference now queries the RVV registry for source arithmetic op,
+frontend marker, and dynamic vector source-kind metadata instead of maintaining
+an independent support-layer family lookup surface.
+
+### Main Changes
+
+- Added source arithmetic op and dynamic vector source-kind fields to
+  `RVVBinaryFamilyDescriptor`.
+- Added RVV registry helpers for frontend contract lookup, source arithmetic
+  inference, dynamic vector source-family acceptance, and marker formatting.
+- Migrated `LowerSourceRVVBinaryToExec.cpp` linalg/vector source inference,
+  marker validation, and dynamic source-kind materialization to the RVV
+  registry.
+- Removed unused support-layer frontend family lookup/format helpers so
+  `FiniteBinaryFrontendLowering.h` remains an ABI/source-authority carrier.
+
+### Evidence
+
+- Direct artifacts:
+  `artifacts/tmp/rvv_finite_binary_family_contract_registry/direct/vector_dynamic_i32_vadd/`
+  and
+  `artifacts/tmp/rvv_finite_binary_family_contract_registry/direct/vector_dynamic_i32_vsub/`.
+- Plan-and-export bundle artifacts:
+  `artifacts/tmp/rvv_finite_binary_family_contract_registry/bundle/vector_dynamic_i32_vadd/`
+  and
+  `artifacts/tmp/rvv_finite_binary_family_contract_registry/bundle/vector_dynamic_i32_vsub/`.
+- ssh rvv evidence:
+  `artifacts/tmp/rvv_finite_binary_family_contract_registry/e2e/20260513T-rvv-finite-binary-family-contract-registry-vsub/evidence.json`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts
+  `7`, `16`, and `23`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit for dynamic vector vadd/vsub, vector invalid diagnostics,
+  fixed-vector vadd, linalg add/sub, bundle export, RVV microkernel, and
+  emission manifest surfaces.
+- Broad focused lit filter:
+  `VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest`
+  with 80 selected tests passed.
+- Direct and bundle artifact commands recorded in the task PRD.
+- `git diff --check`
+- Trellis validation before finish/archive.
+
+### Status
+
+[OK] **Completed**

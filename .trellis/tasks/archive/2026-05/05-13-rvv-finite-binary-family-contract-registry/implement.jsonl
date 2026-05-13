@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, capability, plugin, and descriptor-boundary invariants for this registry migration."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Ensures shared orchestration consumes plugin/target-owned registry APIs instead of adding core family-specific semantic branches."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV finite binary family, selected vector-shape metadata, frontend markers, typed microkernel body authority, and intrinsic-prefix/suffix ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Requires extension family ops to flow through common EmitC and forbids descriptor strings as computation authority."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines runtime ABI ownership, dynamic source-tail metadata, target artifact export preflight, and selected-plan metadata coherence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/build/export/ssh-rvv evidence boundaries for dynamic vector and RVV finite binary artifacts."}

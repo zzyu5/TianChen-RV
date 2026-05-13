@@ -4,6 +4,7 @@
 #include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -75,23 +76,14 @@ constexpr llvm::StringLiteral kLegacyScalarSelectedLoweringDescriptorAttrName(
 constexpr llvm::StringLiteral kLegacySelectedLoweringDescriptorAttrName(
     "selected_lowering_descriptor");
 
-enum class SourceBinaryArithmeticKind {
-  Add,
-  Sub,
-  Mul,
-};
-
 enum class VectorFrontendAdapterMode {
   VAddOnly,
   ArithmeticFamily,
 };
 
 struct InferredFrontendBinarySource {
+  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
   const support::FiniteBinaryFrontendContract *contract = nullptr;
-  support::FiniteBinaryElementKind elementKind =
-      support::FiniteBinaryElementKind::I32;
-  SourceBinaryArithmeticKind arithmetic = SourceBinaryArithmeticKind::Add;
-  unsigned elementBitWidth = 32;
   llvm::StringRef arithmeticOpName;
 };
 
@@ -105,89 +97,38 @@ struct SourceFrontendLoweringRequest {
   support::FiniteBinarySourceFrontendLoweringContract loweringContract;
 };
 
-llvm::StringRef getSourceArithmeticOpName(SourceBinaryArithmeticKind kind) {
-  switch (kind) {
-  case SourceBinaryArithmeticKind::Add:
-    return kArithAddIOpName;
-  case SourceBinaryArithmeticKind::Sub:
-    return kArithSubIOpName;
-  case SourceBinaryArithmeticKind::Mul:
-    return kArithMulIOpName;
-  }
-  return llvm::StringRef();
-}
-
-llvm::StringRef getSourceArithmeticFrontendSuffix(
-    SourceBinaryArithmeticKind kind) {
-  switch (kind) {
-  case SourceBinaryArithmeticKind::Add:
-    return "vadd";
-  case SourceBinaryArithmeticKind::Sub:
-    return "vsub";
-  case SourceBinaryArithmeticKind::Mul:
-    return "vmul";
-  }
-  return llvm::StringRef();
-}
-
-llvm::StringRef getElementKindDTypeID(support::FiniteBinaryElementKind kind) {
-  switch (kind) {
-  case support::FiniteBinaryElementKind::I32:
-    return "i32";
-  case support::FiniteBinaryElementKind::I64:
-    return "i64";
-  }
-  return llvm::StringRef();
-}
-
-std::string getInferredFamilyID(support::FiniteBinaryElementKind elementKind,
-                                SourceBinaryArithmeticKind arithmetic) {
-  return (llvm::Twine(getElementKindDTypeID(elementKind)) + "-" +
-          getSourceArithmeticFrontendSuffix(arithmetic))
-      .str();
-}
-
 std::string formatSupportedFrontendLowerings() {
-  return support::formatFiniteBinaryFrontendLoweringMarkers();
+  return target::rvv::formatRVVBinaryFrontendLoweringMarkers();
 }
 
 std::string formatSupportedDynamicVectorFrontendLowerings() {
-  return "'i32-vadd' or 'i32-vsub'";
-}
-
-bool isSupportedDynamicVectorFrontendContract(
-    const support::FiniteBinaryFrontendContract &contract) {
-  return contract.familyID ==
-             support::getI32VAddFiniteBinaryFrontendContract().familyID ||
-         contract.familyID ==
-             support::getI32VSubFiniteBinaryFrontendContract().familyID;
+  return target::rvv::formatRVVDynamicVectorFrontendLowerings();
 }
 
 mlir::LogicalResult populateI32VectorSourceIdentity(
-    mlir::Operation *sourceOp, SourceBinaryArithmeticKind arithmetic,
+    mlir::Operation *sourceOp, mlir::Operation *arithmeticOp,
     InferredFrontendBinarySource &out) {
-  std::string inferredFamilyID = getInferredFamilyID(
-      support::FiniteBinaryElementKind::I32, arithmetic);
-  const support::FiniteBinaryFrontendContract *contract =
-      support::lookupFiniteBinaryFrontendContractByFamilyID(inferredFamilyID);
-  if (!contract)
+  llvm::StringRef sourceArithmeticOpName =
+      arithmeticOp ? arithmeticOp->getName().getStringRef() : llvm::StringRef();
+  const target::rvv::RVVBinaryFamilyDescriptor *family =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendSource(
+          support::FiniteBinaryElementKind::I32, sourceArithmeticOpName);
+  if (!family || !family->frontendContract)
     return sourceOp->emitError()
            << "TianChen-RV vector source frontend inferred unsupported finite "
-              "source family '"
-           << inferredFamilyID << "'";
-  if (!isSupportedDynamicVectorFrontendContract(*contract))
+              "source arithmetic op '"
+           << sourceArithmeticOpName << "'";
+  if (!target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
     return sourceOp->emitError()
            << "TianChen-RV vector source frontend supports only "
            << formatSupportedDynamicVectorFrontendLowerings()
-           << "; inferred family '" << inferredFamilyID
+           << "; inferred family '" << family->familyID
            << "' is not accepted because this pass is not a generic vector "
               "backend";
 
-  out.contract = contract;
-  out.elementKind = support::FiniteBinaryElementKind::I32;
-  out.arithmetic = arithmetic;
-  out.elementBitWidth = 32;
-  out.arithmeticOpName = getSourceArithmeticOpName(arithmetic);
+  out.family = family;
+  out.contract = family->frontendContract;
+  out.arithmeticOpName = family->sourceArithmeticOpName;
   return mlir::success();
 }
 
@@ -277,15 +218,13 @@ getSupportedElementKindForWidth(unsigned width) {
   return std::nullopt;
 }
 
-std::optional<SourceBinaryArithmeticKind>
-getSupportedArithmeticKind(mlir::Operation *op) {
-  if (isOperationNamed(op, kArithAddIOpName))
-    return SourceBinaryArithmeticKind::Add;
-  if (isOperationNamed(op, kArithSubIOpName))
-    return SourceBinaryArithmeticKind::Sub;
-  if (isOperationNamed(op, kArithMulIOpName))
-    return SourceBinaryArithmeticKind::Mul;
-  return std::nullopt;
+const target::rvv::RVVBinaryFamilyDescriptor *
+lookupRVVFrontendSourceFamily(support::FiniteBinaryElementKind elementKind,
+                              mlir::Operation *arithmeticOp) {
+  if (!arithmeticOp)
+    return nullptr;
+  return target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendSource(
+      elementKind, arithmeticOp->getName().getStringRef());
 }
 
 std::string getIntegerTypeSpelling(unsigned width) {
@@ -362,15 +301,14 @@ inferMarkedLinalgSourceIdentity(mlir::Operation *linalgOp,
 
   mlir::Operation &arithmetic = body.front();
   mlir::Operation &yield = body.back();
-  std::optional<SourceBinaryArithmeticKind> arithmeticKind =
-      getSupportedArithmeticKind(&arithmetic);
-  if (!arithmeticKind)
+  const target::rvv::RVVBinaryFamilyDescriptor *family =
+      lookupRVVFrontendSourceFamily(*elementKind, &arithmetic);
+  if (!family || !family->frontendContract)
     return linalgOp->emitError()
            << "marked linalg.generic for TianChen-RV bounded binary expects "
               "source body arithmetic to be arith.addi, arith.subi, or "
               "arith.muli";
-  llvm::StringRef arithmeticOpName =
-      getSourceArithmeticOpName(*arithmeticKind);
+  llvm::StringRef arithmeticOpName = family->sourceArithmeticOpName;
 
   if (!isOperationNamed(&yield, kLinalgYieldOpName))
     return linalgOp->emitError()
@@ -396,20 +334,8 @@ inferMarkedLinalgSourceIdentity(mlir::Operation *linalgOp,
            << " expects linalg.yield to return the "
            << arithmeticOpName << " result";
 
-  std::string inferredFamilyID =
-      getInferredFamilyID(*elementKind, *arithmeticKind);
-  const support::FiniteBinaryFrontendContract *contract =
-      support::lookupFiniteBinaryFrontendContractByFamilyID(inferredFamilyID);
-  if (!contract)
-    return linalgOp->emitError()
-           << "marked linalg.generic for TianChen-RV bounded binary inferred "
-              "unsupported finite source family '"
-           << inferredFamilyID << "'";
-
-  out.contract = contract;
-  out.elementKind = *elementKind;
-  out.arithmetic = *arithmeticKind;
-  out.elementBitWidth = *lhsWidth;
+  out.family = family;
+  out.contract = family->frontendContract;
   out.arithmeticOpName = arithmeticOpName;
   return mlir::success();
 }
@@ -964,19 +890,24 @@ requireDynamicVectorI32BinarySourceWrapper(
                                                                "rhs read")))
     return mlir::failure();
 
-  std::optional<SourceBinaryArithmeticKind> arithmeticKind =
-      getSupportedArithmeticKind(add);
-  if (!arithmeticKind || *arithmeticKind == SourceBinaryArithmeticKind::Mul ||
-      (mode == VectorFrontendAdapterMode::VAddOnly &&
-       *arithmeticKind != SourceBinaryArithmeticKind::Add))
+  const target::rvv::RVVBinaryFamilyDescriptor *family =
+      lookupRVVFrontendSourceFamily(support::FiniteBinaryElementKind::I32,
+                                    add);
+  bool isVAddFamily =
+      family && family->familyID ==
+                    target::rvv::getI32VAddFamilyRegistrationRecord().familyID;
+  bool isAcceptedDynamicVectorFamily =
+      family &&
+      target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family);
+  if (!family || !isAcceptedDynamicVectorFamily ||
+      (mode == VectorFrontendAdapterMode::VAddOnly && !isVAddFamily))
     return add->emitError()
            << "TianChen-RV dynamic vector i32 binary frontend expects "
            << (mode == VectorFrontendAdapterMode::VAddOnly
                    ? "arith.addi"
                    : "arith.addi or arith.subi")
            << " over the two transfer-read vector values";
-  llvm::StringRef arithmeticOpName =
-      getSourceArithmeticOpName(*arithmeticKind);
+  llvm::StringRef arithmeticOpName = family->sourceArithmeticOpName;
   if (add->getOperand(0) != lhsRead->getResult(0) ||
       add->getOperand(1) != rhsRead->getResult(0) ||
       !isRankedVectorWithIntegerElementWidth(
@@ -1012,21 +943,21 @@ requireDynamicVectorI32BinarySourceWrapper(
            << "TianChen-RV dynamic vector i32 binary frontend expects "
               "func.return without operands";
 
-  return populateI32VectorSourceIdentity(funcOp, *arithmeticKind, source);
+  return populateI32VectorSourceIdentity(funcOp, add, source);
 }
 
 mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
                                                   llvm::StringRef marker) {
-  const support::FiniteBinaryFrontendContract *markerContract =
-      support::lookupFiniteBinaryFrontendContractByMarker(marker);
-  if (!markerContract)
+  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
+  if (!markerFamily || !markerFamily->frontendContract)
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend expects '"
            << kFrontendLoweringAttrName << "' to be 'i32-vadd'";
 
-  const support::FiniteBinaryFrontendContract &expected =
-      support::getI32VAddFiniteBinaryFrontendContract();
-  if (markerContract->familyID != expected.familyID)
+  const target::rvv::RVVBinaryFamilyDescriptor &expected =
+      target::rvv::getI32VAddFamilyRegistrationRecord();
+  if (markerFamily->familyID != expected.familyID)
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend supports only marker "
               "'i32-vadd'; marker '"
@@ -1040,15 +971,18 @@ mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
 mlir::LogicalResult crossCheckVectorFrontendMarker(
     mlir::Operation *funcOp, llvm::StringRef marker,
     const InferredFrontendBinarySource &source) {
-  const support::FiniteBinaryFrontendContract *markerContract =
-      support::lookupFiniteBinaryFrontendContractByMarker(marker);
-  if (!markerContract)
+  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
+  if (!markerFamily || !markerFamily->frontendContract)
     return funcOp->emitError()
            << "TianChen-RV vector source frontend expects '"
            << kFrontendLoweringAttrName
            << "' to be " << formatSupportedDynamicVectorFrontendLowerings();
 
-  if (!isSupportedDynamicVectorFrontendContract(*markerContract))
+  const support::FiniteBinaryFrontendContract *markerContract =
+      markerFamily->frontendContract;
+  if (!target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(
+          *markerFamily))
     return funcOp->emitError()
            << "TianChen-RV vector source frontend supports only marker "
            << formatSupportedDynamicVectorFrontendLowerings() << "; marker '"
@@ -1077,14 +1011,16 @@ mlir::LogicalResult crossCheckVectorFrontendMarker(
 mlir::LogicalResult crossCheckFrontendMarker(
     mlir::Operation *linalgOp, llvm::StringRef marker,
     const InferredFrontendBinarySource &source) {
-  const support::FiniteBinaryFrontendContract *markerContract =
-      support::lookupFiniteBinaryFrontendContractByMarker(marker);
-  if (!markerContract)
+  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
+  if (!markerFamily || !markerFamily->frontendContract)
     return linalgOp->emitError()
            << "marked linalg.generic for TianChen-RV expects '"
            << kFrontendLoweringAttrName
            << "' to be " << formatSupportedFrontendLowerings();
 
+  const support::FiniteBinaryFrontendContract *markerContract =
+      markerFamily->frontendContract;
   if (markerContract->dtypeID != source.contract->dtypeID)
     return linalgOp->emitError()
            << "marked linalg.generic for TianChen-RV has marker '"
@@ -1135,8 +1071,12 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
   if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
+    const target::rvv::RVVBinaryFamilyDescriptor *family =
+        target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendContract(
+            contract);
     llvm::StringRef sourceKind =
-        support::getDynamicVectorSourceKindForFrontendContract(contract);
+        family ? target::rvv::getRVVDynamicVectorSourceKindForFamily(*family)
+               : llvm::StringRef();
     state.addAttribute(support::kFrontendSourceKindAttrName,
                        builder.getStringAttr(sourceKind));
     state.addAttribute(
@@ -1203,8 +1143,12 @@ mlir::LogicalResult materializeFrontendSourceRuntimeParamAttrs(
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
   if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
+    const target::rvv::RVVBinaryFamilyDescriptor *family =
+        target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendContract(
+            *spec.contract);
     llvm::StringRef sourceKind =
-        support::getDynamicVectorSourceKindForFrontendContract(*spec.contract);
+        family ? target::rvv::getRVVDynamicVectorSourceKindForFamily(*family)
+               : llvm::StringRef();
     runtimeElementCount->setAttr(
         support::kFrontendSourceKindAttrName,
         builder.getStringAttr(sourceKind));
@@ -1275,14 +1219,17 @@ lowerOneSourceFrontendRequest(mlir::ModuleOp module,
     return module.emitError()
            << "TianChen-RV source frontend lowering received an incomplete "
               "adapter request";
-  if (request.loweringContract.dynamicRuntimeExtentFromSCFUpperBound &&
-      support::getDynamicVectorSourceKindForFrontendContract(
-          *request.loweringContract.contract)
-          .empty())
-    return sourceOp->emitError()
-           << "TianChen-RV " << request.frontendName
-           << " has no bounded dynamic vector source-kind adapter for family '"
-           << request.loweringContract.contract->familyID << "'";
+  if (request.loweringContract.dynamicRuntimeExtentFromSCFUpperBound) {
+    const target::rvv::RVVBinaryFamilyDescriptor *family =
+        target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendContract(
+            *request.loweringContract.contract);
+    if (!family ||
+        target::rvv::getRVVDynamicVectorSourceKindForFamily(*family).empty())
+      return sourceOp->emitError()
+             << "TianChen-RV " << request.frontendName
+             << " has no bounded dynamic vector source-kind adapter for family '"
+             << request.loweringContract.contract->familyID << "'";
+  }
 
   if (!request.kernelAttr || !isBareSymbolName(request.kernelAttr.getValue()))
     return sourceOp->emitError()
@@ -1400,9 +1347,13 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
   if (body.getNumArguments() == 3) {
     if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
       return mlir::failure();
-    if (mlir::failed(populateI32VectorSourceIdentity(
-            funcOp, SourceBinaryArithmeticKind::Add, source)))
-      return mlir::failure();
+    source.family = &target::rvv::getI32VAddFamilyRegistrationRecord();
+    source.contract = source.family->frontendContract;
+    source.arithmeticOpName = source.family->sourceArithmeticOpName;
+    if (!source.contract)
+      return funcOp->emitError()
+             << "TianChen-RV vector i32-vadd frontend registry entry is "
+                "missing its finite frontend contract";
     if (mode == VectorFrontendAdapterMode::ArithmeticFamily &&
         mlir::failed(crossCheckVectorFrontendMarker(
             funcOp, frontendAttr.getValue(), source)))

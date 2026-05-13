@@ -6,9 +6,7 @@
 #include "TianChenRV/Support/RuntimeABIParam.h"
 
 #include "mlir/IR/Operation.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
@@ -670,65 +668,6 @@ getI64VMulFiniteBinaryFrontendContract() {
   return contract;
 }
 
-inline llvm::StringRef getDynamicVectorSourceKindForFrontendContract(
-    const FiniteBinaryFrontendContract &contract) {
-  if (contract.familyID == getI32VAddFiniteBinaryFrontendContract().familyID)
-    return kFrontendDynamicVectorI32VAddSourceKind;
-  if (contract.familyID == getI32VSubFiniteBinaryFrontendContract().familyID)
-    return kFrontendDynamicVectorI32VSubSourceKind;
-  return {};
-}
-
-inline llvm::ArrayRef<const FiniteBinaryFrontendContract *>
-getFiniteBinaryFrontendContracts() {
-  static const FiniteBinaryFrontendContract *families[] = {
-      &getI32VAddFiniteBinaryFrontendContract(),
-      &getI32VSubFiniteBinaryFrontendContract(),
-      &getI32VMulFiniteBinaryFrontendContract(),
-      &getI64VAddFiniteBinaryFrontendContract(),
-      &getI64VSubFiniteBinaryFrontendContract(),
-      &getI64VMulFiniteBinaryFrontendContract()};
-  return llvm::ArrayRef(families);
-}
-
-inline const FiniteBinaryFrontendContract *
-lookupFiniteBinaryFrontendContractByFamilyID(llvm::StringRef familyID) {
-  familyID = familyID.trim();
-  for (const FiniteBinaryFrontendContract *contract :
-       getFiniteBinaryFrontendContracts())
-    if (contract->familyID == familyID)
-      return contract;
-  return nullptr;
-}
-
-inline const FiniteBinaryFrontendContract *
-lookupFiniteBinaryFrontendContractByMarker(llvm::StringRef frontendLowering) {
-  frontendLowering = frontendLowering.trim();
-  for (const FiniteBinaryFrontendContract *contract :
-       getFiniteBinaryFrontendContracts())
-    if (contract->frontendLowering == frontendLowering)
-      return contract;
-  return nullptr;
-}
-
-inline std::string formatFiniteBinaryFrontendLoweringMarkers() {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  llvm::ArrayRef<const FiniteBinaryFrontendContract *> families =
-      getFiniteBinaryFrontendContracts();
-  for (auto [index, family] : llvm::enumerate(families)) {
-    if (index != 0) {
-      if (index + 1 == families.size())
-        stream << ", or ";
-      else
-        stream << ", ";
-    }
-    stream << "'" << family->frontendLowering << "'";
-  }
-  stream.flush();
-  return text;
-}
-
 inline llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
 getFiniteBinaryFrontendBufferMemWindowSpecs(
     const FiniteBinaryFrontendContract &contract) {
@@ -811,12 +750,6 @@ makeDynamicVectorI32SourceFrontendLoweringContract(
       makeFiniteBinarySourceFrontendLoweringContract(contract);
   sourceContract.dynamicRuntimeExtentFromSCFUpperBound = true;
   return sourceContract;
-}
-
-inline FiniteBinarySourceFrontendLoweringContract
-makeDynamicVectorI32VSubSourceFrontendLoweringContract() {
-  return makeDynamicVectorI32SourceFrontendLoweringContract(
-      getI32VSubFiniteBinaryFrontendContract());
 }
 
 } // namespace tianchenrv::support

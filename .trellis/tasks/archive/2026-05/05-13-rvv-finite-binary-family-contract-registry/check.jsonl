@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Review global architecture red lines, implementation stack, and evidence scope before accepting the registry migration."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check that source/shared orchestration did not gain stale family-specific semantic branches outside the RVV contract boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV finite binary family registry authority, selected config, source-kind metadata, and vadd/vsub marker semantics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifacts remain typed extension-op-to-EmitC/intrinsic route and not descriptor-driven source emission."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI, source-tail authority, selected-plan coherence, and target artifact front-door behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build/artifact/ssh-rvv evidence expectations and no overclaiming."}
