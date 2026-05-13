@@ -1386,6 +1386,9 @@ bool expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(
 bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
     const TargetArtifactExporterRegistry &registry);
 
+bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
+    const TargetArtifactExporterRegistry &registry);
+
 bool expectPluginOwnedToyTargetExporterRegistration() {
   constexpr llvm::StringLiteral toyRouteID(
       "none-executable-toy-template-metadata");
@@ -1756,6 +1759,9 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
   if (!expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(registry))
     return false;
   if (!expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(registry))
+    return false;
+  if (!expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
+          registry))
     return false;
   if (!expectCompositeRoute(registry, legacyRVVHeaderRouteID,
                             "runtime-callable-c-header", "rvv-plugin",
@@ -3996,6 +4002,97 @@ bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
        "requires selected_plan_metadata 'tcrv_rvv.descriptor_element_count'"});
 }
 
+bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
+    const TargetArtifactExporterRegistry &registry) {
+  const TargetArtifactExporter *exporter =
+      registry.lookup("tcrv-export-rvv-i32-vsub-microkernel-c");
+  if (!exporter) {
+    llvm::errs() << "missing RVV vsub microkernel route for selected-config "
+                    "runtime-VL mismatch tests\n";
+    return false;
+  }
+
+  auto expectMutatedCandidateRejected =
+      [&](llvm::StringRef context, llvm::StringRef metadataName,
+          llvm::StringRef staleValue,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    TargetArtifactCandidate candidate =
+        makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                  "rvv_sub_slice");
+    if (!setSelectedPlanMetadataValue(candidate, metadataName, staleValue)) {
+      llvm::errs() << context << ": test candidate is missing metadata '"
+                   << metadataName << "'\n";
+      return false;
+    }
+    return expectErrorContains(
+        validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
+        context, fragments);
+  };
+
+  if (!expectMutatedCandidateRejected(
+          "stale selected RVV SEW rejected by vsub direct route",
+          "tcrv_rvv.selected_vector_sew", "64",
+          {"selected_plan_metadata 'tcrv_rvv.selected_vector_sew'",
+           "sew must be '32'"}))
+    return false;
+  if (!expectMutatedCandidateRejected(
+          "stale selected RVV LMUL rejected by vsub direct route",
+          "tcrv_rvv.selected_vector_lmul", "m2",
+          {"selected_plan_metadata 'tcrv_rvv.selected_vector_lmul'",
+           "lmul must be 'm1'"}))
+    return false;
+  if (!expectMutatedCandidateRejected(
+          "stale selected RVV tail policy rejected by vsub direct route",
+          "tcrv_rvv.selected_tail_policy", "undisturbed",
+          {"selected_plan_metadata 'tcrv_rvv.selected_tail_policy'",
+           "tail policy must be 'agnostic'"}))
+    return false;
+  if (!expectMutatedCandidateRejected(
+          "stale selected RVV mask policy rejected by vsub direct route",
+          "tcrv_rvv.selected_mask_policy", "undisturbed",
+          {"selected_plan_metadata 'tcrv_rvv.selected_mask_policy'",
+           "mask policy must be 'agnostic'"}))
+    return false;
+  if (!expectMutatedCandidateRejected(
+          "stale runtime VL source rejected by vsub direct route",
+          "tcrv_rvv.runtime_vl_source", "descriptor-element-count",
+          {"selected_plan_metadata 'tcrv_rvv.runtime_vl_source'",
+           "must use value 'tcrv_rvv.setvl'"}))
+    return false;
+  if (!expectMutatedCandidateRejected(
+          "stale runtime VL scope rejected by vsub direct route",
+          "tcrv_rvv.runtime_vl_scope", "descriptor-element-count",
+          {"selected_plan_metadata 'tcrv_rvv.runtime_vl_scope'",
+           "must use value 'tcrv_rvv.with_vl'"}))
+    return false;
+  if (!expectMutatedCandidateRejected(
+          "descriptor-local count rejected as vsub runtime element-count "
+          "authority",
+          tianchenrv::target::rvv::getRVVRuntimeElementCountCNameMetadataName(),
+          "descriptor_element_count",
+          {"selected_plan_metadata 'tcrv_rvv.runtime_element_count_c_name'",
+           "runtime element-count C name must be 'n'"}))
+    return false;
+
+  TargetArtifactCandidate missingAVL =
+      makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                "rvv_sub_slice");
+  if (!eraseSelectedPlanMetadataEntry(
+          missingAVL,
+          tianchenrv::target::rvv::getRVVRuntimeAVLSourceMetadataName())) {
+    llvm::errs() << "test candidate is missing runtime_avl_source metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          validateTargetArtifactCandidateAgainstExporter(missingAVL, *exporter),
+          "missing runtime AVL source rejected by vsub direct route",
+          {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
+           "requires selected_plan_metadata 'tcrv_rvv.runtime_avl_source'"}))
+    return false;
+
+  return true;
+}
+
 bool expectRVVI64SourceRejectsStaleI32AddMetadata(
     const TargetArtifactExporterRegistry &registry,
     const RVVBinaryFamilyDescriptor &family) {
@@ -4557,6 +4654,35 @@ bool expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
       {"selected RVV target artifact candidate @rvv_first_slice",
        "selected_plan_metadata 'tcrv_rvv.selected_vector_lmul_capability' "
        "LMUL capability id must be 'rvv.i32_m1.lmul_m1'"});
+}
+
+bool expectDispatchCompositePreflightRejectsRVVRuntimeVLMetadataMismatch(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
+  TargetArtifactCandidate rvvCandidate =
+      makeRVVSubDispatchCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                  "rvv_first_slice");
+  TargetArtifactCandidate scalarCandidate =
+      makeScalarSubDispatchFallbackCandidate(
+          tianchenrv::tcrv::exec::KernelOp(),
+          "scalar_fallback_first_slice");
+  if (!setSelectedPlanMetadataValue(rvvCandidate,
+                                    "tcrv_rvv.runtime_vl_scope",
+                                    "descriptor-element-count")) {
+    llvm::errs() << "test candidate is missing runtime_vl_scope metadata\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(rvvCandidate);
+  candidates.push_back(scalarCandidate);
+
+  return expectCompositeCandidateValidationRejects(
+      registry, routeID, candidates,
+      "dispatch composite rejects stale RVV runtime VL metadata for " +
+          routeID.str(),
+      {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
+       "selected_plan_metadata 'tcrv_rvv.runtime_vl_scope'",
+       "must use value 'tcrv_rvv.with_vl'"});
 }
 
 bool expectDispatchCompositePreflightRequiresSelectedPlanFamilyAuthority(
@@ -6357,6 +6483,17 @@ int main() {
   if (!expectDispatchCompositePreflightRejectsRVVCapabilityMismatch(
           builtinRegistry,
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-object"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsRVVRuntimeVLMetadataMismatch(
+          builtinRegistry, "tcrv-export-rvv-scalar-i32-vsub-dispatch-c"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsRVVRuntimeVLMetadataMismatch(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-header"))
+    return 1;
+  if (!expectDispatchCompositePreflightRejectsRVVRuntimeVLMetadataMismatch(
+          builtinRegistry,
+          "tcrv-export-rvv-scalar-i32-vsub-dispatch-object"))
     return 1;
   if (!expectDispatchCompositePreflightRequiresSelectedPlanFamilyAuthority(
           builtinRegistry))

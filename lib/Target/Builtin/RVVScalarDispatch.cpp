@@ -178,7 +178,7 @@ llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigContract>
 buildDispatchPairSelectedConfigContract(
     const DispatchPair &pair, const DispatchRVVVectorShapeConfig &shape);
 
-llvm::Error validateDispatchLegacyDescriptorMirrorMetadata(
+llvm::Error validateDispatchSelectedConfigContractMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract);
 
@@ -1290,9 +1290,8 @@ llvm::Expected<DispatchPair> collectDispatchPairFromCandidates(
   if (!selectedConfig)
     return selectedConfig.takeError();
   pair.selectedConfig = std::move(*selectedConfig);
-  if (llvm::Error error =
-          validateDispatchLegacyDescriptorMirrorMetadata(pair.rvv,
-                                                     pair.selectedConfig))
+  if (llvm::Error error = validateDispatchSelectedConfigContractMetadata(
+          pair.rvv, pair.selectedConfig))
     return std::move(error);
   if (llvm::Error error =
           validateDispatchManifestRoutesForFamily(pair.rvv.kernel,
@@ -1876,72 +1875,78 @@ llvm::Error validateDispatchSelectedPlanMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error validateDispatchLegacyDescriptorMirrorMetadata(
+llvm::Error validateDispatchDescriptorElementCountMetadata(
+    const TargetArtifactCandidate &candidate,
+    const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract) {
+  llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
+      findUniqueSelectedPlanMetadataEntry(
+          candidate,
+          tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName());
+  if (!metadata)
+    return metadata.takeError();
+  std::string expectedCount =
+      std::to_string(contract.getDescriptorElementCount());
+  if ((*metadata)->value != expectedCount)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
+            "' descriptor element count must be '" + expectedCount + "'");
+  if ((*metadata)->role !=
+      tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataRole())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
+            "' role must be '" +
+            tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataRole() +
+            "'");
+  if ((*metadata)->note !=
+      tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataNote())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch candidate @") +
+            candidate.selectedVariant + " selected_plan_metadata '" +
+            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
+            "' note must be '" +
+            tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataNote() +
+            "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateDispatchSelectedConfigContractMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract) {
   llvm::SmallVector<
-      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 32>
       expected;
-  bool expectsTypedSource =
-      contract.getFamily().dtype ==
+  tianchenrv::target::rvv::appendRVVBinarySelectedVectorShapeMetadata(
+      contract, expected);
+  tianchenrv::target::rvv::appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
+      contract, expected);
+  tianchenrv::target::rvv::
+      appendRVVBinaryFixedVectorSourceExtentSelectedPlanMetadata(contract,
+                                                                expected);
+  tianchenrv::target::rvv::
+      appendRVVBinaryDynamicRuntimeExtentSelectedPlanMetadata(contract,
+                                                             expected);
+  if (contract.getFamily().dtype ==
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype ==
-          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
-  if (expectsTypedSource)
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         contract, expected);
   else
     tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
         contract, expected);
+
   for (const auto &entry : expected)
     if (llvm::Error error =
             validateDispatchSelectedPlanMetadataEntry(candidate, entry))
       return error;
-  if (!expectsTypedSource && contract.getDescriptorElementCount() > 0) {
-    llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
-        findUniqueSelectedPlanMetadataEntry(
-            candidate,
-            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName());
-    if (!metadata)
-      return metadata.takeError();
-    std::string expectedCount =
-        std::to_string(contract.getDescriptorElementCount());
-    if ((*metadata)->value != expectedCount)
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected RVV dispatch candidate @") +
-              candidate.selectedVariant + " selected_plan_metadata '" +
-              tianchenrv::target::rvv::
-                  getRVVDescriptorElementCountMetadataName() +
-              "' descriptor element count must be '" + expectedCount + "'");
-    if ((*metadata)->role !=
-        tianchenrv::target::rvv::
-            getRVVLegacyDescriptorMirrorMetadataRole())
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected RVV dispatch candidate @") +
-              candidate.selectedVariant + " selected_plan_metadata '" +
-              tianchenrv::target::rvv::
-                  getRVVDescriptorElementCountMetadataName() +
-              "' role must be '" +
-              tianchenrv::target::rvv::
-                  getRVVLegacyDescriptorMirrorMetadataRole() +
-              "'");
-    if ((*metadata)->note !=
-        tianchenrv::target::rvv::
-            getRVVLegacyDescriptorMirrorMetadataNote())
-      return makeDispatchError(
-          candidate.kernel,
-          llvm::Twine("selected RVV dispatch candidate @") +
-              candidate.selectedVariant + " selected_plan_metadata '" +
-              tianchenrv::target::rvv::
-                  getRVVDescriptorElementCountMetadataName() +
-              "' note must be '" +
-              tianchenrv::target::rvv::
-                  getRVVLegacyDescriptorMirrorMetadataNote() +
-              "'");
-  }
-  return llvm::Error::success();
+  return validateDispatchDescriptorElementCountMetadata(candidate, contract);
 }
 
 llvm::Expected<const DispatchRVVVectorShapeConfig *>

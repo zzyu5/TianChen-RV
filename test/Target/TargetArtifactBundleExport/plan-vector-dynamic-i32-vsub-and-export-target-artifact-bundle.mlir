@@ -9,6 +9,10 @@
 // RUN: FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_vadd" --implicit-check-not=i32_vadd --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not="__builtin_trap" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password < %t.vector.dynamic.vsub.bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv" --implicit-check-not=i32_vadd --implicit-check-not=") {" --implicit-check-not="int main" --implicit-check-not="_self_check" --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password < %t.vector.dynamic.vsub.bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h
 // RUN: llvm-readobj --file-headers --symbols %t.vector.dynamic.vsub.bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o | FileCheck %s --check-prefixes=OBJ --implicit-check-not="Name: main"
+// RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "tcrv_rvv.with_vl"/s//value = "descriptor-element-count"/' > %t.vector.dynamic.vsub.stale-vl.planned.mlir
+// RUN: rm -rf %t.vector.dynamic.vsub.stale-vl.bundle && mkdir %t.vector.dynamic.vsub.stale-vl.bundle
+// RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.vsub.stale-vl.bundle %t.vector.dynamic.vsub.stale-vl.planned.mlir 2>&1 | FileCheck %s --check-prefix=STALE-BUNDLE-VL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.vsub.stale-vl.bundle/tianchenrv-target-artifact-bundle.index
 
 module @plan_vector_dynamic_i32_vsub_bundle_input {
   tcrv.exec.capability @no_rvv_policy {
@@ -151,3 +155,6 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // HEADER: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
 
 // OBJ: Name: tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
+
+// STALE-BUNDLE-VL: selected_plan_metadata 'tcrv_rvv.runtime_vl_scope'
+// STALE-BUNDLE-VL-SAME: must use value 'tcrv_rvv.with_vl'

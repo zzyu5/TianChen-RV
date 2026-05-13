@@ -64,6 +64,55 @@ Vector source arithmetic-family adapter registry.
 
 - None - task complete
 
+## 2026-05-13 - RVV selected-config fail-closed artifact validation
+
+### Summary
+
+- Created and completed task
+  `.trellis/tasks/05-13-rvv-selected-config-fail-closed-artifact-validation`
+  from the Hermes Direction Brief.
+- Tightened RVV+scalar dispatch bundle component validation to consume the full
+  `RVVBinarySelectedConfigContract` for selected vector shape, runtime AVL/VL,
+  source runtime extent, typed RVV source metadata, and descriptor-local count
+  before bundle metadata export.
+- Added direct i32-vsub negative coverage for stale SEW/LMUL/tail/mask,
+  runtime VL source/scope, runtime element-count authority, and missing runtime
+  AVL source.
+- Added vsub dispatch composite source/header/object preflight coverage for
+  stale runtime VL metadata and lit fail-closed checks for direct source and
+  target artifact bundle export.
+
+### Evidence
+
+- Direct artifacts:
+  `artifacts/tmp/rvv_selected_config_fail_closed/direct/vector_dynamic_i32_vsub/`
+  and
+  `artifacts/tmp/rvv_selected_config_fail_closed/direct/vector_dynamic_i32_vadd/`.
+- Bundle artifacts:
+  `artifacts/tmp/rvv_selected_config_fail_closed/bundle/vector_dynamic_i32_vsub/`
+  and
+  `artifacts/tmp/rvv_selected_config_fail_closed/bundle/vector_dynamic_i32_vadd/`.
+- ssh rvv evidence:
+  `artifacts/tmp/rvv_selected_config_fail_closed/e2e/20260513T-rvv-selected-config-fail-closed-vsub/evidence.json`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts `7`,
+  `16`, and `23`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit for the two changed dynamic vsub direct/bundle files: 2 selected
+  tests passed.
+- Focused lit for dynamic vector add/sub, invalid vector diagnostics, bundle
+  export, RVV microkernel, emission manifest, fixed-vector vadd, and linalg
+  add/sub: 52 selected tests passed.
+- Broader focused lit `VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest`: 80 selected tests passed.
+- `git diff --check`, `git diff --cached --check`, and Trellis validation.
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
 ---
 
 ## Session 53: RVV finite-binary family contract registry

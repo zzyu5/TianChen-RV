@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Verify the change preserves global architecture and implementation stack invariants."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify RVV selected config/runtime VL validation remains plugin/target-owned and bounded."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Verify artifact and bundle export fail closed before output on stale selected metadata."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Verify focused test and evidence coverage matches the changed compiler behavior."}
