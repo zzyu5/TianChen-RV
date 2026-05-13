@@ -3126,9 +3126,11 @@ public:
       const RVVBinaryIntrinsicDescriptor &descriptor,
       const RVVIntrinsicConfig &intrinsicConfig,
       const RVVBinaryDataflowEmissionPlan &dataflowPlan,
-      llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters)
+      llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+      RVVRuntimeLengthContract runtimeLength, llvm::StringRef loopIndexName)
       : descriptor(descriptor), intrinsicConfig(intrinsicConfig),
-        dataflowPlan(dataflowPlan) {
+        dataflowPlan(dataflowPlan), runtimeLength(std::move(runtimeLength)),
+        loopIndexName(loopIndexName.str()) {
     this->runtimeABIParameters.append(runtimeABIParameters.begin(),
                                       runtimeABIParameters.end());
   }
@@ -3147,6 +3149,15 @@ public:
       return makeModuleMicrokernelError(
           "RVV family-op to EmitC route requires runtime-element-count ABI "
           "mapping from the IR-backed callable plan");
+    if (llvm::Error error = validateRVVRuntimeLengthContract(runtimeLength))
+      return std::move(error);
+    if (runtimeN->cName != runtimeLength.getRuntimeElementCountCName())
+      return makeModuleMicrokernelError(
+          llvm::Twine("RVV family-op to EmitC route runtime-length contract "
+                      "requires runtime element-count C name '") +
+          runtimeLength.getRuntimeElementCountCName() +
+          "' but the IR-backed callable ABI parameter uses '" +
+          runtimeN->cName + "'");
 
     TCRVEmitCLowerableRoute route(
         descriptor.getRVVRouteID(),
@@ -3166,7 +3177,8 @@ public:
     setvlStep.sourceOp.role = "runtime-avl-to-vl";
     setvlStep.callee = intrinsicConfig.setvlIntrinsicName;
     setvlStep.operands.push_back(
-        {(llvm::Twine(runtimeN->cName) + " - offset").str(), runtimeN->cType});
+        {runtimeLength.formatRemainingAVLOperandExpression(loopIndexName),
+         runtimeN->cType});
     setvlStep.result = TCRVEmitCCallOpaqueResult{"vl", "size_t"};
     route.addCallOpaqueStep(std::move(setvlStep));
 
@@ -3259,6 +3271,8 @@ private:
   RVVBinaryIntrinsicDescriptor descriptor;
   RVVIntrinsicConfig intrinsicConfig;
   RVVBinaryDataflowEmissionPlan dataflowPlan;
+  RVVRuntimeLengthContract runtimeLength;
+  std::string loopIndexName;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
@@ -3267,13 +3281,16 @@ llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     const RVVIntrinsicConfig &intrinsicConfig,
     const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+    const RVVRuntimeLengthContract &runtimeLength,
     llvm::StringRef functionName,
     std::int64_t fixedRuntimeElementCount = 0) {
+  constexpr llvm::StringLiteral kLoopIndexName("offset");
   RVVBinaryEmitCLowerable lowerable(descriptor, intrinsicConfig, dataflowPlan,
-                                    runtimeABIParameters);
+                                    runtimeABIParameters, runtimeLength,
+                                    kLoopIndexName);
   TCRVLowerToEmitCSourceOptions options;
   options.sourceAuthorityOptions.functionName = functionName.str();
-  options.sourceAuthorityOptions.loopIndexName = "offset";
+  options.sourceAuthorityOptions.loopIndexName = kLoopIndexName.str();
   options.sourceAuthorityOptions.requireInterfaceBackedCompute = true;
   options.sourceAuthorityOptions.fixedRuntimeElementCount =
       fixedRuntimeElementCount;
@@ -3367,6 +3384,10 @@ void printEmitCRouteMetadata(llvm::raw_ostream &os,
     if (!step.sourceOp.opInterface.empty())
       os << ", op_interface=" << step.sourceOp.opInterface;
     os << " */\n";
+    for (auto [operandIndex, operand] : llvm::enumerate(step.operands))
+      os << "/* emitc.call_opaque_operand[" << index << "]["
+         << operandIndex << "]: expression=" << operand.expression
+         << ", c_type=" << operand.cType << " */\n";
   }
 }
 
@@ -3744,7 +3765,10 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
       lowerRVVBinaryToEmitCSource(record.descriptor, record.intrinsicConfig,
                                   record.dataflowPlan,
-                                  record.runtimeABIParameters, functionName,
+                                  record.runtimeABIParameters,
+                                  record.selectedConfigContract
+                                      .getRuntimeLengthContract(),
+                                  functionName,
                                   record.fixedSourceExtent
                                       ? record.fixedSourceExtent
                                             ->sourceVectorExtent
@@ -3895,14 +3919,21 @@ void appendMicrokernelObjectEvidenceSection(
                           record.descriptor.getVectorSuffix());
   printObjectEvidenceLine(os, "selected_setvl_suffix",
                           record.descriptor.getSetVLSuffix());
+  const RVVRuntimeLengthContract &runtimeLength =
+      record.selectedConfigContract.getRuntimeLengthContract();
+  printObjectEvidenceLine(os, "runtime_element_count_c_name",
+                          runtimeLength.getRuntimeElementCountCName());
   printObjectEvidenceLine(os, "runtime_avl_source",
-                          getRVVRuntimeAVLSourceMetadataValue());
+                          runtimeLength.getRuntimeAVLSource());
   printObjectEvidenceLine(os, "runtime_avl_role",
-                          getRVVRuntimeAVLRoleMetadataValue());
+                          runtimeLength.getRuntimeAVLRole());
   printObjectEvidenceLine(os, "runtime_vl_source",
-                          getRVVRuntimeVLSourceMetadataValue());
+                          runtimeLength.getRuntimeVLSource());
   printObjectEvidenceLine(os, "runtime_vl_scope",
-                          getRVVRuntimeVLScopeMetadataValue());
+                          runtimeLength.getRuntimeVLScope());
+  printObjectEvidenceLine(os, "descriptor_element_count",
+                          std::to_string(
+                              runtimeLength.getDescriptorElementCount()));
   printObjectEvidenceLine(os, "runtime_abi",
                           record.descriptor.getRVVRuntimeABI());
   printObjectEvidenceLine(os, "runtime_abi_kind",

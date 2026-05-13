@@ -427,6 +427,13 @@ bool expectRVVRuntimeLengthContractMetadata() {
                     "contract\n";
     return false;
   }
+  if (selectedConfig->getRuntimeLengthContract()
+          .formatRemainingAVLOperandExpression("offset") != "len - offset") {
+    llvm::errs() << "RVV runtime length contract did not derive the "
+                    "remaining-AVL vsetvl operand from the runtime ABI C "
+                    "name\n";
+    return false;
+  }
 
   llvm::Expected<RVVBinarySelectedConfigContract> staleDescriptorAuthority =
       buildRVVBinarySelectedConfigContract(

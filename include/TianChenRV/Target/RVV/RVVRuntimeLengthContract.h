@@ -102,6 +102,19 @@ public:
     return text;
   }
 
+  std::string
+  formatRemainingAVLOperandExpression(llvm::StringRef loopIndexName) const {
+    llvm::StringRef trimmedLoopIndex = loopIndexName.trim();
+    if (trimmedLoopIndex.empty())
+      trimmedLoopIndex = "offset";
+
+    std::string expression;
+    llvm::raw_string_ostream stream(expression);
+    stream << getRuntimeElementCountCName() << " - " << trimmedLoopIndex;
+    stream.flush();
+    return expression;
+  }
+
 private:
   std::string runtimeElementCountCName = "n";
   std::int64_t descriptorElementCount = 0;

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants and spec routing for TianChen-RV MLIR."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture red lines for RVV hardware claims and descriptor-driven non-goals."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec boundary; runtime/control ABI stays envelope-level, no RVV compute semantics in core."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected config, runtime AVL/VL, typed microkernel, and source identity rules."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Parameter layering rule separating capability facts, selected config, runtime ABI/control values, and descriptor-local fields."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, runtime ABI, source/header/object evidence, and fail-closed route contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and descriptor-to-C migration constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/lit/object/e2e evidence expectations for RVV artifact export."}

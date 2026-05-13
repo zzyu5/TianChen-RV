@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final verification."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify no descriptor-driven or unsupported runtime/hardware claims were introduced."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify no RVV semantic branches or compute semantics leaked into core tcrv.exec."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected RVV runtime AVL/VL and typed microkernel artifact behavior stays plugin-local."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify parameter layering remains intact."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify source/header/object export and runtime ABI evidence are fail-closed and coherent."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify production path remains extension family ops to EmitC to RVV intrinsics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused evidence matches testing policy."}

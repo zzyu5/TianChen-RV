@@ -1576,6 +1576,134 @@ def validate_runtime_abi_signature(
     return observed
 
 
+def parse_runtime_length_contract(
+    source: str, runtime_abi_parameters: list[dict[str, str]]
+) -> dict[str, Any]:
+    raw_contract = parse_source_comment(
+        source, "selected_runtime_vl_boundary", required=True
+    )
+    fields: dict[str, str] = {}
+    for part in raw_contract.split(","):
+        if "=" not in part:
+            raise BridgeError(
+                "generated C source selected_runtime_vl_boundary has "
+                f"malformed field: {part.strip()}"
+            )
+        key, value = part.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or not value:
+            raise BridgeError(
+                "generated C source selected_runtime_vl_boundary contains "
+                "an empty key or value"
+            )
+        reject_secret_like_text(
+            f"generated C source selected_runtime_vl_boundary {key}", value
+        )
+        if key in fields:
+            raise BridgeError(
+                "generated C source selected_runtime_vl_boundary duplicates "
+                f"field {key}"
+            )
+        fields[key] = value
+
+    required = {
+        "runtime_element_count_c_name",
+        "runtime_avl_source",
+        "runtime_avl_role",
+        "runtime_vl_source",
+        "runtime_vl_scope",
+        "descriptor_element_count",
+    }
+    missing = sorted(required.difference(fields))
+    if missing:
+        raise BridgeError(
+            "generated C source selected_runtime_vl_boundary missing fields: "
+            + ", ".join(missing)
+        )
+
+    runtime_names = [
+        parameter["c_name"]
+        for parameter in runtime_abi_parameters
+        if parameter["role"] == "runtime-element-count"
+    ]
+    if len(runtime_names) != 1 or not runtime_names[0]:
+        raise BridgeError(
+            "generated C source runtime-length contract requires exactly one "
+            "runtime-element-count ABI parameter"
+        )
+    runtime_name = runtime_names[0]
+    if fields["runtime_element_count_c_name"] != runtime_name:
+        raise BridgeError(
+            "generated C source runtime-length contract C name "
+            f"{fields['runtime_element_count_c_name']!r} does not match "
+            f"runtime ABI parameter {runtime_name!r}"
+        )
+
+    expected_values = {
+        "runtime_avl_source": "runtime-element-count-abi-parameter",
+        "runtime_avl_role": "runtime-element-count",
+        "runtime_vl_source": "tcrv_rvv.setvl",
+        "runtime_vl_scope": "tcrv_rvv.with_vl",
+    }
+    for key, expected in expected_values.items():
+        if fields[key] != expected:
+            raise BridgeError(
+                "generated C source runtime-length contract field "
+                f"{key} must be {expected!r}, got {fields[key]!r}"
+            )
+
+    try:
+        descriptor_element_count = int(fields["descriptor_element_count"])
+    except ValueError as error:
+        raise BridgeError(
+            "generated C source runtime-length contract "
+            "descriptor_element_count must be an integer"
+        ) from error
+    if descriptor_element_count <= 0 or descriptor_element_count > 64:
+        raise BridgeError(
+            "generated C source runtime-length contract "
+            "descriptor_element_count must stay in the bounded [1, 64] range"
+        )
+
+    setvl = setvl_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE)
+    if setvl not in source:
+        raise BridgeError(
+            "generated C source runtime-length contract is missing expected "
+            f"setvl intrinsic {setvl}"
+        )
+    avl_operand = parse_source_comment(
+        source, "emitc.call_opaque_operand[0][0]", required=True
+    )
+    expected_operand = f"expression={runtime_name} - offset"
+    if expected_operand not in avl_operand or "c_type=size_t" not in avl_operand:
+        raise BridgeError(
+            "generated C source runtime-length contract did not drive the "
+            f"{setvl} runtime AVL EmitC operand from {runtime_name} - offset"
+        )
+    descriptor_call = re.compile(
+        re.escape(setvl)
+        + r"\s*\(\s*"
+        + re.escape(str(descriptor_element_count))
+        + r"\s*\)"
+    )
+    if descriptor_call.search(source):
+        raise BridgeError(
+            "generated C source must not use descriptor_element_count as the "
+            "runtime AVL/vsetvl operand"
+        )
+
+    return {
+        "runtime_element_count_c_name": runtime_name,
+        "runtime_avl_source": fields["runtime_avl_source"],
+        "runtime_avl_role": fields["runtime_avl_role"],
+        "runtime_vl_source": fields["runtime_vl_source"],
+        "runtime_vl_scope": fields["runtime_vl_scope"],
+        "descriptor_element_count": descriptor_element_count,
+        "setvl_operand": f"{runtime_name} - offset",
+    }
+
+
 def normalize_symbol_name(value: str) -> str:
     normalized = value.strip()
     if normalized.startswith("@"):
@@ -1887,6 +2015,9 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     runtime_abi_parameters = validate_runtime_abi_signature(
         parse_runtime_abi_parameters_from_source(source), ACTIVE_ARITHMETIC_FAMILY
     )
+    runtime_length_contract = parse_runtime_length_contract(
+        source, runtime_abi_parameters
+    )
     if dynamic_runtime_extent_contract:
         runtime_element_count_names = [
             parameter["c_name"]
@@ -1912,6 +2043,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "compiler_path_context": compiler_path_context,
         "fixed_source_extent_contract": fixed_source_extent_contract,
         "dynamic_runtime_extent_contract": dynamic_runtime_extent_contract,
+        "runtime_length_contract": runtime_length_contract,
         "runtime_abi_parameters": runtime_abi_parameters,
     }
 
@@ -2275,6 +2407,18 @@ def validate_generated_object_artifact(
         f"selected_vector_type={ACTIVE_VECTOR_SHAPE['vector_type']}",
         f"selected_vector_suffix={ACTIVE_VECTOR_SHAPE['vector_suffix']}",
         f"selected_setvl_suffix={ACTIVE_VECTOR_SHAPE['setvl_suffix']}",
+        "runtime_element_count_c_name="
+        + str(source_flags["runtime_length_contract"]["runtime_element_count_c_name"]),
+        "runtime_avl_source="
+        + str(source_flags["runtime_length_contract"]["runtime_avl_source"]),
+        "runtime_avl_role="
+        + str(source_flags["runtime_length_contract"]["runtime_avl_role"]),
+        "runtime_vl_source="
+        + str(source_flags["runtime_length_contract"]["runtime_vl_source"]),
+        "runtime_vl_scope="
+        + str(source_flags["runtime_length_contract"]["runtime_vl_scope"]),
+        "descriptor_element_count="
+        + str(source_flags["runtime_length_contract"]["descriptor_element_count"]),
         f"runtime_abi={ACTIVE_ARITHMETIC_FAMILY['runtime_abi']}",
         f"runtime_abi_kind={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_kind']}",
         f"runtime_abi_name={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_name']}",
@@ -5023,6 +5167,8 @@ kernel @rvv_microkernel_manifest
 /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 /* arithmetic_family: i32-vadd */
 /* dtype: i32 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -5040,7 +5186,7 @@ kernel @rvv_microkernel_manifest
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
-  __riscv_vsetvl_e32m1;
+  __riscv_vsetvl_e32m1(n - offset);
   __riscv_vle32_v_i32m1;
   __riscv_vadd_vv_i32m1;
   __riscv_vse32_v_i32m1;
@@ -5162,6 +5308,8 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* arithmetic_family: i32-vsub */
 /* dtype: i32 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -5179,7 +5327,7 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
-  __riscv_vsetvl_e32m1;
+  __riscv_vsetvl_e32m1(n - offset);
   __riscv_vle32_v_i32m1;
   __riscv_vsub_vv_i32m1;
   __riscv_vse32_v_i32m1;
@@ -5218,6 +5366,8 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* arithmetic_family: i32-vsub */
 /* dtype: i32 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -5235,7 +5385,7 @@ void f(void) {
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
-  __riscv_vsetvl_e32m2;
+  __riscv_vsetvl_e32m2(n - offset);
   __riscv_vle32_v_i32m2;
   __riscv_vsub_vv_i32m2;
   __riscv_vse32_v_i32m2;
@@ -5278,6 +5428,8 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 /* arithmetic_family: i32-vmul */
 /* dtype: i32 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_mul via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -5303,7 +5455,7 @@ void f(void) {
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
-  __riscv_vsetvl_e32m1;
+  __riscv_vsetvl_e32m1(n - offset);
   __riscv_vle32_v_i32m1;
   __riscv_vmul_vv_i32m1;
   __riscv_vse32_v_i32m1;
@@ -5363,6 +5515,8 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
 /* arithmetic_family: i64-vadd */
 /* dtype: i64 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=8 */
+/* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i64_add via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_add -> tcrv_rvv.i64_store */
 /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
@@ -5380,7 +5534,7 @@ void f(void) {
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 #include <riscv_vector.h>
 void f(void) {
-  __riscv_vsetvl_e64m1;
+  __riscv_vsetvl_e64m1(n - offset);
   __riscv_vle64_v_i64m1;
   __riscv_vadd_vv_i64m1;
   __riscv_vse64_v_i64m1;

@@ -192,10 +192,13 @@ module @rvv_runtime_abi_role_binding {
 }
 
 // ALT: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=len, dispatch_availability_c_name=rvv_available, descriptor_element_count=16, selected_variant=@rvv_first_slice, selected_role=direct variant */
+// ALT: /* selected_runtime_vl_boundary: runtime_element_count_c_name=len, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16, selected_variant=@rvv_first_slice, selected_role=direct variant */
 // ALT: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime len ABI parameter */
 // ALT: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime len remains the target/export-owned runtime element-count ABI parameter */
 // ALT: /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
 // ALT: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
+// ALT: /* emitc.call_opaque[0]: __riscv_vsetvl_e32m1 from tcrv_rvv.setvl */
+// ALT: /* emitc.call_opaque_operand[0][0]: expression=len - offset, c_type=size_t */
 // ALT: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 // ALT: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */
 // ALT: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=len, c_type=size_t, ownership=target-export-abi-owned */
@@ -217,6 +220,11 @@ module @rvv_runtime_abi_role_binding {
 // HEADER: /* selected_body_authority: tcrv_rvv.i32_vadd_microkernel */
 // HEADER: /* selected_binary_config: dtype=i32, family=i32-vadd
 // HEADER-SAME: runtime_element_count_c_name=len
+// HEADER-SAME: selected_role=direct variant */
+// HEADER: /* selected_runtime_vl_boundary: runtime_element_count_c_name=len
+// HEADER-SAME: runtime_avl_source=runtime-element-count-abi-parameter
+// HEADER-SAME: runtime_vl_source=tcrv_rvv.setvl
+// HEADER-SAME: descriptor_element_count=16
 // HEADER-SAME: selected_role=direct variant */
 // HEADER: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime len ABI parameter */
 // HEADER: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime len remains the target/export-owned runtime element-count ABI parameter */
