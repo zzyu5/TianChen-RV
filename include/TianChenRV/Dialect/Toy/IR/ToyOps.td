@@ -2,6 +2,7 @@
 #define TIANCHENRV_DIALECT_TOY_IR_TOYOPS_TD
 
 include "mlir/IR/OpBase.td"
+include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td"
 
 def TCRV_Toy_Dialect : Dialect {
   let name = "tcrv_toy";
@@ -13,9 +14,9 @@ def TCRV_Toy_Dialect : Dialect {
     tcrv_toy because MLIR dialect namespaces cannot contain '.' characters.
 
     This dialect intentionally exposes only selected lowering-boundary metadata
-    for plugin integration tests. It does not model tensor/tile computation,
-    executable lowering, runtime calls, binary artifacts, correctness, or
-    performance.
+    plus a minimal ODS-backed role-op boundary for plugin integration tests. It
+    does not model tensor/tile computation, executable lowering, runtime calls,
+    binary artifacts, correctness, or performance.
   }];
 }
 
@@ -44,6 +45,42 @@ def LoweringBoundaryOp : TCRVToy_Op<"lowering_boundary", []> {
     ArrayAttr:$required_capabilities,
     StrAttr:$template_abi,
     StrAttr:$handoff_kind,
+    OptionalAttr<StrAttr>:$template_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
+def ComputeSkeletonOp : TCRVToy_Op<"compute_skeleton",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "minimal Toy ODS compute role-op boundary";
+  let description = [{
+    Records the minimal Toy extension-family compute role op in ODS. The op
+    proves that a concrete non-RVV extension family can materialize a typed
+    MLIR role operation implementing the generated EmitC-lowerable provenance
+    interface and have Toy construction validation consume that IR identity.
+
+    This op is a construction-protocol role boundary only. It does not model
+    tensor/tile computation, executable lowering, runtime ABI values, generated
+    objects, correctness, or performance. Configure, load, and store are
+    manifest-ordered staged roles for this minimal Toy slice.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$typed_role,
+    I64Attr:$role_order,
+    StrAttr:$source_role,
+    StrAttr:$role_specific_interface,
+    StrAttr:$emitc_call,
     OptionalAttr<StrAttr>:$template_reason
   );
 

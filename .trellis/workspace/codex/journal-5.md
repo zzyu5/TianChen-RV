@@ -530,6 +530,64 @@ and generated artifact output consume the same manifest.
 [OK] Implementation checks passed; finish/archive and commit pending.
 
 
+## Session 59: First concrete extension-family template instantiation
+
+**Date**: 2026-05-13
+**Task**: First concrete extension-family template instantiation
+**Branch**: `main`
+
+### Summary
+
+Upgraded the existing Toy family from metadata-only integration into the first
+minimal non-RVV consumer of the Extension-Family Plugin Construction Protocol.
+Toy now has a protocol-backed manifest, role graph, ODS compute role op,
+plugin-local planning metadata, target artifact preflight, and generated
+role-graph-to-EmitC source-like output.
+
+### Main Changes
+
+- Added `ToyConstructionProtocol` with manifest, archetype, semantic role
+  graph, family declaration, common-interface realization, typed role
+  realization, EmitC route mapping, generated output route, and validators.
+- Added `tcrv_toy.compute_skeleton` implementing
+  `TCRVEmitCLowerableOpInterface`.
+- Rewired Toy proposal, legality, selected-boundary materialization,
+  emission-plan selected metadata, target route metadata, and artifact
+  preflight to consume protocol-derived fields.
+- Extended Toy target output with construction protocol, semantic roles,
+  validated role-op provenance, typed role graph, EmitC route, evidence
+  profile, `generated_emitc_step[...]`, and `generated_source`.
+- Added focused C++ and lit/FileCheck coverage for positive and fail-closed
+  Toy construction paths.
+- Confirmed no Toy-specific semantic branch was added to core `tcrv.exec` or
+  `lib/Transforms`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVToyDialect TianChenRVToyPlugin TianChenRVToyTarget tianchenrv-toy-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-toy-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='Toy|toy'` from `build/test`
+- `cmake --build build --target TianChenRVTemplateDialect TianChenRVTemplatePlugin TianChenRVTemplateTarget tianchenrv-template-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-template-extension-plugin-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='Template|template'` from `build/test`
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `rg -n "tcrv_toy|toy-plugin|Toy" lib/Transforms include/TianChenRV/Dialect/Exec lib/Dialect/Exec || true`
+- `git diff --check`
+
+`clang-format` was not available as `clang-format` or
+`/usr/lib/llvm-20/bin/clang-format`; formatting was kept manually consistent.
+
+No `ssh rvv` evidence was run because Toy construction output is
+non-executable generated artifact evidence only and no RVV runtime artifact was
+changed.
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.
+
+
 ## Session 56: RVV op-owned EmitC artifact production route
 
 **Date**: 2026-05-13

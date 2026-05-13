@@ -1,5 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
+#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -33,6 +34,7 @@ using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::toy::ComputeSkeletonOp;
 using tianchenrv::tcrv::toy::LoweringBoundaryOp;
 using tianchenrv::transforms::VariantSelectionKind;
 using tianchenrv::transforms::VariantSelectionPlan;
@@ -116,6 +118,25 @@ LoweringBoundaryOp findToyBoundary(KernelOp kernel,
   return result;
 }
 
+ComputeSkeletonOp findToyComputeRole(KernelOp kernel,
+                                     llvm::StringRef selectedVariantSymbol) {
+  ComputeSkeletonOp result;
+  if (!kernel || kernel.getBody().empty())
+    return result;
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto compute = llvm::dyn_cast<ComputeSkeletonOp>(op);
+    if (!compute)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = compute;
+  }
+  return result;
+}
+
 mlir::Attribute findProposalAttribute(const VariantProposal &proposal,
                                       llvm::StringRef attrName) {
   for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
@@ -164,6 +185,33 @@ int runRegistrationAndCapabilityMetadataTest() {
                          tianchenrv::plugin::toy::
                              getToyTemplateCapabilityKind(),
                  "Toy template capability metadata is registered"))
+    return result;
+
+  const auto &manifest =
+      tianchenrv::plugin::toy::getToyConstructionManifest();
+  const auto &realization =
+      tianchenrv::plugin::toy::getToyTypedRoleGraphRealization();
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::verifyToyConstructionManifest(manifest),
+          "Toy construction manifest verifies"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::verifyToyTypedRoleGraphRealization(
+              manifest, realization),
+          "Toy typed role graph verifies"))
+    return result;
+  llvm::Expected<tianchenrv::plugin::toy::ToyGeneratedOutputRoute> route =
+      tianchenrv::plugin::toy::buildToyGeneratedOutputRoute(manifest,
+                                                            realization);
+  if (!route)
+    return fail("Toy generated output route failed: " +
+                llvm::toString(route.takeError()));
+  if (int result =
+          expect(route->steps.size() == 4 &&
+                     route->steps[2].operationName ==
+                         "tcrv_toy.compute_skeleton" &&
+                     route->steps[2].emitCCall == "__tcrv_toy_compute",
+                 "Toy generated route preserves ordered compute role"))
     return result;
 
   return expectErrorContains(
@@ -269,6 +317,20 @@ module {
   if (int result = expectProposalStringAttr(
           proposal, tianchenrv::plugin::toy::getToyHandoffKindAttrName(),
           tianchenrv::plugin::toy::getToyExpectedHandoffKind()))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_toy.construction_protocol",
+          tianchenrv::plugin::toy::getToyConstructionManifest()
+              .protocolVersion))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_toy.semantic_role_graph",
+          tianchenrv::plugin::toy::getToyConstructionManifest()
+              .semanticRoleGraph))
+    return result;
+  if (int result = expectProposalStringAttr(
+          proposal, "tcrv_toy.typed_role_realization",
+          tianchenrv::plugin::toy::getToyTypedRoleRealizationSummary()))
     return result;
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
@@ -452,6 +514,37 @@ module {
                           "Toy boundary module verifies"))
     return result;
 
+  ComputeSkeletonOp computeRole =
+      findToyComputeRole(kernel, toyVariant.getSymName());
+  if (int result =
+          expect(computeRole,
+                 "Toy selected compute role op is materialized through plugin"))
+    return result;
+  if (int result =
+          expect(computeRole
+                         ->getAttrOfType<mlir::StringAttr>("typed_role")
+                         .getValue() ==
+                         "toy.role.compute.compute_skeleton" &&
+                     computeRole
+                         ->getAttrOfType<mlir::StringAttr>("source_role")
+                         .getValue() == "compute" &&
+                     computeRole
+                         ->getAttrOfType<mlir::StringAttr>(
+                             "role_specific_interface")
+                         .getValue() == "TCRVComputeOpInterface" &&
+                     computeRole
+                         ->getAttrOfType<mlir::StringAttr>("emitc_call")
+                         .getValue() == "__tcrv_toy_compute",
+                 "Toy compute role op carries typed construction metadata"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::verifyToyComputeRoleOpInterface(
+              tianchenrv::plugin::toy::getToyConstructionManifest(),
+              tianchenrv::plugin::toy::getToyTypedRoleGraphRealization(),
+              computeRole.getOperation()),
+          "Toy compute role op validates against construction protocol"))
+    return result;
+
   VariantEmissionStatus status;
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
@@ -504,6 +597,10 @@ module {
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
                  "Toy emission plan records stable exportable metadata route"))
+    return result;
+  if (int result =
+          expect(emissionPlan.getSelectedPlanMetadata().size() == 10,
+                 "Toy emission plan records construction selected metadata"))
     return result;
 
   return 0;

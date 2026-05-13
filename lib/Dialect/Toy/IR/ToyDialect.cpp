@@ -26,12 +26,25 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kTemplateABIAttrName("template_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kTemplateReasonAttrName("template_reason");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kToyPluginName("toy-plugin");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kExpectedTemplateABI("toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
+constexpr llvm::StringLiteral kExpectedTypedRole(
+    "toy.role.compute.compute_skeleton");
+constexpr llvm::StringLiteral kExpectedSourceRole("compute");
+constexpr llvm::StringLiteral kExpectedRoleSpecificInterface(
+    "TCRVComputeOpInterface");
+constexpr llvm::StringLiteral kExpectedEmitCCall("__tcrv_toy_compute");
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
@@ -47,6 +60,20 @@ bool hasPresentButEmptyStringAttr(mlir::Operation *op,
 
 bool isAllowedLoweringBoundaryRole(llvm::StringRef role) {
   return role == kDirectVariantRoleValue || role == kDispatchCaseRoleValue;
+}
+
+bool isAllowedToyComputeSkeletonAttr(llvm::StringRef attrName) {
+  return attrName == kSourceKernelAttrName ||
+         attrName == kSelectedVariantAttrName ||
+         attrName == kOriginAttrName || attrName == kRoleAttrName ||
+         attrName == kStatusAttrName ||
+         attrName == kRequiredCapabilitiesAttrName ||
+         attrName == kTypedRoleAttrName ||
+         attrName == kRoleOrderAttrName ||
+         attrName == kSourceRoleAttrName ||
+         attrName == kRoleSpecificInterfaceAttrName ||
+         attrName == kEmitCCallAttrName ||
+         attrName == kTemplateReasonAttrName;
 }
 
 bool containsExecutableClaimWording(llvm::StringRef text) {
@@ -68,6 +95,106 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
       return false;
   }
   return true;
+}
+
+mlir::FailureOr<tianchenrv::tcrv::exec::VariantOp>
+verifyToySelectedPathAttrs(mlir::Operation *op,
+                           mlir::InFlightDiagnostic &diag) {
+  auto selectedVariant =
+      op->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+  if (!selectedVariant || selectedVariant.getValue().trim().empty()) {
+    diag << "requires non-empty variant symbol reference attribute '"
+         << kSelectedVariantAttrName << "'";
+    return mlir::failure();
+  }
+
+  auto requiredCapabilities =
+      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
+  if (!requiredCapabilities || requiredCapabilities.empty()) {
+    diag << "requires non-empty array attribute '"
+         << kRequiredCapabilitiesAttrName
+         << "' containing capability symbol references";
+    return mlir::failure();
+  }
+
+  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
+  if (!kernel) {
+    diag << "must be nested directly in a tcrv.exec.kernel";
+    return mlir::failure();
+  }
+  if (op->getParentOp() != kernel.getOperation()) {
+    diag << "must be a direct child of the enclosing tcrv.exec.kernel";
+    return mlir::failure();
+  }
+
+  auto sourceKernel =
+      op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
+  if (sourceKernel.getValue() != kernel.getSymName()) {
+    diag << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
+         << kernel.getSymName();
+    return mlir::failure();
+  }
+
+  if (kernel.getBody().empty()) {
+    diag << "requires enclosing tcrv.exec.kernel to have a body block";
+    return mlir::failure();
+  }
+
+  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
+      capabilitiesOrError =
+          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
+              kernel);
+  if (!capabilitiesOrError) {
+    std::string message = llvm::toString(capabilitiesOrError.takeError());
+    diag << message;
+    return mlir::failure();
+  }
+  const tianchenrv::support::TargetCapabilitySet &capabilities =
+      *capabilitiesOrError;
+
+  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
+  for (mlir::Operation &sibling : kernel.getBody().front()) {
+    if (auto variant =
+            llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
+      if (variant.getSymName() == selectedVariant.getValue()) {
+        resolvedVariant = variant;
+        break;
+      }
+    }
+  }
+
+  if (!resolvedVariant) {
+    diag << "selected_variant @" << selectedVariant.getValue()
+         << " must resolve to a direct sibling tcrv.exec.variant in the "
+            "enclosing tcrv.exec.kernel";
+    return mlir::failure();
+  }
+
+  for (mlir::Attribute requiredCapability : requiredCapabilities) {
+    auto symbolRef =
+        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+    if (!symbolRef) {
+      diag << "attribute '" << kRequiredCapabilitiesAttrName
+           << "' must contain only capability symbol references";
+      return mlir::failure();
+    }
+
+    if (!capabilities.lookupBySymbolName(symbolRef.getValue())) {
+      diag << "requires unknown capability @" << symbolRef.getValue()
+           << " in enclosing tcrv.exec.kernel";
+      return mlir::failure();
+    }
+  }
+
+  auto variantRequires =
+      resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!arrayAttrsEqual(requiredCapabilities, variantRequires)) {
+    diag << "required_capabilities must match selected variant requires "
+            "metadata";
+    return mlir::failure();
+  }
+
+  return resolvedVariant;
 }
 
 } // namespace
@@ -143,87 +270,113 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
                 "correctness, or performance evidence";
   }
 
-  auto selectedVariant =
-      op->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-  if (!selectedVariant || selectedVariant.getValue().trim().empty())
-    return emitOpError()
-           << "requires non-empty variant symbol reference attribute '"
-           << kSelectedVariantAttrName << "'";
+  mlir::InFlightDiagnostic diag = emitOpError();
+  if (mlir::failed(verifyToySelectedPathAttrs(op, diag)))
+    return mlir::failure();
+  diag.abandon();
 
-  auto requiredCapabilities =
-      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  if (!requiredCapabilities || requiredCapabilities.empty())
-    return emitOpError()
-           << "requires non-empty array attribute '"
-           << kRequiredCapabilitiesAttrName
-           << "' containing capability symbol references";
+  return mlir::success();
+}
 
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
-  if (!kernel)
-    return emitOpError() << "must be nested directly in a tcrv.exec.kernel";
-  if (op->getParentOp() != kernel.getOperation())
-    return emitOpError()
-           << "must be a direct child of the enclosing tcrv.exec.kernel";
+llvm::StringRef ComputeSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
 
-  auto sourceKernel =
-      op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
-  if (sourceKernel.getValue() != kernel.getSymName())
-    return emitOpError()
-           << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
-           << kernel.getSymName();
+llvm::StringRef ComputeSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+  auto sourceRole =
+      getOperation()->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
+  return sourceRole ? sourceRole.getValue() : llvm::StringRef();
+}
 
-  if (kernel.getBody().empty())
-    return emitOpError()
-           << "requires enclosing tcrv.exec.kernel to have a body block";
+mlir::LogicalResult ComputeSkeletonOp::verify() {
+  mlir::Operation *op = getOperation();
 
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
-      capabilitiesOrError =
-          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
-              kernel);
-  if (!capabilitiesOrError) {
-    std::string message = llvm::toString(capabilitiesOrError.takeError());
-    return emitOpError() << message;
-  }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
-      *capabilitiesOrError;
-
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
-  for (mlir::Operation &sibling : kernel.getBody().front()) {
-    if (auto variant =
-            llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
-      if (variant.getSymName() == selectedVariant.getValue()) {
-        resolvedVariant = variant;
-        break;
-      }
-    }
-  }
-
-  if (!resolvedVariant)
-    return emitOpError()
-           << "selected_variant @" << selectedVariant.getValue()
-           << " must resolve to a direct sibling tcrv.exec.variant in the "
-              "enclosing tcrv.exec.kernel";
-
-  for (mlir::Attribute requiredCapability : requiredCapabilities) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    if (!isAllowedToyComputeSkeletonAttr(attr.getName().getValue()))
       return emitOpError()
-             << "attribute '" << kRequiredCapabilitiesAttrName
-             << "' must contain only capability symbol references";
-
-    if (!capabilities.lookupBySymbolName(symbolRef.getValue()))
-      return emitOpError()
-             << "requires unknown capability @" << symbolRef.getValue()
-             << " in enclosing tcrv.exec.kernel";
+             << "does not accept generic tensor/tile/benchmark or unknown "
+                "attribute '"
+             << attr.getName().getValue() << "'";
   }
 
-  auto variantRequires =
-      resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!arrayAttrsEqual(requiredCapabilities, variantRequires))
+  for (llvm::StringRef attrName :
+       {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName, kStatusAttrName,
+        kTypedRoleAttrName, kSourceRoleAttrName,
+        kRoleSpecificInterfaceAttrName, kEmitCCallAttrName}) {
+    if (hasMissingOrEmptyStringAttr(op, attrName))
+      return emitOpError()
+             << "requires non-empty string attribute '" << attrName << "'";
+  }
+  if (hasPresentButEmptyStringAttr(op, kTemplateReasonAttrName))
     return emitOpError()
-           << "required_capabilities must match selected variant requires "
-              "metadata";
+           << "requires non-empty string attribute '" << kTemplateReasonAttrName
+           << "' when present";
+
+  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (origin.getValue() != kToyPluginName)
+    return emitOpError()
+           << "origin must be '" << kToyPluginName
+           << "' because this is the Toy plugin role-op surface";
+
+  auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+  if (!isAllowedLoweringBoundaryRole(role.getValue()))
+    return emitOpError()
+           << "role must be '" << kDirectVariantRoleValue << "' or '"
+           << kDispatchCaseRoleValue
+           << "'; Toy compute role ops are not dispatch fallback boundaries";
+
+  auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
+  if (status.getValue() != kRoleOpBoundaryStatusValue)
+    return emitOpError()
+           << "status must be '" << kRoleOpBoundaryStatusValue
+           << "' because tcrv_toy.compute_skeleton is an ODS role-op "
+              "boundary";
+
+  auto typedRole = op->getAttrOfType<mlir::StringAttr>(kTypedRoleAttrName);
+  if (typedRole.getValue() != kExpectedTypedRole)
+    return emitOpError()
+           << "typed_role must be '" << kExpectedTypedRole << "'";
+
+  auto roleOrder = op->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
+  if (!roleOrder)
+    return emitOpError()
+           << "requires integer attribute '" << kRoleOrderAttrName << "'";
+  if (roleOrder.getInt() != 2)
+    return emitOpError()
+           << "role_order must be 2 for the Toy compute role in "
+              "configure->load->compute->store";
+
+  auto sourceRole =
+      op->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
+  if (sourceRole.getValue() != kExpectedSourceRole)
+    return emitOpError()
+           << "source_role must be '" << kExpectedSourceRole
+           << "' for generated TCRVEmitCLowerableOpInterface provenance";
+
+  auto roleSpecificInterface =
+      op->getAttrOfType<mlir::StringAttr>(kRoleSpecificInterfaceAttrName);
+  if (roleSpecificInterface.getValue() != kExpectedRoleSpecificInterface)
+    return emitOpError()
+           << "role_specific_interface must be '"
+           << kExpectedRoleSpecificInterface << "'";
+
+  auto emitCCall = op->getAttrOfType<mlir::StringAttr>(kEmitCCallAttrName);
+  if (emitCCall.getValue() != kExpectedEmitCCall)
+    return emitOpError()
+           << "emitc_call must be '" << kExpectedEmitCCall << "'";
+
+  if (auto reason =
+          op->getAttrOfType<mlir::StringAttr>(kTemplateReasonAttrName)) {
+    if (containsExecutableClaimWording(reason.getValue()))
+      return emitOpError()
+             << "template_reason must not claim executable lowering, "
+                "correctness, or performance evidence";
+  }
+
+  mlir::InFlightDiagnostic diag = emitOpError();
+  if (mlir::failed(verifyToySelectedPathAttrs(op, diag)))
+    return mlir::failure();
+  diag.abandon();
 
   return mlir::success();
 }

@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
+#include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -29,6 +30,7 @@ using tianchenrv::target::TargetArtifactCandidate;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::toy::ComputeSkeletonOp;
 using tianchenrv::tcrv::toy::LoweringBoundaryOp;
 
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
@@ -41,7 +43,14 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kTemplateABIAttrName("template_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kMetadataArtifactVersion("1");
 constexpr llvm::StringLiteral kArtifactStatus(
     "non-executable-metadata-evidence");
@@ -263,6 +272,125 @@ findAndValidateToyBoundary(const TargetArtifactCandidate &candidate,
   return matched;
 }
 
+llvm::Error requireComputeRoleStringAttr(ComputeSkeletonOp computeRole,
+                                         llvm::StringRef attrName,
+                                         llvm::StringRef expectedValue) {
+  auto attr = getStringAttr(computeRole.getOperation(), attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeToyArtifactError(
+        computeRole->getParentOfType<KernelOp>(),
+        llvm::Twine("Toy compute role op requires non-empty attribute '") +
+            attrName + "'");
+  if (attr.getValue() != expectedValue)
+    return makeToyArtifactError(
+        computeRole->getParentOfType<KernelOp>(),
+        llvm::Twine("Toy compute role op attribute '") + attrName + "' is '" +
+            attr.getValue() + "' but expected '" + expectedValue + "'");
+  return llvm::Error::success();
+}
+
+llvm::Expected<ComputeSkeletonOp>
+findAndValidateToyComputeRoleOp(const TargetArtifactCandidate &candidate,
+                                VariantOp variant) {
+  KernelOp kernel = candidate.kernel;
+  if (!kernel || kernel.getBody().empty())
+    return makeToyArtifactError(
+        kernel, "requires selected Toy kernel with a materialized body");
+
+  ComputeSkeletonOp matched;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    if (op.getName().getStringRef() != ComputeSkeletonOp::getOperationName())
+      continue;
+
+    auto computeRole = llvm::dyn_cast<ComputeSkeletonOp>(op);
+    if (!computeRole)
+      return makeToyArtifactError(
+          kernel, llvm::Twine("Toy role operation '") +
+                      ComputeSkeletonOp::getOperationName() +
+                      "' does not materialize as ComputeSkeletonOp");
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>(
+            kSelectedVariantAttrName);
+    auto role = getStringAttr(computeRole.getOperation(), kRoleAttrName);
+    if (!selectedVariant || selectedVariant.getValue() != variant.getSymName() ||
+        !role || role.getValue() != candidate.role)
+      continue;
+
+    if (matched)
+      return makeToyArtifactError(
+          kernel, llvm::Twine("duplicate Toy compute role ops for @") +
+                      candidate.selectedVariant + " as " + candidate.role);
+    matched = computeRole;
+  }
+
+  if (!matched)
+    return makeToyArtifactError(
+        kernel, llvm::Twine("selected Toy candidate requires one ") +
+                    ComputeSkeletonOp::getOperationName() + " for @" +
+                    candidate.selectedVariant + " as " + candidate.role);
+
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kSourceKernelAttrName,
+                                       kernel.getSymName()))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(
+              matched, kOriginAttrName,
+              pluginToy::getToyExtensionPluginName()))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kRoleAttrName, candidate.role))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kStatusAttrName,
+                                       kRoleOpBoundaryStatusValue))
+    return std::move(error);
+
+  auto roleOrder =
+      matched->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
+  if (!roleOrder || roleOrder.getInt() != 2)
+    return makeToyArtifactError(kernel,
+                                "Toy compute role op role_order must be 2");
+
+  const pluginToy::ToyTypedRoleGraphRealization &realization =
+      pluginToy::getToyTypedRoleGraphRealization();
+  const pluginToy::ToyTypedRoleInterfaceRealization &compute =
+      realization.roles[2];
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kTypedRoleAttrName,
+                                       compute.typedRoleID))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kSourceRoleAttrName,
+                                       compute.role))
+    return std::move(error);
+  if (llvm::Error error = requireComputeRoleStringAttr(
+          matched, kRoleSpecificInterfaceAttrName,
+          compute.roleSpecificInterface))
+    return std::move(error);
+  if (llvm::Error error =
+          requireComputeRoleStringAttr(matched, kEmitCCallAttrName,
+                                       compute.emitCCall))
+    return std::move(error);
+
+  auto requiredCapabilities =
+      matched->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requiredCapabilities || requiredCapabilities != variantRequires)
+    return makeToyArtifactError(
+        kernel, "Toy compute role op required_capabilities must match "
+                "selected variant requires metadata");
+
+  if (llvm::Error error = pluginToy::verifyToyComputeRoleOpInterface(
+          pluginToy::getToyConstructionManifest(), realization,
+          matched.getOperation()))
+    return std::move(error);
+
+  return matched;
+}
+
 const SelectedPlanMetadataEntry *
 findSelectedPlanMetadata(llvm::ArrayRef<SelectedPlanMetadataEntry> metadata,
                          llvm::StringRef name) {
@@ -293,12 +421,14 @@ llvm::Error requireSelectedPlanMetadata(
 
 llvm::Error validateToySelectedPlanMetadata(
     const TargetArtifactCandidate &candidate) {
-  if (candidate.selectedPlanMetadata.size() != 3)
+  if (candidate.selectedPlanMetadata.size() != 10)
     return makeToyArtifactError(
         candidate.kernel,
-        "Toy artifact candidate requires exactly three selected plan metadata "
+        "Toy artifact candidate requires exactly ten selected plan metadata "
         "entries");
 
+  const pluginToy::ToyConstructionManifest &manifest =
+      pluginToy::getToyConstructionManifest();
   if (llvm::Error error = requireSelectedPlanMetadata(
           candidate, "toy_template_capability_id",
           pluginToy::getToyTemplateCapabilityID(), "capability-requirement"))
@@ -310,11 +440,60 @@ llvm::Error validateToySelectedPlanMetadata(
   if (llvm::Error error = requireSelectedPlanMetadata(
           candidate, "toy_template_scope", "metadata-only", "evidence-scope"))
     return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToyConstructionProtocolMetadataName(),
+          manifest.protocolVersion,
+          pluginToy::getToyConstructionProtocolMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToyConstructionArchetypeMetadataName(),
+          manifest.archetype,
+          pluginToy::getToyConstructionArchetypeMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToySemanticRoleGraphMetadataName(),
+          manifest.semanticRoleGraph,
+          pluginToy::getToySemanticRoleGraphMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToyCommonInterfaceRealizationMetadataName(),
+          pluginToy::getToyConstructionInterfaceRealization(),
+          pluginToy::getToyCommonInterfaceRealizationMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToyTypedRoleRealizationMetadataName(),
+          pluginToy::getToyTypedRoleRealizationSummary(),
+          pluginToy::getToyTypedRoleRealizationMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToyEmitCRouteMappingMetadataName(),
+          manifest.emitcRoute.routeID,
+          pluginToy::getToyEmitCRouteMappingMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate, pluginToy::getToyEvidenceProfileMetadataName(),
+          manifest.evidenceProfile,
+          pluginToy::getToyEvidenceProfileMetadataRole()))
+    return error;
   return llvm::Error::success();
 }
 
 llvm::Error validateToyMetadataCandidate(
     const TargetArtifactCandidate &candidate) {
+  if (llvm::Error error = pluginToy::verifyToyConstructionManifest(
+          pluginToy::getToyConstructionManifest()))
+    return error;
+  if (llvm::Error error = pluginToy::verifyToyTypedRoleGraphRealization(
+          pluginToy::getToyConstructionManifest(),
+          pluginToy::getToyTypedRoleGraphRealization()))
+    return error;
+  if (llvm::Expected<pluginToy::ToyGeneratedOutputRoute> route =
+          pluginToy::buildToyGeneratedOutputRoute(
+              pluginToy::getToyConstructionManifest(),
+              pluginToy::getToyTypedRoleGraphRealization());
+      !route)
+    return route.takeError();
+
   KernelOp kernel = candidate.kernel;
   if (!kernel)
     return makeToyArtifactError(
@@ -398,6 +577,11 @@ llvm::Error validateToyMetadataCandidate(
       findAndValidateToyBoundary(candidate, variant);
   if (!boundary)
     return boundary.takeError();
+
+  llvm::Expected<ComputeSkeletonOp> computeRole =
+      findAndValidateToyComputeRoleOp(candidate, variant);
+  if (!computeRole)
+    return computeRole.takeError();
 
   return llvm::Error::success();
 }
@@ -494,9 +678,77 @@ void printSelectedPlanMetadata(
   }
 }
 
+void printGeneratedOutputRoute(
+    llvm::raw_ostream &os,
+    const pluginToy::ToyGeneratedOutputRoute &route) {
+  printField(os, "generated_output_kind", "role-graph-emitc-source-skeleton");
+  printField(os, "generated_function", route.functionName);
+  printField(os, "generated_required_header", route.requiredHeader);
+  for (auto [index, step] : llvm::enumerate(route.steps)) {
+    os << "generated_emitc_step[" << index << "]:\n";
+    printField(os, "  role", step.role);
+    os << "  order: " << step.order << "\n";
+    printField(os, "  typed_role", step.typedRoleID);
+    printField(os, "  operation", step.operationName);
+    printField(os, "  common_interfaces", step.commonInterfaces);
+    printField(os, "  role_specific_interface", step.roleSpecificInterface);
+    printField(os, "  emitc_lowerable_interface",
+               step.emitCLowerableInterface);
+    printField(os, "  emitc_call", step.emitCCall);
+    printField(os, "  source_line", step.sourceLine);
+  }
+
+  os << "generated_source:\n";
+  os << "  #include \"";
+  for (char character : route.requiredHeader) {
+    if (character == '\\' || character == '"')
+      os << '\\';
+    os << character;
+  }
+  os << "\"\n";
+  os << "  void " << route.functionName << "(void) {\n";
+  for (const pluginToy::ToyGeneratedOutputStep &step : route.steps) {
+    os << "    /* role[" << step.order << "] " << step.role
+       << " via " << step.operationName << " */\n";
+    os << "    " << step.sourceLine << "\n";
+  }
+  os << "  }\n";
+}
+
+void printTypedRoleGraphRealization(
+    llvm::raw_ostream &os,
+    const pluginToy::ToyTypedRoleGraphRealization &realization) {
+  printField(os, "typed_role_realization", realization.realizationSummary);
+  for (auto [index, role] : llvm::enumerate(realization.roles)) {
+    os << "typed_role[" << index << "]:\n";
+    printField(os, "  typed_role", role.typedRoleID);
+    printField(os, "  role", role.role);
+    os << "  order: " << role.order << "\n";
+    printField(os, "  operation", role.operationName);
+    printField(os, "  common_interfaces", role.commonInterfaces);
+    printField(os, "  role_specific_interface", role.roleSpecificInterface);
+    printField(os, "  emitc_lowerable_interface",
+               role.emitCLowerableInterface);
+    printField(os, "  emitc_call", role.emitCCall);
+  }
+}
+
+void printValidatedRoleOpBoundary(llvm::raw_ostream &os,
+                                  ComputeSkeletonOp computeRole) {
+  printField(os, "validated_role_op", ComputeSkeletonOp::getOperationName());
+  printField(os, "validated_role_op_interface",
+             "TCRVEmitCLowerableOpInterface");
+  printField(os, "validated_role_op_source",
+             computeRole.getTCRVEmitCLowerableSourceOpName());
+  printField(os, "validated_role_op_source_role",
+             computeRole.getTCRVEmitCLowerableSourceRole());
+}
+
 } // namespace
 
 static TargetArtifactRouteMetadata buildToyMetadataArtifactRouteMetadata() {
+  const pluginToy::ToyConstructionManifest &manifest =
+      pluginToy::getToyConstructionManifest();
   TargetArtifactRouteMetadata metadata(
       pluginToy::getToyExpectedTemplateABI(),
       pluginToy::getToyMetadataRuntimeABIKind(),
@@ -511,8 +763,37 @@ static TargetArtifactRouteMetadata buildToyMetadataArtifactRouteMetadata() {
   metadata.addSelectedPlanMetadataRequirement("toy_template_scope",
                                               "metadata-only",
                                               "evidence-scope");
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToyConstructionProtocolMetadataName(),
+      manifest.protocolVersion,
+      pluginToy::getToyConstructionProtocolMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToyConstructionArchetypeMetadataName(),
+      manifest.archetype,
+      pluginToy::getToyConstructionArchetypeMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToySemanticRoleGraphMetadataName(),
+      manifest.semanticRoleGraph,
+      pluginToy::getToySemanticRoleGraphMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToyCommonInterfaceRealizationMetadataName(),
+      pluginToy::getToyConstructionInterfaceRealization(),
+      pluginToy::getToyCommonInterfaceRealizationMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToyTypedRoleRealizationMetadataName(),
+      pluginToy::getToyTypedRoleRealizationSummary(),
+      pluginToy::getToyTypedRoleRealizationMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToyEmitCRouteMappingMetadataName(),
+      manifest.emitcRoute.routeID,
+      pluginToy::getToyEmitCRouteMappingMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      pluginToy::getToyEvidenceProfileMetadataName(),
+      manifest.evidenceProfile,
+      pluginToy::getToyEvidenceProfileMetadataRole());
   metadata.addClaimField("artifact_status", kArtifactStatus);
   metadata.addClaimField("runtime_execution_claim", kNoRuntimeClaim);
+  metadata.addClaimField("hardware_execution_claim", kNoRuntimeClaim);
   metadata.addClaimField("correctness_claim", kNoRuntimeClaim);
   metadata.addClaimField("performance_claim", kNoRuntimeClaim);
   return metadata;
@@ -530,10 +811,27 @@ llvm::Error exportToyMetadataArtifact(mlir::ModuleOp module,
   if (!requiredCapabilitySymbol)
     return requiredCapabilitySymbol.takeError();
 
+  VariantOp selectedVariant =
+      findDirectVariant(candidate->kernel, candidate->selectedVariant);
+  llvm::Expected<ComputeSkeletonOp> computeRole =
+      findAndValidateToyComputeRoleOp(*candidate, selectedVariant);
+  if (!computeRole)
+    return computeRole.takeError();
+
+  const pluginToy::ToyConstructionManifest &manifest =
+      pluginToy::getToyConstructionManifest();
+  const pluginToy::ToyTypedRoleGraphRealization &realization =
+      pluginToy::getToyTypedRoleGraphRealization();
+  llvm::Expected<pluginToy::ToyGeneratedOutputRoute> route =
+      pluginToy::buildToyGeneratedOutputRoute(manifest, realization);
+  if (!route)
+    return route.takeError();
+
   os << "tianchenrv.toy_metadata_artifact.version: "
      << kMetadataArtifactVersion << "\n";
   printField(os, "artifact_status", kArtifactStatus);
   printField(os, "runtime_execution_claim", kNoRuntimeClaim);
+  printField(os, "hardware_execution_claim", kNoRuntimeClaim);
   printField(os, "correctness_claim", kNoRuntimeClaim);
   printField(os, "performance_claim", kNoRuntimeClaim);
   os << "kernel: @" << candidate->kernel.getSymName() << "\n";
@@ -555,6 +853,35 @@ llvm::Error exportToyMetadataArtifact(mlir::ModuleOp module,
              pluginToy::getToyTemplateCapabilityID());
   printField(os, "required_capability_kind",
              pluginToy::getToyTemplateCapabilityKind());
+  printField(os, "construction_protocol", manifest.protocolVersion);
+  printField(os, "extension_archetype", manifest.archetype);
+  printField(os, "semantic_role_graph", manifest.semanticRoleGraph);
+  printField(os, "family_name", manifest.family.familyName);
+  printField(os, "family_architectural_namespace",
+             manifest.family.architecturalNamespace);
+  printField(os, "family_concrete_namespace",
+             manifest.family.concreteNamespace);
+  printField(os, "family_plugin", manifest.family.pluginName);
+  printField(os, "family_first_slice_variant",
+             manifest.family.firstSliceVariantName);
+  for (auto [index, role] : llvm::enumerate(manifest.semanticRoles)) {
+    os << "semantic_role[" << index << "]:\n";
+    printField(os, "  role", role.role);
+    os << "  order: " << role.order << "\n";
+    printField(os, "  operation", role.operationName);
+    printField(os, "  common_interfaces", role.commonInterfaces);
+  }
+  printField(os, "common_interface_realization",
+             pluginToy::getToyConstructionInterfaceRealization());
+  printValidatedRoleOpBoundary(os, *computeRole);
+  printTypedRoleGraphRealization(os, realization);
+  printField(os, "emitc_route_id", manifest.emitcRoute.routeID);
+  printField(os, "emitc_emission_kind", manifest.emitcRoute.emissionKind);
+  printField(os, "emitc_artifact_kind", manifest.emitcRoute.artifactKind);
+  printField(os, "emitc_required_header", manifest.emitcRoute.requiredHeader);
+  printField(os, "emitc_role_to_call_map", manifest.emitcRoute.roleToCallMap);
+  printField(os, "evidence_profile", manifest.evidenceProfile);
+  printGeneratedOutputRoute(os, *route);
   printSelectedPlanMetadata(os, candidate->selectedPlanMetadata);
   return llvm::Error::success();
 }
