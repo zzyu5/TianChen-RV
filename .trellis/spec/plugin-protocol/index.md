@@ -6,6 +6,8 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 
 - [ ] Is new extension-specific logic placed inside a plugin?
 - [ ] Does the plugin contribute an extension family to the unified TCRV system rather than an independent backend dialect?
+- [ ] Does the plugin follow the Extension-Family Plugin Construction Protocol: archetype, semantic role graph, family declaration, common interface realization, EmitC route mapping, and evidence profile?
+- [ ] Is the Extension Manifest the machine-readable entry point to that construction protocol rather than a passive checklist?
 - [ ] Does the plugin register capabilities, family ops/types/attrs, interfaces, variant builders, legality, tuning, cost, and EmitC emission mapping?
 - [ ] Does core code call registry/interface APIs rather than `hasRVV`/`hasIME`/`hasSophgo` branches?
 - [ ] If core interface changes are needed, are they justified by a genuinely new execution semantic?
@@ -21,7 +23,7 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 | [Interfaces And Registry](./interfaces-and-registry.md) | Required provider interfaces and core pass usage |
 | [Locality Contract](./locality-contract.md) | Plugin/core boundaries and extension-locality evaluation |
 | [Extension Plugin Integration Contract](./extension-plugin-integration.md) | Template for adding future extension plugins without rewriting core passes |
-| [Extension Family Plugin Template](./extension-family-plugin-template.md) | Manifest, common interfaces, common passes, EmitC mapping, and tests for new families |
+| [Extension Family Plugin Template](./extension-family-plugin-template.md) | Extension-Family Plugin Construction Protocol, manifest, common interfaces, common passes, EmitC mapping, and evidence profile for new families |
 
 ## Quality Check
 
@@ -33,3 +35,5 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - A new plugin should be testable from hand-written or test TianChen-RV MLIR before high-level `linalg`/`stablehlo`/`tosa` lowering exists.
 - Descriptor-driven computation must not be used as the template for adding a
   new extension family.
+- A new extension's "fast path" should reduce architecture decision search,
+  not avoid family-specific ops/types/attrs/verifiers/EmitC mapping/tests.

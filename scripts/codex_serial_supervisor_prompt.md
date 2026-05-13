@@ -51,8 +51,11 @@ the PRD first; do not choose an unrelated direction.
 - Descriptor-driven computation is invalid as long-term architecture. Do not
   add computation semantics through descriptors or direct descriptor-to-C
   export.
-- New extension work should follow the Extension Manifest / Extension Family
-  Plugin Template in the Trellis specs.
+- New extension work should follow the Extension-Family Plugin Construction
+  Protocol in the Trellis specs: archetype, semantic role graph, family
+  declaration, common interface realization, EmitC route mapping, and evidence
+  profile. Do not make a new extension an independent backend or descriptor-
+  driven compute path.
 - Do not treat prompt edits, reports, helper-only changes, guardrails, or broad
   smoke tests as the main achievement.
 - RVV runtime, correctness, or performance claims require real `ssh rvv`

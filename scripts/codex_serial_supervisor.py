@@ -1548,6 +1548,12 @@ If several recent rounds did not move an end-to-end path closer, stop refining
 the same small surface. Create, repair, or expand a module-level Trellis PRD and
 make Codex execute that module instead.
 
+For extension/plugin work, do not treat a checklist, metadata-only manifest, or
+documentation-only template as sufficient progress when the missing piece is an
+executable extension-family construction template. Prefer owners that make a
+family declaration, interface realization, EmitC route mapping, or evidence
+profile consumable by code or tests.
+
 ## Architecture Audit Surface
 
 Keep the audit concise, but block or redirect if the worker:
@@ -1560,7 +1566,10 @@ treats RVV, IME, TensorExt, Offload, scalar fallback, or future vendor targets a
 puts extension-specific semantic branches in core passes instead of TCRV common interfaces and plugin hooks;
 adds computation semantics through descriptors or direct descriptor-to-C exporters;
 routes new executable lowering around extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++;
-implements a new plugin without the Extension Manifest / Extension Family Plugin Template discipline;
+implements a new plugin without the Extension-Family Plugin Construction Protocol;
+omits extension archetype, semantic role graph, common interface realization, EmitC route mapping, or evidence profile for extension/plugin work;
+treats the Extension Manifest as metadata-only documentation rather than the machine-readable construction entry point;
+modifies core orchestration passes to give one extension a semantic special case;
 claims GCC or vendor compilers are the default route instead of clang/LLVM default with compatibility paths;
 confuses hardware facts, compile-time variant config, runtime SSA/control values, or descriptor-local parameters;
 claims RVV runtime/correctness/performance without ssh rvv evidence;

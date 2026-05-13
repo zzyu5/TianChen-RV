@@ -23,6 +23,22 @@ A new extension plugin normally provides:
 - optional target artifact route;
 - tests.
 
+The durable construction sequence for those contributions is defined by the
+Extension-Family Plugin Construction Protocol:
+
+```text
+extension archetype
+  -> semantic role graph
+  -> extension family declaration
+  -> common interface realization
+  -> EmitC route mapping
+  -> evidence profile
+```
+
+The Extension Manifest is the machine-readable entry point to this protocol.
+It must describe the family archetype, semantic roles, capabilities,
+ops/types/attrs, interface realization, EmitC mapping, and evidence profile.
+
 The plugin may own extension-specific lowering, but it should reuse the common
 TianChen-RV capability, variant, selection, dispatch, fallback, runtime ABI,
 and artifact-route organization whenever the existing interfaces are
@@ -188,5 +204,6 @@ These tests should validate plugin integration and compiler behavior. They
 should not turn into broad smoke matrices or helper-only progress.
 
 See [Extension Family Plugin Template](./extension-family-plugin-template.md)
-for the manifest, interface, common pass, EmitC mapping, directory, and test
-template expected for new families.
+for the Extension-Family Plugin Construction Protocol, manifest, interface,
+common pass, EmitC mapping, directory, and evidence profile expected for new
+families.
