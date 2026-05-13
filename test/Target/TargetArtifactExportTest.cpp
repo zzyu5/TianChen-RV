@@ -3870,18 +3870,32 @@ bool expectDispatchCompositeRejectsFallbackMismatchForRoute(
   if (routeID.contains("i32-vadd")) {
     if (!replaceFirst(source, "tcrv_rvv.i32_vmul_microkernel",
                       "tcrv_rvv.i32_vadd_microkernel") ||
+        !replaceFirst(source, "tcrv_rvv.i32_vmul_microkernel",
+                      "tcrv_rvv.i32_vadd_microkernel") ||
+        !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_add") ||
         !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_add") ||
         !replaceFirst(source, "i32-vmul-microkernel.v1",
-                      "i32-vadd-microkernel.v1")) {
+                      "i32-vadd-microkernel.v1") ||
+        !replaceFirst(source, "selected_binary_family = \"i32-vmul\"",
+                      "selected_binary_family = \"i32-vadd\"") ||
+        !replaceFirst(source, "selected_binary_operator = \"multiply\"",
+                      "selected_binary_operator = \"add\"")) {
       llvm::errs() << "failed to build fallback mismatch RVV vadd fixture\n";
       return false;
     }
   } else if (routeID.contains("i32-vsub")) {
     if (!replaceFirst(source, "tcrv_rvv.i32_vmul_microkernel",
                       "tcrv_rvv.i32_vsub_microkernel") ||
+        !replaceFirst(source, "tcrv_rvv.i32_vmul_microkernel",
+                      "tcrv_rvv.i32_vsub_microkernel") ||
+        !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_sub") ||
         !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_sub") ||
         !replaceFirst(source, "i32-vmul-microkernel.v1",
-                      "i32-vsub-microkernel.v1")) {
+                      "i32-vsub-microkernel.v1") ||
+        !replaceFirst(source, "selected_binary_family = \"i32-vmul\"",
+                      "selected_binary_family = \"i32-vsub\"") ||
+        !replaceFirst(source, "selected_binary_operator = \"multiply\"",
+                      "selected_binary_operator = \"subtract\"")) {
       llvm::errs() << "failed to build fallback mismatch RVV vsub fixture\n";
       return false;
     }
@@ -5011,7 +5025,7 @@ module @dispatch_component_authority_input {
       tcrv.exec.case @rvv_first_slice {condition = "rvv_available", runtime_guard = @abi_dispatch_availability_guard, runtime_guard_required = true}
       tcrv.exec.fallback @scalar_fallback_first_slice {fallback_role = "conservative", origin = "scalar-plugin"}
     }
-    tcrv_rvv.lowering_boundary {capability_summary = "rvv", origin = "rvv-plugin", required_capabilities = [@rvv], role = "dispatch case", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "dispatch_component_authority", status = "unsupported", unsupported_reason = "RVV lowering boundary is pre-executable metadata only; no RVV lowering pipeline, runtime ABI, generated artifact, correctness proof, or performance measurement is produced"}
+    tcrv_rvv.lowering_boundary {capability_summary = "rvv", emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface", emitc_source_op = "tcrv_rvv.i32_mul", origin = "rvv-plugin", required_capabilities = [@rvv], role = "dispatch case", selected_binary_dtype = "i32", selected_binary_family = "i32-vmul", selected_binary_microkernel_op = "tcrv_rvv.i32_vmul_microkernel", selected_binary_operator = "multiply", selected_binary_source_kind = "direct-typed-microkernel-body", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "dispatch_component_authority", status = "unsupported", unsupported_reason = "RVV lowering boundary is pre-executable metadata only; no RVV lowering pipeline, runtime ABI, generated artifact, correctness proof, or performance measurement is produced"}
     tcrv_rvv.i32_vmul_microkernel attributes {element_count = 16 : i64, origin = "rvv-plugin", required_capabilities = [@rvv], required_march = "rv64gcv", role = "dispatch case", selected_mabi = "lp64d", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "dispatch_component_authority"} {
     ^bb0(%arg0: index):
       %0 = tcrv_rvv.setvl %arg0 {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
@@ -5356,8 +5370,16 @@ bool expectDispatchComponentAuthorityValidators() {
   std::string staleRVVSource = makeDispatchComponentAuthorityFixture();
   if (!replaceFirst(staleRVVSource, "tcrv_rvv.i32_vmul_microkernel",
                     "tcrv_rvv.i32_vadd_microkernel") ||
+      !replaceFirst(staleRVVSource, "tcrv_rvv.i32_vmul_microkernel",
+                    "tcrv_rvv.i32_vadd_microkernel") ||
       !replaceFirst(staleRVVSource, "tcrv_rvv.i32_mul",
-                    "tcrv_rvv.i32_add")) {
+                    "tcrv_rvv.i32_add") ||
+      !replaceFirst(staleRVVSource, "tcrv_rvv.i32_mul",
+                    "tcrv_rvv.i32_add") ||
+      !replaceFirst(staleRVVSource, "selected_binary_family = \"i32-vmul\"",
+                    "selected_binary_family = \"i32-vadd\"") ||
+      !replaceFirst(staleRVVSource, "selected_binary_operator = \"multiply\"",
+                    "selected_binary_operator = \"add\"")) {
     llvm::errs() << "failed to build stale RVV dispatch authority fixture\n";
     return false;
   }

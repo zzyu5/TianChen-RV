@@ -105,9 +105,16 @@ module @rvv_runtime_abi_role_binding {
     }
     tcrv_rvv.lowering_boundary {
       capability_summary = "rvv",
+      emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface",
+      emitc_source_op = "tcrv_rvv.i32_add",
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
       role = "direct variant",
+      selected_binary_dtype = "i32",
+      selected_binary_family = "i32-vadd",
+      selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel",
+      selected_binary_operator = "add",
+      selected_binary_source_kind = "direct-typed-microkernel-body",
       selected_variant = @rvv_first_slice,
       source_kernel = "abi_names",
       status = "unsupported",

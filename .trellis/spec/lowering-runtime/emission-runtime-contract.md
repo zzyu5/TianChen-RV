@@ -202,6 +202,87 @@ output. The header must not embed callable bodies, RVV intrinsics, `main`,
 self-check helpers, runtime probing, evidence logs, credentials, artifact
 paths, or performance text.
 
+### Scenario: RVV i32-vadd Selected Source Identity For Default Artifacts
+
+#### 1. Scope / Trigger
+
+This scenario applies to the migrated default RVV i32-vadd target artifact
+route when generic source/header/object export consumes a selected
+runtime-callable RVV candidate.
+
+#### 2. Signatures
+
+- Selected boundary op: `tcrv_rvv.lowering_boundary`.
+- Required source-identity fields on that boundary:
+  `selected_binary_source_kind`, `selected_binary_dtype`,
+  `selected_binary_family`, `selected_binary_operator`,
+  `selected_binary_microkernel_op`, `emitc_source_op`, and
+  `emitc_lowerable_op_interface`.
+- Default route ids: `tcrv-export-rvv-microkernel-c`,
+  `tcrv-export-rvv-microkernel-header`, and
+  `tcrv-export-rvv-microkernel-object`.
+
+#### 3. Contracts
+
+- For the i32-vadd default artifact route, the generic target artifact
+  candidate preflight must treat selected-boundary source identity as required,
+  not optional compatibility metadata.
+- The source identity must agree with the selected typed body: dtype `i32`,
+  family `i32-vadd`, operator `add`, microkernel op
+  `tcrv_rvv.i32_vadd_microkernel`, EmitC source op `tcrv_rvv.i32_add`, and
+  generated interface `TCRVEmitCLowerableOpInterface`.
+- Allowed source kinds are frontend lowering, default typed-body
+  materialization, and direct typed microkernel body.
+- Descriptor fields may only be validated as legacy mirrors after typed source
+  authority is established.
+
+#### 4. Validation & Error Matrix
+
+- Missing all selected-boundary source-identity fields -> fail before source,
+  header, object, or bundle output.
+- Partial or empty source-identity fields -> fail before artifact output.
+- Boundary source op, family, dtype, operator, microkernel op, or interface
+  disagrees with the typed body -> fail before artifact output.
+- Descriptor-only i32-vadd candidate without typed body/source authority ->
+  fail before artifact output.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: pipeline-materialized i32-vadd selected boundary carries complete typed
+  source identity and matches the materialized `tcrv_rvv.i32_vadd_microkernel`
+  body.
+- Base: direct hand-authored i32-vadd fixtures may be used for tests only when
+  the same boundary identity fields are present and checked.
+- Bad: an emission plan with typed selected-plan metadata but a
+  source-identity-missing `tcrv_rvv.lowering_boundary` is not enough to emit
+  default production artifacts.
+
+#### 6. Tests Required
+
+- Positive pipeline-to-export coverage for i32-vadd source/header/object.
+- Negative FileCheck coverage proving missing selected-boundary source identity
+  fails before generated C source appears.
+- Negative coverage for stale/wrong source identity and descriptor-only
+  production attempts.
+- C++ target artifact preflight coverage for hand-authored component fixtures.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+selected emission plan metadata + descriptor mirror -> emit i32-vadd artifact
+```
+
+Correct:
+
+```text
+selected tcrv_rvv.lowering_boundary source identity
+  + typed tcrv_rvv.i32_vadd_microkernel body
+  + selected-plan metadata and IR-backed ABI mirrors
+  -> default source/header/object artifact preflight
+```
+
 The artifact-kind-aware generic route may also select scalar fallback
 runtime-callable C header and RISC-V ELF relocatable object helpers for the same
 validated scalar i32 binary callable source candidate. These scalar helpers are

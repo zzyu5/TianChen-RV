@@ -1769,9 +1769,18 @@ llvm::Error requireBoundarySourceIdentityAttr(KernelOp kernel,
 
 llvm::Error validateBoundarySourceIdentityForRecord(
     KernelOp kernel, const SelectedPath &path, LoweringBoundaryOp boundary,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
-  if (!hasAnyBoundaryBinarySourceIdentity(boundary))
+    const RVVBinaryIntrinsicDescriptor &descriptor,
+    bool requireBoundarySourceIdentity) {
+  if (!hasAnyBoundaryBinarySourceIdentity(boundary)) {
+    if (requireBoundarySourceIdentity)
+      return makeMicrokernelError(
+          kernel,
+          llvm::Twine("tcrv_rvv.lowering_boundary for @") +
+              getPathVariantSymbol(path) +
+              " requires selected RVV binary source identity before target "
+              "artifact export");
     return llvm::Error::success();
+  }
 
   if (llvm::Error error = requireBoundarySourceIdentityAttr(
           kernel, boundary, kBoundarySelectedBinaryDTypeAttrName,
@@ -2513,7 +2522,8 @@ llvm::Expected<RVVMicrokernelRecord>
 buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                        const TargetCapabilitySet &capabilities,
                        const llvm::StringSet<> &selectedRVVPathKeys,
-                       llvm::StringRef activeRouteID) {
+                       llvm::StringRef activeRouteID,
+                       bool requireBoundarySourceIdentity = false) {
   if (path.role == kDispatchFallbackRole)
     return makeMicrokernelError(
         kernel, "RVV microkernel export does not accept RVV dispatch fallback "
@@ -2644,8 +2654,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
       return selectedConfigContract.takeError();
     record.selectedConfigContract = std::move(*selectedConfigContract);
     if (llvm::Error error =
-            validateBoundarySourceIdentityForRecord(kernel, path, boundary,
-                                                    record.descriptor))
+            validateBoundarySourceIdentityForRecord(
+                kernel, path, boundary, record.descriptor,
+                requireBoundarySourceIdentity))
       return std::move(error);
     return record;
   }
@@ -2703,8 +2714,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     return selectedConfigContract.takeError();
   record.selectedConfigContract = std::move(*selectedConfigContract);
   if (llvm::Error error =
-          validateBoundarySourceIdentityForRecord(kernel, path, boundary,
-                                                  record.descriptor))
+          validateBoundarySourceIdentityForRecord(
+              kernel, path, boundary, record.descriptor,
+              requireBoundarySourceIdentity))
     return std::move(error);
   return record;
 }
@@ -2825,7 +2837,7 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecordForRVVBinaryFamily(
 llvm::Expected<RVVMicrokernelRecord> buildKernelRecordForRVVBinaryFamily(
     KernelOp kernel, const RVVBinaryFamilyDescriptor &expectedFamily,
     llvm::StringRef selectedVariant, llvm::StringRef role,
-    llvm::StringRef routeID) {
+    llvm::StringRef routeID, bool requireBoundarySourceIdentity = false) {
   if (!kernel)
     return makeModuleMicrokernelError(
         "requires a tcrv.exec.kernel operation for selected RVV source "
@@ -2884,7 +2896,7 @@ llvm::Expected<RVVMicrokernelRecord> buildKernelRecordForRVVBinaryFamily(
 
   llvm::Expected<RVVMicrokernelRecord> record = buildMicrokernelRecord(
       kernel, matchingRVVPaths.front(), *capabilities, selectedRVVPathKeys,
-      routeID);
+      routeID, requireBoundarySourceIdentity);
   if (!record)
     return record.takeError();
 
@@ -3860,14 +3872,16 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
           "selected RVV target artifact candidate requires an enclosing "
           "builtin.module for selected config/runtime AVL contract "
           "validation");
-    llvm::Expected<RVVBinarySelectedConfigContract> selectedContract =
-        resolveRVVMicrokernelSelectedConfigContractAuthority(
-            candidate.kernel, family, candidate.selectedVariant, candidate.role,
-            candidate.routeID);
-    if (!selectedContract)
-      return selectedContract.takeError();
+    bool requireBoundarySourceIdentity =
+        isSameRVVBinaryFamily(family, getI32VAddFamilyRegistrationRecord());
+    llvm::Expected<RVVMicrokernelRecord> sourceAuthority =
+        buildKernelRecordForRVVBinaryFamily(
+            candidate.kernel, family, candidate.selectedVariant,
+            candidate.role, candidate.routeID, requireBoundarySourceIdentity);
+    if (!sourceAuthority)
+      return sourceAuthority.takeError();
     if (llvm::Error error = validateRVVMicrokernelSelectedPlanMetadata(
-            candidate, *selectedContract))
+            candidate, sourceAuthority->selectedConfigContract))
       return error;
   }
   return validateRVVBinaryCandidateRuntimeABIMirrorsIR(candidate, descriptor);
