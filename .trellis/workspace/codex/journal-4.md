@@ -128,6 +128,60 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 - None - task complete
 
 
+## Session 54: Bounded MLIR vector-to-RVV materialization front door
+
+**Date**: 2026-05-13
+**Task**: Bounded MLIR vector-to-RVV materialization front door
+**Branch**: `main`
+
+### Summary
+
+Added the first bounded MLIR vector-dialect frontend path for one i32 vector
+add wrapper and proved it reaches the existing RVV selected/materialized
+microkernel body, common EmitC route, target artifacts, and RVV hardware
+external ABI evidence.
+
+### Main Changes
+
+- Added `--tcrv-lower-vector-rvv-i32-vadd-to-exec`, accepting exactly the
+  marked `func.func` vector transfer-read / `arith.addi` / transfer-write
+  i32-vadd source shape and materializing the existing finite binary
+  `tcrv.exec` runtime ABI boundary.
+- Registered MLIR vector dialect support in TianChen-RV tools.
+- Wired plan-and-export bundle lowering to consume bounded vector sources
+  before existing linalg sources.
+- Added vector positive/negative lit coverage plus plan-and-export
+  source/header/object bundle coverage.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'VectorToExec|plan-vector-i32-vadd'`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'VectorToExec|plan-vector-i32-vadd|RVVMicrokernel|TargetArtifactBundleExport|EmissionManifest|LoweringBoundary|LinalgToExec'`
+- Generated direct source/header/object artifacts and a plan-and-export bundle
+  under `artifacts/tmp/bounded_vector_to_rvv_frontdoor/`.
+- Fresh `ssh rvv` evidence:
+  `python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --input test/Transforms/VectorToExec/vector-i32-vadd-to-exec.mlir --expect-selected-kernel=frontend_vector_i32_vadd --runtime-count=7 --runtime-count=16 --runtime-count=23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --ssh-target rvv --run-id 20260513T-bounded-vector-to-rvv-frontdoor --overwrite --timeout 120`.
+  Both source-built and bundle-object remote callers printed
+  `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-bounded-vector-to-rvv-frontdoor`
+
+### Status
+
+[OK] Completed. Claim is bounded to this one vector/arith i32-vadd source
+front door and generated RVV target-artifact bundle external ABI correctness;
+no generic MLIR vector backend, performance, or scalable-vector maturity claim
+is made.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 53: RVV finite-binary EmitC route ownership cleanup
 
 **Date**: 2026-05-13

@@ -22,6 +22,7 @@
 #include "llvm/Support/Error.h"
 
 #include <cctype>
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -30,6 +31,7 @@ namespace tianchenrv::transforms {
 #define GEN_PASS_DEF_LOWERLINALGRVVBINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32BINARYTOEXEC
 #define GEN_PASS_DEF_LOWERLINALGI32VADDTOEXEC
+#define GEN_PASS_DEF_LOWERVECTORRVVI32VADDTOEXEC
 #include "TianChenRV/Transforms/Passes.h.inc"
 
 namespace {
@@ -41,9 +43,15 @@ constexpr llvm::StringLiteral kLinalgGenericOpName("linalg.generic");
 constexpr llvm::StringLiteral kArithAddIOpName("arith.addi");
 constexpr llvm::StringLiteral kArithSubIOpName("arith.subi");
 constexpr llvm::StringLiteral kArithMulIOpName("arith.muli");
+constexpr llvm::StringLiteral kArithConstantOpName("arith.constant");
 constexpr llvm::StringLiteral kFuncFuncOpName("func.func");
 constexpr llvm::StringLiteral kFuncReturnOpName("func.return");
 constexpr llvm::StringLiteral kLinalgYieldOpName("linalg.yield");
+constexpr llvm::StringLiteral kVectorTransferReadOpName(
+    "vector.transfer_read");
+constexpr llvm::StringLiteral kVectorTransferWriteOpName(
+    "vector.transfer_write");
+constexpr std::int64_t kVectorI32VAddSourceElements = 16;
 
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
@@ -159,6 +167,11 @@ bool isMarkedFrontendBinaryLinalg(mlir::Operation *op) {
   return isOperationNamed(op, kLinalgGenericOpName) && attr;
 }
 
+bool isMarkedFrontendBinaryVectorFunc(mlir::Operation *op) {
+  auto attr = getStringAttr(op, kFrontendLoweringAttrName);
+  return isOperationNamed(op, kFuncFuncOpName) && attr;
+}
+
 bool isBareSymbolName(llvm::StringRef value) {
   if (value.empty() || value.trim() != value)
     return false;
@@ -181,6 +194,16 @@ bool isBareSymbolName(llvm::StringRef value) {
 bool isIntegerScalarWithWidth(mlir::Type type, unsigned width) {
   auto integer = llvm::dyn_cast<mlir::IntegerType>(type);
   return integer && integer.getWidth() == width;
+}
+
+bool isRankedVectorWithIntegerElementWidth(mlir::Type type,
+                                           std::int64_t elements,
+                                           unsigned width) {
+  auto vector = llvm::dyn_cast<mlir::VectorType>(type);
+  if (!vector || vector.getRank() != 1 ||
+      vector.getDimSize(0) != elements)
+    return false;
+  return isIntegerScalarWithWidth(vector.getElementType(), width);
 }
 
 std::optional<unsigned>
@@ -585,8 +608,11 @@ mlir::LogicalResult requireNoDuplicateKernelSymbol(mlir::ModuleOp module,
          << " already exists";
 }
 
-mlir::LogicalResult requireNoLegacyDescriptorMetadata(mlir::Operation *funcOp,
-                                                      mlir::Operation *linalgOp) {
+mlir::LogicalResult requireNoLegacyDescriptorMetadata(
+    mlir::Operation *funcOp, mlir::Operation *linalgOp,
+    llvm::StringRef frontendName = "linalg frontend",
+    llvm::StringRef sourceAuthority =
+        "source linalg body and typed operands") {
   llvm::StringRef legacyNames[] = {
       kLegacyRVVLoweringDescriptorAttrName,
       kLegacyScalarLoweringDescriptorAttrName,
@@ -601,13 +627,164 @@ mlir::LogicalResult requireNoLegacyDescriptorMetadata(mlir::Operation *funcOp,
     for (llvm::StringRef attrName : legacyNames) {
       if (op->getAttr(attrName))
         return op->emitError()
-               << "TianChen-RV linalg frontend no longer accepts legacy "
+               << "TianChen-RV " << frontendName
+               << " no longer accepts legacy "
                   "descriptor metadata '"
                << attrName
-               << "'; the source linalg body and typed operands are the "
+               << "'; the " << sourceAuthority << " are the "
                   "compute authority";
     }
   }
+
+  return mlir::success();
+}
+
+bool isIntegerConstantZero(mlir::Operation *op, mlir::Type expectedType) {
+  if (!isOperationNamed(op, kArithConstantOpName) || op->getNumOperands() != 0 ||
+      op->getNumResults() != 1 || op->getResult(0).getType() != expectedType)
+    return false;
+
+  auto value = op->getAttrOfType<mlir::IntegerAttr>("value");
+  return value && value.getValue().isZero();
+}
+
+mlir::LogicalResult requireVectorTransferRead(
+    mlir::Operation *op, mlir::Value sourceBuffer, mlir::Value index,
+    mlir::Value padding, llvm::StringRef role) {
+  if (!isOperationNamed(op, kVectorTransferReadOpName) ||
+      op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return op->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects " << role
+           << " to be vector.transfer_read";
+
+  if (op->getOperand(0) != sourceBuffer || op->getOperand(1) != index ||
+      op->getOperand(2) != padding)
+    return op->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects " << role
+           << " to read the matching input buffer at the shared zero index "
+              "with i32 zero padding";
+
+  if (!isRankedVectorWithIntegerElementWidth(
+          op->getResult(0).getType(), kVectorI32VAddSourceElements, 32))
+    return op->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects " << role
+           << " to produce vector<16xi32>";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult requireVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
+  if (!isOperationNamed(funcOp, kFuncFuncOpName))
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects a func.func "
+              "wrapper";
+  if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend wrapper expects one "
+              "single-block func.func body";
+
+  mlir::Block &body = funcOp->getRegion(0).front();
+  if (body.getNumArguments() != 3)
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend wrapper expects three "
+              "memref<?xi32> block arguments";
+
+  for (mlir::BlockArgument arg : body.getArguments()) {
+    std::optional<unsigned> width =
+        getRankedDynamicVectorMemRefIntegerElementWidth(arg.getType());
+    if (!width || *width != 32)
+      return funcOp->emitError()
+             << "TianChen-RV vector i32-vadd frontend wrapper expects "
+                "lhs/rhs/output arguments to be rank-1 dynamic memref<?xi32>";
+  }
+
+  if (!llvm::hasNItems(body.getOperations(), 7))
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend wrapper expects exactly "
+              "zero index, zero i32 padding, two vector.transfer_read ops, "
+              "one arith.addi, one vector.transfer_write, and func.return";
+
+  auto it = body.begin();
+  mlir::Operation *indexConstant = &*it++;
+  mlir::Operation *paddingConstant = &*it++;
+  mlir::Operation *lhsRead = &*it++;
+  mlir::Operation *rhsRead = &*it++;
+  mlir::Operation *add = &*it++;
+  mlir::Operation *write = &*it++;
+  mlir::Operation *ret = &*it++;
+
+  if (!isIntegerConstantZero(indexConstant, mlir::IndexType::get(
+                                                funcOp->getContext())))
+    return indexConstant->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects the first source "
+              "operation to be arith.constant 0 : index";
+  if (!isIntegerConstantZero(paddingConstant,
+                             mlir::IntegerType::get(funcOp->getContext(), 32)))
+    return paddingConstant->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects the second source "
+              "operation to be arith.constant 0 : i32";
+
+  mlir::Value index = indexConstant->getResult(0);
+  mlir::Value padding = paddingConstant->getResult(0);
+  if (mlir::failed(requireVectorTransferRead(
+          lhsRead, body.getArgument(0), index, padding, "lhs read")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorTransferRead(
+          rhsRead, body.getArgument(1), index, padding, "rhs read")))
+    return mlir::failure();
+
+  if (!isOperationNamed(add, kArithAddIOpName) || add->getNumOperands() != 2 ||
+      add->getNumResults() != 1)
+    return add->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects arith.addi over "
+              "the two transfer-read vector values";
+  if (add->getOperand(0) != lhsRead->getResult(0) ||
+      add->getOperand(1) != rhsRead->getResult(0) ||
+      !isRankedVectorWithIntegerElementWidth(
+          add->getResult(0).getType(), kVectorI32VAddSourceElements, 32))
+    return add->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects arith.addi to "
+              "consume lhs/rhs vector<16xi32> reads and produce vector<16xi32>";
+
+  if (!isOperationNamed(write, kVectorTransferWriteOpName) ||
+      write->getNumOperands() != 3 || write->getNumResults() != 0)
+    return write->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects "
+              "vector.transfer_write of the add result";
+  if (write->getOperand(0) != add->getResult(0) ||
+      write->getOperand(1) != body.getArgument(2) ||
+      write->getOperand(2) != index)
+    return write->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects "
+              "vector.transfer_write to store the add result to the output "
+              "buffer at the shared zero index";
+
+  if (!isOperationNamed(ret, kFuncReturnOpName) || ret->getNumOperands() != 0)
+    return ret->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects func.return "
+              "without operands";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
+                                                  llvm::StringRef marker) {
+  const support::FiniteBinaryFrontendContract *markerContract =
+      support::lookupFiniteBinaryFrontendContractByMarker(marker);
+  if (!markerContract)
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects '"
+           << kFrontendLoweringAttrName << "' to be 'i32-vadd'";
+
+  const support::FiniteBinaryFrontendContract &expected =
+      support::getI32VAddFiniteBinaryFrontendContract();
+  if (markerContract->familyID != expected.familyID)
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend supports only marker "
+              "'i32-vadd'; marker '"
+           << marker
+           << "' is not accepted because this pass is not a generic vector "
+              "backend";
 
   return mlir::success();
 }
@@ -766,6 +943,77 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
+                                             mlir::Operation *funcOp) {
+  auto frontendAttr = getStringAttr(funcOp, kFrontendLoweringAttrName);
+  if (!frontendAttr)
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend expects '"
+           << kFrontendLoweringAttrName << "' to be 'i32-vadd'";
+
+  if (mlir::failed(
+          crossCheckVectorI32VAddMarker(funcOp, frontendAttr.getValue())))
+    return mlir::failure();
+  if (mlir::failed(requireNoLegacyDescriptorMetadata(
+          funcOp, nullptr, "vector frontend",
+          "source vector/arith body and typed operands")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
+    return mlir::failure();
+
+  const support::FiniteBinaryFrontendContract &contract =
+      support::getI32VAddFiniteBinaryFrontendContract();
+  FrontendBinarySpec spec = makeFrontendBinarySpec(contract);
+
+  mlir::StringAttr kernelAttr = getKernelName(funcOp, funcOp);
+  if (!kernelAttr || !isBareSymbolName(kernelAttr.getValue()))
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend requires non-empty "
+              "bare-symbol string attribute '"
+           << kFrontendKernelAttrName << "'";
+
+  mlir::FlatSymbolRefAttr targetRef = getTargetRef(funcOp, funcOp);
+  if (!targetRef || targetRef.getValue().empty())
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vadd frontend requires module target "
+              "symbol attribute '"
+           << kFrontendTargetAttrName << "'";
+
+  TargetOp selectedTarget;
+  if (mlir::failed(requireTopLevelTargetProfile(
+          module, funcOp, targetRef.getValue(), selectedTarget)))
+    return mlir::failure();
+  if (mlir::failed(requireNoDuplicateKernelSymbol(module, funcOp,
+                                                  kernelAttr.getValue())))
+    return mlir::failure();
+
+  llvm::SmallVector<mlir::Operation *, 4> providerImports;
+  if (mlir::Attribute rawProviderRefs =
+          getCapabilityProviderRefsAttr(funcOp, funcOp)) {
+    auto providerRefs = llvm::dyn_cast<mlir::ArrayAttr>(rawProviderRefs);
+    if (!providerRefs)
+      return funcOp->emitError()
+             << "TianChen-RV vector i32-vadd frontend expects '"
+             << kFrontendCapabilityProvidersAttrName
+             << "' to be an array of module symbol references";
+
+    if (mlir::failed(collectCapabilityProviderImports(
+            module, funcOp, selectedTarget, providerRefs, providerImports)))
+      return mlir::failure();
+  }
+
+  KernelOp kernel =
+      createExecKernel(module, funcOp, kernelAttr.getValue(), targetRef, spec);
+  materializeCapabilityProviderImports(kernel, providerImports);
+  if (mlir::failed(materializeFrontendBinaryABI(kernel, spec))) {
+    kernel.erase();
+    return mlir::failure();
+  }
+
+  funcOp->erase();
+  return mlir::success();
+}
+
 mlir::LogicalResult lowerMarkedFrontendBinaryLinalgInModule(
     mlir::ModuleOp module) {
   llvm::SmallVector<mlir::Operation *, 4> markedLinalgOps;
@@ -794,6 +1042,35 @@ mlir::LogicalResult lowerMarkedFrontendBinaryLinalgInModule(
   return mlir::success();
 }
 
+mlir::LogicalResult
+lowerMarkedFrontendVectorI32VAddInModule(mlir::ModuleOp module) {
+  llvm::SmallVector<mlir::Operation *, 4> markedVectorFuncs;
+  mlir::WalkResult walkResult = module.walk([&](mlir::Operation *op) {
+    if (!isMarkedFrontendBinaryVectorFunc(op))
+      return mlir::WalkResult::advance();
+    markedVectorFuncs.push_back(op);
+    return mlir::WalkResult::advance();
+  });
+  if (walkResult.wasInterrupted())
+    return mlir::failure();
+
+  for (mlir::Operation *funcOp : markedVectorFuncs)
+    if (mlir::failed(lowerOneMarkedVectorFunc(module, funcOp)))
+      return mlir::failure();
+
+  return mlir::success();
+}
+
+struct LowerVectorRVVI32VAddToExecPass
+    : impl::LowerVectorRVVI32VAddToExecBase<
+          LowerVectorRVVI32VAddToExecPass> {
+  void runOnOperation() override {
+    if (mlir::failed(
+            lowerMarkedFrontendVectorI32VAddInModule(getOperation())))
+      signalPassFailure();
+  }
+};
+
 struct LowerLinalgRVVBinaryToExecPass
     : impl::LowerLinalgRVVBinaryToExecBase<LowerLinalgRVVBinaryToExecPass> {
   void runOnOperation() override {
@@ -819,6 +1096,10 @@ struct LowerLinalgI32VAddToExecPass
 };
 
 } // namespace
+
+std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VAddToExecPass() {
+  return std::make_unique<LowerVectorRVVI32VAddToExecPass>();
+}
 
 std::unique_ptr<mlir::Pass> createLowerLinalgRVVBinaryToExecPass() {
   return std::make_unique<LowerLinalgRVVBinaryToExecPass>();

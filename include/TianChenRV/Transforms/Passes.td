@@ -3,6 +3,34 @@
 
 include "mlir/Pass/PassBase.td"
 
+def LowerVectorRVVI32VAddToExec
+    : Pass<"tcrv-lower-vector-rvv-i32-vadd-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Lower one bounded MLIR vector i32 add wrapper to tcrv.exec";
+  let description = [{
+    Consumes exactly one marked hand-written/test MLIR vector/arith i32 add
+    wrapper shape and materializes the TianChen-RV execution boundary consumed
+    by the existing RVV plugin planning pipeline. The accepted source shape is
+    intentionally narrow: a func.func with three memref<?xi32> block
+    arguments, a zero index, zero i32 padding, two vector.transfer_read
+    operations, one arith.addi over vector<16xi32>, one vector.transfer_write
+    to the output buffer, and func.return. The pass creates a tcrv.exec.kernel
+    with a selected module target profile reference, validates optional
+    supplemental capability-provider imports, materializes the existing finite
+    i32-vadd runtime ABI mem_window/runtime_param surface, then removes the
+    source wrapper.
+
+    This is a bounded frontend adapter. It does not add a generic vector
+    backend, infer arbitrary vector semantics, select variants, branch on
+    RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
+    runtime correctness/performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createLowerVectorRVVI32VAddToExecPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def LowerLinalgRVVBinaryToExec
     : Pass<"tcrv-lower-linalg-rvv-binary-to-exec", "::mlir::ModuleOp"> {
   let summary = "Lower bounded marked linalg RVV binary wrappers to tcrv.exec";
