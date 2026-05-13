@@ -434,6 +434,36 @@ bool expectRVVRuntimeLengthContractMetadata() {
                     "name\n";
     return false;
   }
+  llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigEmissionView>
+      selectedEmission =
+          tianchenrv::target::rvv::buildRVVBinarySelectedConfigEmissionView(
+              *selectedConfig);
+  if (!selectedEmission) {
+    llvm::errs() << "failed to build selected config emission view: "
+                 << llvm::toString(selectedEmission.takeError()) << "\n";
+    return false;
+  }
+  if (selectedEmission->vectorType != "vint32m1_t" ||
+      selectedEmission->vectorSuffix != "i32m1" ||
+      selectedEmission->setvlSuffix != "e32m1" ||
+      selectedEmission->setvlIntrinsicName != "__riscv_vsetvl_e32m1" ||
+      selectedEmission->loadIntrinsicName != "__riscv_vle32_v_i32m1" ||
+      selectedEmission->arithmeticIntrinsicName != "__riscv_vadd_vv_i32m1" ||
+      selectedEmission->storeIntrinsicName != "__riscv_vse32_v_i32m1" ||
+      selectedEmission->tailPolicy != "agnostic" ||
+      selectedEmission->maskPolicy != "agnostic") {
+    llvm::errs() << "selected config emission view did not derive i32m1 "
+                    "RVV C type/intrinsic spelling from the selected config "
+                    "contract\n";
+    return false;
+  }
+  if (!llvm::StringRef(
+           selectedConfig->formatSelectedConfigEmissionAuthorityCommentBody())
+           .contains("source=RVVBinarySelectedConfigContract")) {
+    llvm::errs() << "selected config emission authority comment lost the "
+                    "selected-config source provenance\n";
+    return false;
+  }
 
   llvm::Expected<RVVBinarySelectedConfigContract> staleDescriptorAuthority =
       buildRVVBinarySelectedConfigContract(

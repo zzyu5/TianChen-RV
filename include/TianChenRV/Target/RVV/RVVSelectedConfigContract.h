@@ -240,6 +240,83 @@ public:
     return getRVVBinaryIntrinsicDescriptor(getFamily(), getShape());
   }
 
+  std::string getSetVLIntrinsicName() const {
+    std::string name;
+    llvm::raw_string_ostream stream(name);
+    stream << "__riscv_vsetvl_" << getSetVLSuffix();
+    stream.flush();
+    return name;
+  }
+
+  std::string getLoadIntrinsicName() const {
+    std::string name;
+    llvm::raw_string_ostream stream(name);
+    stream << "__riscv_vle" << getSEWBits() << "_v_" << getVectorSuffix();
+    stream.flush();
+    return name;
+  }
+
+  std::string getArithmeticIntrinsicName() const {
+    std::string name;
+    llvm::raw_string_ostream stream(name);
+    stream << (family ? family->arithmeticIntrinsicPrefix : llvm::StringRef())
+           << getVectorSuffix();
+    stream.flush();
+    return name;
+  }
+
+  std::string getStoreIntrinsicName() const {
+    std::string name;
+    llvm::raw_string_ostream stream(name);
+    stream << "__riscv_vse" << getSEWBits() << "_v_" << getVectorSuffix();
+    stream.flush();
+    return name;
+  }
+
+  std::string formatSelectedVectorShapeConfigCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "selected_vector_shape_config: ";
+    if (getDTypeID() != "i32")
+      stream << "dtype=" << getDTypeID() << ", ";
+    stream << "shape=" << getShapeID() << ", sew=" << getSEWBits()
+           << ", lmul=" << getLMUL()
+           << ", tail_policy=" << getTailPolicy()
+           << ", mask_policy=" << getMaskPolicy()
+           << ", vector_type=" << getVectorType()
+           << ", vector_suffix=" << getVectorSuffix()
+           << ", setvl_suffix=" << getSetVLSuffix();
+    stream.flush();
+    return text;
+  }
+
+  std::string formatSelectedVectorShapeCapabilitiesCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "selected_vector_shape_capabilities:";
+    for (llvm::StringRef capabilityID : getSelectedShapeCapabilityIDs())
+      stream << " " << capabilityID;
+    stream.flush();
+    return text;
+  }
+
+  std::string formatSelectedConfigEmissionAuthorityCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "selected_config_emission_authority: vector_type="
+           << getVectorType() << ", vector_suffix=" << getVectorSuffix()
+           << ", setvl_suffix=" << getSetVLSuffix()
+           << ", setvl_intrinsic=" << getSetVLIntrinsicName()
+           << ", load_intrinsic=" << getLoadIntrinsicName()
+           << ", arithmetic_intrinsic=" << getArithmeticIntrinsicName()
+           << ", store_intrinsic=" << getStoreIntrinsicName()
+           << ", tail_policy=" << getTailPolicy()
+           << ", mask_policy=" << getMaskPolicy()
+           << ", source=RVVBinarySelectedConfigContract";
+    stream.flush();
+    return text;
+  }
+
   std::string formatSummaryCommentBody() const {
     std::string text;
     llvm::raw_string_ostream stream(text);
@@ -325,6 +402,28 @@ private:
   std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
   std::optional<support::DynamicVectorRuntimeExtentContract>
       dynamicRuntimeExtent;
+};
+
+struct RVVBinarySelectedConfigEmissionView {
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string vectorType;
+  std::string vectorSuffix;
+  std::string setvlSuffix;
+  std::string setvlIntrinsicName;
+  std::string loadIntrinsicName;
+  std::string arithmeticIntrinsicName;
+  std::string storeIntrinsicName;
+  std::string tailPolicy;
+  std::string maskPolicy;
+
+  bool isValid() const {
+    return sew > 0 && !lmul.empty() && !vectorType.empty() &&
+           !vectorSuffix.empty() && !setvlSuffix.empty() &&
+           !setvlIntrinsicName.empty() && !loadIntrinsicName.empty() &&
+           !arithmeticIntrinsicName.empty() && !storeIntrinsicName.empty() &&
+           !tailPolicy.empty() && !maskPolicy.empty();
+  }
 };
 
 inline llvm::Error makeRVVSelectedConfigContractError(llvm::Twine message) {
@@ -446,6 +545,31 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
         "mutually exclusive");
 
   return llvm::Error::success();
+}
+
+inline llvm::Expected<RVVBinarySelectedConfigEmissionView>
+buildRVVBinarySelectedConfigEmissionView(
+    const RVVBinarySelectedConfigContract &contract) {
+  if (llvm::Error error = validateRVVBinarySelectedConfigContract(contract))
+    return std::move(error);
+
+  RVVBinarySelectedConfigEmissionView view;
+  view.sew = contract.getSEWBits();
+  view.lmul = contract.getLMUL().str();
+  view.vectorType = contract.getVectorType().str();
+  view.vectorSuffix = contract.getVectorSuffix().str();
+  view.setvlSuffix = contract.getSetVLSuffix().str();
+  view.setvlIntrinsicName = contract.getSetVLIntrinsicName();
+  view.loadIntrinsicName = contract.getLoadIntrinsicName();
+  view.arithmeticIntrinsicName = contract.getArithmeticIntrinsicName();
+  view.storeIntrinsicName = contract.getStoreIntrinsicName();
+  view.tailPolicy = contract.getTailPolicy().str();
+  view.maskPolicy = contract.getMaskPolicy().str();
+  if (!view.isValid())
+    return makeRVVSelectedConfigContractError(
+        "selected config emission view must contain non-empty vector type, "
+        "suffix, policy, and intrinsic spelling fields");
+  return view;
 }
 
 inline llvm::Expected<RVVBinarySelectedConfigContract>

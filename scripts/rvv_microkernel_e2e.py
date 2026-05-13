@@ -1901,6 +1901,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         + " via generated EmitC route and IR-backed callable ABI */",
         "/* selected_vector_shape_config:",
         "/* selected_vector_shape_capabilities:",
+        "/* selected_config_emission_authority:",
         "/* dataflow_body: tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_load -> tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_load -> "
         + str(ACTIVE_ARITHMETIC_FAMILY["arithmetic_op_name"])
         + " -> tcrv_rvv." + str(ACTIVE_VECTOR_SHAPE["dtype"]) + "_store */",
@@ -2061,6 +2062,9 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
     intrinsic_config = parse_source_comment(
         source, "intrinsic_config", required=True
     )
+    selected_config_emission_authority = parse_source_comment(
+        source, "selected_config_emission_authority", required=True
+    )
     expected_control_fragments = [
         "sew=" + str(ACTIVE_VECTOR_SHAPE["sew_bits"]),
         "lmul=" + str(ACTIVE_VECTOR_SHAPE["lmul"]),
@@ -2140,9 +2144,41 @@ def validate_vector_shape_metadata(source: str) -> dict[str, Any]:
             + ", ".join(missing_intrinsic)
         )
 
+    expected_emission_authority_fragments = [
+        "vector_type=" + str(ACTIVE_VECTOR_SHAPE["vector_type"]),
+        "vector_suffix=" + str(ACTIVE_VECTOR_SHAPE["vector_suffix"]),
+        "setvl_suffix=" + str(ACTIVE_VECTOR_SHAPE["setvl_suffix"]),
+        "setvl_intrinsic=" + setvl_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE),
+        "load_intrinsic=" + load_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE),
+        "arithmetic_intrinsic="
+        + arithmetic_intrinsic_for_family(
+            ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE
+        ),
+        "store_intrinsic=" + store_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE),
+        "tail_policy=" + str(ACTIVE_VECTOR_SHAPE["tail_policy"]),
+        "mask_policy=" + str(ACTIVE_VECTOR_SHAPE["mask_policy"]),
+        "source=RVVBinarySelectedConfigContract",
+    ]
+    missing_emission_authority = [
+        fragment
+        for fragment in expected_emission_authority_fragments
+        if fragment not in selected_config_emission_authority
+    ]
+    if missing_emission_authority:
+        raise BridgeError(
+            "generated RVV microkernel C source selected_config_emission_authority "
+            "does not match requested selected vector config "
+            + str(ACTIVE_VECTOR_SHAPE["shape"])
+            + "; missing fragments: "
+            + ", ".join(missing_emission_authority)
+        )
+
     evidence = vector_shape_evidence(ACTIVE_VECTOR_SHAPE)
     evidence["selected_vector_shape_config"] = selected_shape_config
     evidence["selected_vector_shape_capabilities"] = selected_shape_capabilities
+    evidence["selected_config_emission_authority"] = (
+        selected_config_emission_authority
+    )
     evidence["control_plane_config"] = control_config
     evidence["intrinsic_config"] = intrinsic_config
     evidence["required_intrinsics"] = [
@@ -5178,6 +5214,7 @@ kernel @rvv_microkernel_manifest
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
+/* selected_config_emission_authority: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, setvl_intrinsic=__riscv_vsetvl_e32m1, load_intrinsic=__riscv_vle32_v_i32m1, arithmetic_intrinsic=__riscv_vadd_vv_i32m1, store_intrinsic=__riscv_vse32_v_i32m1, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -5319,6 +5356,7 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec */
 /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
+/* selected_config_emission_authority: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, setvl_intrinsic=__riscv_vsetvl_e32m1, load_intrinsic=__riscv_vle32_v_i32m1, arithmetic_intrinsic=__riscv_vsub_vv_i32m1, store_intrinsic=__riscv_vse32_v_i32m1, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -5377,6 +5415,7 @@ void f(void) {
 /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec */
 /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
 /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
+/* selected_config_emission_authority: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, setvl_intrinsic=__riscv_vsetvl_e32m2, load_intrinsic=__riscv_vle32_v_i32m2, arithmetic_intrinsic=__riscv_vsub_vv_i32m2, store_intrinsic=__riscv_vse32_v_i32m2, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
 /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -5447,6 +5486,7 @@ void f(void) {
 /* emitc.call_opaque[4]: __riscv_vse32_v_i32m1 from tcrv_rvv.i32_store */
 /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
 /* selected_vector_shape_capabilities: rvv.i32_m1.sew32 rvv.i32_m1.lmul_m1 rvv.i32_m1.tail_policy.agnostic rvv.i32_m1.mask_policy.agnostic */
+/* selected_config_emission_authority: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, setvl_intrinsic=__riscv_vsetvl_e32m1, load_intrinsic=__riscv_vle32_v_i32m1, arithmetic_intrinsic=__riscv_vmul_vv_i32m1, store_intrinsic=__riscv_vse32_v_i32m1, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
@@ -5526,6 +5566,7 @@ void f(void) {
 /* dataflow_emission_step[3]: op=tcrv_rvv.i64_store, role=output-buffer, value=sum_vec */
 /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
 /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
+/* selected_config_emission_authority: vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1, setvl_intrinsic=__riscv_vsetvl_e64m1, load_intrinsic=__riscv_vle64_v_i64m1, arithmetic_intrinsic=__riscv_vadd_vv_i64m1, store_intrinsic=__riscv_vse64_v_i64m1, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 /* control_plane_config: sew=64, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 /* intrinsic_config: vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1, tail_policy=agnostic, mask_policy=agnostic */
 /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */

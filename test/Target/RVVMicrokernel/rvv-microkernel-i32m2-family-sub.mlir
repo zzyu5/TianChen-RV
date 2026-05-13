@@ -61,6 +61,7 @@ module @rvv_microkernel_i32m2_vsub_export_input {
 // SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 // SOURCE: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
 // SOURCE: /* selected_vector_shape_capabilities: rvv.i32_m2.sew32 rvv.i32_m2.lmul_m2 rvv.i32_m2.tail_policy.agnostic rvv.i32_m2.mask_policy.agnostic */
+// SOURCE: /* selected_config_emission_authority: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, setvl_intrinsic=__riscv_vsetvl_e32m2, load_intrinsic=__riscv_vle32_v_i32m2, arithmetic_intrinsic=__riscv_vsub_vv_i32m2, store_intrinsic=__riscv_vse32_v_i32m2, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 // SOURCE: /* control_plane_config: sew=32, lmul=m2, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
 // SOURCE: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: #include <riscv_vector.h>
@@ -82,5 +83,6 @@ module @rvv_microkernel_i32m2_vsub_export_input {
 
 // DIRECT: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // DIRECT: /* selected_vector_shape_config: shape=i32m2, sew=32, lmul=m2, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2 */
+// DIRECT: /* selected_config_emission_authority: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, setvl_intrinsic=__riscv_vsetvl_e32m2, load_intrinsic=__riscv_vle32_v_i32m2, arithmetic_intrinsic=__riscv_vsub_vv_i32m2, store_intrinsic=__riscv_vse32_v_i32m2, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
 // DIRECT: /* intrinsic_config: vector_type=vint32m2_t, vector_suffix=i32m2, setvl_suffix=e32m2, tail_policy=agnostic, mask_policy=agnostic */
 // DIRECT: __riscv_vsub_vv_i32m2

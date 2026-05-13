@@ -194,6 +194,7 @@ struct RVVMicrokernelRecord {
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   RVVBinarySelectedConfigContract selectedConfigContract;
+  RVVBinarySelectedConfigEmissionView selectedConfigEmission;
   RVVBinaryDataflowEmissionPlan dataflowPlan;
   RVVIntrinsicConfig intrinsicConfig;
   const RVVI32VectorShapeConfig *selectedShape = nullptr;
@@ -2522,6 +2523,86 @@ llvm::Error attachFrontendRuntimeExtentContracts(KernelOp kernel,
   return llvm::Error::success();
 }
 
+llvm::Error validateSelectedConfigEmissionMatchesBody(
+    KernelOp kernel, const RVVBinarySelectedConfigContract &contract,
+    const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
+    const RVVIntrinsicConfig &bodyIntrinsicConfig) {
+  if (!selectedConfigEmission.isValid())
+    return makeMicrokernelError(
+        kernel,
+        "selected RVV config emission authority requires complete vector "
+        "type, suffix, policy, and intrinsic spelling fields");
+
+  auto failMismatch = [&](llvm::StringRef field, llvm::StringRef expected,
+                          llvm::StringRef observed) -> llvm::Error {
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("selected RVV config emission authority field '") +
+            field + "' expected '" + expected +
+            "' from RVVBinarySelectedConfigContract but body verifier "
+            "observed '" +
+            observed + "'");
+  };
+
+  if (selectedConfigEmission.sew != bodyIntrinsicConfig.sew)
+    return makeMicrokernelError(
+        kernel,
+        llvm::Twine("selected RVV config emission authority field 'sew' "
+                    "expected ") +
+            llvm::Twine(selectedConfigEmission.sew) +
+            " from RVVBinarySelectedConfigContract but body verifier "
+            "observed " +
+            llvm::Twine(bodyIntrinsicConfig.sew));
+  if (selectedConfigEmission.lmul != bodyIntrinsicConfig.lmul)
+    return failMismatch("lmul", selectedConfigEmission.lmul,
+                        bodyIntrinsicConfig.lmul);
+  if (selectedConfigEmission.vectorType != bodyIntrinsicConfig.vectorType)
+    return failMismatch("vector_type", selectedConfigEmission.vectorType,
+                        bodyIntrinsicConfig.vectorType);
+  if (selectedConfigEmission.vectorSuffix != bodyIntrinsicConfig.vectorSuffix)
+    return failMismatch("vector_suffix", selectedConfigEmission.vectorSuffix,
+                        bodyIntrinsicConfig.vectorSuffix);
+  if (selectedConfigEmission.setvlSuffix != bodyIntrinsicConfig.setvlSuffix)
+    return failMismatch("setvl_suffix", selectedConfigEmission.setvlSuffix,
+                        bodyIntrinsicConfig.setvlSuffix);
+  if (selectedConfigEmission.setvlIntrinsicName !=
+      bodyIntrinsicConfig.setvlIntrinsicName)
+    return failMismatch("setvl_intrinsic",
+                        selectedConfigEmission.setvlIntrinsicName,
+                        bodyIntrinsicConfig.setvlIntrinsicName);
+  if (selectedConfigEmission.loadIntrinsicName !=
+      bodyIntrinsicConfig.loadIntrinsicName)
+    return failMismatch("load_intrinsic",
+                        selectedConfigEmission.loadIntrinsicName,
+                        bodyIntrinsicConfig.loadIntrinsicName);
+  if (selectedConfigEmission.arithmeticIntrinsicName !=
+      bodyIntrinsicConfig.arithmeticIntrinsicName)
+    return failMismatch("arithmetic_intrinsic",
+                        selectedConfigEmission.arithmeticIntrinsicName,
+                        bodyIntrinsicConfig.arithmeticIntrinsicName);
+  if (selectedConfigEmission.storeIntrinsicName !=
+      bodyIntrinsicConfig.storeIntrinsicName)
+    return failMismatch("store_intrinsic",
+                        selectedConfigEmission.storeIntrinsicName,
+                        bodyIntrinsicConfig.storeIntrinsicName);
+  if (selectedConfigEmission.tailPolicy != bodyIntrinsicConfig.tailPolicy)
+    return failMismatch("tail_policy", selectedConfigEmission.tailPolicy,
+                        bodyIntrinsicConfig.tailPolicy);
+  if (selectedConfigEmission.maskPolicy != bodyIntrinsicConfig.maskPolicy)
+    return failMismatch("mask_policy", selectedConfigEmission.maskPolicy,
+                        bodyIntrinsicConfig.maskPolicy);
+
+  if (contract.getVectorType() != selectedConfigEmission.vectorType ||
+      contract.getVectorSuffix() != selectedConfigEmission.vectorSuffix ||
+      contract.getSetVLSuffix() != selectedConfigEmission.setvlSuffix)
+    return makeMicrokernelError(
+        kernel,
+        "selected RVV config emission authority must be derived from the "
+        "selected config contract, not descriptor-local or body-only "
+        "metadata");
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVMicrokernelRecord>
 buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                        const TargetCapabilitySet &capabilities,
@@ -2657,6 +2738,16 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     if (!selectedConfigContract)
       return selectedConfigContract.takeError();
     record.selectedConfigContract = std::move(*selectedConfigContract);
+    llvm::Expected<RVVBinarySelectedConfigEmissionView> selectedEmission =
+        buildRVVBinarySelectedConfigEmissionView(
+            record.selectedConfigContract);
+    if (!selectedEmission)
+      return selectedEmission.takeError();
+    if (llvm::Error error = validateSelectedConfigEmissionMatchesBody(
+            kernel, record.selectedConfigContract, *selectedEmission,
+            record.intrinsicConfig))
+      return std::move(error);
+    record.selectedConfigEmission = std::move(*selectedEmission);
     if (llvm::Error error =
             validateBoundarySourceIdentityForRecord(
                 kernel, path, boundary, record.descriptor,
@@ -2718,6 +2809,15 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (!selectedConfigContract)
     return selectedConfigContract.takeError();
   record.selectedConfigContract = std::move(*selectedConfigContract);
+  llvm::Expected<RVVBinarySelectedConfigEmissionView> selectedEmission =
+      buildRVVBinarySelectedConfigEmissionView(record.selectedConfigContract);
+  if (!selectedEmission)
+    return selectedEmission.takeError();
+  if (llvm::Error error = validateSelectedConfigEmissionMatchesBody(
+          kernel, record.selectedConfigContract, *selectedEmission,
+          record.intrinsicConfig))
+    return std::move(error);
+  record.selectedConfigEmission = std::move(*selectedEmission);
   if (llvm::Error error =
           validateBoundarySourceIdentityForRecord(
               kernel, path, boundary, record.descriptor,
@@ -3010,11 +3110,11 @@ getDataflowValueCName(RVVBinaryDataflowValue value,
 
 llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
     const RVVBinaryDataflowStep &step,
-    const RVVIntrinsicConfig &intrinsicConfig,
+    const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
     const RVVBinaryIntrinsicDescriptor &descriptor) {
   switch (step.kind) {
   case RVVBinaryDataflowStepKind::Load:
-    return intrinsicConfig.loadIntrinsicName;
+    return selectedConfigEmission.loadIntrinsicName;
   case RVVBinaryDataflowStepKind::Add:
   case RVVBinaryDataflowStepKind::Sub:
   case RVVBinaryDataflowStepKind::Mul: {
@@ -3040,12 +3140,19 @@ llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
           descriptor.getArithmeticFamilyID() +
           "'; typed source op and selected record must agree before "
           "emitc.call_opaque callee selection");
-    return (llvm::Twine(sourceFamily->arithmeticIntrinsicPrefix) +
-            intrinsicConfig.vectorSuffix)
-        .str();
+    std::string expectedIntrinsic =
+        (llvm::Twine(sourceFamily->arithmeticIntrinsicPrefix) +
+         selectedConfigEmission.vectorSuffix)
+            .str();
+    if (expectedIntrinsic != selectedConfigEmission.arithmeticIntrinsicName)
+      return makeModuleMicrokernelError(
+          "selected RVV config emission authority arithmetic intrinsic name "
+          "must equal the family-owned suffix-free arithmetic prefix plus the "
+          "selected vector suffix before EmitC route construction");
+    return selectedConfigEmission.arithmeticIntrinsicName;
   }
   case RVVBinaryDataflowStepKind::Store:
-    return intrinsicConfig.storeIntrinsicName;
+    return selectedConfigEmission.storeIntrinsicName;
   }
   return makeModuleMicrokernelError(
       "RVV family-op to EmitC route saw an unknown dataflow step kind");
@@ -3124,11 +3231,11 @@ class RVVBinaryEmitCLowerable final : public TCRVEmitCLowerableInterface {
 public:
   RVVBinaryEmitCLowerable(
       const RVVBinaryIntrinsicDescriptor &descriptor,
-      const RVVIntrinsicConfig &intrinsicConfig,
+      const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
       const RVVBinaryDataflowEmissionPlan &dataflowPlan,
       llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
       RVVRuntimeLengthContract runtimeLength, llvm::StringRef loopIndexName)
-      : descriptor(descriptor), intrinsicConfig(intrinsicConfig),
+      : descriptor(descriptor), selectedConfigEmission(selectedConfigEmission),
         dataflowPlan(dataflowPlan), runtimeLength(std::move(runtimeLength)),
         loopIndexName(loopIndexName.str()) {
     this->runtimeABIParameters.append(runtimeABIParameters.begin(),
@@ -3168,14 +3275,14 @@ public:
     route.addTypeMapping("!tcrv_rvv.vl", "size_t");
     route.addTypeMapping(
         (llvm::Twine("!tcrv_rvv.") + descriptor.getShapeID()).str(),
-        intrinsicConfig.vectorType);
+        selectedConfigEmission.vectorType);
     for (const support::RuntimeABIParameter &parameter : runtimeABIParameters)
       route.addABIValueMapping(parameter, parameter.cName);
 
     TCRVEmitCCallOpaqueStep setvlStep;
     setvlStep.sourceOp.opName = "tcrv_rvv.setvl";
     setvlStep.sourceOp.role = "runtime-avl-to-vl";
-    setvlStep.callee = intrinsicConfig.setvlIntrinsicName;
+    setvlStep.callee = selectedConfigEmission.setvlIntrinsicName;
     setvlStep.operands.push_back(
         {runtimeLength.formatRemainingAVLOperandExpression(loopIndexName),
          runtimeN->cType});
@@ -3188,7 +3295,8 @@ public:
       emitcStep.sourceOp.role = getRouteSourceRole(step).str();
       emitcStep.sourceOp.opInterface = step.sourceOpInterface;
       llvm::Expected<std::string> callee =
-          getEmitCCallOpaqueCalleeForStep(step, intrinsicConfig, descriptor);
+          getEmitCCallOpaqueCalleeForStep(step, selectedConfigEmission,
+                                          descriptor);
       if (!callee)
         return callee.takeError();
       emitcStep.callee = std::move(*callee);
@@ -3211,7 +3319,7 @@ public:
         emitcStep.operands.push_back({"vl", "size_t"});
         emitcStep.result = TCRVEmitCCallOpaqueResult{
             getDataflowValueCName(step.result, descriptor).str(),
-            intrinsicConfig.vectorType};
+            selectedConfigEmission.vectorType};
         break;
       }
       case RVVBinaryDataflowStepKind::Add:
@@ -3219,14 +3327,14 @@ public:
       case RVVBinaryDataflowStepKind::Mul:
         emitcStep.operands.push_back(
             {getDataflowValueCName(step.lhs, descriptor).str(),
-             intrinsicConfig.vectorType});
+             selectedConfigEmission.vectorType});
         emitcStep.operands.push_back(
             {getDataflowValueCName(step.rhs, descriptor).str(),
-             intrinsicConfig.vectorType});
+             selectedConfigEmission.vectorType});
         emitcStep.operands.push_back({"vl", "size_t"});
         emitcStep.result = TCRVEmitCCallOpaqueResult{
             getDataflowValueCName(step.result, descriptor).str(),
-            intrinsicConfig.vectorType};
+            selectedConfigEmission.vectorType};
         break;
       case RVVBinaryDataflowStepKind::Store: {
         const support::RuntimeABIParameter *parameter =
@@ -3240,7 +3348,7 @@ public:
              parameter->cType});
         emitcStep.operands.push_back(
             {getDataflowValueCName(step.value, descriptor).str(),
-             intrinsicConfig.vectorType});
+             selectedConfigEmission.vectorType});
         emitcStep.operands.push_back({"vl", "size_t"});
         break;
       }
@@ -3269,7 +3377,7 @@ private:
   }
 
   RVVBinaryIntrinsicDescriptor descriptor;
-  RVVIntrinsicConfig intrinsicConfig;
+  RVVBinarySelectedConfigEmissionView selectedConfigEmission;
   RVVBinaryDataflowEmissionPlan dataflowPlan;
   RVVRuntimeLengthContract runtimeLength;
   std::string loopIndexName;
@@ -3278,16 +3386,16 @@ private:
 
 llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     const RVVBinaryIntrinsicDescriptor &descriptor,
-    const RVVIntrinsicConfig &intrinsicConfig,
+    const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
     const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
     const RVVRuntimeLengthContract &runtimeLength,
     llvm::StringRef functionName,
     std::int64_t fixedRuntimeElementCount = 0) {
   constexpr llvm::StringLiteral kLoopIndexName("offset");
-  RVVBinaryEmitCLowerable lowerable(descriptor, intrinsicConfig, dataflowPlan,
-                                    runtimeABIParameters, runtimeLength,
-                                    kLoopIndexName);
+  RVVBinaryEmitCLowerable lowerable(descriptor, selectedConfigEmission,
+                                    dataflowPlan, runtimeABIParameters,
+                                    runtimeLength, kLoopIndexName);
   TCRVLowerToEmitCSourceOptions options;
   options.sourceAuthorityOptions.functionName = functionName.str();
   options.sourceAuthorityOptions.loopIndexName = kLoopIndexName.str();
@@ -3500,25 +3608,33 @@ void printRecordComment(llvm::raw_ostream &os,
   printEmitCRouteMetadata(os, emitcRoute, functionName);
   if (record.selectedShape) {
     os << "/* "
-       << record.descriptor.formatSelectedVectorShapeConfigCommentBody()
+       << record.selectedConfigContract
+              .formatSelectedVectorShapeConfigCommentBody()
        << " */\n";
     os << "/* "
-       << record.descriptor.formatSelectedVectorShapeCapabilitiesCommentBody()
+       << record.selectedConfigContract
+              .formatSelectedVectorShapeCapabilitiesCommentBody()
        << " */\n";
   }
+  os << "/* "
+     << record.selectedConfigContract
+            .formatSelectedConfigEmissionAuthorityCommentBody()
+     << " */\n";
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
      << ", policy=#tcrv_rvv.policy<tail = "
-     << record.intrinsicConfig.tailPolicy
-     << ", mask = " << record.intrinsicConfig.maskPolicy << "> */\n";
-  os << "/* intrinsic_config_source: validated tcrv_rvv.setvl and "
-        "tcrv_rvv.with_vl SEW/LMUL/policy metadata */\n";
+     << record.selectedConfigEmission.tailPolicy
+     << ", mask = " << record.selectedConfigEmission.maskPolicy << "> */\n";
+  os << "/* intrinsic_config_source: "
+        "RVVBinarySelectedConfigContract cross-checked against verified "
+        "tcrv_rvv.setvl/tcrv_rvv.with_vl SEW/LMUL/policy metadata */\n";
   os << "/* intrinsic_config: vector_type="
-     << record.intrinsicConfig.vectorType
-     << ", vector_suffix=" << record.intrinsicConfig.vectorSuffix
-     << ", setvl_suffix=" << record.intrinsicConfig.setvlSuffix
-     << ", tail_policy=" << record.intrinsicConfig.tailPolicy
-     << ", mask_policy=" << record.intrinsicConfig.maskPolicy << " */\n";
+     << record.selectedConfigEmission.vectorType
+     << ", vector_suffix=" << record.selectedConfigEmission.vectorSuffix
+     << ", setvl_suffix=" << record.selectedConfigEmission.setvlSuffix
+     << ", tail_policy=" << record.selectedConfigEmission.tailPolicy
+     << ", mask_policy=" << record.selectedConfigEmission.maskPolicy
+     << " */\n";
   os << "/* artifact_kind: runtime-callable-c-source */\n";
   os << "/* element_count: " << record.elementCount << " */\n";
   os << "/* required_capabilities:";
@@ -3564,7 +3680,8 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       llvm::StringRef functionName,
                                       const BinarySelfCheckExpectation
                                           &expectation,
-                                      const RVVIntrinsicConfig &intrinsicConfig,
+                                      const RVVBinarySelectedConfigEmissionView
+                                          &selectedConfigEmission,
                                       std::int64_t elementCount,
                                       std::optional<std::int64_t>
                                           fixedSourceVectorExtent) {
@@ -3601,7 +3718,7 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "    out[index] = (" << expectation.scalarElementCType
      << ")-12345;\n";
   os << "  }\n\n";
-  os << "  size_t first_vl = " << intrinsicConfig.setvlIntrinsicName
+  os << "  size_t first_vl = " << selectedConfigEmission.setvlIntrinsicName
      << "(runtime_n);\n";
   os << "  if (first_vl == 0 || first_vl > runtime_n) {\n";
   os << "    fprintf(stderr, \"invalid rvv microkernel vl=%zu\\n\", first_vl);\n";
@@ -3763,7 +3880,8 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   std::string functionName = makeMicrokernelFunctionName(record);
   bool includeHarness = mode == RVVMicrokernelCExportMode::SelfCheckHarness;
   llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
-      lowerRVVBinaryToEmitCSource(record.descriptor, record.intrinsicConfig,
+      lowerRVVBinaryToEmitCSource(record.descriptor,
+                                  record.selectedConfigEmission,
                                   record.dataflowPlan,
                                   record.runtimeABIParameters,
                                   record.selectedConfigContract
@@ -3805,7 +3923,7 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
     if (!expectation)
       return expectation.takeError();
     printMicrokernelSelfCheckHarness(os, functionName, *expectation,
-                                     record.intrinsicConfig,
+                                     record.selectedConfigEmission,
                                      record.elementCount,
                                      record.fixedSourceExtent
                                          ? std::optional<std::int64_t>(
@@ -3903,22 +4021,22 @@ void appendMicrokernelObjectEvidenceSection(
   printObjectEvidenceLine(os, "emitc_lowerable_op_interface",
                           kEmitCLowerableOpInterfaceName);
   printObjectEvidenceLine(os, "selected_vector_shape",
-                          record.descriptor.getShapeID());
+                          record.selectedConfigContract.getShapeID());
   printObjectEvidenceLine(
       os, "selected_vector_sew",
-      std::to_string(record.descriptor.getSEWBits()));
+      std::to_string(record.selectedConfigContract.getSEWBits()));
   printObjectEvidenceLine(os, "selected_vector_lmul",
-                          record.descriptor.getLMUL());
+                          record.selectedConfigContract.getLMUL());
   printObjectEvidenceLine(os, "selected_tail_policy",
-                          record.descriptor.getTailPolicy());
+                          record.selectedConfigContract.getTailPolicy());
   printObjectEvidenceLine(os, "selected_mask_policy",
-                          record.descriptor.getMaskPolicy());
+                          record.selectedConfigContract.getMaskPolicy());
   printObjectEvidenceLine(os, "selected_vector_type",
-                          record.descriptor.getVectorType());
+                          record.selectedConfigEmission.vectorType);
   printObjectEvidenceLine(os, "selected_vector_suffix",
-                          record.descriptor.getVectorSuffix());
+                          record.selectedConfigEmission.vectorSuffix);
   printObjectEvidenceLine(os, "selected_setvl_suffix",
-                          record.descriptor.getSetVLSuffix());
+                          record.selectedConfigEmission.setvlSuffix);
   const RVVRuntimeLengthContract &runtimeLength =
       record.selectedConfigContract.getRuntimeLengthContract();
   printObjectEvidenceLine(os, "runtime_element_count_c_name",
