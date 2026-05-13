@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants for final verification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV descriptor mirror quarantine against plugin contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC route authority"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact runtime ABI and bundle export contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test coverage and evidence scope"}

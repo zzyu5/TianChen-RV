@@ -41,6 +41,17 @@ inline llvm::StringRef getRVVDescriptorElementCountMetadataName() {
   return "tcrv_rvv.descriptor_element_count";
 }
 
+inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataRole() {
+  return "rvv-descriptor-local-component-capacity";
+}
+
+inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataNote() {
+  return "bounded descriptor-local component capacity cross-checked after "
+         "typed selected-plan authority; not legacy descriptor mirror, "
+         "compute, ABI, source, runtime AVL/VL, hardware capacity, or "
+         "performance authority";
+}
+
 inline llvm::StringRef getRVVRuntimeElementCountCNameMetadataName() {
   return "tcrv_rvv.runtime_element_count_c_name";
 }

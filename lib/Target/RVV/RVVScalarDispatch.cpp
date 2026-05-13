@@ -1894,24 +1894,28 @@ llvm::Error validateDispatchDescriptorElementCountMetadata(
             tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
             "' descriptor element count must be '" + expectedCount + "'");
   if ((*metadata)->role !=
-      tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataRole())
+      tianchenrv::target::rvv::
+          getRVVDescriptorElementCountCapacityMetadataRole())
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("selected RVV dispatch candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
             tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
             "' role must be '" +
-            tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataRole() +
+            tianchenrv::target::rvv::
+                getRVVDescriptorElementCountCapacityMetadataRole() +
             "'");
   if ((*metadata)->note !=
-      tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataNote())
+      tianchenrv::target::rvv::
+          getRVVDescriptorElementCountCapacityMetadataNote())
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("selected RVV dispatch candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
             tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
             "' note must be '" +
-            tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataNote() +
+            tianchenrv::target::rvv::
+                getRVVDescriptorElementCountCapacityMetadataNote() +
             "'");
   return llvm::Error::success();
 }

@@ -1340,21 +1340,23 @@ resolveRVVMicrokernelDescriptorElementCountMetadata(
   if (!metadata)
     return metadata.takeError();
 
-  if ((*metadata)->role != getRVVLegacyDescriptorMirrorMetadataRole())
+  if ((*metadata)->role != getRVVDescriptorElementCountCapacityMetadataRole())
     return makeMicrokernelError(
         candidate.kernel,
         llvm::Twine("selected RVV target artifact candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
             getRVVDescriptorElementCountMetadataName() +
-            "' role must be '" + getRVVLegacyDescriptorMirrorMetadataRole() +
+            "' role must be '" +
+            getRVVDescriptorElementCountCapacityMetadataRole() +
             "'");
-  if ((*metadata)->note != getRVVLegacyDescriptorMirrorMetadataNote())
+  if ((*metadata)->note != getRVVDescriptorElementCountCapacityMetadataNote())
     return makeMicrokernelError(
         candidate.kernel,
         llvm::Twine("selected RVV target artifact candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
             getRVVDescriptorElementCountMetadataName() +
-            "' note must be '" + getRVVLegacyDescriptorMirrorMetadataNote() +
+            "' note must be '" +
+            getRVVDescriptorElementCountCapacityMetadataNote() +
             "'");
 
   std::int64_t value = 0;
@@ -3736,7 +3738,7 @@ buildRVVMicrokernelSourceRouteMetadata(
       getRVVRuntimeControlNameMetadataRole());
   metadata.addSelectedPlanMetadataPresenceRequirement(
       getRVVDescriptorElementCountMetadataName(),
-      getRVVLegacyDescriptorMirrorMetadataRole());
+      getRVVDescriptorElementCountCapacityMetadataRole());
 
   llvm::StringRef shapeRole = getSelectedRVVVectorShapeMetadataRole();
   metadata.addSelectedPlanMetadataPresenceRequirement(

@@ -1122,8 +1122,8 @@ void appendSelectedBinaryMetadata(
     metadata.push_back({
         target::rvv::getRVVDescriptorElementCountMetadataName().str(),
         std::to_string(contract.getDescriptorElementCount()),
-        target::rvv::getRVVLegacyDescriptorMirrorMetadataRole().str(),
-        target::rvv::getRVVLegacyDescriptorMirrorMetadataNote().str()});
+        target::rvv::getRVVDescriptorElementCountCapacityMetadataRole().str(),
+        target::rvv::getRVVDescriptorElementCountCapacityMetadataNote().str()});
   }
 }
 

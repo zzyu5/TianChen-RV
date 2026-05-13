@@ -109,8 +109,10 @@ void appendRVVSelectedPlanMetadata(
   candidate.selectedPlanMetadata.push_back(
       {tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName().str(),
        std::to_string(contract->getDescriptorElementCount()),
-       tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataRole().str(),
-       tianchenrv::target::rvv::getRVVLegacyDescriptorMirrorMetadataNote().str()});
+       tianchenrv::target::rvv::
+           getRVVDescriptorElementCountCapacityMetadataRole().str(),
+       tianchenrv::target::rvv::
+           getRVVDescriptorElementCountCapacityMetadataNote().str()});
 }
 
 void appendScalarSelectedPlanMetadata(
@@ -646,7 +648,8 @@ bool expectRVVSourceRouteRegistrationMetadata(
     return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.descriptor_element_count",
-          "legacy-rvv-binary-descriptor-mirror"))
+          tianchenrv::target::rvv::
+              getRVVDescriptorElementCountCapacityMetadataRole()))
     return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.selected_vector_shape",
@@ -3090,6 +3093,12 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
       if (!expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
               registry, route.getRouteID(),
               "tcrv_rvv.selected_binary_family",
+              tianchenrv::target::rvv::
+                  getRVVLegacyDescriptorMirrorMetadataRole()))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
+              registry, route.getRouteID(),
+              "tcrv_rvv.descriptor_element_count",
               tianchenrv::target::rvv::
                   getRVVLegacyDescriptorMirrorMetadataRole()))
         return false;

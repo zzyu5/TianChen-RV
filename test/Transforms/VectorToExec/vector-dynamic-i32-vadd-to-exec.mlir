@@ -115,6 +115,7 @@ module {
 // PIPE-SAME: role = "typed-rvv-emitc-source-op"
 // PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"
 // PIPE: name = "tcrv_rvv.descriptor_element_count"
+// PIPE-SAME: role = "rvv-descriptor-local-component-capacity"
 // PIPE-SAME: value = "16"
 
 // SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent

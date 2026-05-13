@@ -104,6 +104,9 @@ module {
 // PIPE: name = "tcrv_rvv.emitc_lowerable_op_interface"
 // PIPE-SAME: role = "typed-rvv-emitc-source-op"
 // PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"
+// PIPE: name = "tcrv_rvv.descriptor_element_count"
+// PIPE-SAME: role = "rvv-descriptor-local-component-capacity"
+// PIPE-SAME: value = "16"
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // SOURCE: /* arithmetic_family: i32-vsub */
