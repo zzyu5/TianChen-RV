@@ -151,11 +151,6 @@ enum class RVVMicrokernelCExportMode {
   SelfCheckHarness,
 };
 
-using RVVI32VAddDataflowStepKind = RVVBinaryDataflowStepKind;
-using RVVI32VAddDataflowValue = RVVBinaryDataflowValue;
-using RVVI32VAddDataflowStep = RVVBinaryDataflowStep;
-using RVVI32VAddDataflowEmissionPlan = RVVBinaryDataflowEmissionPlan;
-
 using RVVI32MicrokernelKind =
     tianchenrv::target::rvv::RVVBinaryArithmeticKind;
 using RVVI32MicrokernelFamilySpec =
@@ -182,7 +177,7 @@ struct RVVMicrokernelRecord {
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   RVVBinarySelectedConfigContract selectedConfigContract;
-  RVVI32VAddDataflowEmissionPlan dataflowPlan;
+  RVVBinaryDataflowEmissionPlan dataflowPlan;
   RVVIntrinsicConfig intrinsicConfig;
   const RVVI32VectorShapeConfig *selectedShape = nullptr;
   std::int64_t elementCount = 0;
@@ -1776,7 +1771,7 @@ llvm::Error validateMicrokernelForPath(
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
-    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+    RVVBinaryDataflowEmissionPlan &dataflowPlan) {
   if (!microkernel)
     return makeMicrokernelError(kernel, llvm::Twine("requires a matching ") +
                                             family.microkernelOpName);
@@ -1914,7 +1909,7 @@ llvm::Error findAndValidateMicrokernel(
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
-    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+    RVVBinaryDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
     const RVVI32MicrokernelFamilySpec *family =
@@ -1976,7 +1971,7 @@ llvm::Error validateI64MicrokernelForPath(
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
-    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+    RVVBinaryDataflowEmissionPlan &dataflowPlan) {
   if (!microkernel)
     return makeMicrokernelError(kernel, llvm::Twine("requires a matching ") +
                                             descriptor.getRVVMicrokernelOpName());
@@ -2115,7 +2110,7 @@ llvm::Error findAndValidateI64Microkernel(
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
     std::string &controlPlaneLMUL, RVVIntrinsicConfig &intrinsicConfig,
-    RVVI32VAddDataflowEmissionPlan &dataflowPlan) {
+    RVVBinaryDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
     const RVVBinaryFamilyDescriptor *microkernelFamily =
@@ -2465,7 +2460,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     std::int64_t controlPlaneSEW = 0;
     std::string controlPlaneLMUL;
     RVVIntrinsicConfig intrinsicConfig;
-    RVVI32VAddDataflowEmissionPlan dataflowPlan;
+    RVVBinaryDataflowEmissionPlan dataflowPlan;
     if (llvm::Error error = findAndValidateI64Microkernel(
             kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
             policy, i64Microkernel, descriptor, **selectedConfig,
@@ -2514,7 +2509,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   std::int64_t controlPlaneSEW = 0;
   std::string controlPlaneLMUL;
   RVVIntrinsicConfig intrinsicConfig;
-  RVVI32VAddDataflowEmissionPlan dataflowPlan;
+  RVVBinaryDataflowEmissionPlan dataflowPlan;
   if (llvm::Error error = findAndValidateMicrokernel(
           kernel, path, selectedRVVPathKeys, *selectedMarch, selectedMABI,
           policy, microkernel, microkernelFamily, **selectedConfig,
@@ -2729,21 +2724,21 @@ std::string makeMicrokernelHeaderIncludeGuard(
 }
 
 std::string
-getDataflowStepOpName(const RVVI32VAddDataflowStep &step,
+getDataflowStepOpName(const RVVBinaryDataflowStep &step,
                       const RVVBinaryIntrinsicDescriptor &descriptor) {
   if (!step.sourceOpName.empty())
     return step.sourceOpName;
   switch (step.kind) {
-  case RVVI32VAddDataflowStepKind::Load:
+  case RVVBinaryDataflowStepKind::Load:
     return (llvm::Twine("tcrv_rvv.") + descriptor.getDTypeID() + "_load")
         .str();
-  case RVVI32VAddDataflowStepKind::Add:
+  case RVVBinaryDataflowStepKind::Add:
     return descriptor.getRVVOperationName().str();
-  case RVVI32VAddDataflowStepKind::Sub:
+  case RVVBinaryDataflowStepKind::Sub:
     return descriptor.getRVVOperationName().str();
-  case RVVI32VAddDataflowStepKind::Mul:
+  case RVVBinaryDataflowStepKind::Mul:
     return descriptor.getRVVOperationName().str();
-  case RVVI32VAddDataflowStepKind::Store:
+  case RVVBinaryDataflowStepKind::Store:
     return (llvm::Twine("tcrv_rvv.") + descriptor.getDTypeID() + "_store")
         .str();
   }
@@ -2751,32 +2746,32 @@ getDataflowStepOpName(const RVVI32VAddDataflowStep &step,
 }
 
 llvm::StringRef
-getDataflowValueCName(RVVI32VAddDataflowValue value,
+getDataflowValueCName(RVVBinaryDataflowValue value,
                       const RVVBinaryIntrinsicDescriptor &descriptor) {
   switch (value) {
-  case RVVI32VAddDataflowValue::LHSVector:
+  case RVVBinaryDataflowValue::LHSVector:
     return "lhs_vec";
-  case RVVI32VAddDataflowValue::RHSVector:
+  case RVVBinaryDataflowValue::RHSVector:
     return "rhs_vec";
-  case RVVI32VAddDataflowValue::ResultVector:
+  case RVVBinaryDataflowValue::ResultVector:
     return descriptor.family.resultCName;
-  case RVVI32VAddDataflowValue::None:
+  case RVVBinaryDataflowValue::None:
     return "";
   }
   return "";
 }
 
 std::string getEmitCCallOpaqueCalleeForStep(
-    const RVVI32VAddDataflowStep &step,
+    const RVVBinaryDataflowStep &step,
     const RVVIntrinsicConfig &intrinsicConfig) {
   switch (step.kind) {
-  case RVVI32VAddDataflowStepKind::Load:
+  case RVVBinaryDataflowStepKind::Load:
     return intrinsicConfig.loadIntrinsicName;
-  case RVVI32VAddDataflowStepKind::Add:
-  case RVVI32VAddDataflowStepKind::Sub:
-  case RVVI32VAddDataflowStepKind::Mul:
+  case RVVBinaryDataflowStepKind::Add:
+  case RVVBinaryDataflowStepKind::Sub:
+  case RVVBinaryDataflowStepKind::Mul:
     return intrinsicConfig.arithmeticIntrinsicName;
-  case RVVI32VAddDataflowStepKind::Store:
+  case RVVBinaryDataflowStepKind::Store:
     return intrinsicConfig.storeIntrinsicName;
   }
   return "";
@@ -2784,22 +2779,22 @@ std::string getEmitCCallOpaqueCalleeForStep(
 
 llvm::Expected<BinarySelfCheckArithmeticKind>
 getSelfCheckArithmeticFromDataflowPlan(
-    const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+    const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     llvm::StringRef context) {
   std::optional<BinarySelfCheckArithmeticKind> arithmetic;
-  for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
+  for (const RVVBinaryDataflowStep &step : dataflowPlan.steps) {
     std::optional<BinarySelfCheckArithmeticKind> candidate;
     switch (step.kind) {
-    case RVVI32VAddDataflowStepKind::Load:
-    case RVVI32VAddDataflowStepKind::Store:
+    case RVVBinaryDataflowStepKind::Load:
+    case RVVBinaryDataflowStepKind::Store:
       continue;
-    case RVVI32VAddDataflowStepKind::Add:
+    case RVVBinaryDataflowStepKind::Add:
       candidate = BinarySelfCheckArithmeticKind::Add;
       break;
-    case RVVI32VAddDataflowStepKind::Sub:
+    case RVVBinaryDataflowStepKind::Sub:
       candidate = BinarySelfCheckArithmeticKind::Sub;
       break;
-    case RVVI32VAddDataflowStepKind::Mul:
+    case RVVBinaryDataflowStepKind::Mul:
       candidate = BinarySelfCheckArithmeticKind::Mul;
       break;
     }
@@ -2856,7 +2851,7 @@ public:
   RVVBinaryEmitCLowerable(
       const RVVBinaryIntrinsicDescriptor &descriptor,
       const RVVIntrinsicConfig &intrinsicConfig,
-      const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+      const RVVBinaryDataflowEmissionPlan &dataflowPlan,
       llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters)
       : descriptor(descriptor), intrinsicConfig(intrinsicConfig),
         dataflowPlan(dataflowPlan) {
@@ -2901,7 +2896,7 @@ public:
     setvlStep.result = TCRVEmitCCallOpaqueResult{"vl", "size_t"};
     route.addCallOpaqueStep(std::move(setvlStep));
 
-    for (const RVVI32VAddDataflowStep &step : dataflowPlan.steps) {
+    for (const RVVBinaryDataflowStep &step : dataflowPlan.steps) {
       TCRVEmitCCallOpaqueStep emitcStep;
       emitcStep.sourceOp.opName = getDataflowStepOpName(step, descriptor);
       emitcStep.sourceOp.role = getRouteSourceRole(step).str();
@@ -2914,7 +2909,7 @@ public:
             "to a bounded emitc.call_opaque callee");
 
       switch (step.kind) {
-      case RVVI32VAddDataflowStepKind::Load: {
+      case RVVBinaryDataflowStepKind::Load: {
         const support::RuntimeABIParameter *parameter =
             lookupParameterByRole(runtimeABIParameters, step.bufferRole);
         if (!parameter)
@@ -2930,9 +2925,9 @@ public:
             intrinsicConfig.vectorType};
         break;
       }
-      case RVVI32VAddDataflowStepKind::Add:
-      case RVVI32VAddDataflowStepKind::Sub:
-      case RVVI32VAddDataflowStepKind::Mul:
+      case RVVBinaryDataflowStepKind::Add:
+      case RVVBinaryDataflowStepKind::Sub:
+      case RVVBinaryDataflowStepKind::Mul:
         emitcStep.operands.push_back(
             {getDataflowValueCName(step.lhs, descriptor).str(),
              intrinsicConfig.vectorType});
@@ -2944,7 +2939,7 @@ public:
             getDataflowValueCName(step.result, descriptor).str(),
             intrinsicConfig.vectorType};
         break;
-      case RVVI32VAddDataflowStepKind::Store: {
+      case RVVBinaryDataflowStepKind::Store: {
         const support::RuntimeABIParameter *parameter =
             lookupParameterByRole(runtimeABIParameters, step.bufferRole);
         if (!parameter)
@@ -2968,17 +2963,17 @@ public:
   }
 
 private:
-  static llvm::StringRef getRouteSourceRole(const RVVI32VAddDataflowStep &step) {
+  static llvm::StringRef getRouteSourceRole(const RVVBinaryDataflowStep &step) {
     if (!step.sourceOpRole.empty())
       return step.sourceOpRole;
     switch (step.kind) {
-    case RVVI32VAddDataflowStepKind::Load:
+    case RVVBinaryDataflowStepKind::Load:
       return "buffer-load";
-    case RVVI32VAddDataflowStepKind::Add:
-    case RVVI32VAddDataflowStepKind::Sub:
-    case RVVI32VAddDataflowStepKind::Mul:
+    case RVVBinaryDataflowStepKind::Add:
+    case RVVBinaryDataflowStepKind::Sub:
+    case RVVBinaryDataflowStepKind::Mul:
       return "compute";
-    case RVVI32VAddDataflowStepKind::Store:
+    case RVVBinaryDataflowStepKind::Store:
       return "buffer-store";
     }
     return "unknown";
@@ -2986,14 +2981,14 @@ private:
 
   RVVBinaryIntrinsicDescriptor descriptor;
   RVVIntrinsicConfig intrinsicConfig;
-  RVVI32VAddDataflowEmissionPlan dataflowPlan;
+  RVVBinaryDataflowEmissionPlan dataflowPlan;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
 llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     const RVVBinaryIntrinsicDescriptor &descriptor,
     const RVVIntrinsicConfig &intrinsicConfig,
-    const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+    const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
     llvm::StringRef functionName) {
   RVVBinaryEmitCLowerable lowerable(descriptor, intrinsicConfig, dataflowPlan,
@@ -3007,20 +3002,20 @@ llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
 
 void printDataflowPlanMetadata(
     llvm::raw_ostream &os,
-    const RVVI32VAddDataflowEmissionPlan &dataflowPlan,
+    const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     const RVVBinaryIntrinsicDescriptor &descriptor) {
   for (auto [index, step] : llvm::enumerate(dataflowPlan.steps)) {
     os << "/* dataflow_emission_step[" << index
        << "]: op=" << getDataflowStepOpName(step, descriptor);
     switch (step.kind) {
-    case RVVI32VAddDataflowStepKind::Load:
+    case RVVBinaryDataflowStepKind::Load:
       os << ", role="
          << support::stringifyRuntimeABIParameterRole(step.bufferRole)
          << ", result=" << getDataflowValueCName(step.result, descriptor);
       break;
-    case RVVI32VAddDataflowStepKind::Add:
-    case RVVI32VAddDataflowStepKind::Sub:
-    case RVVI32VAddDataflowStepKind::Mul:
+    case RVVBinaryDataflowStepKind::Add:
+    case RVVBinaryDataflowStepKind::Sub:
+    case RVVBinaryDataflowStepKind::Mul:
       os << ", lhs=" << getDataflowValueCName(step.lhs, descriptor)
          << ", rhs=" << getDataflowValueCName(step.rhs, descriptor)
          << ", result=" << getDataflowValueCName(step.result, descriptor);
@@ -3028,7 +3023,7 @@ void printDataflowPlanMetadata(
         os << ", interface=" << step.sourceOpInterface
            << ", source_role=" << step.sourceOpRole;
       break;
-    case RVVI32VAddDataflowStepKind::Store:
+    case RVVBinaryDataflowStepKind::Store:
       os << ", role="
          << support::stringifyRuntimeABIParameterRole(step.bufferRole)
          << ", value=" << getDataflowValueCName(step.value, descriptor);

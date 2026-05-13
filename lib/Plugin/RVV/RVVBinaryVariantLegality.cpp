@@ -29,7 +29,7 @@ constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
     "tcrv_rvv.base_i32_m1_lanes");
-constexpr llvm::StringLiteral kRVVI32VAddLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kRVVLegacyLoweringDescriptorAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
@@ -229,11 +229,11 @@ llvm::Error verifySmokeProbeDescriptorAttr(tcrv::exec::VariantOp variant) {
         variant.getSymName() + " must be '" + kRVVSmokeProbeDescriptorValue +
         "'");
 
-  if (variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName))
+  if (variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName))
     return makeRVVBinaryVariantLegalityError(
         llvm::Twine("RVV smoke-probe descriptor on variant @") +
         variant.getSymName() +
-        " must not be combined with the finite RVV i32 microkernel lowering "
+        " must not be combined with the finite RVV binary lowering "
         "descriptor");
 
   if (!variant->hasAttr(kRVVRequiredMarchAttrName))
@@ -544,7 +544,7 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
 
 bool hasFiniteBinaryLegalityMetadata(tcrv::exec::VariantOp variant) {
   return variant->hasAttr(kRVVElementCountAttrName) ||
-         variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName) ||
+         variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName) ||
          variant->hasAttr(
              target::rvv::getRVVSelectedBinaryFamilyMetadataName()) ||
          variant->hasAttr(getRVVSelectedBinarySourceKindAttrName());
@@ -555,7 +555,7 @@ llvm::Error verifyLegacyDescriptorMirrorAfterTypedAuthority(
     const RVVFiniteBinaryTypedAuthority &authority) {
   auto descriptorAttr =
       variant->getAttrOfType<mlir::StringAttr>(
-          kRVVI32VAddLoweringDescriptorAttrName);
+          kRVVLegacyLoweringDescriptorAttrName);
   if (!descriptorAttr)
     return llvm::Error::success();
 
@@ -564,10 +564,10 @@ llvm::Error verifyLegacyDescriptorMirrorAfterTypedAuthority(
     return makeRVVBinaryVariantLegalityError(
         llvm::Twine("legacy RVV binary descriptor mirror on variant @") +
         variant.getSymName() + " requires non-empty string attribute '" +
-        kRVVI32VAddLoweringDescriptorAttrName + "'");
+        kRVVLegacyLoweringDescriptorAttrName + "'");
   if (llvm::Error error = validateRVVPropertyText(
           "legacy RVV binary descriptor mirror",
-          kRVVI32VAddLoweringDescriptorAttrName, descriptor))
+          kRVVLegacyLoweringDescriptorAttrName, descriptor))
     return error;
 
   const RVVBinaryFamilyDescriptor *descriptorFamily =
@@ -667,7 +667,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
     if (!authority)
       return authority.takeError();
     if (!authority->family &&
-        variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName))
+        variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName))
       return verifyLegacyDescriptorMirrorAfterTypedAuthority(variant,
                                                              *authority);
     if (!authority->family)
@@ -683,7 +683,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
   }
 
   if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
-      variant->hasAttr(kRVVI32VAddLoweringDescriptorAttrName) ||
+      variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName) ||
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVVLenBBytesAttrName) ||
       variant->hasAttr(kRVVI32M1LanesAttrName)) {

@@ -127,6 +127,56 @@ Removed descriptor authority from RVV typed-source selected emission planning an
 
 - None - task complete
 
+
+## Session 53: RVV finite-binary EmitC route ownership cleanup
+
+**Date**: 2026-05-13
+**Task**: RVV finite-binary EmitC route ownership cleanup
+**Branch**: `main`
+
+### Summary
+
+Cleaned up misleading vadd-shaped local authority names in the generic RVV
+finite-binary emission path and tightened source-fronted coverage that both
+vadd and vsub artifacts derive computation from selected `tcrv_rvv` bodies and
+the shared EmitC lowerable route.
+
+### Main Changes
+
+- Renamed generic descriptor/element-count authority constants to
+  `kRVVLegacyLoweringDescriptorAttrName` and `kRVVElementCountAttrName`.
+- Removed target/export `RVVI32VAddDataflow*` aliases so the common route uses
+  the existing `RVVBinaryDataflow*` verifier types directly.
+- Added vadd source artifact checks for selected arithmetic dataflow,
+  `TCRVEmitCLowerableOpInterface` provenance, route source-op ordering, and
+  `emitc.call_opaque` compute mapping.
+- Added a vsub stale descriptor negative source-fronted check proving a vadd
+  descriptor mirror fails before target source artifact output.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTarget TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'linalg-i32-vadd-to-exec|linalg-i32-vsub-to-rvv-artifact'`
+- From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'RVVMicrokernel|TargetArtifactBundleExport|EmissionManifest|LoweringBoundary|LinalgToExec'`
+- Representative direct and bundle artifacts were generated under
+  `artifacts/tmp/rvv_finite_binary_emitc_route_ownership_cleanup/`, and the
+  emitted object files were confirmed as RISC-V relocatable ELF objects.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-finite-binary-emitc-route-ownership-cleanup`
+
+### Status
+
+[OK] Completed. This round changes ownership naming and lit contract coverage
+only; it does not change executable source/object semantics, so no fresh
+`ssh rvv` runtime correctness claim is made.
+
+### Next Steps
+
+- None - task complete
+
 ## Session 47: RVV typed-family EmitC artifact authority
 
 **Date**: 2026-05-13

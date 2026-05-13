@@ -38,7 +38,7 @@ constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
     "tcrv_rvv.smoke_probe_descriptor");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorValue(
     "standalone-c-toolchain-smoke-probe.v1");
-constexpr llvm::StringLiteral kRVVI32VAddElementCountAttrName(
+constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
@@ -232,7 +232,7 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
   }
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kRVVI32VAddElementCountAttrName),
+                            kRVVElementCountAttrName),
       mlir::IntegerAttr::get(mlir::IntegerType::get(
                                  request.getKernel()->getContext(), 64),
                              plan->selectedPlan.elementCount));

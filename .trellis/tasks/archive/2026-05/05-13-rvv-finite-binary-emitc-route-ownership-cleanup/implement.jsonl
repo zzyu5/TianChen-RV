@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "project invariants and source-of-truth boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary plugin route ownership and typed body authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC lowerable route and descriptor boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "target artifact export and runtime ABI ownership contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused MLIR/FileCheck evidence requirements"}
