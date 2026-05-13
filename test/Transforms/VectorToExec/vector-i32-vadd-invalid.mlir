@@ -105,7 +105,7 @@ module {
         tcrv_frontend_target = @vector_frontend_profile
       } {
     %c0 = arith.constant 0 : index
-    // expected-error@+1 {{TianChen-RV dynamic vector i32-vadd frontend expects the second source operation to be arith.constant 16 : index}}
+    // expected-error@+1 {{TianChen-RV dynamic vector i32 binary frontend expects the second source operation to be arith.constant 16 : index}}
     %c8 = arith.constant 8 : index
     scf.for %i = %c0 to %n step %c8 {
       %pad = arith.constant 0 : i32

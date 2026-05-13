@@ -81,6 +81,11 @@ enum class SourceBinaryArithmeticKind {
   Mul,
 };
 
+enum class VectorFrontendAdapterMode {
+  VAddOnly,
+  ArithmeticFamily,
+};
+
 struct InferredFrontendBinarySource {
   const support::FiniteBinaryFrontendContract *contract = nullptr;
   support::FiniteBinaryElementKind elementKind =
@@ -144,6 +149,46 @@ std::string getInferredFamilyID(support::FiniteBinaryElementKind elementKind,
 
 std::string formatSupportedFrontendLowerings() {
   return support::formatFiniteBinaryFrontendLoweringMarkers();
+}
+
+std::string formatSupportedDynamicVectorFrontendLowerings() {
+  return "'i32-vadd' or 'i32-vsub'";
+}
+
+bool isSupportedDynamicVectorFrontendContract(
+    const support::FiniteBinaryFrontendContract &contract) {
+  return contract.familyID ==
+             support::getI32VAddFiniteBinaryFrontendContract().familyID ||
+         contract.familyID ==
+             support::getI32VSubFiniteBinaryFrontendContract().familyID;
+}
+
+mlir::LogicalResult populateI32VectorSourceIdentity(
+    mlir::Operation *sourceOp, SourceBinaryArithmeticKind arithmetic,
+    InferredFrontendBinarySource &out) {
+  std::string inferredFamilyID = getInferredFamilyID(
+      support::FiniteBinaryElementKind::I32, arithmetic);
+  const support::FiniteBinaryFrontendContract *contract =
+      support::lookupFiniteBinaryFrontendContractByFamilyID(inferredFamilyID);
+  if (!contract)
+    return sourceOp->emitError()
+           << "TianChen-RV vector source frontend inferred unsupported finite "
+              "source family '"
+           << inferredFamilyID << "'";
+  if (!isSupportedDynamicVectorFrontendContract(*contract))
+    return sourceOp->emitError()
+           << "TianChen-RV vector source frontend supports only "
+           << formatSupportedDynamicVectorFrontendLowerings()
+           << "; inferred family '" << inferredFamilyID
+           << "' is not accepted because this pass is not a generic vector "
+              "backend";
+
+  out.contract = contract;
+  out.elementKind = support::FiniteBinaryElementKind::I32;
+  out.arithmetic = arithmetic;
+  out.elementBitWidth = 32;
+  out.arithmeticOpName = getSourceArithmeticOpName(arithmetic);
+  return mlir::success();
 }
 
 bool isOperationNamed(mlir::Operation *op, llvm::StringRef name) {
@@ -811,20 +856,22 @@ mlir::LogicalResult requireVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
 }
 
 mlir::LogicalResult
-requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
+requireDynamicVectorI32BinarySourceWrapper(
+    mlir::Operation *funcOp, VectorFrontendAdapterMode mode,
+    InferredFrontendBinarySource &source) {
   if (!isOperationNamed(funcOp, kFuncFuncOpName))
     return funcOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects a "
+           << "TianChen-RV dynamic vector i32 binary frontend expects a "
               "func.func wrapper";
   if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
     return funcOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+           << "TianChen-RV dynamic vector i32 binary frontend wrapper expects "
               "one single-block func.func body";
 
   mlir::Block &body = funcOp->getRegion(0).front();
   if (body.getNumArguments() != 4)
     return funcOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+           << "TianChen-RV dynamic vector i32 binary frontend wrapper expects "
               "three memref<?xi32> buffers and one runtime %n: index";
 
   for (mlir::BlockArgument arg : body.getArguments().take_front(3)) {
@@ -832,18 +879,18 @@ requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
         getRankedDynamicVectorMemRefIntegerElementWidth(arg.getType());
     if (!width || *width != 32)
       return funcOp->emitError()
-             << "TianChen-RV dynamic vector i32-vadd frontend wrapper "
+             << "TianChen-RV dynamic vector i32 binary frontend wrapper "
                 "expects lhs/rhs/output arguments to be rank-1 dynamic "
                 "memref<?xi32>";
   }
   if (!body.getArgument(3).getType().isIndex())
     return funcOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+           << "TianChen-RV dynamic vector i32 binary frontend wrapper expects "
               "the fourth argument to be runtime %n: index";
 
   if (!llvm::hasNItems(body.getOperations(), 4))
     return funcOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend wrapper expects "
+           << "TianChen-RV dynamic vector i32 binary frontend wrapper expects "
               "zero index, step-16 index, one scf.for, and func.return";
 
   auto it = body.begin();
@@ -855,37 +902,38 @@ requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
   mlir::Type indexType = mlir::IndexType::get(funcOp->getContext());
   if (!isIntegerConstantZero(lowerConstant, indexType))
     return lowerConstant->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects the "
+           << "TianChen-RV dynamic vector i32 binary frontend expects the "
               "first source operation to be arith.constant 0 : index";
   if (!isIntegerConstantValue(stepConstant, indexType,
                               support::kFrontendDynamicVectorI32VAddLoopStep))
     return stepConstant->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects the "
+           << "TianChen-RV dynamic vector i32 binary frontend expects the "
               "second source operation to be arith.constant 16 : index";
   if (!isOperationNamed(forOp, kSCFForOpName) || forOp->getNumOperands() != 3 ||
       forOp->getNumResults() != 0 || forOp->getNumRegions() != 1 ||
       !hasOneBlock(forOp->getRegion(0)))
     return forOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects one "
+           << "TianChen-RV dynamic vector i32 binary frontend expects one "
               "scf.for without iter_args";
   if (forOp->getOperand(0) != lowerConstant->getResult(0) ||
       forOp->getOperand(1) != body.getArgument(3) ||
       forOp->getOperand(2) != stepConstant->getResult(0))
     return forOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.for "
+           << "TianChen-RV dynamic vector i32 binary frontend expects scf.for "
               "from zero to source %n in step 16";
 
   mlir::Block &loopBody = forOp->getRegion(0).front();
   if (loopBody.getNumArguments() != 1 ||
       !loopBody.getArgument(0).getType().isIndex())
     return forOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.for "
+           << "TianChen-RV dynamic vector i32 binary frontend expects scf.for "
               "to expose one index induction variable";
   if (!llvm::hasNItems(loopBody.getOperations(), 6))
     return forOp->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.for "
+           << "TianChen-RV dynamic vector i32 binary frontend expects scf.for "
               "body to contain zero i32 padding, two vector.transfer_read "
-              "ops, one arith.addi, one vector.transfer_write, and scf.yield";
+              "ops, one arith.addi or arith.subi, one vector.transfer_write, "
+              "and scf.yield";
 
   auto loopIt = loopBody.begin();
   mlir::Operation *paddingConstant = &*loopIt++;
@@ -898,8 +946,8 @@ requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
   if (!isIntegerConstantZero(paddingConstant,
                              mlir::IntegerType::get(funcOp->getContext(), 32)))
     return paddingConstant->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects the first "
-              "loop operation to be arith.constant 0 : i32";
+           << "TianChen-RV dynamic vector i32 binary frontend expects the "
+              "first loop operation to be arith.constant 0 : i32";
 
   mlir::Value index = loopBody.getArgument(0);
   mlir::Value padding = paddingConstant->getResult(0);
@@ -916,46 +964,55 @@ requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
                                                                "rhs read")))
     return mlir::failure();
 
-  if (!isOperationNamed(add, kArithAddIOpName) || add->getNumOperands() != 2 ||
-      add->getNumResults() != 1)
+  std::optional<SourceBinaryArithmeticKind> arithmeticKind =
+      getSupportedArithmeticKind(add);
+  if (!arithmeticKind || *arithmeticKind == SourceBinaryArithmeticKind::Mul ||
+      (mode == VectorFrontendAdapterMode::VAddOnly &&
+       *arithmeticKind != SourceBinaryArithmeticKind::Add))
     return add->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects "
-              "arith.addi over the two transfer-read vector values";
+           << "TianChen-RV dynamic vector i32 binary frontend expects "
+           << (mode == VectorFrontendAdapterMode::VAddOnly
+                   ? "arith.addi"
+                   : "arith.addi or arith.subi")
+           << " over the two transfer-read vector values";
+  llvm::StringRef arithmeticOpName =
+      getSourceArithmeticOpName(*arithmeticKind);
   if (add->getOperand(0) != lhsRead->getResult(0) ||
       add->getOperand(1) != rhsRead->getResult(0) ||
       !isRankedVectorWithIntegerElementWidth(
           add->getResult(0).getType(), kVectorI32VAddSourceElements, 32))
     return add->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects "
-              "arith.addi to consume lhs/rhs vector<16xi32> reads and "
+           << "TianChen-RV dynamic vector i32 binary frontend expects "
+           << arithmeticOpName
+           << " to consume lhs/rhs vector<16xi32> reads and "
               "produce vector<16xi32>";
 
   if (!isOperationNamed(write, kVectorTransferWriteOpName) ||
       write->getNumOperands() != 3 || write->getNumResults() != 0)
     return write->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects "
-              "vector.transfer_write of the add result";
+           << "TianChen-RV dynamic vector i32 binary frontend expects "
+              "vector.transfer_write of the arithmetic result";
   if (write->getOperand(0) != add->getResult(0) ||
       write->getOperand(1) != body.getArgument(2) ||
       write->getOperand(2) != index)
     return write->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects "
-              "vector.transfer_write to store the add result to the output "
-              "buffer at the scf.for induction variable";
+           << "TianChen-RV dynamic vector i32 binary frontend expects "
+              "vector.transfer_write to store the arithmetic result to the "
+              "output buffer at the scf.for induction variable";
   if (mlir::failed(requireVectorTransferTailActiveLaneAuthority(
           write, "output write")))
     return mlir::failure();
 
   if (!isOperationNamed(yield, kSCFYieldOpName) || yield->getNumOperands() != 0)
     return yield->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects scf.yield "
-              "without operands";
+           << "TianChen-RV dynamic vector i32 binary frontend expects "
+              "scf.yield without operands";
   if (!isOperationNamed(ret, kFuncReturnOpName) || ret->getNumOperands() != 0)
     return ret->emitError()
-           << "TianChen-RV dynamic vector i32-vadd frontend expects "
+           << "TianChen-RV dynamic vector i32 binary frontend expects "
               "func.return without operands";
 
-  return mlir::success();
+  return populateI32VectorSourceIdentity(funcOp, *arithmeticKind, source);
 }
 
 mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
@@ -976,6 +1033,43 @@ mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
            << marker
            << "' is not accepted because this pass is not a generic vector "
               "backend";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult crossCheckVectorFrontendMarker(
+    mlir::Operation *funcOp, llvm::StringRef marker,
+    const InferredFrontendBinarySource &source) {
+  const support::FiniteBinaryFrontendContract *markerContract =
+      support::lookupFiniteBinaryFrontendContractByMarker(marker);
+  if (!markerContract)
+    return funcOp->emitError()
+           << "TianChen-RV vector source frontend expects '"
+           << kFrontendLoweringAttrName
+           << "' to be " << formatSupportedDynamicVectorFrontendLowerings();
+
+  if (!isSupportedDynamicVectorFrontendContract(*markerContract))
+    return funcOp->emitError()
+           << "TianChen-RV vector source frontend supports only marker "
+           << formatSupportedDynamicVectorFrontendLowerings() << "; marker '"
+           << marker
+           << "' is not accepted because this pass is not a generic vector "
+              "backend";
+
+  if (markerContract->dtypeID != source.contract->dtypeID)
+    return funcOp->emitError()
+           << "TianChen-RV vector source frontend has marker '" << marker
+           << "' requesting dtype '" << markerContract->dtypeID
+           << "' but source operands infer dtype '" << source.contract->dtypeID
+           << "'; marker is only a bounded route request/cross-check";
+
+  if (markerContract->familyID != source.contract->familyID)
+    return funcOp->emitError()
+           << "TianChen-RV vector source frontend has marker '" << marker
+           << "' requesting family '" << markerContract->familyID
+           << "' but source body infers family '" << source.contract->familyID
+           << "' from " << source.arithmeticOpName
+           << "; marker is only a bounded route request/cross-check";
 
   return mlir::success();
 }
@@ -1041,9 +1135,10 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
   if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
+    llvm::StringRef sourceKind =
+        support::getDynamicVectorSourceKindForFrontendContract(contract);
     state.addAttribute(support::kFrontendSourceKindAttrName,
-                       builder.getStringAttr(
-                           support::kFrontendDynamicVectorI32VAddSourceKind));
+                       builder.getStringAttr(sourceKind));
     state.addAttribute(
         support::kFrontendSourceAuthorityAttrName,
         builder.getStringAttr(support::kFrontendDynamicVectorSourceAuthority));
@@ -1108,10 +1203,11 @@ mlir::LogicalResult materializeFrontendSourceRuntimeParamAttrs(
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
   if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
+    llvm::StringRef sourceKind =
+        support::getDynamicVectorSourceKindForFrontendContract(*spec.contract);
     runtimeElementCount->setAttr(
         support::kFrontendSourceKindAttrName,
-        builder.getStringAttr(
-            support::kFrontendDynamicVectorI32VAddSourceKind));
+        builder.getStringAttr(sourceKind));
     runtimeElementCount->setAttr(
         support::kFrontendSourceAuthorityAttrName,
         builder.getStringAttr(support::kFrontendDynamicVectorSourceAuthority));
@@ -1179,6 +1275,14 @@ lowerOneSourceFrontendRequest(mlir::ModuleOp module,
     return module.emitError()
            << "TianChen-RV source frontend lowering received an incomplete "
               "adapter request";
+  if (request.loweringContract.dynamicRuntimeExtentFromSCFUpperBound &&
+      support::getDynamicVectorSourceKindForFrontendContract(
+          *request.loweringContract.contract)
+          .empty())
+    return sourceOp->emitError()
+           << "TianChen-RV " << request.frontendName
+           << " has no bounded dynamic vector source-kind adapter for family '"
+           << request.loweringContract.contract->familyID << "'";
 
   if (!request.kernelAttr || !isBareSymbolName(request.kernelAttr.getValue()))
     return sourceOp->emitError()
@@ -1269,14 +1373,16 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
 }
 
 mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
-                                             mlir::Operation *funcOp) {
+                                             mlir::Operation *funcOp,
+                                             VectorFrontendAdapterMode mode) {
   auto frontendAttr = getStringAttr(funcOp, kFrontendLoweringAttrName);
   if (!frontendAttr)
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend expects '"
            << kFrontendLoweringAttrName << "' to be 'i32-vadd'";
 
-  if (mlir::failed(
+  if (mode == VectorFrontendAdapterMode::VAddOnly &&
+      mlir::failed(
           crossCheckVectorI32VAddMarker(funcOp, frontendAttr.getValue())))
     return mlir::failure();
   if (mlir::failed(requireNoLegacyDescriptorMetadata(
@@ -1284,6 +1390,7 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
           "source vector/arith body and typed operands")))
     return mlir::failure();
 
+  InferredFrontendBinarySource source;
   support::FiniteBinarySourceFrontendLoweringContract loweringContract;
   if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))
     return funcOp->emitError()
@@ -1293,13 +1400,30 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
   if (body.getNumArguments() == 3) {
     if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
       return mlir::failure();
+    if (mlir::failed(populateI32VectorSourceIdentity(
+            funcOp, SourceBinaryArithmeticKind::Add, source)))
+      return mlir::failure();
+    if (mode == VectorFrontendAdapterMode::ArithmeticFamily &&
+        mlir::failed(crossCheckVectorFrontendMarker(
+            funcOp, frontendAttr.getValue(), source)))
+      return mlir::failure();
     loweringContract =
         support::makeFixedVectorI32VAddSourceFrontendLoweringContract();
   } else if (body.getNumArguments() == 4) {
-    if (mlir::failed(requireDynamicVectorI32VAddSourceWrapper(funcOp)))
+    if (mlir::failed(requireDynamicVectorI32BinarySourceWrapper(
+            funcOp, mode, source)))
       return mlir::failure();
-    loweringContract =
-        support::makeDynamicVectorI32VAddSourceFrontendLoweringContract();
+    if (mode == VectorFrontendAdapterMode::ArithmeticFamily &&
+        mlir::failed(crossCheckVectorFrontendMarker(
+            funcOp, frontendAttr.getValue(), source)))
+      return mlir::failure();
+    if (mode == VectorFrontendAdapterMode::VAddOnly)
+      loweringContract =
+          support::makeDynamicVectorI32VAddSourceFrontendLoweringContract();
+    else
+      loweringContract =
+          support::makeDynamicVectorI32SourceFrontendLoweringContract(
+              *source.contract);
   } else {
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend expects either the fixed "
@@ -1347,7 +1471,8 @@ mlir::LogicalResult lowerMarkedFrontendBinaryLinalgInModule(
 }
 
 mlir::LogicalResult
-lowerMarkedFrontendVectorI32VAddInModule(mlir::ModuleOp module) {
+lowerMarkedFrontendVectorInModule(mlir::ModuleOp module,
+                                  VectorFrontendAdapterMode mode) {
   llvm::SmallVector<mlir::Operation *, 4> markedVectorFuncs;
   mlir::WalkResult walkResult = module.walk([&](mlir::Operation *op) {
     if (!isMarkedFrontendBinaryVectorFunc(op))
@@ -1359,7 +1484,7 @@ lowerMarkedFrontendVectorI32VAddInModule(mlir::ModuleOp module) {
     return mlir::failure();
 
   for (mlir::Operation *funcOp : markedVectorFuncs)
-    if (mlir::failed(lowerOneMarkedVectorFunc(module, funcOp)))
+    if (mlir::failed(lowerOneMarkedVectorFunc(module, funcOp, mode)))
       return mlir::failure();
 
   return mlir::success();
@@ -1367,7 +1492,8 @@ lowerMarkedFrontendVectorI32VAddInModule(mlir::ModuleOp module) {
 
 mlir::LogicalResult lowerMarkedSourceRVVBinaryFrontendsInModule(
     mlir::ModuleOp module) {
-  if (mlir::failed(lowerMarkedFrontendVectorI32VAddInModule(module)))
+  if (mlir::failed(lowerMarkedFrontendVectorInModule(
+          module, VectorFrontendAdapterMode::ArithmeticFamily)))
     return mlir::failure();
   return lowerMarkedFrontendBinaryLinalgInModule(module);
 }
@@ -1385,8 +1511,8 @@ struct LowerVectorRVVI32VAddToExecPass
     : impl::LowerVectorRVVI32VAddToExecBase<
           LowerVectorRVVI32VAddToExecPass> {
   void runOnOperation() override {
-    if (mlir::failed(
-            lowerMarkedFrontendVectorI32VAddInModule(getOperation())))
+    if (mlir::failed(lowerMarkedFrontendVectorInModule(
+            getOperation(), VectorFrontendAdapterMode::VAddOnly)))
       signalPassFailure();
   }
 };

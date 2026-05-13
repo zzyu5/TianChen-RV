@@ -78,6 +78,8 @@ inline constexpr llvm::StringLiteral kFrontendFixedVectorI32VAddSourceKind(
     "mlir-vector-transfer-fixed-i32-vadd.v1");
 inline constexpr llvm::StringLiteral kFrontendDynamicVectorI32VAddSourceKind(
     "mlir-vector-scf-runtime-i32-vadd.v1");
+inline constexpr llvm::StringLiteral kFrontendDynamicVectorI32VSubSourceKind(
+    "mlir-vector-scf-runtime-i32-vsub.v1");
 inline constexpr std::int64_t kFrontendFixedVectorI32VAddSourceExtent = 16;
 inline constexpr std::int64_t kFrontendDynamicVectorI32VAddLoopStep = 16;
 inline constexpr std::int64_t kFrontendDynamicVectorI32VAddChunkExtent = 16;
@@ -157,6 +159,24 @@ inline llvm::StringRef getFrontendRuntimeExtentMetadataNote() {
          "correctness evidence, or performance evidence";
 }
 
+inline bool isFrontendFixedVectorSourceKind(llvm::StringRef sourceKind) {
+  return sourceKind == kFrontendFixedVectorI32VAddSourceKind;
+}
+
+inline bool isFrontendDynamicVectorSourceKind(llvm::StringRef sourceKind) {
+  return sourceKind == kFrontendDynamicVectorI32VAddSourceKind ||
+         sourceKind == kFrontendDynamicVectorI32VSubSourceKind;
+}
+
+inline std::string formatFrontendDynamicVectorSourceKinds() {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "'" << kFrontendDynamicVectorI32VAddSourceKind << "' or '"
+         << kFrontendDynamicVectorI32VSubSourceKind << "'";
+  stream.flush();
+  return text;
+}
+
 struct FixedVectorSourceExtentContract {
   std::string sourceKind;
   std::string sourceAuthority;
@@ -164,7 +184,7 @@ struct FixedVectorSourceExtentContract {
   std::string runtimeElementCountConstraint;
 
   bool isValid() const {
-    return sourceKind == kFrontendFixedVectorI32VAddSourceKind &&
+    return isFrontendFixedVectorSourceKind(sourceKind) &&
            sourceAuthority == kFrontendFixedVectorSourceAuthority &&
            runtimeElementCountConstraint ==
                kFrontendRuntimeElementCountMustEqualSourceExtent &&
@@ -195,7 +215,7 @@ struct DynamicVectorRuntimeExtentContract {
   std::string runtimeElementCountConstraint;
 
   bool isValid() const {
-    return sourceKind == kFrontendDynamicVectorI32VAddSourceKind &&
+    return isFrontendDynamicVectorSourceKind(sourceKind) &&
            sourceAuthority == kFrontendDynamicVectorSourceAuthority &&
            runtimeExtentArg == "n" &&
            sourceLoopStep == kFrontendDynamicVectorI32VAddLoopStep &&
@@ -333,8 +353,8 @@ getFixedVectorSourceExtentContract(
       getFrontendSourceStringAttr(kernelOp, kFrontendSourceKindAttrName);
   llvm::StringRef paramKind =
       getFrontendSourceStringAttr(paramOp, kFrontendSourceKindAttrName);
-  if (kernelKind == kFrontendDynamicVectorI32VAddSourceKind ||
-      paramKind == kFrontendDynamicVectorI32VAddSourceKind)
+  if (isFrontendDynamicVectorSourceKind(kernelKind) ||
+      isFrontendDynamicVectorSourceKind(paramKind))
     return std::optional<FixedVectorSourceExtentContract>();
   if (!kernelHasAttrs || !paramHasAttrs)
     return makeFixedVectorSourceExtentError(
@@ -426,8 +446,8 @@ getDynamicVectorRuntimeExtentContract(
       getFrontendSourceStringAttr(kernelOp, kFrontendSourceKindAttrName);
   llvm::StringRef paramKind =
       getFrontendSourceStringAttr(paramOp, kFrontendSourceKindAttrName);
-  if (kernelKind == kFrontendFixedVectorI32VAddSourceKind ||
-      paramKind == kFrontendFixedVectorI32VAddSourceKind)
+  if (isFrontendFixedVectorSourceKind(kernelKind) ||
+      isFrontendFixedVectorSourceKind(paramKind))
     return std::optional<DynamicVectorRuntimeExtentContract>();
   if (!kernelHasAttrs || !paramHasAttrs)
     return makeDynamicVectorRuntimeExtentError(
@@ -437,8 +457,7 @@ getDynamicVectorRuntimeExtentContract(
         "tcrv.exec.runtime_param");
 
   auto requireMatchingString =
-      [&](llvm::StringRef attrName,
-          llvm::StringRef expected) -> llvm::Expected<std::string> {
+      [&](llvm::StringRef attrName) -> llvm::Expected<std::string> {
     llvm::StringRef kernelValue = getFrontendSourceStringAttr(kernelOp,
                                                               attrName);
     llvm::StringRef paramValue = getFrontendSourceStringAttr(paramOp,
@@ -455,40 +474,68 @@ getDynamicVectorRuntimeExtentContract(
           llvm::Twine("dynamic vector runtime extent authority attribute '") +
               attrName + "' is stale between kernel value '" + kernelValue +
               "' and runtime_param value '" + paramValue + "'");
-    if (kernelValue != expected)
-      return makeDynamicVectorRuntimeExtentError(
-          kernel,
-          llvm::Twine("dynamic vector runtime extent authority attribute '") +
-              attrName + "' must be '" + expected + "'");
     return kernelValue.str();
   };
 
-  llvm::Expected<std::string> sourceKind = requireMatchingString(
-      kFrontendSourceKindAttrName, kFrontendDynamicVectorI32VAddSourceKind);
+  llvm::Expected<std::string> sourceKind =
+      requireMatchingString(kFrontendSourceKindAttrName);
   if (!sourceKind)
     return sourceKind.takeError();
+  if (!isFrontendDynamicVectorSourceKind(*sourceKind))
+    return makeDynamicVectorRuntimeExtentError(
+        kernel,
+        llvm::Twine("dynamic vector runtime extent authority attribute '") +
+            kFrontendSourceKindAttrName + "' must be " +
+            formatFrontendDynamicVectorSourceKinds());
   llvm::Expected<std::string> sourceAuthority = requireMatchingString(
-      kFrontendSourceAuthorityAttrName, kFrontendDynamicVectorSourceAuthority);
+      kFrontendSourceAuthorityAttrName);
   if (!sourceAuthority)
     return sourceAuthority.takeError();
+  if (*sourceAuthority != kFrontendDynamicVectorSourceAuthority)
+    return makeDynamicVectorRuntimeExtentError(
+        kernel,
+        llvm::Twine("dynamic vector runtime extent authority attribute '") +
+            kFrontendSourceAuthorityAttrName + "' must be '" +
+            kFrontendDynamicVectorSourceAuthority + "'");
   llvm::Expected<std::string> runtimeExtentArg =
-      requireMatchingString(kFrontendRuntimeExtentArgAttrName, "n");
+      requireMatchingString(kFrontendRuntimeExtentArgAttrName);
   if (!runtimeExtentArg)
     return runtimeExtentArg.takeError();
+  if (*runtimeExtentArg != "n")
+    return makeDynamicVectorRuntimeExtentError(
+        kernel,
+        llvm::Twine("dynamic vector runtime extent authority attribute '") +
+            kFrontendRuntimeExtentArgAttrName + "' must be 'n'");
   llvm::Expected<std::string> constraint = requireMatchingString(
-      kFrontendRuntimeElementCountConstraintAttrName,
-      kFrontendRuntimeElementCountFromSourceRuntimeExtent);
+      kFrontendRuntimeElementCountConstraintAttrName);
   if (!constraint)
     return constraint.takeError();
+  if (*constraint != kFrontendRuntimeElementCountFromSourceRuntimeExtent)
+    return makeDynamicVectorRuntimeExtentError(
+        kernel,
+        llvm::Twine("dynamic vector runtime extent authority attribute '") +
+            kFrontendRuntimeElementCountConstraintAttrName + "' must be '" +
+            kFrontendRuntimeElementCountFromSourceRuntimeExtent + "'");
   llvm::Expected<std::string> activeLaneAuthority = requireMatchingString(
-      kFrontendActiveLaneAuthorityAttrName,
-      kFrontendDynamicVectorActiveLaneAuthority);
+      kFrontendActiveLaneAuthorityAttrName);
   if (!activeLaneAuthority)
     return activeLaneAuthority.takeError();
+  if (*activeLaneAuthority != kFrontendDynamicVectorActiveLaneAuthority)
+    return makeDynamicVectorRuntimeExtentError(
+        kernel,
+        llvm::Twine("dynamic vector runtime extent authority attribute '") +
+            kFrontendActiveLaneAuthorityAttrName + "' must be '" +
+            kFrontendDynamicVectorActiveLaneAuthority + "'");
   llvm::Expected<std::string> sourceTailPolicy = requireMatchingString(
-      kFrontendSourceTailPolicyAttrName, kFrontendDynamicVectorSourceTailPolicy);
+      kFrontendSourceTailPolicyAttrName);
   if (!sourceTailPolicy)
     return sourceTailPolicy.takeError();
+  if (*sourceTailPolicy != kFrontendDynamicVectorSourceTailPolicy)
+    return makeDynamicVectorRuntimeExtentError(
+        kernel,
+        llvm::Twine("dynamic vector runtime extent authority attribute '") +
+            kFrontendSourceTailPolicyAttrName + "' must be '" +
+            kFrontendDynamicVectorSourceTailPolicy + "'");
 
   llvm::Expected<std::int64_t> kernelLoopStep =
       getFrontendPositiveI64Attr(kernel, kernelOp, "kernel",
@@ -623,6 +670,15 @@ getI64VMulFiniteBinaryFrontendContract() {
   return contract;
 }
 
+inline llvm::StringRef getDynamicVectorSourceKindForFrontendContract(
+    const FiniteBinaryFrontendContract &contract) {
+  if (contract.familyID == getI32VAddFiniteBinaryFrontendContract().familyID)
+    return kFrontendDynamicVectorI32VAddSourceKind;
+  if (contract.familyID == getI32VSubFiniteBinaryFrontendContract().familyID)
+    return kFrontendDynamicVectorI32VSubSourceKind;
+  return {};
+}
+
 inline llvm::ArrayRef<const FiniteBinaryFrontendContract *>
 getFiniteBinaryFrontendContracts() {
   static const FiniteBinaryFrontendContract *families[] = {
@@ -746,6 +802,21 @@ makeDynamicVectorI32VAddSourceFrontendLoweringContract() {
           getI32VAddFiniteBinaryFrontendContract());
   sourceContract.dynamicRuntimeExtentFromSCFUpperBound = true;
   return sourceContract;
+}
+
+inline FiniteBinarySourceFrontendLoweringContract
+makeDynamicVectorI32SourceFrontendLoweringContract(
+    const FiniteBinaryFrontendContract &contract) {
+  FiniteBinarySourceFrontendLoweringContract sourceContract =
+      makeFiniteBinarySourceFrontendLoweringContract(contract);
+  sourceContract.dynamicRuntimeExtentFromSCFUpperBound = true;
+  return sourceContract;
+}
+
+inline FiniteBinarySourceFrontendLoweringContract
+makeDynamicVectorI32VSubSourceFrontendLoweringContract() {
+  return makeDynamicVectorI32SourceFrontendLoweringContract(
+      getI32VSubFiniteBinaryFrontendContract());
 }
 
 } // namespace tianchenrv::support

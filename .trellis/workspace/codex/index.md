@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-4.md`
-- **Total Sessions**: 51
+- **Active File**: `journal-5.md`
+- **Total Sessions**: 52
 - **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1710 | Active |
+| `journal-5.md` | ~65 | Active |
+| `journal-4.md` | ~1979 | Archived |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
 | `journal-1.md` | ~2000 | Archived |
@@ -32,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 52 | 2026-05-13 | Vector source arithmetic-family adapter registry | this commit | `main` |
 | 51 | 2026-05-13 | RVV materialized i32-vadd artifact runtime ABI proof | final round commit | `main` |
 | 50 | 2026-05-13 | Source-fronted RVV target artifact front door | `3315606` | `main` |
 | 49 | 2026-05-13 | Source-fronted RVV runtime artifact proof | this commit | `main` |

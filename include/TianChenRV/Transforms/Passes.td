@@ -10,16 +10,18 @@ def LowerSourceRVVBinaryToExec
     Production bounded source-frontend lowering owner for the current finite
     RVV binary source front doors. It consumes explicit bounded source
     adapters for marked linalg.generic finite binary wrappers, the fixed
-    vector<16xi32> i32-vadd wrapper, and the dynamic vector/SCF i32-vadd
-    wrapper, then materializes the shared TianChen-RV execution boundary
-    consumed by the existing plugin planning pipeline.
+    vector<16xi32> i32-vadd wrapper, and the dynamic vector/SCF i32-vadd or
+    i32-vsub wrappers, then materializes the shared TianChen-RV execution
+    boundary consumed by the existing plugin planning pipeline.
 
     The common contract owns selected target/profile validation,
     supplemental capability-provider imports, finite binary runtime ABI
     mem_window/runtime_param construction, fixed source-vector extent metadata,
-    and dynamic source %n runtime-AVL metadata. Individual source adapters
-    remain explicit and bounded; this pass does not infer arbitrary linalg or
-    vector semantics.
+    and dynamic source %n runtime-AVL metadata. The dynamic vector adapter
+    cross-checks the marker against the actual arith.addi/arith.subi body and
+    intentionally remains bounded to the i32 add/sub proof slice. Individual
+    source adapters remain explicit and bounded; this pass does not infer
+    arbitrary linalg or vector semantics.
 
     This is the default source-frontdoor production path. The older linalg and
     vector pass names remain explicit adapter/compatibility entry points. This
