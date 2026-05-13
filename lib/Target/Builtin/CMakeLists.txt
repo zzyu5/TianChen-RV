@@ -10,6 +10,7 @@ add_mlir_library(TianChenRVBuiltinTargetArtifactExporters
   TianChenRVSupport
   TianChenRVTarget
   TianChenRVTemplateTarget
+  TianChenRVTensorExtLiteTarget
   TianChenRVToyTarget
   MLIRSupport
 )

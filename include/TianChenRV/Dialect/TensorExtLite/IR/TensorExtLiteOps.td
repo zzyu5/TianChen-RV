@@ -1,0 +1,91 @@
+#ifndef TIANCHENRV_DIALECT_TENSOREXTLITE_IR_TENSOREXTLITEOPS_TD
+#define TIANCHENRV_DIALECT_TENSOREXTLITE_IR_TENSOREXTLITEOPS_TD
+
+include "mlir/IR/OpBase.td"
+include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td"
+
+def TCRV_TensorExtLite_Dialect : Dialect {
+  let name = "tcrv_tensorext_lite";
+  let cppNamespace = "::tianchenrv::tcrv::tensorext_lite";
+  let summary = "TianChen-RV TensorExtLite extension metadata dialect";
+  let description = [{
+    The TensorExtLite dialect is a plugin-local extension fragment surface. The
+    architectural family is tcrv.tensorext_lite; the concrete MLIR dialect namespace is
+    tcrv_tensorext_lite because MLIR dialect namespaces cannot contain '.' characters.
+
+    This dialect intentionally exposes only selected lowering-boundary metadata
+    plus a minimal ODS-backed role-op boundary for plugin integration tests. It
+    does not model tensor/tile computation, executable lowering, runtime calls,
+    binary artifacts, correctness, or performance.
+  }];
+}
+
+class TCRVTensorExtLite_Op<string mnemonic, list<Trait> traits = []>
+    : Op<TCRV_TensorExtLite_Dialect, mnemonic, traits>;
+
+def LoweringBoundaryOp : TCRVTensorExtLite_Op<"lowering_boundary", []> {
+  let summary = "metadata-only TensorExtLite selected lowering boundary";
+  let description = [{
+    Records the TensorExtLite plugin-owned selected lowering boundary for a chosen
+    tcrv.exec.variant. The op carries source kernel, selected variant, origin
+    plugin, selected-path role, metadata-only status, required capability
+    references, and TensorExtLite fragment metadata.
+
+    This op is not a compute operation and is not an executable lowering step.
+    It exists to prove that a future extension plugin can own a dialect-local
+    boundary while generic core passes route through the registry.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$fragment_abi,
+    StrAttr:$handoff_kind,
+    OptionalAttr<StrAttr>:$fragment_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
+def TileMmaSkeletonOp : TCRVTensorExtLite_Op<"tile_mma_skeleton",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "minimal TensorExtLite ODS tile_mma role-op boundary";
+  let description = [{
+    Records the minimal TensorExtLite extension-family tile_mma role op in ODS. The op
+    proves that a concrete non-RVV extension family can materialize a typed
+    MLIR role operation implementing the generated EmitC-lowerable provenance
+    interface and have TensorExtLite construction validation consume that IR identity.
+
+    This op is a construction-protocol role boundary only. It does not model
+    tensor/tile computation, executable lowering, runtime ABI values, generated
+    objects, correctness, or performance. Configure, load, and store are
+    manifest-ordered staged roles for this minimal TensorExtLite slice.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$typed_role,
+    I64Attr:$role_order,
+    StrAttr:$source_role,
+    StrAttr:$role_specific_interface,
+    StrAttr:$emitc_call,
+    OptionalAttr<StrAttr>:$fragment_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
+#endif // TIANCHENRV_DIALECT_TENSOREXTLITE_IR_TENSOREXTLITEOPS_TD

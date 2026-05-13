@@ -7,6 +7,7 @@ add_mlir_library(TianChenRVBuiltinPlugins
   TianChenRVRVVPlugin
   TianChenRVScalarPlugin
   TianChenRVTemplatePlugin
+  TianChenRVTensorExtLitePlugin
   TianChenRVToyPlugin
   MLIRSupport
 )

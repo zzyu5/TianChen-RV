@@ -1,0 +1,7 @@
+set(LLVM_TARGET_DEFINITIONS TensorExtLiteOps.td)
+mlir_tablegen(TensorExtLiteOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_tensorext_lite)
+mlir_tablegen(TensorExtLiteOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_tensorext_lite)
+mlir_tablegen(TensorExtLiteOps.h.inc -gen-op-decls)
+mlir_tablegen(TensorExtLiteOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRTensorExtLiteOpsIncGen)
+add_dependencies(MLIRTensorExtLiteOpsIncGen MLIRTCRVEmitCLowerableOpInterfaceIncGen)

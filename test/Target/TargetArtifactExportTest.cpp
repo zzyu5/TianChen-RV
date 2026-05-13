@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
@@ -956,8 +957,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (!expectSuccess(registerBuiltinExtensionBundles(bundles),
                      "register built-in extension bundles"))
     return false;
-  if (bundles.size() != 5) {
-    llvm::errs() << "built-in extension bundle registry expected 5 bundles\n";
+  if (bundles.size() != 6) {
+    llvm::errs() << "built-in extension bundle registry expected 6 bundles\n";
     return false;
   }
 
@@ -1002,6 +1003,33 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       templateBundle->getTargetArtifactRouteMetadata().front().routeID !=
           tianchenrv::plugin::template_ext::getTemplateMetadataRouteID()) {
     llvm::errs() << "Template extension bundle frontdoor is malformed\n";
+    return false;
+  }
+
+  const ExtensionBundle *tensorExtLiteBundle =
+      bundles.lookupPluginBundle(
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExtensionPluginName());
+  if (!tensorExtLiteBundle) {
+    llvm::errs() << "missing TensorExtLite extension bundle frontdoor\n";
+    return false;
+  }
+  if (tensorExtLiteBundle->getBundleID() !=
+          "tensorext-lite-extension-bundle" ||
+      !containsString(tensorExtLiteBundle->getRequiredDialectNames(),
+                      "tcrv_tensorext_lite") ||
+      !containsString(tensorExtLiteBundle->getLoweringBoundaryOps(),
+                      "tcrv_tensorext_lite.lowering_boundary") ||
+      !tensorExtLiteBundle->getPluginRegistrationFn() ||
+      !tensorExtLiteBundle
+           ->getTargetArtifactExporterBundleRegistrationFn() ||
+      !tensorExtLiteBundle->requiresTargetArtifactRouteMetadata() ||
+      tensorExtLiteBundle->getTargetArtifactRouteMetadata().size() != 1 ||
+      tensorExtLiteBundle->getTargetArtifactRouteMetadata().front().routeID !=
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteMetadataRouteID()) {
+    llvm::errs()
+        << "TensorExtLite extension bundle frontdoor is malformed\n";
     return false;
   }
 
@@ -1143,6 +1171,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
           tianchenrv::plugin::toy::getToyExtensionPluginName()) ||
       !plugins.lookupPlugin(tianchenrv::plugin::template_ext::
                                 getTemplateExtensionPluginName()) ||
+      !plugins.lookupPlugin(tianchenrv::plugin::tensorext_lite::
+                                getTensorExtLiteExtensionPluginName()) ||
       !plugins.lookupPlugin(
           tianchenrv::plugin::offload::getOffloadExtensionPluginName()) ||
       !plugins.lookupPlugin(
@@ -6040,8 +6070,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 16) {
-    llvm::errs() << "expected exactly 16 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 17) {
+    llvm::errs() << "expected exactly 17 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -6237,6 +6267,48 @@ int main() {
       !toyMetadataExporter->getCandidateValidationFn()) {
     llvm::errs()
         << "Toy metadata artifact route lacks candidate preflight validator\n";
+    return 1;
+  }
+  constexpr llvm::StringLiteral tensorExtLiteRouteID(
+      "none-executable-tensorext-lite-fragment-mma-metadata");
+  if (!expectRoute(
+          builtinRegistry, tensorExtLiteRouteID, "metadata-diagnostic",
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExtensionPluginName(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteMetadataEmissionKind(),
+          0, /*expectedDirectHelperRoute=*/false,
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExpectedHandoffKind()))
+    return 1;
+  if (!expectRouteRegistrationMetadata(
+          builtinRegistry, tensorExtLiteRouteID,
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExpectedFragmentABI(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteMetadataRuntimeABIKind(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExpectedFragmentABI(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteMetadataRuntimeGlueRole(),
+          "tensorext_lite_tile_mma_abi",
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExpectedFragmentABI(),
+          "fragment-abi", "runtime_execution_claim"))
+    return 1;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
+          builtinRegistry, tensorExtLiteRouteID))
+    return 1;
+  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+          builtinRegistry, tensorExtLiteRouteID,
+          "tensorext_lite_tile_mma_scope", "runtime-success"))
+    return 1;
+  const TargetArtifactExporter *tensorExtLiteMetadataExporter =
+      builtinRegistry.lookup(tensorExtLiteRouteID);
+  if (!tensorExtLiteMetadataExporter ||
+      !tensorExtLiteMetadataExporter->getCandidateValidationFn()) {
+    llvm::errs() << "TensorExtLite metadata artifact route lacks candidate "
+                    "preflight validator\n";
     return 1;
   }
   if (!expectRouteRuntimeABIParameters(

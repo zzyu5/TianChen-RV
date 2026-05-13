@@ -205,6 +205,23 @@ target_link_libraries(tianchenrv-template-extension-plugin-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-tensorext-lite-extension-plugin-test
+  Plugin/TensorExtLiteExtensionPluginTest.cpp
+)
+
+target_link_libraries(tianchenrv-tensorext-lite-extension-plugin-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVPlugin
+  TianChenRVSupport
+  TianChenRVTensorExtLiteDialect
+  TianChenRVTensorExtLitePlugin
+  TianChenRVTransforms
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_executable(tianchenrv-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )

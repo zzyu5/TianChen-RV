@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
@@ -12,6 +13,7 @@
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
+#include "TianChenRV/Target/TensorExtLite/TensorExtLiteMetadataArtifact.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "llvm/ADT/Twine.h"
@@ -119,6 +121,23 @@ llvm::Error registerTemplateExtensionBundle(
   return registry.registerBundle(bundle);
 }
 
+llvm::Error registerTensorExtLiteExtensionBundle(
+    ExtensionBundleRegistry &registry) {
+  ExtensionBundle bundle(
+      "tensorext-lite-extension-bundle",
+      plugin::tensorext_lite::getTensorExtLiteExtensionPluginName(),
+      plugin::registerTensorExtLiteExtensionPlugin);
+  bundle.addRequiredDialectName("tcrv_tensorext_lite");
+  bundle.addLoweringBoundaryOp("tcrv_tensorext_lite.lowering_boundary");
+  bundle.setTargetArtifactExporterBundleRegistrationFn(
+      tensorext_lite::
+          registerTensorExtLiteMetadataArtifactPluginTargetExporterBundle);
+  bundle.addTargetArtifactRouteMetadataRequirement(
+      plugin::tensorext_lite::getTensorExtLiteMetadataRouteID(),
+      plugin::tensorext_lite::getTensorExtLiteMetadataArtifactKind());
+  return registry.registerBundle(bundle);
+}
+
 llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   ExtensionBundle bundle("scalar-extension-bundle",
                          plugin::scalar::getScalarExtensionPluginName(),
@@ -146,6 +165,8 @@ llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
   if (llvm::Error error = registerToyExtensionBundle(registry))
     return error;
   if (llvm::Error error = registerTemplateExtensionBundle(registry))
+    return error;
+  if (llvm::Error error = registerTensorExtLiteExtensionBundle(registry))
     return error;
   return registerScalarExtensionBundle(registry);
 }

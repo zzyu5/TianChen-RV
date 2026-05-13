@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedEmissionPlanning.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
@@ -463,9 +464,13 @@ int runRegistrationAndCapabilityMetadataTest() {
                      builtinRegistry.lookupPlugin("toy-plugin") != nullptr &&
                      builtinRegistry.lookupPlugin("template-plugin") !=
                          nullptr &&
-                     builtinRegistry.size() == 5,
+                     builtinRegistry.lookupPlugin(
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteExtensionPluginName()) !=
+                         nullptr &&
+                     builtinRegistry.size() == 6,
                  "built-in registration owns safe RVV, offload, scalar, Toy, "
-                 "and Template plugin lifetimes"))
+                 "Template, and TensorExtLite plugin lifetimes"))
     return result;
   if (int result = expectErrorContains(
           tianchenrv::plugin::registerBuiltinExtensionPlugins(builtinRegistry),

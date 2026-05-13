@@ -530,6 +530,64 @@ and generated artifact output consume the same manifest.
 [OK] Implementation checks passed; finish/archive and commit pending.
 
 
+## Session 59: TensorExtLite construction-protocol extension instantiation
+
+**Date**: 2026-05-13
+**Task**: TensorExtLite construction-protocol extension instantiation
+**Branch**: `main`
+
+### Summary
+
+Instantiated `TensorExtLite` as a richer non-RVV construction-protocol
+extension family that reaches deterministic generated metadata artifact output
+from a typed ODS role-op boundary.
+
+### Main Changes
+
+- Added `tcrv_tensorext_lite.lowering_boundary` and
+  `tcrv_tensorext_lite.tile_mma_skeleton` under a new TensorExtLite dialect.
+- Added TensorExtLite construction manifest, fragment-MMA-like archetype,
+  semantic role graph `configure -> load_frag -> tile_mma -> store_frag`,
+  common-interface realization, typed role realization, generated EmitC route
+  mapping, and evidence profile validation.
+- Added plugin-local capability proposal, lowering-boundary validation,
+  selected planning metadata, and emission-plan metadata for
+  `tensorext_lite.tile_mma`.
+- Added TensorExtLite target artifact export for
+  `none-executable-tensorext-lite-fragment-mma-metadata`, including generated
+  source-like role-to-call evidence and no runtime/hardware/correctness/perf
+  claims.
+- Registered TensorExtLite through builtin plugin and target bundle frontdoors
+  without adding TensorExtLite semantic branches to `tcrv.exec`,
+  `lib/Transforms`, or common orchestration passes.
+- Added C++ and lit/FileCheck coverage for the valid path and fail-closed
+  stale, missing, wrong-route, wrong-role, wrong-interface, malformed
+  selected-plan, and stale role-realization cases.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTensorExtLiteDialect TianChenRVTensorExtLitePlugin TianChenRVTensorExtLiteTarget tianchenrv-tensorext-lite-extension-plugin-test TianChenRVTemplateDialect TianChenRVTemplatePlugin TianChenRVTemplateTarget tianchenrv-template-extension-plugin-test TianChenRVToyDialect TianChenRVToyPlugin TianChenRVToyTarget tianchenrv-toy-extension-plugin-test tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- `./build/bin/tianchenrv-template-extension-plugin-test`
+- `./build/bin/tianchenrv-toy-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='TensorExtLite|tensorext-lite|tensorext_lite|Toy|toy|Template|template'` from `build/test`
+- Core neutrality scan:
+  `rg -n "tensorext|TensorExtLite|tcrv_tensorext_lite" lib/Transforms include/TianChenRV/Dialect/Exec lib/Dialect/Exec`
+- `git diff --check`
+- `git diff --cached --check`
+- Trellis validation before finish/archive and after archive.
+
+No `ssh rvv` evidence was run because this task changes TensorExtLite
+construction/plugin/target metadata evidence only and makes no RVV runtime,
+correctness, or performance claim.
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.
+
+
 ## Session 59: First concrete extension-family template instantiation
 
 **Date**: 2026-05-13
