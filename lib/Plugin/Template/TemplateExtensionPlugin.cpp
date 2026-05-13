@@ -37,6 +37,8 @@ constexpr llvm::StringLiteral kTemplateSemanticRoleGraphAttrName(
     "tcrv_template.semantic_role_graph");
 constexpr llvm::StringLiteral kTemplateCommonInterfaceRealizationAttrName(
     "tcrv_template.common_interface_realization");
+constexpr llvm::StringLiteral kTemplateTypedRoleRealizationAttrName(
+    "tcrv_template.typed_role_realization");
 constexpr llvm::StringLiteral kTemplateEmitCRouteMappingAttrName(
     "tcrv_template.emitc_route_mapping");
 constexpr llvm::StringLiteral kTemplateEvidenceProfileAttrName(
@@ -277,6 +279,12 @@ buildTemplateExtensionProposal(const VariantProposalRequest &request) {
           template_ext::getTemplateConstructionInterfaceRealization()));
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
+                            kTemplateTypedRoleRealizationAttrName),
+      mlir::StringAttr::get(
+          request.getKernel()->getContext(),
+          template_ext::getTemplateTypedRoleRealizationSummary()));
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(request.getKernel()->getContext(),
                             kTemplateEmitCRouteMappingAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             manifest.emitcRoute.routeID));
@@ -387,6 +395,16 @@ llvm::Error verifyTemplateVariantMetadata(
         llvm::Twine("materialized Template variant @") + variant.getSymName() +
         " must carry common interface realization metadata '" +
         kTemplateCommonInterfaceRealizationAttrName + "'");
+
+  auto typedRoles = variant->getAttrOfType<mlir::StringAttr>(
+      kTemplateTypedRoleRealizationAttrName);
+  if (!typedRoles ||
+      typedRoles.getValue() !=
+          template_ext::getTemplateTypedRoleRealizationSummary())
+    return makeTemplatePluginError(
+        llvm::Twine("materialized Template variant @") + variant.getSymName() +
+        " must carry typed role realization metadata '" +
+        kTemplateTypedRoleRealizationAttrName + "'");
 
   auto emitcRoute = variant->getAttrOfType<mlir::StringAttr>(
       kTemplateEmitCRouteMappingAttrName);
@@ -767,6 +785,12 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
       template_ext::getTemplateConstructionInterfaceRealization(),
       template_ext::getTemplateCommonInterfaceRealizationMetadataRole(),
       "records the common TCRV interfaces expected for each Template role");
+  out.addSelectedPlanMetadata(
+      template_ext::getTemplateTypedRoleRealizationMetadataName(),
+      template_ext::getTemplateTypedRoleRealizationSummary(),
+      template_ext::getTemplateTypedRoleRealizationMetadataRole(),
+      "records the typed Template role/interface objects consumed by the "
+      "generated role-graph route");
   out.addSelectedPlanMetadata(
       template_ext::getTemplateEmitCRouteMappingMetadataName(),
       manifest.emitcRoute.routeID,

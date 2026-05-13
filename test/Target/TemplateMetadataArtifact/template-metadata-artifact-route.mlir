@@ -28,6 +28,7 @@ module {
     // IR-SAME: tcrv_template.emitc_route_mapping = "template-extension-zero-core-manifest"
     // IR-SAME: tcrv_template.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|generated_output"
     // IR-SAME: tcrv_template.semantic_role_graph = "configure->load->compute->store"
+    // IR-SAME: tcrv_template.typed_role_realization = "{{.*}}compute:template.role.compute.compute_skeleton{{.*}}"
     // IR: tcrv_template.lowering_boundary
     // IR-SAME: handoff_kind = "template-extension-lowering-boundary"
     // IR-SAME: selected_variant = @template_zero_core_first_slice
@@ -75,6 +76,16 @@ module {
     // ARTIFACT:   operation: "tcrv_template.compute_skeleton"
     // ARTIFACT:   common_interfaces: "TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
     // ARTIFACT: common_interface_realization: "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
+    // ARTIFACT: typed_role_realization: "{{.*}}compute:template.role.compute.compute_skeleton:tcrv_template.compute_skeleton:TCRVComputeOpInterface:__tcrv_template_compute{{.*}}"
+    // ARTIFACT: typed_role[2]:
+    // ARTIFACT:   typed_role: "template.role.compute.compute_skeleton"
+    // ARTIFACT:   role: "compute"
+    // ARTIFACT:   order: 2
+    // ARTIFACT:   operation: "tcrv_template.compute_skeleton"
+    // ARTIFACT:   common_interfaces: "TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
+    // ARTIFACT:   role_specific_interface: "TCRVComputeOpInterface"
+    // ARTIFACT:   emitc_lowerable_interface: "TCRVEmitCLowerableInterface"
+    // ARTIFACT:   emitc_call: "__tcrv_template_compute"
     // ARTIFACT: emitc_route_id: "template-extension-zero-core-manifest"
     // ARTIFACT: emitc_emission_kind: "template-extension-manifest-route"
     // ARTIFACT: emitc_artifact_kind: "template-extension-handoff-manifest"
@@ -86,13 +97,19 @@ module {
     // ARTIFACT: generated_required_header: "template_extension_intrinsics.h"
     // ARTIFACT: generated_emitc_step[0]:
     // ARTIFACT:   role: "configure"
+    // ARTIFACT:   typed_role: "template.role.configure.config_skeleton"
     // ARTIFACT:   operation: "tcrv_template.config_skeleton"
+    // ARTIFACT:   role_specific_interface: "TCRVConfigOpInterface"
+    // ARTIFACT:   emitc_lowerable_interface: "TCRVEmitCLowerableInterface"
     // ARTIFACT:   emitc_call: "__tcrv_template_config"
     // ARTIFACT:   source_line: "__tcrv_template_config();"
     // ARTIFACT: generated_emitc_step[2]:
     // ARTIFACT:   role: "compute"
+    // ARTIFACT:   typed_role: "template.role.compute.compute_skeleton"
     // ARTIFACT:   operation: "tcrv_template.compute_skeleton"
     // ARTIFACT:   common_interfaces: "TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"
+    // ARTIFACT:   role_specific_interface: "TCRVComputeOpInterface"
+    // ARTIFACT:   emitc_lowerable_interface: "TCRVEmitCLowerableInterface"
     // ARTIFACT:   emitc_call: "__tcrv_template_compute"
     // ARTIFACT:   source_line: "__tcrv_template_compute();"
     // ARTIFACT: generated_source:
@@ -126,9 +143,12 @@ module {
     // ARTIFACT:   name: "template_common_interface_realization"
     // ARTIFACT:   role: "common-interface-realization"
     // ARTIFACT: selected_plan_metadata[7]:
+    // ARTIFACT:   name: "template_typed_role_realization"
+    // ARTIFACT:   role: "typed-role-interface-realization"
+    // ARTIFACT: selected_plan_metadata[8]:
     // ARTIFACT:   name: "template_emitc_route_mapping"
     // ARTIFACT:   value: "template-extension-zero-core-manifest"
-    // ARTIFACT: selected_plan_metadata[8]:
+    // ARTIFACT: selected_plan_metadata[9]:
     // ARTIFACT:   name: "template_evidence_profile"
     // ARTIFACT:   value: "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|generated_output"
   }

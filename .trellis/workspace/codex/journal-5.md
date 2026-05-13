@@ -65,6 +65,54 @@ Vector source arithmetic-family adapter registry.
 - None - task complete
 
 
+## Session 58: Template typed-role op construction path
+
+**Date**: 2026-05-13
+**Task**: Template typed-role op construction path
+**Branch**: `main`
+
+### Summary
+
+Extended the Template construction path from manifest-string generated output
+to a C++ typed role/interface realization consumed by proposal, legality,
+emission-plan metadata, target artifact preflight, and generated output.
+
+### Main Changes
+
+- Added TemplateTypedRoleInterfaceRealization and TemplateTypedRoleGraphRealization.
+- Added typed realization verification against the construction manifest,
+  common-interface realization, role-specific interfaces, EmitC role-to-call
+  mapping, and evidence profile.
+- Template plugin now carries and validates tcrv_template.typed_role_realization
+  on materialized variants.
+- Template emission planning and target artifact route metadata now require
+  template_typed_role_realization selected-plan metadata.
+- Generated artifact output now prints typed_role_realization, typed_role
+  records, and typed role fields in generated_emitc_step entries.
+- Added C++ and lit coverage for typed role success and stale/missing/reordered
+  fail-closed cases.
+- Updated the plugin-protocol construction-template scenario for typed-role
+  realization APIs and tests.
+- No core tcrv.exec or lib/Transforms Template semantic branches were added.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTemplatePlugin TianChenRVTemplateTarget tianchenrv-template-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-template-extension-plugin-test`
+- Template route pipeline and export through `tcrv-opt | tcrv-translate`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='template-extension-plugin|TemplateMetadataArtifact'`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- Core-neutrality grep for Template strings in `lib/Transforms` and core exec paths
+- `git diff --check`
+- Trellis validation before and after archive
+
+### Status
+
+[OK] Completed and archived; commit pending in this session.
+
+
 ## Session 56: Extension manifest target-support route activation
 
 **Date**: 2026-05-13

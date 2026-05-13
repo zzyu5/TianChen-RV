@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV invariants, especially C++/MLIR stack, unified extension-family model, and descriptor boundary."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check plugin-locality and construction protocol compliance."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check typed role/interface work against construction protocol and Template validation matrix."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check no Template semantic branch leaks into core orchestration."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check common interface naming and registry boundary compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated route remains EmitC-route aligned and not descriptor-driven."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target-artifact fail-closed behavior and bounded metadata."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and lit/FileCheck coverage expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-template-role-graph-emitc-route-realization/prd.md", "reason": "Regression baseline for generated_emitc_step and generated_source behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-executable-extension-family-construction-template/prd.md", "reason": "Regression baseline for manifest-driven Template proposal/legality/emission/artifact behavior."}

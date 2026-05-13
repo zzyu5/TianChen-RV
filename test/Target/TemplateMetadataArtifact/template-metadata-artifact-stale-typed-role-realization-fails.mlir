@@ -1,7 +1,7 @@
 // RUN: not tcrv-translate %s --tcrv-export-target-artifact 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @template_stale_emitc_mapping {
+  tcrv.exec.kernel @template_stale_typed_role_realization {
     tcrv.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -29,7 +29,7 @@ module {
     }
 
     tcrv_template.lowering_boundary {
-      source_kernel = "template_stale_emitc_mapping",
+      source_kernel = "template_stale_typed_role_realization",
       selected_variant = @template_zero_core_first_slice,
       origin = "template-plugin",
       role = "direct variant",
@@ -42,7 +42,7 @@ module {
 
     tcrv.exec.diagnostic {
       reason = "emission_plan",
-      message = "Template generated route candidate with stale EmitC mapping",
+      message = "Template generated route candidate with stale typed role realization",
       severity = "info",
       status = "supported",
       target = @template_zero_core_first_slice,
@@ -66,12 +66,12 @@ module {
         {name = "template_extension_archetype", value = "custom-riscv-extension-minimal", role = "extension-archetype", note = "records Template archetype"},
         {name = "template_semantic_role_graph", value = "configure->load->compute->store", role = "semantic-role-graph", note = "records Template role graph"},
         {name = "template_common_interface_realization", value = "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface", role = "common-interface-realization", note = "records Template interfaces"},
-        {name = "template_typed_role_realization", value = "configure:template.role.configure.config_skeleton:tcrv_template.config_skeleton:TCRVConfigOpInterface:__tcrv_template_config;load:template.role.load.load_skeleton:tcrv_template.load_skeleton:TCRVMemoryOpInterface:__tcrv_template_load;compute:template.role.compute.compute_skeleton:tcrv_template.compute_skeleton:TCRVComputeOpInterface:__tcrv_template_compute;store:template.role.store.store_skeleton:tcrv_template.store_skeleton:TCRVMemoryOpInterface:__tcrv_template_store", role = "typed-role-interface-realization", note = "records Template typed roles"},
-        {name = "template_emitc_route_mapping", value = "stale-template-route", role = "emitc-route-mapping", note = "stale EmitC route"},
+        {name = "template_typed_role_realization", value = "configure:template.role.configure.config_skeleton:tcrv_template.config_skeleton:TCRVConfigOpInterface:__tcrv_template_config;load:template.role.load.load_skeleton:tcrv_template.load_skeleton:TCRVMemoryOpInterface:__tcrv_template_load;compute:template.role.compute.stale_compute_skeleton:tcrv_template.compute_skeleton:TCRVComputeOpInterface:__tcrv_template_compute;store:template.role.store.store_skeleton:tcrv_template.store_skeleton:TCRVMemoryOpInterface:__tcrv_template_store", role = "typed-role-interface-realization", note = "stale Template typed role"},
+        {name = "template_emitc_route_mapping", value = "template-extension-zero-core-manifest", role = "emitc-route-mapping", note = "records Template EmitC route"},
         {name = "template_evidence_profile", value = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|generated_output", role = "evidence-profile", note = "records Template evidence profile"}
       ]
     }
   }
 }
 
-// CHECK: selected_plan_metadata 'template_emitc_route_mapping' must use value 'template-extension-zero-core-manifest'
+// CHECK: selected_plan_metadata 'template_typed_role_realization' must use value

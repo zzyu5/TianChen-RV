@@ -50,11 +50,35 @@ struct TemplateConstructionManifest {
   llvm::StringRef evidenceProfile;
 };
 
+struct TemplateTypedRoleInterfaceRealization {
+  llvm::StringRef typedRoleID;
+  llvm::StringRef role;
+  unsigned order = 0;
+  llvm::StringRef operationName;
+  llvm::StringRef commonInterfaces;
+  llvm::StringRef roleSpecificInterface;
+  llvm::StringRef emitCLowerableInterface;
+  llvm::StringRef emitCCall;
+};
+
+struct TemplateTypedRoleGraphRealization {
+  llvm::StringRef protocolVersion;
+  llvm::StringRef archetype;
+  llvm::StringRef semanticRoleGraph;
+  llvm::StringRef familyName;
+  llvm::StringRef realizationSummary;
+  llvm::ArrayRef<TemplateTypedRoleInterfaceRealization> roles;
+  llvm::StringRef evidenceProfile;
+};
+
 struct TemplateGeneratedOutputStep {
+  std::string typedRoleID;
   std::string role;
   unsigned order = 0;
   std::string operationName;
   std::string commonInterfaces;
+  std::string roleSpecificInterface;
+  std::string emitCLowerableInterface;
   std::string emitCCall;
   std::string sourceLine;
 };
@@ -69,12 +93,14 @@ llvm::StringRef getTemplateConstructionProtocolVersion();
 llvm::StringRef getTemplateConstructionArchetype();
 llvm::StringRef getTemplateConstructionSemanticRoleGraph();
 llvm::StringRef getTemplateConstructionInterfaceRealization();
+llvm::StringRef getTemplateTypedRoleRealizationSummary();
 llvm::StringRef getTemplateConstructionEvidenceProfile();
 
 llvm::StringRef getTemplateConstructionProtocolMetadataName();
 llvm::StringRef getTemplateConstructionArchetypeMetadataName();
 llvm::StringRef getTemplateSemanticRoleGraphMetadataName();
 llvm::StringRef getTemplateCommonInterfaceRealizationMetadataName();
+llvm::StringRef getTemplateTypedRoleRealizationMetadataName();
 llvm::StringRef getTemplateEmitCRouteMappingMetadataName();
 llvm::StringRef getTemplateEvidenceProfileMetadataName();
 
@@ -82,14 +108,23 @@ llvm::StringRef getTemplateConstructionProtocolMetadataRole();
 llvm::StringRef getTemplateConstructionArchetypeMetadataRole();
 llvm::StringRef getTemplateSemanticRoleGraphMetadataRole();
 llvm::StringRef getTemplateCommonInterfaceRealizationMetadataRole();
+llvm::StringRef getTemplateTypedRoleRealizationMetadataRole();
 llvm::StringRef getTemplateEmitCRouteMappingMetadataRole();
 llvm::StringRef getTemplateEvidenceProfileMetadataRole();
 
 const TemplateConstructionManifest &getTemplateConstructionManifest();
+const TemplateTypedRoleGraphRealization &
+getTemplateTypedRoleGraphRealization();
 llvm::Error
 verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest);
+llvm::Error verifyTemplateTypedRoleGraphRealization(
+    const TemplateConstructionManifest &manifest,
+    const TemplateTypedRoleGraphRealization &realization);
 llvm::Expected<TemplateGeneratedOutputRoute>
 buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest &manifest);
+llvm::Expected<TemplateGeneratedOutputRoute> buildTemplateGeneratedOutputRoute(
+    const TemplateConstructionManifest &manifest,
+    const TemplateTypedRoleGraphRealization &realization);
 
 } // namespace tianchenrv::plugin::template_ext
 

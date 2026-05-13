@@ -295,10 +295,10 @@ llvm::Error requireSelectedPlanMetadata(
 
 llvm::Error validateTemplateSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate) {
-  if (candidate.selectedPlanMetadata.size() != 9)
+  if (candidate.selectedPlanMetadata.size() != 10)
     return makeTemplateArtifactError(
         candidate.kernel,
-        "Template artifact candidate requires exactly nine selected plan metadata "
+        "Template artifact candidate requires exactly ten selected plan metadata "
         "entries");
 
   const pluginTemplate::TemplateConstructionManifest &manifest =
@@ -340,6 +340,12 @@ llvm::Error validateTemplateSelectedPlanMetadata(
           pluginTemplate::getTemplateCommonInterfaceRealizationMetadataRole()))
     return error;
   if (llvm::Error error = requireSelectedPlanMetadata(
+          candidate,
+          pluginTemplate::getTemplateTypedRoleRealizationMetadataName(),
+          pluginTemplate::getTemplateTypedRoleRealizationSummary(),
+          pluginTemplate::getTemplateTypedRoleRealizationMetadataRole()))
+    return error;
+  if (llvm::Error error = requireSelectedPlanMetadata(
           candidate, pluginTemplate::getTemplateEmitCRouteMappingMetadataName(),
           manifest.emitcRoute.routeID,
           pluginTemplate::getTemplateEmitCRouteMappingMetadataRole()))
@@ -357,9 +363,14 @@ llvm::Error validateTemplateMetadataCandidate(
   if (llvm::Error error = pluginTemplate::verifyTemplateConstructionManifest(
           pluginTemplate::getTemplateConstructionManifest()))
     return error;
+  if (llvm::Error error = pluginTemplate::verifyTemplateTypedRoleGraphRealization(
+          pluginTemplate::getTemplateConstructionManifest(),
+          pluginTemplate::getTemplateTypedRoleGraphRealization()))
+    return error;
   if (llvm::Expected<pluginTemplate::TemplateGeneratedOutputRoute> route =
           pluginTemplate::buildTemplateGeneratedOutputRoute(
-              pluginTemplate::getTemplateConstructionManifest());
+              pluginTemplate::getTemplateConstructionManifest(),
+              pluginTemplate::getTemplateTypedRoleGraphRealization());
       !route)
     return route.takeError();
 
@@ -552,8 +563,12 @@ void printGeneratedOutputRoute(
     os << "generated_emitc_step[" << index << "]:\n";
     printField(os, "  role", step.role);
     os << "  order: " << step.order << "\n";
+    printField(os, "  typed_role", step.typedRoleID);
     printField(os, "  operation", step.operationName);
     printField(os, "  common_interfaces", step.commonInterfaces);
+    printField(os, "  role_specific_interface", step.roleSpecificInterface);
+    printField(os, "  emitc_lowerable_interface",
+               step.emitCLowerableInterface);
     printField(os, "  emitc_call", step.emitCCall);
     printField(os, "  source_line", step.sourceLine);
   }
@@ -573,6 +588,24 @@ void printGeneratedOutputRoute(
     os << "    " << step.sourceLine << "\n";
   }
   os << "  }\n";
+}
+
+void printTypedRoleGraphRealization(
+    llvm::raw_ostream &os,
+    const pluginTemplate::TemplateTypedRoleGraphRealization &realization) {
+  printField(os, "typed_role_realization", realization.realizationSummary);
+  for (auto [index, role] : llvm::enumerate(realization.roles)) {
+    os << "typed_role[" << index << "]:\n";
+    printField(os, "  typed_role", role.typedRoleID);
+    printField(os, "  role", role.role);
+    os << "  order: " << role.order << "\n";
+    printField(os, "  operation", role.operationName);
+    printField(os, "  common_interfaces", role.commonInterfaces);
+    printField(os, "  role_specific_interface", role.roleSpecificInterface);
+    printField(os, "  emitc_lowerable_interface",
+               role.emitCLowerableInterface);
+    printField(os, "  emitc_call", role.emitCCall);
+  }
 }
 
 } // namespace
@@ -612,6 +645,10 @@ static TargetArtifactRouteMetadata buildTemplateMetadataArtifactRouteMetadata() 
       pluginTemplate::getTemplateConstructionInterfaceRealization(),
       pluginTemplate::getTemplateCommonInterfaceRealizationMetadataRole());
   metadata.addSelectedPlanMetadataRequirement(
+      pluginTemplate::getTemplateTypedRoleRealizationMetadataName(),
+      pluginTemplate::getTemplateTypedRoleRealizationSummary(),
+      pluginTemplate::getTemplateTypedRoleRealizationMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
       pluginTemplate::getTemplateEmitCRouteMappingMetadataName(),
       manifest.emitcRoute.routeID,
       pluginTemplate::getTemplateEmitCRouteMappingMetadataRole());
@@ -641,8 +678,10 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
 
   const pluginTemplate::TemplateConstructionManifest &manifest =
       pluginTemplate::getTemplateConstructionManifest();
+  const pluginTemplate::TemplateTypedRoleGraphRealization &realization =
+      pluginTemplate::getTemplateTypedRoleGraphRealization();
   llvm::Expected<pluginTemplate::TemplateGeneratedOutputRoute> route =
-      pluginTemplate::buildTemplateGeneratedOutputRoute(manifest);
+      pluginTemplate::buildTemplateGeneratedOutputRoute(manifest, realization);
   if (!route)
     return route.takeError();
 
@@ -694,6 +733,7 @@ llvm::Error exportTemplateMetadataArtifact(mlir::ModuleOp module,
   }
   printField(os, "common_interface_realization",
              pluginTemplate::getTemplateConstructionInterfaceRealization());
+  printTypedRoleGraphRealization(os, realization);
   printField(os, "emitc_route_id", manifest.emitcRoute.routeID);
   printField(os, "emitc_emission_kind", manifest.emitcRoute.emissionKind);
   printField(os, "emitc_artifact_kind", manifest.emitcRoute.artifactKind);

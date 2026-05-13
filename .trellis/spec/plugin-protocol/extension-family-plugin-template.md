@@ -343,10 +343,22 @@ file is not enough.
   `llvm::Expected<TemplateGeneratedOutputRoute>
   buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest
   &manifest)`.
+- Typed role/interface realization:
+  `const TemplateTypedRoleGraphRealization
+  &getTemplateTypedRoleGraphRealization()`.
+- Typed realization verifier:
+  `llvm::Error verifyTemplateTypedRoleGraphRealization(const
+  TemplateConstructionManifest &manifest, const
+  TemplateTypedRoleGraphRealization &realization)`.
+- Typed-realization generated-output route builder overload:
+  `llvm::Expected<TemplateGeneratedOutputRoute>
+  buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest
+  &manifest, const TemplateTypedRoleGraphRealization &realization)`.
 - Generated-output payload:
   deterministic function name, required header, ordered role steps, each
   step's semantic role, role order, family operation name, common-interface
-  realization, EmitC call name, and source-like call line.
+  realization, typed role identity, role-specific interface,
+  EmitC-lowerable interface, EmitC call name, and source-like call line.
 
 ### 3. Contracts
 
@@ -356,15 +368,20 @@ file is not enough.
   readiness or emission planning accepts the variant.
 - Emission planning must serialize construction selected-plan metadata for the
   protocol, archetype, role graph, common-interface realization, EmitC route,
-  and evidence profile.
+  typed role/interface realization, and evidence profile.
 - Target artifact validation must consume the same manifest-derived route
   metadata and fail closed for stale selected-plan fields.
+- Generated construction output must be built from a typed role/interface
+  realization that has been cross-checked against the manifest role graph,
+  family operations, common-interface realization, role-specific common
+  interfaces, EmitC mapping, and evidence profile.
 - Generated construction output must print the archetype, role graph, family
   declaration, interface realization, EmitC mapping, and evidence profile.
 - Generated construction output must also include a deterministic source-like
-  role-graph-to-EmitC skeleton derived from the manifest's role-to-call
-  mapping. The skeleton is construction evidence only; it is not runtime ABI
-  glue, linked code, hardware execution, correctness, or performance evidence.
+  role-graph-to-EmitC skeleton derived from the typed role/interface
+  realization after manifest cross-checking. The skeleton is construction
+  evidence only; it is not runtime ABI glue, linked code, hardware execution,
+  correctness, or performance evidence.
 
 ### 4. Validation & Error Matrix
 
@@ -379,6 +396,10 @@ file is not enough.
   using a non-C-identifier call name -> generated-output route builder error.
 - Role common-interface data disagreeing with the common-interface realization
   summary -> manifest verifier error.
+- Typed role realization missing a role object, reordering role objects,
+  duplicating typed role ids, using stale family operation identity, using a
+  stale role-specific interface, or disagreeing with the role-to-EmitC mapping
+  -> typed-realization verifier error.
 - Materialized variant missing construction metadata -> plugin legality error.
 - Selected-plan metadata value disagrees with route registration metadata ->
   target artifact preflight error before generated output.
@@ -399,12 +420,16 @@ file is not enough.
 - C++ test asserting the generated-output route's ordered role steps,
   role-specific common-interface realization, EmitC call mapping, and
   fail-closed behavior for reordered, missing, or mismatched route data.
+- C++ test asserting typed role/interface realization agreement with the
+  manifest and fail-closed behavior for missing, reordered, stale, or
+  mismatched typed role/interface data.
 - lit/FileCheck test proving generated artifact output includes construction
   protocol, archetype, role graph, family, interface, EmitC route, and evidence
   fields.
 - lit/FileCheck test proving generated artifact output includes a deterministic
-  source-like role-graph-to-EmitC skeleton derived from the manifest mapping,
-  including at least the compute role.
+  source-like role-graph-to-EmitC skeleton derived from the typed
+  role/interface realization after manifest cross-checking, including at least
+  the compute role.
 - Target artifact registry/preflight test proving selected-plan route metadata
   requirements are registered and reject stale values.
 - Focused regression that existing built-in plugin registration still reaches

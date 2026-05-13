@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, architecture, capability, plugin, descriptor, and testing invariants for this task."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin construction checklist and extension-locality requirements."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension-Family Plugin Construction Protocol, Template manifest/generated-output scenario, validation matrix, and test requirements."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Unified extension plugin integration boundary and core/plugin separation."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Common TCRV interface and registry contracts consumed by Template typed role/interface realization."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route and typed lowerable interface boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission-plan and target-artifact fail-closed metadata coherence rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and lit/FileCheck testing forms for compiler behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-template-role-graph-emitc-route-realization/prd.md", "reason": "Immediate prior Template generated role-graph-to-EmitC route behavior and regressions to preserve."}
+{"file": ".trellis/tasks/archive/2026-05/05-13-executable-extension-family-construction-template/prd.md", "reason": "Earlier Template construction manifest behavior and manifest consumption path to extend."}

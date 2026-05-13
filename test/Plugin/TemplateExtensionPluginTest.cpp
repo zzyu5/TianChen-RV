@@ -220,6 +220,27 @@ int runConstructionManifestTest() {
                       .contains("TCRVComputeOpInterface"),
           "Template manifest exposes common-interface realization mapping"))
     return result;
+  const auto &realization =
+      tianchenrv::plugin::template_ext::getTemplateTypedRoleGraphRealization();
+  if (int result = expectSuccess(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateTypedRoleGraphRealization(manifest, realization),
+          "Template typed role graph realization verifies"))
+    return result;
+  if (int result =
+          expect(realization.roles.size() == 4 &&
+                     realization.roles[2].typedRoleID ==
+                         "template.role.compute.compute_skeleton" &&
+                     realization.roles[2].roleSpecificInterface ==
+                         "TCRVComputeOpInterface" &&
+                     realization.roles[2].emitCCall ==
+                         "__tcrv_template_compute" &&
+                     tianchenrv::plugin::template_ext::
+                         getTemplateTypedRoleRealizationSummary()
+                             .contains("compute:template.role.compute"),
+                 "Template typed role realization exposes concrete compute role "
+                 "surface"))
+    return result;
   if (int result = expect(
           manifest.emitcRoute.routeID ==
                   tianchenrv::plugin::template_ext::
@@ -241,9 +262,11 @@ int runConstructionManifestTest() {
 int runGeneratedOutputRouteTest() {
   namespace template_ext = tianchenrv::plugin::template_ext;
   const auto &manifest = template_ext::getTemplateConstructionManifest();
+  const auto &realization =
+      template_ext::getTemplateTypedRoleGraphRealization();
 
   llvm::Expected<template_ext::TemplateGeneratedOutputRoute> route =
-      template_ext::buildTemplateGeneratedOutputRoute(manifest);
+      template_ext::buildTemplateGeneratedOutputRoute(manifest, realization);
   if (!route)
     return fail("Template generated output route failed: " +
                 llvm::toString(route.takeError()));
@@ -266,8 +289,14 @@ int runGeneratedOutputRouteTest() {
     return result;
   if (int result =
           expect(route->steps[2].role == "compute" &&
+                     route->steps[2].typedRoleID ==
+                         "template.role.compute.compute_skeleton" &&
                      route->steps[2].commonInterfaces.find(
                          "TCRVComputeOpInterface") != std::string::npos &&
+                     route->steps[2].roleSpecificInterface ==
+                         "TCRVComputeOpInterface" &&
+                     route->steps[2].emitCLowerableInterface ==
+                         "TCRVEmitCLowerableInterface" &&
                      route->steps[2].emitCCall ==
                          "__tcrv_template_compute" &&
                      route->steps[2].sourceLine ==
@@ -291,6 +320,99 @@ int runGeneratedOutputRouteTest() {
     if (int result = expectErrorContains(
             badRoute.takeError(),
             {"semantic role graph entry", "Template role order"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateTypedRoleGraphRealization bad = realization;
+    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
+        roles(realization.roles.begin(), realization.roles.end());
+    roles.pop_back();
+    bad.roles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
+    if (badRoute)
+      return fail("missing Template typed role unexpectedly generated output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"typed role realization", "exactly one role object"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateTypedRoleGraphRealization bad = realization;
+    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
+        roles(realization.roles.begin(), realization.roles.end());
+    std::swap(roles[1], roles[2]);
+    roles[1].order = 1;
+    roles[2].order = 2;
+    bad.roles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
+    if (badRoute)
+      return fail("reordered Template typed roles unexpectedly generated output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"typed role realization entry", "not ordered"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateTypedRoleGraphRealization bad = realization;
+    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
+        roles(realization.roles.begin(), realization.roles.end());
+    roles[2].operationName = "tcrv_template.stale_compute_skeleton";
+    bad.roles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
+    if (badRoute)
+      return fail("stale Template typed role identity unexpectedly generated "
+                  "output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"typed role realization entry", "operation",
+             "does not match manifest operation"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateTypedRoleGraphRealization bad = realization;
+    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
+        roles(realization.roles.begin(), realization.roles.end());
+    roles[2].roleSpecificInterface = "TCRVMemoryOpInterface";
+    bad.roles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
+    if (badRoute)
+      return fail("mismatched Template typed role interface unexpectedly "
+                  "generated output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"typed role realization entry",
+             "role-specific common interface", "TCRVComputeOpInterface"}))
+      return result;
+  }
+
+  {
+    template_ext::TemplateTypedRoleGraphRealization bad = realization;
+    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
+        roles(realization.roles.begin(), realization.roles.end());
+    roles[2].emitCCall = "__tcrv_template_stale_compute";
+    bad.roles = roles;
+
+    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
+        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
+    if (badRoute)
+      return fail("mismatched Template typed EmitC call unexpectedly generated "
+                  "output");
+    if (int result = expectErrorContains(
+            badRoute.takeError(),
+            {"typed role realization entry", "EmitC call",
+             "role-to-call mapping"}))
       return result;
   }
 
@@ -527,6 +649,11 @@ module {
               getTemplateConstructionInterfaceRealization()))
     return result;
   if (int result = expectProposalStringAttr(
+          proposal, "tcrv_template.typed_role_realization",
+          tianchenrv::plugin::template_ext::
+              getTemplateTypedRoleRealizationSummary()))
+    return result;
+  if (int result = expectProposalStringAttr(
           proposal, "tcrv_template.emitc_route_mapping",
           tianchenrv::plugin::template_ext::getTemplateMetadataRouteID()))
     return result;
@@ -654,9 +781,14 @@ module {
                              ->getAttrOfType<mlir::StringAttr>(
                                  "tcrv_template.common_interface_realization")
                              .getValue()
-                             .contains("TCRVComputeOpInterface"),
+                             .contains("TCRVComputeOpInterface") &&
+                     templateVariant
+                             ->getAttrOfType<mlir::StringAttr>(
+                                 "tcrv_template.typed_role_realization")
+                             .getValue()
+                             .contains("compute:template.role.compute"),
                  "Template variant carries code-consumed construction manifest "
-                 "metadata"))
+                 "and typed role metadata"))
     return result;
 
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
@@ -793,7 +925,7 @@ module {
     return result;
 
   if (int result =
-          expect(emissionPlan.getSelectedPlanMetadata().size() == 9,
+          expect(emissionPlan.getSelectedPlanMetadata().size() == 10,
                  "Template emission plan records full construction selected-plan "
                  "metadata"))
     return result;
@@ -822,6 +954,15 @@ module {
               getTemplateConstructionInterfaceRealization(),
           tianchenrv::plugin::template_ext::
               getTemplateCommonInterfaceRealizationMetadataRole()))
+    return result;
+  if (int result = expectEmissionPlanMetadata(
+          emissionPlan,
+          tianchenrv::plugin::template_ext::
+              getTemplateTypedRoleRealizationMetadataName(),
+          tianchenrv::plugin::template_ext::
+              getTemplateTypedRoleRealizationSummary(),
+          tianchenrv::plugin::template_ext::
+              getTemplateTypedRoleRealizationMetadataRole()))
     return result;
   if (int result = expectEmissionPlanMetadata(
           emissionPlan,
