@@ -74,7 +74,7 @@ definitions unless the current C++ contract proves insufficient.
 * [x] If generated runtime behavior changes materially, one bounded `ssh rvv`
       correctness run is collected; otherwise the final report states why the
       prior runtime proof still applies.
-* [ ] The task is finished/archived and one coherent commit records the round
+* [x] The task is finished/archived and one coherent commit records the round
       if complete.
 
 ## Definition Of Done
@@ -196,3 +196,114 @@ build/bin/tcrv-translate --tcrv-plan-and-export-target-artifact-bundle --tcrv-ta
 * `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-selected-config-runtime-vl-boundary`
 * `git diff --check`
 * `git diff --cached --check`
+
+## Continuation: Dynamic Add/Sub Dispatch Bundle Runtime VL Metadata
+
+This continuation started from `HEAD = 8625bbe feat(rvv): share finite binary
+family registry` with a clean worktree and no active `.trellis/.current-task`.
+The Hermes brief requested the existing dynamic vector add/sub route, not a
+new arithmetic family, to make selected RVV config and runtime VL authority a
+single production-consumed boundary.
+
+Completed in this continuation:
+
+* Added dispatch bundle metadata
+  `tcrv_rvv.dispatch_contract_runtime_vl_boundary`, derived from the same
+  `RVVBinarySelectedConfigContract` consumed by the direct RVV component. The
+  bundle index now records runtime element-count C name, runtime AVL source,
+  runtime AVL role, runtime VL source `tcrv_rvv.setvl`, and runtime VL scope
+  `tcrv_rvv.with_vl` beside the existing dispatch selected vector config and
+  descriptor-local element-count metadata.
+* Tightened RVV binary microkernel materialization so the policy attr attached
+  to materialized `tcrv_rvv.setvl` and `tcrv_rvv.with_vl` is derived from the
+  selected-config contract and validated there, instead of being an unrelated
+  local hard-coded materialization fact.
+* Strengthened dynamic vector vsub lit coverage to assert runtime AVL/VL
+  selected-plan metadata and generated `selected_runtime_vl_boundary` source
+  comments.
+* Strengthened dynamic vector vadd/vsub plan-and-export bundle coverage to
+  assert selected vector config and runtime VL boundary metadata in the bundle
+  index.
+
+Exact artifact commands:
+
+```bash
+mkdir -p artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vadd artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vsub
+
+build/bin/tcrv-opt test/Transforms/VectorToExec/vector-dynamic-i32-vadd-to-exec.mlir --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.planned.mlir
+build/bin/tcrv-translate --tcrv-export-target-source-artifact artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.planned.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.c
+build/bin/tcrv-translate --tcrv-export-target-header-artifact artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.planned.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.h
+build/bin/tcrv-translate --tcrv-export-target-artifact artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.planned.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/vector-dynamic-i32-vadd.o
+
+build/bin/tcrv-opt test/Transforms/VectorToExec/vector-dynamic-i32-vsub-to-exec.mlir --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.planned.mlir
+build/bin/tcrv-translate --tcrv-export-target-source-artifact artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.planned.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.c
+build/bin/tcrv-translate --tcrv-export-target-header-artifact artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.planned.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.h
+build/bin/tcrv-translate --tcrv-export-target-artifact artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.planned.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/vector-dynamic-i32-vsub.o
+
+build/bin/tcrv-translate --tcrv-plan-and-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vadd test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vadd/stdout.txt
+build/bin/tcrv-translate --tcrv-plan-and-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vsub test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir > artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vsub/stdout.txt
+```
+
+Artifact checks:
+
+* Direct dynamic vadd source contains `__riscv_vadd_vv_i32m1`.
+* Direct dynamic vsub source contains `__riscv_vsub_vv_i32m1`.
+* Direct vadd/vsub sources contain `selected_runtime_vl_boundary`.
+* Dynamic vadd/vsub bundle indexes contain
+  `tcrv_rvv.dispatch_contract_runtime_vl_boundary`.
+* Direct vadd/vsub objects and bundle dispatch objects are RISC-V ELF
+  relocatables.
+
+Dynamic RVV evidence command:
+
+```bash
+python3 scripts/rvv_microkernel_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family i32-vsub --input test/Transforms/VectorToExec/vector-dynamic-i32-vsub-to-exec.mlir --expect-selected-kernel=frontend_vector_dynamic_i32_vsub --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --ssh-target rvv --artifact-root artifacts/tmp/rvv_selected_config_runtime_vl_boundary/e2e --run-id 20260513T-rvv-selected-config-runtime-vl-boundary-vsub --overwrite --timeout 120
+```
+
+Result:
+
+* Evidence file:
+  `artifacts/tmp/rvv_selected_config_runtime_vl_boundary/e2e/20260513T-rvv-selected-config-runtime-vl-boundary-vsub/evidence.json`.
+* `status = success`, `ssh_evidence = true`,
+  `selected_kernel = frontend_vector_dynamic_i32_vsub`,
+  `runtime_element_counts = [7, 16, 23]`,
+  `vector_shape = i32m1`.
+
+Checks run in this continuation:
+
+* `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-13-rvv-selected-config-runtime-vl-boundary`
+* `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+* `./build/bin/tianchenrv-target-artifact-export-test`
+* From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'vector-dynamic-i32-vadd-to-exec|vector-dynamic-i32-vsub-to-exec|vector-dynamic-i32-binary-invalid|vector-i32-vadd-to-exec|vector-i32-vadd-invalid|plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle|plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle|RVVMicrokernel|EmissionManifest|plan-linalg-i32-vadd-and-export-target-artifact-bundle|plan-linalg-i32-vsub-and-export-target-artifact-bundle'`
+  with 52 selected tests passed after one FileCheck order repair.
+* From `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest'`
+  with 80 selected tests passed.
+* Direct and bundle artifact commands listed above.
+* `ssh rvv` evidence command listed above.
+* `file` confirmed generated direct and bundle objects are RISC-V ELF
+  relocatables.
+* `git diff --check`
+* `git diff --cached --check`
+* Trellis validation before finish/archive and after archive.
+
+Self-repair:
+
+* `clang-format` was not available in PATH or common version-suffixed names on
+  this host, so C++ style was checked by diff/manual review and the focused
+  C++ build.
+* The first focused lit run failed because the new vsub runtime-VL FileCheck
+  assertions were placed after source-frontdoor metadata, while the actual
+  selected-plan metadata order is selected vector shape, capacity facts,
+  runtime VL boundary, source-frontdoor runtime authority, then typed source
+  metadata. The assertions were moved to the real order and the focused and
+  broader lit sets passed.
+
+Spec update judgment:
+
+No `.trellis/spec/` update was needed. This continuation implemented and
+tested an already documented contract: dispatch bundle metadata now exposes
+the runtime AVL/VL boundary that the RVV plugin and target artifact specs
+already require, and materialization now consumes the existing selected-config
+contract more directly.

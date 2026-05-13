@@ -1464,6 +1464,17 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
            << ",setvl_suffix=" << contract.getSetVLSuffix();
     stream.flush();
   }
+  std::string runtimeVLBoundary;
+  {
+    llvm::raw_string_ostream stream(runtimeVLBoundary);
+    stream << "runtime_element_count_c_name="
+           << contract.getRuntimeElementCountCName()
+           << ",runtime_avl_source=" << contract.getRuntimeAVLSource()
+           << ",runtime_avl_role=" << contract.getRuntimeAVLRole()
+           << ",runtime_vl_source=" << contract.getRuntimeVLSource()
+           << ",runtime_vl_scope=" << contract.getRuntimeVLScope();
+    stream.flush();
+  }
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_runtime_element_count_c_name",
        contract.getRuntimeElementCountCName().str(),
@@ -1472,6 +1483,10 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_selected_vector_config",
        std::move(vectorConfig), kDispatchSelectedConfigMetadataRole.str(),
+       kDispatchSelectedConfigMetadataNote.str()});
+  metadata.selectedPlanMetadata.push_back(
+      {"tcrv_rvv.dispatch_contract_runtime_vl_boundary",
+       std::move(runtimeVLBoundary), kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_selected_role",

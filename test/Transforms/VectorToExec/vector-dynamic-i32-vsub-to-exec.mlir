@@ -78,6 +78,12 @@ module {
 // PIPE: %[[VL:.*]] = tcrv_rvv.setvl %[[N]]
 // PIPE: tcrv_rvv.with_vl %[[VL]]
 // PIPE: tcrv_rvv.i32_sub
+// PIPE: name = "tcrv_rvv.runtime_avl_source"
+// PIPE-SAME: role = "rvv-runtime-vl-avl-boundary"
+// PIPE-SAME: value = "runtime-element-count-abi-parameter"
+// PIPE: name = "tcrv_rvv.runtime_vl_source"
+// PIPE-SAME: role = "rvv-runtime-vl-avl-boundary"
+// PIPE-SAME: value = "tcrv_rvv.setvl"
 // PIPE: name = "tcrv_frontend.source_kind"
 // PIPE-SAME: role = "source-frontdoor-runtime-avl-authority"
 // PIPE-SAME: value = "mlir-vector-scf-runtime-i32-vsub.v1"
@@ -99,6 +105,7 @@ module {
 // SOURCE-SAME: active_lane_authority=mlir-vector-transfer-tail-active-lanes
 // SOURCE-SAME: source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store
 // SOURCE-SAME: runtime_element_count_constraint=source-runtime-extent
+// SOURCE: /* selected_runtime_vl_boundary: {{.*}}runtime_avl_source=runtime-element-count-abi-parameter{{.*}}runtime_vl_source=tcrv_rvv.setvl{{.*}}runtime_vl_scope=tcrv_rvv.with_vl{{.*}}runtime_extent_arg=n
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted for this dynamic vector route */
 // SOURCE: /* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */

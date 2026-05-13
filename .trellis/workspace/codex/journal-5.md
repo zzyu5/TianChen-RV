@@ -124,3 +124,64 @@ an independent support-layer family lookup surface.
 ### Status
 
 [OK] **Completed**
+
+
+## Session 54: RVV selected config and runtime VL boundary
+
+**Date**: 2026-05-13
+**Task**: RVV selected config and runtime VL boundary
+**Branch**: `main`
+
+### Summary
+
+Exposed dispatch bundle runtime VL boundary metadata from the selected RVV config contract, tightened RVV microkernel materialization policy derivation, and proved dynamic vsub on ssh rvv.
+
+### Main Changes
+
+### Task
+
+RVV selected config and runtime VL boundary.
+
+### Main Changes
+
+- Added `tcrv_rvv.dispatch_contract_runtime_vl_boundary` to RVV+scalar dispatch bundle metadata, derived from `RVVBinarySelectedConfigContract`.
+- Tightened RVV binary microkernel materialization so `setvl` / `with_vl` policy metadata is derived from the selected-config contract.
+- Strengthened dynamic vector vsub direct checks and dynamic vadd/vsub bundle-index checks for selected config and runtime VL authority.
+
+### Evidence
+
+- Direct artifacts: `artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vadd/` and `artifacts/tmp/rvv_selected_config_runtime_vl_boundary/direct/vector_dynamic_i32_vsub/`.
+- Bundle artifacts: `artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vadd/` and `artifacts/tmp/rvv_selected_config_runtime_vl_boundary/bundle/vector_dynamic_i32_vsub/`.
+- ssh rvv evidence: `artifacts/tmp/rvv_selected_config_runtime_vl_boundary/e2e/20260513T-rvv-selected-config-runtime-vl-boundary-vsub/evidence.json`.
+- Remote result: dynamic vector `i32-vsub` succeeded for runtime counts `7`, `16`, and `23`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit filter covering dynamic vector add/sub, invalid vector diagnostics, bundle export, RVV microkernel, emission manifest, fixed-vector vadd, and linalg add/sub.
+- Broader lit filter `VectorToExec|LinalgToExec|TargetArtifactBundleExport|RVVMicrokernel|EmissionManifest` with 80 selected tests passed.
+- `git diff --check`, `git diff --cached --check`, Trellis validation before finish/archive and after archive.
+
+### Status
+
+[OK] Completed and archived.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

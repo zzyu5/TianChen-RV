@@ -37,7 +37,17 @@ llvm::Error makeRVVBinaryMicrokernelMaterializationError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-tcrv::rvv::PolicyAttr getExpectedRVVPolicyAttr(mlir::MLIRContext *context) {
+llvm::Expected<tcrv::rvv::PolicyAttr> getSelectedConfigPolicyAttr(
+    mlir::MLIRContext *context,
+    const target::rvv::RVVBinarySelectedConfigContract &contract) {
+  if (contract.getTailPolicy() != "agnostic" ||
+      contract.getMaskPolicy() != "agnostic")
+    return makeRVVBinaryMicrokernelMaterializationError(
+        llvm::Twine("selected RVV binary config contract for family '") +
+        contract.getFamilyID() +
+        "' has unsupported finite policy tail='" +
+        contract.getTailPolicy() + "', mask='" + contract.getMaskPolicy() +
+        "'");
   return tcrv::rvv::PolicyAttr::get(context, tcrv::rvv::TailPolicy::Agnostic,
                                     tcrv::rvv::MaskPolicy::Agnostic);
 }
@@ -299,8 +309,11 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
   mlir::OpBuilder bodyBuilder(builder.getContext());
   bodyBuilder.setInsertionPointToStart(block);
 
-  tcrv::rvv::PolicyAttr policy =
-      getExpectedRVVPolicyAttr(builder.getContext());
+  llvm::Expected<tcrv::rvv::PolicyAttr> policy =
+      getSelectedConfigPolicyAttr(builder.getContext(),
+                                  *dataflow->selectedConfig);
+  if (!policy)
+    return policy.takeError();
 
   mlir::OperationState setvlState(variant.getLoc(),
                                   tcrv::rvv::SetVLOp::getOperationName());
@@ -310,7 +323,7 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
                           builder.getI64IntegerAttr(dataflow->sewBits));
   setvlState.addAttribute(kLMULAttrName,
                           builder.getStringAttr(dataflow->lmul));
-  setvlState.addAttribute(kPolicyAttrName, policy);
+  setvlState.addAttribute(kPolicyAttrName, *policy);
   mlir::Operation *setvlOp = bodyBuilder.create(setvlState);
   mlir::Value vl = setvlOp->getResult(0);
 
@@ -321,7 +334,7 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
                            builder.getI64IntegerAttr(dataflow->sewBits));
   withVLState.addAttribute(kLMULAttrName,
                            builder.getStringAttr(dataflow->lmul));
-  withVLState.addAttribute(kPolicyAttrName, policy);
+  withVLState.addAttribute(kPolicyAttrName, *policy);
   mlir::Region *withVLBody = withVLState.addRegion();
   auto *withVLBlock = new mlir::Block();
   withVLBody->push_back(withVLBlock);
