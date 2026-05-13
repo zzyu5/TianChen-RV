@@ -296,6 +296,117 @@ surface. The current bounded `tcrv_rvv.setvl` and `tcrv_rvv.with_vl` surfaces
 model only runtime AVL/VL control-plane IR when they appear in the input. They
 are not emitted runtime ABI evidence by themselves.
 
+## Scenario: Dynamic Vector Source Tail Authority
+
+### 1. Scope / Trigger
+
+This scenario applies to the bounded dynamic vector/SCF i32-vadd source front
+door that lowers through `--tcrv-lower-source-rvv-binary-to-exec` or its
+explicit vector adapter alias. It is required when a source `%n` runtime extent
+can be smaller than, equal to, or not a multiple of the selected finite
+`vector<16xi32>` chunk.
+
+### 2. Signatures
+
+- Source wrapper shape: three `memref<?xi32>` buffers plus one `%n: index`,
+  one `scf.for` from zero to `%n` in step `16`, zero i32 read padding, two
+  `vector.transfer_read` operations at the induction variable, one
+  `arith.addi` over `vector<16xi32>`, one `vector.transfer_write` at the same
+  induction variable, and `func.return`.
+- Source transfer-tail metadata on both `tcrv.exec.kernel` and the direct
+  runtime-element-count `tcrv.exec.runtime_param`:
+  `tcrv_frontend_source_kind =
+  "mlir-vector-scf-runtime-i32-vadd.v1"`,
+  `tcrv_frontend_source_authority =
+  "source-scf-for-runtime-upper-bound"`,
+  `tcrv_frontend_runtime_extent_arg = "n"`,
+  `tcrv_frontend_source_loop_step = 16 : i64`,
+  `tcrv_frontend_source_vector_chunk_extent = 16 : i64`,
+  `tcrv_frontend_active_lane_authority =
+  "mlir-vector-transfer-tail-active-lanes"`,
+  `tcrv_frontend_source_tail_policy =
+  "runtime-n-bounded-transfer-tail-padding-and-store"`, and
+  `tcrv_frontend_runtime_element_count_constraint =
+  "source-runtime-extent"`.
+- Selected-plan metadata names:
+  `tcrv_frontend.active_lane_authority` and
+  `tcrv_frontend.source_tail_policy`.
+
+### 3. Contracts
+
+- Dynamic source transfer ops must not assert `in_bounds = [true]`. The source
+  active lanes for tail iterations are defined by MLIR transfer tail behavior:
+  reads use the i32 padding value for inactive lanes and writes do not store
+  inactive lanes beyond `%n`.
+- `%n` is the source `scf.for` upper bound, the runtime element-count ABI
+  parameter, and the AVL source consumed by `tcrv_rvv.setvl`.
+- Selected RVV `tcrv_rvv.selected_tail_policy` and
+  `tcrv_rvv.selected_mask_policy` remain compile-time vector-shape policy.
+  They are not the MLIR source active-lane authority.
+- `tcrv_rvv.descriptor_element_count` remains descriptor-local chunk capacity
+  metadata. It is not the dynamic source extent, runtime trip count, or
+  correctness evidence.
+- Direct source/header/object export and plan-and-export bundle export must
+  consume the same neutral source-frontdoor route and the same IR-backed
+  runtime ABI contract.
+
+### 4. Validation & Error Matrix
+
+- Dynamic transfer read/write carries `in_bounds = [true]` -> reject during
+  source lowering before `tcrv.exec` is materialized.
+- Kernel and runtime-element-count `runtime_param` do not both carry the full
+  dynamic source-tail metadata -> fail before artifact output.
+- Any dynamic source-tail metadata field is stale between kernel and
+  runtime_param -> fail before artifact output.
+- Selected-plan metadata for active-lane authority or source-tail policy is
+  missing, duplicated, or has the wrong value/role/note -> fail before source,
+  header, object, or bundle output.
+- Fixed-vector source extent metadata and dynamic source-tail metadata appear
+  together -> fail as mutually exclusive source authority.
+
+### 5. Good/Base/Bad Cases
+
+- Good: dynamic vector source omits `in_bounds` on transfer read/write, records
+  the source-tail authority fields on kernel/runtime_param, and emits selected
+  metadata that names both source active-lane authority and selected RVV policy.
+- Base: fixed vector `vector<16xi32>` keeps its `n == 16` source-extent
+  constraint and may use fixed in-bounds transfer assertions.
+- Bad: dynamic source relies on `setvl(n)` alone while the MLIR source transfer
+  ops still assert all 16 lanes are in bounds.
+
+### 6. Tests Required
+
+- Positive lit for dynamic `VectorToExec` showing no source transfer ops
+  remain, dynamic source-tail metadata is present on kernel/runtime_param, and
+  selected-plan metadata carries active-lane and source-tail fields.
+- Negative lit for dynamic source `in_bounds = [true]`, missing kernel/param
+  source-tail metadata, and stale selected-plan active-lane metadata.
+- Direct artifact source/header/object checks exposing source-tail authority,
+  selected RVV tail/mask policy, descriptor-local element count, runtime `n`,
+  and `tcrv_rvv.setvl`.
+- Bundle export checks proving the same neutral front door and selected-plan
+  metadata reach the RVV+scalar dispatch source/header/object records.
+- Fresh `ssh rvv` evidence for runtime counts 7, 16, and 23 when the generated
+  artifact contract changes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+dynamic %n loop + transfer_read/write in_bounds=true
+  -> rely on downstream setvl(n) to imply source tail correctness
+```
+
+Correct:
+
+```text
+dynamic %n loop + MLIR transfer tail semantics
+  -> tcrv.exec runtime_param @abi_runtime_element_count
+  -> selected-plan active-lane/source-tail metadata
+  -> tcrv_rvv.setvl(n) and generated artifact comments
+```
+
 ### Execution-Plan / Export Preflight Coherence
 
 Before a module is handed to a generic target artifact export route, the public

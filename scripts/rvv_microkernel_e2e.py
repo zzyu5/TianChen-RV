@@ -1672,6 +1672,7 @@ def parse_dynamic_runtime_extent_contract(source: str) -> dict[str, Any] | None:
         r"source_kind=([^,]+), source_authority=([^,]+), "
         r"runtime_extent_arg=([^,]+), source_loop_step=([0-9]+), "
         r"source_vector_chunk_extent=([0-9]+), "
+        r"active_lane_authority=([^,]+), source_tail_policy=([^,]+), "
         r"runtime_element_count_constraint=([^,]+)",
         raw_contract,
     )
@@ -1698,12 +1699,27 @@ def parse_dynamic_runtime_extent_contract(source: str) -> dict[str, Any] | None:
         "runtime_extent_arg": match.group(3),
         "source_loop_step": source_loop_step,
         "source_vector_chunk_extent": source_vector_chunk_extent,
-        "runtime_element_count_constraint": match.group(6),
+        "active_lane_authority": match.group(6),
+        "source_tail_policy": match.group(7),
+        "runtime_element_count_constraint": match.group(8),
     }
     if contract["runtime_element_count_constraint"] != "source-runtime-extent":
         raise BridgeError(
             "generated C source dynamic runtime extent contract must require "
             "source-runtime-extent"
+        )
+    if contract["active_lane_authority"] != "mlir-vector-transfer-tail-active-lanes":
+        raise BridgeError(
+            "generated C source dynamic runtime extent contract must publish "
+            "MLIR vector transfer tail active-lane authority"
+        )
+    if (
+        contract["source_tail_policy"]
+        != "runtime-n-bounded-transfer-tail-padding-and-store"
+    ):
+        raise BridgeError(
+            "generated C source dynamic runtime extent contract must publish "
+            "runtime-n-bounded transfer tail policy"
         )
     if (
         "must-equal-fixed-source-vector-extent" in source

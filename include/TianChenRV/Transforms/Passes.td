@@ -50,12 +50,17 @@ def LowerVectorRVVI32VAddToExec
     vector/SCF i32-vadd shape: three memref<?xi32> buffers plus one runtime
     %n: index, with one scf.for from zero to %n in step 16 containing the same
     vector transfer-read/add/transfer-write body at the induction variable.
+    Dynamic transfer ops must expose MLIR transfer tail semantics for inactive
+    lanes rather than asserting `in_bounds = [true]`; that transfer-tail
+    contract is recorded as the source active-lane authority for non-multiple
+    runtime counts.
     The adapter creates a tcrv.exec.kernel with a selected module target profile
     reference, validates optional supplemental capability-provider imports,
     materializes the existing finite i32-vadd runtime ABI
     mem_window/runtime_param surface, records either the fixed vector<16xi32>
-    source extent or the dynamic source %n/SCF upper-bound authority on both
-    the kernel and runtime element-count parameter, then removes the source
+    source extent or the dynamic source %n/SCF upper-bound plus transfer-tail
+    active-lane authority on both the kernel and runtime element-count
+    parameter, then removes the source
     wrapper. Downstream artifact routes must keep selected finite RVV
     element_count and runtime n/VL contract distinct from source extent
     authority.

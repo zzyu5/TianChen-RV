@@ -285,6 +285,10 @@ public:
              << dynamicRuntimeExtent->sourceLoopStep
              << ", source_vector_chunk_extent="
              << dynamicRuntimeExtent->sourceVectorChunkExtent
+             << ", active_lane_authority="
+             << dynamicRuntimeExtent->activeLaneAuthority
+             << ", source_tail_policy="
+             << dynamicRuntimeExtent->sourceTailPolicy
              << ", runtime_element_count_constraint="
              << dynamicRuntimeExtent->runtimeElementCountConstraint;
     if (!selectedVariantSymbol.empty())
@@ -317,6 +321,10 @@ public:
              << dynamicRuntimeExtent->sourceLoopStep
              << ", source_vector_chunk_extent="
              << dynamicRuntimeExtent->sourceVectorChunkExtent
+             << ", active_lane_authority="
+             << dynamicRuntimeExtent->activeLaneAuthority
+             << ", source_tail_policy="
+             << dynamicRuntimeExtent->sourceTailPolicy
              << ", runtime_element_count_constraint="
              << dynamicRuntimeExtent->runtimeElementCountConstraint;
     if (!selectedVariantSymbol.empty())
@@ -556,6 +564,12 @@ inline void appendRVVBinaryDynamicRuntimeExtentSelectedPlanMetadata(
   out.push_back({support::getFrontendSourceVectorChunkExtentMetadataName(),
                  std::to_string(runtimeExtent.sourceVectorChunkExtent), role,
                  note, "frontend source vector chunk extent"});
+  out.push_back({support::getFrontendActiveLaneAuthorityMetadataName(),
+                 runtimeExtent.activeLaneAuthority, role, note,
+                 "frontend active-lane authority"});
+  out.push_back({support::getFrontendSourceTailPolicyMetadataName(),
+                 runtimeExtent.sourceTailPolicy, role, note,
+                 "frontend source tail policy"});
   out.push_back(
       {support::getFrontendRuntimeElementCountConstraintMetadataName(),
        runtimeExtent.runtimeElementCountConstraint, role, note,

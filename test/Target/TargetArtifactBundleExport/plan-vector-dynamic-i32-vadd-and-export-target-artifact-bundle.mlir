@@ -55,10 +55,10 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
     %c16 = arith.constant 16 : index
     scf.for %i = %c0 to %n step %c16 {
       %pad = arith.constant 0 : i32
-      %lhs_vec = vector.transfer_read %lhs[%i], %pad {in_bounds = [true]} : memref<?xi32>, vector<16xi32>
-      %rhs_vec = vector.transfer_read %rhs[%i], %pad {in_bounds = [true]} : memref<?xi32>, vector<16xi32>
+      %lhs_vec = vector.transfer_read %lhs[%i], %pad : memref<?xi32>, vector<16xi32>
+      %rhs_vec = vector.transfer_read %rhs[%i], %pad : memref<?xi32>, vector<16xi32>
       %sum = arith.addi %lhs_vec, %rhs_vec : vector<16xi32>
-      vector.transfer_write %sum, %out[%i] {in_bounds = [true]} : vector<16xi32>, memref<?xi32>
+      vector.transfer_write %sum, %out[%i] : vector<16xi32>, memref<?xi32>
     }
     return
   }
@@ -68,17 +68,23 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // IR-SAME: capability_providers = [@no_rvv_policy, @scalar_fallback]
 // IR: tcrv.exec.kernel @frontend_vector_dynamic_bundle_i32_vadd
 // IR-SAME: target = @vector_dynamic_bundle_profile
+// IR-SAME: tcrv_frontend_active_lane_authority = "mlir-vector-transfer-tail-active-lanes"
 // IR-SAME: tcrv_frontend_runtime_element_count_constraint = "source-runtime-extent"
 // IR-SAME: tcrv_frontend_runtime_extent_arg = "n"
 // IR-SAME: tcrv_frontend_source_authority = "source-scf-for-runtime-upper-bound"
 // IR-SAME: tcrv_frontend_source_kind = "mlir-vector-scf-runtime-i32-vadd.v1"
 // IR-SAME: tcrv_frontend_source_loop_step = 16 : i64
+// IR-SAME: tcrv_frontend_source_tail_policy = "runtime-n-bounded-transfer-tail-padding-and-store"
 // IR-SAME: tcrv_frontend_source_vector_chunk_extent = 16 : i64
 // IR: tcrv.exec.runtime_param @abi_runtime_element_count
+// IR-SAME: tcrv_frontend_active_lane_authority = "mlir-vector-transfer-tail-active-lanes"
 // IR-SAME: tcrv_frontend_runtime_element_count_constraint = "source-runtime-extent"
 // IR-SAME: tcrv_frontend_runtime_extent_arg = "n"
 // IR-SAME: tcrv_frontend_source_authority = "source-scf-for-runtime-upper-bound"
 // IR-SAME: tcrv_frontend_source_kind = "mlir-vector-scf-runtime-i32-vadd.v1"
+// IR-SAME: tcrv_frontend_source_loop_step = 16 : i64
+// IR-SAME: tcrv_frontend_source_tail_policy = "runtime-n-bounded-transfer-tail-padding-and-store"
+// IR-SAME: tcrv_frontend_source_vector_chunk_extent = 16 : i64
 // IR: tcrv.exec.dispatch
 // IR: tcrv.exec.case @rvv_first_slice
 // IR-SAME: runtime_guard = @abi_dispatch_availability_guard
@@ -89,8 +95,18 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // IR-SAME: role = "dispatch fallback"
 // IR: name = "tcrv_frontend.source_kind"
 // IR-SAME: value = "mlir-vector-scf-runtime-i32-vadd.v1"
+// IR: name = "tcrv_frontend.source_authority"
+// IR-SAME: value = "source-scf-for-runtime-upper-bound"
 // IR: name = "tcrv_frontend.runtime_extent_arg"
 // IR-SAME: value = "n"
+// IR: name = "tcrv_frontend.source_loop_step"
+// IR-SAME: value = "16"
+// IR: name = "tcrv_frontend.source_vector_chunk_extent"
+// IR-SAME: value = "16"
+// IR: name = "tcrv_frontend.active_lane_authority"
+// IR-SAME: value = "mlir-vector-transfer-tail-active-lanes"
+// IR: name = "tcrv_frontend.source_tail_policy"
+// IR-SAME: value = "runtime-n-bounded-transfer-tail-padding-and-store"
 
 // STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
@@ -102,12 +118,18 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX: name: "tcrv_frontend.source_kind"
 // INDEX-NEXT: value: "mlir-vector-scf-runtime-i32-vadd.v1"
 // INDEX-NEXT: role: "source-frontdoor-runtime-avl-authority"
+// INDEX: name: "tcrv_frontend.source_authority"
+// INDEX-NEXT: value: "source-scf-for-runtime-upper-bound"
 // INDEX: name: "tcrv_frontend.runtime_extent_arg"
 // INDEX-NEXT: value: "n"
 // INDEX: name: "tcrv_frontend.source_loop_step"
 // INDEX-NEXT: value: "16"
 // INDEX: name: "tcrv_frontend.source_vector_chunk_extent"
 // INDEX-NEXT: value: "16"
+// INDEX: name: "tcrv_frontend.active_lane_authority"
+// INDEX-NEXT: value: "mlir-vector-transfer-tail-active-lanes"
+// INDEX: name: "tcrv_frontend.source_tail_policy"
+// INDEX-NEXT: value: "runtime-n-bounded-transfer-tail-padding-and-store"
 // INDEX: name: "tcrv_frontend.runtime_element_count_constraint"
 // INDEX-NEXT: value: "source-runtime-extent"
 // INDEX: name: "tcrv_rvv.dispatch_contract_runtime_element_count_c_name"
@@ -118,13 +140,13 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
 
 // SOURCE: /* selected_kernel: @frontend_vector_dynamic_bundle_i32_vadd */
-// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, runtime_element_count_constraint=source-runtime-extent
-// SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, runtime_element_count_constraint=source-runtime-extent */
+// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
+// SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 // SOURCE: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
 
-// HEADER: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, runtime_element_count_constraint=source-runtime-extent */
+// HEADER: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // HEADER: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
 // HEADER: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);
 

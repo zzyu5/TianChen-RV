@@ -690,6 +690,32 @@ mlir::LogicalResult requireVectorTransferRead(
   return mlir::success();
 }
 
+mlir::LogicalResult requireVectorTransferTailActiveLaneAuthority(
+    mlir::Operation *op, llvm::StringRef role) {
+  auto inBounds = op->getAttrOfType<mlir::ArrayAttr>("in_bounds");
+  if (!inBounds)
+    return mlir::success();
+
+  for (mlir::Attribute attr : inBounds) {
+    auto flag = llvm::dyn_cast<mlir::BoolAttr>(attr);
+    if (!flag)
+      return op->emitError()
+             << "TianChen-RV dynamic vector i32-vadd frontend expects "
+             << role
+             << " in_bounds metadata to be absent or boolean false so MLIR "
+                "transfer tail semantics remain the source active-lane "
+                "authority";
+    if (flag.getValue())
+      return op->emitError()
+             << "TianChen-RV dynamic vector i32-vadd frontend expects "
+             << role
+             << " to expose MLIR transfer tail semantics; in_bounds = [true] "
+                "is stale for runtime %n tail iterations";
+  }
+
+  return mlir::success();
+}
+
 mlir::LogicalResult requireVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
   if (!isOperationNamed(funcOp, kFuncFuncOpName))
     return funcOp->emitError()
@@ -880,8 +906,14 @@ requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
   if (mlir::failed(requireVectorTransferRead(
           lhsRead, body.getArgument(0), index, padding, "lhs read")))
     return mlir::failure();
+  if (mlir::failed(requireVectorTransferTailActiveLaneAuthority(lhsRead,
+                                                               "lhs read")))
+    return mlir::failure();
   if (mlir::failed(requireVectorTransferRead(
           rhsRead, body.getArgument(1), index, padding, "rhs read")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorTransferTailActiveLaneAuthority(rhsRead,
+                                                               "rhs read")))
     return mlir::failure();
 
   if (!isOperationNamed(add, kArithAddIOpName) || add->getNumOperands() != 2 ||
@@ -910,6 +942,9 @@ requireDynamicVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
            << "TianChen-RV dynamic vector i32-vadd frontend expects "
               "vector.transfer_write to store the add result to the output "
               "buffer at the scf.for induction variable";
+  if (mlir::failed(requireVectorTransferTailActiveLaneAuthority(
+          write, "output write")))
+    return mlir::failure();
 
   if (!isOperationNamed(yield, kSCFYieldOpName) || yield->getNumOperands() != 0)
     return yield->emitError()
@@ -1023,6 +1058,13 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
         builder.getI64IntegerAttr(
             support::kFrontendDynamicVectorI32VAddChunkExtent));
     state.addAttribute(
+        support::kFrontendActiveLaneAuthorityAttrName,
+        builder.getStringAttr(
+            support::kFrontendDynamicVectorActiveLaneAuthority));
+    state.addAttribute(
+        support::kFrontendSourceTailPolicyAttrName,
+        builder.getStringAttr(support::kFrontendDynamicVectorSourceTailPolicy));
+    state.addAttribute(
         support::kFrontendRuntimeElementCountConstraintAttrName,
         builder.getStringAttr(
             support::kFrontendRuntimeElementCountFromSourceRuntimeExtent));
@@ -1083,6 +1125,13 @@ mlir::LogicalResult materializeFrontendSourceRuntimeParamAttrs(
         support::kFrontendSourceVectorChunkExtentAttrName,
         builder.getI64IntegerAttr(
             support::kFrontendDynamicVectorI32VAddChunkExtent));
+    runtimeElementCount->setAttr(
+        support::kFrontendActiveLaneAuthorityAttrName,
+        builder.getStringAttr(
+            support::kFrontendDynamicVectorActiveLaneAuthority));
+    runtimeElementCount->setAttr(
+        support::kFrontendSourceTailPolicyAttrName,
+        builder.getStringAttr(support::kFrontendDynamicVectorSourceTailPolicy));
     runtimeElementCount->setAttr(
         support::kFrontendRuntimeElementCountConstraintAttrName,
         builder.getStringAttr(

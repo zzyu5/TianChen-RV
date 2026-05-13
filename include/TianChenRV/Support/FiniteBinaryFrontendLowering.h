@@ -69,6 +69,10 @@ inline constexpr llvm::StringLiteral kFrontendSourceLoopStepAttrName(
     "tcrv_frontend_source_loop_step");
 inline constexpr llvm::StringLiteral kFrontendSourceVectorChunkExtentAttrName(
     "tcrv_frontend_source_vector_chunk_extent");
+inline constexpr llvm::StringLiteral kFrontendActiveLaneAuthorityAttrName(
+    "tcrv_frontend_active_lane_authority");
+inline constexpr llvm::StringLiteral kFrontendSourceTailPolicyAttrName(
+    "tcrv_frontend_source_tail_policy");
 
 inline constexpr llvm::StringLiteral kFrontendFixedVectorI32VAddSourceKind(
     "mlir-vector-transfer-fixed-i32-vadd.v1");
@@ -81,6 +85,11 @@ inline constexpr llvm::StringLiteral kFrontendFixedVectorSourceAuthority(
     "source-vector-transfer-read-write-fixed-extent");
 inline constexpr llvm::StringLiteral kFrontendDynamicVectorSourceAuthority(
     "source-scf-for-runtime-upper-bound");
+inline constexpr llvm::StringLiteral
+    kFrontendDynamicVectorActiveLaneAuthority(
+        "mlir-vector-transfer-tail-active-lanes");
+inline constexpr llvm::StringLiteral kFrontendDynamicVectorSourceTailPolicy(
+    "runtime-n-bounded-transfer-tail-padding-and-store");
 inline constexpr llvm::StringLiteral
     kFrontendRuntimeElementCountMustEqualSourceExtent(
         "must-equal-source-vector-extent");
@@ -112,6 +121,14 @@ inline llvm::StringRef getFrontendSourceVectorChunkExtentMetadataName() {
   return "tcrv_frontend.source_vector_chunk_extent";
 }
 
+inline llvm::StringRef getFrontendActiveLaneAuthorityMetadataName() {
+  return "tcrv_frontend.active_lane_authority";
+}
+
+inline llvm::StringRef getFrontendSourceTailPolicyMetadataName() {
+  return "tcrv_frontend.source_tail_policy";
+}
+
 inline llvm::StringRef
 getFrontendRuntimeElementCountConstraintMetadataName() {
   return "tcrv_frontend.runtime_element_count_constraint";
@@ -134,9 +151,10 @@ inline llvm::StringRef getFrontendRuntimeExtentMetadataRole() {
 
 inline llvm::StringRef getFrontendRuntimeExtentMetadataNote() {
   return "dynamic MLIR vector/SCF frontdoor runtime extent; source scf.for "
-         "upper bound maps to runtime element-count/AVL; not selected RVV "
-         "config, descriptor element_count, correctness evidence, or "
-         "performance evidence";
+         "upper bound maps to runtime element-count/AVL and MLIR transfer "
+         "tail semantics define active lanes; not selected RVV tail/mask "
+         "policy, selected vector config, descriptor element_count, "
+         "correctness evidence, or performance evidence";
 }
 
 struct FixedVectorSourceExtentContract {
@@ -172,6 +190,8 @@ struct DynamicVectorRuntimeExtentContract {
   std::string runtimeExtentArg;
   std::int64_t sourceLoopStep = 0;
   std::int64_t sourceVectorChunkExtent = 0;
+  std::string activeLaneAuthority;
+  std::string sourceTailPolicy;
   std::string runtimeElementCountConstraint;
 
   bool isValid() const {
@@ -181,6 +201,9 @@ struct DynamicVectorRuntimeExtentContract {
            sourceLoopStep == kFrontendDynamicVectorI32VAddLoopStep &&
            sourceVectorChunkExtent ==
                kFrontendDynamicVectorI32VAddChunkExtent &&
+           activeLaneAuthority ==
+               kFrontendDynamicVectorActiveLaneAuthority &&
+           sourceTailPolicy == kFrontendDynamicVectorSourceTailPolicy &&
            runtimeElementCountConstraint ==
                kFrontendRuntimeElementCountFromSourceRuntimeExtent;
   }
@@ -193,6 +216,8 @@ struct DynamicVectorRuntimeExtentContract {
            << ", runtime_extent_arg=" << runtimeExtentArg
            << ", source_loop_step=" << sourceLoopStep
            << ", source_vector_chunk_extent=" << sourceVectorChunkExtent
+           << ", active_lane_authority=" << activeLaneAuthority
+           << ", source_tail_policy=" << sourceTailPolicy
            << ", runtime_element_count_constraint="
            << runtimeElementCountConstraint;
     stream.flush();
@@ -243,6 +268,8 @@ inline bool hasAnyDynamicVectorRuntimeExtentAttr(mlir::Operation *op) {
                 op->hasAttr(kFrontendRuntimeExtentArgAttrName) ||
                 op->hasAttr(kFrontendSourceLoopStepAttrName) ||
                 op->hasAttr(kFrontendSourceVectorChunkExtentAttrName) ||
+                op->hasAttr(kFrontendActiveLaneAuthorityAttrName) ||
+                op->hasAttr(kFrontendSourceTailPolicyAttrName) ||
                 op->hasAttr(kFrontendRuntimeElementCountConstraintAttrName));
 }
 
@@ -453,6 +480,15 @@ getDynamicVectorRuntimeExtentContract(
       kFrontendRuntimeElementCountFromSourceRuntimeExtent);
   if (!constraint)
     return constraint.takeError();
+  llvm::Expected<std::string> activeLaneAuthority = requireMatchingString(
+      kFrontendActiveLaneAuthorityAttrName,
+      kFrontendDynamicVectorActiveLaneAuthority);
+  if (!activeLaneAuthority)
+    return activeLaneAuthority.takeError();
+  llvm::Expected<std::string> sourceTailPolicy = requireMatchingString(
+      kFrontendSourceTailPolicyAttrName, kFrontendDynamicVectorSourceTailPolicy);
+  if (!sourceTailPolicy)
+    return sourceTailPolicy.takeError();
 
   llvm::Expected<std::int64_t> kernelLoopStep =
       getFrontendPositiveI64Attr(kernel, kernelOp, "kernel",
@@ -499,6 +535,8 @@ getDynamicVectorRuntimeExtentContract(
   contract.runtimeExtentArg = std::move(*runtimeExtentArg);
   contract.sourceLoopStep = *kernelLoopStep;
   contract.sourceVectorChunkExtent = *kernelChunk;
+  contract.activeLaneAuthority = std::move(*activeLaneAuthority);
+  contract.sourceTailPolicy = std::move(*sourceTailPolicy);
   contract.runtimeElementCountConstraint = std::move(*constraint);
   if (!contract.isValid())
     return makeDynamicVectorRuntimeExtentError(
