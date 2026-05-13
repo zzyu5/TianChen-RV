@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and spec layer index."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Project boundary, hardware evidence, and descriptor-driven architecture red lines."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec orchestration-only contract and forbidden compute ownership."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected config, typed microkernel, legality, and materialization contract."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry, proposal, legality, and common interface routing contract."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded frontend lowering and public execution planning pipeline contract."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability object and parameter layering contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected boundary, emission plan, runtime ABI, and target artifact export contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated interface source provenance contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck/C++ evidence for MLIR and artifact route behavior."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-driven design checklist for variant and target changes."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality checklist and core semantic branch red flags."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute ownership and extension-family op boundary checklist."}

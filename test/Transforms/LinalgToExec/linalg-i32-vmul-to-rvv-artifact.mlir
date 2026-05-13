@@ -109,7 +109,7 @@ module {
 // SOURCE: /* emitc_materialization_function: @tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice */
 // SOURCE: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
-// SOURCE: /* intrinsic_config_source: validated tcrv_rvv.setvl and tcrv_rvv.with_vl SEW/LMUL/policy metadata */
+// SOURCE: /* intrinsic_config_source: RVVBinarySelectedConfigContract cross-checked against verified tcrv_rvv.setvl/tcrv_rvv.with_vl SEW/LMUL/policy metadata */
 // SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // SOURCE: static void tcrv_rvv_i32_vmul_microkernel_frontend_i32_vmul_rvv_first_slice__tcrv_emitc_body
 // SOURCE: __riscv_vmul_vv_i32m1

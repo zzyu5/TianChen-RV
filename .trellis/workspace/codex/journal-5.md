@@ -1053,3 +1053,73 @@ were not changed.
 ### Status
 
 [OK] Implementation checks and Trellis archive passed; commit pending.
+
+
+## Session 58: RVV selected variant materialization route
+
+**Date**: 2026-05-14
+**Task**: RVV selected variant materialization route
+**Branch**: `main`
+
+### Summary
+
+Extended default i32-vadd upstream linalg route coverage through compiler-produced tcrv_rvv lowering boundary, typed microkernel, source/header/object artifact output, and fail-closed selected boundary/config/runtime metadata checks; repaired stale vmul selected-config FileCheck.
+
+### Main Changes
+
+- Confirmed the production path already materializes the bounded
+  compiler-produced route from marked `linalg.generic` i32-vadd through
+  `tcrv.exec.kernel`, RVV plugin planning, `tcrv_rvv.lowering_boundary`, and
+  `tcrv_rvv.i32_vadd_microkernel`.
+- Extended `linalg-i32-vadd-to-exec.mlir` to prove that the same upstream route
+  reaches generated RVV source, header, and RISC-V relocatable object artifacts.
+- Added FileCheck assertions for frontend-lowering source identity, selected
+  config metadata, runtime AVL/VL metadata, runtime element-count ABI metadata,
+  typed `setvl/with_vl/load/add/store` body, selected-config emission authority,
+  and IR-backed callable ABI output.
+- Added fail-closed coverage for missing typed RVV microkernel body, missing
+  selected-boundary source identity, stale selected vector suffix, and stale
+  runtime AVL role metadata.
+- Repaired a stale `linalg-i32-vmul-to-rvv-artifact.mlir` FileCheck line to
+  match the selected-config contract authority wording introduced by the
+  current target artifact route.
+- Confirmed no changes under `lib/Transforms`,
+  `include/TianChenRV/Dialect/Exec`, or `lib/Dialect/Exec`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVScalarTarget tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/LinalgToExec` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVMicrokernel` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVScalarDispatch` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/LoweringBoundary` from `build/test`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-14-rvv-selected-variant-materialization-route`
+- `git diff --check`
+
+The first full `Transforms/LinalgToExec` run failed on stale selected-config
+authority text in `linalg-i32-vmul-to-rvv-artifact.mlir`; the FileCheck line was
+updated and the directory passed on rerun.
+
+No `ssh rvv` evidence was run because this round changed lit coverage only and
+did not change generated RVV source/object bytes, runtime behavior,
+correctness, or performance claims.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

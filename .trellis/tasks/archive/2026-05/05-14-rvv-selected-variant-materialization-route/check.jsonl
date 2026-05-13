@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final verification."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify architecture red lines and evidence claims."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify core dialect neutrality."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected microkernel/materialization behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin-owned routing and interface locality."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify upstream selected route and planning pipeline behavior."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Verify parameter layering and capability authority."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify selected boundary, runtime ABI, and artifact export handoff."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify typed op/interface to EmitC route provenance."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused evidence coverage."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Final capability-first design checklist."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final plugin locality checklist."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Final compute boundary checklist."}
