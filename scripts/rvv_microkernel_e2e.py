@@ -1392,6 +1392,45 @@ def require_direct_manifest_artifacts(
                 "TCRVEmitCLowerableOpInterface authority"
             )
         if (
+            manifest_metadata_value(record, "tcrv_rvv.emitc_route_kind", context)
+            != "extension-family-ops-to-emitc-call-opaque"
+        ):
+            raise BridgeError(
+                f"{context} selected EmitC route kind is not the common "
+                "extension-family call_opaque route"
+            )
+        if (
+            manifest_metadata_value(
+                record, "tcrv_rvv.emitc_source_authority", context
+            )
+            != "mlir-emitc-cpp-emitter"
+        ):
+            raise BridgeError(
+                f"{context} selected EmitC route does not name the MLIR "
+                "EmitC Cpp emitter source authority"
+            )
+        if (
+            manifest_metadata_value(record, "tcrv_rvv.emitc_required_header", context)
+            != "riscv_vector.h"
+        ):
+            raise BridgeError(
+                f"{context} selected EmitC route is missing riscv_vector.h "
+                "header authority"
+            )
+        expected_arithmetic_intrinsic = arithmetic_intrinsic_for_family(
+            ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE
+        )
+        if (
+            manifest_metadata_value(
+                record, "tcrv_rvv.emitc_arithmetic_intrinsic", context
+            )
+            != expected_arithmetic_intrinsic
+        ):
+            raise BridgeError(
+                f"{context} selected EmitC route arithmetic intrinsic does "
+                f"not match requested {expected_arithmetic_intrinsic}"
+            )
+        if (
             manifest_metadata_value(
                 record, "tcrv_rvv.selected_vector_shape", context
             )
@@ -1414,6 +1453,10 @@ def build_selected_binary_source_authority(
         "tcrv_rvv.selected_binary_operator",
         "tcrv_rvv.emitc_source_op",
         "tcrv_rvv.emitc_lowerable_op_interface",
+        "tcrv_rvv.emitc_route_kind",
+        "tcrv_rvv.emitc_source_authority",
+        "tcrv_rvv.emitc_required_header",
+        "tcrv_rvv.emitc_arithmetic_intrinsic",
     ]
     authority = {
         name.removeprefix("tcrv_rvv."): manifest_metadata_value(
@@ -1437,6 +1480,29 @@ def build_selected_binary_source_authority(
         raise BridgeError(
             f"{context} typed EmitC source op is missing "
             "TCRVEmitCLowerableOpInterface authority"
+        )
+    if authority["emitc_route_kind"] != "extension-family-ops-to-emitc-call-opaque":
+        raise BridgeError(
+            f"{context} typed EmitC route kind is not the common "
+            "extension-family call_opaque route"
+        )
+    if authority["emitc_source_authority"] != "mlir-emitc-cpp-emitter":
+        raise BridgeError(
+            f"{context} typed EmitC route does not name the MLIR EmitC Cpp "
+            "emitter source authority"
+        )
+    if authority["emitc_required_header"] != "riscv_vector.h":
+        raise BridgeError(
+            f"{context} typed EmitC route is missing riscv_vector.h header "
+            "authority"
+        )
+    expected_arithmetic_intrinsic = arithmetic_intrinsic_for_family(
+        ACTIVE_ARITHMETIC_FAMILY, ACTIVE_VECTOR_SHAPE
+    )
+    if authority["emitc_arithmetic_intrinsic"] != expected_arithmetic_intrinsic:
+        raise BridgeError(
+            f"{context} typed EmitC route arithmetic intrinsic does not match "
+            f"requested {expected_arithmetic_intrinsic}"
         )
     return authority
 
@@ -4966,6 +5032,26 @@ kernel @rvv_microkernel_manifest
           value: "TCRVEmitCLowerableOpInterface"
           role: "typed-rvv-emitc-source-op"
           note: "bounded"
+        selected_plan_metadata[6]:
+          name: "tcrv_rvv.emitc_route_kind"
+          value: "extension-family-ops-to-emitc-call-opaque"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[7]:
+          name: "tcrv_rvv.emitc_source_authority"
+          value: "mlir-emitc-cpp-emitter"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[8]:
+          name: "tcrv_rvv.emitc_required_header"
+          value: "riscv_vector.h"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[9]:
+          name: "tcrv_rvv.emitc_arithmetic_intrinsic"
+          value: "__riscv_vadd_vv_i32m1"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
         evidence_role: "compiler-artifact"
       artifact[1]:
         component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
@@ -5028,6 +5114,26 @@ kernel @rvv_microkernel_manifest
           value: "TCRVEmitCLowerableOpInterface"
           role: "typed-rvv-emitc-source-op"
           note: "bounded"
+        selected_plan_metadata[6]:
+          name: "tcrv_rvv.emitc_route_kind"
+          value: "extension-family-ops-to-emitc-call-opaque"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[7]:
+          name: "tcrv_rvv.emitc_source_authority"
+          value: "mlir-emitc-cpp-emitter"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[8]:
+          name: "tcrv_rvv.emitc_required_header"
+          value: "riscv_vector.h"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[9]:
+          name: "tcrv_rvv.emitc_arithmetic_intrinsic"
+          value: "__riscv_vadd_vv_i32m1"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
         evidence_role: "header-declaration"
       artifact[2]:
         component_group: "rvv-i32-vadd-microkernel-external-abi.v1"
@@ -5089,6 +5195,26 @@ kernel @rvv_microkernel_manifest
           name: "tcrv_rvv.emitc_lowerable_op_interface"
           value: "TCRVEmitCLowerableOpInterface"
           role: "typed-rvv-emitc-source-op"
+          note: "bounded"
+        selected_plan_metadata[6]:
+          name: "tcrv_rvv.emitc_route_kind"
+          value: "extension-family-ops-to-emitc-call-opaque"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[7]:
+          name: "tcrv_rvv.emitc_source_authority"
+          value: "mlir-emitc-cpp-emitter"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[8]:
+          name: "tcrv_rvv.emitc_required_header"
+          value: "riscv_vector.h"
+          role: "typed-rvv-emitc-route"
+          note: "bounded"
+        selected_plan_metadata[9]:
+          name: "tcrv_rvv.emitc_arithmetic_intrinsic"
+          value: "__riscv_vadd_vv_i32m1"
+          role: "typed-rvv-emitc-route"
           note: "bounded"
         evidence_role: "relocatable-object"
 """.strip()

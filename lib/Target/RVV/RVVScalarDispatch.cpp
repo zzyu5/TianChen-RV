@@ -1950,6 +1950,12 @@ llvm::Error validateDispatchSelectedConfigContractMetadata(
   else
     tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
         contract, expected);
+  if (contract.getFamily().dtype ==
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      contract.getFamily().dtype ==
+          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
+    tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(contract,
+                                                              expected);
 
   for (const auto &entry : expected)
     if (llvm::Error error =

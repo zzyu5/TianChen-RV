@@ -1425,6 +1425,9 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     appendRVVBinarySelectedTypedSourceMetadata(contract, expected);
   else
     appendRVVBinaryLegacyDescriptorMirrorMetadata(contract, expected);
+  if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
+      contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
+    appendRVVBinaryEmitCRouteMetadata(contract, expected);
 
   for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
     if (llvm::Error error =
@@ -4141,6 +4144,14 @@ void appendMicrokernelObjectEvidenceSection(
                           record.descriptor.getRVVOperationName());
   printObjectEvidenceLine(os, "emitc_lowerable_op_interface",
                           kEmitCLowerableOpInterfaceName);
+  printObjectEvidenceLine(os, "emitc_route_kind",
+                          getRVVEmitCRouteKindMetadataValue());
+  printObjectEvidenceLine(os, "emitc_source_authority",
+                          getRVVEmitCSourceAuthorityMetadataValue());
+  printObjectEvidenceLine(os, "emitc_required_header",
+                          getRVVEmitCRequiredHeaderMetadataValue());
+  printObjectEvidenceLine(os, "emitc_arithmetic_intrinsic",
+                          record.selectedConfigEmission.arithmeticIntrinsicName);
   printObjectEvidenceLine(os, "selected_vector_shape",
                           record.selectedConfigContract.getShapeID());
   printObjectEvidenceLine(
@@ -4337,6 +4348,20 @@ buildRVVMicrokernelSourceRouteMetadata(
     metadata.addSelectedPlanMetadataRequirement(
         getRVVEmitCLowerableOpInterfaceMetadataName(),
         "TCRVEmitCLowerableOpInterface", getRVVEmitCSourceOpMetadataRole());
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVEmitCRouteKindMetadataName(),
+        getRVVEmitCRouteKindMetadataValue(), getRVVEmitCRouteMetadataRole());
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVEmitCSourceAuthorityMetadataName(),
+        getRVVEmitCSourceAuthorityMetadataValue(),
+        getRVVEmitCRouteMetadataRole());
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVEmitCRequiredHeaderMetadataName(),
+        getRVVEmitCRequiredHeaderMetadataValue(),
+        getRVVEmitCRouteMetadataRole());
+    metadata.addSelectedPlanMetadataPresenceRequirement(
+        getRVVEmitCArithmeticIntrinsicMetadataName(),
+        getRVVEmitCRouteMetadataRole());
   } else {
     llvm::StringRef descriptorRole =
         getRVVLegacyDescriptorMirrorMetadataRole();

@@ -2342,6 +2342,35 @@ module {
           "RVV i32 selected-emission planner exposes runtime AVL/VL "
           "boundary metadata separately"))
     return result;
+  if (int result = expect(
+          hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                  "tcrv_rvv.emitc_source_op",
+                                  "tcrv_rvv.i32_sub",
+                                  "typed-rvv-emitc-source-op") &&
+              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_lowerable_op_interface",
+                                      "TCRVEmitCLowerableOpInterface",
+                                      "typed-rvv-emitc-source-op") &&
+              hasSelectedPlanMetadata(
+                  plannerI32Plan.selectedPlanMetadata,
+                  "tcrv_rvv.emitc_route_kind",
+                  "extension-family-ops-to-emitc-call-opaque",
+                  "typed-rvv-emitc-route") &&
+              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_source_authority",
+                                      "mlir-emitc-cpp-emitter",
+                                      "typed-rvv-emitc-route") &&
+              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_required_header",
+                                      "riscv_vector.h",
+                                      "typed-rvv-emitc-route") &&
+              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_arithmetic_intrinsic",
+                                      "__riscv_vsub_vv_i32m2",
+                                      "typed-rvv-emitc-route"),
+          "RVV i32 selected-emission planner records plugin-owned EmitC "
+          "route metadata"))
+    return result;
 
   variant->setAttr("tcrv_rvv.lowering_descriptor",
                    builder.getStringAttr("i32-vadd-microkernel.v1"));
@@ -2690,12 +2719,31 @@ module {
                                       "tcrv_rvv.emitc_lowerable_op_interface",
                                       "TCRVEmitCLowerableOpInterface",
                                       "typed-rvv-emitc-source-op") &&
+              hasSelectedPlanMetadata(
+                  plannerI64Plan.selectedPlanMetadata,
+                  "tcrv_rvv.emitc_route_kind",
+                  "extension-family-ops-to-emitc-call-opaque",
+                  "typed-rvv-emitc-route") &&
+              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_source_authority",
+                                      "mlir-emitc-cpp-emitter",
+                                      "typed-rvv-emitc-route") &&
+              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
+                                      "tcrv_rvv.emitc_required_header",
+                                      "riscv_vector.h",
+                                      "typed-rvv-emitc-route") &&
+              hasSelectedPlanMetadata(
+                  plannerI64Plan.selectedPlanMetadata,
+                  "tcrv_rvv.emitc_arithmetic_intrinsic",
+                  (llvm::Twine(family.arithmeticIntrinsicPrefix) + "i64m1")
+                      .str(),
+                  "typed-rvv-emitc-route") &&
               !hasSelectedPlanMetadata(
                   plannerI64Plan.selectedPlanMetadata,
                   "tcrv_rvv.selected_lowering_descriptor",
                   family.loweringDescriptor,
                   "legacy-rvv-binary-descriptor-mirror"),
-          "RVV i64 selected-emission planner records typed EmitC source "
+          "RVV i64 selected-emission planner records typed EmitC route "
           "metadata without descriptor authority"))
     return result;
 

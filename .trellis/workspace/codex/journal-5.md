@@ -1318,6 +1318,68 @@ claims.
 [OK] Implementation checks passed; finish/archive and commit pending.
 
 
+## Session 64: RVV extension-family EmitC emission route
+
+**Date**: 2026-05-14
+**Task**: RVV extension-family EmitC emission route
+**Branch**: `main`
+
+### Summary
+
+Added selected-plan authority for the RVV extension-family EmitC route on the
+migrated dynamic vector `i32-vadd`/`i32-vsub` slice. The RVV plugin planner now
+publishes route kind, EmitC source authority, required RVV header, and selected
+arithmetic intrinsic metadata, and the RVV target/export path validates those
+fields before source/header/object/bundle emission.
+
+### Main Changes
+
+- Added shared RVV selected EmitC route metadata helpers in
+  `include/TianChenRV/Target/RVV/RVVSelectedConfigContract.h`.
+- Appended the route metadata from
+  `lib/Plugin/RVV/RVVBinarySelectedEmissionPlanning.cpp` after selected source
+  identity, preserving selected vector-shape-driven intrinsic suffixes.
+- Made `lib/Target/RVV/RVVMicrokernel.cpp` and
+  `lib/Target/RVV/RVVScalarDispatch.cpp` require the same route metadata during
+  production selected-plan validation and route preflight.
+- Extended target artifact bundle lit coverage for vadd/vsub with positive
+  index/source checks and fail-closed missing route-kind / stale-intrinsic
+  cases.
+- Updated `scripts/rvv_microkernel_e2e.py` so direct/bundle evidence requires
+  `tcrv_rvv.emitc_route_kind`, `emitc_source_authority`,
+  `emitc_required_header`, and `emitc_arithmetic_intrinsic`.
+- Kept changes out of `lib/Transforms`, `include/TianChenRV/Dialect/Exec`, and
+  `lib/Dialect/Exec`; core orchestration remains target-neutral.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVTarget TianChenRVRVVPlugin tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-microkernel-bundle-e2e.test` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/VectorToExec/vector-dynamic-i32-vadd-to-exec.mlir Transforms/VectorToExec/vector-dynamic-i32-vsub-to-exec.mlir Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir Target/RVVMicrokernel/rvv-microkernel-auto-materialization.mlir Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir Target/RVVMicrokernel/rvv-microkernel-i32m2-family-sub.mlir Target/RVVMicrokernel/rvv-microkernel-descriptor-only-production-rejects.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-i32m2-generic-route.mlir` from `build/test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family i32-vadd --lower-vector-i32-vadd-frontend --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --expect-selected-kernel frontend_vector_dynamic_i32_vadd --runtime-count 7 --runtime-count 16 --runtime-count 23 --run-id codex-emitc-route-vadd --overwrite --timeout 120 --connect-timeout 10`
+- `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family i32-vsub --lower-vector-i32-vsub-frontend --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --expect-selected-kernel frontend_vector_dynamic_i32_vsub --runtime-count 7 --runtime-count 16 --runtime-count 23 --run-id codex-emitc-route-vsub --overwrite --timeout 120 --connect-timeout 10`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-14-rvv-extension-family-emitc-emission-route`
+- `python3 ./.trellis/scripts/task.py finish`
+- `python3 ./.trellis/scripts/task.py archive --no-commit 05-14-rvv-extension-family-emitc-emission-route`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-14-rvv-extension-family-emitc-emission-route`
+- `git diff --cached --check`
+
+Both `ssh rvv` e2e runs returned `status: success`, `ssh_evidence: true`, and
+runtime counts `7,16,23`.
+
+### Status
+
+[OK] Completed and archived; commit pending.
+
+
 ## Session 62: RVV selected op-family production route
 
 **Date**: 2026-05-14

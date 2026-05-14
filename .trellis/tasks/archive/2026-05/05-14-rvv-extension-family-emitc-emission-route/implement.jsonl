@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary and source-of-truth rules for implementation."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture red lines: unified TCRV, RVV hardware evidence, descriptor-driven computation is not architecture."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core tcrv.exec orchestration boundary; prevent compute or RVV semantics from entering core."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin finite selected binary route, selected config, descriptor quarantine, and typed RVV op authority."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned emission, selected lowering boundary, readiness, and registry routing contracts."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected route and frontend-to-exec finite RVV binary pipeline constraints."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and runtime ABI ownership contracts for selected emission plans."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated EmitC lowerable op interface boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck/C++ evidence requirements for RVV selected artifact routes."}

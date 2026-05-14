@@ -54,6 +54,34 @@ inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataName() {
   return "tcrv_rvv.emitc_lowerable_op_interface";
 }
 
+inline llvm::StringRef getRVVEmitCRouteKindMetadataName() {
+  return "tcrv_rvv.emitc_route_kind";
+}
+
+inline llvm::StringRef getRVVEmitCSourceAuthorityMetadataName() {
+  return "tcrv_rvv.emitc_source_authority";
+}
+
+inline llvm::StringRef getRVVEmitCRequiredHeaderMetadataName() {
+  return "tcrv_rvv.emitc_required_header";
+}
+
+inline llvm::StringRef getRVVEmitCArithmeticIntrinsicMetadataName() {
+  return "tcrv_rvv.emitc_arithmetic_intrinsic";
+}
+
+inline llvm::StringRef getRVVEmitCRouteKindMetadataValue() {
+  return "extension-family-ops-to-emitc-call-opaque";
+}
+
+inline llvm::StringRef getRVVEmitCSourceAuthorityMetadataValue() {
+  return "mlir-emitc-cpp-emitter";
+}
+
+inline llvm::StringRef getRVVEmitCRequiredHeaderMetadataValue() {
+  return "riscv_vector.h";
+}
+
 inline llvm::StringRef getRVVLegacyDescriptorMirrorMetadataRole() {
   return "legacy-rvv-binary-descriptor-mirror";
 }
@@ -96,6 +124,21 @@ inline llvm::StringRef getRVVEmitCSourceOpMetadataNote() {
 inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataNote() {
   return "generated RVV op interface queried before building the common EmitC "
          "lowerable route; not descriptor-selected computation";
+}
+
+inline llvm::StringRef getRVVEmitCRouteMetadataRole() {
+  return "typed-rvv-emitc-route";
+}
+
+inline llvm::StringRef getRVVEmitCRouteMetadataNote() {
+  return "RVV plugin-selected extension-family op to common EmitC route "
+         "mapping consumed before target artifact export; not descriptor-to-C "
+         "emission";
+}
+
+inline llvm::StringRef getRVVEmitCArithmeticIntrinsicMetadataNote() {
+  return "family-owned RVV arithmetic intrinsic selected from typed RVV source "
+         "op plus selected vector config before target artifact export";
 }
 
 class RVVBinarySelectedConfigContract {
@@ -784,6 +827,26 @@ inline void appendRVVBinarySelectedTypedSourceMetadata(
                  getRVVRuntimeControlNameMetadataRole(),
                  getRVVRuntimeControlNameMetadataNote(),
                  "runtime element-count C name"});
+}
+
+inline void appendRVVBinaryEmitCRouteMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  llvm::StringRef routeRole = getRVVEmitCRouteMetadataRole();
+  llvm::StringRef routeNote = getRVVEmitCRouteMetadataNote();
+  out.push_back({getRVVEmitCRouteKindMetadataName(),
+                 getRVVEmitCRouteKindMetadataValue(), routeRole, routeNote,
+                 "EmitC route kind"});
+  out.push_back({getRVVEmitCSourceAuthorityMetadataName(),
+                 getRVVEmitCSourceAuthorityMetadataValue(), routeRole,
+                 routeNote, "EmitC source authority"});
+  out.push_back({getRVVEmitCRequiredHeaderMetadataName(),
+                 getRVVEmitCRequiredHeaderMetadataValue(), routeRole,
+                 routeNote, "EmitC required header"});
+  out.push_back({getRVVEmitCArithmeticIntrinsicMetadataName(),
+                 contract.getArithmeticIntrinsicName(), routeRole,
+                 getRVVEmitCArithmeticIntrinsicMetadataNote(),
+                 "EmitC arithmetic intrinsic"});
 }
 
 inline void appendRVVBinarySelectedSourceIdentityMetadata(

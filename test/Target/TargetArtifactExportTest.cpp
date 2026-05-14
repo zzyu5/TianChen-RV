@@ -103,6 +103,10 @@ void appendRVVSelectedPlanMetadata(
   else
     tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
         *contract, metadata);
+  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
+    tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(*contract,
+                                                              metadata);
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name, entry.value, entry.role, entry.note});
@@ -754,6 +758,30 @@ bool expectRVVSourceRouteRegistrationMetadata(
                 getRVVEmitCLowerableOpInterfaceMetadataName(),
             "TCRVEmitCLowerableOpInterface",
             tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataValue(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataValue(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanExactRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataValue(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanPresenceRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::
+                getRVVEmitCArithmeticIntrinsicMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
       return false;
   } else {
     if (!expectRouteSelectedPlanExactRequirement(
@@ -3263,6 +3291,16 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
         return false;
       if (!expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
               registry, route.getRouteID(), "tcrv_rvv.runtime_avl_source"))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
+              registry, route.getRouteID(),
+              tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName()))
+        return false;
+      if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
+              registry, route.getRouteID(),
+              tianchenrv::target::rvv::
+                  getRVVEmitCSourceAuthorityMetadataName(),
+              "descriptor-to-c-exporter"))
         return false;
     } else if (!registry.lookupComposite(route.getRouteID())) {
       llvm::errs() << "RVV direct composite route was not contributed: "

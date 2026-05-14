@@ -18,6 +18,10 @@
 // RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.vsub.missing-op-source-id.bundle %t.vector.dynamic.vsub.missing-op-source-id.planned.mlir 2>&1 | FileCheck %s --check-prefix=MISSING-OP-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: test ! -f %t.vector.dynamic.vsub.missing-op-source-id.bundle/tianchenrv-target-artifact-bundle.index
 // RUN: not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c %t.vector.dynamic.vsub.missing-op-source-id.planned.mlir 2>&1 | FileCheck %s --check-prefix=SELF-CHECK-QUARANTINE --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_rvv\.emitc_arithmetic_intrinsic\"[^}]*value = )\"__riscv_vsub_vv_i32m1\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"__riscv_vadd_vv_i32m1\"", text, count=1); assert count == 1; sys.stdout.write(text)' > %t.vector.dynamic.vsub.stale-emitc-intrinsic.planned.mlir
+// RUN: rm -rf %t.vector.dynamic.vsub.stale-emitc-intrinsic.bundle && mkdir %t.vector.dynamic.vsub.stale-emitc-intrinsic.bundle
+// RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.vsub.stale-emitc-intrinsic.bundle %t.vector.dynamic.vsub.stale-emitc-intrinsic.planned.mlir 2>&1 | FileCheck %s --check-prefix=STALE-EMITC-INTRINSIC --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.vsub.stale-emitc-intrinsic.bundle/tianchenrv-target-artifact-bundle.index
 
 module @plan_vector_dynamic_i32_vsub_bundle_input {
   tcrv.exec.capability @no_rvv_policy {
@@ -110,6 +114,17 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // IR-SAME: value = "mlir-vector-transfer-tail-active-lanes"
 // IR: name = "tcrv_frontend.source_tail_policy"
 // IR-SAME: value = "runtime-n-bounded-transfer-tail-padding-and-store"
+// IR: name = "tcrv_rvv.selected_binary_source_kind"
+// IR-SAME: value = "frontend-lowering"
+// IR: name = "tcrv_rvv.emitc_route_kind"
+// IR-SAME: role = "typed-rvv-emitc-route"
+// IR-SAME: value = "extension-family-ops-to-emitc-call-opaque"
+// IR: name = "tcrv_rvv.emitc_source_authority"
+// IR-SAME: value = "mlir-emitc-cpp-emitter"
+// IR: name = "tcrv_rvv.emitc_required_header"
+// IR-SAME: value = "riscv_vector.h"
+// IR: name = "tcrv_rvv.emitc_arithmetic_intrinsic"
+// IR-SAME: value = "__riscv_vsub_vv_i32m1"
 
 // STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
@@ -131,6 +146,24 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // INDEX-NEXT: value: "runtime-n-bounded-transfer-tail-padding-and-store"
 // INDEX: name: "tcrv_frontend.runtime_element_count_constraint"
 // INDEX-NEXT: value: "source-runtime-extent"
+// INDEX: name: "tcrv_rvv.selected_binary_source_kind"
+// INDEX-NEXT: value: "frontend-lowering"
+// INDEX-NEXT: role: "typed-rvv-binary-source-identity"
+// INDEX: name: "tcrv_rvv.selected_binary_microkernel_op"
+// INDEX-NEXT: value: "tcrv_rvv.i32_vsub_microkernel"
+// INDEX-NEXT: role: "typed-rvv-binary-source-identity"
+// INDEX: name: "tcrv_rvv.emitc_route_kind"
+// INDEX-NEXT: value: "extension-family-ops-to-emitc-call-opaque"
+// INDEX-NEXT: role: "typed-rvv-emitc-route"
+// INDEX: name: "tcrv_rvv.emitc_source_authority"
+// INDEX-NEXT: value: "mlir-emitc-cpp-emitter"
+// INDEX-NEXT: role: "typed-rvv-emitc-route"
+// INDEX: name: "tcrv_rvv.emitc_required_header"
+// INDEX-NEXT: value: "riscv_vector.h"
+// INDEX-NEXT: role: "typed-rvv-emitc-route"
+// INDEX: name: "tcrv_rvv.emitc_arithmetic_intrinsic"
+// INDEX-NEXT: value: "__riscv_vsub_vv_i32m1"
+// INDEX-NEXT: role: "typed-rvv-emitc-route"
 // INDEX: name: "tcrv_rvv.dispatch_contract_runtime_element_count_c_name"
 // INDEX-NEXT: value: "n"
 // INDEX: name: "tcrv_rvv.dispatch_contract_selected_vector_config"
@@ -164,6 +197,10 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // SOURCE-SAME: runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_route_kind, value=extension-family-ops-to-emitc-call-opaque, role=typed-rvv-emitc-route
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_authority, value=mlir-emitc-cpp-emitter, role=typed-rvv-emitc-route
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_required_header, value=riscv_vector.h, role=typed-rvv-emitc-route
+// SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_arithmetic_intrinsic, value=__riscv_vsub_vv_i32m1, role=typed-rvv-emitc-route
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_vector_dynamic_bundle_i32_vsub_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_vector_dynamic_bundle_i32_vsub_scalar_fallback_first_slice */
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
@@ -183,3 +220,4 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // STALE-BUNDLE-VL-SAME: must use value 'tcrv_rvv.with_vl'
 // MISSING-OP-SOURCE-ID: requires selected RVV binary source identity before target artifact export
 // SELF-CHECK-QUARANTINE: requires selected RVV binary source identity before target artifact export
+// STALE-EMITC-INTRINSIC: selected_plan_metadata 'tcrv_rvv.emitc_arithmetic_intrinsic' EmitC arithmetic intrinsic must be '__riscv_vsub_vv_i32m1'
