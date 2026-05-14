@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, and unified RISC-V extension-family boundaries."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Reject descriptor-driven architecture and keep RVV runtime claims tied to ssh rvv evidence."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec orchestration-only while selected RVV compute remains extension-owned."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines finite RVV binary family source identity, selected config, runtime length, and typed family-op route."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Constrains plugin-owned selected-boundary and emission planning without generic core RVV branches."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines vector/linalg frontend selected-family planning and the plan-and-export route."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Defines capability-backed selected config versus runtime values and descriptor-local capacity quarantine."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact source/header/object/bundle preflight and fail-closed selected-state behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Requires typed extension family ops and EmitC route provenance instead of descriptor-driven C emission."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/C++/script/ssh evidence boundaries for RVV selected artifact work."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-05-14-rvv-compiler-produced-artifact-e2e-closure/prd.md", "reason": "Prior vadd e2e closure that this task must preserve without repeating as test-only work."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-selected-variant-bundle-full-state-closure/prd.md", "reason": "Prior selected config/runtime/source bundle contract that this task extends to vsub as second family member."}

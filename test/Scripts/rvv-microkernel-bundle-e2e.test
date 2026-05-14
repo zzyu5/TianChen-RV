@@ -5,6 +5,7 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=export_i64_vadd --run-id lit-rvv-microkernel-plan-bundle-i64-vadd --overwrite | FileCheck %s --check-prefix=I64-VADD-PLAN-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-plan-bundle-vmul --overwrite | FileCheck %s --check-prefix=VMUL-PLAN-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --lower-vector-i32-vadd-frontend --expect-selected-kernel=frontend_vector_dynamic_i32_vadd --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-plan-bundle-vector-dynamic-vadd --overwrite | FileCheck %s --check-prefix=VEC-VADD-BUNDLE
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --lower-vector-i32-vsub-frontend --expect-selected-kernel=frontend_vector_dynamic_i32_vsub --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-plan-bundle-vector-dynamic-vsub --overwrite | FileCheck %s --check-prefix=VEC-VSUB-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --expect-selected-kernel=frontend_i64_vmul --run-id lit-rvv-microkernel-plan-bundle-linalg-i64-vmul --overwrite --input %S/../Transforms/LinalgToExec/linalg-i64-vmul-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-I64-VMUL-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=frontend_i32_vsub --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2 --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-VSUB-M2-BUNDLE
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=rvv_sub_kernel --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2-mismatch --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir 2>&1 | FileCheck %s --check-prefix=SELECTED-KERNEL-MISMATCH
@@ -19,6 +20,9 @@
 # RUN: FileCheck %s --check-prefix=VEC-VADD-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vadd/evidence.json
 # RUN: FileCheck %s --check-prefix=VEC-VADD-SOURCE --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not="__builtin_trap" < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vadd/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-microkernel-c.c
 # RUN: FileCheck %s --check-prefix=VEC-VADD-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vadd/rvv_microkernel_external_caller.c
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vsub/evidence.json
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-SOURCE --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not="__builtin_trap" --implicit-check-not=__riscv_vadd_vv_i32m1 < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vsub/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-i32-vsub-microkernel-c.c
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vsub/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=LINALG-I64-VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vmul/evidence.json
 # RUN: FileCheck %s --check-prefix=LINALG-I64-VMUL-CALLER < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vmul/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=LINALG-VSUB-M2-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2/evidence.json
@@ -92,6 +96,25 @@
 # VEC-VADD-BUNDLE-NOT: runtime_success
 # VEC-VADD-BUNDLE-NOT: throughput
 # VEC-VADD-BUNDLE-NOT: latency
+
+# VEC-VSUB-BUNDLE: "arithmetic_family": "i32-vsub"
+# VEC-VSUB-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-vector-dynamic-vsub"
+# VEC-VSUB-BUNDLE: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VEC-VSUB-BUNDLE: "expected_selected_kernel": "frontend_vector_dynamic_i32_vsub"
+# VEC-VSUB-BUNDLE: "input_source": "vector-scf-frontend"
+# VEC-VSUB-BUNDLE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VEC-VSUB-BUNDLE: "runtime_element_counts": [
+# VEC-VSUB-BUNDLE-NEXT: 7,
+# VEC-VSUB-BUNDLE-NEXT: 16,
+# VEC-VSUB-BUNDLE-NEXT: 23
+# VEC-VSUB-BUNDLE: "selected_kernel": "frontend_vector_dynamic_i32_vsub"
+# VEC-VSUB-BUNDLE: "source_export_route": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VEC-VSUB-BUNDLE: "ssh_evidence": false
+# VEC-VSUB-BUNDLE: "status": "success"
+# VEC-VSUB-BUNDLE: "vector_shape": "i32m1"
+# VEC-VSUB-BUNDLE-NOT: runtime_success
+# VEC-VSUB-BUNDLE-NOT: throughput
+# VEC-VSUB-BUNDLE-NOT: latency
 
 # LINALG-I64-VMUL-BUNDLE: "arithmetic_family": "i64-vmul"
 # LINALG-I64-VMUL-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vmul"
@@ -260,6 +283,43 @@
 # VEC-VADD-CALLER-NOT: lhs[index] * rhs[index]
 # VEC-VADD-CALLER-NOT: throughput
 # VEC-VADD-CALLER-NOT: latency
+
+# VEC-VSUB-EVIDENCE-DAG: "input": "test/Transforms/VectorToExec/vector-dynamic-i32-vsub-to-exec.mlir"
+# VEC-VSUB-EVIDENCE-DAG: "input_source": "vector-scf-frontend"
+# VEC-VSUB-EVIDENCE-DAG: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VEC-VSUB-EVIDENCE-DAG: "component_group": "rvv-i32-vsub-microkernel-external-abi.v1"
+# VEC-VSUB-EVIDENCE-DAG: "route": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VEC-VSUB-EVIDENCE-DAG: "route": "tcrv-export-rvv-i32-vsub-microkernel-header"
+# VEC-VSUB-EVIDENCE-DAG: "route": "tcrv-export-rvv-i32-vsub-microkernel-object"
+# VEC-VSUB-EVIDENCE-DAG: "selected_kernel": "frontend_vector_dynamic_i32_vsub"
+# VEC-VSUB-EVIDENCE-DAG: "source_kind": "mlir-vector-scf-runtime-i32-vsub.v1"
+# VEC-VSUB-EVIDENCE-DAG: "source_authority": "source-scf-for-runtime-upper-bound"
+# VEC-VSUB-EVIDENCE-DAG: "runtime_extent_arg": "n"
+# VEC-VSUB-EVIDENCE-DAG: "runtime_element_counts": [
+# VEC-VSUB-EVIDENCE-DAG: 23
+# VEC-VSUB-EVIDENCE-DAG: "__riscv_vsub_vv_i32m1"
+# VEC-VSUB-EVIDENCE-DAG: "ssh_evidence": false
+# VEC-VSUB-EVIDENCE-DAG: "status": "success"
+# VEC-VSUB-EVIDENCE-NOT: must-equal-fixed-source-vector-extent
+# VEC-VSUB-EVIDENCE-NOT: __riscv_vadd_vv_i32m1
+# VEC-VSUB-EVIDENCE-NOT: runtime_success
+# VEC-VSUB-EVIDENCE-NOT: throughput
+# VEC-VSUB-EVIDENCE-NOT: latency
+
+# VEC-VSUB-SOURCE: /* selected_kernel: @frontend_vector_dynamic_i32_vsub */
+# VEC-VSUB-SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
+# VEC-VSUB-SOURCE: /* runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted for this dynamic vector route */
+# VEC-VSUB-SOURCE: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
+# VEC-VSUB-SOURCE: /* emitc.call_opaque[3]: __riscv_vsub_vv_i32m1 from tcrv_rvv.i32_sub */
+# VEC-VSUB-SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_vector_dynamic_i32_vsub_rvv_first_slice
+
+# VEC-VSUB-CALLER: #include "artifact-1-runtime-callable-c-header-tcrv-export-rvv-i32-vsub-microkernel-header.h"
+# VEC-VSUB-CALLER: if (out[index] != lhs[index] - rhs[index])
+# VEC-VSUB-CALLER: tcrv_rvv_i32_vsub_microkernel_external_abi_ok counts=7,16,23
+# VEC-VSUB-CALLER-NOT: lhs[index] + rhs[index]
+# VEC-VSUB-CALLER-NOT: lhs[index] * rhs[index]
+# VEC-VSUB-CALLER-NOT: throughput
+# VEC-VSUB-CALLER-NOT: latency
 
 # LINALG-I64-VMUL-EVIDENCE: "arithmetic_family": "i64-vmul"
 # LINALG-I64-VMUL-EVIDENCE-DAG: "input": "test/Transforms/LinalgToExec/linalg-i64-vmul-to-rvv-artifact.mlir"

@@ -13,6 +13,10 @@
 // RUN: rm -rf %t.vector.dynamic.vsub.stale-vl.bundle && mkdir %t.vector.dynamic.vsub.stale-vl.bundle
 // RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.vsub.stale-vl.bundle %t.vector.dynamic.vsub.stale-vl.planned.mlir 2>&1 | FileCheck %s --check-prefix=STALE-BUNDLE-VL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: test ! -f %t.vector.dynamic.vsub.stale-vl.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(?m)^\s*tcrv_rvv\.(?:lowering_boundary|i32_vsub_microkernel attributes)[^\n]*"; attr=r", (?:selected_binary_(?:source_kind|dtype|family|operator|microkernel_op)|emitc_(?:source_op|lowerable_op_interface)) = \"[^\"]*\""; text,count=re.subn(pattern, lambda m: re.sub(attr, "", m.group(0)), text); assert count == 2; sys.stdout.write(text)' > %t.vector.dynamic.vsub.missing-op-source-id.planned.mlir
+// RUN: rm -rf %t.vector.dynamic.vsub.missing-op-source-id.bundle && mkdir %t.vector.dynamic.vsub.missing-op-source-id.bundle
+// RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.vsub.missing-op-source-id.bundle %t.vector.dynamic.vsub.missing-op-source-id.planned.mlir 2>&1 | FileCheck %s --check-prefix=MISSING-OP-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.vsub.missing-op-source-id.bundle/tianchenrv-target-artifact-bundle.index
 
 module @plan_vector_dynamic_i32_vsub_bundle_input {
   tcrv.exec.capability @no_rvv_policy {
@@ -165,3 +169,4 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 
 // STALE-BUNDLE-VL: selected_plan_metadata 'tcrv_rvv.runtime_vl_scope'
 // STALE-BUNDLE-VL-SAME: must use value 'tcrv_rvv.with_vl'
+// MISSING-OP-SOURCE-ID: requires selected RVV binary source identity before target artifact export

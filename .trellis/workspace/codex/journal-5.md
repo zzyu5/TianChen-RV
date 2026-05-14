@@ -1259,3 +1259,65 @@ printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
 ### Status
 
 [OK] Completed and archived; commit pending.
+
+
+## Session 62: RVV selected op-family production route
+
+**Date**: 2026-05-14
+**Task**: RVV selected op-family production route
+**Branch**: `main`
+
+### Summary
+
+Made the selected RVV finite binary artifact preflight reusable for
+`vector-dynamic-i32-vsub` instead of relying on an i32-vadd-only source-identity
+guard. The vsub compiler-produced route now has plan-and-export bundle evidence
+through the same selected source identity, selected config, runtime length,
+source/header/object, and external caller path as the prior vadd route.
+
+### Main Changes
+
+- Changed RVV target-artifact candidate validation in
+  `lib/Target/RVV/RVVMicrokernel.cpp` so every finite typed RVV binary route
+  requires selected lowering-boundary source identity before export.
+- Added `--lower-vector-i32-vsub-frontend` to
+  `scripts/rvv_microkernel_e2e.py`, using the selected binary lowering plus
+  execution-planning route and preserving one-frontend-only guardrails.
+- Extended `test/Scripts/rvv-microkernel-bundle-e2e.test` with dry-run
+  plan-and-export bundle coverage for the dynamic vector i32-vsub frontend,
+  including selected kernel, runtime counts, source/header/object routes,
+  `__riscv_vsub_vv_i32m1`, and caller ABI subtraction checks.
+- Added a fail-closed target-artifact export mutation test that strips vsub
+  op-owned selected source identity from the lowering boundary and microkernel
+  and requires bundle export to fail before writing an index.
+- Confirmed no changes under `lib/Transforms`,
+  `include/TianChenRV/Dialect/Exec`, or `lib/Dialect/Exec`.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVTarget tcrv-translate tcrv-opt -j2`
+- `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test -j2`
+- `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVScalarTarget tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-planning-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=vector-dynamic-i32-vsub-to-exec` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=rvv-microkernel-bundle-e2e` from `build/test`
+- Manual vsub dry-run bundle probes for plan-and-export and two-step selected
+  planning/export routes with runtime counts `7,16,23`.
+- Manual fail-closed probe that stripped vsub selected source identity and
+  observed `requires selected RVV binary source identity before target artifact
+  export`.
+- `git diff --check`
+
+No `ssh rvv` evidence was run because this round changed production preflight,
+runner plumbing, and lit evidence only; it did not change generated RVV
+source/object semantics or make runtime correctness/performance claims.
+
+### Status
+
+[OK] Completed and archived; commit pending.

@@ -4282,8 +4282,11 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
           "selected RVV target artifact candidate requires an enclosing "
           "builtin.module for selected config/runtime AVL contract "
           "validation");
+    // Every finite typed RVV binary artifact route must prove op-owned source
+    // identity at the selected lowering boundary; this is not vadd-specific.
     bool requireBoundarySourceIdentity =
-        isSameRVVBinaryFamily(family, getI32VAddFamilyRegistrationRecord());
+        family.dtype == RVVBinaryDTypeKind::I32 ||
+        family.dtype == RVVBinaryDTypeKind::I64;
     llvm::Expected<RVVMicrokernelRecord> sourceAuthority =
         buildKernelRecordForRVVBinaryFamily(
             candidate.kernel, family, candidate.selectedVariant,

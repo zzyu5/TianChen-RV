@@ -3806,6 +3806,11 @@ def selected_input_path(args: argparse.Namespace) -> Path:
             "test/Transforms/VectorToExec/"
             "vector-dynamic-i32-vadd-to-exec.mlir"
         )
+    if getattr(args, "lower_vector_i32_vsub_frontend", False):
+        return Path(
+            "test/Transforms/VectorToExec/"
+            "vector-dynamic-i32-vsub-to-exec.mlir"
+        )
     if getattr(args, "lower_linalg_frontend", False):
         frontend_input = ACTIVE_ARITHMETIC_FAMILY.get("default_frontend_input")
         if frontend_input is not None:
@@ -3830,7 +3835,9 @@ def selected_input_path(args: argparse.Namespace) -> Path:
 def selected_input_source_label(args: argparse.Namespace) -> str:
     if profile_replay_requested(args):
         return "rvv-profile-replay"
-    if getattr(args, "lower_vector_i32_vadd_frontend", False):
+    if getattr(args, "lower_vector_i32_vadd_frontend", False) or getattr(
+        args, "lower_vector_i32_vsub_frontend", False
+    ):
         return "vector-scf-frontend"
     if getattr(args, "lower_linalg_frontend", False):
         return "linalg-frontend"
@@ -3859,6 +3866,14 @@ def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]
                 "--tcrv-execution-planning-pipeline",
             ],
         )
+    if getattr(args, "lower_vector_i32_vsub_frontend", False):
+        return (
+            "tcrv_opt_vector_i32_vsub_frontend_execution_planning_pipeline",
+            [
+                "--tcrv-lower-source-rvv-binary-to-exec",
+                "--tcrv-execution-planning-pipeline",
+            ],
+        )
     if ACTIVE_VECTOR_SHAPE["planning_pipeline"] == "tcrv-execution-planning-pipeline":
         return (
             "tcrv_opt_execution_planning_pipeline",
@@ -3884,6 +3899,11 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
     if getattr(args, "lower_vector_i32_vadd_frontend", False):
         return (
             "tcrv-lower-vector-rvv-i32-vadd-to-exec + "
+            "tcrv-execution-planning-pipeline"
+        )
+    if getattr(args, "lower_vector_i32_vsub_frontend", False):
+        return (
+            "tcrv-lower-source-rvv-binary-to-exec + "
             "tcrv-execution-planning-pipeline"
         )
     return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
@@ -5916,6 +5936,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--lower-vector-i32-vsub-frontend",
+        action="store_true",
+        help=(
+            "Run the bounded vector/SCF i32-vsub frontend lowering before "
+            "execution planning"
+        ),
+    )
+    parser.add_argument(
         "--profile-replay-evidence-json",
         default="",
         help=(
@@ -5993,9 +6021,19 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
-    if args.lower_linalg_frontend and args.lower_vector_i32_vadd_frontend:
+    vector_frontend_flags = [
+        args.lower_vector_i32_vadd_frontend,
+        args.lower_vector_i32_vsub_frontend,
+    ]
+    if args.lower_linalg_frontend and any(vector_frontend_flags):
         print(
             "rvv_microkernel_e2e: choose only one frontend lowering flag",
+            file=sys.stderr,
+        )
+        return 1
+    if sum(bool(flag) for flag in vector_frontend_flags) > 1:
+        print(
+            "rvv_microkernel_e2e: choose only one vector frontend lowering flag",
             file=sys.stderr,
         )
         return 1
@@ -6003,6 +6041,7 @@ def main(argv: list[str]) -> int:
         args.input
         or args.lower_linalg_frontend
         or args.lower_vector_i32_vadd_frontend
+        or args.lower_vector_i32_vsub_frontend
         or args.use_target_artifact_bundle
         or args.generic_route
         or args.self_check_harness
