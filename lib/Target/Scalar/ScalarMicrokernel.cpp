@@ -107,13 +107,13 @@ constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kScalarLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kScalarLoweringTokenAttrName(
     "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
 
 using ScalarI32MicrokernelFamilySpec =
-    tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelDescriptor;
+    tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelRecord;
 
 const ScalarI32MicrokernelFamilySpec &getI32VAddFamilySpec() {
   return tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord().scalar;
@@ -1330,22 +1330,22 @@ llvm::Error validateVariantDescriptorMatchesMicrokernel(
     const ScalarI32MicrokernelFamilySpec &family,
     std::int64_t microkernelElementCount) {
   if (mlir::Attribute rawDescriptor =
-          variant->getAttr(kScalarLoweringDescriptorAttrName)) {
+          variant->getAttr(kScalarLoweringTokenAttrName)) {
     auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
     if (!descriptor || descriptor.getValue().trim().empty())
       return makeMicrokernelError(
           kernel, llvm::Twine("selected scalar variant @") +
                       variant.getSymName() + " attribute '" +
-                      kScalarLoweringDescriptorAttrName +
+                      kScalarLoweringTokenAttrName +
                       "' must be a non-empty string when present");
 
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
     if (!tianchenrv::target::rvv_scalar::
-            lookupRVVScalarBinaryRegistrationByLegacyLoweringDescriptor(descriptorValue))
+            lookupRVVScalarBinaryRegistrationByLegacyLoweringToken(descriptorValue))
       return makeMicrokernelError(
           kernel, llvm::Twine("selected scalar variant @") +
                       variant.getSymName() + " attribute '" +
-                      kScalarLoweringDescriptorAttrName + "' must be '" +
+                      kScalarLoweringTokenAttrName + "' must be '" +
                       getI32VAddFamilySpec().descriptor + "' or '" +
                       getI32VSubFamilySpec().descriptor + "' or '" +
                       getI32VMulFamilySpec().descriptor + "' or '" +
@@ -2176,7 +2176,7 @@ TargetArtifactRouteMetadata buildScalarMicrokernelSourceRouteMetadata(
         family.rvvFamily->arithmeticVerb, descriptorRole);
     metadata.addSelectedPlanMetadataRequirement(
         tianchenrv::target::rvv_scalar::
-            getScalarSelectedLoweringDescriptorMetadataName(),
+            getScalarSelectedLoweringTokenMetadataName(),
         family.descriptor, descriptorRole);
   }
   metadata.addSelectedPlanMetadataPresenceRequirement(
@@ -2583,7 +2583,7 @@ llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
 
 llvm::Error validateScalarMicrokernelSourceAuthority(
     mlir::ModuleOp module,
-    const rvv_scalar::ScalarBinaryMicrokernelDescriptor &family,
+    const rvv_scalar::ScalarBinaryMicrokernelRecord &family,
     llvm::StringRef selectedVariant, llvm::StringRef role) {
   llvm::Expected<ScalarMicrokernelRecord> record = buildModuleRecord(module);
   if (!record)

@@ -4,7 +4,7 @@
 #include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -67,15 +67,15 @@ constexpr llvm::StringLiteral kFrontendKernelAttrName("tcrv_frontend_kernel");
 constexpr llvm::StringLiteral kFrontendTargetAttrName("tcrv_frontend_target");
 constexpr llvm::StringLiteral kFrontendCapabilityProvidersAttrName(
     "tcrv_frontend_capability_providers");
-constexpr llvm::StringLiteral kLegacyRVVLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLegacyRVVLoweringTokenAttrName(
     "tcrv_rvv.lowering_descriptor");
-constexpr llvm::StringLiteral kLegacyScalarLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLegacyScalarLoweringTokenAttrName(
     "tcrv_scalar.lowering_descriptor");
-constexpr llvm::StringLiteral kLegacyRVVSelectedLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLegacyRVVSelectedLoweringTokenAttrName(
     "tcrv_rvv.selected_lowering_descriptor");
-constexpr llvm::StringLiteral kLegacyScalarSelectedLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLegacyScalarSelectedLoweringTokenAttrName(
     "tcrv_scalar.selected_lowering_descriptor");
-constexpr llvm::StringLiteral kLegacySelectedLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLegacySelectedLoweringTokenAttrName(
     "selected_lowering_descriptor");
 
 enum class VectorFrontendPolicyKind {
@@ -92,7 +92,7 @@ struct VectorFrontendFamilyPolicy {
 };
 
 struct InferredFrontendBinarySource {
-  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   const support::FiniteBinaryFrontendContract *contract = nullptr;
   llvm::StringRef arithmeticOpName;
 };
@@ -136,7 +136,7 @@ std::string formatQuotedAlternatives(llvm::ArrayRef<llvm::StringRef> values) {
 
 std::string formatSupportedDynamicVectorSourceArithmeticOps() {
   llvm::SmallVector<llvm::StringRef, 4> arithmeticOps;
-  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+  for (const target::rvv::RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
       arithmeticOps.push_back(family->sourceArithmeticOpName);
@@ -170,14 +170,14 @@ getVectorFrontendFamilyPolicy(VectorFrontendPolicyKind kind) {
   llvm_unreachable("unknown vector frontend policy kind");
 }
 
-bool isI32VAddFamily(const target::rvv::RVVBinaryFamilyDescriptor &family) {
+bool isI32VAddFamily(const target::rvv::RVVBinaryFamilyRecord &family) {
   return family.familyID ==
          target::rvv::getI32VAddFamilyRegistrationRecord().familyID;
 }
 
 bool isVectorFrontendFamilyAcceptedByPolicy(
     const VectorFrontendFamilyPolicy &policy,
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const target::rvv::RVVBinaryFamilyRecord &family) {
   if (!family.frontendContract)
     return false;
   if (!policy.requiredFamilyID.empty() &&
@@ -191,7 +191,7 @@ bool isVectorFrontendFamilyAcceptedByPolicy(
 std::string
 formatVectorFrontendPolicyMarkers(const VectorFrontendFamilyPolicy &policy) {
   llvm::SmallVector<llvm::StringRef, 4> markers;
-  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+  for (const target::rvv::RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (isVectorFrontendFamilyAcceptedByPolicy(policy, *family))
       markers.push_back(family->frontendLowering);
@@ -204,7 +204,7 @@ mlir::LogicalResult populateI32VectorSourceIdentity(
     InferredFrontendBinarySource &out) {
   llvm::StringRef sourceArithmeticOpName =
       arithmeticOp ? arithmeticOp->getName().getStringRef() : llvm::StringRef();
-  const target::rvv::RVVBinaryFamilyDescriptor *family =
+  const target::rvv::RVVBinaryFamilyRecord *family =
       target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendSource(
           support::FiniteBinaryElementKind::I32, sourceArithmeticOpName);
   if (!family || !family->frontendContract)
@@ -312,7 +312,7 @@ getSupportedElementKindForWidth(unsigned width) {
   return std::nullopt;
 }
 
-const target::rvv::RVVBinaryFamilyDescriptor *
+const target::rvv::RVVBinaryFamilyRecord *
 lookupRVVFrontendSourceFamily(support::FiniteBinaryElementKind elementKind,
                               mlir::Operation *arithmeticOp) {
   if (!arithmeticOp)
@@ -395,7 +395,7 @@ inferMarkedLinalgSourceIdentity(mlir::Operation *linalgOp,
 
   mlir::Operation &arithmetic = body.front();
   mlir::Operation &yield = body.back();
-  const target::rvv::RVVBinaryFamilyDescriptor *family =
+  const target::rvv::RVVBinaryFamilyRecord *family =
       lookupRVVFrontendSourceFamily(*elementKind, &arithmetic);
   if (!family || !family->frontendContract)
     return linalgOp->emitError()
@@ -686,11 +686,11 @@ mlir::LogicalResult requireNoLegacyDescriptorMetadata(
     llvm::StringRef sourceAuthority =
         "source linalg body and typed operands") {
   llvm::StringRef legacyNames[] = {
-      kLegacyRVVLoweringDescriptorAttrName,
-      kLegacyScalarLoweringDescriptorAttrName,
-      kLegacyRVVSelectedLoweringDescriptorAttrName,
-      kLegacyScalarSelectedLoweringDescriptorAttrName,
-      kLegacySelectedLoweringDescriptorAttrName,
+      kLegacyRVVLoweringTokenAttrName,
+      kLegacyScalarLoweringTokenAttrName,
+      kLegacyRVVSelectedLoweringTokenAttrName,
+      kLegacyScalarSelectedLoweringTokenAttrName,
+      kLegacySelectedLoweringTokenAttrName,
   };
 
   for (mlir::Operation *op : {funcOp, linalgOp}) {
@@ -983,7 +983,7 @@ requireDynamicVectorI32BinarySourceWrapper(
                                                                "rhs read")))
     return mlir::failure();
 
-  const target::rvv::RVVBinaryFamilyDescriptor *family =
+  const target::rvv::RVVBinaryFamilyRecord *family =
       lookupRVVFrontendSourceFamily(support::FiniteBinaryElementKind::I32,
                                     arithmetic);
   bool isAcceptedDynamicVectorFamily =
@@ -1037,7 +1037,7 @@ requireDynamicVectorI32BinarySourceWrapper(
 mlir::LogicalResult crossCheckVectorFrontendMarkerPolicy(
     mlir::Operation *funcOp, llvm::StringRef marker,
     const VectorFrontendFamilyPolicy &policy) {
-  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+  const target::rvv::RVVBinaryFamilyRecord *markerFamily =
       target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
   if (!markerFamily || !markerFamily->frontendContract)
     return funcOp->emitError()
@@ -1060,7 +1060,7 @@ mlir::LogicalResult crossCheckVectorFrontendMarkerPolicy(
 mlir::LogicalResult crossCheckVectorFrontendMarker(
     mlir::Operation *funcOp, llvm::StringRef marker,
     const InferredFrontendBinarySource &source) {
-  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+  const target::rvv::RVVBinaryFamilyRecord *markerFamily =
       target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
   if (!markerFamily || !markerFamily->frontendContract)
     return funcOp->emitError()
@@ -1100,7 +1100,7 @@ mlir::LogicalResult crossCheckVectorFrontendMarker(
 mlir::LogicalResult crossCheckFrontendMarker(
     mlir::Operation *linalgOp, llvm::StringRef marker,
     const InferredFrontendBinarySource &source) {
-  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+  const target::rvv::RVVBinaryFamilyRecord *markerFamily =
       target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
   if (!markerFamily || !markerFamily->frontendContract)
     return linalgOp->emitError()
@@ -1160,7 +1160,7 @@ KernelOp createExecKernel(mlir::ModuleOp module, mlir::Operation *sourceFunc,
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
   if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
-    const target::rvv::RVVBinaryFamilyDescriptor *family =
+    const target::rvv::RVVBinaryFamilyRecord *family =
         target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendContract(
             contract);
     llvm::StringRef sourceKind =
@@ -1232,7 +1232,7 @@ mlir::LogicalResult materializeFrontendSourceRuntimeParamAttrs(
             support::kFrontendRuntimeElementCountMustEqualSourceExtent));
   }
   if (spec.dynamicRuntimeExtentFromSCFUpperBound) {
-    const target::rvv::RVVBinaryFamilyDescriptor *family =
+    const target::rvv::RVVBinaryFamilyRecord *family =
         target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendContract(
             *spec.contract);
     llvm::StringRef sourceKind =
@@ -1309,7 +1309,7 @@ lowerOneSourceFrontendRequest(mlir::ModuleOp module,
            << "TianChen-RV source frontend lowering received an incomplete "
               "adapter request";
   if (request.loweringContract.dynamicRuntimeExtentFromSCFUpperBound) {
-    const target::rvv::RVVBinaryFamilyDescriptor *family =
+    const target::rvv::RVVBinaryFamilyRecord *family =
         target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendContract(
             *request.loweringContract.contract);
     if (!family ||

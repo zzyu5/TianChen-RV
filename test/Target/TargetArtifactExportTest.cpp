@@ -12,7 +12,7 @@
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 #include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVScalarDispatch.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
@@ -47,8 +47,8 @@ using tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
-using RVVBinaryFamilyDescriptor =
-    tianchenrv::target::rvv::RVVBinaryFamilyDescriptor;
+using RVVBinaryFamilyRecord =
+    tianchenrv::target::rvv::RVVBinaryFamilyRecord;
 
 const I32BinaryRuntimeABIContract &
 getRuntimeABIContract(llvm::StringRef familyID) {
@@ -77,7 +77,7 @@ llvm::StringRef getRuntimeElementCountCNameForTest(
 
 void appendRVVSelectedPlanMetadata(
     TargetArtifactCandidate &candidate,
-    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family,
+    const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family,
     const tianchenrv::target::rvv::RVVVectorShapeConfig &shape,
     llvm::StringRef sourceKind = "direct-typed-microkernel-body") {
   llvm::SmallVector<
@@ -88,7 +88,7 @@ void appendRVVSelectedPlanMetadata(
   llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigContract>
       contract = tianchenrv::target::rvv::buildRVVBinarySelectedConfigContract(
           family, shape, candidate.selectedVariant, candidate.role,
-          /*descriptorElementCount=*/16,
+          /*componentCapacityElementCount=*/16,
           getRuntimeElementCountCNameForTest(candidate));
   if (!contract) {
     llvm::errs() << "failed to build RVV selected config test metadata: "
@@ -120,7 +120,7 @@ void appendRVVSelectedPlanMetadata(
   llvm::SmallVector<
       tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 1>
       descriptorMetadata;
-  tianchenrv::target::rvv::appendRVVRuntimeLengthDescriptorElementCountMetadata(
+  tianchenrv::target::rvv::appendRVVRuntimeLengthComponentCapacityElementCountMetadata(
       contract->getRuntimeLengthContract(), descriptorMetadata);
   for (const auto &entry : descriptorMetadata) {
     candidate.selectedPlanMetadata.push_back(
@@ -130,11 +130,11 @@ void appendRVVSelectedPlanMetadata(
 
 void appendScalarSelectedPlanMetadata(
     TargetArtifactCandidate &candidate,
-    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
+    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord
         &family) {
   llvm::SmallVector<
       tianchenrv::target::rvv_scalar::
-          ScalarBinarySelectedPlanMetadataDescriptor,
+          ScalarBinarySelectedPlanMetadataRecord,
       6>
       metadata;
   if (family.rvvFamily->dtype ==
@@ -182,7 +182,7 @@ bool eraseSelectedPlanMetadataEntry(TargetArtifactCandidate &candidate,
 }
 
 const tianchenrv::target::rvv::RVVVectorShapeConfig &
-getDefaultRVVSelectedShapeForFamily(const RVVBinaryFamilyDescriptor &family) {
+getDefaultRVVSelectedShapeForFamily(const RVVBinaryFamilyRecord &family) {
   if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     return tianchenrv::target::rvv::getI64M1VectorShapeConfig();
   return tianchenrv::target::rvv::getI32M1VectorShapeConfig();
@@ -406,15 +406,15 @@ bool expectRVVRuntimeLengthContractMetadata() {
 
   llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 1>
       descriptorMetadata;
-  appendRVVRuntimeLengthDescriptorElementCountMetadata(runtimeLength,
+  appendRVVRuntimeLengthComponentCapacityElementCountMetadata(runtimeLength,
                                                       descriptorMetadata);
   if (descriptorMetadata.size() != 1 ||
-      descriptorMetadata[0].name != getRVVDescriptorElementCountMetadataName() ||
+      descriptorMetadata[0].name != getRVVComponentCapacityElementCountMetadataName() ||
       descriptorMetadata[0].value != "16" ||
       descriptorMetadata[0].role !=
-          getRVVDescriptorElementCountCapacityMetadataRole()) {
+          getRVVComponentCapacityElementCountMetadataRole()) {
     llvm::errs() << "RVV runtime length contract emitted malformed "
-                    "descriptor-local count metadata\n";
+                    "artifact-local component capacity metadata\n";
     return false;
   }
 
@@ -422,7 +422,7 @@ bool expectRVVRuntimeLengthContractMetadata() {
       buildRVVBinarySelectedConfigContract(
           getI32VAddFamilyRegistrationRecord(), getI32M1VectorShapeConfig(),
           "rvv_first_slice", "direct variant",
-          /*descriptorElementCount=*/16, "len");
+          /*componentCapacityElementCount=*/16, "len");
   if (!selectedConfig) {
     llvm::errs() << "failed to build selected config from runtime length "
                     "contract: "
@@ -502,7 +502,7 @@ bool expectRVVRuntimeLengthContractMetadata() {
       buildRVVBinarySelectedConfigContract(
           getI32VAddFamilyRegistrationRecord(), getI32M1VectorShapeConfig(),
           "rvv_first_slice", "direct variant",
-          /*descriptorElementCount=*/65, "n");
+          /*componentCapacityElementCount=*/65, "n");
   if (staleDescriptorAuthority) {
     llvm::errs() << "descriptor-only length authority unexpectedly passed "
                     "RVV runtime length validation\n";
@@ -510,9 +510,9 @@ bool expectRVVRuntimeLengthContractMetadata() {
   }
   if (!expectErrorContains(
           staleDescriptorAuthority.takeError(),
-          "descriptor-local count rejected by RVV runtime length contract",
+          "artifact-local component capacity rejected by RVV runtime length contract",
           {"RVV runtime length contract failed",
-           "descriptor-local element_count"}))
+           "artifact-local component capacity"}))
     return false;
 
   return true;
@@ -717,7 +717,7 @@ bool expectCompositeRouteRegistrationMetadata(
     return false;
   }
 
-  const RVVBinaryFamilyDescriptor &family = *route.family;
+  const RVVBinaryFamilyRecord &family = *route.family;
   bool expectsTypedSource =
       family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
       family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
@@ -800,7 +800,7 @@ bool expectCompositeRouteRegistrationMetadata(
   } else if (!expectCompositeRouteSelectedPlanExactRequirement(
                  registry, route.getRouteID(),
                  "tcrv_rvv.selected_lowering_descriptor",
-                 family.loweringDescriptor, expectedRole)) {
+                 family.legacyLoweringToken, expectedRole)) {
     return false;
   }
   if (!expectCompositeRouteSelectedPlanPresenceRequirement(
@@ -912,7 +912,7 @@ bool expectRouteSelectedPlanExactRequirement(
 
 bool expectRVVSourceRouteRegistrationMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   bool expectsTypedSource =
       family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
       family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
@@ -997,7 +997,7 @@ bool expectRVVSourceRouteRegistrationMetadata(
   } else {
     if (!expectRouteSelectedPlanExactRequirement(
             registry, family.routeID, "tcrv_rvv.selected_lowering_descriptor",
-            family.loweringDescriptor, expectedRole))
+            family.legacyLoweringToken, expectedRole))
       return false;
   }
   if (!expectRouteSelectedPlanPresenceRequirement(
@@ -1005,9 +1005,9 @@ bool expectRVVSourceRouteRegistrationMetadata(
           "rvv-runtime-control-name-boundary"))
     return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
-          registry, family.routeID, "tcrv_rvv.descriptor_element_count",
+          registry, family.routeID, "tcrv_rvv.component_capacity_element_count",
           tianchenrv::target::rvv::
-              getRVVDescriptorElementCountCapacityMetadataRole()))
+              getRVVComponentCapacityElementCountMetadataRole()))
     return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.selected_vector_shape",
@@ -1063,7 +1063,7 @@ bool expectRVVSourceRouteRegistrationMetadata(
 
 bool expectScalarSourceRouteRegistrationMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
+    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord
         &family) {
   llvm::StringRef expectedRole =
       family.rvvFamily->dtypeID == "i32" || family.rvvFamily->dtypeID == "i64"
@@ -1113,7 +1113,7 @@ bool expectScalarSourceRouteRegistrationMetadata(
     if (findRouteSelectedPlanRequirement(
             *registry.lookup(family.scalar.routeID),
             tianchenrv::target::rvv_scalar::
-                getScalarSelectedLoweringDescriptorMetadataName())) {
+                getScalarSelectedLoweringTokenMetadataName())) {
       llvm::errs() << "scalar typed source route unexpectedly requires "
                       "selected lowering legacy descriptor mirror metadata\n";
       return false;
@@ -1122,8 +1122,8 @@ bool expectScalarSourceRouteRegistrationMetadata(
     if (!expectRouteSelectedPlanExactRequirement(
             registry, family.scalar.routeID,
             tianchenrv::target::rvv_scalar::
-                getScalarSelectedLoweringDescriptorMetadataName(),
-            family.loweringDescriptor,
+                getScalarSelectedLoweringTokenMetadataName(),
+            family.legacyLoweringToken,
             tianchenrv::target::rvv_scalar::
                 getScalarLegacyDescriptorMirrorMetadataRole()))
       return false;
@@ -1647,7 +1647,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
           "stale-template-zero-core-handoff"))
     return false;
 
-  for (const RVVBinaryFamilyDescriptor *family :
+  for (const RVVBinaryFamilyRecord *family :
        tianchenrv::target::rvv::getRVVBinaryFamilyRegistrationRecords())
     if (!expectRVVSourceRouteRegistrationMetadata(registry, *family))
       return false;
@@ -1839,7 +1839,7 @@ bool expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
 bool expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(
     const TargetArtifactExporterRegistry &registry);
 
-bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
+bool expectRVVSubRouteRegistrationRejectsMissingComponentCapacityElementCountMetadata(
     const TargetArtifactExporterRegistry &registry);
 
 bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
@@ -2214,7 +2214,7 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
     return false;
   if (!expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(registry))
     return false;
-  if (!expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(registry))
+  if (!expectRVVSubRouteRegistrationRejectsMissingComponentCapacityElementCountMetadata(registry))
     return false;
   if (!expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
           registry))
@@ -3190,7 +3190,7 @@ bool expectI32BinaryRuntimeABIContractShape() {
 }
 
 bool expectRVVBinaryRuntimeABIContractShapeForFamily(
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const auto &contract =
       tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(family);
   constexpr RuntimeABIParameterOwnership owned =
@@ -3286,7 +3286,7 @@ bool expectRVVBinaryRuntimeABIContractShapeForFamily(
 }
 
 bool expectRVVBinaryRuntimeABIContractShape() {
-  for (const RVVBinaryFamilyDescriptor *family :
+  for (const RVVBinaryFamilyRecord *family :
        tianchenrv::target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (!expectRVVBinaryRuntimeABIContractShapeForFamily(*family))
       return false;
@@ -3455,7 +3455,7 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
     return false;
   }
 
-  for (const RVVBinaryFamilyDescriptor *family :
+  for (const RVVBinaryFamilyRecord *family :
        tianchenrv::target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     for (tianchenrv::target::rvv::RVVMicrokernelDirectRouteKind routeKind :
          routeKinds) {
@@ -3538,7 +3538,7 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
         return false;
       if (!expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
               registry, route.getRouteID(),
-              "tcrv_rvv.descriptor_element_count",
+              "tcrv_rvv.component_capacity_element_count",
               tianchenrv::target::rvv::
                   getRVVLegacyDescriptorMirrorMetadataRole()))
         return false;
@@ -4159,7 +4159,7 @@ TargetArtifactCandidate makeRVVMulDirectCandidate(
 
 TargetArtifactCandidate makeRVVI64DirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const auto &contract =
       tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(family);
   TargetArtifactCandidate candidate;
@@ -4226,7 +4226,7 @@ TargetArtifactCandidate makeScalarDispatchFallbackCandidate(
 
 TargetArtifactCandidate makeScalarDirectCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel, llvm::StringRef selectedVariant,
-    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor
+    const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord
         &descriptor) {
   const auto &family = descriptor.scalar;
   TargetArtifactCandidate candidate;
@@ -4661,7 +4661,7 @@ bool expectRVVSubRouteRegistrationRejectsMissingSelectedShapeMetadata(
        "requires selected_plan_metadata 'tcrv_rvv.selected_vector_shape'"});
 }
 
-bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
+bool expectRVVSubRouteRegistrationRejectsMissingComponentCapacityElementCountMetadata(
     const TargetArtifactExporterRegistry &registry) {
   const TargetArtifactExporter *exporter =
       registry.lookup("tcrv-export-rvv-i32-vsub-microkernel-c");
@@ -4676,18 +4676,18 @@ bool expectRVVSubRouteRegistrationRejectsMissingDescriptorElementCountMetadata(
                                 "rvv_sub_slice");
   if (!eraseSelectedPlanMetadataEntry(
           candidate, tianchenrv::target::rvv::
-                         getRVVDescriptorElementCountMetadataName())) {
-    llvm::errs() << "test candidate is missing descriptor_element_count "
+                         getRVVComponentCapacityElementCountMetadataName())) {
+    llvm::errs() << "test candidate is missing component_capacity_element_count "
                     "metadata\n";
     return false;
   }
 
   return expectErrorContains(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
-      "missing descriptor-local RVV element-count metadata rejected by "
+      "missing artifact-local RVV component-capacity metadata rejected by "
       "registered route metadata",
       {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
-       "requires selected_plan_metadata 'tcrv_rvv.descriptor_element_count'"});
+       "requires selected_plan_metadata 'tcrv_rvv.component_capacity_element_count'"});
 }
 
 bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
@@ -4754,10 +4754,10 @@ bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
            "must use value 'tcrv_rvv.with_vl'"}))
     return false;
   if (!expectMutatedCandidateRejected(
-          "descriptor-local count rejected as vsub runtime element-count "
+          "artifact-local component capacity rejected as vsub runtime element-count "
           "authority",
           tianchenrv::target::rvv::getRVVRuntimeElementCountCNameMetadataName(),
-          "descriptor_element_count",
+          "component_capacity_element_count",
           {"selected_plan_metadata 'tcrv_rvv.runtime_element_count_c_name'",
            "runtime element-count C name must be 'n'"}))
     return false;
@@ -4813,7 +4813,7 @@ bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
 
 bool expectRVVI64SourceRejectsStaleI32AddMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for stale metadata "
@@ -4844,7 +4844,7 @@ bool expectRVVI64SourceRejectsStaleI32AddMetadata(
 
 bool expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for selected metadata "
@@ -4870,7 +4870,7 @@ bool expectRVVI64SourceRejectsMissingSelectedConfigMetadata(
 
 bool expectRVVI64SourceRejectsMissingSelectedCapabilityMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for selected capability "
@@ -4898,7 +4898,7 @@ bool expectRVVI64SourceRejectsMissingSelectedCapabilityMetadata(
 
 bool expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for stale selected "
@@ -4924,7 +4924,7 @@ bool expectRVVI64SourceRejectsStaleSelectedConfigMetadata(
 
 bool expectRVVI64SourceRejectsStaleSelectedCapabilityMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for stale selected "
@@ -4953,7 +4953,7 @@ bool expectRVVI64SourceRejectsStaleSelectedCapabilityMetadata(
 
 bool expectRVVI64SourceRejectsMismatchedSelectedShapeMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for mismatched selected "
@@ -4980,7 +4980,7 @@ bool expectRVVI64SourceRejectsMismatchedSelectedShapeMetadata(
 
 bool expectRVVI64SourceRejectsStaleSelectedLMULMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for stale selected "
@@ -5006,7 +5006,7 @@ bool expectRVVI64SourceRejectsStaleSelectedLMULMetadata(
 
 bool expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for stale runtime AVL "
@@ -5030,9 +5030,9 @@ bool expectRVVI64SourceRejectsStaleRuntimeAVLMetadata(
        "must use value 'runtime-element-count'"});
 }
 
-bool expectRVVI64SourceRejectsMissingDescriptorElementCountMetadata(
+bool expectRVVI64SourceRejectsMissingComponentCapacityElementCountMetadata(
     const TargetArtifactExporterRegistry &registry,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   const TargetArtifactExporter *exporter = registry.lookup(family.routeID);
   if (!exporter) {
     llvm::errs() << "missing RVV i64 microkernel route for missing descriptor "
@@ -5045,17 +5045,17 @@ bool expectRVVI64SourceRejectsMissingDescriptorElementCountMetadata(
       tianchenrv::tcrv::exec::KernelOp(), "rvv_i64_slice", family);
   if (!eraseSelectedPlanMetadataEntry(
           candidate, tianchenrv::target::rvv::
-                         getRVVDescriptorElementCountMetadataName())) {
-    llvm::errs() << "test candidate is missing descriptor_element_count "
+                         getRVVComponentCapacityElementCountMetadataName())) {
+    llvm::errs() << "test candidate is missing component_capacity_element_count "
                     "metadata\n";
     return false;
   }
   return expectErrorContains(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
-      "missing descriptor-local RVV element-count metadata rejected by RVV i64 "
+      "missing artifact-local RVV component-capacity metadata rejected by RVV i64 "
       "source route",
       {"route id '" + family.routeID.str() + "'",
-       "requires selected_plan_metadata 'tcrv_rvv.descriptor_element_count'"});
+       "requires selected_plan_metadata 'tcrv_rvv.component_capacity_element_count'"});
 }
 
 bool expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch() {
@@ -5516,7 +5516,7 @@ bool replaceFirst(std::string &text, llvm::StringRef from,
 }
 
 std::string makeRVVI64BodyAuthorityFixture(
-    const RVVBinaryFamilyDescriptor &family, llvm::StringRef descriptorMirror,
+    const RVVBinaryFamilyRecord &family, llvm::StringRef descriptorMirror,
     bool includeTypedBody) {
   std::string source;
   llvm::raw_string_ostream os(source);
@@ -5653,7 +5653,7 @@ bool expectRVVI64TargetExportBodyAuthority() {
   const auto &vsubFamily =
       tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord();
   std::string matchingMirrorSource =
-      makeRVVI64BodyAuthorityFixture(vsubFamily, vsubFamily.loweringDescriptor,
+      makeRVVI64BodyAuthorityFixture(vsubFamily, vsubFamily.legacyLoweringToken,
                                      /*includeTypedBody=*/true);
   mlir::OwningOpRef<mlir::ModuleOp> matchingMirrorModule =
       parseRVVI64BodyAuthorityFixture(
@@ -5687,7 +5687,7 @@ bool expectRVVI64TargetExportBodyAuthority() {
   const auto &vmulFamily =
       tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord();
   std::string staleMirrorSource =
-      makeRVVI64BodyAuthorityFixture(vsubFamily, vmulFamily.loweringDescriptor,
+      makeRVVI64BodyAuthorityFixture(vsubFamily, vmulFamily.legacyLoweringToken,
                                      /*includeTypedBody=*/true);
   mlir::OwningOpRef<mlir::ModuleOp> staleMirrorModule =
       parseRVVI64BodyAuthorityFixture(
@@ -5715,7 +5715,7 @@ bool expectRVVI64TargetExportBodyAuthority() {
   }
 
   std::string descriptorOnlySource =
-      makeRVVI64BodyAuthorityFixture(vmulFamily, vmulFamily.loweringDescriptor,
+      makeRVVI64BodyAuthorityFixture(vmulFamily, vmulFamily.legacyLoweringToken,
                                      /*includeTypedBody=*/false);
   mlir::OwningOpRef<mlir::ModuleOp> descriptorOnlyModule =
       parseRVVI64BodyAuthorityFixture(
@@ -5971,7 +5971,7 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
           "tcrv_rvv.dispatch_contract_selected_role");
   const SelectedPlanMetadataEntry *descriptorCount =
       findDispatchContractMetadata(
-          "tcrv_rvv.dispatch_contract_descriptor_element_count");
+          "tcrv_rvv.dispatch_contract_component_capacity_element_count");
   const SelectedPlanMetadataEntry *profileVariant =
       findDispatchContractMetadata(
           "tcrv_rvv.dispatch_contract_selected_config_profile_variant_config");
@@ -6031,19 +6031,19 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
       candidates;
   if (!setSelectedPlanMetadataValue(
           staleDescriptorCandidates[0],
-          tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName(),
+          tianchenrv::target::rvv::getRVVComponentCapacityElementCountMetadataName(),
           "8")) {
     llvm::errs() << "stale dispatch bundle metadata test candidate is missing "
-                    "descriptor_element_count metadata\n";
+                    "component_capacity_element_count metadata\n";
     return false;
   }
   if (!expectErrorContains(
           composite->getCandidateValidationFn()(staleDescriptorCandidates),
-          "stale descriptor-local RVV element-count metadata rejected by "
+          "stale artifact-local RVV component-capacity metadata rejected by "
           "dispatch bundle metadata export",
           {"selected RVV target artifact candidate @rvv_first_slice",
-           "selected_plan_metadata 'tcrv_rvv.descriptor_element_count'",
-           "descriptor-local element_count layer is stale"}))
+           "selected_plan_metadata 'tcrv_rvv.component_capacity_element_count'",
+           "artifact-local component capacity layer is stale"}))
     return false;
   return true;
 }
@@ -6647,9 +6647,9 @@ int main() {
           getMulRuntimeABIContract().getCallableRoleRequirements()))
     return 1;
   auto i64Families = {
-      tianchenrv::target::rvv::getI64VAddIntrinsicDescriptor(),
-      tianchenrv::target::rvv::getI64VSubIntrinsicDescriptor(),
-      tianchenrv::target::rvv::getI64VMulIntrinsicDescriptor(),
+      tianchenrv::target::rvv::getI64VAddIntrinsicRoute(),
+      tianchenrv::target::rvv::getI64VSubIntrinsicRoute(),
+      tianchenrv::target::rvv::getI64VMulIntrinsicRoute(),
   };
   for (const auto &descriptor : i64Families) {
     if (!expectRoute(builtinRegistry, descriptor.getRVVRouteID(),
@@ -7170,7 +7170,7 @@ int main() {
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
     return 1;
-  if (!expectRVVI64SourceRejectsMissingDescriptorElementCountMetadata(
+  if (!expectRVVI64SourceRejectsMissingComponentCapacityElementCountMetadata(
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
     return 1;

@@ -419,7 +419,7 @@
 # VSUB-M2-SOURCE: /* selected_binary_config: dtype=i32, family=i32-vsub, operator=subtract, shape=i32m2, sew=32, lmul=m2
 # VSUB-M2-SOURCE-SAME: runtime_element_count_c_name=n
 # VSUB-M2-SOURCE-SAME: dispatch_availability_c_name=rvv_available
-# VSUB-M2-SOURCE-SAME: descriptor_element_count=16
+# VSUB-M2-SOURCE-SAME: component_capacity_element_count=16
 # VSUB-M2-SOURCE: /* rvv_selected_plan_metadata[0]: name=tcrv_rvv.selected_vector_shape, value=i32m2, role=selected-rvv-vector-shape-config
 # VSUB-M2-SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_rvv_first_slice */
 # VSUB-M2-SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_bundle_i32m2_vsub_scalar_fallback_first_slice */

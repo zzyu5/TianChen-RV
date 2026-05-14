@@ -5,7 +5,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -23,7 +23,7 @@ namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
-constexpr llvm::StringLiteral kLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLoweringTokenAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
@@ -70,7 +70,7 @@ constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 
 using target::rvv::RVVBinaryDTypeKind;
-using target::rvv::RVVBinaryIntrinsicDescriptor;
+using target::rvv::RVVBinaryIntrinsicRoute;
 using target::rvv::RVVVectorShapeConfig;
 
 struct RVVCapacityMetadata {
@@ -521,7 +521,7 @@ llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
         "materialized tcrv.exec.variant");
 
   auto descriptorAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
+      variant->getAttrOfType<mlir::StringAttr>(kLoweringTokenAttrName);
   if (!descriptorAttr)
     return llvm::Error::success();
 
@@ -530,14 +530,14 @@ llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
     return makeRVVBinarySelectedBoundaryError(
         llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
         variant.getSymName() + " requires non-empty string attribute '" +
-        kLoweringDescriptorAttrName + "'");
+        kLoweringTokenAttrName + "'");
   if (llvm::Error error = validateRVVPropertyText(
           "legacy RVV binary descriptor metadata",
-          kLoweringDescriptorAttrName, descriptor))
+          kLoweringTokenAttrName, descriptor))
     return error;
 
-  const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+  const target::rvv::RVVBinaryFamilyRecord *descriptorFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
           descriptor);
   if (!descriptorFamily)
     return makeRVVBinarySelectedBoundaryError(
@@ -589,23 +589,23 @@ llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
 llvm::Error rejectLegacyDescriptorOnlyMicrokernelMaterialization(
     tcrv::exec::VariantOp variant) {
   auto descriptorAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
+      variant->getAttrOfType<mlir::StringAttr>(kLoweringTokenAttrName);
   if (!descriptorAttr || descriptorAttr.getValue().trim().empty())
     return makeRVVBinarySelectedBoundaryError(
         llvm::Twine("direct legacy-registration-only RVV binary "
                     "lowering-boundary materialization requires non-empty "
                     "string attribute '") +
-        kLoweringDescriptorAttrName + "'");
+        kLoweringTokenAttrName + "'");
 
   llvm::StringRef descriptor = descriptorAttr.getValue().trim();
   if (llvm::Error error = validateRVVPropertyText(
           "direct legacy-registration-only RVV binary lowering-boundary "
           "materialization",
-          kLoweringDescriptorAttrName, descriptor))
+          kLoweringTokenAttrName, descriptor))
     return error;
 
-  const target::rvv::RVVBinaryFamilyDescriptor *descriptorFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+  const target::rvv::RVVBinaryFamilyRecord *descriptorFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
           descriptor);
   if (!descriptorFamily)
     return makeRVVBinarySelectedBoundaryError(
@@ -686,13 +686,13 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
   if (*explicitAttachment)
     existingSelectedEmissionAttachment = std::move(**explicitAttachment);
 
-  bool hasLoweringDescriptor = variant->hasAttr(kLoweringDescriptorAttrName);
+  bool hasLoweringToken = variant->hasAttr(kLoweringTokenAttrName);
   bool hasSmokeProbeDescriptor =
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
   bool hasDescriptorlessDefaultTyped =
-      !hasLoweringDescriptor && !hasSmokeProbeDescriptor &&
+      !hasLoweringToken && !hasSmokeProbeDescriptor &&
       variant->hasAttr(kElementCountAttrName);
-  if (!existingSelectedEmissionAttachment && hasLoweringDescriptor)
+  if (!existingSelectedEmissionAttachment && hasLoweringToken)
     return rejectLegacyDescriptorOnlyMicrokernelMaterialization(variant);
 
   if (!existingSelectedEmissionAttachment && hasDescriptorlessDefaultTyped) {
@@ -722,20 +722,19 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
             kernel, variant, request.getRole()))
       return error;
 
-  std::optional<RVVBinaryIntrinsicDescriptor> selectedDescriptor;
+  std::optional<RVVBinaryIntrinsicRoute> selectedRoute;
   if (i32MicrokernelPlan) {
-    selectedDescriptor = i32MicrokernelPlan->selectedPlan.descriptor;
+    selectedRoute = i32MicrokernelPlan->selectedPlan.descriptor;
   } else if (i64MicrokernelPlan) {
-    selectedDescriptor = i64MicrokernelPlan->selectedPlan.descriptor;
+    selectedRoute = i64MicrokernelPlan->selectedPlan.descriptor;
   } else if (existingSelectedEmissionAttachment) {
-    selectedDescriptor =
-        existingSelectedEmissionAttachment->selectedPlan.descriptor;
+    selectedRoute = existingSelectedEmissionAttachment->selectedPlan.descriptor;
   }
 
-  if (selectedDescriptor)
+  if (selectedRoute)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
             kernel, request.getBuilder(),
-            selectedDescriptor->getBufferMemWindowSpecs()))
+            selectedRoute->getBufferMemWindowSpecs()))
       return error;
 
   const RVVBinarySelectedPlan *selectedSourcePlan = nullptr;
@@ -748,11 +747,11 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
 
   if (selectedPathHasCallableMicrokernel) {
     llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
-    if (!selectedDescriptor)
+    if (!selectedRoute)
       return makeRVVBinarySelectedBoundaryError(
           "selected RVV callable microkernel requires typed-family "
           "runtime ABI metadata");
-    auto countSpecs = selectedDescriptor->getRuntimeElementCountParamSpecs();
+    auto countSpecs = selectedRoute->getRuntimeElementCountParamSpecs();
     runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
     if (llvm::Error error =
             support::ensureRuntimeABIParamsAllowingExistingCNames(
@@ -823,7 +822,7 @@ llvm::Error validateRVVBinarySelectedLoweringBoundary(
       hasAnyRVVSelectedVectorShapeMetadata(
           boundary, getRVVBoundarySelectedVectorShapeMetadataNames());
   bool requiresSelectedLegality =
-      variant->hasAttr(kLoweringDescriptorAttrName) ||
+      variant->hasAttr(kLoweringTokenAttrName) ||
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVRequiredMarchAttrName) || hasCapacityMetadata ||
       hasSelectedShapeMetadata;

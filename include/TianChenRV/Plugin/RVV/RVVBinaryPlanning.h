@@ -3,7 +3,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
@@ -32,7 +32,7 @@ struct RVVSelectedVectorShapeMetadataNames {
 };
 
 struct RVVBinaryEmissionIdentity {
-  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   std::string emissionPath;
   std::string supportedMessage;
 
@@ -96,8 +96,8 @@ struct RVVBinarySelectedConfig {
 };
 
 struct RVVBinarySelectedPlan {
-  target::rvv::RVVBinaryIntrinsicDescriptor descriptor;
-  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  target::rvv::RVVBinaryIntrinsicRoute descriptor;
+  const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   RVVBinarySelectedConfig selectedConfig;
   std::int64_t elementCount = 0;
   std::string requiredMarch;
@@ -141,7 +141,7 @@ struct RVVBinaryProposalPlan {
 
   llvm::StringRef getFamilyID() const;
   llvm::StringRef getDTypeID() const;
-  const target::rvv::RVVBinaryFamilyDescriptor &getFamily() const;
+  const target::rvv::RVVBinaryFamilyRecord &getFamily() const;
   const target::rvv::RVVVectorShapeConfig &getSelectedShape() const;
   llvm::ArrayRef<std::string> getRequiredCapabilityIDs() const;
   llvm::StringRef getCondition() const;
@@ -152,7 +152,7 @@ struct RVVBinaryProposalPlan {
 };
 
 struct RVVBinaryFamilyPlanningResolution {
-  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   const target::rvv::RVVVectorShapeConfig *directSelectedShape = nullptr;
   std::string sourceKind;
 
@@ -198,7 +198,7 @@ llvm::StringRef getRVVDefaultTypedBinarySourceKind();
 llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind();
 
 llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
-    const target::rvv::RVVBinaryFamilyDescriptor &family);
+    const target::rvv::RVVBinaryFamilyRecord &family);
 
 std::string formatRVVBinaryFamilyFrontendLoweringList();
 
@@ -217,7 +217,7 @@ llvm::Error verifyRVVBinaryVariantRequiresCapabilityID(
     const support::TargetCapabilitySet &capabilities, llvm::StringRef id);
 
 llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     std::int64_t elementCount, llvm::StringRef requiredMarch,
     std::optional<std::string> selectedMABI = std::nullopt);
@@ -229,7 +229,7 @@ resolveRVVBinaryFamilyForProposal(
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const support::TargetCapabilitySet &capabilities,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     llvm::StringRef diagnosticContext = "RVV binary proposal");
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
@@ -245,7 +245,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
 llvm::Expected<RVVBinarySelectedPlan>
 buildRVVBinarySelectedPlanFromTypedFamilyVariant(
     tcrv::exec::VariantOp variant,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     llvm::StringRef expectedDTypeID = llvm::StringRef(),
     std::optional<std::string> selectedMABI = std::nullopt);
@@ -271,7 +271,7 @@ bool hasAnyRVVSelectedVectorShapeMetadata(
     mlir::Operation *op, const RVVSelectedVectorShapeMetadataNames &names);
 
 bool isTypedSourceRVVBinaryFamily(
-    const target::rvv::RVVBinaryFamilyDescriptor &family);
+    const target::rvv::RVVBinaryFamilyRecord &family);
 
 } // namespace tianchenrv::plugin::rvv
 

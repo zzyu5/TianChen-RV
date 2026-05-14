@@ -208,7 +208,7 @@ module @plan_linalg_i32_vadd_bundle_input {
 // INDEX: name: "tcrv_rvv.dispatch_contract_selected_role"
 // INDEX-NEXT: value: "dispatch case"
 // INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
-// INDEX: name: "tcrv_rvv.dispatch_contract_descriptor_element_count"
+// INDEX: name: "tcrv_rvv.dispatch_contract_component_capacity_element_count"
 // INDEX-NEXT: value: "16"
 // INDEX-NEXT: role: "rvv-dispatch-selected-config-contract"
 // INDEX: evidence_role: "compiler-artifact"
@@ -241,7 +241,7 @@ module @plan_linalg_i32_vadd_bundle_input {
 // SOURCE: /* selected_binary_config: dtype=i32, family=i32-vadd
 // SOURCE-SAME: runtime_element_count_c_name=n
 // SOURCE-SAME: dispatch_availability_c_name=rvv_available
-// SOURCE-SAME: descriptor_element_count=16
+// SOURCE-SAME: component_capacity_element_count=16
 // SOURCE-SAME: selected_role=dispatch case */
 // SOURCE: /* rvv_selected_variant: @rvv_first_slice */
 // SOURCE: /* rvv_selected_role: dispatch case */

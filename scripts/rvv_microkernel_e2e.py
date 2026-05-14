@@ -1827,7 +1827,7 @@ def parse_runtime_length_contract(
         "runtime_avl_role",
         "runtime_vl_source",
         "runtime_vl_scope",
-        "descriptor_element_count",
+        "component_capacity_element_count",
     }
     missing = sorted(required.difference(fields))
     if missing:
@@ -1868,16 +1868,16 @@ def parse_runtime_length_contract(
             )
 
     try:
-        descriptor_element_count = int(fields["descriptor_element_count"])
+        component_capacity_element_count = int(fields["component_capacity_element_count"])
     except ValueError as error:
         raise BridgeError(
             "generated C source runtime-length contract "
-            "descriptor_element_count must be an integer"
+            "component_capacity_element_count must be an integer"
         ) from error
-    if descriptor_element_count <= 0 or descriptor_element_count > 64:
+    if component_capacity_element_count <= 0 or component_capacity_element_count > 64:
         raise BridgeError(
             "generated C source runtime-length contract "
-            "descriptor_element_count must stay in the bounded [1, 64] range"
+            "component_capacity_element_count must stay in the bounded [1, 64] range"
         )
 
     setvl = setvl_intrinsic_for_shape(ACTIVE_VECTOR_SHAPE)
@@ -1898,12 +1898,12 @@ def parse_runtime_length_contract(
     descriptor_call = re.compile(
         re.escape(setvl)
         + r"\s*\(\s*"
-        + re.escape(str(descriptor_element_count))
+        + re.escape(str(component_capacity_element_count))
         + r"\s*\)"
     )
     if descriptor_call.search(source):
         raise BridgeError(
-            "generated C source must not use descriptor_element_count as the "
+            "generated C source must not use component_capacity_element_count as the "
             "runtime AVL/vsetvl operand"
         )
 
@@ -1913,7 +1913,7 @@ def parse_runtime_length_contract(
         "runtime_avl_role": fields["runtime_avl_role"],
         "runtime_vl_source": fields["runtime_vl_source"],
         "runtime_vl_scope": fields["runtime_vl_scope"],
-        "descriptor_element_count": descriptor_element_count,
+        "component_capacity_element_count": component_capacity_element_count,
         "setvl_operand": f"{runtime_name} - offset",
     }
 
@@ -2671,8 +2671,8 @@ def validate_generated_object_artifact(
         + str(source_flags["runtime_length_contract"]["runtime_vl_source"]),
         "runtime_vl_scope="
         + str(source_flags["runtime_length_contract"]["runtime_vl_scope"]),
-        "descriptor_element_count="
-        + str(source_flags["runtime_length_contract"]["descriptor_element_count"]),
+        "component_capacity_element_count="
+        + str(source_flags["runtime_length_contract"]["component_capacity_element_count"]),
         f"runtime_abi={ACTIVE_ARITHMETIC_FAMILY['runtime_abi']}",
         f"runtime_abi_kind={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_kind']}",
         f"runtime_abi_name={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_name']}",
@@ -5546,7 +5546,7 @@ kernel @rvv_microkernel_manifest
 /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 /* arithmetic_family: i32-vadd */
 /* dtype: i32 */
-/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, component_capacity_element_count=16 */
 /* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
@@ -5722,7 +5722,7 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* arithmetic_family: i32-vsub */
 /* dtype: i32 */
-/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, component_capacity_element_count=16 */
 /* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
@@ -5782,7 +5782,7 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 /* arithmetic_family: i32-vsub */
 /* dtype: i32 */
-/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, component_capacity_element_count=16 */
 /* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
@@ -5846,7 +5846,7 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 /* arithmetic_family: i32-vmul */
 /* dtype: i32 */
-/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=16 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, component_capacity_element_count=16 */
 /* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i32_mul via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_mul -> tcrv_rvv.i32_store */
@@ -5935,7 +5935,7 @@ void f(void) {
 /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
 /* arithmetic_family: i64-vadd */
 /* dtype: i64 */
-/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, descriptor_element_count=8 */
+/* selected_runtime_vl_boundary: runtime_element_count_c_name=n, runtime_avl_source=runtime-element-count-abi-parameter, runtime_avl_role=runtime-element-count, runtime_vl_source=tcrv_rvv.setvl, runtime_vl_scope=tcrv_rvv.with_vl, component_capacity_element_count=8 */
 /* emitc.call_opaque_operand[0][0]: expression=n - offset, c_type=size_t */
 /* arithmetic_source: typed op tcrv_rvv.i64_add via generated EmitC route and IR-backed callable ABI */
 /* dataflow_body: tcrv_rvv.i64_load -> tcrv_rvv.i64_load -> tcrv_rvv.i64_add -> tcrv_rvv.i64_store */

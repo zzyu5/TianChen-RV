@@ -213,7 +213,7 @@ inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataRole() {
 inline llvm::StringRef getSelectedRVVVectorShapeMetadataNote() {
   return "compile-time RVV vector-shape config selected by the RVV "
          "plugin and validated against capabilities; not base lane capacity, "
-         "runtime AVL/VL, or descriptor element_count";
+         "runtime AVL/VL, or artifact-local component capacity";
 }
 
 inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
@@ -226,8 +226,8 @@ inline llvm::StringRef getSelectedRVVVectorShapeCapabilityMetadataRole() {
 
 inline llvm::StringRef getSelectedRVVVectorShapeCapabilityMetadataNote() {
   return "capability id backing the selected RVV vector-shape config; "
-         "compile-time capability evidence, not runtime AVL/VL or descriptor "
-         "element_count";
+         "compile-time capability evidence, not runtime AVL/VL or "
+         "artifact-local component capacity";
 }
 
 inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataRole() {
@@ -238,7 +238,7 @@ inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataNote() {
   return "runtime AVL enters through the target/export-owned runtime element-count "
          "ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by "
          "tcrv_rvv.with_vl; neither value is a target capability fact or "
-         "descriptor-local element_count";
+         "artifact-local component capacity";
 }
 
 inline llvm::StringRef getRVVRuntimeAVLSourceMetadataName() {

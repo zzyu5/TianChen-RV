@@ -208,7 +208,7 @@ int runI32SelectedPlanTest() {
               plan.getSelectedConfig()
                       .getContract()
                       .getRuntimeElementCountCName() == "n" &&
-              plan.getSelectedConfig().getContract().getDescriptorElementCount() ==
+              plan.getSelectedConfig().getContract().getComponentCapacityElementCount() ==
                   32,
           "i32 selected plan owns the selected-config contract boundary"))
     return result;
@@ -242,7 +242,7 @@ int runI32SelectedPlanTest() {
 
 int runI64SelectedPlanTest() {
   auto expectI64Family =
-      [](const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family)
+      [](const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family)
       -> int {
     RVVBinarySelectedPlan plan;
     if (int result = expectExpectedSuccess(
@@ -311,7 +311,7 @@ int runI64SelectedPlanTest() {
                     "i64m1" &&
                 plan.getSelectedConfig()
                         .getContract()
-                        .getDescriptorElementCount() == 16,
+                        .getComponentCapacityElementCount() == 16,
             "i64 selected plan owns the i64m1 selected-config contract"))
       return result;
     return expect(plan.getStoreIntrinsicName() == "__riscv_vse64_v_i64m1",
@@ -423,7 +423,7 @@ int runProposalPlanRequirementMetadataTest() {
                      *i32Plan.capabilityView.vlenbBytes == 16 &&
                      *i32Plan.capabilityView.i32M1LaneCount == 4,
                  "i32 proposal plan keeps capacity facts separate from "
-                 "descriptor-local element count"))
+                 "artifact-local component capacity"))
     return result;
   if (int result =
           expect(i32Plan.getCondition() ==
@@ -1059,7 +1059,7 @@ int runSelectedConfigVLDataflowMaterializationTest() {
               i32Dataflow.sewBits == 32 && i32Dataflow.lmul == "m2" &&
               i32Dataflow.vectorSuffix == "i32m2" &&
               i32Dataflow.setvlSuffix == "e32m2" &&
-              i32Dataflow.descriptorElementCount == 32,
+              i32Dataflow.componentCapacityElementCount == 32,
           "i32m2 VL dataflow derives vector type, ops, and config from the "
           "selected-config contract"))
     return result;
@@ -1095,18 +1095,18 @@ int runSelectedConfigVLDataflowMaterializationTest() {
           "same selected-config contract path"))
     return result;
 
-  RVVBinarySelectedPlan staleDescriptorPlan = i32Plan;
-  staleDescriptorPlan.descriptor =
-      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+  RVVBinarySelectedPlan staleLegacyMirrorPlan = i32Plan;
+  staleLegacyMirrorPlan.descriptor =
+      tianchenrv::target::rvv::getRVVBinaryIntrinsicRoute(
           tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
           tianchenrv::target::rvv::getI32M1VectorShapeConfig());
   llvm::Expected<tianchenrv::plugin::rvv::
                      RVVBinaryVLDataflowMaterialization>
       staleDataflow = tianchenrv::plugin::rvv::
           buildRVVBinaryVLDataflowMaterialization(&context,
-                                                  staleDescriptorPlan);
+                                                  staleLegacyMirrorPlan);
   if (staleDataflow)
-    return fail("expected stale i32m1 descriptor versus i32m2 selected-config "
+    return fail("expected stale i32m1 legacy mirror versus i32m2 selected-config "
                 "contract to fail");
   if (int result = expectErrorContains(staleDataflow.takeError(),
                                        "field 'shape'"))
@@ -1116,7 +1116,7 @@ int runSelectedConfigVLDataflowMaterializationTest() {
   missingContractPlan.family =
       &tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord();
   missingContractPlan.descriptor =
-      tianchenrv::target::rvv::getRVVBinaryIntrinsicDescriptor(
+      tianchenrv::target::rvv::getRVVBinaryIntrinsicRoute(
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord(),
           tianchenrv::target::rvv::getI64M1VectorShapeConfig());
   missingContractPlan.elementCount = 16;

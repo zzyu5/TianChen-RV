@@ -4,8 +4,8 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 #include "TianChenRV/Target/RVV/RVVRuntimeLengthContract.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
@@ -42,7 +42,7 @@ inline llvm::StringRef getRVVSelectedBinaryMicrokernelOpMetadataName() {
   return "tcrv_rvv.selected_binary_microkernel_op";
 }
 
-inline llvm::StringRef getRVVSelectedLoweringDescriptorMetadataName() {
+inline llvm::StringRef getRVVSelectedLoweringTokenMetadataName() {
   return "tcrv_rvv.selected_lowering_descriptor";
 }
 
@@ -98,7 +98,7 @@ inline llvm::StringRef getRVVLegacyDescriptorMirrorMetadataNote() {
 
 inline llvm::StringRef getRVVTypedBinarySourceMetadataNote() {
   return "typed RVV family-op metadata selected by the RVV plugin for the "
-         "common EmitC route; not descriptor-owned computation, runtime "
+         "common EmitC route; not metadata-owned computation, runtime "
          "correctness evidence, or performance evidence";
 }
 
@@ -109,7 +109,7 @@ inline llvm::StringRef getRVVTypedBinarySourceIdentityMetadataRole() {
 inline llvm::StringRef getRVVTypedBinarySourceIdentityMetadataNote() {
   return "op-owned RVV source identity carried from the selected lowering "
          "boundary into selected-plan and artifact-bundle validation; not "
-         "descriptor-owned computation or runtime evidence";
+         "metadata-owned computation or runtime evidence";
 }
 
 inline llvm::StringRef getRVVEmitCSourceOpMetadataRole() {
@@ -118,12 +118,12 @@ inline llvm::StringRef getRVVEmitCSourceOpMetadataRole() {
 
 inline llvm::StringRef getRVVEmitCSourceOpMetadataNote() {
   return "typed RVV arithmetic op used as the source operation for the common "
-         "EmitC lowerable route; not a lowering descriptor";
+         "EmitC lowerable route; not a legacy route label";
 }
 
 inline llvm::StringRef getRVVEmitCLowerableOpInterfaceMetadataNote() {
   return "generated RVV op interface queried before building the common EmitC "
-         "lowerable route; not descriptor-selected computation";
+         "lowerable route; not metadata-selected computation";
 }
 
 inline llvm::StringRef getRVVEmitCRouteMetadataRole() {
@@ -132,7 +132,7 @@ inline llvm::StringRef getRVVEmitCRouteMetadataRole() {
 
 inline llvm::StringRef getRVVEmitCRouteMetadataNote() {
   return "RVV plugin-selected extension-family op to common EmitC route "
-         "mapping consumed before target artifact export; not descriptor-to-C "
+         "mapping consumed before target artifact export; not legacy direct C "
          "emission";
 }
 
@@ -160,20 +160,20 @@ inline llvm::StringRef getRVVSelectedConfigProfileMetadataRole() {
 inline llvm::StringRef getRVVSelectedConfigProfileMetadataNote() {
   return "plugin-owned RVV selected config profile separating target "
          "capability facts, compile-time vector variant config, and runtime "
-         "AVL/VL roles; not descriptor-owned computation or runtime evidence";
+         "AVL/VL roles; not metadata-owned computation or runtime evidence";
 }
 
 class RVVBinarySelectedConfigContract {
 public:
   RVVBinarySelectedConfigContract() = default;
 
-  RVVBinarySelectedConfigContract(const RVVBinaryFamilyDescriptor &family,
+  RVVBinarySelectedConfigContract(const RVVBinaryFamilyRecord &family,
                                   const RVVVectorShapeConfig &shape)
       : family(&family), shape(&shape) {}
 
   bool isValid() const { return family && shape; }
 
-  const RVVBinaryFamilyDescriptor &getFamily() const { return *family; }
+  const RVVBinaryFamilyRecord &getFamily() const { return *family; }
   const RVVVectorShapeConfig &getShape() const { return *shape; }
 
   llvm::StringRef getDTypeID() const {
@@ -185,8 +185,8 @@ public:
   llvm::StringRef getFrontendLowering() const {
     return family ? family->frontendLowering : llvm::StringRef();
   }
-  llvm::StringRef getLegacyLoweringDescriptorMirror() const {
-    return family ? family->loweringDescriptor : llvm::StringRef();
+  llvm::StringRef getLegacyLoweringTokenMirror() const {
+    return family ? family->legacyLoweringToken : llvm::StringRef();
   }
   llvm::StringRef getArithmeticOpName() const {
     return family ? family->arithmeticOpName : llvm::StringRef();
@@ -228,8 +228,8 @@ public:
     return selectedVariantSymbol;
   }
   llvm::StringRef getSelectedRole() const { return selectedRole; }
-  std::int64_t getDescriptorElementCount() const {
-    return runtimeLength.getDescriptorElementCount();
+  std::int64_t getComponentCapacityElementCount() const {
+    return runtimeLength.getComponentCapacityElementCount();
   }
   llvm::StringRef getRuntimeElementCountCName() const {
     return runtimeLength.getRuntimeElementCountCName();
@@ -266,8 +266,8 @@ public:
     selectedRole = role.trim().str();
   }
 
-  void setDescriptorElementCount(std::int64_t count) {
-    runtimeLength.setDescriptorElementCount(count);
+  void setComponentCapacityElementCount(std::int64_t count) {
+    runtimeLength.setComponentCapacityElementCount(count);
   }
 
   void setRuntimeElementCountCName(llvm::StringRef cName) {
@@ -319,8 +319,8 @@ public:
         support::RuntimeABIParameterRole::DispatchAvailabilityGuard);
   }
 
-  RVVBinaryIntrinsicDescriptor getIntrinsicDescriptor() const {
-    return getRVVBinaryIntrinsicDescriptor(getFamily(), getShape());
+  RVVBinaryIntrinsicRoute getIntrinsicRoute() const {
+    return getRVVBinaryIntrinsicRoute(getFamily(), getShape());
   }
 
   std::string getSetVLIntrinsicName() const {
@@ -455,7 +455,7 @@ public:
            << formatSelectedConfigProfileVariantConfigMetadataValue()
            << "}, runtime_roles={"
            << formatSelectedConfigProfileRuntimeRolesMetadataValue()
-           << "}, descriptor_element_count=" << getDescriptorElementCount()
+           << "}, component_capacity_element_count=" << getComponentCapacityElementCount()
            << ", source=RVVBinarySelectedConfigProfile";
     stream.flush();
     return text;
@@ -495,8 +495,8 @@ public:
            << getRuntimeElementCountCName()
            << ", dispatch_availability_c_name="
            << getDispatchAvailabilityGuardCName();
-    if (getDescriptorElementCount() > 0)
-      stream << ", descriptor_element_count=" << getDescriptorElementCount();
+    if (getComponentCapacityElementCount() > 0)
+      stream << ", component_capacity_element_count=" << getComponentCapacityElementCount();
     if (fixedSourceExtent)
       stream << ", fixed_source_vector_extent="
              << fixedSourceExtent->sourceVectorExtent
@@ -596,7 +596,7 @@ public:
   }
 
 private:
-  const RVVBinaryFamilyDescriptor *family = nullptr;
+  const RVVBinaryFamilyRecord *family = nullptr;
   const RVVVectorShapeConfig *shape = nullptr;
   std::string selectedVariantSymbol;
   std::string selectedRole;
@@ -679,7 +679,7 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
         "requires a finite binary family descriptor and selected vector-shape "
         "config");
 
-  const RVVBinaryFamilyDescriptor &family = contract.getFamily();
+  const RVVBinaryFamilyRecord &family = contract.getFamily();
   const RVVVectorShapeConfig &shape = contract.getShape();
   if (family.dtypeID != shape.dtypeID)
     return makeRVVSelectedConfigContractError(
@@ -733,12 +733,12 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
     return makeRVVSelectedConfigContractError(message);
   }
 
-  if (contract.getDescriptorElementCount() < 0 ||
-      contract.getDescriptorElementCount() > 64)
+  if (contract.getComponentCapacityElementCount() < 0 ||
+      contract.getComponentCapacityElementCount() > 64)
     return makeRVVSelectedConfigContractError(
         llvm::Twine("selected config mismatch: finite binary family '") +
         family.familyID +
-        "' descriptor-local element_count must be in [1, 64] when present");
+        "' artifact-local component capacity must be in [1, 64] when present");
 
   if (contract.getRuntimeElementCountCName().empty())
     return makeRVVSelectedConfigContractError(
@@ -752,16 +752,16 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
     if (!sourceExtent.isValid())
       return makeRVVSelectedConfigContractError(
           "fixed vector source extent contract is incomplete");
-    if (contract.getDescriptorElementCount() <= 0)
+    if (contract.getComponentCapacityElementCount() <= 0)
       return makeRVVSelectedConfigContractError(
           "fixed vector source extent contract requires a positive "
-          "descriptor-local element_count for cross-checking");
-    if (sourceExtent.sourceVectorExtent != contract.getDescriptorElementCount())
+          "artifact-local component capacity for cross-checking");
+    if (sourceExtent.sourceVectorExtent != contract.getComponentCapacityElementCount())
       return makeRVVSelectedConfigContractError(
           llvm::Twine("fixed vector source extent ") +
           llvm::Twine(sourceExtent.sourceVectorExtent) +
-          " must match descriptor-local element_count " +
-          llvm::Twine(contract.getDescriptorElementCount()));
+          " must match artifact-local component capacity " +
+          llvm::Twine(contract.getComponentCapacityElementCount()));
   }
   if (contract.getDynamicVectorRuntimeExtentContract()) {
     const support::DynamicVectorRuntimeExtentContract &runtimeExtent =
@@ -831,11 +831,11 @@ buildRVVBinaryEmitCBodyMappingFromSelectedConfig(
 
 inline llvm::Expected<RVVBinarySelectedConfigContract>
 buildRVVBinarySelectedConfigContract(
-    const RVVBinaryFamilyDescriptor &family,
+    const RVVBinaryFamilyRecord &family,
     const RVVVectorShapeConfig &shape,
     llvm::StringRef selectedVariantSymbol = llvm::StringRef(),
     llvm::StringRef selectedRole = llvm::StringRef(),
-    std::int64_t descriptorElementCount = 0,
+    std::int64_t componentCapacityElementCount = 0,
     llvm::StringRef runtimeElementCountCName = "n",
     llvm::StringRef dispatchAvailabilityGuardCName = "rvv_available",
     std::optional<support::FixedVectorSourceExtentContract>
@@ -844,7 +844,7 @@ buildRVVBinarySelectedConfigContract(
         dynamicRuntimeExtent = std::nullopt) {
   RVVBinarySelectedConfigContract contract(family, shape);
   contract.setSelectedPath(selectedVariantSymbol, selectedRole);
-  contract.setDescriptorElementCount(descriptorElementCount);
+  contract.setComponentCapacityElementCount(componentCapacityElementCount);
   contract.setRuntimeElementCountCName(runtimeElementCountCName);
   contract.setDispatchAvailabilityGuardCName(dispatchAvailabilityGuardCName);
   contract.setFixedVectorSourceExtentContract(std::move(fixedSourceExtent));
@@ -946,9 +946,9 @@ inline void appendRVVBinaryLegacyDescriptorMirrorMetadata(
   out.push_back({getRVVSelectedBinaryOperatorMetadataName(),
                  contract.getArithmeticVerb(), descriptorRole, descriptorNote,
                  "selected binary operator"});
-  out.push_back({getRVVSelectedLoweringDescriptorMetadataName(),
-                 contract.getLegacyLoweringDescriptorMirror(), descriptorRole,
-                 descriptorNote, "legacy lowering descriptor mirror"});
+  out.push_back({getRVVSelectedLoweringTokenMetadataName(),
+                 contract.getLegacyLoweringTokenMirror(), descriptorRole,
+                 descriptorNote, "legacy lowering route label mirror"});
   out.push_back({getRVVRuntimeElementCountCNameMetadataName(),
                  contract.getRuntimeElementCountCName(),
                  getRVVRuntimeControlNameMetadataRole(),

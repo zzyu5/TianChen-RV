@@ -152,7 +152,7 @@ module {
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
 // SOURCE: /* arithmetic_family: i32-vadd */
-// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, fixed_source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent
+// SOURCE: /* selected_binary_config: {{.*}}component_capacity_element_count=16, fixed_source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent
 // SOURCE: /* selected_runtime_vl_boundary: {{.*}}runtime_avl_source=runtime-element-count-abi-parameter{{.*}}fixed_source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent
 // SOURCE: /* source_frontend_extent_authority: source_kind=mlir-vector-transfer-fixed-i32-vadd.v1, source_authority=source-vector-transfer-read-write-fixed-extent, source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent */
 // SOURCE: /* runtime_element_count_constraint: n must equal fixed source vector extent 16 before runtime AVL/VL execution */

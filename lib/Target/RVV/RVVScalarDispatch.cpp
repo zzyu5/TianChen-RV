@@ -10,7 +10,7 @@
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/BinarySelfCheckExpectation.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
@@ -145,11 +145,11 @@ struct DispatchIRLink {
 };
 
 using DispatchI32FamilySpec =
-    tianchenrv::target::rvv_scalar::DispatchBinaryFamilyDescriptor;
+    tianchenrv::target::rvv_scalar::RVVScalarDispatchFamilyRecord;
 using DispatchRVVVectorShapeConfig =
     tianchenrv::target::rvv::RVVVectorShapeConfig;
-using RVVI32BinaryIntrinsicDescriptor =
-    tianchenrv::target::rvv::RVVBinaryIntrinsicDescriptor;
+using RVVBinaryIntrinsicRoute =
+    tianchenrv::target::rvv::RVVBinaryIntrinsicRoute;
 
 struct DispatchPair {
   const DispatchI32FamilySpec *family = nullptr;
@@ -1507,8 +1507,8 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
        kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
   metadata.selectedPlanMetadata.push_back(
-      {"tcrv_rvv.dispatch_contract_descriptor_element_count",
-       std::to_string(contract.getDescriptorElementCount()),
+      {"tcrv_rvv.dispatch_contract_component_capacity_element_count",
+       std::to_string(contract.getComponentCapacityElementCount()),
        kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
   metadata.selectedPlanMetadata.push_back(
@@ -1654,10 +1654,10 @@ deriveDispatchCompositeIdentityFromSelectedComponents(
       *rvvFamilyID != pair.family->rvvFamily->familyID)
     return makeDispatchError(
         pair.rvv.kernel,
-        llvm::Twine("selected component family '") + *rvvFamilyID +
+            llvm::Twine("selected component family '") + *rvvFamilyID +
             "' does not match finite dispatch route registration metadata '" +
             pair.family->rvvFamily->familyID +
-            "'; descriptor-local metadata cannot alter RVV+scalar dispatch "
+            "'; artifact-local metadata cannot alter RVV+scalar dispatch "
             "identity");
 
   DispatchPair::CompositeIdentity identity;
@@ -2027,47 +2027,47 @@ llvm::Error validateDispatchSelectedSourceIdentityMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error validateDispatchDescriptorElementCountMetadata(
+llvm::Error validateDispatchComponentCapacityElementCountMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract) {
   llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
       findUniqueSelectedPlanMetadataEntry(
           candidate,
-          tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName());
+          tianchenrv::target::rvv::getRVVComponentCapacityElementCountMetadataName());
   if (!metadata)
     return metadata.takeError();
   std::string expectedCount =
-      std::to_string(contract.getDescriptorElementCount());
+      std::to_string(contract.getComponentCapacityElementCount());
   if ((*metadata)->value != expectedCount)
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("selected RVV dispatch candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
+            tianchenrv::target::rvv::getRVVComponentCapacityElementCountMetadataName() +
             "' descriptor element count must be '" + expectedCount + "'");
   if ((*metadata)->role !=
       tianchenrv::target::rvv::
-          getRVVDescriptorElementCountCapacityMetadataRole())
+          getRVVComponentCapacityElementCountMetadataRole())
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("selected RVV dispatch candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
+            tianchenrv::target::rvv::getRVVComponentCapacityElementCountMetadataName() +
             "' role must be '" +
             tianchenrv::target::rvv::
-                getRVVDescriptorElementCountCapacityMetadataRole() +
+                getRVVComponentCapacityElementCountMetadataRole() +
             "'");
   if ((*metadata)->note !=
       tianchenrv::target::rvv::
-          getRVVDescriptorElementCountCapacityMetadataNote())
+          getRVVComponentCapacityElementCountMetadataNote())
     return makeDispatchError(
         candidate.kernel,
         llvm::Twine("selected RVV dispatch candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            tianchenrv::target::rvv::getRVVDescriptorElementCountMetadataName() +
+            tianchenrv::target::rvv::getRVVComponentCapacityElementCountMetadataName() +
             "' note must be '" +
             tianchenrv::target::rvv::
-                getRVVDescriptorElementCountCapacityMetadataNote() +
+                getRVVComponentCapacityElementCountMetadataNote() +
             "'");
   return llvm::Error::success();
 }
@@ -2113,7 +2113,7 @@ llvm::Error validateDispatchSelectedConfigContractMetadata(
   if (llvm::Error error =
           validateDispatchSelectedSourceIdentityMetadata(candidate, contract))
     return error;
-  return validateDispatchDescriptorElementCountMetadata(candidate, contract);
+  return validateDispatchComponentCapacityElementCountMetadata(candidate, contract);
 }
 
 llvm::Expected<std::string>
@@ -2310,11 +2310,11 @@ buildDispatchPairSelectedConfigContract(
                     directContract->getShapeID() +
                     "' does not match dispatch capability shape '" +
                     shape.shapeID + "'");
-  if (directContract->getDescriptorElementCount() <= 0)
+  if (directContract->getComponentCapacityElementCount() <= 0)
     return makeDispatchError(
         kernel, llvm::Twine("selected RVV dispatch case candidate @") +
                     pair.rvv.selectedVariant +
-                    " direct selected config contract requires descriptor-local "
+                    " direct selected config contract requires artifact-local "
                     "component capacity before dispatch artifact export");
   if (directContract->getRuntimeElementCountCName() !=
       runtimeElementCountCName)
@@ -2329,7 +2329,7 @@ buildDispatchPairSelectedConfigContract(
 
   return tianchenrv::target::rvv::buildRVVBinarySelectedConfigContract(
       *pair.family->rvvFamily, shape, pair.rvv.selectedVariant, pair.rvv.role,
-      directContract->getDescriptorElementCount(), runtimeElementCountCName,
+      directContract->getComponentCapacityElementCount(), runtimeElementCountCName,
       dispatchGuardCName,
       directContract->getFixedVectorSourceExtentContract(),
       directContract->getDynamicVectorRuntimeExtentContract());
@@ -2441,17 +2441,16 @@ llvm::Error validateEmbeddedRVVSourceSelectedShape(
         "config contract before embedded RVV source validation");
 
   const DispatchRVVVectorShapeConfig &shape = pair.selectedConfig.getShape();
-  RVVI32BinaryIntrinsicDescriptor descriptor =
-      pair.selectedConfig.getIntrinsicDescriptor();
+  RVVBinaryIntrinsicRoute route = pair.selectedConfig.getIntrinsicRoute();
 
   std::string shapeComment =
-      descriptor.formatSelectedVectorShapeConfigCommentBody();
+      route.formatSelectedVectorShapeConfigCommentBody();
   std::string intrinsicConfig =
-      descriptor.formatIntrinsicConfigCommentBody();
-  std::string setvlIntrinsic = descriptor.getSetVLIntrinsicName();
-  std::string loadIntrinsic = descriptor.getLoadIntrinsicName();
-  std::string arithmeticIntrinsic = descriptor.getArithmeticIntrinsicName();
-  std::string storeIntrinsic = descriptor.getStoreIntrinsicName();
+      route.formatIntrinsicConfigCommentBody();
+  std::string setvlIntrinsic = route.getSetVLIntrinsicName();
+  std::string loadIntrinsic = route.getLoadIntrinsicName();
+  std::string arithmeticIntrinsic = route.getArithmeticIntrinsicName();
+  std::string storeIntrinsic = route.getStoreIntrinsicName();
 
   if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
           pair, rvvSource, shapeComment, "selected shape config comment"))
@@ -2508,7 +2507,7 @@ llvm::Error requireEmbeddedScalarSourceSnippet(const DispatchPair &pair,
           context + " '" + snippet + "'");
 }
 
-const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor *
+const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord *
 lookupDispatchPairFamilyRegistration(const DispatchI32FamilySpec &family) {
   for (const auto *descriptor :
        tianchenrv::target::rvv_scalar::getRVVScalarBinaryRegistrationRecords())
@@ -3163,7 +3162,7 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
   }
   os << "/* Runtime element count is a target/export-owned ABI parameter in "
         "this harness; "
-        "descriptor-local element_count remains metadata only. */\n";
+        "artifact-local component capacity remains metadata only. */\n";
   os << "/* self_check_expectation_source: " << expectation.provenance
      << "; legacy descriptor mirrors cannot select expected arithmetic or "
         "scalar element type. */\n";
@@ -3830,7 +3829,7 @@ getRVVScalarDispatchRouteManifest() {
       routes = [] {
         llvm::SmallVector<RVVScalarDispatchRouteManifestEntry, 32> result;
         result.reserve(getRVVScalarDispatchRouteCount());
-        for (const RVVScalarBinaryFamilyDescriptor *descriptor :
+        for (const RVVScalarBinaryFamilyRecord *descriptor :
              getRVVScalarBinaryRegistrationRecords()) {
           for (RVVScalarDispatchRouteKind routeKind :
                getRVVScalarDispatchRouteKinds())
@@ -3853,7 +3852,7 @@ lookupRVVScalarDispatchRoute(llvm::StringRef routeID) {
 }
 
 const RVVScalarDispatchRouteManifestEntry *
-lookupRVVScalarDispatchRoute(const DispatchBinaryFamilyDescriptor &family,
+lookupRVVScalarDispatchRoute(const RVVScalarDispatchFamilyRecord &family,
                              RVVScalarDispatchRouteKind routeKind) {
   for (const RVVScalarDispatchRouteManifestEntry &route :
        getRVVScalarDispatchRouteManifest())

@@ -19,7 +19,7 @@ struct RVVBinarySelectedEmissionAttachment {
   RVVBinarySelectedPlan selectedPlan;
   std::string sourceKind;
 
-  const target::rvv::RVVBinaryFamilyDescriptor &getFamily() const {
+  const target::rvv::RVVBinaryFamilyRecord &getFamily() const {
     return *selectedPlan.family;
   }
 

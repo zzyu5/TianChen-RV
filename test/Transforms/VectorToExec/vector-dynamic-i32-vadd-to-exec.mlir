@@ -122,8 +122,8 @@ module {
 // PIPE: name = "tcrv_rvv.emitc_lowerable_op_interface"
 // PIPE-SAME: role = "typed-rvv-emitc-source-op"
 // PIPE-SAME: value = "TCRVEmitCLowerableOpInterface"
-// PIPE: name = "tcrv_rvv.descriptor_element_count"
-// PIPE-SAME: role = "rvv-descriptor-local-component-capacity"
+// PIPE: name = "tcrv_rvv.component_capacity_element_count"
+// PIPE-SAME: role = "rvv-artifact-local-component-capacity"
 // PIPE-SAME: value = "16"
 // PIPE: name = "tcrv_rvv.selected_config_profile.hardware_facts"
 // PIPE-SAME: role = "rvv-selected-config-profile"
@@ -134,7 +134,7 @@ module {
 // PIPE-SAME: value = "runtime=runtime-abi-ssa-control,n=n
 // PIPE-SAME: dynamic_extent_arg=n
 
-// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
+// SOURCE: /* selected_binary_config: {{.*}}component_capacity_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* selected_runtime_vl_boundary: {{.*}}runtime_avl_source=runtime-element-count-abi-parameter{{.*}}runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted for this dynamic vector route */

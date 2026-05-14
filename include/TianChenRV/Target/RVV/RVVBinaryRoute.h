@@ -1,11 +1,11 @@
-#ifndef TIANCHENRV_TARGET_RVV_RVVBINARYDESCRIPTOR_H
-#define TIANCHENRV_TARGET_RVV_RVVBINARYDESCRIPTOR_H
+#ifndef TIANCHENRV_TARGET_RVV_RVVBINARYROUTE_H
+#define TIANCHENRV_TARGET_RVV_RVVBINARYROUTE_H
 
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -23,7 +23,7 @@ class RVVBinaryRuntimeABIContract
     : public support::FiniteBinaryRuntimeABIContract {
 public:
   explicit RVVBinaryRuntimeABIContract(
-      const RVVBinaryFamilyDescriptor &family)
+      const RVVBinaryFamilyRecord &family)
       : support::FiniteBinaryRuntimeABIContract(
             support::FiniteBinaryRuntimeABIContractSpec{
                 family.familyID,
@@ -38,16 +38,16 @@ public:
                 family.externalABIComponentGroup}),
         family(&family) {}
 
-  const RVVBinaryFamilyDescriptor &getFamilyRegistrationRecord() const {
+  const RVVBinaryFamilyRecord &getFamilyRegistrationRecord() const {
     return *family;
   }
 
 private:
-  const RVVBinaryFamilyDescriptor *family = nullptr;
+  const RVVBinaryFamilyRecord *family = nullptr;
 };
 
 inline const RVVBinaryRuntimeABIContract &
-getRVVBinaryRuntimeABIContract(const RVVBinaryFamilyDescriptor &family) {
+getRVVBinaryRuntimeABIContract(const RVVBinaryFamilyRecord &family) {
   switch (family.dtype) {
   case RVVBinaryDTypeKind::I32:
     switch (family.arithmetic) {
@@ -93,7 +93,7 @@ getRVVBinaryRuntimeABIContract(const RVVBinaryFamilyDescriptor &family) {
 
 inline llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVBinaryCallableRuntimeABIParameters(
-    const RVVBinaryFamilyDescriptor &family,
+    const RVVBinaryFamilyRecord &family,
     llvm::StringRef runtimeCountCName = "n") {
   return getRVVBinaryRuntimeABIContract(family).getCallableParameters(
       runtimeCountCName);
@@ -101,7 +101,7 @@ getRVVBinaryCallableRuntimeABIParameters(
 
 inline llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVBinaryCallableRuntimeABIRoleRequirements(
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   llvm::ArrayRef<support::RuntimeABIParameter> requirements =
       getRVVBinaryRuntimeABIContract(family).getCallableRoleRequirements();
   return llvm::SmallVector<support::RuntimeABIParameter, 4>(
@@ -110,7 +110,7 @@ getRVVBinaryCallableRuntimeABIRoleRequirements(
 
 inline llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3>
 getRVVBinaryBufferMemWindowSpecs(
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   llvm::ArrayRef<support::RuntimeABIMemWindowSpec> specs =
       getRVVBinaryRuntimeABIContract(family).getBufferMemWindowSpecs();
   return llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3>(specs.begin(),
@@ -119,19 +119,19 @@ getRVVBinaryBufferMemWindowSpecs(
 
 inline llvm::SmallVector<support::RuntimeABIParamSpec, 1>
 getRVVBinaryRuntimeElementCountParamSpecs(
-    const RVVBinaryFamilyDescriptor &family, llvm::StringRef cName = "n") {
+    const RVVBinaryFamilyRecord &family, llvm::StringRef cName = "n") {
   return getRVVBinaryRuntimeABIContract(family)
       .getRuntimeElementCountParamSpecs(cName);
 }
 
-struct RVVBinaryIntrinsicDescriptor {
-  RVVBinaryFamilyDescriptor family;
+struct RVVBinaryIntrinsicRoute {
+  RVVBinaryFamilyRecord family;
   const RVVVectorShapeConfig *shape = nullptr;
 
   llvm::StringRef getDTypeID() const { return family.dtypeID; }
   llvm::StringRef getArithmeticFamilyID() const { return family.familyID; }
-  llvm::StringRef getLegacyLoweringDescriptorMirror() const {
-    return family.loweringDescriptor;
+  llvm::StringRef getLegacyLoweringTokenMirror() const {
+    return family.legacyLoweringToken;
   }
   llvm::StringRef getRVVOperationName() const {
     return family.arithmeticOpName;
@@ -267,42 +267,42 @@ struct RVVBinaryIntrinsicDescriptor {
   }
 };
 
-inline RVVBinaryIntrinsicDescriptor getRVVBinaryIntrinsicDescriptor(
-    const RVVBinaryFamilyDescriptor &family,
+inline RVVBinaryIntrinsicRoute getRVVBinaryIntrinsicRoute(
+    const RVVBinaryFamilyRecord &family,
     const RVVVectorShapeConfig &shape) {
-  return RVVBinaryIntrinsicDescriptor{family, &shape};
+  return RVVBinaryIntrinsicRoute{family, &shape};
 }
 
-inline RVVBinaryIntrinsicDescriptor getI64VAddIntrinsicDescriptor() {
-  return getRVVBinaryIntrinsicDescriptor(getI64VAddFamilyRegistrationRecord(),
+inline RVVBinaryIntrinsicRoute getI64VAddIntrinsicRoute() {
+  return getRVVBinaryIntrinsicRoute(getI64VAddFamilyRegistrationRecord(),
                                          getI64M1VectorShapeConfig());
 }
 
-inline RVVBinaryIntrinsicDescriptor getI64VSubIntrinsicDescriptor() {
-  return getRVVBinaryIntrinsicDescriptor(getI64VSubFamilyRegistrationRecord(),
+inline RVVBinaryIntrinsicRoute getI64VSubIntrinsicRoute() {
+  return getRVVBinaryIntrinsicRoute(getI64VSubFamilyRegistrationRecord(),
                                          getI64M1VectorShapeConfig());
 }
 
-inline RVVBinaryIntrinsicDescriptor getI64VMulIntrinsicDescriptor() {
-  return getRVVBinaryIntrinsicDescriptor(getI64VMulFamilyRegistrationRecord(),
+inline RVVBinaryIntrinsicRoute getI64VMulIntrinsicRoute() {
+  return getRVVBinaryIntrinsicRoute(getI64VMulFamilyRegistrationRecord(),
                                          getI64M1VectorShapeConfig());
 }
 
-inline RVVBinaryIntrinsicDescriptor getI32VAddIntrinsicDescriptor(
+inline RVVBinaryIntrinsicRoute getI32VAddIntrinsicRoute(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
-  return getRVVBinaryIntrinsicDescriptor(getI32VAddFamilyRegistrationRecord(), shape);
+  return getRVVBinaryIntrinsicRoute(getI32VAddFamilyRegistrationRecord(), shape);
 }
 
-inline RVVBinaryIntrinsicDescriptor getI32VSubIntrinsicDescriptor(
+inline RVVBinaryIntrinsicRoute getI32VSubIntrinsicRoute(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
-  return getRVVBinaryIntrinsicDescriptor(getI32VSubFamilyRegistrationRecord(), shape);
+  return getRVVBinaryIntrinsicRoute(getI32VSubFamilyRegistrationRecord(), shape);
 }
 
-inline RVVBinaryIntrinsicDescriptor getI32VMulIntrinsicDescriptor(
+inline RVVBinaryIntrinsicRoute getI32VMulIntrinsicRoute(
     const RVVI32VectorShapeConfig &shape = getI32M1VectorShapeConfig()) {
-  return getRVVBinaryIntrinsicDescriptor(getI32VMulFamilyRegistrationRecord(), shape);
+  return getRVVBinaryIntrinsicRoute(getI32VMulFamilyRegistrationRecord(), shape);
 }
 
 } // namespace tianchenrv::target::rvv
 
-#endif // TIANCHENRV_TARGET_RVV_RVVBINARYDESCRIPTOR_H
+#endif // TIANCHENRV_TARGET_RVV_RVVBINARYROUTE_H

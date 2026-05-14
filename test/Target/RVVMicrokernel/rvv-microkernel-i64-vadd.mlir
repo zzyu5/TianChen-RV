@@ -160,7 +160,7 @@ module @rvv_microkernel_i64_vadd_export_input {
 
 // BAD-ELEMENT-COUNT: TianChen-RV RVV microkernel body verifier failed
 // BAD-ELEMENT-COUNT-SAME: family 'tcrv_rvv.i64_vadd_microkernel'
-// BAD-ELEMENT-COUNT-SAME: descriptor-local element_count layer is stale
+// BAD-ELEMENT-COUNT-SAME: artifact-local component capacity layer is stale
 // BAD-ELEMENT-COUNT-SAME: body element_count=16
 // BAD-ELEMENT-COUNT-SAME: tcrv_rvv.element_count=8
 

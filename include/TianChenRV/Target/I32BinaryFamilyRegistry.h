@@ -12,7 +12,7 @@ enum class I32BinaryFamilyKind {
   Mul,
 };
 
-struct RVVI32MicrokernelFamilyDescriptor {
+struct RVVI32MicrokernelFamilyRecord {
   I32BinaryFamilyKind kind;
   llvm::StringRef microkernelOpName;
   llvm::StringRef arithmeticOpName;
@@ -32,7 +32,7 @@ struct RVVI32MicrokernelFamilyDescriptor {
   llvm::StringRef externalABIComponentGroup;
 };
 
-struct ScalarI32MicrokernelFamilyDescriptor {
+struct ScalarI32MicrokernelFamilyRecord {
   I32BinaryFamilyKind kind;
   llvm::StringRef microkernelOpName;
   llvm::StringRef operationNoun;
@@ -49,7 +49,7 @@ struct ScalarI32MicrokernelFamilyDescriptor {
   llvm::StringRef runtimeGlueRole;
 };
 
-struct DispatchI32FamilyDescriptor {
+struct DispatchI32FamilyRecord {
   I32BinaryFamilyKind kind;
   llvm::StringRef diagnosticName;
   llvm::StringRef operationNoun;
@@ -79,24 +79,24 @@ struct DispatchI32FamilyDescriptor {
 // Legacy finite i32 route-registration metadata. It exists for compatibility
 // tests and route registration only; it is not compute, source rendering, or
 // callable ABI authority for migrated production paths.
-struct I32BinaryFamilyDescriptor {
+struct I32BinaryFamilyRecord {
   I32BinaryFamilyKind kind;
   llvm::StringRef familyID;
   llvm::StringRef frontendLowering;
-  llvm::StringRef loweringDescriptor;
-  llvm::StringRef descriptorNoun;
-  RVVI32MicrokernelFamilyDescriptor rvv;
-  ScalarI32MicrokernelFamilyDescriptor scalar;
-  DispatchI32FamilyDescriptor dispatch;
+  llvm::StringRef legacyLoweringToken;
+  llvm::StringRef legacyRouteNoun;
+  RVVI32MicrokernelFamilyRecord rvv;
+  ScalarI32MicrokernelFamilyRecord scalar;
+  DispatchI32FamilyRecord dispatch;
 };
 
-inline const I32BinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
-  static const I32BinaryFamilyDescriptor descriptor{
+inline const I32BinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
+  static const I32BinaryFamilyRecord descriptor{
       I32BinaryFamilyKind::Add,
       "i32-vadd",
       "i32-vadd",
       "i32-vadd-microkernel.v1",
-      "finite i32-vadd lowering descriptor",
+      "finite i32-vadd lowering route label",
       {I32BinaryFamilyKind::Add,
        "tcrv_rvv.i32_vadd_microkernel",
        "tcrv_rvv.i32_add",
@@ -155,13 +155,13 @@ inline const I32BinaryFamilyDescriptor &getI32VAddFamilyRegistrationRecord() {
   return descriptor;
 }
 
-inline const I32BinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
-  static const I32BinaryFamilyDescriptor descriptor{
+inline const I32BinaryFamilyRecord &getI32VSubFamilyRegistrationRecord() {
+  static const I32BinaryFamilyRecord descriptor{
       I32BinaryFamilyKind::Sub,
       "i32-vsub",
       "i32-vsub",
       "i32-vsub-microkernel.v1",
-      "finite i32-vsub lowering descriptor",
+      "finite i32-vsub lowering route label",
       {I32BinaryFamilyKind::Sub,
        "tcrv_rvv.i32_vsub_microkernel",
        "tcrv_rvv.i32_sub",
@@ -220,13 +220,13 @@ inline const I32BinaryFamilyDescriptor &getI32VSubFamilyRegistrationRecord() {
   return descriptor;
 }
 
-inline const I32BinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
-  static const I32BinaryFamilyDescriptor descriptor{
+inline const I32BinaryFamilyRecord &getI32VMulFamilyRegistrationRecord() {
+  static const I32BinaryFamilyRecord descriptor{
       I32BinaryFamilyKind::Mul,
       "i32-vmul",
       "i32-vmul",
       "i32-vmul-microkernel.v1",
-      "finite i32-vmul lowering descriptor",
+      "finite i32-vmul lowering route label",
       {I32BinaryFamilyKind::Mul,
        "tcrv_rvv.i32_vmul_microkernel",
        "tcrv_rvv.i32_mul",
@@ -285,18 +285,18 @@ inline const I32BinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
   return descriptor;
 }
 
-inline llvm::ArrayRef<const I32BinaryFamilyDescriptor *>
+inline llvm::ArrayRef<const I32BinaryFamilyRecord *>
 getI32BinaryFamilyRegistrationRecords() {
-  static const I32BinaryFamilyDescriptor *families[] = {
+  static const I32BinaryFamilyRecord *families[] = {
       &getI32VAddFamilyRegistrationRecord(), &getI32VSubFamilyRegistrationRecord(),
       &getI32VMulFamilyRegistrationRecord()};
   return llvm::ArrayRef(families);
 }
 
-inline const I32BinaryFamilyDescriptor *
+inline const I32BinaryFamilyRecord *
 lookupI32BinaryFamilyRegistrationByID(llvm::StringRef familyID) {
   familyID = familyID.trim();
-  for (const I32BinaryFamilyDescriptor *descriptor :
+  for (const I32BinaryFamilyRecord *descriptor :
        getI32BinaryFamilyRegistrationRecords()) {
     if (descriptor->familyID == familyID)
       return descriptor;
@@ -304,10 +304,10 @@ lookupI32BinaryFamilyRegistrationByID(llvm::StringRef familyID) {
   return nullptr;
 }
 
-inline const I32BinaryFamilyDescriptor *
+inline const I32BinaryFamilyRecord *
 lookupI32BinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowering) {
   frontendLowering = frontendLowering.trim();
-  for (const I32BinaryFamilyDescriptor *descriptor :
+  for (const I32BinaryFamilyRecord *descriptor :
        getI32BinaryFamilyRegistrationRecords()) {
     if (descriptor->frontendLowering == frontendLowering)
       return descriptor;
@@ -315,12 +315,12 @@ lookupI32BinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowe
   return nullptr;
 }
 
-inline const I32BinaryFamilyDescriptor *
-lookupI32BinaryFamilyRegistrationByLegacyLoweringDescriptor(llvm::StringRef loweringDescriptor) {
-  loweringDescriptor = loweringDescriptor.trim();
-  for (const I32BinaryFamilyDescriptor *descriptor :
+inline const I32BinaryFamilyRecord *
+lookupI32BinaryFamilyRegistrationByLegacyLoweringToken(llvm::StringRef legacyLoweringToken) {
+  legacyLoweringToken = legacyLoweringToken.trim();
+  for (const I32BinaryFamilyRecord *descriptor :
        getI32BinaryFamilyRegistrationRecords()) {
-    if (descriptor->loweringDescriptor == loweringDescriptor)
+    if (descriptor->legacyLoweringToken == legacyLoweringToken)
       return descriptor;
   }
   return nullptr;

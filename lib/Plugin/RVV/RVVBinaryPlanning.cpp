@@ -19,7 +19,7 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
-constexpr llvm::StringLiteral kLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLoweringTokenAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName(
@@ -156,7 +156,7 @@ const target::rvv::RVVVectorShapeConfig &getI32M2ConfigSpec() {
 
 const target::rvv::RVVVectorShapeConfig *
 getImplicitRequiredShapeForFamily(
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const target::rvv::RVVBinaryFamilyRecord &family) {
   if (family.dtype == target::rvv::RVVBinaryDTypeKind::I64)
     return &target::rvv::getI64M1VectorShapeConfig();
   return nullptr;
@@ -355,7 +355,7 @@ selectAvailableI32BinaryShapeConfigCapabilities(
       "ids or the finite i32m2 config capability ids");
 }
 
-std::int64_t deriveRVVBinaryDescriptorElementCount(
+std::int64_t deriveRVVBinaryComponentCapacityElementCount(
     const RVVBinaryCapabilityPropertyView &view) {
   if (!view.i32M1LaneCount)
     return kDefaultBinaryElementCount;
@@ -376,13 +376,13 @@ llvm::StringRef getDTypeDiagnosticSpelling(
   return shape.dtypeID;
 }
 
-llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
+llvm::Expected<const target::rvv::RVVBinaryFamilyRecord *>
 getRegisteredRVVBinaryFamily(
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
-  const target::rvv::RVVBinaryFamilyDescriptor *registeredFamily =
+    const target::rvv::RVVBinaryFamilyRecord &family) {
+  const target::rvv::RVVBinaryFamilyRecord *registeredFamily =
       target::rvv::lookupRVVBinaryFamilyRegistrationByID(family.familyID);
   if (!registeredFamily ||
-      registeredFamily->loweringDescriptor != family.loweringDescriptor ||
+      registeredFamily->legacyLoweringToken != family.legacyLoweringToken ||
       registeredFamily->routeID != family.routeID ||
       registeredFamily->emissionKind != family.emissionKind ||
       registeredFamily->runtimeABI != family.runtimeABI ||
@@ -407,9 +407,9 @@ getRegisteredRVVBinaryFamily(
   return registeredFamily;
 }
 
-const target::rvv::RVVBinaryFamilyDescriptor *
+const target::rvv::RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(llvm::StringRef opName) {
-  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+  for (const target::rvv::RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (family->microkernelOpName == opName)
       return family;
@@ -417,9 +417,9 @@ lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(llvm::StringRef opName) {
   return nullptr;
 }
 
-const target::rvv::RVVBinaryFamilyDescriptor *
+const target::rvv::RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByArithmeticOpName(llvm::StringRef opName) {
-  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+  for (const target::rvv::RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (family->arithmeticOpName == opName)
       return family;
@@ -430,12 +430,12 @@ lookupRVVBinaryFamilyRegistrationByArithmeticOpName(llvm::StringRef opName) {
 llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
 resolveDirectSelectedShapeMetadata(
     mlir::Operation *op,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const RVVSelectedVectorShapeMetadataNames &names,
     llvm::StringRef context);
 
-bool isSameRVVBinaryFamily(const target::rvv::RVVBinaryFamilyDescriptor &lhs,
-                           const target::rvv::RVVBinaryFamilyDescriptor &rhs) {
+bool isSameRVVBinaryFamily(const target::rvv::RVVBinaryFamilyRecord &lhs,
+                           const target::rvv::RVVBinaryFamilyRecord &rhs) {
   return lhs.dtype == rhs.dtype && lhs.arithmetic == rhs.arithmetic;
 }
 
@@ -468,7 +468,7 @@ llvm::StringRef stringifyMaskPolicyValue(tcrv::rvv::MaskPolicy policy) {
 }
 
 struct DirectTypedRVVBinaryBodyResolution {
-  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   const target::rvv::RVVVectorShapeConfig *bodyShape = nullptr;
 };
 
@@ -507,7 +507,7 @@ llvm::Error requireDirectTypedBufferRole(mlir::Operation *op,
 
 mlir::Type getExpectedTypedBodyVectorType(
     mlir::MLIRContext *context,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const target::rvv::RVVVectorShapeConfig &shape) {
   if (family.dtype == target::rvv::RVVBinaryDTypeKind::I32) {
     if (shape.lmul == "m1")
@@ -524,7 +524,7 @@ mlir::Type getExpectedTypedBodyVectorType(
 llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
 resolveTypedBodyShapeFromControlPlane(
     llvm::StringRef context,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     tcrv::rvv::SetVLOp setvl, tcrv::rvv::WithVLOp withVL,
     const target::rvv::RVVVectorShapeConfig *metadataShape) {
   if (setvl.getPolicy().getTail() != tcrv::rvv::TailPolicy::Agnostic ||
@@ -580,7 +580,7 @@ llvm::Expected<DirectTypedRVVBinaryBodyResolution>
 resolveDirectTypedRVVBinaryBody(mlir::Operation *op,
                                 llvm::StringRef context) {
   DirectTypedRVVBinaryBodyResolution resolution;
-  const target::rvv::RVVBinaryFamilyDescriptor *opFamily =
+  const target::rvv::RVVBinaryFamilyRecord *opFamily =
       lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(op->getName().getStringRef());
   if (!opFamily)
     return resolution;
@@ -653,7 +653,7 @@ resolveDirectTypedRVVBinaryBody(mlir::Operation *op,
         " typed dataflow body must contain exactly load, load, arithmetic, "
         "store before selected-plan authority is accepted");
 
-  const target::rvv::RVVBinaryFamilyDescriptor *bodyFamily =
+  const target::rvv::RVVBinaryFamilyRecord *bodyFamily =
       lookupRVVBinaryFamilyRegistrationByArithmeticOpName(ops[2]->getName().getStringRef());
   if (!bodyFamily)
     return makeRVVBinaryPlanningError(
@@ -837,7 +837,7 @@ resolveDirectTypedRVVBinaryBody(mlir::Operation *op,
 llvm::Expected<const target::rvv::RVVVectorShapeConfig *>
 resolveDirectSelectedShapeMetadata(
     mlir::Operation *op,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const RVVSelectedVectorShapeMetadataNames &names,
     llvm::StringRef context) {
   if (!hasAnyRVVSelectedVectorShapeMetadata(op, names))
@@ -870,7 +870,7 @@ resolveDirectSelectedShapeMetadata(
 }
 
 struct DirectRVVBinaryFamilyCandidate {
-  const target::rvv::RVVBinaryFamilyDescriptor *family = nullptr;
+  const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   const target::rvv::RVVVectorShapeConfig *selectedShape = nullptr;
   std::string source;
 };
@@ -925,7 +925,7 @@ llvm::Expected<bool> validateDirectLegacyDescriptorMirrorForVariant(
     return false;
 
   auto descriptor =
-      variant->getAttrOfType<mlir::StringAttr>(kLoweringDescriptorAttrName);
+      variant->getAttrOfType<mlir::StringAttr>(kLoweringTokenAttrName);
   if (!descriptor)
     return false;
   llvm::StringRef descriptorValue = descriptor.getValue().trim();
@@ -936,17 +936,17 @@ llvm::Expected<bool> validateDirectLegacyDescriptorMirrorForVariant(
   if (descriptorValue.empty())
     return makeRVVBinaryPlanningError(
         llvm::Twine(context) + " requires non-empty string attribute '" +
-        kLoweringDescriptorAttrName + "'");
+        kLoweringTokenAttrName + "'");
   if (llvm::Error error = validateRVVPlanningText(
-          context, kLoweringDescriptorAttrName, descriptorValue))
+          context, kLoweringTokenAttrName, descriptorValue))
     return std::move(error);
 
-  const target::rvv::RVVBinaryFamilyDescriptor *family =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+  const target::rvv::RVVBinaryFamilyRecord *family =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
           descriptorValue);
   if (!family)
     return makeRVVBinaryPlanningError(
-        llvm::Twine(context) + " legacy lowering descriptor '" +
+        llvm::Twine(context) + " legacy lowering route label '" +
         descriptorValue +
         "' must be one registered finite RVV binary mirror descriptor");
 
@@ -1057,7 +1057,7 @@ buildDirectTypedBodyCandidateFromMicrokernel(mlir::Operation *op) {
   if (!op)
     return candidate;
 
-  const target::rvv::RVVBinaryFamilyDescriptor *family =
+  const target::rvv::RVVBinaryFamilyRecord *family =
       lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(
           op->getName().getStringRef());
   if (!family)
@@ -1095,7 +1095,7 @@ buildDirectTypedBodyCandidateFromMicrokernel(mlir::Operation *op) {
 }
 
 std::string buildSupportedEmissionMessage(
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const target::rvv::RVVBinaryFamilyRecord &family) {
   return (llvm::Twine("explicit RVV ") + family.dtypeID + " vector-" +
           family.arithmeticVerb +
           " microkernel C source export provides a library-style "
@@ -1225,7 +1225,7 @@ llvm::StringRef RVVBinaryProposalPlan::getDTypeID() const {
   return selectedPlan.getDTypeID();
 }
 
-const target::rvv::RVVBinaryFamilyDescriptor &
+const target::rvv::RVVBinaryFamilyRecord &
 RVVBinaryProposalPlan::getFamily() const {
   return *selectedPlan.family;
 }
@@ -1257,7 +1257,7 @@ bool RVVBinaryProposalPlan::hasCapacityMetadata() const {
 }
 
 bool isTypedSourceRVVBinaryFamily(
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const target::rvv::RVVBinaryFamilyRecord &family) {
   return family.dtype == target::rvv::RVVBinaryDTypeKind::I32 ||
          family.dtype == target::rvv::RVVBinaryDTypeKind::I64;
 }
@@ -1314,7 +1314,7 @@ std::string formatRVVBinaryFamilyFrontendLoweringList() {
   std::string text;
   llvm::raw_string_ostream stream(text);
   bool first = true;
-  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+  for (const target::rvv::RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (!first)
       stream << " or ";
@@ -1326,8 +1326,8 @@ std::string formatRVVBinaryFamilyFrontendLoweringList() {
 }
 
 llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
-    const target::rvv::RVVBinaryFamilyDescriptor &family) {
-  llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
+    const target::rvv::RVVBinaryFamilyRecord &family) {
+  llvm::Expected<const target::rvv::RVVBinaryFamilyRecord *>
       registeredFamily = getRegisteredRVVBinaryFamily(family);
   if (!registeredFamily)
     return registeredFamily.takeError();
@@ -1640,7 +1640,7 @@ getRVVBinaryVariantRequiredShapeConfig(
 }
 
 llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     std::int64_t elementCount, llvm::StringRef requiredMarch,
     std::optional<std::string> selectedMABI) {
@@ -1659,21 +1659,21 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
 
   if (elementCount <= 0 || elementCount > 64)
     return makeRVVBinaryPlanningError(
-        llvm::Twine(family.descriptorNoun) +
+        llvm::Twine(family.legacyRouteNoun) +
         " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
 
   llvm::StringRef trimmedMarch = requiredMarch.trim();
   if (trimmedMarch.empty())
     return makeRVVBinaryPlanningError(
-        llvm::Twine(family.descriptorNoun) +
+        llvm::Twine(family.legacyRouteNoun) +
         " requires string 'tcrv_rvv.required_march' metadata");
   if (llvm::Error error = validateRVVPlanningText(
-          family.descriptorNoun, kRequiredMarchAttrName, trimmedMarch))
+          family.legacyRouteNoun, kRequiredMarchAttrName, trimmedMarch))
     return std::move(error);
 
   if (selectedMABI && !selectedMABI->empty()) {
     if (llvm::Error error = validateRVVPlanningText(
-            family.descriptorNoun, "selected_mabi", *selectedMABI))
+            family.legacyRouteNoun, "selected_mabi", *selectedMABI))
       return std::move(error);
   }
 
@@ -1687,7 +1687,7 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
   RVVBinarySelectedPlan plan;
   plan.family = &family;
   plan.selectedConfig.contract = std::move(*selectedConfig);
-  plan.descriptor = target::rvv::getRVVBinaryIntrinsicDescriptor(family, shape);
+  plan.descriptor = target::rvv::getRVVBinaryIntrinsicRoute(family, shape);
   plan.elementCount = elementCount;
   plan.requiredMarch = trimmedMarch.str();
   plan.selectedMABI = std::move(selectedMABI);
@@ -1698,10 +1698,10 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
     const support::TargetCapabilitySet &capabilities,
-    const target::rvv::RVVBinaryFamilyDescriptor &requestedFamily,
+    const target::rvv::RVVBinaryFamilyRecord &requestedFamily,
     const target::rvv::RVVVectorShapeConfig *directSelectedShape,
     llvm::StringRef diagnosticContext) {
-  llvm::Expected<const target::rvv::RVVBinaryFamilyDescriptor *>
+  llvm::Expected<const target::rvv::RVVBinaryFamilyRecord *>
       registeredFamily = getRegisteredRVVBinaryFamily(requestedFamily);
   if (!registeredFamily)
     return registeredFamily.takeError();
@@ -1724,12 +1724,12 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlanForFamily(
   if (!propertyView)
     return propertyView.takeError();
 
-  std::int64_t descriptorElementCount =
-      deriveRVVBinaryDescriptorElementCount(*propertyView);
+  std::int64_t componentCapacityElementCount =
+      deriveRVVBinaryComponentCapacityElementCount(*propertyView);
   llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
       buildRVVBinarySelectedPlan(**registeredFamily,
                                  *propertyView->selectedShape,
-                                 descriptorElementCount,
+                                 componentCapacityElementCount,
                                  propertyView->selectedMarch);
   if (!selectedPlan)
     return selectedPlan.takeError();
@@ -1766,7 +1766,7 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
                                       frontendLoweringValue))
         return std::move(error);
 
-      const target::rvv::RVVBinaryFamilyDescriptor *family =
+      const target::rvv::RVVBinaryFamilyRecord *family =
           target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(
               frontendLoweringValue);
       if (!family)
@@ -1828,7 +1828,7 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const support::TargetCapabilitySet &capabilities,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     llvm::StringRef diagnosticContext) {
   return buildRVVBinaryProposalPlanForFamily(
       capabilities, family, /*directSelectedShape=*/nullptr, diagnosticContext);
@@ -1837,7 +1837,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const support::TargetCapabilitySet &capabilities,
     llvm::StringRef frontendLowering, llvm::StringRef diagnosticContext) {
-  const target::rvv::RVVBinaryFamilyDescriptor *requestedFamily =
+  const target::rvv::RVVBinaryFamilyRecord *requestedFamily =
       &target::rvv::getI32VAddFamilyRegistrationRecord();
   llvm::StringRef trimmedFrontendLowering = frontendLowering.trim();
   llvm::StringRef sourceKind = kDefaultTypedMicrokernelBodySourceKind;
@@ -1847,7 +1847,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
             trimmedFrontendLowering))
       return std::move(error);
 
-    const target::rvv::RVVBinaryFamilyDescriptor *lookup =
+    const target::rvv::RVVBinaryFamilyRecord *lookup =
         target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(
             trimmedFrontendLowering);
     if (!lookup)
@@ -1893,7 +1893,7 @@ llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
 llvm::Expected<RVVBinarySelectedPlan>
 buildRVVBinarySelectedPlanFromTypedFamilyVariant(
     tcrv::exec::VariantOp variant,
-    const target::rvv::RVVBinaryFamilyDescriptor &family,
+    const target::rvv::RVVBinaryFamilyRecord &family,
     const target::rvv::RVVVectorShapeConfig &shape,
     llvm::StringRef expectedDTypeID,
     std::optional<std::string> selectedMABI) {

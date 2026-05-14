@@ -2,7 +2,7 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedLoweringBoundary.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Attributes.h"
@@ -29,7 +29,7 @@ constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
     "tcrv_rvv.base_i32_m1_lanes");
-constexpr llvm::StringLiteral kRVVLegacyLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kRVVLegacyLoweringTokenAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
@@ -41,11 +41,11 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
-using target::rvv::RVVBinaryFamilyDescriptor;
+using target::rvv::RVVBinaryFamilyRecord;
 using target::rvv::RVVVectorShapeConfig;
 
 struct RVVFiniteBinaryTypedAuthority {
-  const RVVBinaryFamilyDescriptor *family = nullptr;
+  const RVVBinaryFamilyRecord *family = nullptr;
   std::string sourceKind;
 };
 
@@ -229,7 +229,7 @@ llvm::Error verifySmokeProbeDescriptorAttr(tcrv::exec::VariantOp variant) {
         variant.getSymName() + " must be '" + kRVVSmokeProbeDescriptorValue +
         "'");
 
-  if (variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName))
+  if (variant->hasAttr(kRVVLegacyLoweringTokenAttrName))
     return makeRVVBinaryVariantLegalityError(
         llvm::Twine("RVV smoke-probe descriptor on variant @") +
         variant.getSymName() +
@@ -245,9 +245,9 @@ llvm::Error verifySmokeProbeDescriptorAttr(tcrv::exec::VariantOp variant) {
   return llvm::Error::success();
 }
 
-const RVVBinaryFamilyDescriptor *
+const RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(llvm::StringRef opName) {
-  for (const RVVBinaryFamilyDescriptor *family :
+  for (const RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (family->microkernelOpName == opName)
       return family;
@@ -256,7 +256,7 @@ lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(llvm::StringRef opName) {
 }
 
 llvm::Error verifyFamilyMatchesSelectedShape(
-    tcrv::exec::VariantOp variant, const RVVBinaryFamilyDescriptor &family,
+    tcrv::exec::VariantOp variant, const RVVBinaryFamilyRecord &family,
     const RVVVectorShapeConfig &selectedShape, llvm::StringRef context) {
   if (!isTypedSourceRVVBinaryFamily(family))
     return makeRVVBinaryVariantLegalityError(
@@ -294,7 +294,7 @@ resolveTypedMicrokernelBodyAuthority(tcrv::exec::KernelOp kernel,
     return authority;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVBinaryFamilyDescriptor *family =
+    const RVVBinaryFamilyRecord *family =
         lookupRVVBinaryFamilyRegistrationByMicrokernelOpName(
             op.getName().getStringRef());
     if (!family)
@@ -397,7 +397,7 @@ resolveSelectedSourceMetadataAuthority(tcrv::exec::KernelOp kernel,
                                   sourceKind))
     return std::move(error);
 
-  const RVVBinaryFamilyDescriptor *family =
+  const RVVBinaryFamilyRecord *family =
       target::rvv::lookupRVVBinaryFamilyRegistrationByID(familyID);
   if (!family)
     return makeRVVBinaryVariantLegalityError(
@@ -485,7 +485,7 @@ resolveKernelFrontendLoweringAuthority(tcrv::exec::KernelOp kernel,
           context, kFrontendLoweringAttrName, frontendLoweringValue))
     return std::move(error);
 
-  const RVVBinaryFamilyDescriptor *family =
+  const RVVBinaryFamilyRecord *family =
       target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(
           frontendLoweringValue);
   if (!family)
@@ -544,7 +544,7 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
 
 bool hasFiniteBinaryLegalityMetadata(tcrv::exec::VariantOp variant) {
   return variant->hasAttr(kRVVElementCountAttrName) ||
-         variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName) ||
+         variant->hasAttr(kRVVLegacyLoweringTokenAttrName) ||
          variant->hasAttr(
              target::rvv::getRVVSelectedBinaryFamilyMetadataName()) ||
          variant->hasAttr(getRVVSelectedBinarySourceKindAttrName());
@@ -555,7 +555,7 @@ llvm::Error verifyLegacyDescriptorMirrorAfterTypedAuthority(
     const RVVFiniteBinaryTypedAuthority &authority) {
   auto descriptorAttr =
       variant->getAttrOfType<mlir::StringAttr>(
-          kRVVLegacyLoweringDescriptorAttrName);
+          kRVVLegacyLoweringTokenAttrName);
   if (!descriptorAttr)
     return llvm::Error::success();
 
@@ -564,14 +564,14 @@ llvm::Error verifyLegacyDescriptorMirrorAfterTypedAuthority(
     return makeRVVBinaryVariantLegalityError(
         llvm::Twine("legacy RVV binary descriptor mirror on variant @") +
         variant.getSymName() + " requires non-empty string attribute '" +
-        kRVVLegacyLoweringDescriptorAttrName + "'");
+        kRVVLegacyLoweringTokenAttrName + "'");
   if (llvm::Error error = validateRVVPropertyText(
           "legacy RVV binary descriptor mirror",
-          kRVVLegacyLoweringDescriptorAttrName, descriptor))
+          kRVVLegacyLoweringTokenAttrName, descriptor))
     return error;
 
-  const RVVBinaryFamilyDescriptor *descriptorFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+  const RVVBinaryFamilyRecord *descriptorFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
           descriptor);
   if (!descriptorFamily)
     return makeRVVBinaryVariantLegalityError(
@@ -667,7 +667,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
     if (!authority)
       return authority.takeError();
     if (!authority->family &&
-        variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName))
+        variant->hasAttr(kRVVLegacyLoweringTokenAttrName))
       return verifyLegacyDescriptorMirrorAfterTypedAuthority(variant,
                                                              *authority);
     if (!authority->family)
@@ -683,7 +683,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
   }
 
   if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
-      variant->hasAttr(kRVVLegacyLoweringDescriptorAttrName) ||
+      variant->hasAttr(kRVVLegacyLoweringTokenAttrName) ||
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVVLenBBytesAttrName) ||
       variant->hasAttr(kRVVI32M1LanesAttrName)) {

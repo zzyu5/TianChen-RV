@@ -37,9 +37,9 @@ using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::target::i32_binary::I32BinaryFamilyDescriptor;
+using tianchenrv::target::i32_binary::I32BinaryFamilyRecord;
 using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
-using tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor;
+using tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::scalar::I32VMulMicrokernelOp;
@@ -825,7 +825,7 @@ module {
 }
 )mlir";
 
-  const I32BinaryFamilyDescriptor &family =
+  const I32BinaryFamilyRecord &family =
       tianchenrv::target::i32_binary::getI32VSubFamilyRegistrationRecord();
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
@@ -947,7 +947,7 @@ module {
                          "typed-scalar-emitc-source-op") &&
                      !hasSelectedPlanMetadata(
                          "tcrv_scalar.selected_lowering_descriptor",
-                         family.loweringDescriptor,
+                         family.legacyLoweringToken,
                          "legacy-scalar-binary-descriptor-mirror"),
                  "scalar vsub emission plan records typed EmitC source "
                  "metadata without descriptor authority"))
@@ -958,7 +958,7 @@ module {
         "tcrv_scalar.lowering_descriptor",
         builder.getStringAttr(
             tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()
-                .loweringDescriptor));
+                .legacyLoweringToken));
     variant->setAttr("tcrv_scalar.element_count",
                      builder.getI64IntegerAttr(16));
   }
@@ -972,7 +972,7 @@ module {
       {"optional legacy scalar descriptor mirror metadata",
        "tcrv_scalar.lowering_descriptor",
        tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()
-           .loweringDescriptor,
+           .legacyLoweringToken,
        "typed scalar microkernel body is",
        family.scalar.microkernelOpName});
 }
@@ -997,7 +997,7 @@ module {
 }
 )mlir";
 
-  const I32BinaryFamilyDescriptor &family =
+  const I32BinaryFamilyRecord &family =
       tianchenrv::target::i32_binary::getI32VMulFamilyRegistrationRecord();
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
@@ -1119,7 +1119,7 @@ module {
                          "typed-scalar-emitc-source-op") &&
                      !hasSelectedPlanMetadata(
                          "tcrv_scalar.selected_lowering_descriptor",
-                         family.loweringDescriptor,
+                         family.legacyLoweringToken,
                          "legacy-scalar-binary-descriptor-mirror"),
                  "scalar vmul emission plan records typed EmitC source "
                  "metadata without descriptor authority"))
@@ -1130,7 +1130,7 @@ module {
         "tcrv_scalar.lowering_descriptor",
         builder.getStringAttr(
             tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()
-                .loweringDescriptor));
+                .legacyLoweringToken));
     variant->setAttr("tcrv_scalar.element_count",
                      builder.getI64IntegerAttr(16));
   }
@@ -1144,14 +1144,14 @@ module {
       {"optional legacy scalar descriptor mirror metadata",
        "tcrv_scalar.lowering_descriptor",
        tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()
-           .loweringDescriptor,
+           .legacyLoweringToken,
        "typed scalar microkernel body is",
        family.scalar.microkernelOpName});
 }
 
 int runDescriptorlessScalarI64MaterializationCase(
     mlir::MLIRContext &context,
-    const RVVScalarBinaryFamilyDescriptor &family,
+    const RVVScalarBinaryFamilyRecord &family,
     llvm::StringRef diagnosticLabel) {
   std::string kernelName =
       (llvm::Twine("scalar_") + family.scalar.functionStem).str();
@@ -1223,7 +1223,7 @@ module {
           expect(!hasDescriptor,
                  llvm::Twine("scalar ") + diagnosticLabel +
                      " proposal uses typed source metadata instead of a "
-                     "lowering descriptor"))
+                     "lowering route label"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1331,21 +1331,21 @@ module {
                          "typed-scalar-emitc-source-op") &&
                      !hasSelectedPlanMetadata(
                          "tcrv_scalar.selected_lowering_descriptor",
-                         family.loweringDescriptor,
+                         family.legacyLoweringToken,
                          "legacy-scalar-binary-descriptor-mirror"),
                  llvm::Twine("scalar ") + diagnosticLabel +
                      " emission plan records typed EmitC source metadata "
                      "without descriptor authority"))
     return result;
 
-  const RVVScalarBinaryFamilyDescriptor *staleDescriptorFamily =
+  const RVVScalarBinaryFamilyRecord *staleDescriptorFamily =
       &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord();
   if (staleDescriptorFamily->familyID == family.familyID)
     staleDescriptorFamily =
         &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord();
   variant->setAttr("tcrv_scalar.lowering_descriptor",
                    builder.getStringAttr(
-                       staleDescriptorFamily->loweringDescriptor));
+                       staleDescriptorFamily->legacyLoweringToken));
   variant->setAttr(
       "tcrv_scalar.element_count",
       builder.getI64IntegerAttr(16));
@@ -1358,7 +1358,7 @@ module {
           staleStatus),
       {"optional legacy scalar descriptor mirror metadata",
        "tcrv_scalar.lowering_descriptor",
-       staleDescriptorFamily->loweringDescriptor,
+       staleDescriptorFamily->legacyLoweringToken,
        "typed scalar microkernel body is",
        family.scalar.microkernelOpName});
 }
@@ -1386,7 +1386,7 @@ int runDescriptorlessScalarI64VMulMaterializationTest(
 
 int runDescriptorOnlySelectedEmissionFailsClosedCase(
     mlir::MLIRContext &context,
-    const RVVScalarBinaryFamilyDescriptor &family,
+    const RVVScalarBinaryFamilyRecord &family,
     llvm::StringRef diagnosticLabel) {
   std::string kernelName =
       (llvm::Twine("descriptor_only_scalar_") + family.scalar.functionStem)
@@ -1405,7 +1405,7 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback],
       tcrv_scalar.lowering_descriptor = ")mlir" +
-       family.loweringDescriptor + R"mlir(",
+       family.legacyLoweringToken + R"mlir(",
       tcrv_scalar.element_count = 16 : i64
     } {
     }
@@ -1512,14 +1512,14 @@ module {
 
 int runDescriptorOnlySelectedEmissionFailsClosedTest(
     mlir::MLIRContext &context) {
-  const RVVScalarBinaryFamilyDescriptor *families[] = {
+  const RVVScalarBinaryFamilyRecord *families[] = {
       &tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord(),
       &tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord(),
       &tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord(),
       &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord(),
       &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord(),
       &tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord()};
-  for (const RVVScalarBinaryFamilyDescriptor *family : families)
+  for (const RVVScalarBinaryFamilyRecord *family : families)
     if (int result = runDescriptorOnlySelectedEmissionFailsClosedCase(
             context, *family, family->familyID))
       return result;

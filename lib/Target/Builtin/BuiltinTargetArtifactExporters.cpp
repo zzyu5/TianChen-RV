@@ -146,7 +146,7 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.addLoweringBoundaryOp("tcrv_scalar.lowering_boundary");
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerScalarBuiltinTargetArtifactExporterBundles);
-  for (const rvv_scalar::RVVScalarBinaryFamilyDescriptor *family :
+  for (const rvv_scalar::RVVScalarBinaryFamilyRecord *family :
        rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
     bundle.addTargetArtifactRouteMetadataRequirement(
         family->scalar.routeID, "runtime-callable-c-source");

@@ -91,7 +91,7 @@ module @rvv_microkernel_object_input {
 // OBJNOTE: runtime_avl_role=runtime-element-count
 // OBJNOTE: runtime_vl_source=tcrv_rvv.setvl
 // OBJNOTE: runtime_vl_scope=tcrv_rvv.with_vl
-// OBJNOTE: descriptor_element_count=16
+// OBJNOTE: component_capacity_element_count=16
 // OBJNOTE: runtime_abi=rvv-i32-vadd-runtime-callable-c-abi.v1
 // OBJNOTE: runtime_abi_kind=rvv-runtime-callable-c-abi
 // OBJNOTE: runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1

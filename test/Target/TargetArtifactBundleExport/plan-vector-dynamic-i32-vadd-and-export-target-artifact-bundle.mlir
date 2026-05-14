@@ -200,7 +200,7 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX-NEXT: value: "shape=i32m1,sew=32,lmul=m1,tail_policy=agnostic,mask_policy=agnostic,vector_type=vint32m1_t,vector_suffix=i32m1,setvl_suffix=e32m1"
 // INDEX: name: "tcrv_rvv.dispatch_contract_runtime_vl_boundary"
 // INDEX-NEXT: value: "runtime_element_count_c_name=n,runtime_avl_source=runtime-element-count-abi-parameter,runtime_avl_role=runtime-element-count,runtime_vl_source=tcrv_rvv.setvl,runtime_vl_scope=tcrv_rvv.with_vl"
-// INDEX: name: "tcrv_rvv.dispatch_contract_descriptor_element_count"
+// INDEX: name: "tcrv_rvv.dispatch_contract_component_capacity_element_count"
 // INDEX-NEXT: value: "16"
 // INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
 // INDEX-NEXT: value: "source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface"
@@ -217,7 +217,7 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
 
 // SOURCE: /* selected_kernel: @frontend_vector_dynamic_bundle_i32_vadd */
-// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
+// SOURCE: /* selected_binary_config: {{.*}}component_capacity_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
 // SOURCE: /* dispatch_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */

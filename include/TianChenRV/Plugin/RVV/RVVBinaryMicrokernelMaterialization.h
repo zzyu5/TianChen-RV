@@ -5,7 +5,7 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 #include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Operation.h"
@@ -28,11 +28,11 @@ struct RVVBinaryMicrokernelMaterializationPlan {
   RVVBinarySelectedPlan selectedPlan;
   std::string sourceKind;
 
-  const target::rvv::RVVBinaryIntrinsicDescriptor &getDescriptor() const {
+  const target::rvv::RVVBinaryIntrinsicRoute &getDescriptor() const {
     return selectedPlan.descriptor;
   }
 
-  const target::rvv::RVVBinaryFamilyDescriptor &getFamily() const {
+  const target::rvv::RVVBinaryFamilyRecord &getFamily() const {
     return *selectedPlan.family;
   }
 
@@ -55,7 +55,7 @@ struct RVVBinaryVLDataflowMaterialization {
   llvm::StringRef maskPolicy;
   llvm::StringRef vectorSuffix;
   llvm::StringRef setvlSuffix;
-  std::int64_t descriptorElementCount = 0;
+  std::int64_t componentCapacityElementCount = 0;
 };
 
 llvm::Expected<RVVBinaryVLDataflowMaterialization>
@@ -65,9 +65,9 @@ buildRVVBinaryVLDataflowMaterialization(
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildRVVBinaryCallableRuntimeABIParameters(
     tcrv::exec::KernelOp kernel,
-    const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor);
+    const target::rvv::RVVBinaryIntrinsicRoute &descriptor);
 
-const target::rvv::RVVBinaryFamilyDescriptor *
+const target::rvv::RVVBinaryFamilyRecord *
 getRVVBinaryMicrokernelFamilyForOp(mlir::Operation *op);
 
 llvm::Error rejectExistingRVVBinaryMicrokernelForSelectedPath(

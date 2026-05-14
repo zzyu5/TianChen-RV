@@ -144,8 +144,8 @@ def SetVLOp : TCRVRVV_Op<"setvl", []> {
     configuration metadata: SEW 32, LMUL m1 or m2, and a finite
     #tcrv_rvv.policy attribute.
 
-    This op does not model VLEN/vlenb hardware facts, descriptor-local element
-    counts, required march metadata, required capability metadata, pointer or
+    This op does not model VLEN/vlenb hardware facts, artifact-local component
+    capacity, required march metadata, required capability metadata, pointer or
     memory operands, RVV arithmetic, vector registers, masks, lowering,
     runtime ABI glue, generated artifacts, hardware execution, correctness, or
     performance. The companion tcrv_rvv.with_vl op may consume the produced
@@ -177,8 +177,8 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
     defined by a tcrv_rvv.setvl op.
 
     This op is a structural prerequisite for future RVV control/body lowering
-    work only. It does not model VLEN/vlenb hardware facts, descriptor-local
-    element counts, required march metadata, required capability metadata,
+    work only. It does not model VLEN/vlenb hardware facts, artifact-local
+    component capacity, required march metadata, required capability metadata,
     raw capability facts, pointer or memory operands, RVV arithmetic, vector
     registers, masks, lowering, runtime ABI glue, generated artifacts,
     hardware execution, correctness, or performance.
@@ -503,7 +503,7 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary vector math IR. It represents exactly the first
     bounded RVV executable microkernel slice for i32 vector-add smoke
-    correctness, while keeping descriptor-local element_count distinct from
+    correctness, while keeping artifact-local component capacity distinct from
     runtime n/AVL/VL control.
   }];
 
@@ -557,7 +557,7 @@ def I32VSubMicrokernelOp : TCRVRVV_Op<"i32_vsub_microkernel",
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary vector math IR. It represents exactly the
     bounded RVV executable microkernel slice for i32 vector-subtract, while
-    keeping descriptor-local element_count distinct from runtime n/AVL/VL
+    keeping artifact-local component capacity distinct from runtime n/AVL/VL
     control.
   }];
 
@@ -611,7 +611,7 @@ def I32VMulMicrokernelOp : TCRVRVV_Op<"i32_vmul_microkernel",
     This op is not a generic tensor, tile, benchmark, bufferization, lowering,
     runtime ABI, or arbitrary vector math IR. It represents exactly the
     bounded RVV executable microkernel slice for i32 vector-multiply, while
-    keeping descriptor-local element_count distinct from runtime n/AVL/VL
+    keeping artifact-local component capacity distinct from runtime n/AVL/VL
     control.
   }];
 
@@ -703,7 +703,7 @@ def I64VSubMicrokernelOp : TCRVRVV_Op<"i64_vsub_microkernel",
     Records one plugin-local executable RVV i64 vector-subtract microkernel body
     for a selected RVV variant. It is a finite sibling of the i64 add slice:
     selected-path metadata, required RVV capability references, required march,
-    descriptor-local element count, and one structured RVV dataflow body are
+    artifact-local component capacity, and one structured RVV dataflow body are
     validated before target-local C/header/object emission.
 
     The body has one runtime index block argument representing the
@@ -752,7 +752,7 @@ def I64VMulMicrokernelOp : TCRVRVV_Op<"i64_vmul_microkernel",
     Records one plugin-local executable RVV i64 vector-multiply microkernel body
     for a selected RVV variant. It is a finite sibling of the i64 add slice:
     selected-path metadata, required RVV capability references, required march,
-    descriptor-local element count, and one structured RVV dataflow body are
+    artifact-local component capacity, and one structured RVV dataflow body are
     validated before target-local C/header/object emission.
 
     The body has one runtime index block argument representing the

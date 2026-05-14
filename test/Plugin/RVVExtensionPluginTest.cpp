@@ -7,7 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedEmissionPlanning.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Transforms/Passes.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -339,7 +339,7 @@ mlir::Operation *findRVVI64Microkernel(
 }
 
 std::string getRVVFamilySymbolFragment(
-    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family) {
   std::string fragment = family.familyID.str();
   for (char &character : fragment)
     if (character == '-')
@@ -2037,7 +2037,7 @@ module {
 
   auto expectFamily =
       [&](llvm::StringRef kernelName,
-          const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family)
+          const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family)
           -> int {
     KernelOp kernel = findKernel(*module, kernelName);
     if (int result =
@@ -2468,16 +2468,16 @@ module {
                    builder.getStringAttr("i32-vadd-microkernel.v1"));
   llvm::Expected<
       std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
-      staleDescriptorPlan =
+      staleLegacyMirrorPlan =
           tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
               VariantEmissionRequest(variant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-  if (staleDescriptorPlan)
+  if (staleLegacyMirrorPlan)
     return fail("stale i32 descriptor mirror must not change typed selected "
                 "emission plan");
   if (int result = expectErrorContains(
-          staleDescriptorPlan.takeError(),
+          staleLegacyMirrorPlan.takeError(),
           {"tcrv_rvv.lowering_descriptor 'i32-vadd-microkernel.v1'",
            "requires tcrv_rvv.i32_vadd_microkernel",
            "typed microkernel body is tcrv_rvv.i32_vsub_microkernel"}))
@@ -2501,7 +2501,7 @@ module {
 
 int runRVVI64BinaryFamilyProposalMaterializationTest(
     mlir::MLIRContext &context,
-    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family) {
   std::string familySymbol = getRVVFamilySymbolFragment(family);
   std::string kernelSymbol = (llvm::Twine("rvv_") + familySymbol).str();
   std::string frontendKernelSymbol =
@@ -2833,31 +2833,31 @@ module {
               !hasSelectedPlanMetadata(
                   plannerI64Plan.selectedPlanMetadata,
                   "tcrv_rvv.selected_lowering_descriptor",
-                  family.loweringDescriptor,
+                  family.legacyLoweringToken,
                   "legacy-rvv-binary-descriptor-mirror"),
           "RVV i64 selected-emission planner records typed EmitC route "
           "metadata without descriptor authority"))
     return result;
 
-  const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &staleFamily =
+  const tianchenrv::target::rvv::RVVBinaryFamilyRecord &staleFamily =
       family.arithmetic == tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add
           ? tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()
           : tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord();
   variant->setAttr("tcrv_rvv.lowering_descriptor",
-                   builder.getStringAttr(staleFamily.loweringDescriptor));
+                   builder.getStringAttr(staleFamily.legacyLoweringToken));
   llvm::Expected<
       std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
-      staleDescriptorPlan =
+      staleLegacyMirrorPlan =
           tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
               VariantEmissionRequest(variant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-  if (staleDescriptorPlan)
+  if (staleLegacyMirrorPlan)
     return fail("stale i64 descriptor mirror must not change typed selected "
                 "emission plan");
   std::string staleDescriptorFragment =
       (llvm::Twine("tcrv_rvv.lowering_descriptor '") +
-       staleFamily.loweringDescriptor + "'")
+       staleFamily.legacyLoweringToken + "'")
           .str();
   std::string staleRequiresFragment =
       (llvm::Twine("requires ") + staleFamily.microkernelOpName).str();
@@ -2865,7 +2865,7 @@ module {
       (llvm::Twine("typed microkernel body is ") + family.microkernelOpName)
           .str();
   if (int result = expectErrorContains(
-          staleDescriptorPlan.takeError(),
+          staleLegacyMirrorPlan.takeError(),
           {staleDescriptorFragment, staleRequiresFragment, typedBodyFragment}))
     return result;
   variant->removeAttr("tcrv_rvv.lowering_descriptor");

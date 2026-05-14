@@ -2,7 +2,7 @@
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -33,7 +33,7 @@ using tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord;
 using tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord;
 using tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord;
 using tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract;
-using tianchenrv::target::rvv::RVVBinaryFamilyDescriptor;
+using tianchenrv::target::rvv::RVVBinaryFamilyRecord;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
@@ -362,7 +362,7 @@ buildPlan(mlir::MLIRContext &context, llvm::StringRef source) {
 
 llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
 buildFinitePlan(mlir::MLIRContext &context, llvm::StringRef source,
-                const RVVBinaryFamilyDescriptor &family) {
+                const RVVBinaryFamilyRecord &family) {
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return llvm::make_error<llvm::StringError>("failed to parse test module",
@@ -556,10 +556,10 @@ int runI32BinaryFamilyContractCoverageTest() {
 }
 
 int runValidI64FamilyPlanTests(mlir::MLIRContext &context) {
-  const RVVBinaryFamilyDescriptor *families[] = {
+  const RVVBinaryFamilyRecord *families[] = {
       &getI64VAddFamilyRegistrationRecord(), &getI64VSubFamilyRegistrationRecord(),
       &getI64VMulFamilyRegistrationRecord()};
-  for (const RVVBinaryFamilyDescriptor *family : families) {
+  for (const RVVBinaryFamilyRecord *family : families) {
     llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> plan =
         buildFinitePlan(context, kValidI64CallableABI, *family);
     if (!plan)

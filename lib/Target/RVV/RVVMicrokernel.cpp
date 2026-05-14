@@ -16,7 +16,7 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 #include "TianChenRV/Target/RVV/RVVBinaryMicrokernelBodyVerifier.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 
@@ -79,7 +79,7 @@ constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
-constexpr llvm::StringLiteral kRVVLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kRVVLoweringTokenAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
@@ -171,7 +171,7 @@ enum class RVVMicrokernelCExportMode {
 using RVVI32MicrokernelKind =
     tianchenrv::target::rvv::RVVBinaryArithmeticKind;
 using RVVI32MicrokernelFamilySpec =
-    tianchenrv::target::rvv::RVVBinaryFamilyDescriptor;
+    tianchenrv::target::rvv::RVVBinaryFamilyRecord;
 
 struct SelectedPath {
   VariantOp variant;
@@ -181,7 +181,7 @@ struct SelectedPath {
 
 struct RVVMicrokernelRecord {
   const RVVI32MicrokernelFamilySpec *family = nullptr;
-  RVVBinaryIntrinsicDescriptor descriptor;
+  RVVBinaryIntrinsicRoute descriptor;
   std::string activeRouteID;
   std::string kernelSymbol;
   std::string variantSymbol;
@@ -246,8 +246,8 @@ getI32MicrokernelFamilySpec(RVVI32MicrokernelKind kind) {
   llvm_unreachable("unknown RVV i32 microkernel family");
 }
 
-bool isSameRVVBinaryFamily(const RVVBinaryFamilyDescriptor &lhs,
-                           const RVVBinaryFamilyDescriptor &rhs) {
+bool isSameRVVBinaryFamily(const RVVBinaryFamilyRecord &lhs,
+                           const RVVBinaryFamilyRecord &rhs) {
   return lhs.dtype == rhs.dtype && lhs.arithmetic == rhs.arithmetic;
 }
 
@@ -265,11 +265,11 @@ convertI32BinaryFamilyKind(i32_binary::I32BinaryFamilyKind kind) {
   llvm_unreachable("unknown legacy i32 binary family kind");
 }
 
-RVVBinaryIntrinsicDescriptor
-getI32BinaryIntrinsicDescriptorForMicrokernel(
+RVVBinaryIntrinsicRoute
+getI32BinaryIntrinsicRouteForMicrokernel(
     const RVVI32MicrokernelFamilySpec &family,
     const RVVI32VectorShapeConfig &shape) {
-  return getRVVBinaryIntrinsicDescriptor(family, shape);
+  return getRVVBinaryIntrinsicRoute(family, shape);
 }
 
 const RVVI32VectorShapeConfig &getI32M1ConfigSpec() {
@@ -291,12 +291,12 @@ getI32MicrokernelFamilyForOp(mlir::Operation *op) {
   return nullptr;
 }
 
-const RVVBinaryFamilyDescriptor *
+const RVVBinaryFamilyRecord *
 getI64MicrokernelFamilyForOp(mlir::Operation *op) {
   if (!op)
     return nullptr;
   llvm::StringRef opName = op->getName().getStringRef();
-  for (const RVVBinaryFamilyDescriptor *family :
+  for (const RVVBinaryFamilyRecord *family :
        getRVVBinaryFamilyRegistrationRecords()) {
     if (family->dtype == RVVBinaryDTypeKind::I64 &&
         family->microkernelOpName == opName)
@@ -320,7 +320,7 @@ bool candidateMatchesRVVMicrokernelFamily(
 
 bool candidateMatchesRVVRouteRegistration(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   return candidate.origin == kRVVPluginName &&
          candidate.routeID == descriptor.getRVVRouteID() &&
          candidate.emissionKind == descriptor.family.emissionKind &&
@@ -575,7 +575,7 @@ std::string getEffectiveRouteID(
 
 std::string getEffectiveRouteID(
     llvm::StringRef activeRouteID,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   if (!activeRouteID.empty())
     return activeRouteID.str();
   return descriptor.getRVVRouteID().str();
@@ -753,7 +753,7 @@ llvm::Error validateRVVBinaryCallableABIParameterMirror(
     llvm::ArrayRef<support::RuntimeABIParameter> metadataParameters,
     llvm::ArrayRef<support::RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   return support::validateFiniteBinaryCallableABIParameterMirror(
       kernel, metadataParameters, irBackedParameters, metadataSource,
       target::rvv::getRVVBinaryRuntimeABIContract(descriptor.family));
@@ -1165,18 +1165,18 @@ llvm::Error validateSelectedDescriptorMatchesMicrokernelFamily(
     const RVVI32MicrokernelFamilySpec &family) {
   auto descriptorAttr =
       getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-          kRVVLoweringDescriptorAttrName);
+          kRVVLoweringTokenAttrName);
   if (!descriptorAttr)
     return llvm::Error::success();
 
   llvm::StringRef descriptor = descriptorAttr.getValue().trim();
   if (llvm::Error error =
-          validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+          validateBoundedText(kernel, kRVVLoweringTokenAttrName,
                               descriptor))
     return error;
 
-  const RVVBinaryFamilyDescriptor *selectedFamily =
-      lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptor);
+  const RVVBinaryFamilyRecord *selectedFamily =
+      lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(descriptor);
   if (!selectedFamily)
     return makeMicrokernelError(
         kernel, llvm::Twine("selected RVV variant @") +
@@ -1204,21 +1204,21 @@ llvm::Error validateSelectedDescriptorMatchesMicrokernelFamily(
 
 llvm::Error validateSelectedI64DescriptorMirrorMatchesTypedBody(
     KernelOp kernel, const SelectedPath &path,
-    const RVVBinaryFamilyDescriptor &typedFamily) {
+    const RVVBinaryFamilyRecord &typedFamily) {
   auto descriptorAttr =
       getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-          kRVVLoweringDescriptorAttrName);
+          kRVVLoweringTokenAttrName);
   if (!descriptorAttr)
     return llvm::Error::success();
 
   llvm::StringRef descriptor = descriptorAttr.getValue().trim();
   if (llvm::Error error =
-          validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+          validateBoundedText(kernel, kRVVLoweringTokenAttrName,
                               descriptor))
     return error;
 
-  const RVVBinaryFamilyDescriptor *mirrorFamily =
-      lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptor);
+  const RVVBinaryFamilyRecord *mirrorFamily =
+      lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(descriptor);
   if (!mirrorFamily)
     return makeMicrokernelError(
         kernel, llvm::Twine("selected RVV variant @") +
@@ -1242,12 +1242,12 @@ llvm::Error validateSelectedI64DescriptorMirrorMatchesTypedBody(
   return llvm::Error::success();
 }
 
-llvm::Expected<const RVVBinaryFamilyDescriptor *>
+llvm::Expected<const RVVBinaryFamilyRecord *>
 resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
-  const RVVBinaryFamilyDescriptor *matchedFamily = nullptr;
+  const RVVBinaryFamilyRecord *matchedFamily = nullptr;
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVBinaryFamilyDescriptor *candidateFamily =
+    const RVVBinaryFamilyRecord *candidateFamily =
         getI64MicrokernelFamilyForOp(&op);
     if (!candidateFamily)
       continue;
@@ -1282,15 +1282,15 @@ resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
 
   if (auto descriptorAttr =
           getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-              kRVVLoweringDescriptorAttrName)) {
+              kRVVLoweringTokenAttrName)) {
     llvm::StringRef descriptor = descriptorAttr.getValue().trim();
     if (llvm::Error error =
-            validateBoundedText(kernel, kRVVLoweringDescriptorAttrName,
+            validateBoundedText(kernel, kRVVLoweringTokenAttrName,
                                 descriptor))
       return std::move(error);
 
-    const RVVBinaryFamilyDescriptor *descriptorFamily =
-        lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(descriptor);
+    const RVVBinaryFamilyRecord *descriptorFamily =
+        lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(descriptor);
     if (descriptorFamily && descriptorFamily->dtype == RVVBinaryDTypeKind::I64)
       return makeMicrokernelError(
           kernel, llvm::Twine("selected RVV variant @") +
@@ -1366,7 +1366,7 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadataEntry(
 llvm::Expected<const RVVVectorShapeConfig *>
 resolveRVVMicrokernelCandidateSelectedShape(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   llvm::Expected<const SelectedPlanMetadataEntry *> shapeMetadata =
       findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
           candidate, getRVVSelectedVectorShapeAttrName());
@@ -1425,31 +1425,31 @@ resolveRVVMicrokernelRuntimeElementCountCName(
 }
 
 llvm::Expected<std::int64_t>
-resolveRVVMicrokernelDescriptorElementCountMetadata(
+resolveRVVMicrokernelComponentCapacityElementCountMetadata(
     const TargetArtifactCandidate &candidate) {
   llvm::Expected<const SelectedPlanMetadataEntry *> metadata =
       findUniqueRVVMicrokernelSelectedPlanMetadataEntry(
-          candidate, getRVVDescriptorElementCountMetadataName());
+          candidate, getRVVComponentCapacityElementCountMetadataName());
   if (!metadata)
     return metadata.takeError();
 
-  if ((*metadata)->role != getRVVDescriptorElementCountCapacityMetadataRole())
+  if ((*metadata)->role != getRVVComponentCapacityElementCountMetadataRole())
     return makeMicrokernelError(
         candidate.kernel,
         llvm::Twine("selected RVV target artifact candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            getRVVDescriptorElementCountMetadataName() +
+            getRVVComponentCapacityElementCountMetadataName() +
             "' role must be '" +
-            getRVVDescriptorElementCountCapacityMetadataRole() +
+            getRVVComponentCapacityElementCountMetadataRole() +
             "'");
-  if ((*metadata)->note != getRVVDescriptorElementCountCapacityMetadataNote())
+  if ((*metadata)->note != getRVVComponentCapacityElementCountMetadataNote())
     return makeMicrokernelError(
         candidate.kernel,
         llvm::Twine("selected RVV target artifact candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            getRVVDescriptorElementCountMetadataName() +
+            getRVVComponentCapacityElementCountMetadataName() +
             "' note must be '" +
-            getRVVDescriptorElementCountCapacityMetadataNote() +
+            getRVVComponentCapacityElementCountMetadataNote() +
             "'");
 
   std::int64_t value = 0;
@@ -1459,28 +1459,28 @@ resolveRVVMicrokernelDescriptorElementCountMetadata(
         candidate.kernel,
         llvm::Twine("selected RVV target artifact candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            getRVVDescriptorElementCountMetadataName() +
-            "' descriptor-local element_count must be an integer in the "
+            getRVVComponentCapacityElementCountMetadataName() +
+            "' artifact-local component capacity must be an integer in the "
             "bounded smoke range [1, 64]");
   return value;
 }
 
-llvm::Error validateRVVMicrokernelDescriptorElementCountMetadata(
+llvm::Error validateRVVMicrokernelComponentCapacityElementCountMetadata(
     const TargetArtifactCandidate &candidate,
     const RVVBinarySelectedConfigContract &contract) {
   llvm::Expected<std::int64_t> metadataElementCount =
-      resolveRVVMicrokernelDescriptorElementCountMetadata(candidate);
+      resolveRVVMicrokernelComponentCapacityElementCountMetadata(candidate);
   if (!metadataElementCount)
     return metadataElementCount.takeError();
 
-  if (*metadataElementCount != contract.getDescriptorElementCount())
+  if (*metadataElementCount != contract.getComponentCapacityElementCount())
     return makeMicrokernelError(
         candidate.kernel,
         llvm::Twine("selected RVV target artifact candidate @") +
             candidate.selectedVariant + " selected_plan_metadata '" +
-            getRVVDescriptorElementCountMetadataName() +
-            "' descriptor-local element_count layer is stale; expected " +
-            llvm::Twine(contract.getDescriptorElementCount()) +
+            getRVVComponentCapacityElementCountMetadataName() +
+            "' artifact-local component capacity layer is stale; expected " +
+            llvm::Twine(contract.getComponentCapacityElementCount()) +
             " from the selected config/runtime AVL contract but found " +
             llvm::Twine(*metadataElementCount));
   return llvm::Error::success();
@@ -1511,27 +1511,27 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     if (llvm::Error error =
             validateRVVMicrokernelSelectedPlanMetadataEntry(candidate, entry))
       return error;
-  return validateRVVMicrokernelDescriptorElementCountMetadata(candidate,
+  return validateRVVMicrokernelComponentCapacityElementCountMetadata(candidate,
                                                             contract);
 }
 
 llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   llvm::Expected<llvm::StringRef> runtimeElementCountCName =
       resolveRVVMicrokernelRuntimeElementCountCName(candidate);
   if (!runtimeElementCountCName)
     return runtimeElementCountCName.takeError();
 
-  llvm::Expected<std::int64_t> descriptorElementCount =
-      resolveRVVMicrokernelDescriptorElementCountMetadata(candidate);
-  if (!descriptorElementCount)
-    return descriptorElementCount.takeError();
+  llvm::Expected<std::int64_t> componentCapacityElementCount =
+      resolveRVVMicrokernelComponentCapacityElementCountMetadata(candidate);
+  if (!componentCapacityElementCount)
+    return componentCapacityElementCount.takeError();
 
   llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
       buildRVVBinarySelectedConfigContract(
           descriptor.family, *descriptor.shape, candidate.selectedVariant,
-          candidate.role, *descriptorElementCount,
+          candidate.role, *componentCapacityElementCount,
           *runtimeElementCountCName);
   if (!selectedConfig)
     return selectedConfig.takeError();
@@ -2016,7 +2016,7 @@ llvm::Error requireBoundarySourceIdentityAttr(KernelOp kernel,
 
 llvm::Error validateBoundarySourceIdentityForRecord(
     KernelOp kernel, const SelectedPath &path, LoweringBoundaryOp boundary,
-    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVBinaryIntrinsicRoute &descriptor,
     bool requireBoundarySourceIdentity,
     std::string *selectedBinarySourceKind = nullptr) {
   if (!hasAnyBoundaryBinarySourceIdentity(boundary)) {
@@ -2108,7 +2108,7 @@ llvm::Error requireMicrokernelSourceIdentityAttr(
 
 llvm::Error validateMicrokernelSourceIdentityForRecord(
     KernelOp kernel, mlir::Operation *microkernel,
-    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVBinaryIntrinsicRoute &descriptor,
     llvm::StringRef selectedBinarySourceKind) {
   if (!microkernel)
     return makeMicrokernelError(
@@ -2330,18 +2330,18 @@ llvm::Error validateMicrokernelForPath(
                       "capability metadata");
   }
 
-  RVVBinaryIntrinsicDescriptor descriptor =
-      getI32BinaryIntrinsicDescriptorForMicrokernel(family, selectedConfig);
+  RVVBinaryIntrinsicRoute route =
+      getI32BinaryIntrinsicRouteForMicrokernel(family, selectedConfig);
   llvm::SmallVector<support::RuntimeABIParameter, 4> callableABIParameters =
-      descriptor.getCallableRuntimeABIParameters();
+      route.getCallableRuntimeABIParameters();
   RVVBinaryMicrokernelBodyValidationRequest request;
   request.kernel = kernel;
   request.microkernel = microkernel;
-  request.descriptor = descriptor;
+  request.descriptor = route;
   request.selectedPolicy = expectedPolicy;
   request.activeRouteID = activeRouteID;
   request.callableABIParameters = callableABIParameters;
-  request.expectedDescriptorElementCount = getSelectedVariantElementCount(path);
+  request.expectedComponentCapacityElementCount = getSelectedVariantElementCount(path);
   llvm::Expected<RVVBinaryMicrokernelBodyValidationResult> validation =
       validateRVVBinaryMicrokernelBody(request);
   if (!validation)
@@ -2422,7 +2422,7 @@ llvm::Error validateI64MicrokernelForPath(
     KernelOp kernel, const SelectedPath &path, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *microkernel,
-    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVBinaryIntrinsicRoute &descriptor,
     const RVVI32VectorShapeConfig &selectedConfig,
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
@@ -2542,7 +2542,7 @@ llvm::Error validateI64MicrokernelForPath(
   request.selectedPolicy = expectedPolicy;
   request.activeRouteID = activeRouteID;
   request.callableABIParameters = callableABIParameters;
-  request.expectedDescriptorElementCount = getSelectedVariantElementCount(path);
+  request.expectedComponentCapacityElementCount = getSelectedVariantElementCount(path);
   llvm::Expected<RVVBinaryMicrokernelBodyValidationResult> validation =
       validateRVVBinaryMicrokernelBody(request);
   if (!validation)
@@ -2561,7 +2561,7 @@ llvm::Error findAndValidateI64Microkernel(
     const llvm::StringSet<> &selectedRVVPathKeys, llvm::StringRef selectedMarch,
     const std::optional<std::string> &selectedMABI,
     PolicyAttr expectedPolicy, mlir::Operation *&matchedMicrokernel,
-    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVBinaryIntrinsicRoute &descriptor,
     const RVVI32VectorShapeConfig &selectedConfig,
     llvm::StringRef activeRouteID,
     std::int64_t &elementCount, std::int64_t &controlPlaneSEW,
@@ -2569,7 +2569,7 @@ llvm::Error findAndValidateI64Microkernel(
     RVVBinaryDataflowEmissionPlan &dataflowPlan) {
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVBinaryFamilyDescriptor *microkernelFamily =
+    const RVVBinaryFamilyRecord *microkernelFamily =
         getI64MicrokernelFamilyForOp(&op);
     if (!microkernelFamily)
       continue;
@@ -2622,7 +2622,7 @@ llvm::Error findAndValidateI64Microkernel(
 }
 
 llvm::Error buildRVVBinaryCallableABIPlanFromIR(
-    KernelOp kernel, const RVVBinaryIntrinsicDescriptor &descriptor,
+    KernelOp kernel, const RVVBinaryIntrinsicRoute &descriptor,
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &parameters,
     llvm::SmallVectorImpl<MemWindowOp> &bufferWindows,
     RuntimeParamOp &runtimeElementCountParam) {
@@ -2645,7 +2645,7 @@ llvm::Error buildRVVBinaryCallableABIPlanFromIR(
 
 llvm::Error resolveRVVBinaryRuntimeABIParametersForPath(
     KernelOp kernel, const SelectedPath &path,
-    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVBinaryIntrinsicRoute &descriptor,
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &parameters,
     llvm::SmallVectorImpl<MemWindowOp> &bufferWindows,
     RuntimeParamOp &runtimeElementCountParam,
@@ -2769,7 +2769,7 @@ llvm::Error resolveRVVBinaryRuntimeABIParametersForPath(
 
 llvm::Error validateRVVBinaryCandidateRuntimeABIMirrorsIR(
     const TargetArtifactCandidate &candidate,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   if (!candidate.kernel)
     return llvm::Error::success();
 
@@ -2795,7 +2795,7 @@ buildRVVMicrokernelSelectedConfigContract(KernelOp kernel,
         "selected RVV microkernel record requires selected vector-shape "
         "metadata before runtime AVL/VL authority validation");
 
-  const RVVBinaryFamilyDescriptor *registeredFamily =
+  const RVVBinaryFamilyRecord *registeredFamily =
       lookupRVVBinaryFamilyRegistrationByID(
           record.descriptor.getArithmeticFamilyID());
   if (!registeredFamily)
@@ -2861,7 +2861,7 @@ llvm::Error attachFrontendRuntimeExtentContracts(KernelOp kernel,
         kernel,
         llvm::Twine("fixed vector source extent ") +
             llvm::Twine(record.fixedSourceExtent->sourceVectorExtent) +
-            " must match selected descriptor-local element_count " +
+            " must match selected artifact-local component capacity " +
             llvm::Twine(record.elementCount) +
             " before runtime AVL/VL artifact export");
   return llvm::Error::success();
@@ -2942,7 +2942,7 @@ llvm::Error validateSelectedConfigEmissionMatchesBody(
     return makeMicrokernelError(
         kernel,
         "selected RVV config emission authority must be derived from the "
-        "selected config contract, not descriptor-local or body-only "
+        "selected config contract, not artifact-local or body-only "
         "metadata");
   return llvm::Error::success();
 }
@@ -3021,14 +3021,14 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
       requireBoundarySourceIdentity ||
       selectedVariantRequiresBoundarySourceIdentity(path);
 
-  llvm::Expected<const RVVBinaryFamilyDescriptor *> rvvBinaryFamily =
+  llvm::Expected<const RVVBinaryFamilyRecord *> rvvBinaryFamily =
       resolveSelectedI64FamilyForPath(kernel, path);
   if (!rvvBinaryFamily)
     return rvvBinaryFamily.takeError();
 
   if (*rvvBinaryFamily) {
-    RVVBinaryIntrinsicDescriptor descriptor =
-        getRVVBinaryIntrinsicDescriptor(**rvvBinaryFamily, **selectedConfig);
+    RVVBinaryIntrinsicRoute descriptor =
+        getRVVBinaryIntrinsicRoute(**rvvBinaryFamily, **selectedConfig);
     if (descriptor.getDTypeID() != (*selectedConfig)->dtypeID)
       return makeMicrokernelError(
           kernel, llvm::Twine("selected RVV variant @") +
@@ -3133,8 +3133,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   RVVMicrokernelRecord record;
   record.family = microkernelFamily;
   record.descriptor =
-      getI32BinaryIntrinsicDescriptorForMicrokernel(*microkernelFamily,
-                                                   **selectedConfig);
+      getI32BinaryIntrinsicRouteForMicrokernel(*microkernelFamily,
+                                              **selectedConfig);
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   llvm::SmallVector<SelectedPlanMetadataEntry, 24> selectedPlanMetadata;
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
@@ -3293,7 +3293,7 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecord(mlir::ModuleOp module) {
 }
 
 llvm::Expected<RVVMicrokernelRecord> buildModuleRecordForRVVBinaryFamily(
-    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &expectedFamily,
+    mlir::ModuleOp module, const RVVBinaryFamilyRecord &expectedFamily,
     llvm::StringRef routeID) {
   llvm::Expected<RVVMicrokernelRecord> record =
       buildModuleRecord(module, routeID);
@@ -3311,7 +3311,7 @@ llvm::Expected<RVVMicrokernelRecord> buildModuleRecordForRVVBinaryFamily(
 }
 
 llvm::Expected<RVVMicrokernelRecord> buildKernelRecordForRVVBinaryFamily(
-    KernelOp kernel, const RVVBinaryFamilyDescriptor &expectedFamily,
+    KernelOp kernel, const RVVBinaryFamilyRecord &expectedFamily,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID, bool requireBoundarySourceIdentity = false) {
   if (!kernel)
@@ -3443,7 +3443,7 @@ std::string makeMicrokernelHeaderIncludeGuard(
 
 std::string
 getDataflowStepOpName(const RVVBinaryDataflowStep &step,
-                      const RVVBinaryIntrinsicDescriptor &descriptor) {
+                      const RVVBinaryIntrinsicRoute &descriptor) {
   if (!step.sourceOpName.empty())
     return step.sourceOpName;
   switch (step.kind) {
@@ -3465,7 +3465,7 @@ getDataflowStepOpName(const RVVBinaryDataflowStep &step,
 
 llvm::StringRef
 getDataflowValueCName(RVVBinaryDataflowValue value,
-                      const RVVBinaryIntrinsicDescriptor &descriptor) {
+                      const RVVBinaryIntrinsicRoute &descriptor) {
   switch (value) {
   case RVVBinaryDataflowValue::LHSVector:
     return "lhs_vec";
@@ -3483,7 +3483,7 @@ llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
     const RVVBinaryDataflowStep &step,
     const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
     const RVVBinaryEmitCBodyMapping &emitcBodyMapping,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   switch (step.kind) {
   case RVVBinaryDataflowStepKind::Load:
     return selectedConfigEmission.loadIntrinsicName;
@@ -3496,7 +3496,7 @@ llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
           "RVV family-op to EmitC route requires every compute step to carry "
           "typed source-op and generated op-interface provenance before "
           "choosing an intrinsic callee");
-    const RVVBinaryFamilyDescriptor *sourceFamily =
+    const RVVBinaryFamilyRecord *sourceFamily =
         lookupRVVBinaryFamilyRegistrationByRVVOperationName(
             step.sourceOpName);
     if (!sourceFamily)
@@ -3623,7 +3623,7 @@ const support::RuntimeABIParameter *lookupParameterByRole(
 class RVVBinaryEmitCLowerable final : public TCRVEmitCLowerableInterface {
 public:
   RVVBinaryEmitCLowerable(
-      const RVVBinaryIntrinsicDescriptor &descriptor,
+      const RVVBinaryIntrinsicRoute &descriptor,
       const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
       const RVVBinaryEmitCBodyMapping &emitcBodyMapping,
       const RVVBinaryDataflowEmissionPlan &dataflowPlan,
@@ -3770,7 +3770,7 @@ private:
     return "unknown";
   }
 
-  RVVBinaryIntrinsicDescriptor descriptor;
+  RVVBinaryIntrinsicRoute descriptor;
   RVVBinarySelectedConfigEmissionView selectedConfigEmission;
   RVVBinaryEmitCBodyMapping emitcBodyMapping;
   RVVBinaryDataflowEmissionPlan dataflowPlan;
@@ -3780,7 +3780,7 @@ private:
 };
 
 llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
-    const RVVBinaryIntrinsicDescriptor &descriptor,
+    const RVVBinaryIntrinsicRoute &descriptor,
     const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
     const RVVBinaryEmitCBodyMapping &emitcBodyMapping,
     const RVVBinaryDataflowEmissionPlan &dataflowPlan,
@@ -3805,7 +3805,7 @@ llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
 void printDataflowPlanMetadata(
     llvm::raw_ostream &os,
     const RVVBinaryDataflowEmissionPlan &dataflowPlan,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   for (auto [index, step] : llvm::enumerate(dataflowPlan.steps)) {
     os << "/* dataflow_emission_step[" << index
        << "]: op=" << getDataflowStepOpName(step, descriptor);
@@ -4139,7 +4139,7 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
                                       std::int64_t elementCount,
                                       std::optional<std::int64_t>
                                           fixedSourceVectorExtent) {
-  os << "/* Harness capacity comes from descriptor-local element_count; each "
+  os << "/* Harness capacity comes from artifact-local component capacity; each "
         "call still supplies runtime n through the generated C ABI. */\n";
   if (fixedSourceVectorExtent)
     os << "/* Harness fixed source extent constraint: runtime_n must equal "
@@ -4543,9 +4543,9 @@ void appendMicrokernelObjectEvidenceSection(
                           runtimeLength.getRuntimeVLSource());
   printObjectEvidenceLine(os, "runtime_vl_scope",
                           runtimeLength.getRuntimeVLScope());
-  printObjectEvidenceLine(os, "descriptor_element_count",
+  printObjectEvidenceLine(os, "component_capacity_element_count",
                           std::to_string(
-                              runtimeLength.getDescriptorElementCount()));
+                              runtimeLength.getComponentCapacityElementCount()));
   printObjectEvidenceLine(os, "runtime_abi",
                           record.descriptor.getRVVRuntimeABI());
   printObjectEvidenceLine(os, "runtime_abi_kind",
@@ -4592,7 +4592,7 @@ void appendMicrokernelObjectEvidenceSection(
 
 TargetArtifactRouteMetadata
 buildRVVMicrokernelSourceRouteMetadata(
-    const RVVBinaryFamilyDescriptor &family);
+    const RVVBinaryFamilyRecord &family);
 
 void addRVVMicrokernelConservativeRouteClaims(
     TargetArtifactRouteMetadata &metadata);
@@ -4601,7 +4601,7 @@ TargetArtifactRouteMetadata buildRVVMicrokernelArtifactRouteMetadata(
     const RVVMicrokernelDirectRouteManifestEntry &route);
 
 tianchenrv::target::TargetArtifactExportFn
-getRVVMicrokernelExactExportFn(const RVVBinaryFamilyDescriptor &family,
+getRVVMicrokernelExactExportFn(const RVVBinaryFamilyRecord &family,
                                RVVMicrokernelDirectRouteKind routeKind);
 
 llvm::Error validateRVVMicrokernelSourceCandidate(
@@ -4633,14 +4633,14 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
         llvm::Twine("target artifact route '") + candidate.routeID +
         "' is not a manifest-backed RVV microkernel source route");
 
-  const RVVBinaryFamilyDescriptor &family = *route->family;
+  const RVVBinaryFamilyRecord &family = *route->family;
   llvm::Expected<const RVVVectorShapeConfig *> selectedShape =
       resolveRVVMicrokernelCandidateSelectedShape(candidate, family);
   if (!selectedShape)
     return selectedShape.takeError();
 
-  RVVBinaryIntrinsicDescriptor descriptor =
-      getRVVBinaryIntrinsicDescriptor(family, **selectedShape);
+  RVVBinaryIntrinsicRoute descriptor =
+      getRVVBinaryIntrinsicRoute(family, **selectedShape);
   if (!candidateMatchesRVVRouteRegistration(candidate, descriptor)) {
     llvm::StringRef expectedDescription =
         family.dtype == RVVBinaryDTypeKind::I64
@@ -4698,7 +4698,7 @@ llvm::Error validateRVVMicrokernelSourceCandidate(
 
 TargetArtifactRouteMetadata
 buildRVVMicrokernelSourceRouteMetadata(
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   TargetArtifactRouteMetadata metadata(
       family.runtimeABI, family.runtimeABIKind, family.runtimeABIName,
       family.runtimeGlueRole);
@@ -4746,15 +4746,15 @@ buildRVVMicrokernelSourceRouteMetadata(
         getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
         descriptorRole);
     metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedLoweringDescriptorMetadataName(),
-        family.loweringDescriptor, descriptorRole);
+        getRVVSelectedLoweringTokenMetadataName(),
+        family.legacyLoweringToken, descriptorRole);
   }
   metadata.addSelectedPlanMetadataPresenceRequirement(
       getRVVRuntimeElementCountCNameMetadataName(),
       getRVVRuntimeControlNameMetadataRole());
   metadata.addSelectedPlanMetadataPresenceRequirement(
-      getRVVDescriptorElementCountMetadataName(),
-      getRVVDescriptorElementCountCapacityMetadataRole());
+      getRVVComponentCapacityElementCountMetadataName(),
+      getRVVComponentCapacityElementCountMetadataRole());
 
   llvm::StringRef shapeRole = getSelectedRVVVectorShapeMetadataRole();
   metadata.addSelectedPlanMetadataPresenceRequirement(
@@ -4892,7 +4892,7 @@ llvm::Expected<bool> matchRVVMicrokernelMulObjectCandidate(
 
 llvm::Expected<bool> matchRVVMicrokernelI64FamilyCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates,
-    const RVVBinaryIntrinsicDescriptor &descriptor) {
+    const RVVBinaryIntrinsicRoute &descriptor) {
   if (candidates.size() != 1)
     return false;
   return candidateMatchesRVVRouteRegistration(candidates.front(), descriptor);
@@ -4901,19 +4901,19 @@ llvm::Expected<bool> matchRVVMicrokernelI64FamilyCandidate(
 llvm::Expected<bool> matchRVVMicrokernelI64VAddObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   return matchRVVMicrokernelI64FamilyCandidate(
-      candidates, getI64VAddIntrinsicDescriptor());
+      candidates, getI64VAddIntrinsicRoute());
 }
 
 llvm::Expected<bool> matchRVVMicrokernelI64VSubObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   return matchRVVMicrokernelI64FamilyCandidate(
-      candidates, getI64VSubIntrinsicDescriptor());
+      candidates, getI64VSubIntrinsicRoute());
 }
 
 llvm::Expected<bool> matchRVVMicrokernelI64VMulObjectCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   return matchRVVMicrokernelI64FamilyCandidate(
-      candidates, getI64VMulIntrinsicDescriptor());
+      candidates, getI64VMulIntrinsicRoute());
 }
 
 llvm::Expected<bool> matchRVVMicrokernelAddHeaderCandidate(
@@ -4943,23 +4943,23 @@ llvm::Expected<bool> matchRVVMicrokernelMulHeaderCandidate(
 llvm::Expected<bool> matchRVVMicrokernelI64VAddHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   return matchRVVMicrokernelI64FamilyCandidate(
-      candidates, getI64VAddIntrinsicDescriptor());
+      candidates, getI64VAddIntrinsicRoute());
 }
 
 llvm::Expected<bool> matchRVVMicrokernelI64VSubHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   return matchRVVMicrokernelI64FamilyCandidate(
-      candidates, getI64VSubIntrinsicDescriptor());
+      candidates, getI64VSubIntrinsicRoute());
 }
 
 llvm::Expected<bool> matchRVVMicrokernelI64VMulHeaderCandidate(
     llvm::ArrayRef<tianchenrv::target::TargetArtifactCandidate> candidates) {
   return matchRVVMicrokernelI64FamilyCandidate(
-      candidates, getI64VMulIntrinsicDescriptor());
+      candidates, getI64VMulIntrinsicRoute());
 }
 
 TargetArtifactCompositeMatchFn
-getRVVMicrokernelHeaderMatchFn(const RVVBinaryFamilyDescriptor &family) {
+getRVVMicrokernelHeaderMatchFn(const RVVBinaryFamilyRecord &family) {
   switch (family.dtype) {
   case RVVBinaryDTypeKind::I32:
     switch (family.arithmetic) {
@@ -4986,7 +4986,7 @@ getRVVMicrokernelHeaderMatchFn(const RVVBinaryFamilyDescriptor &family) {
 }
 
 TargetArtifactCompositeMatchFn
-getRVVMicrokernelObjectMatchFn(const RVVBinaryFamilyDescriptor &family) {
+getRVVMicrokernelObjectMatchFn(const RVVBinaryFamilyRecord &family) {
   switch (family.dtype) {
   case RVVBinaryDTypeKind::I32:
     switch (family.arithmetic) {
@@ -5323,7 +5323,7 @@ tianchenrv::target::TargetArtifactExportFn getExportFnForRouteKind(
 }
 
 tianchenrv::target::TargetArtifactExportFn
-getRVVMicrokernelExactExportFn(const RVVBinaryFamilyDescriptor &family,
+getRVVMicrokernelExactExportFn(const RVVBinaryFamilyRecord &family,
                                RVVMicrokernelDirectRouteKind routeKind) {
   switch (family.dtype) {
   case RVVBinaryDTypeKind::I32:
@@ -5488,7 +5488,7 @@ getRVVMicrokernelArtifactRouteAuthority() {
       routes = [] {
         llvm::SmallVector<RVVMicrokernelDirectRouteManifestEntry, 32> result;
         result.reserve(getRVVMicrokernelDirectRouteCount());
-        for (const RVVBinaryFamilyDescriptor *family :
+        for (const RVVBinaryFamilyRecord *family :
              getRVVBinaryFamilyRegistrationRecords()) {
           for (RVVMicrokernelDirectRouteKind routeKind :
                getRVVMicrokernelDirectRouteKinds())
@@ -5516,7 +5516,7 @@ lookupRVVMicrokernelDirectRoute(llvm::StringRef routeID) {
 
 const RVVMicrokernelDirectRouteManifestEntry *
 lookupRVVMicrokernelDirectRoute(
-    const RVVBinaryFamilyDescriptor &family,
+    const RVVBinaryFamilyRecord &family,
     RVVMicrokernelDirectRouteKind routeKind) {
   for (const RVVMicrokernelDirectRouteManifestEntry &route :
        getRVVMicrokernelDirectRouteManifest())
@@ -5578,7 +5578,7 @@ llvm::Error exportRVVMicrokernelDirectRoute(
 }
 
 llvm::Error exportRVVMicrokernelCForBinaryFamily(
-    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    mlir::ModuleOp module, const RVVBinaryFamilyRecord &family,
     llvm::raw_ostream &os) {
   const RVVMicrokernelDirectRouteManifestEntry *route =
       lookupRVVMicrokernelDirectRoute(
@@ -5600,7 +5600,7 @@ llvm::Error exportRVVMicrokernelCForFamily(
 }
 
 llvm::Error validateRVVMicrokernelSourceAuthority(
-    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    mlir::ModuleOp module, const RVVBinaryFamilyRecord &family,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID) {
   llvm::Expected<RVVBinarySelectedConfigContract> contract =
@@ -5613,7 +5613,7 @@ llvm::Error validateRVVMicrokernelSourceAuthority(
 
 llvm::Expected<RVVBinarySelectedConfigContract>
 resolveRVVMicrokernelSelectedConfigContractAuthority(
-    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    mlir::ModuleOp module, const RVVBinaryFamilyRecord &family,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID) {
   llvm::Expected<RVVMicrokernelRecord> record =
@@ -5645,7 +5645,7 @@ resolveRVVMicrokernelSelectedConfigContractAuthority(
 
 llvm::Expected<RVVBinarySelectedConfigContract>
 resolveRVVMicrokernelSelectedConfigContractAuthority(
-    KernelOp kernel, const RVVBinaryFamilyDescriptor &family,
+    KernelOp kernel, const RVVBinaryFamilyRecord &family,
     llvm::StringRef selectedVariant, llvm::StringRef role,
     llvm::StringRef routeID) {
   llvm::Expected<RVVMicrokernelRecord> record =
@@ -5693,7 +5693,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 }
 
 llvm::Error exportRVVMicrokernelHeaderForBinaryFamily(
-    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    mlir::ModuleOp module, const RVVBinaryFamilyRecord &family,
     llvm::raw_ostream &os) {
   const RVVMicrokernelDirectRouteManifestEntry *route =
       lookupRVVMicrokernelDirectRoute(
@@ -5715,7 +5715,7 @@ llvm::Error exportRVVMicrokernelHeaderForFamily(
 }
 
 llvm::Error exportRVVMicrokernelObjectForBinaryFamily(
-    mlir::ModuleOp module, const RVVBinaryFamilyDescriptor &family,
+    mlir::ModuleOp module, const RVVBinaryFamilyRecord &family,
     llvm::raw_ostream &os) {
   const RVVMicrokernelDirectRouteManifestEntry *route =
       lookupRVVMicrokernelDirectRoute(

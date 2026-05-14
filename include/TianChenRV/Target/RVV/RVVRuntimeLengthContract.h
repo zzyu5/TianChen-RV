@@ -15,16 +15,16 @@
 
 namespace tianchenrv::target::rvv {
 
-inline llvm::StringRef getRVVDescriptorElementCountMetadataName() {
-  return "tcrv_rvv.descriptor_element_count";
+inline llvm::StringRef getRVVComponentCapacityElementCountMetadataName() {
+  return "tcrv_rvv.component_capacity_element_count";
 }
 
-inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataRole() {
-  return "rvv-descriptor-local-component-capacity";
+inline llvm::StringRef getRVVComponentCapacityElementCountMetadataRole() {
+  return "rvv-artifact-local-component-capacity";
 }
 
-inline llvm::StringRef getRVVDescriptorElementCountCapacityMetadataNote() {
-  return "bounded descriptor-local component capacity cross-checked after "
+inline llvm::StringRef getRVVComponentCapacityElementCountMetadataNote() {
+  return "bounded artifact-local component capacity cross-checked after "
          "typed selected-plan authority; not legacy descriptor mirror, "
          "compute, ABI, source, runtime AVL/VL, hardware capacity, or "
          "performance authority";
@@ -40,7 +40,8 @@ inline llvm::StringRef getRVVRuntimeControlNameMetadataRole() {
 
 inline llvm::StringRef getRVVRuntimeControlNameMetadataNote() {
   return "runtime ABI/control C name resolved from tcrv.exec runtime boundary; "
-         "not a compile-time vector-shape config or descriptor element_count";
+         "not a compile-time vector-shape config or artifact-local component "
+         "capacity";
 }
 
 class RVVRuntimeLengthContract {
@@ -48,9 +49,9 @@ public:
   RVVRuntimeLengthContract() = default;
 
   RVVRuntimeLengthContract(llvm::StringRef runtimeElementCountCName,
-                           std::int64_t descriptorElementCount)
+                           std::int64_t componentCapacityElementCount)
       : runtimeElementCountCName(runtimeElementCountCName.trim().str()),
-        descriptorElementCount(descriptorElementCount) {
+        componentCapacityElementCount(componentCapacityElementCount) {
     if (this->runtimeElementCountCName.empty())
       this->runtimeElementCountCName = "n";
   }
@@ -59,8 +60,8 @@ public:
     return runtimeElementCountCName;
   }
 
-  std::int64_t getDescriptorElementCount() const {
-    return descriptorElementCount;
+  std::int64_t getComponentCapacityElementCount() const {
+    return componentCapacityElementCount;
   }
 
   llvm::StringRef getRuntimeAVLSource() const {
@@ -84,8 +85,8 @@ public:
     runtimeElementCountCName = trimmed.empty() ? "n" : trimmed.str();
   }
 
-  void setDescriptorElementCount(std::int64_t count) {
-    descriptorElementCount = count;
+  void setComponentCapacityElementCount(std::int64_t count) {
+    componentCapacityElementCount = count;
   }
 
   std::string formatRuntimeVLBoundaryCommentBody() const {
@@ -97,7 +98,7 @@ public:
            << ", runtime_avl_role=" << getRuntimeAVLRole()
            << ", runtime_vl_source=" << getRuntimeVLSource()
            << ", runtime_vl_scope=" << getRuntimeVLScope()
-           << ", descriptor_element_count=" << getDescriptorElementCount();
+           << ", component_capacity_element_count=" << getComponentCapacityElementCount();
     stream.flush();
     return text;
   }
@@ -117,7 +118,7 @@ public:
 
 private:
   std::string runtimeElementCountCName = "n";
-  std::int64_t descriptorElementCount = 0;
+  std::int64_t componentCapacityElementCount = 0;
 };
 
 inline llvm::Error makeRVVRuntimeLengthContractError(llvm::Twine message) {
@@ -133,10 +134,10 @@ validateRVVRuntimeLengthContract(const RVVRuntimeLengthContract &contract) {
     return makeRVVRuntimeLengthContractError(
         "runtime element-count C name must be non-empty");
 
-  if (contract.getDescriptorElementCount() < 0 ||
-      contract.getDescriptorElementCount() > 64)
+  if (contract.getComponentCapacityElementCount() < 0 ||
+      contract.getComponentCapacityElementCount() > 64)
     return makeRVVRuntimeLengthContractError(
-        "descriptor-local element_count must be in [1, 64] when present; it "
+        "artifact-local component capacity must be in [1, 64] when present; it "
         "is not runtime AVL/VL control authority");
 
   if (contract.getRuntimeAVLSource() !=
@@ -170,17 +171,17 @@ inline void appendRVVRuntimeLengthSelectedPlanMetadata(
                  "runtime VL scope"});
 }
 
-inline void appendRVVRuntimeLengthDescriptorElementCountMetadata(
+inline void appendRVVRuntimeLengthComponentCapacityElementCountMetadata(
     const RVVRuntimeLengthContract &contract,
     llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  if (contract.getDescriptorElementCount() <= 0)
+  if (contract.getComponentCapacityElementCount() <= 0)
     return;
 
-  out.push_back({getRVVDescriptorElementCountMetadataName(),
-                 std::to_string(contract.getDescriptorElementCount()),
-                 getRVVDescriptorElementCountCapacityMetadataRole(),
-                 getRVVDescriptorElementCountCapacityMetadataNote(),
-                 "descriptor-local element count"});
+  out.push_back({getRVVComponentCapacityElementCountMetadataName(),
+                 std::to_string(contract.getComponentCapacityElementCount()),
+                 getRVVComponentCapacityElementCountMetadataRole(),
+                 getRVVComponentCapacityElementCountMetadataNote(),
+                 "artifact-local component capacity"});
 }
 
 } // namespace tianchenrv::target::rvv

@@ -4,7 +4,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -67,11 +67,11 @@ struct RVVIntrinsicConfig {
 struct RVVBinaryMicrokernelBodyValidationRequest {
   tcrv::exec::KernelOp kernel;
   mlir::Operation *microkernel = nullptr;
-  RVVBinaryIntrinsicDescriptor descriptor;
+  RVVBinaryIntrinsicRoute descriptor;
   tcrv::rvv::PolicyAttr selectedPolicy;
   llvm::StringRef activeRouteID;
   llvm::ArrayRef<support::RuntimeABIParameter> callableABIParameters;
-  std::optional<std::int64_t> expectedDescriptorElementCount;
+  std::optional<std::int64_t> expectedComponentCapacityElementCount;
 };
 
 struct RVVBinaryMicrokernelBodyValidationResult {

@@ -6,7 +6,7 @@
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamilyRegistry.h"
+#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -580,7 +580,7 @@ module {
 
 int runI64SelectedLoweringBoundaryModuleTest(
     mlir::MLIRContext &context,
-    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family) {
+    const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family) {
   std::string kernelSymbol =
       (llvm::Twine("rvv_") + family.functionStem + "_boundary").str();
   std::string source = R"mlir(
@@ -660,7 +660,7 @@ module {
 )mlir";
   replaceAll(source, "rvv_i64_vmul_boundary", kernelSymbol);
   replaceAll(source, "i64-vmul", family.frontendLowering);
-  replaceAll(source, "i64-vmul-microkernel.v1", family.loweringDescriptor);
+  replaceAll(source, "i64-vmul-microkernel.v1", family.legacyLoweringToken);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)

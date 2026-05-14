@@ -5265,7 +5265,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="",
         help=(
             "Bounded typed RVV vector shape to validate; defaults to the "
-            "arithmetic family's descriptor-owned shape"
+            "arithmetic family-owned selected shape"
         ),
     )
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))

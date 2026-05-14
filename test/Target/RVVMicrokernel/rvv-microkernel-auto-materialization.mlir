@@ -139,7 +139,7 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* selected_mabi: lp64d */
 // EXPORT: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 // EXPORT: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-// EXPORT: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=n, dispatch_availability_c_name=rvv_available, descriptor_element_count=16, selected_variant=@rvv_first_slice, selected_role=direct variant */
+// EXPORT: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=n, dispatch_availability_c_name=rvv_available, component_capacity_element_count=16, selected_variant=@rvv_first_slice, selected_role=direct variant */
 // EXPORT: /* rvv_microkernel_selected_source_identity: source_kind=default-i32-vadd-typed-body-materialization,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // EXPORT: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
 // EXPORT: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */

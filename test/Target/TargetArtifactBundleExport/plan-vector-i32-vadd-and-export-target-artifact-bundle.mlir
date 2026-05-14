@@ -190,7 +190,7 @@ module @plan_vector_i32_vadd_bundle_input {
 // INDEX: artifact_kind: "riscv-elf-relocatable-object"
 
 // SOURCE: /* selected_kernel: @frontend_vector_bundle_i32_vadd */
-// SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, fixed_source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent
+// SOURCE: /* selected_binary_config: {{.*}}component_capacity_element_count=16, fixed_source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent
 // SOURCE: /* source_frontend_extent_authority: source_kind=mlir-vector-transfer-fixed-i32-vadd.v1, source_authority=source-vector-transfer-read-write-fixed-extent, source_vector_extent=16, runtime_element_count_constraint=must-equal-source-vector-extent */
 // SOURCE: /* dispatch_runtime_element_count_constraint: n must equal fixed source vector extent 16 before dispatching to RVV or scalar callable branches */
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_frontend_vector_bundle_i32_vadd_rvv_first_slice */

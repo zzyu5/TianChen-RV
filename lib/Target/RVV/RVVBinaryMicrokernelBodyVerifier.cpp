@@ -113,7 +113,7 @@ llvm::Error validateBoundedText(
 }
 
 mlir::Type getExpectedVectorType(mlir::MLIRContext *context,
-                                 const RVVBinaryIntrinsicDescriptor &descriptor) {
+                                 const RVVBinaryIntrinsicRoute &descriptor) {
   if (!descriptor.shape)
     return {};
   if (descriptor.getDTypeID() == "i32") {
@@ -762,23 +762,23 @@ validateRVVBinaryMicrokernelBody(
           kElementCountAttrName);
   if (!elementCountAttr)
     return makeBodyVerifierError(
-        request, "descriptor-local element_count layer is missing from the "
+        request, "artifact-local component capacity layer is missing from the "
                  "structured RVV microkernel body");
   std::int64_t elementCount = elementCountAttr.getInt();
   if (elementCount <= 0 || elementCount > 64)
     return makeBodyVerifierError(
         request,
-        "descriptor-local element_count layer must stay in the bounded smoke "
+        "artifact-local component capacity layer must stay in the bounded smoke "
         "range [1, 64]");
-  if (request.expectedDescriptorElementCount &&
-      elementCount != *request.expectedDescriptorElementCount)
+  if (request.expectedComponentCapacityElementCount &&
+      elementCount != *request.expectedComponentCapacityElementCount)
     return makeBodyVerifierError(
         request,
-        llvm::Twine("descriptor-local element_count layer is stale: body "
+        llvm::Twine("artifact-local component capacity layer is stale: body "
                     "element_count=") +
             llvm::Twine(elementCount) +
             " but selected variant metadata tcrv_rvv.element_count=" +
-            llvm::Twine(*request.expectedDescriptorElementCount));
+            llvm::Twine(*request.expectedComponentCapacityElementCount));
 
   mlir::Region &body = request.microkernel->getRegion(0);
   if (body.empty() || !llvm::hasSingleElement(body))
@@ -825,7 +825,7 @@ validateRVVBinaryMicrokernelBody(
     return makeBodyVerifierError(
         request, "runtime AVL/VL control layer is stale: tcrv_rvv.setvl AVL "
                  "must come from the runtime index body argument, not "
-                 "descriptor-local element_count, hardware metadata, or a "
+                 "artifact-local component capacity, hardware metadata, or a "
                  "constant");
   if (withVL.getVl() != setvl.getVl())
     return makeBodyVerifierError(

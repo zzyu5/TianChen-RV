@@ -111,7 +111,7 @@ module @rvv_microkernel_input {
 // LIB: /* selected_mabi: lp64d */
 // LIB: /* lowering_boundary: tcrv_rvv.lowering_boundary */
 // LIB: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-// LIB: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=n, dispatch_availability_c_name=rvv_available, descriptor_element_count=16, selected_variant=@rvv_first_slice, selected_role=dispatch case */
+// LIB: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=n, dispatch_availability_c_name=rvv_available, component_capacity_element_count=16, selected_variant=@rvv_first_slice, selected_role=dispatch case */
 // LIB: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
 // LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
 // LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
@@ -159,7 +159,7 @@ module @rvv_microkernel_input {
 
 // HARNESS: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
 // HARNESS: #include <stdio.h>
-// HARNESS: /* Harness capacity comes from descriptor-local element_count; each call still supplies runtime n through the generated C ABI. */
+// HARNESS: /* Harness capacity comes from artifact-local component capacity; each call still supplies runtime n through the generated C ABI. */
 // HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type. */
 // HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one(size_t runtime_n)
 // HARNESS: enum { kTCRVMicrokernelCapacity = 16 };

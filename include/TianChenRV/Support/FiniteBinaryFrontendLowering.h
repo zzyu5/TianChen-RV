@@ -28,7 +28,7 @@ enum class FiniteBinaryElementKind {
 // Neutral frontend marker/ABI contract for the bounded linalg binary slice.
 // It names accepted route markers and reusable ABI spellings only after the
 // source linalg body has already determined the finite family. RVV/scalar
-// lowering descriptors, arithmetic operators, selected vector shape, route
+// lowering route labels, arithmetic operators, selected vector shape, route
 // ids, artifacts, and evidence remain plugin/target-owned.
 struct FiniteBinaryFrontendContract {
   FiniteBinaryElementKind elementKind = FiniteBinaryElementKind::I32;
@@ -143,7 +143,7 @@ inline llvm::StringRef getFrontendSourceExtentMetadataRole() {
 inline llvm::StringRef getFrontendSourceExtentMetadataNote() {
   return "fixed MLIR vector frontdoor source extent; runtime element-count "
          "must match this source authority; not selected RVV config, "
-         "descriptor element_count, VL, correctness evidence, or performance "
+         "artifact-local component capacity, VL, correctness evidence, or performance "
          "evidence";
 }
 
@@ -155,7 +155,7 @@ inline llvm::StringRef getFrontendRuntimeExtentMetadataNote() {
   return "dynamic MLIR vector/SCF frontdoor runtime extent; source scf.for "
          "upper bound maps to runtime element-count/AVL and MLIR transfer "
          "tail semantics define active lanes; not selected RVV tail/mask "
-         "policy, selected vector config, descriptor element_count, "
+         "policy, selected vector config, artifact-local component capacity, "
          "correctness evidence, or performance evidence";
 }
 

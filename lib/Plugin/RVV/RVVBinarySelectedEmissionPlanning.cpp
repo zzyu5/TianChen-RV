@@ -5,7 +5,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
-#include "TianChenRV/Target/RVV/RVVBinaryDescriptor.h"
+#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "mlir/IR/Attributes.h"
@@ -24,7 +24,7 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
-constexpr llvm::StringLiteral kLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kLoweringTokenAttrName(
     "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kVariantElementCountAttrName(
@@ -74,8 +74,8 @@ constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
 
 using target::rvv::RVVBinaryArithmeticKind;
 using target::rvv::RVVBinaryDTypeKind;
-using target::rvv::RVVBinaryFamilyDescriptor;
-using target::rvv::RVVBinaryIntrinsicDescriptor;
+using target::rvv::RVVBinaryFamilyRecord;
+using target::rvv::RVVBinaryIntrinsicRoute;
 using target::rvv::RVVVectorShapeConfig;
 
 struct RVVCapacityMetadata {
@@ -275,7 +275,7 @@ bool isRecognizedSelectedBinarySourceKind(llvm::StringRef sourceKind) {
 
 llvm::Error validateSelectedBinarySourceIdentity(
     mlir::Operation *op, llvm::StringRef context,
-    const RVVBinaryFamilyDescriptor &family, llvm::StringRef sourceKind) {
+    const RVVBinaryFamilyRecord &family, llvm::StringRef sourceKind) {
   if (llvm::Error error = requireSelectedBinarySourceIdentityAttr(
           op, context, kSelectedBinarySourceKindAttrName, sourceKind,
           "typed source kind"))
@@ -310,7 +310,7 @@ llvm::Expected<std::optional<std::string>>
 resolveSelectedBinarySourceKindForEmissionPlan(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
     llvm::StringRef expectedRole, mlir::Operation *microkernel,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   tcrv::rvv::LoweringBoundaryOp boundary;
   unsigned matches = 0;
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -401,7 +401,7 @@ llvm::Error validateMicrokernelDataflowRoleAttr(
 
 llvm::Error validateI32MicrokernelStructuredControlPlane(
     tcrv::exec::VariantOp variant, mlir::Operation *microkernel,
-    const RVVBinaryFamilyDescriptor &family,
+    const RVVBinaryFamilyRecord &family,
     const RVVVectorShapeConfig &shape) {
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
@@ -452,8 +452,8 @@ llvm::Error validateI32MicrokernelStructuredControlPlane(
   if (setvl.getAvl() != block.getArgument(0))
     return makeRVVBinarySelectedEmissionError(
         "explicit RVV microkernel emission plan requires tcrv_rvv.setvl AVL "
-        "to use the runtime index body argument, not descriptor-local "
-        "element_count or a constant");
+        "to use the runtime index body argument, not artifact-local component "
+        "capacity or a constant");
   if (withVL.getVl() != setvl.getVl())
     return makeRVVBinarySelectedEmissionError(
         "explicit RVV microkernel emission plan requires tcrv_rvv.with_vl to "
@@ -574,7 +574,7 @@ llvm::Error validateI32MicrokernelStructuredControlPlane(
 
 llvm::Error validateI64MicrokernelStructuredControlPlane(
     tcrv::exec::VariantOp variant, mlir::Operation *microkernel,
-    const RVVBinaryFamilyDescriptor &family,
+    const RVVBinaryFamilyRecord &family,
     const RVVVectorShapeConfig &shape) {
   if (llvm::Error error = verifyExpectedRVVPolicyAttr(variant))
     return error;
@@ -625,8 +625,8 @@ llvm::Error validateI64MicrokernelStructuredControlPlane(
   if (setvl.getAvl() != block.getArgument(0))
     return makeRVVBinarySelectedEmissionError(
         "explicit RVV i64 microkernel emission plan requires tcrv_rvv.setvl "
-        "AVL to use the runtime index body argument, not descriptor-local "
-        "element_count or a constant");
+        "AVL to use the runtime index body argument, not artifact-local "
+        "component capacity or a constant");
   if (withVL.getVl() != setvl.getVl())
     return makeRVVBinarySelectedEmissionError(
         "explicit RVV i64 microkernel emission plan requires tcrv_rvv.with_vl "
@@ -754,7 +754,7 @@ llvm::Error validateLegacyDescriptorMirrorAfterTypedPlan(
         "metadata for legacy mirror validation");
 
   if (mlir::Attribute rawDescriptor =
-          variant->getAttr(kLoweringDescriptorAttrName)) {
+          variant->getAttr(kLoweringTokenAttrName)) {
     auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
     if (!descriptor || descriptor.getValue().trim().empty())
       return makeRVVBinarySelectedEmissionError(
@@ -764,11 +764,11 @@ llvm::Error validateLegacyDescriptorMirrorAfterTypedPlan(
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
     if (llvm::Error error = validateRVVPropertyText(
             "optional legacy RVV descriptor mirror",
-            kLoweringDescriptorAttrName, descriptorValue))
+            kLoweringTokenAttrName, descriptorValue))
       return error;
 
-    const RVVBinaryFamilyDescriptor *descriptorFamily =
-        target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringDescriptor(
+    const RVVBinaryFamilyRecord *descriptorFamily =
+        target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
             descriptorValue);
     if (!descriptorFamily)
       return makeRVVBinarySelectedEmissionError(
@@ -810,7 +810,7 @@ buildSelectedPlanFromExplicitMicrokernel(
     tcrv::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
     const RVVVectorShapeConfig &shape, mlir::Operation *microkernel,
-    const RVVBinaryFamilyDescriptor &family) {
+    const RVVBinaryFamilyRecord &family) {
   auto elementCount =
       microkernel->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
   if (!elementCount || elementCount.getInt() <= 0 ||
@@ -859,10 +859,10 @@ findI32SelectedEmissionAttachment(const VariantEmissionRequest &request,
       variant->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
   unsigned matches = 0;
   const RVVVectorShapeConfig *selectedShape = nullptr;
-  const RVVBinaryFamilyDescriptor *matchedFamily = nullptr;
+  const RVVBinaryFamilyRecord *matchedFamily = nullptr;
   mlir::Operation *matchedMicrokernel = nullptr;
   for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVBinaryFamilyDescriptor *family =
+    const RVVBinaryFamilyRecord *family =
         getRVVBinaryMicrokernelFamilyForOp(&op);
     if (!family || family->dtype != RVVBinaryDTypeKind::I32)
       continue;
@@ -990,11 +990,11 @@ findI64SelectedEmissionAttachment(const VariantEmissionRequest &request,
       variant->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
   unsigned matches = 0;
   const RVVVectorShapeConfig *selectedShape = nullptr;
-  const RVVBinaryFamilyDescriptor *matchedFamily = nullptr;
+  const RVVBinaryFamilyRecord *matchedFamily = nullptr;
   mlir::Operation *matchedMicrokernel = nullptr;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    const RVVBinaryFamilyDescriptor *microkernelFamily =
+    const RVVBinaryFamilyRecord *microkernelFamily =
         getRVVBinaryMicrokernelFamilyForOp(&op);
     if (!microkernelFamily || microkernelFamily->dtype != RVVBinaryDTypeKind::I64)
       continue;
@@ -1306,17 +1306,17 @@ void appendSelectedBinaryMetadata(
   if (includeLegacyDescriptorMirrorMetadata) {
     if (useTypedSourceMetadata) {
       legacyMirrorMetadata.push_back(
-          {target::rvv::getRVVSelectedLoweringDescriptorMetadataName(),
-           contract.getLegacyLoweringDescriptorMirror(),
+          {target::rvv::getRVVSelectedLoweringTokenMetadataName(),
+           contract.getLegacyLoweringTokenMirror(),
            target::rvv::getRVVLegacyDescriptorMirrorMetadataRole(),
            target::rvv::getRVVLegacyDescriptorMirrorMetadataNote(),
-           "legacy lowering descriptor mirror"});
+           "legacy lowering route label mirror"});
     } else {
       target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
           contract, legacyMirrorMetadata);
     }
   }
-  target::rvv::appendRVVRuntimeLengthDescriptorElementCountMetadata(
+  target::rvv::appendRVVRuntimeLengthComponentCapacityElementCountMetadata(
       contract.getRuntimeLengthContract(), legacyMirrorMetadata);
   for (const auto &entry : legacyMirrorMetadata)
     metadata.push_back({entry.name, entry.value, entry.role, entry.note});
@@ -1455,7 +1455,7 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
       plan.selectedPlan.getSelectedConfig().getContract(),
       plan.selectedPlanMetadata);
   bool includeLegacyDescriptorMirrorMetadata =
-      request.getVariant()->hasAttr(kLoweringDescriptorAttrName);
+      request.getVariant()->hasAttr(kLoweringTokenAttrName);
   appendSelectedBinaryMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       includeLegacyDescriptorMirrorMetadata, plan.selectedPlanMetadata);

@@ -31,7 +31,7 @@ enum class RVVScalarDispatchRouteKind {
 };
 
 struct RVVScalarDispatchRouteManifestEntry {
-  const DispatchBinaryFamilyDescriptor *family = nullptr;
+  const RVVScalarDispatchFamilyRecord *family = nullptr;
   RVVScalarDispatchRouteKind routeKind;
   llvm::StringRef routeID;
   llvm::StringRef description;
@@ -56,7 +56,7 @@ const RVVScalarDispatchRouteManifestEntry *
 lookupRVVScalarDispatchRoute(llvm::StringRef routeID);
 
 const RVVScalarDispatchRouteManifestEntry *
-lookupRVVScalarDispatchRoute(const DispatchBinaryFamilyDescriptor &family,
+lookupRVVScalarDispatchRoute(const RVVScalarDispatchFamilyRecord &family,
                              RVVScalarDispatchRouteKind routeKind);
 
 llvm::Error exportRVVScalarDispatchRoute(

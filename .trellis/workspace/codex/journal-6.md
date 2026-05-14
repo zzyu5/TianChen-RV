@@ -46,6 +46,54 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 66: RVV binary descriptor authority deletion
+
+**Date**: 2026-05-14
+**Task**: RVV binary descriptor authority deletion
+**Branch**: `main`
+
+### Summary
+
+Executed a Wrong Logic Deletion Campaign round to erase RVV binary descriptor-era compute and route authority before any selected-config rebuild work continues.
+
+### Main Changes
+
+- Repaired the superseded capability-gated selected-config task into deletion-only task `05-14-rvv-binary-descriptor-authority-deletion`.
+- Reverted stale uncommitted selected-config feature work before implementation.
+- Replaced `RVVBinaryFamilyRegistry` / `RVVBinaryDescriptor` surfaces with non-authoritative family/route records and deleted `RVVI32BinaryDescriptor.h`.
+- Rewrote descriptor-shaped scalar/RVV dispatch records and I32 registry records away from `*Descriptor` type authority names.
+- Renamed RVV descriptor element-count metadata to artifact-local component capacity across runtime length contracts, target exports, scripts, fixtures, and tests.
+- Rewrote descriptor-as-legal-input tests into fail-closed stale legacy mirror coverage; no compatibility layer or replacement feature was added.
+
+### Testing
+
+- [OK] Focused build for RVV target/plugin, transforms, `tcrv-opt`, `tcrv-translate`, and changed C++ tests.
+- [OK] `tianchenrv-i32-binary-family-registry-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] `tianchenrv-rvv-binary-planning-test`.
+- [OK] `tianchenrv-rvv-selected-lowering-boundary-test`.
+- [OK] `tianchenrv-rvv-binary-variant-legality-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-scalar-extension-plugin-test`.
+- [OK] Focused lit: `Target/RVVMicrokernel`, `Target/RVVScalarDispatch`, `Target/TargetArtifactBundleExport`, `Transforms/VectorToExec`, `Transforms/LinalgToExec`, and RVV script tests, 93/93 passed after self-repair.
+- [OK] Bounded ref-scan found no RVV descriptor authority identifiers or `descriptor_element_count`; retained `tcrv_rvv.lowering_descriptor` only as legacy mirror/fail-closed metadata.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | chore(rvv): delete binary descriptor authority |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion campaign on remaining legacy lowering mirror metadata when assigned; do not rebuild selected-config features in this deletion-only task.
+
+
 ## Session 66: RVV LMUL m2 selected-config artifact closure
 
 **Date**: 2026-05-14

@@ -32,7 +32,7 @@ constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
-constexpr llvm::StringLiteral kScalarLoweringDescriptorAttrName(
+constexpr llvm::StringLiteral kScalarLoweringTokenAttrName(
     "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
@@ -50,25 +50,25 @@ constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr std::int64_t kDefaultScalarMicrokernelElementCount = 16;
 
 using ScalarBinaryFamilyDescriptor =
-    tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyDescriptor;
-using ScalarBinaryMicrokernelDescriptor =
-    tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelDescriptor;
+    tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord;
+using ScalarBinaryMicrokernelRecord =
+    tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelRecord;
 
 llvm::Error makeScalarPluginError(llvm::Twine message);
 
 struct ScalarMicrokernelFamilySpec {
   const ScalarBinaryFamilyDescriptor *family;
-  llvm::StringRef descriptorNoun;
+  llvm::StringRef legacyRouteNoun;
   llvm::StringRef emissionPath;
   llvm::StringRef supportedMessage;
 
   llvm::StringRef getFrontendLowering() const {
     return family->frontendLowering;
   }
-  llvm::StringRef getLoweringDescriptor() const {
-    return family->loweringDescriptor;
+  llvm::StringRef getLoweringToken() const {
+    return family->legacyLoweringToken;
   }
-  const ScalarBinaryMicrokernelDescriptor &getScalar() const {
+  const ScalarBinaryMicrokernelRecord &getScalar() const {
     return family->scalar;
   }
 };
@@ -76,7 +76,7 @@ struct ScalarMicrokernelFamilySpec {
 const ScalarMicrokernelFamilySpec &getI32VAddFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
       &tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord(),
-      "finite scalar i32-vadd lowering descriptor",
+      "finite scalar i32-vadd lowering route label",
       "scalar-explicit-i32-vadd-microkernel-c-source-export",
       "explicit scalar i32 vector-add microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
@@ -90,7 +90,7 @@ const ScalarMicrokernelFamilySpec &getI32VAddFamilySpec() {
 const ScalarMicrokernelFamilySpec &getI32VSubFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
       &tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord(),
-      "finite scalar i32-vsub lowering descriptor",
+      "finite scalar i32-vsub lowering route label",
       "scalar-explicit-i32-vsub-microkernel-c-source-export",
       "explicit scalar i32 vector-subtract microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
@@ -104,7 +104,7 @@ const ScalarMicrokernelFamilySpec &getI32VSubFamilySpec() {
 const ScalarMicrokernelFamilySpec &getI32VMulFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
       &tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord(),
-      "finite scalar i32-vmul lowering descriptor",
+      "finite scalar i32-vmul lowering route label",
       "scalar-explicit-i32-vmul-microkernel-c-source-export",
       "explicit scalar i32 vector-multiply microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
@@ -118,7 +118,7 @@ const ScalarMicrokernelFamilySpec &getI32VMulFamilySpec() {
 const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
       &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord(),
-      "finite scalar i64-vadd lowering descriptor",
+      "finite scalar i64-vadd lowering route label",
       "scalar-explicit-i64-vadd-microkernel-c-source-export",
       "explicit scalar i64 vector-add microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
@@ -132,7 +132,7 @@ const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
 const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
       &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord(),
-      "finite scalar i64-vsub lowering descriptor",
+      "finite scalar i64-vsub lowering route label",
       "scalar-explicit-i64-vsub-microkernel-c-source-export",
       "explicit scalar i64 vector-subtract microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
@@ -146,7 +146,7 @@ const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
 const ScalarMicrokernelFamilySpec &getI64VMulFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
       &tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord(),
-      "finite scalar i64-vmul lowering descriptor",
+      "finite scalar i64-vmul lowering route label",
       "scalar-explicit-i64-vmul-microkernel-c-source-export",
       "explicit scalar i64 vector-multiply microkernel C source export is "
       "available as a library-style runtime-callable C ABI function for "
@@ -206,7 +206,7 @@ void appendScalarSelectedLegacyDescriptorMirrorMetadata(
     llvm::StringRef runtimeElementCountCName) {
   llvm::SmallVector<
       tianchenrv::target::rvv_scalar::
-          ScalarBinarySelectedPlanMetadataDescriptor,
+          ScalarBinarySelectedPlanMetadataRecord,
       5>
       metadata;
   tianchenrv::target::rvv_scalar::
@@ -221,8 +221,8 @@ void appendScalarSelectedLegacyDescriptorCrossCheckMetadata(
     VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family) {
   plan.addSelectedPlanMetadata(
       tianchenrv::target::rvv_scalar::
-          getScalarSelectedLoweringDescriptorMetadataName(),
-      family.loweringDescriptor,
+          getScalarSelectedLoweringTokenMetadataName(),
+      family.legacyLoweringToken,
       tianchenrv::target::rvv_scalar::
           getScalarLegacyDescriptorMirrorMetadataRole(),
       tianchenrv::target::rvv_scalar::
@@ -234,7 +234,7 @@ void appendScalarSelectedTypedSourceMetadata(
     llvm::StringRef runtimeElementCountCName) {
   llvm::SmallVector<
       tianchenrv::target::rvv_scalar::
-          ScalarBinarySelectedPlanMetadataDescriptor,
+          ScalarBinarySelectedPlanMetadataRecord,
       6>
       metadata;
   tianchenrv::target::rvv_scalar::
@@ -256,7 +256,7 @@ bool isDescriptorlessDefaultScalarTypedFamily(
 
 bool hasLegacyScalarDescriptorMirrorMetadata(tcrv::exec::VariantOp variant) {
   return variant &&
-         (variant->hasAttr(kScalarLoweringDescriptorAttrName) ||
+         (variant->hasAttr(kScalarLoweringTokenAttrName) ||
           variant->hasAttr(kScalarElementCountAttrName));
 }
 
@@ -265,7 +265,7 @@ lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
     llvm::StringRef descriptor) {
   const ScalarBinaryFamilyDescriptor *family =
       tianchenrv::target::rvv_scalar::
-          lookupRVVScalarBinaryRegistrationByLegacyLoweringDescriptor(descriptor);
+          lookupRVVScalarBinaryRegistrationByLegacyLoweringToken(descriptor);
   if (!family)
     return nullptr;
   return getScalarFamilySpec(*family);
@@ -371,7 +371,7 @@ struct ScalarMicrokernelMaterializationPlan {
 llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
     tcrv::exec::VariantOp variant) {
   mlir::Attribute rawDescriptor =
-      variant->getAttr(kScalarLoweringDescriptorAttrName);
+      variant->getAttr(kScalarLoweringTokenAttrName);
   if (!rawDescriptor) {
     if (mlir::Attribute rawElementCount =
             variant->getAttr(kScalarElementCountAttrName)) {
@@ -394,7 +394,7 @@ llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
         llvm::Twine("optional legacy scalar descriptor mirror metadata on "
                     "variant @") +
         variant.getSymName() + " requires string attribute '" +
-        kScalarLoweringDescriptorAttrName + "'");
+        kScalarLoweringTokenAttrName + "'");
 
   const ScalarMicrokernelFamilySpec *family =
       lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
@@ -404,19 +404,19 @@ llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
         llvm::Twine("optional legacy scalar descriptor mirror metadata on "
                     "variant @") +
         variant.getSymName() + " must be '" +
-        getI32VAddFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI32VSubFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI32VMulFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI64VAddFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI64VSubFamilySpec().getLoweringDescriptor() + "' or '" +
-        getI64VMulFamilySpec().getLoweringDescriptor() + "'");
+        getI32VAddFamilySpec().getLoweringToken() + "' or '" +
+        getI32VSubFamilySpec().getLoweringToken() + "' or '" +
+        getI32VMulFamilySpec().getLoweringToken() + "' or '" +
+        getI64VAddFamilySpec().getLoweringToken() + "' or '" +
+        getI64VSubFamilySpec().getLoweringToken() + "' or '" +
+        getI64VMulFamilySpec().getLoweringToken() + "'");
 
   std::string descriptorContext =
       (llvm::Twine("variant @") + variant.getSymName() +
        " optional legacy scalar descriptor mirror")
           .str();
   if (llvm::Error error = validateScalarMetadataText(
-          descriptorContext, kScalarLoweringDescriptorAttrName,
+          descriptorContext, kScalarLoweringTokenAttrName,
           descriptor.getValue().trim()))
     return std::move(error);
 
@@ -449,7 +449,7 @@ llvm::Error validateLegacyScalarDescriptorMirrorAfterTypedPlan(
     return std::move(error);
 
   if (mlir::Attribute rawDescriptor =
-          variant->getAttr(kScalarLoweringDescriptorAttrName)) {
+          variant->getAttr(kScalarLoweringTokenAttrName)) {
     auto descriptor = llvm::cast<mlir::StringAttr>(rawDescriptor);
     llvm::StringRef descriptorValue = descriptor.getValue().trim();
     const ScalarMicrokernelFamilySpec *descriptorFamily =
@@ -491,7 +491,7 @@ buildDescriptorlessDefaultScalarTypedMaterializationPlan(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
   if (!kernel || !variant)
     return std::nullopt;
-  if (variant->hasAttr(kScalarLoweringDescriptorAttrName) ||
+  if (variant->hasAttr(kScalarLoweringTokenAttrName) ||
       variant->hasAttr(kScalarElementCountAttrName))
     return std::nullopt;
 
@@ -956,9 +956,9 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
   if (!isDescriptorlessDefaultScalarTypedFamily(*family)) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
-                              kScalarLoweringDescriptorAttrName),
+                              kScalarLoweringTokenAttrName),
         mlir::StringAttr::get(request.getKernel()->getContext(),
-                              family->getLoweringDescriptor()));
+                              family->getLoweringToken()));
     proposal.addPluginAttribute(
         mlir::StringAttr::get(request.getKernel()->getContext(),
                               kScalarElementCountAttrName),
@@ -1000,7 +1000,7 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
         "materialized scalar fallback variant must require capability id "
         "'scalar.fallback'");
 
-  if (variant->hasAttr(kScalarLoweringDescriptorAttrName) ||
+  if (variant->hasAttr(kScalarLoweringTokenAttrName) ||
       variant->hasAttr(kScalarElementCountAttrName)) {
     if (llvm::Error error =
             validateLegacyScalarDescriptorMetadataSyntax(variant))
@@ -1094,7 +1094,7 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     if (!useTypedSourceMetadata)
       appendScalarSelectedLegacyDescriptorMirrorMetadata(
           out, *family.family, runtimeElementCountCName);
-    else if (request.getVariant()->hasAttr(kScalarLoweringDescriptorAttrName))
+    else if (request.getVariant()->hasAttr(kScalarLoweringTokenAttrName))
       appendScalarSelectedLegacyDescriptorCrossCheckMetadata(out,
                                                             *family.family);
     if (llvm::Error error =
@@ -1180,7 +1180,7 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         llvm::Twine("selected scalar fallback variant @") +
         request.getVariant().getSymName() +
         " carries legacy descriptor-only metadata '" +
-        kScalarLoweringDescriptorAttrName + "' and/or '" +
+        kScalarLoweringTokenAttrName + "' and/or '" +
         kScalarElementCountAttrName +
         "' without a typed scalar microkernel body or descriptorless typed "
         "default materialization; descriptor metadata is non-authoritative "

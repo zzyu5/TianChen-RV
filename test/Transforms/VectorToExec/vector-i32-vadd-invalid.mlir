@@ -67,7 +67,7 @@ module {
     %c16 = arith.constant 16 : index
     scf.for %i = %c0 to %n step %c16 {
       %pad = arith.constant 0 : i32
-      // expected-error@+1 {{TianChen-RV dynamic vector i32-vadd frontend expects lhs read to expose MLIR transfer tail semantics; in_bounds = [true] is stale for runtime %n tail iterations}}
+      // expected-error@+1 {{TianChen-RV dynamic vector i32 binary frontend expects lhs read to expose MLIR transfer tail semantics; in_bounds = [true] is stale for runtime %n tail iterations}}
       %lhs_vec = vector.transfer_read %lhs[%i], %pad {in_bounds = [true]} : memref<?xi32>, vector<16xi32>
       %rhs_vec = vector.transfer_read %rhs[%i], %pad : memref<?xi32>, vector<16xi32>
       %sum = arith.addi %lhs_vec, %rhs_vec : vector<16xi32>

@@ -123,7 +123,7 @@ llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
         "' but found '" + actual + "'");
   };
 
-  const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor =
+  const target::rvv::RVVBinaryIntrinsicRoute &descriptor =
       selectedPlan.descriptor;
   if (selectedPlan.family->familyID != contract.getFamilyID())
     return failMismatch("family", contract.getFamilyID(),
@@ -131,11 +131,11 @@ llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
   if (descriptor.getArithmeticFamilyID() != contract.getFamilyID())
     return failMismatch("descriptor-family", contract.getFamilyID(),
                         descriptor.getArithmeticFamilyID());
-  if (descriptor.getLegacyLoweringDescriptorMirror() !=
-      contract.getLegacyLoweringDescriptorMirror())
+  if (descriptor.getLegacyLoweringTokenMirror() !=
+      contract.getLegacyLoweringTokenMirror())
     return failMismatch("legacy-lowering-descriptor-mirror",
-                        contract.getLegacyLoweringDescriptorMirror(),
-                        descriptor.getLegacyLoweringDescriptorMirror());
+                        contract.getLegacyLoweringTokenMirror(),
+                        descriptor.getLegacyLoweringTokenMirror());
   if (descriptor.getRVVMicrokernelOpName() !=
       contract.getFamily().microkernelOpName)
     return failMismatch("microkernel-op",
@@ -167,9 +167,9 @@ llvm::Error validateRVVBinaryVLDataflowPlanMatchesContract(
   if (descriptor.getSetVLSuffix() != contract.getSetVLSuffix())
     return failMismatch("setvl-suffix", contract.getSetVLSuffix(),
                         descriptor.getSetVLSuffix());
-  if (selectedPlan.elementCount != contract.getDescriptorElementCount())
+  if (selectedPlan.elementCount != contract.getComponentCapacityElementCount())
     return failMismatch("descriptor-element-count",
-                        llvm::Twine(contract.getDescriptorElementCount()),
+                        llvm::Twine(contract.getComponentCapacityElementCount()),
                         llvm::Twine(selectedPlan.elementCount));
 
   return llvm::Error::success();
@@ -208,7 +208,7 @@ buildRVVBinaryVLDataflowMaterialization(
   dataflow.maskPolicy = contract.getMaskPolicy();
   dataflow.vectorSuffix = contract.getVectorSuffix();
   dataflow.setvlSuffix = contract.getSetVLSuffix();
-  dataflow.descriptorElementCount = contract.getDescriptorElementCount();
+  dataflow.componentCapacityElementCount = contract.getComponentCapacityElementCount();
 
   if (!dataflow.vectorType || dataflow.loadOpName.empty() ||
       dataflow.arithmeticOpName.empty() || dataflow.storeOpName.empty())
@@ -223,7 +223,7 @@ buildRVVBinaryVLDataflowMaterialization(
 llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
 buildRVVBinaryCallableRuntimeABIParameters(
     tcrv::exec::KernelOp kernel,
-    const target::rvv::RVVBinaryIntrinsicDescriptor &descriptor) {
+    const target::rvv::RVVBinaryIntrinsicRoute &descriptor) {
   llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
       support::buildFiniteBinaryCallableABIPlan(
           kernel,
@@ -233,13 +233,13 @@ buildRVVBinaryCallableRuntimeABIParameters(
   return std::move(callablePlan->parameters);
 }
 
-const target::rvv::RVVBinaryFamilyDescriptor *
+const target::rvv::RVVBinaryFamilyRecord *
 getRVVBinaryMicrokernelFamilyForOp(mlir::Operation *op) {
   if (!op)
     return nullptr;
 
   llvm::StringRef opName = op->getName().getStringRef();
-  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+  for (const target::rvv::RVVBinaryFamilyRecord *family :
        target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
     if (family->microkernelOpName == opName)
       return family;
@@ -255,7 +255,7 @@ llvm::Error rejectExistingRVVBinaryMicrokernelForSelectedPath(
 
   llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
   for (mlir::Operation &op : kernel.getBody().front()) {
-    const target::rvv::RVVBinaryFamilyDescriptor *family =
+    const target::rvv::RVVBinaryFamilyRecord *family =
         getRVVBinaryMicrokernelFamilyForOp(&op);
     if (!family)
       continue;
@@ -304,7 +304,7 @@ llvm::Expected<mlir::Operation *> materializeRVVBinaryMicrokernelOp(
                      builder.getStringAttr(stringifyVariantEmissionRole(role)));
   state.addAttribute(kElementCountAttrName,
                      builder.getI64IntegerAttr(
-                         dataflow->descriptorElementCount));
+                         dataflow->componentCapacityElementCount));
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   state.addAttribute(kMicrokernelRequiredMarchAttrName,
                      builder.getStringAttr(selectedPlan.requiredMarch));

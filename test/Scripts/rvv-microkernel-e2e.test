@@ -281,7 +281,7 @@
 # HARNESS-SOURCE: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
 # HARNESS-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
 # HARNESS-SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
-# HARNESS-SOURCE: /* Harness capacity comes from descriptor-local element_count; each call still supplies runtime n through the generated C ABI. */
+# HARNESS-SOURCE: /* Harness capacity comes from artifact-local component capacity; each call still supplies runtime n through the generated C ABI. */
 # HARNESS-SOURCE: _self_check_one(size_t runtime_n)
 # HARNESS-SOURCE: int main(void)
 # HARNESS-SOURCE: tcrv_rvv_microkernel_ok runtime_counts=
