@@ -25,11 +25,11 @@ enum class FiniteBinaryElementKind {
   I64,
 };
 
-// Neutral frontend marker/ABI contract for the bounded linalg binary slice.
-// It names accepted route markers and reusable ABI spellings only after the
-// source linalg body has already determined the finite family. RVV/scalar
-// lowering route labels, arithmetic operators, selected vector shape, route
-// ids, artifacts, and evidence remain plugin/target-owned.
+// Neutral marker/ABI contract for finite binary execution surfaces. It names
+// accepted route markers and reusable ABI spellings only after a producer has
+// already determined the finite family. RVV/scalar lowering route labels,
+// arithmetic operators, selected vector shape, route ids, artifacts, and
+// evidence remain plugin/target-owned.
 struct FiniteBinaryFrontendContract {
   FiniteBinaryElementKind elementKind = FiniteBinaryElementKind::I32;
   llvm::StringRef dtypeID;
@@ -40,10 +40,11 @@ struct FiniteBinaryFrontendContract {
   llvm::StringRef outputPointerCType;
 };
 
-// Shared source-frontdoor lowering contract for finite binary source adapters.
-// Adapters own source-shape recognition; this contract owns the common
-// tcrv.exec runtime ABI surface plus any source extent authority metadata that
-// downstream artifact routes validate before output.
+// Shared finite-binary ABI/source-metadata contract for already materialized
+// execution surfaces. The deleted core source-to-exec pass family no longer
+// uses this as a source-shape recognition adapter; downstream target/plugin
+// code may still validate bounded ABI and source extent authority metadata
+// before output.
 struct FiniteBinarySourceFrontendLoweringContract {
   const FiniteBinaryFrontendContract *contract = nullptr;
   llvm::SmallVector<RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;

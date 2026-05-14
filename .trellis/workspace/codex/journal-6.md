@@ -807,3 +807,55 @@ Deleted RVV/scalar lowering_descriptor and selected_lowering_descriptor metadata
 ### Next Steps
 
 - None - task complete
+
+
+## Session 67: Core Semantic Branch Erasure: RVV source-to-exec pass family deletion
+
+**Date**: 2026-05-15
+**Task**: Core Semantic Branch Erasure: delete RVV source-to-exec pass family
+**Branch**: `main`
+
+### Summary
+
+Deleted the core RVV source-to-exec semantic pass family and removed the public
+tool/frontdoor paths that let core transforms recognize finite RVV
+linalg/vector source semantics and materialize `tcrv.exec`.
+
+### Main Changes
+
+- Created Trellis task `05-15-core-rvv-source-to-exec-erasure`.
+- Deleted `lib/Transforms/LowerSourceRVVBinaryToExec.cpp` and removed it from
+  `TianChenRVTransforms`.
+- Removed `Passes.h` declarations, `Passes.td` definitions, and `tcrv-opt`
+  registrations for `tcrv-lower-source-rvv-binary-to-exec`, the RVV/linalg
+  pass, the old linalg i32 compatibility aliases, and the vector i32 add/sub/mul
+  source adapter aliases.
+- Removed `tcrv-translate` plan-and-export bundle pre-pass source lowering.
+- Deleted old LinalgToExec/VectorToExec lit tests and the stale
+  plan-linalg marker-mismatch bundle test; added deleted-route coverage proving
+  removed pass names are unregistered and do not create `tcrv.exec.kernel`.
+- Rewrote stale spec/README/support comments so high-level frontend rebuild is
+  future plugin/interface-owned work, not a core RVV source branch.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVTransforms tcrv-opt tcrv-translate -j2`.
+- [OK] Focused lit:
+  `source-rvv-pass-family-deleted`.
+- [OK] Focused lit:
+  `plan-and-export-target-artifact-bundle-no-viable`.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 127/127 passed.
+- [OK] Bounded ref-scan found no remaining RVV family registry imports/lookups
+  or deleted pass-name registrations in core transform/tool code.
+- [OK] `git diff --check`.
+- [OK] Trellis context validation.
+
+### Status
+
+[OK] **Completed; archive and commit pending**
+
+### Next Steps
+
+- Archive the Trellis task with `--no-commit`, run cached diff/Trellis
+  validation, then create one coherent commit.

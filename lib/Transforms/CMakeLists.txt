@@ -5,7 +5,6 @@ add_mlir_library(TianChenRVTransforms
   ExecutionPlanCoherence.cpp
   ExecutionPlanningPipeline.cpp
   HartParallelCapabilities.cpp
-  LowerSourceRVVBinaryToExec.cpp
   LoweringBoundary.cpp
   PluginVariantLegality.cpp
   VariantDispatchSynthesis.cpp

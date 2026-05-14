@@ -40,27 +40,6 @@ void registerTianChenRVOptPasses(
     const tianchenrv::plugin::ExtensionPluginRegistry &plugins,
     const tianchenrv::target::TargetArtifactExporterRegistry
         &targetExporters) {
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerSourceRVVBinaryToExecPass();
-  });
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerLinalgRVVBinaryToExecPass();
-  });
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerLinalgI32BinaryToExecPass();
-  });
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerLinalgI32VAddToExecPass();
-  });
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerVectorRVVI32VAddToExecPass();
-  });
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerVectorRVVI32VSubToExecPass();
-  });
-  mlir::registerPass([] {
-    return tianchenrv::transforms::createLowerVectorRVVI32VMulToExecPass();
-  });
   mlir::registerPass(
       [] { return tianchenrv::transforms::createCheckCapabilityRequiresPass(); });
   mlir::registerPass([] {

@@ -458,106 +458,46 @@ surface. The current bounded `tcrv_rvv.setvl` and `tcrv_rvv.with_vl` surfaces
 model only runtime AVL/VL control-plane IR when they appear in the input. They
 are not emitted runtime ABI evidence by themselves.
 
-## Scenario: Dynamic Vector Source Tail Authority
+## Scenario: Deleted Dynamic Vector Source Front Door
 
 ### 1. Scope / Trigger
 
-This scenario applies to the bounded dynamic vector/SCF i32-vadd, i32-vsub,
-and i32-vmul source front doors that lower through
-`--tcrv-lower-source-rvv-binary-to-exec` or the explicit vector adapter aliases
-`--tcrv-lower-vector-rvv-i32-vadd-to-exec` and
-`--tcrv-lower-vector-rvv-i32-vsub-to-exec` and
-`--tcrv-lower-vector-rvv-i32-vmul-to-exec`. The generic source front door must
-derive accepted dynamic source families from the RVV binary family registry
-rather than a detached descriptor or script list. It is required when a source
-`%n` runtime extent can be smaller than, equal to, or not a multiple of the
-selected finite `vector<16xi32>` chunk.
+The former bounded dynamic vector/SCF i32-vadd, i32-vsub, and i32-vmul source
+front doors are deleted with the core RVV source-to-exec pass family. Core code
+must not parse vector transfer/SCF source shapes, inspect source arithmetic, or
+query the RVV binary family registry to materialize `tcrv.exec`.
 
 ### 2. Signatures
 
-- Source wrapper shape: three `memref<?xi32>` buffers plus one `%n: index`,
-  one `scf.for` from zero to `%n` in step `16`, zero i32 read padding, two
-  `vector.transfer_read` operations at the induction variable, one
-  registry-admitted i32 binary arithmetic op over `vector<16xi32>` such as
-  `arith.addi`, `arith.subi`, or `arith.muli`, one
-  `vector.transfer_write` at the same induction variable, and `func.return`.
-- Source transfer-tail metadata on both `tcrv.exec.kernel` and the direct
-  runtime-element-count `tcrv.exec.runtime_param`:
-  `tcrv_frontend_source_kind =
-  "mlir-vector-scf-runtime-i32-vadd.v1"` or
-  `"mlir-vector-scf-runtime-i32-vsub.v1"` or
-  `"mlir-vector-scf-runtime-i32-vmul.v1"`,
-  `tcrv_frontend_source_authority =
-  "source-scf-for-runtime-upper-bound"`,
-  `tcrv_frontend_runtime_extent_arg = "n"`,
-  `tcrv_frontend_source_loop_step = 16 : i64`,
-  `tcrv_frontend_source_vector_chunk_extent = 16 : i64`,
-  `tcrv_frontend_active_lane_authority =
-  "mlir-vector-transfer-tail-active-lanes"`,
-  `tcrv_frontend_source_tail_policy =
-  "runtime-n-bounded-transfer-tail-padding-and-store"`, and
-  `tcrv_frontend_runtime_element_count_constraint =
-  "source-runtime-extent"`.
-- Selected-plan metadata names:
-  `tcrv_frontend.active_lane_authority` and
-  `tcrv_frontend.source_tail_policy`.
+Deleted public pass names:
+
+```text
+--tcrv-lower-source-rvv-binary-to-exec
+--tcrv-lower-vector-rvv-i32-vadd-to-exec
+--tcrv-lower-vector-rvv-i32-vsub-to-exec
+--tcrv-lower-vector-rvv-i32-vmul-to-exec
+```
 
 ### 3. Contracts
 
-- Dynamic source transfer ops must not assert `in_bounds = [true]`. The source
-  active lanes for tail iterations are defined by MLIR transfer tail behavior:
-  reads use the i32 padding value for inactive lanes and writes do not store
-  inactive lanes beyond `%n`.
-- `%n` is the source `scf.for` upper bound, the runtime element-count ABI
-  parameter, and the AVL source consumed by `tcrv_rvv.setvl`.
-- Selected RVV `tcrv_rvv.selected_tail_policy` and
-  `tcrv_rvv.selected_mask_policy` remain compile-time vector-shape policy.
-  They are not the MLIR source active-lane authority.
-- `tcrv_rvv.descriptor_element_count` remains descriptor-local chunk capacity
-  metadata. It is not the dynamic source extent, runtime trip count, or
-  correctness evidence.
-- Direct source/header/object export and plan-and-export bundle export must
-  consume the same neutral source-frontdoor route and the same IR-backed
-  runtime ABI contract.
+- Invoking a deleted vector source pass must fail closed as an absent/deleted
+  option and must not create a `tcrv.exec.kernel`.
+- `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` must not run a
+  vector or linalg source-frontdoor pass before planning.
+- Existing source-tail metadata may remain as bounded metadata on already
+  materialized execution/plugin surfaces where current target-owned validation
+  consumes it, but the core transform layer must not produce it from high-level
+  vector source bodies in this deleted route.
+- Future high-level vector frontend reconstruction must be plugin/interface
+  owned and must not restore this core RVV semantic branch.
 
-### 4. Validation & Error Matrix
+### 4. Tests Required
 
-- Dynamic transfer read/write carries `in_bounds = [true]` -> reject during
-  source lowering before `tcrv.exec` is materialized.
-- Kernel and runtime-element-count `runtime_param` do not both carry the full
-  dynamic source-tail metadata -> fail before artifact output.
-- Any dynamic source-tail metadata field is stale between kernel and
-  runtime_param -> fail before artifact output.
-- Selected-plan metadata for active-lane authority or source-tail policy is
-  missing, duplicated, or has the wrong value/role/note -> fail before source,
-  header, object, or bundle output.
-- Fixed-vector source extent metadata and dynamic source-tail metadata appear
-  together -> fail as mutually exclusive source authority.
-
-### 5. Good/Base/Bad Cases
-
-- Good: dynamic vector source omits `in_bounds` on transfer read/write, records
-  the source-tail authority fields on kernel/runtime_param, and emits selected
-  metadata that names both source active-lane authority and selected RVV policy.
-- Base: fixed vector `vector<16xi32>` keeps its `n == 16` source-extent
-  constraint and may use fixed in-bounds transfer assertions.
-- Bad: dynamic source relies on `setvl(n)` alone while the MLIR source transfer
-  ops still assert all 16 lanes are in bounds.
-
-### 6. Tests Required
-
-- Positive lit for dynamic `VectorToExec` showing no source transfer ops
-  remain, dynamic source-tail metadata is present on kernel/runtime_param, and
-  selected-plan metadata carries active-lane and source-tail fields for both
-  the explicit i32-vadd and i32-vsub vector adapter surfaces plus the generic
-  source-frontdoor i32-vmul registry-admitted route.
-- Negative lit for dynamic source `in_bounds = [true]`, missing kernel/param
-  source-tail metadata, and stale selected-plan active-lane metadata.
-- Direct artifact source/header/object checks exposing source-tail authority,
-  selected RVV tail/mask policy, descriptor-local element count, runtime `n`,
-  and `tcrv_rvv.setvl`.
-- Bundle export checks proving the same neutral front door and selected-plan
-  metadata reach the RVV+scalar dispatch source/header/object records.
+- lit/FileCheck coverage proving the deleted vector/source pass options are not
+  registered or fail closed without materializing `tcrv.exec`.
+- Delete tests whose only purpose was to validate the old vector source wrapper
+  shapes, tail-in-bounds diagnostics, family marker cross-checks, or
+  compatibility alias behavior.
 - Fresh `ssh rvv` evidence for runtime counts 7, 16, and 23 when the generated
   artifact contract changes.
 
@@ -1024,20 +964,18 @@ from file names.
 
 `tcrv-translate --tcrv-export-target-artifact-bundle` remains the
 coherence-gated exporter for already planned MLIR. The separate
-`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` entry may first
-run the bounded marked-linalg RVV binary frontend lowering slice, then run the
-existing execution planning pipeline with built-in plugin and target artifact
-exporter registries, and finally call the same bundle exporter. The frontend
-step is limited to creating the already specified `tcrv.exec.kernel` plus
-`mem_window` / `runtime_param` ABI boundary from explicitly marked test or
-hand-written finite RVV binary linalg input and preserving the bounded frontend
-family marker that lets plugins choose the existing add, subtract, or multiply
-microkernel descriptor; it must not become generic linalg lowering or bypass
-plugin-owned realization.
-It must fail before printing bundle completion if frontend lowering, planning,
-execution-plan coherence, route validation, or artifact materialization fails,
-and it must not weaken the bundle component contract or runtime ABI signature
-validation.
+`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` entry may run
+the existing execution planning pipeline with built-in plugin and target
+artifact exporter registries, and finally call the same bundle exporter. It
+must not first run the deleted bounded marked-linalg/vector RVV binary frontend
+lowering slice or otherwise create `tcrv.exec.kernel`, `mem_window`, or
+`runtime_param` ABI boundaries from high-level source bodies in the tool
+front door. Inputs to this entry must already contain the execution anchors
+needed by planning until a future plugin/interface-owned frontend rebuild
+exists.
+It must fail before printing bundle completion if planning, execution-plan
+coherence, route validation, or artifact materialization fails, and it must not
+weaken the bundle component contract or runtime ABI signature validation.
 
 ## Deleted RVV+Scalar Dispatch Route Manifest
 

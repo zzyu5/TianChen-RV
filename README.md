@@ -103,30 +103,18 @@ to consume the generic handoff contract. It does not emit LLVM/RISC-V/RVV IR,
 generate objects, link runtime libraries, run hardware, prove correctness, or
 measure performance.
 
-The public `tcrv-opt --tcrv-lower-linalg-i32-binary-to-exec` pass is the first
-bounded frontend lowering slice from high-level MLIR into TianChen-RV execution
-surfaces. It accepts only explicitly marked hand-written/test `linalg.generic`
-i32 vector add/sub/mul wrappers whose region body is exactly the current
-two-input `arith.addi`, `arith.subi`, or `arith.muli` / `linalg.yield` shape
-selected by `tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, or
-`"i32-vmul"`. The pass materializes one `tcrv.exec.kernel` with a
-source-selected `target = @profile` module target reference, preserves the
-bounded frontend family marker for plugin proposal, validates the selected
-target profile's generic capability-provider composition, and creates the
-IR-backed i32 binary callable ABI boundary:
-`tcrv.exec.mem_window` for lhs/rhs/out buffers and
-`tcrv.exec.runtime_param` for runtime `n`. The resulting kernel is directly
-consumable by `--tcrv-execution-planning-pipeline`, so existing RVV/scalar
-plugin proposal, legality, selection, selected-boundary, emission-plan, and
-target-artifact routes remain reused. The RVV plugin consumes the family marker
-to select the bounded i32-vadd, i32-vsub, or i32-vmul microkernel descriptor;
-scalar fallback consumes the same marker to select its matching bounded
-descriptor without reusing stale vadd identity for subtract or multiply. The
-old `--tcrv-lower-linalg-i32-vadd-to-exec` option remains only as a deprecated
-compatibility alias for this family-named pass. This pass is not generic linalg
-lowering, does not add a `tcrv` compute op, does not infer arbitrary tensor
-semantics, does not invent target capabilities, does not lower to LLVM/RISC-V,
-and does not create runtime correctness or performance evidence.
+The former public linalg/vector RVV source-to-exec pass family is deleted as a
+core semantic branch. `tcrv-opt` no longer registers
+`--tcrv-lower-source-rvv-binary-to-exec`,
+`--tcrv-lower-linalg-rvv-binary-to-exec`, the old linalg i32 compatibility
+aliases, or the vector i32 add/sub/mul source adapter aliases. Current planning
+starts from already materialized TianChen-RV execution surfaces such as
+`tcrv.exec.kernel`, capability-provider scope, selected boundaries,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, and plugin-local extension
+family ops. Any future high-level frontend rebuild must be plugin/interface
+owned and must not restore core transforms that inspect finite RVV
+linalg/vector source bodies or query RVV family records to materialize
+`tcrv.exec`.
 
 The `tcrv-translate --tcrv-export-rvv-smoke-probe-c` tool exports a
 deterministic standalone C RVV hardware/toolchain smoke probe from post-planning
@@ -222,23 +210,15 @@ on the RVV host when separate `ssh rvv` evidence is recorded. It does not prove
 TianChen-RV lowered a selected kernel, generated an object for that kernel,
 linked runtime glue, produced a correctness result, or measured performance.
 
-For the first frontend slice, start from a hand-written/test `linalg.generic`
-i32 vector add/sub/mul wrapper with `tcrv_frontend_lowering = "i32-vadd"`,
-`"i32-vsub"`, or `"i32-vmul"`,
-`tcrv_frontend_kernel = "<kernel-symbol>"`, and
-`tcrv_frontend_target = @<module-target-profile>`, then run:
-
-```bash
-tcrv-opt input_linalg.mlir \
-  --tcrv-lower-linalg-i32-binary-to-exec \
-  --tcrv-execution-planning-pipeline
-```
-
-The first pass only creates the `tcrv.exec` kernel and ABI boundary. The
-planning pipeline still owns plugin proposal, legality, variant selection,
-selected lowering-boundary materialization, emission-plan diagnostics, and
-coherence checks. Any RVV runtime or correctness claim from artifacts exported
-after this point still requires separate real `ssh rvv` evidence.
+The previous hand-written/test `linalg.generic` frontend slice and its
+`tcrv-opt` lowering flags are deleted. Run the execution-planning pipeline only
+on input that already contains the TianChen-RV execution anchors it consumes,
+such as a `tcrv.exec.kernel` with capability-provider scope and any required
+ABI boundary operations. Planning still owns plugin proposal, legality,
+variant selection, selected lowering-boundary materialization, emission-plan
+diagnostics, and coherence checks. Any RVV runtime or correctness claim from
+artifacts exported after this point still requires separate real `ssh rvv`
+evidence.
 
 The former RVV microkernel direct source/object/self-check evidence bridge has
 been removed with the direct C semantic exporters. Do not use historical

@@ -21,16 +21,6 @@ class TargetArtifactExporterRegistry;
 
 namespace transforms {
 
-std::unique_ptr<::mlir::Pass> createLowerSourceRVVBinaryToExecPass();
-std::unique_ptr<::mlir::Pass> createLowerVectorRVVI32VAddToExecPass();
-std::unique_ptr<::mlir::Pass> createLowerVectorRVVI32VSubToExecPass();
-std::unique_ptr<::mlir::Pass> createLowerVectorRVVI32VMulToExecPass();
-std::unique_ptr<::mlir::Pass> createLowerLinalgRVVBinaryToExecPass();
-// Deprecated compatibility alias for createLowerLinalgRVVBinaryToExecPass().
-std::unique_ptr<::mlir::Pass> createLowerLinalgI32BinaryToExecPass();
-// Deprecated compatibility alias for createLowerLinalgRVVBinaryToExecPass().
-std::unique_ptr<::mlir::Pass> createLowerLinalgI32VAddToExecPass();
-
 void buildExecutionPlanningPipeline(::mlir::OpPassManager &pm);
 void buildExecutionPlanningPipeline(
     ::mlir::OpPassManager &pm,

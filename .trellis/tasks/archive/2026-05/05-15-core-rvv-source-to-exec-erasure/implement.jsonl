@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for deletion-only implementation."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Hard boundary against core target-specific semantic branches."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Correct future rebuild route after deleting direct source lowering."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Stale source-frontdoor and plan-and-export wording to rewrite during deletion."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local ownership boundary after core pass deletion."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy and stale old source-lowering test obligations to rewrite."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Pipeline/frontdoor wording for deleting core source-to-exec frontend passes."}
+{"file": ".trellis/tasks/archive/2026-05/05-15-direct-c-semantic-exporter-erasure/prd.md", "reason": "Previous deletion-campaign owner and route deletion precedent."}

@@ -219,38 +219,22 @@ Use lit/FileCheck for:
   RVV+scalar dispatch bundle index checks for selected dispatch surface,
   component_group/component_role/external_abi_name metadata, and ordered
   runtime_abi_parameter signature fields plus bounded selected-plan metadata
-  self-description when RVV capacity facts are present; focused bounded linalg
-  i32 add/sub/mul frontend input coverage proving the same front door first
-  lowers the marked source into the exec ABI boundary and then exports a
-  registry-derived bundle without hand-authored selected-path or emission
-  metadata; and a focused fail-closed negative case proving planning failure
-  does not print bundle completion or emit a complete bundle index.
-- bounded linalg frontend lowering coverage, including hand-written/test
-  `linalg.generic` finite RVV binary vector add/sub/mul wrappers that lower
-  through `--tcrv-lower-linalg-rvv-binary-to-exec` to parseable
-  `tcrv.exec.kernel` operations with module target profile references plus
-  lhs/rhs/out `mem_window` roles and runtime `n` `runtime_param`; pipeline
-  coverage proving the generated kernel can feed existing RVV/scalar proposal,
-  selection, selected-boundary, and supported emission-plan materialization;
-  coverage proving source memref/region scalar types and the actual
-  `arith.addi`, `arith.subi`, or `arith.muli` feeding `linalg.yield` determine
-  the finite family before marker cross-check; RVV subtract/multiply coverage
-  proving an `i32` source body yielding `arith.subi` with
-  `tcrv_frontend_lowering = "i32-vsub"` reaches source export with
-  `__riscv_vsub_vv_i32m1`, while an `i32` body yielding `arith.muli` with
-  `tcrv_frontend_lowering = "i32-vmul"` reaches
-  `__riscv_vmul_vv_i32m1` instead of stale vadd metadata; i64 coverage proving
-  the same bounded pass surface preserves `i64-vadd`/`i64-vsub`/`i64-vmul`
-  route markers, `int64_t` ABI spellings, and i64 RVV intrinsic names; and
-  fail-closed negative coverage proving unsupported arithmetic bodies,
-  marker/body mismatch, marker/dtype mismatch, missing arithmetic-result yield,
-  unsupported/nonuniform source dtype, and legacy descriptor metadata do not
-  create an exec kernel. The old
-  `--tcrv-lower-linalg-i32-binary-to-exec` and
-  `--tcrv-lower-linalg-i32-vadd-to-exec` pass options must have only focused
-  compatibility coverage proving delegation to the RVV binary implementation.
-  These tests must not claim generic linalg lowering, LLVM/RISC-V lowering,
-  runtime success, correctness, or performance.
+  self-description when RVV capacity facts are present; and a focused
+  fail-closed negative case proving planning failure does not print bundle
+  completion or emit a complete bundle index. The front door must not first
+  lower marked linalg/vector source into the exec ABI boundary.
+- deleted core RVV source-to-exec pass coverage, proving the removed
+  `--tcrv-lower-source-rvv-binary-to-exec`,
+  `--tcrv-lower-linalg-rvv-binary-to-exec`,
+  `--tcrv-lower-linalg-i32-binary-to-exec`,
+  `--tcrv-lower-linalg-i32-vadd-to-exec`,
+  `--tcrv-lower-vector-rvv-i32-vadd-to-exec`,
+  `--tcrv-lower-vector-rvv-i32-vsub-to-exec`, and
+  `--tcrv-lower-vector-rvv-i32-vmul-to-exec` options are absent or fail closed
+  as deleted routes without creating `tcrv.exec.kernel`. Tests that only
+  protected old linalg/vector source lowering success, source-body semantic
+  diagnostics, or compatibility alias delegation should be deleted rather than
+  kept alive as production coverage.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback microkernel, and unsupported Offload selected
   paths after descriptor deletion;
@@ -491,16 +475,16 @@ execution-planning pipeline use, generic library dispatch source export,
 explicit self-check source export, deterministic artifact layout below
 `artifacts/tmp`, command-summary redaction, and failure on secret-like evidence
 metadata. If the bridge supports more than one arithmetic family, local lit
-coverage must include the CLI family selector and any frontend-lowering flag
-needed to feed bounded linalg add/sub/mul input into the same execution-planning
-pipeline. Passing dry-run proves only planned dispatch handoff and source
-export. Any runtime/correctness claim must use real `ssh rvv` evidence where
-the generated self-check dispatch source is compiled to an object, linked to an
+coverage must use already materialized execution-plan inputs or an explicitly
+future plugin-owned frontend, not deleted core linalg/vector source-to-exec
+flags. Passing dry-run proves only planned dispatch handoff and source export.
+Any runtime/correctness claim must use real `ssh rvv` evidence where the
+generated self-check dispatch source is compiled to an object, linked to an
 executable, and run with the bounded success marker observed. That claim must
-remain limited to the finite family-selected RVV+scalar i32 add/sub/mul dispatcher
-executable path and must not be reported as generic RVV lowering, arbitrary
-kernel support, dynamic runtime integration, broad correctness, or performance
-evidence.
+remain limited to the finite family-selected RVV+scalar i32 add/sub/mul
+dispatcher executable path and must not be reported as generic RVV lowering,
+arbitrary kernel support, dynamic runtime integration, broad correctness, or
+performance evidence.
 
 If that bridge also exposes a target-artifact-bundle mode, local lit coverage
 must exercise the mode without contacting `ssh rvv`, including bundle export
