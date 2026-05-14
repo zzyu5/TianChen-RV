@@ -758,14 +758,14 @@ mlir::LogicalResult requireVectorTransferTailActiveLaneAuthority(
     auto flag = llvm::dyn_cast<mlir::BoolAttr>(attr);
     if (!flag)
       return op->emitError()
-             << "TianChen-RV dynamic vector i32-vadd frontend expects "
+             << "TianChen-RV dynamic vector i32 binary frontend expects "
              << role
              << " in_bounds metadata to be absent or boolean false so MLIR "
                 "transfer tail semantics remain the source active-lane "
                 "authority";
     if (flag.getValue())
       return op->emitError()
-             << "TianChen-RV dynamic vector i32-vadd frontend expects "
+             << "TianChen-RV dynamic vector i32 binary frontend expects "
              << role
              << " to expose MLIR transfer tail semantics; in_bounds = [true] "
                 "is stale for runtime %n tail iterations";
@@ -944,8 +944,8 @@ requireDynamicVectorI32BinarySourceWrapper(
     return forOp->emitError()
            << "TianChen-RV dynamic vector i32 binary frontend expects scf.for "
               "body to contain zero i32 padding, two vector.transfer_read "
-              "ops, one arith.addi or arith.subi, one vector.transfer_write, "
-              "and scf.yield";
+              "ops, one registry-admitted i32 binary arithmetic op, one "
+              "vector.transfer_write, and scf.yield";
 
   auto loopIt = loopBody.begin();
   mlir::Operation *paddingConstant = &*loopIt++;

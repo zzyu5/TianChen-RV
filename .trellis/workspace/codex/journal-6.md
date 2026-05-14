@@ -237,3 +237,60 @@ compile/link/run leg for generated vsub bundle artifacts.
 ### Next Steps
 
 - Archive task and commit the evidence closure.
+
+---
+
+## Session 66: RVV plugin-owned binary op-family construction contract
+
+**Date**: 2026-05-14
+**Task**: RVV plugin-owned binary op-family construction contract
+**Branch**: `main`
+
+### Summary
+
+Converted the dynamic vector/SCF source-frontdoor from the previous vadd/vsub
+bounded slice into a reusable RVV binary op-family admission path for
+registry-declared i32-vmul. The new i32-vmul route now reaches the same
+selected source identity, selected config, EmitC intrinsic mapping, artifact
+bundle, RuntimeABI callable contract, RVVScalarDispatch validation, local
+bundle evidence, and ssh-rvv execution evidence as vadd/vsub.
+
+### Main Changes
+
+- Added `mlir-vector-scf-runtime-i32-vmul.v1` as the bounded dynamic vector
+  source kind and wired it into the i32-vmul RVV binary family descriptor.
+- Kept source-frontdoor family admission registry-backed; no descriptor-to-C
+  production path, Python compiler semantics, or core RVV semantic branch was
+  added.
+- Added vector/SCF i32-vmul transform and target artifact bundle tests.
+- Extended the RVV scalar dispatch evidence runner and script lit coverage for
+  the i32-vmul vector source-frontdoor bundle path.
+- Updated `.trellis/spec/lowering-runtime/emission-runtime-contract.md` for the
+  dynamic vector source-tail authority contract.
+
+### Testing
+
+- [OK] Focused build for support, target, RVV/scalar target, transforms,
+  `tcrv-opt`, `tcrv-translate`, and focused test binaries.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused vector/source-frontdoor and bundle lit filter: `7/7` selected
+  tests passed.
+- [OK] Script bundle lit filter: `1/1` selected tests passed.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] Local source-frontdoor bundle dry-runs:
+  `codex-opfamily-vadd-vector-local`,
+  `codex-opfamily-vsub-vector-local`,
+  `codex-opfamily-vmul-vector-local`.
+- [OK] `ssh rvv` source-frontdoor i32-vmul bundle invocation:
+  `codex-opfamily-vmul-vector-ssh-rvv`, `ssh_evidence_verified=true`,
+  selected kernel `frontend_vector_dynamic_bundle_i32_vmul`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit the op-family contract change.

@@ -389,26 +389,30 @@ are not emitted runtime ABI evidence by themselves.
 
 ### 1. Scope / Trigger
 
-This scenario applies to the bounded dynamic vector/SCF i32-vadd and i32-vsub
-source front doors that lower through
+This scenario applies to the bounded dynamic vector/SCF i32-vadd, i32-vsub,
+and i32-vmul source front doors that lower through
 `--tcrv-lower-source-rvv-binary-to-exec` or the explicit vector adapter aliases
 `--tcrv-lower-vector-rvv-i32-vadd-to-exec` and
-`--tcrv-lower-vector-rvv-i32-vsub-to-exec`. It is required when a source `%n`
-runtime extent can be smaller than, equal to, or not a multiple of the selected
-finite `vector<16xi32>` chunk.
+`--tcrv-lower-vector-rvv-i32-vsub-to-exec`. The generic source front door must
+derive accepted dynamic source families from the RVV binary family registry
+rather than a detached descriptor or script list. It is required when a source
+`%n` runtime extent can be smaller than, equal to, or not a multiple of the
+selected finite `vector<16xi32>` chunk.
 
 ### 2. Signatures
 
 - Source wrapper shape: three `memref<?xi32>` buffers plus one `%n: index`,
   one `scf.for` from zero to `%n` in step `16`, zero i32 read padding, two
   `vector.transfer_read` operations at the induction variable, one
-  `arith.addi` or `arith.subi` over `vector<16xi32>`, one
+  registry-admitted i32 binary arithmetic op over `vector<16xi32>` such as
+  `arith.addi`, `arith.subi`, or `arith.muli`, one
   `vector.transfer_write` at the same induction variable, and `func.return`.
 - Source transfer-tail metadata on both `tcrv.exec.kernel` and the direct
   runtime-element-count `tcrv.exec.runtime_param`:
   `tcrv_frontend_source_kind =
   "mlir-vector-scf-runtime-i32-vadd.v1"` or
-  `"mlir-vector-scf-runtime-i32-vsub.v1"`,
+  `"mlir-vector-scf-runtime-i32-vsub.v1"` or
+  `"mlir-vector-scf-runtime-i32-vmul.v1"`,
   `tcrv_frontend_source_authority =
   "source-scf-for-runtime-upper-bound"`,
   `tcrv_frontend_runtime_extent_arg = "n"`,
@@ -471,7 +475,8 @@ finite `vector<16xi32>` chunk.
 - Positive lit for dynamic `VectorToExec` showing no source transfer ops
   remain, dynamic source-tail metadata is present on kernel/runtime_param, and
   selected-plan metadata carries active-lane and source-tail fields for both
-  the explicit i32-vadd and i32-vsub vector adapter surfaces.
+  the explicit i32-vadd and i32-vsub vector adapter surfaces plus the generic
+  source-frontdoor i32-vmul registry-admitted route.
 - Negative lit for dynamic source `in_bounds = [true]`, missing kernel/param
   source-tail metadata, and stale selected-plan active-lane metadata.
 - Direct artifact source/header/object checks exposing source-tail authority,

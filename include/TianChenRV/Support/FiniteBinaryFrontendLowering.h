@@ -78,6 +78,8 @@ inline constexpr llvm::StringLiteral kFrontendDynamicVectorI32VAddSourceKind(
     "mlir-vector-scf-runtime-i32-vadd.v1");
 inline constexpr llvm::StringLiteral kFrontendDynamicVectorI32VSubSourceKind(
     "mlir-vector-scf-runtime-i32-vsub.v1");
+inline constexpr llvm::StringLiteral kFrontendDynamicVectorI32VMulSourceKind(
+    "mlir-vector-scf-runtime-i32-vmul.v1");
 inline constexpr std::int64_t kFrontendFixedVectorI32VAddSourceExtent = 16;
 inline constexpr std::int64_t kFrontendDynamicVectorI32VAddLoopStep = 16;
 inline constexpr std::int64_t kFrontendDynamicVectorI32VAddChunkExtent = 16;
@@ -163,14 +165,16 @@ inline bool isFrontendFixedVectorSourceKind(llvm::StringRef sourceKind) {
 
 inline bool isFrontendDynamicVectorSourceKind(llvm::StringRef sourceKind) {
   return sourceKind == kFrontendDynamicVectorI32VAddSourceKind ||
-         sourceKind == kFrontendDynamicVectorI32VSubSourceKind;
+         sourceKind == kFrontendDynamicVectorI32VSubSourceKind ||
+         sourceKind == kFrontendDynamicVectorI32VMulSourceKind;
 }
 
 inline std::string formatFrontendDynamicVectorSourceKinds() {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "'" << kFrontendDynamicVectorI32VAddSourceKind << "' or '"
-         << kFrontendDynamicVectorI32VSubSourceKind << "'";
+  stream << "'" << kFrontendDynamicVectorI32VAddSourceKind << "', '"
+         << kFrontendDynamicVectorI32VSubSourceKind << "', or '"
+         << kFrontendDynamicVectorI32VMulSourceKind << "'";
   stream.flush();
   return text;
 }

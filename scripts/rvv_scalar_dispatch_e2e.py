@@ -49,6 +49,10 @@ VECTOR_SOURCE_FRONTEND_INPUTS = {
         "test/Target/TargetArtifactBundleExport/"
         "plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir"
     ),
+    "i32-vmul": Path(
+        "test/Target/TargetArtifactBundleExport/"
+        "plan-vector-dynamic-i32-vmul-and-export-target-artifact-bundle.mlir"
+    ),
 }
 RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
     "i32m1": {
@@ -932,6 +936,8 @@ def vector_source_frontend_family(args: argparse.Namespace) -> str:
         return "i32-vadd"
     if getattr(args, "lower_vector_i32_vsub_frontend", False):
         return "i32-vsub"
+    if getattr(args, "lower_vector_i32_vmul_frontend", False):
+        return "i32-vmul"
     return ""
 
 
@@ -972,7 +978,7 @@ def expected_vector_source_frontdoor_metadata() -> dict[str, str]:
     if family not in VECTOR_SOURCE_FRONTEND_INPUTS:
         raise BridgeError(
             "vector/SCF source-frontdoor dispatch evidence is bounded to "
-            "i32-vadd and i32-vsub"
+            "i32-vadd, i32-vsub, and i32-vmul"
         )
     return {
         "tcrv_frontend.source_kind": f"mlir-vector-scf-runtime-{family}.v1",
@@ -5273,6 +5279,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "planning and artifact invocation"
         ),
     )
+    parser.add_argument(
+        "--lower-vector-i32-vmul-frontend",
+        action="store_true",
+        help=(
+            "Use the production bounded source RVV binary frontend on the "
+            "dynamic vector/SCF i32-vmul bundle fixture before dispatch "
+            "planning and artifact invocation"
+        ),
+    )
     parser.add_argument("--ssh-target", default=DEFAULT_SSH_TARGET)
     parser.add_argument("--connect-timeout", type=int, default=10)
     parser.add_argument("--ssh-option", action="append", default=[])
@@ -5323,6 +5338,7 @@ def main(argv: list[str]) -> int:
         args.lower_linalg_frontend,
         args.lower_vector_i32_vadd_frontend,
         args.lower_vector_i32_vsub_frontend,
+        args.lower_vector_i32_vmul_frontend,
     ]
     if sum(bool(flag) for flag in frontend_flags) > 1:
         print(

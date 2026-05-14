@@ -60,11 +60,11 @@ module {
     value = "rv64gcv"
   }
 
-  // expected-error@+1 {{TianChen-RV vector source frontend supports only marker 'i32-vadd' or 'i32-vsub'; marker 'i32-vmul' is not accepted because this pass is not a generic vector backend}}
-  func.func @source_vector_dynamic_vmul_marker_mul_body(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index)
+  // expected-error@+1 {{TianChen-RV vector source frontend expects 'tcrv_frontend_lowering' to be 'i32-vadd', 'i32-vsub' or 'i32-vmul'}}
+  func.func @source_vector_dynamic_unknown_marker_mul_body(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index)
       attributes {
-        tcrv_frontend_kernel = "frontend_vector_dynamic_vmul_marker_mul_body",
-        tcrv_frontend_lowering = "i32-vmul",
+        tcrv_frontend_kernel = "frontend_vector_dynamic_unknown_marker_mul_body",
+        tcrv_frontend_lowering = "i32-vmax",
         tcrv_frontend_target = @vector_dynamic_frontend_profile
       } {
     %c0 = arith.constant 0 : index

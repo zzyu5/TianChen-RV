@@ -139,7 +139,7 @@ inline const RVVBinaryFamilyDescriptor &getI32VMulFamilyRegistrationRecord() {
       "i32-vmul",
       "i32-vmul",
       "arith.muli",
-      "",
+      support::kFrontendDynamicVectorI32VMulSourceKind,
       "i32-vmul-microkernel.v1",
       "finite RVV i32-vmul lowering descriptor",
       "tcrv_rvv.i32_vmul_microkernel",
