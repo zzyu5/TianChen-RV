@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Durable contract for Hermes/Codex supervisor retry, STOP, and one-shot behavior."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack boundary and Python tooling limits."}

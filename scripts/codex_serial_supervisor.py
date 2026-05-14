@@ -213,13 +213,12 @@ def codex_transient_failure_reason(run_dir: Path) -> str:
 
 
 def codex_retry_blocker(run_dir: Path) -> str:
-    """Return why a failed worker must not be automatically retried."""
-    before = load_json(run_dir / "snapshot_before.json")
-    after = load_json(run_dir / "snapshot_after.json")
-    before_head = _snapshot_git_field(before, "head")
-    after_head = _snapshot_git_field(after, "head")
-    if before_head and after_head and before_head != after_head:
-        return "git_head_changed"
+    """Return why a failed transient worker must not be retried.
+
+    Repository mutations are not blockers for transient retry. They mean the
+    retry must continue from the live repo state and previous run artifacts
+    rather than replaying the original task from scratch.
+    """
     return ""
 
 
@@ -227,9 +226,11 @@ def codex_retry_needs_continuation(run_dir: Path) -> bool:
     """Return True when retry should continue dirty work left by a failed worker."""
     before = load_json(run_dir / "snapshot_before.json")
     after = load_json(run_dir / "snapshot_after.json")
+    before_head = _snapshot_git_field(before, "head")
+    after_head = _snapshot_git_field(after, "head")
     before_status = _snapshot_git_field(before, "status_short")
     after_status = _snapshot_git_field(after, "status_short")
-    return before_status != after_status
+    return before_head != after_head or before_status != after_status
 
 
 def build_codex_continuation_retry_prompt(
@@ -241,6 +242,8 @@ def build_codex_continuation_retry_prompt(
     """Build a worker brief for a retry over an already-mutated worktree."""
     before = load_json(run_dir / "snapshot_before.json")
     after = load_json(run_dir / "snapshot_after.json")
+    before_head = _snapshot_git_field(before, "head") or "(unknown)"
+    after_head = _snapshot_git_field(after, "head") or "(unknown)"
     before_status = _snapshot_git_field(before, "status_short") or "(clean)"
     after_status = _snapshot_git_field(after, "status_short") or "(clean)"
     original_brief = prompt_override.strip()
@@ -269,9 +272,12 @@ snapshot_before: {run_dir / "snapshot_before.json"}
 snapshot_after: {run_dir / "snapshot_after.json"}
 ```
 
-Git status changed during the failed attempt:
+Git state changed during the failed attempt:
 
 ```text
+before_head: {before_head}
+after_head:  {after_head}
+
 before:
 {before_status}
 
@@ -286,10 +292,13 @@ Required continuation behavior:
 2. Continue the same task/round from the existing dirty state.
 3. If the dirty changes are coherent, validate, self-repair as needed,
    finish/archive the task, and create one coherent commit.
-4. If the dirty changes are unsafe or incomplete beyond a bounded repair, keep
+4. If the previous attempt already committed and archived the task cleanly,
+   verify that state from the live repo and previous artifacts, then report the
+   completed state without creating a new unrelated task or duplicate commit.
+5. If the dirty changes are unsafe or incomplete beyond a bounded repair, keep
    the task open with the exact continuation point and do not pretend it is
    finished.
-5. Do not create an unrelated Trellis task and do not fall back to a broad
+6. Do not create an unrelated Trellis task and do not fall back to a broad
    base-prompt-only direction.
 """
 
@@ -2935,8 +2944,9 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
         default=1,
         help=(
             "Retry a Codex worker once when artifacts indicate a transient "
-            "API/stream/model failure. If HEAD is unchanged but git status "
-            "changed, retry with a continuation brief over the dirty worktree."
+            "API/stream/model failure. If HEAD or git status changed, retry "
+            "with a continuation brief over the live repo state and previous "
+            "run artifacts."
         ),
     )
     parser.add_argument(

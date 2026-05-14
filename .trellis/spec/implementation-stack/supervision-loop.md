@@ -109,8 +109,8 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 | Durable steering exists | Hermes review prompt must include it as control-plane steering, not repository proof |
 | One-shot steering exists | Hermes review prompt must include it and clear it only after a successful strict-JSON official review |
 | ask-only self-check is requested | runner must not launch Codex or mutate source files |
-| Codex exits with a transient model/API/stream/network failure and HEAD is unchanged | runner may retry the worker once; if git status changed, the retry must be a continuation over the dirty worktree and previous run artifacts, not a fresh unrelated task |
-| Codex exits with a transient failure after changing HEAD | runner must stop/fail closed instead of retrying over a committed or rebased state |
+| Codex exits with a transient model/API/stream/network failure | runner may retry the worker once regardless of whether `HEAD` or git status changed; if repository state changed, the retry must be a continuation over the live repo state and previous run artifacts, not a fresh unrelated task |
+| Codex exits with a transient failure after committing and leaving the worktree clean | retry prompt must let Codex verify the landed commit/task state and report completion without creating a duplicate task or commit |
 
 ### 5. Good / Base / Bad Cases
 
