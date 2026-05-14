@@ -25,8 +25,8 @@ inline llvm::StringRef getRVVComponentCapacityElementCountMetadataRole() {
 
 inline llvm::StringRef getRVVComponentCapacityElementCountMetadataNote() {
   return "bounded artifact-local component capacity cross-checked after "
-         "typed selected-plan authority; not legacy descriptor mirror, "
-         "compute, ABI, source, runtime AVL/VL, hardware capacity, or "
+         "typed selected-plan authority; not compute, ABI, source, runtime "
+         "AVL/VL, hardware capacity, or "
          "performance authority";
 }
 

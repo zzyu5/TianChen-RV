@@ -79,8 +79,6 @@ constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
-constexpr llvm::StringLiteral kRVVLoweringTokenAttrName(
-    "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kArchitecturePropertyName("architecture");
@@ -1160,88 +1158,6 @@ llvm::Error validateSelectedVectorShapeMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error validateSelectedDescriptorMatchesMicrokernelFamily(
-    KernelOp kernel, const SelectedPath &path,
-    const RVVI32MicrokernelFamilySpec &family) {
-  auto descriptorAttr =
-      getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-          kRVVLoweringTokenAttrName);
-  if (!descriptorAttr)
-    return llvm::Error::success();
-
-  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-  if (llvm::Error error =
-          validateBoundedText(kernel, kRVVLoweringTokenAttrName,
-                              descriptor))
-    return error;
-
-  const RVVBinaryFamilyRecord *selectedFamily =
-      lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(descriptor);
-  if (!selectedFamily)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("selected RVV variant @") +
-                    getPathVariantSymbol(path) +
-                    " has unsupported tcrv_rvv.lowering_descriptor '" +
-                    descriptor + "' for RVV binary microkernel export");
-  if (selectedFamily->dtype != RVVBinaryDTypeKind::I32)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("selected RVV variant @") +
-                    getPathVariantSymbol(path) +
-                    " tcrv_rvv.lowering_descriptor '" + descriptor +
-                    "' does not describe an i32 RVV microkernel body");
-  if (!isSameRVVBinaryFamily(*selectedFamily, family))
-    return makeMicrokernelError(
-        kernel, llvm::Twine("selected RVV variant @") +
-                    getPathVariantSymbol(path) +
-                    " tcrv_rvv.lowering_descriptor '" + descriptor +
-                    "' requires " + selectedFamily->microkernelOpName +
-                    " but typed microkernel body is " +
-                    family.microkernelOpName +
-                    "; descriptor and typed body family must agree before "
-                    "artifact export");
-  return llvm::Error::success();
-}
-
-llvm::Error validateSelectedI64DescriptorMirrorMatchesTypedBody(
-    KernelOp kernel, const SelectedPath &path,
-    const RVVBinaryFamilyRecord &typedFamily) {
-  auto descriptorAttr =
-      getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-          kRVVLoweringTokenAttrName);
-  if (!descriptorAttr)
-    return llvm::Error::success();
-
-  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-  if (llvm::Error error =
-          validateBoundedText(kernel, kRVVLoweringTokenAttrName,
-                              descriptor))
-    return error;
-
-  const RVVBinaryFamilyRecord *mirrorFamily =
-      lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(descriptor);
-  if (!mirrorFamily)
-    return makeMicrokernelError(
-        kernel, llvm::Twine("selected RVV variant @") +
-                    getPathVariantSymbol(path) +
-                    " has unsupported tcrv_rvv.lowering_descriptor '" +
-                    descriptor +
-                    "' for RVV i64 target artifact export; the selected typed "
-                    "RVV i64 microkernel body is authoritative");
-
-  if (!isSameRVVBinaryFamily(*mirrorFamily, typedFamily))
-    return makeMicrokernelError(
-        kernel, llvm::Twine("selected RVV variant @") +
-                    getPathVariantSymbol(path) +
-                    " tcrv_rvv.lowering_descriptor '" + descriptor +
-                    "' is non-authoritative legacy mirror metadata for " +
-                    mirrorFamily->microkernelOpName +
-                    " but the selected typed RVV i64 microkernel body is " +
-                    typedFamily.microkernelOpName +
-                    "; typed body is authoritative for RVV target artifact "
-                    "export");
-  return llvm::Error::success();
-}
-
 llvm::Expected<const RVVBinaryFamilyRecord *>
 resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
   const RVVBinaryFamilyRecord *matchedFamily = nullptr;
@@ -1272,35 +1188,8 @@ resolveSelectedI64FamilyForPath(KernelOp kernel, const SelectedPath &path) {
                     " has duplicate selected typed RVV i64 microkernel bodies; "
                     "typed body is authoritative for RVV target artifact export");
 
-  if (matchedFamily) {
-    if (llvm::Error error =
-            validateSelectedI64DescriptorMirrorMatchesTypedBody(
-                kernel, path, *matchedFamily))
-      return std::move(error);
+  if (matchedFamily)
     return matchedFamily;
-  }
-
-  if (auto descriptorAttr =
-          getPathVariant(path)->getAttrOfType<mlir::StringAttr>(
-              kRVVLoweringTokenAttrName)) {
-    llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-    if (llvm::Error error =
-            validateBoundedText(kernel, kRVVLoweringTokenAttrName,
-                                descriptor))
-      return std::move(error);
-
-    const RVVBinaryFamilyRecord *descriptorFamily =
-        lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(descriptor);
-    if (descriptorFamily && descriptorFamily->dtype == RVVBinaryDTypeKind::I64)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("selected RVV variant @") +
-                      getPathVariantSymbol(path) +
-                      " carries tcrv_rvv.lowering_descriptor '" + descriptor +
-                      "' for " + descriptorFamily->microkernelOpName +
-                      " but has no selected typed RVV i64 microkernel body; "
-                      "typed body is authoritative for RVV target artifact "
-                      "export and descriptor-only i64 export is rejected");
-  }
   return matchedFamily;
 }
 
@@ -1499,8 +1388,6 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
     appendRVVBinarySelectedTypedSourceMetadata(contract, expected);
-  else
-    appendRVVBinaryLegacyDescriptorMirrorMetadata(contract, expected);
   if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
     appendRVVBinaryEmitCRouteMetadata(contract, expected);
@@ -2299,11 +2186,6 @@ llvm::Error validateMicrokernelForPath(
               kBoundarySelectedVectorTypeAttrName,
               kBoundarySelectedVectorSuffixAttrName,
               kBoundarySelectedSetVLSuffixAttrName))
-    return error;
-
-  if (llvm::Error error =
-          validateSelectedDescriptorMatchesMicrokernelFamily(kernel, path,
-                                                            family))
     return error;
 
   std::string microkernelMarch;
@@ -4021,9 +3903,6 @@ llvm::Error printRecordComment(llvm::raw_ostream &os,
      << record.emitcBodyMapping.requiredHeader
      << ", arithmetic_intrinsic="
      << record.emitcBodyMapping.arithmeticIntrinsicName << " */\n";
-  os << "/* descriptor_mirror_status: optional legacy descriptor metadata is "
-        "compatibility/diagnostic only after typed RVV body authority; it "
-        "cannot select emitted compute semantics */\n";
   os << "/* active_route: " << record.activeRouteID << " */\n";
   os << "/* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
@@ -4146,8 +4025,8 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
        << *fixedSourceVectorExtent
        << " for this vector-fronted source fixture. */\n";
   os << "/* self_check_expectation_source: " << expectation.provenance
-     << "; legacy descriptor mirrors cannot select expected arithmetic or "
-        "scalar element type. */\n";
+     << "; expected arithmetic and scalar element type come from typed "
+        "selected-source metadata. */\n";
   os << "static int " << functionName
      << "_self_check_one(size_t runtime_n) {\n";
   os << "  enum { kTCRVMicrokernelCapacity = " << elementCount << " };\n";
@@ -4281,9 +4160,6 @@ llvm::Error printMicrokernelHeader(const RVVMicrokernelRecord &record,
        << " is the source scf.for upper bound and runtime AVL; no fixed "
           "source-extent trap is emitted for this dynamic vector route */\n";
   }
-  os << "/* descriptor_mirror_status: optional legacy descriptor metadata is "
-        "compatibility/diagnostic only after typed RVV body authority; it "
-        "cannot select emitted compute semantics */\n";
   os << "/* control_plane_runtime_avl: body index argument maps to "
         "target/export-owned runtime "
      << record.selectedConfigContract.getRuntimeElementCountCName()
@@ -4703,52 +4579,34 @@ buildRVVMicrokernelSourceRouteMetadata(
       family.runtimeABI, family.runtimeABIKind, family.runtimeABIName,
       family.runtimeGlueRole);
 
-  if (family.dtype == RVVBinaryDTypeKind::I32 ||
-      family.dtype == RVVBinaryDTypeKind::I64) {
-    llvm::StringRef typedRole = getRVVTypedBinarySourceMetadataRole();
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, typedRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedBinaryFamilyMetadataName(), family.familyID, typedRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
-        typedRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVEmitCSourceOpMetadataName(), family.arithmeticOpName,
-        getRVVEmitCSourceOpMetadataRole());
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVEmitCLowerableOpInterfaceMetadataName(),
-        "TCRVEmitCLowerableOpInterface", getRVVEmitCSourceOpMetadataRole());
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVEmitCRouteKindMetadataName(),
-        getRVVEmitCRouteKindMetadataValue(), getRVVEmitCRouteMetadataRole());
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVEmitCSourceAuthorityMetadataName(),
-        getRVVEmitCSourceAuthorityMetadataValue(),
-        getRVVEmitCRouteMetadataRole());
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVEmitCRequiredHeaderMetadataName(),
-        getRVVEmitCRequiredHeaderMetadataValue(),
-        getRVVEmitCRouteMetadataRole());
-    metadata.addSelectedPlanMetadataPresenceRequirement(
-        getRVVEmitCArithmeticIntrinsicMetadataName(),
-        getRVVEmitCRouteMetadataRole());
-  } else {
-    llvm::StringRef descriptorRole =
-        getRVVLegacyDescriptorMirrorMetadataRole();
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID,
-        descriptorRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedBinaryFamilyMetadataName(), family.familyID,
-        descriptorRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
-        descriptorRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        getRVVSelectedLoweringTokenMetadataName(),
-        family.legacyLoweringToken, descriptorRole);
-  }
+  llvm::StringRef typedRole = getRVVTypedBinarySourceMetadataRole();
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedBinaryDTypeMetadataName(), family.dtypeID, typedRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedBinaryFamilyMetadataName(), family.familyID, typedRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVSelectedBinaryOperatorMetadataName(), family.arithmeticVerb,
+      typedRole);
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVEmitCSourceOpMetadataName(), family.arithmeticOpName,
+      getRVVEmitCSourceOpMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVEmitCLowerableOpInterfaceMetadataName(),
+      "TCRVEmitCLowerableOpInterface", getRVVEmitCSourceOpMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVEmitCRouteKindMetadataName(),
+      getRVVEmitCRouteKindMetadataValue(), getRVVEmitCRouteMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVEmitCSourceAuthorityMetadataName(),
+      getRVVEmitCSourceAuthorityMetadataValue(),
+      getRVVEmitCRouteMetadataRole());
+  metadata.addSelectedPlanMetadataRequirement(
+      getRVVEmitCRequiredHeaderMetadataName(),
+      getRVVEmitCRequiredHeaderMetadataValue(),
+      getRVVEmitCRouteMetadataRole());
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVEmitCArithmeticIntrinsicMetadataName(),
+      getRVVEmitCRouteMetadataRole());
   metadata.addSelectedPlanMetadataPresenceRequirement(
       getRVVRuntimeElementCountCNameMetadataName(),
       getRVVRuntimeControlNameMetadataRole());

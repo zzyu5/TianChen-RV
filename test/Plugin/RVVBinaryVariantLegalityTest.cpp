@@ -162,7 +162,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.vlenb_bytes = 16 : i64,
       tcrv_rvv.base_i32_m1_lanes = 4 : i64,
@@ -223,30 +222,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
-      tcrv_rvv.element_count = 16 : i64,
-      tcrv_rvv.selected_binary_dtype = "i32",
-      tcrv_rvv.selected_binary_family = "i32-vadd",
-      tcrv_rvv.selected_binary_operator = "add",
-      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-
-    tcrv.exec.variant @i32_stale_mirror attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
-      policy = "metadata_only_first_slice",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_binary_dtype = "i32",
       tcrv_rvv.selected_binary_family = "i32-vadd",
@@ -269,7 +244,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i64-vmul-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_binary_dtype = "i64",
       tcrv_rvv.selected_binary_family = "i64-vmul",
@@ -319,7 +293,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_vector_shape = "i64m1",
       tcrv_rvv.selected_vector_sew = 64 : i64,
@@ -379,7 +352,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
       tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_vector_shape = "i32m2",
       tcrv_rvv.selected_vector_sew = 32 : i64,
@@ -413,8 +385,8 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
 
   if (int result = expectErrorContains(
           verifyVariant("i32_vadd"),
-          {"descriptor-only finite RVV binary legality metadata",
-           "non-authoritative mirror metadata"}))
+          {"requires typed RVV family/body or selected-source authority",
+           "selected vector metadata alone"}))
     return result;
   if (int result = expectSuccess(
           verifyVariant("i32_default_typed"),
@@ -424,17 +396,12 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
   if (int result = expectErrorContains(
           verifyVariant("i32_default_missing_selected_source"),
           {"requires typed RVV family/body or selected-source authority",
-           "legacy descriptor metadata is mirror-only"}))
+           "selected vector metadata alone"}))
     return result;
   if (int result = expectSuccess(
           verifyVariant("i32_vadd_mirror"),
-          "direct module accepts matching i32 descriptor mirror only after "
-          "typed selected-source authority"))
-    return result;
-  if (int result = expectErrorContains(
-          verifyVariant("i32_stale_mirror"),
-          {"descriptor metadata is non-authoritative mirror metadata",
-           "i32-vsub", "i32-vadd"}))
+          "direct module accepts i32 selected-source metadata without descriptor "
+          "mirror metadata"))
     return result;
   if (int result = expectSuccess(verifyVariant("i64_vmul"),
                                  "direct module accepts i64-vmul RVV variant "
@@ -442,8 +409,8 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
     return result;
   if (int result = expectErrorContains(
           verifyVariant("i64_vsub"),
-          {"descriptor-only finite RVV binary legality metadata",
-           "non-authoritative mirror metadata"}))
+          {"requires typed RVV family/body or selected-source authority",
+           "selected vector metadata alone"}))
     return result;
   if (int result = expectErrorContains(
           verifyVariant("i64_direct_source_without_body"),

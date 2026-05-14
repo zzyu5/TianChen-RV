@@ -172,10 +172,9 @@ A descriptor must not:
 - replace extension family ops;
 - justify direct C string emission as the primary route.
 
-Existing fields and paths such as `lowering_descriptor`,
-`i32-vadd-microkernel.v1`, descriptor-based microkernel dispatch, and
+Existing fields and paths such as descriptor-based microkernel dispatch and
 descriptor-to-C exporters are bounded implementation debt. They may be used
-only to preserve existing transition slices until migrated to:
+only to identify remaining transition slices until migrated to:
 
 ```text
 extension family ops

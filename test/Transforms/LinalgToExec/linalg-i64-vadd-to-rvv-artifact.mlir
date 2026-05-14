@@ -1,9 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=tcrv_rvv.i32_vadd_microkernel --implicit-check-not=tcrv_rvv.i32_vsub_microkernel --implicit-check-not=tcrv_rvv.i32_vmul_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=__riscv_vsub --implicit-check-not=__riscv_vmul --implicit-check-not=i32_vadd --implicit-check-not=i32_vsub --implicit-check-not=i32_vmul --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
-// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline > %t.post-planning.mlir
-// RUN: sed '0,/tcrv.exec.variant @rvv_first_slice attributes {/s//tcrv.exec.variant @rvv_first_slice attributes {tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1", /' %t.post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RVV-DESCRIPTOR
-// RUN: sed '0,/tcrv.exec.variant @scalar_fallback_first_slice attributes {/s//tcrv.exec.variant @scalar_fallback_first_slice attributes {tcrv_scalar.lowering_descriptor = "i64-vsub-microkernel.v1", tcrv_scalar.element_count = 16 : i64, /' %t.post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR-DESCRIPTOR --implicit-check-not="out[index] = lhs[index] + rhs[index];"
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -87,7 +84,6 @@ module {
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_i64_profile]
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-NOT: tcrv_rvv.lowering_descriptor
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.selected_setvl_suffix = "e64m1"
 // PIPE-SAME: tcrv_rvv.selected_vector_lmul = "m1"
@@ -97,7 +93,6 @@ module {
 // PIPE-SAME: tcrv_rvv.selected_vector_type = "vint64m1_t"
 // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 // PIPE-SAME: origin = "scalar-plugin"
-// PIPE-NOT: tcrv_scalar.lowering_descriptor
 // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // PIPE-SAME: abi_role = "dispatch-availability-guard"
 // PIPE-SAME: c_name = "rvv_available"
@@ -214,11 +209,3 @@ module {
 // SOURCE-NEXT: {{^}}  }
 // SOURCE-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice
 // SOURCE-NEXT: {{^}}  tcrv_scalar_i64_vadd_microkernel_frontend_i64_vadd_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
-
-// STALE-RVV-DESCRIPTOR: selected RVV variant @rvv_first_slice failed plugin legality before boundary validation
-// STALE-RVV-DESCRIPTOR-SAME: legacy RVV binary descriptor mirror 'i64-vsub-microkernel.v1'
-// STALE-RVV-DESCRIPTOR-SAME: typed RVV authority from direct-typed-microkernel-body names family 'i64-vadd'
-// STALE-RVV-DESCRIPTOR-SAME: descriptor metadata is non-authoritative mirror metadata
-
-// STALE-SCALAR-DESCRIPTOR: selected scalar dispatch fallback component body authority failed before RVV+scalar dispatch artifact emission
-// STALE-SCALAR-DESCRIPTOR-SAME: selected scalar variant @scalar_fallback_first_slice descriptor 'i64-vsub-microkernel.v1' does not match materialized tcrv_scalar.i64_vadd_microkernel

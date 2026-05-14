@@ -70,10 +70,8 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // IR-SAME: tcrv_frontend_lowering = "i32-vsub"
 // IR: tcrv.exec.variant @rvv_first_slice
 // IR-SAME: origin = "rvv-plugin"
-// IR-NOT: tcrv_rvv.lowering_descriptor
 // IR: tcrv.exec.variant @scalar_fallback_first_slice
 // IR-SAME: origin = "scalar-plugin"
-// IR-NOT: tcrv_scalar.lowering_descriptor
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR: tcrv.exec.dispatch
@@ -161,7 +159,7 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // HARNESS: // tcrv_emitc.source_op=tcrv_scalar.i32_vsub_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_sub
 // HARNESS: tcrv_scalar_i32_sub
 // HARNESS: /* Explicit bounded self-check harness for RVV+scalar dispatch runtime invocation evidence. */
-// HARNESS: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type.
+// HARNESS: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; expected arithmetic and scalar element type come from typed selected-source metadata.
 // HARNESS: if (out[index] != lhs[index] - rhs[index])
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(7, 0)
 // HARNESS: tcrv_dispatch_i32_vsub_frontend_dispatch_i32_vsub_self_check_one(16, 1)

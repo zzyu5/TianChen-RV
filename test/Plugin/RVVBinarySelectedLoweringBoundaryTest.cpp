@@ -506,10 +506,6 @@ module {
   if (int result =
           expect(kernel && variant, "default i32-vadd test has kernel/variant"))
     return result;
-  if (int status = expect(!variant->hasAttr("tcrv_rvv.lowering_descriptor"),
-                          "default i32-vadd input is descriptorless"))
-    return status;
-
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
   tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;

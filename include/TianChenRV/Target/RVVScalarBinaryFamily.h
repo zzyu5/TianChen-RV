@@ -99,10 +99,6 @@ inline llvm::StringRef getScalarSelectedBinaryOperatorMetadataName() {
   return "tcrv_scalar.selected_binary_operator";
 }
 
-inline llvm::StringRef getScalarSelectedLoweringTokenMetadataName() {
-  return "tcrv_scalar.selected_lowering_descriptor";
-}
-
 inline llvm::StringRef getScalarRuntimeElementCountCNameMetadataName() {
   return "tcrv_scalar.runtime_element_count_c_name";
 }
@@ -115,18 +111,8 @@ inline llvm::StringRef getScalarEmitCLowerableOpInterfaceMetadataName() {
   return "tcrv_scalar.emitc_lowerable_op_interface";
 }
 
-inline llvm::StringRef getScalarLegacyDescriptorMirrorMetadataRole() {
-  return "legacy-scalar-binary-descriptor-mirror";
-}
-
 inline llvm::StringRef getScalarTypedBinarySourceMetadataRole() {
   return "typed-scalar-binary-source";
-}
-
-inline llvm::StringRef getScalarLegacyDescriptorMirrorMetadataNote() {
-  return "legacy finite scalar descriptor mirror metadata checked after typed "
-         "selected-plan authority is established; not compute, ABI, source, "
-         "runtime trip-count, hardware execution, or performance authority";
 }
 
 inline llvm::StringRef getScalarTypedBinarySourceMetadataNote() {
@@ -320,29 +306,6 @@ inline RVVScalarBinaryFamilyRecord makeFamilyRegistrationRecord(
   descriptor.dispatch.dispatchExternalABIComponentGroup =
       makeDispatchRegistrationExternalABIComponentGroup(family);
   return descriptor;
-}
-
-inline void appendScalarBinaryLegacyDescriptorMirrorMetadata(
-    const RVVScalarBinaryFamilyRecord &family,
-    llvm::StringRef runtimeElementCountCName,
-    llvm::SmallVectorImpl<ScalarBinarySelectedPlanMetadataRecord> &out) {
-  llvm::StringRef descriptorRole =
-      getScalarLegacyDescriptorMirrorMetadataRole();
-  llvm::StringRef descriptorNote =
-      getScalarLegacyDescriptorMirrorMetadataNote();
-  out.push_back({getScalarSelectedBinaryDTypeMetadataName(),
-                 family.rvvFamily->dtypeID, descriptorRole, descriptorNote});
-  out.push_back({getScalarSelectedBinaryFamilyMetadataName(),
-                 family.familyID, descriptorRole, descriptorNote});
-  out.push_back({getScalarSelectedBinaryOperatorMetadataName(),
-                 family.rvvFamily->arithmeticVerb, descriptorRole,
-                 descriptorNote});
-  out.push_back({getScalarSelectedLoweringTokenMetadataName(),
-                 family.legacyLoweringToken, descriptorRole, descriptorNote});
-  out.push_back({getScalarRuntimeElementCountCNameMetadataName(),
-                 runtimeElementCountCName,
-                 getScalarRuntimeControlNameMetadataRole(),
-                 getScalarRuntimeControlNameMetadataNote()});
 }
 
 inline void appendScalarBinarySelectedTypedSourceMetadata(

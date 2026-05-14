@@ -16,11 +16,6 @@ namespace tianchenrv::plugin::rvv {
 using RVVBinaryVariantLegalityVerifier =
     llvm::function_ref<llvm::Error(const VariantLegalityRequest &)>;
 
-llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
-    tcrv::exec::VariantOp variant,
-    const RVVBinaryCapabilityPropertyView &view,
-    llvm::StringRef expectedDTypeID);
-
 llvm::Error materializeRVVBinarySelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out, llvm::StringRef originPlugin,

@@ -23,8 +23,6 @@ namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
-constexpr llvm::StringLiteral kLoweringTokenAttrName(
-    "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
     "tcrv_rvv.smoke_probe_descriptor");
@@ -512,118 +510,6 @@ buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
   return plan;
 }
 
-llvm::Error validateLegacyRVVBinarySelectedDescriptorMetadata(
-    tcrv::exec::VariantOp variant, const RVVBinaryCapabilityPropertyView &view,
-    llvm::StringRef expectedDTypeID) {
-  if (!variant)
-    return makeRVVBinarySelectedBoundaryError(
-        "legacy RVV binary descriptor metadata validation requires a "
-        "materialized tcrv.exec.variant");
-
-  auto descriptorAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kLoweringTokenAttrName);
-  if (!descriptorAttr)
-    return llvm::Error::success();
-
-  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-  if (descriptor.empty())
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() + " requires non-empty string attribute '" +
-        kLoweringTokenAttrName + "'");
-  if (llvm::Error error = validateRVVPropertyText(
-          "legacy RVV binary descriptor metadata",
-          kLoweringTokenAttrName, descriptor))
-    return error;
-
-  const target::rvv::RVVBinaryFamilyRecord *descriptorFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
-          descriptor);
-  if (!descriptorFamily)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() + " descriptor '" + descriptor +
-        "' must be one registered finite RVV binary lowering registration");
-
-  if (!expectedDTypeID.empty() && descriptorFamily->dtypeID != expectedDTypeID)
-    return llvm::Error::success();
-
-  if (!view.selectedShape)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() +
-        " requires a selected vector-shape capability for mirror validation");
-
-  if (descriptorFamily->dtypeID != view.selectedShape->dtypeID)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() + " descriptor family '" +
-        descriptorFamily->familyID +
-        "' conflicts with selected vector-shape '" +
-        view.selectedShape->shapeID + "'");
-
-  auto elementCount =
-      variant->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
-  if (!elementCount)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() + " requires integer attribute '" +
-        kElementCountAttrName + "' for bounded mirror validation");
-  if (elementCount.getInt() <= 0 || elementCount.getInt() > 64)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() +
-        " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
-
-  auto requiredMarch =
-      variant->getAttrOfType<mlir::StringAttr>(kRVVRequiredMarchAttrName);
-  if (!requiredMarch || requiredMarch.getValue().trim().empty())
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("legacy RVV binary descriptor metadata on variant @") +
-        variant.getSymName() +
-        " requires string 'tcrv_rvv.required_march' metadata");
-
-  return llvm::Error::success();
-}
-
-llvm::Error rejectLegacyDescriptorOnlyMicrokernelMaterialization(
-    tcrv::exec::VariantOp variant) {
-  auto descriptorAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kLoweringTokenAttrName);
-  if (!descriptorAttr || descriptorAttr.getValue().trim().empty())
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("direct legacy-registration-only RVV binary "
-                    "lowering-boundary materialization requires non-empty "
-                    "string attribute '") +
-        kLoweringTokenAttrName + "'");
-
-  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-  if (llvm::Error error = validateRVVPropertyText(
-          "direct legacy-registration-only RVV binary lowering-boundary "
-          "materialization",
-          kLoweringTokenAttrName, descriptor))
-    return error;
-
-  const target::rvv::RVVBinaryFamilyRecord *descriptorFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
-          descriptor);
-  if (!descriptorFamily)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("direct legacy-registration-only RVV binary "
-                    "lowering-boundary materialization descriptor '") +
-        descriptor +
-        "' must be one registered finite RVV binary lowering registration");
-
-  return makeRVVBinarySelectedBoundaryError(
-      llvm::Twine("direct legacy-registration-only RVV binary "
-                  "lowering-boundary materialization for family '") +
-      descriptorFamily->familyID +
-      "' is legacy-quarantined; add a typed " +
-      descriptorFamily->microkernelOpName +
-      " body or use frontend-derived typed family lowering so compute identity "
-      "comes from RVV family ops");
-}
-
 llvm::Error materializeRVVBinarySelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
     VariantLoweringBoundaryResult &out, llvm::StringRef originPlugin,
@@ -686,14 +572,10 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
   if (*explicitAttachment)
     existingSelectedEmissionAttachment = std::move(**explicitAttachment);
 
-  bool hasLoweringToken = variant->hasAttr(kLoweringTokenAttrName);
   bool hasSmokeProbeDescriptor =
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
   bool hasDescriptorlessDefaultTyped =
-      !hasLoweringToken && !hasSmokeProbeDescriptor &&
-      variant->hasAttr(kElementCountAttrName);
-  if (!existingSelectedEmissionAttachment && hasLoweringToken)
-    return rejectLegacyDescriptorOnlyMicrokernelMaterialization(variant);
+      !hasSmokeProbeDescriptor && variant->hasAttr(kElementCountAttrName);
 
   if (!existingSelectedEmissionAttachment && hasDescriptorlessDefaultTyped) {
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
@@ -822,7 +704,6 @@ llvm::Error validateRVVBinarySelectedLoweringBoundary(
       hasAnyRVVSelectedVectorShapeMetadata(
           boundary, getRVVBoundarySelectedVectorShapeMetadataNames());
   bool requiresSelectedLegality =
-      variant->hasAttr(kLoweringTokenAttrName) ||
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVRequiredMarchAttrName) || hasCapacityMetadata ||
       hasSelectedShapeMetadata;

@@ -42,10 +42,6 @@ inline llvm::StringRef getRVVSelectedBinaryMicrokernelOpMetadataName() {
   return "tcrv_rvv.selected_binary_microkernel_op";
 }
 
-inline llvm::StringRef getRVVSelectedLoweringTokenMetadataName() {
-  return "tcrv_rvv.selected_lowering_descriptor";
-}
-
 inline llvm::StringRef getRVVEmitCSourceOpMetadataName() {
   return "tcrv_rvv.emitc_source_op";
 }
@@ -82,18 +78,8 @@ inline llvm::StringRef getRVVEmitCRequiredHeaderMetadataValue() {
   return "riscv_vector.h";
 }
 
-inline llvm::StringRef getRVVLegacyDescriptorMirrorMetadataRole() {
-  return "legacy-rvv-binary-descriptor-mirror";
-}
-
 inline llvm::StringRef getRVVTypedBinarySourceMetadataRole() {
   return "typed-rvv-binary-source";
-}
-
-inline llvm::StringRef getRVVLegacyDescriptorMirrorMetadataNote() {
-  return "legacy finite RVV descriptor mirror metadata checked after typed "
-         "selected-plan authority is established; not compute, ABI, source, "
-         "runtime AVL/VL, hardware capacity, or performance authority";
 }
 
 inline llvm::StringRef getRVVTypedBinarySourceMetadataNote() {
@@ -928,32 +914,6 @@ inline void appendRVVBinaryDynamicRuntimeExtentSelectedPlanMetadata(
       {support::getFrontendRuntimeElementCountConstraintMetadataName(),
        runtimeExtent.runtimeElementCountConstraint, role, note,
        "frontend runtime element-count constraint"});
-}
-
-inline void appendRVVBinaryLegacyDescriptorMirrorMetadata(
-    const RVVBinarySelectedConfigContract &contract,
-    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  llvm::StringRef descriptorRole =
-      getRVVLegacyDescriptorMirrorMetadataRole();
-  llvm::StringRef descriptorNote =
-      getRVVLegacyDescriptorMirrorMetadataNote();
-  out.push_back({getRVVSelectedBinaryDTypeMetadataName(),
-                 contract.getDTypeID(), descriptorRole, descriptorNote,
-                 "selected binary dtype"});
-  out.push_back({getRVVSelectedBinaryFamilyMetadataName(),
-                 contract.getFamilyID(), descriptorRole, descriptorNote,
-                 "selected binary family"});
-  out.push_back({getRVVSelectedBinaryOperatorMetadataName(),
-                 contract.getArithmeticVerb(), descriptorRole, descriptorNote,
-                 "selected binary operator"});
-  out.push_back({getRVVSelectedLoweringTokenMetadataName(),
-                 contract.getLegacyLoweringTokenMirror(), descriptorRole,
-                 descriptorNote, "legacy lowering route label mirror"});
-  out.push_back({getRVVRuntimeElementCountCNameMetadataName(),
-                 contract.getRuntimeElementCountCName(),
-                 getRVVRuntimeControlNameMetadataRole(),
-                 getRVVRuntimeControlNameMetadataNote(),
-                 "runtime element-count C name"});
 }
 
 inline void appendRVVBinarySelectedTypedSourceMetadata(

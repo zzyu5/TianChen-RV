@@ -4,9 +4,8 @@
 // RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=func.func --implicit-check-not=vector.transfer_read --implicit-check-not=vector.transfer_write --implicit-check-not=tcrv_frontend_source_vector_extent --implicit-check-not=tcrv_rvv.i32_vadd_microkernel --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vsub-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not="__builtin_trap" --implicit-check-not="__riscv_vadd" --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password
 // RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=must-equal-fixed-source-vector-extent --implicit-check-not="__builtin_trap" --implicit-check-not="__riscv_vadd" --implicit-check-not=i32_vadd --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password
-// RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.element_count = 16 : i64/s//tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DESC --implicit-check-not="TianChen-RV RVV runtime-callable microkernel C export." --implicit-check-not="void tcrv_rvv_i32_vsub"
 // RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/name = "tcrv_rvv.selected_vector_sew"/s//name = "tcrv_rvv.stale_selected_vector_sew"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-SEW --implicit-check-not="void tcrv_rvv_i32_vsub"
-// RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "tcrv_rvv.with_vl"/s//value = "descriptor-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-VL-SCOPE --implicit-check-not="void tcrv_rvv_i32_vsub"
+// RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "tcrv_rvv.with_vl"/s//value = "runtime-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-VL-SCOPE --implicit-check-not="void tcrv_rvv_i32_vsub"
 // RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_rvv\.emitc_arithmetic_intrinsic\"[^}]*value = )\"__riscv_vsub_vv_i32m1\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"__riscv_vadd_vv_i32m1\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=STALE-EMITC-BODY-MAPPING --implicit-check-not="#include <riscv_vector.h>"
 
 module {
@@ -142,7 +141,6 @@ module {
 // SOURCE: /* arithmetic_source: typed op tcrv_rvv.i32_sub via generated EmitC route and IR-backed callable ABI */
 // SOURCE: /* emitc_body_mapping_source: selected_plan_metadata */
 // SOURCE: /* emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header=riscv_vector.h, arithmetic_intrinsic=__riscv_vsub_vv_i32m1 */
-// SOURCE: /* descriptor_mirror_status: optional legacy descriptor metadata is compatibility/diagnostic only after typed RVV body authority; it cannot select emitted compute semantics */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // SOURCE: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
@@ -157,9 +155,6 @@ module {
 // MISSING-SEW: requires selected_plan_metadata 'tcrv_rvv.selected_vector_sew'
 // STALE-VL-SCOPE: selected_plan_metadata 'tcrv_rvv.runtime_vl_scope'
 // STALE-VL-SCOPE-SAME: must use value 'tcrv_rvv.with_vl'
-// STALE-DESC: legacy RVV binary descriptor mirror 'i32-vadd-microkernel.v1'
-// STALE-DESC-SAME: typed RVV authority from direct-typed-microkernel-body names family 'i32-vsub'
-// STALE-DESC-SAME: descriptor metadata is non-authoritative mirror metadata
 // STALE-EMITC-BODY-MAPPING: selected RVV EmitC body mapping
 // STALE-EMITC-BODY-MAPPING-SAME: selected_plan_metadata 'tcrv_rvv.emitc_arithmetic_intrinsic'
 // STALE-EMITC-BODY-MAPPING-SAME: EmitC arithmetic intrinsic must be '__riscv_vsub_vv_i32m1'

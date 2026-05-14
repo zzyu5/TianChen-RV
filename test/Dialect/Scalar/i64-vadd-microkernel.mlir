@@ -13,8 +13,7 @@ module {
       origin = "scalar-plugin",
       policy = "portable_scalar_fallback_first_slice",
       requires = [@scalar_fallback],
-      tcrv_scalar.element_count = 16 : i64,
-      tcrv_scalar.lowering_descriptor = "i64-vadd-microkernel.v1"
+      tcrv_scalar.element_count = 16 : i64
     } {
     }
     // CHECK: tcrv_scalar.i64_vadd_microkernel
@@ -50,8 +49,7 @@ module {
       origin = "scalar-plugin",
       policy = "portable_scalar_fallback_first_slice",
       requires = [@scalar_fallback],
-      tcrv_scalar.element_count = 16 : i64,
-      tcrv_scalar.lowering_descriptor = "i64-vsub-microkernel.v1"
+      tcrv_scalar.element_count = 16 : i64
     } {
     }
     // CHECK: tcrv_scalar.i64_vsub_microkernel
@@ -87,8 +85,7 @@ module {
       origin = "scalar-plugin",
       policy = "portable_scalar_fallback_first_slice",
       requires = [@scalar_fallback],
-      tcrv_scalar.element_count = 16 : i64,
-      tcrv_scalar.lowering_descriptor = "i64-vmul-microkernel.v1"
+      tcrv_scalar.element_count = 16 : i64
     } {
     }
     // CHECK: tcrv_scalar.i64_vmul_microkernel

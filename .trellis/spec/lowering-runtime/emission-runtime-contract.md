@@ -203,10 +203,9 @@ object routes, the selected typed `tcrv_rvv.i64_vadd_microkernel`,
 `tcrv_rvv.i64_vsub_microkernel`, or `tcrv_rvv.i64_vmul_microkernel` body is the
 authority for family, dtype, arithmetic op, intrinsic config, callable ABI,
 route id, artifact kind, component group, function stem, and generated C body.
-If `tcrv_rvv.lowering_descriptor` is present beside that typed body, target
-export validates it only as non-authoritative legacy mirror metadata; a stale
-mirror or descriptor-only i64 path fails before source/header/object/bundle
-output. The header must not embed callable bodies, RVV intrinsics, `main`,
+Target export must fail closed when a selected path lacks typed family/body
+authority before source/header/object/bundle output. The header must not embed
+callable bodies, RVV intrinsics, `main`,
 self-check helpers, runtime probing, evidence logs, credentials, artifact
 paths, or performance text.
 
@@ -270,8 +269,8 @@ runtime-callable RVV candidate.
 - Positive pipeline-to-export coverage for i32-vadd source/header/object.
 - Negative FileCheck coverage proving missing selected-boundary source identity
   fails before generated C source appears.
-- Negative coverage for stale/wrong source identity and descriptor-only
-  production attempts.
+- Negative coverage for stale/wrong source identity and missing typed-source
+  production authority.
 - C++ target artifact preflight coverage for hand-authored component fixtures.
 
 #### 7. Wrong vs Correct
@@ -1175,12 +1174,10 @@ Rules:
   authority before creating the boundary: either a matching explicit
   `tcrv_scalar.*_microkernel` direct child or a descriptorless typed default
   materialization selected from the kernel frontend marker/default family;
-- a selected scalar fallback variant carrying only legacy
-  `tcrv_scalar.lowering_descriptor` and/or `tcrv_scalar.element_count`
-  metadata must fail closed before `tcrv_scalar.lowering_boundary` creation.
-  Those fields are optional mirror metadata only after typed scalar
-  microkernel authority exists, and stale mirrors must fail as mirror
-  mismatches;
+- a selected scalar fallback variant carrying only
+  `tcrv_scalar.element_count` metadata must fail closed before
+  `tcrv_scalar.lowering_boundary` creation unless typed scalar microkernel
+  authority exists;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.
@@ -1541,9 +1538,9 @@ Trigger: post-planning MLIR contains one selected `rvv-plugin` path, a matching
 plugin-owned `tcrv_rvv.lowering_boundary`, preserved selected march metadata,
 and exactly one `tcrv_rvv.i32_vadd_microkernel` op for that selected
 kernel/variant. The microkernel op may be an explicit fixture attachment or an
-RVV-plugin materialization from the finite selected-variant descriptor
-`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"`. The microkernel
-op must carry the structured RVV control/dataflow body for this bounded slice:
+RVV-plugin materialization from typed frontend/default selected-source
+authority. The microkernel op must carry the structured RVV control/dataflow
+body for this bounded slice:
 one runtime index body argument for target/export-owned `n`/AVL, one
 `tcrv_rvv.setvl`, one matching `tcrv_rvv.with_vl`, and one nested finite
 `tcrv_rvv.i32_load`, `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`,
@@ -1600,12 +1597,11 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   through exact providers or explicit relation-provider target profile scope
   for `rvv.probe.compile_run.selected_march` or `rvv.toolchain.march.value`.
 - If the selected variant asks the RVV plugin to materialize the microkernel,
-  it must carry exactly the finite descriptor
-  `tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` and a bounded
-  descriptor-local integer `tcrv_rvv.element_count`. When structured RVV i32 M1
-  lane capacity is present, that element count may be a bounded plugin-selected
-  sample size derived from capacity; no generic tensor, dtype family, shape,
-  AVL/VL, runtime trip count, correctness coverage, performance, or broad
+  it must carry typed selected-source identity and a bounded
+  `tcrv_rvv.element_count`. When structured RVV i32 M1 lane capacity is
+  present, that element count may be a bounded plugin-selected sample size
+  derived from capacity; no generic tensor, dtype family, shape, AVL/VL,
+  runtime trip count, correctness coverage, performance, or broad
   microarchitecture semantics are implied.
 - A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
   source kernel, selected variant, origin, role, status, and required
@@ -1666,10 +1662,9 @@ arbitrary RVV kernel emission, full runtime integration, or performance.
 When the explicit microkernel op matches the selected RVV path, the RVV plugin
 may return a supported emission plan for the runtime-callable C source export
 route.
-If the selected variant carries the finite
-`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` descriptor, the plan
-must also validate that the attached microkernel's `element_count` matches the
-selected variant's bounded `tcrv_rvv.element_count` descriptor metadata:
+The plan must also validate that the attached microkernel's `element_count`
+matches the selected variant's bounded `tcrv_rvv.element_count` selected-path
+metadata:
 
 ```text
 status: supported
@@ -1714,11 +1709,11 @@ emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
 reporting executable support. This metadata-only readiness/plan result also
-does not license descriptor-only selected-boundary materialization: legacy
-`tcrv_scalar.lowering_descriptor` / `tcrv_scalar.element_count` metadata must
-not create `tcrv_scalar.lowering_boundary` unless a typed scalar microkernel
-body or descriptorless typed default materialization is already the
-selected-path authority.
+does not license metadata-only selected-boundary materialization:
+`tcrv_scalar.element_count` metadata must not create
+`tcrv_scalar.lowering_boundary` unless a typed scalar microkernel body or
+descriptorless typed default materialization is already the selected-path
+authority.
 
 The selected scalar fallback boundary is slightly more concrete than an
 emission-plan diagnostic because it is a scalar extension-dialect op:

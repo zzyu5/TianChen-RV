@@ -208,17 +208,6 @@ int expectProposalStringAttr(const VariantProposal &proposal,
                     " preserves expected value");
 }
 
-int expectProposalMissingAttr(const VariantProposal &proposal,
-                              llvm::StringRef attrName) {
-  return expect(!findProposalAttribute(proposal, attrName),
-                llvm::Twine("proposal does not carry attribute ") + attrName);
-}
-
-int expectMissingAttr(mlir::Operation *operation, llvm::StringRef attrName) {
-  return expect(operation && !operation->hasAttr(attrName),
-                llvm::Twine("operation does not carry attribute ") + attrName);
-}
-
 int expectProposalIntegerAttr(const VariantProposal &proposal,
                               llvm::StringRef attrName, int64_t expectedValue) {
   auto attr = llvm::dyn_cast_if_present<mlir::IntegerAttr>(
@@ -258,17 +247,6 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef name) {
       kernel = candidate;
   });
   return kernel;
-}
-
-VariantOp findVariant(KernelOp kernel, llvm::StringRef name) {
-  VariantOp variant;
-  if (!kernel)
-    return variant;
-  kernel->walk([&](VariantOp candidate) {
-    if (candidate.getSymName() == name)
-      variant = candidate;
-  });
-  return variant;
 }
 
 I32VAddMicrokernelOp findRVVAddMicrokernel(
@@ -1025,9 +1003,6 @@ module {
                   "rvv.i64_m1.mask_policy.agnostic",
           "profile-derived i64 proposal requires i64m1 capability IDs"))
     return result;
-  if (int result = expectProposalMissingAttr(i64Proposals[0],
-                                             "tcrv_rvv.lowering_descriptor"))
-    return result;
   if (int result = expectProposalStringAttr(
           i64Proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
     return result;
@@ -1043,10 +1018,6 @@ module {
                  "one profile-derived RVV i64 variant materialized"))
     return result;
   VariantOp i64Variant = i64MaterializedVariants.front();
-  if (int result = expectMissingAttr(i64Variant.getOperation(),
-                                     "tcrv_rvv.lowering_descriptor"))
-    return result;
-
   VariantLoweringBoundaryResult i64BoundaryResult;
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
@@ -1902,7 +1873,7 @@ module {
   return 0;
 }
 
-int runRVVDescriptorBackedI32FamilyTest(mlir::MLIRContext &context) {
+int runRVVFiniteBinaryI32FamilyTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   func.func @high_level_placeholder() {
@@ -2058,10 +2029,6 @@ module {
             expect(proposals.size() == 1,
                    llvm::Twine("one RVV proposal for ") + kernelName))
       return result;
-    if (int result = expectProposalMissingAttr(
-            proposals[0], "tcrv_rvv.lowering_descriptor"))
-      return result;
-
     mlir::OpBuilder builder(&context);
     llvm::SmallVector<VariantOp, 1> materializedVariants;
     if (int result = expectSuccess(
@@ -2075,11 +2042,6 @@ module {
                        kernelName))
       return result;
     VariantOp variant = materializedVariants.front();
-    if (int result =
-            expectMissingAttr(variant.getOperation(),
-                              "tcrv_rvv.lowering_descriptor"))
-      return result;
-
     VariantLoweringBoundaryResult boundaryResult;
     {
       mlir::OpBuilder::InsertionGuard guard(builder);
@@ -2464,26 +2426,6 @@ module {
           "route metadata"))
     return result;
 
-  variant->setAttr("tcrv_rvv.lowering_descriptor",
-                   builder.getStringAttr("i32-vadd-microkernel.v1"));
-  llvm::Expected<
-      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
-      staleLegacyMirrorPlan =
-          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-  if (staleLegacyMirrorPlan)
-    return fail("stale i32 descriptor mirror must not change typed selected "
-                "emission plan");
-  if (int result = expectErrorContains(
-          staleLegacyMirrorPlan.takeError(),
-          {"tcrv_rvv.lowering_descriptor 'i32-vadd-microkernel.v1'",
-           "requires tcrv_rvv.i32_vadd_microkernel",
-           "typed microkernel body is tcrv_rvv.i32_vsub_microkernel"}))
-    return result;
-  variant->removeAttr("tcrv_rvv.lowering_descriptor");
-
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
@@ -2616,10 +2558,6 @@ module {
                   "rvv.i64_m1.mask_policy.agnostic",
           "RVV i64 proposal requires i64m1 config capability ids"))
     return result;
-  if (int result =
-          expectProposalMissingAttr(proposals[0],
-                                    "tcrv_rvv.lowering_descriptor"))
-    return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
     return result;
@@ -2642,9 +2580,6 @@ module {
     return result;
   VariantOp variant = materializedVariants.front();
 
-  if (int result = expectMissingAttr(variant.getOperation(),
-                                     "tcrv_rvv.lowering_descriptor"))
-    return result;
   if (int result = expectStringAttr(variant.getOperation(),
                                     "tcrv_rvv.selected_vector_shape", "i64m1"))
     return result;
@@ -2829,46 +2764,10 @@ module {
                   "tcrv_rvv.emitc_arithmetic_intrinsic",
                   (llvm::Twine(family.arithmeticIntrinsicPrefix) + "i64m1")
                       .str(),
-                  "typed-rvv-emitc-route") &&
-              !hasSelectedPlanMetadata(
-                  plannerI64Plan.selectedPlanMetadata,
-                  "tcrv_rvv.selected_lowering_descriptor",
-                  family.legacyLoweringToken,
-                  "legacy-rvv-binary-descriptor-mirror"),
+                  "typed-rvv-emitc-route"),
           "RVV i64 selected-emission planner records typed EmitC route "
           "metadata without descriptor authority"))
     return result;
-
-  const tianchenrv::target::rvv::RVVBinaryFamilyRecord &staleFamily =
-      family.arithmetic == tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add
-          ? tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()
-          : tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord();
-  variant->setAttr("tcrv_rvv.lowering_descriptor",
-                   builder.getStringAttr(staleFamily.legacyLoweringToken));
-  llvm::Expected<
-      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
-      staleLegacyMirrorPlan =
-          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-  if (staleLegacyMirrorPlan)
-    return fail("stale i64 descriptor mirror must not change typed selected "
-                "emission plan");
-  std::string staleDescriptorFragment =
-      (llvm::Twine("tcrv_rvv.lowering_descriptor '") +
-       staleFamily.legacyLoweringToken + "'")
-          .str();
-  std::string staleRequiresFragment =
-      (llvm::Twine("requires ") + staleFamily.microkernelOpName).str();
-  std::string typedBodyFragment =
-      (llvm::Twine("typed microkernel body is ") + family.microkernelOpName)
-          .str();
-  if (int result = expectErrorContains(
-          staleLegacyMirrorPlan.takeError(),
-          {staleDescriptorFragment, staleRequiresFragment, typedBodyFragment}))
-    return result;
-  variant->removeAttr("tcrv_rvv.lowering_descriptor");
 
   VariantEmissionPlan emissionPlan;
   if (int result = expectSuccess(
@@ -3021,234 +2920,6 @@ module {
                 "RVV i64 proposal fails closed without i64m1 capability facts");
 }
 
-int runRVVI64DirectDescriptorProposalQuarantineTest(
-    mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  tcrv.exec.kernel @direct_i64_vadd_descriptor {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      provides = ["rvv.i64_m1.sew64", "rvv.i64_m1.lmul_m1", "rvv.i64_m1.tail_policy.agnostic", "rvv.i64_m1.mask_policy.agnostic"],
-      sew_bits = 64 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_hart_count {
-      id = "rvv.hart_count",
-      kind = "uarch",
-      count = 64 : i64,
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_probe_compile_run {
-      id = "rvv.probe.compile_run",
-      kind = "toolchain",
-      selected_mabi = "lp64d",
-      selected_march = "rv64gcv",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_toolchain_march {
-      id = "rvv.toolchain.march",
-      kind = "toolchain",
-      status = "available",
-      value = "rv64gcv"
-    }
-    tcrv.exec.variant @rvv_i64_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      policy = "metadata_only_first_slice",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
-      tcrv_rvv.element_count = 8 : i64,
-      tcrv_rvv.selected_vector_shape = "i64m1",
-      tcrv_rvv.selected_vector_sew = 64 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint64m1_t",
-      tcrv_rvv.selected_vector_suffix = "i64m1",
-      tcrv_rvv.selected_setvl_suffix = "e64m1"
-    } {
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse RVV direct i64 descriptor proposal module");
-
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
-  KernelOp kernel = findKernel(*module, "direct_i64_vadd_descriptor");
-  TargetCapabilitySet capabilities =
-      TargetCapabilitySet::buildFromKernel(kernel);
-  if (int result = expect(highLevelOp && kernel,
-                          "RVV direct i64 descriptor test has anchors"))
-    return result;
-
-  ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for direct i64 descriptor test"))
-    return result;
-
-  VariantProposalRequest request =
-      makeRequest(highLevelOp.getOperation(), kernel, capabilities);
-  llvm::SmallVector<VariantProposal, 1> proposals;
-  llvm::SmallVector<VariantProposalDecline, 1> declines;
-  if (int result = expectSuccess(
-          registry.collectVariantProposals(request, proposals, &declines),
-          "collect quarantined descriptor-only RVV i64 proposal"))
-    return result;
-  if (int result = expect(proposals.empty(),
-                          "quarantined descriptor-only RVV i64 proposal "
-                          "does not materialize a production candidate"))
-    return result;
-  if (int result = expect(declines.size() == 1,
-                          "quarantined descriptor-only RVV i64 proposal "
-                          "records one recoverable decline"))
-    return result;
-  llvm::StringRef reason = declines.front().getReason();
-  if (int result = expect(
-          reason.contains(
-              "descriptor-only direct RVV binary planning metadata "
-              "'i64-vadd-microkernel.v1' before typed RVV microkernel body "
-              "authority"),
-          "quarantine decline names descriptor-only planning before typed "
-          "authority"))
-    return result;
-  if (int result =
-          expect(reason.contains("cannot select a supported direct RVV binary "
-                                 "proposal plan"),
-                 "quarantine decline reports no supported proposal selection"))
-    return result;
-  return expect(
-      reason.contains("non-authoritative legacy mirror metadata"),
-      "quarantine decline preserves non-authoritative mirror boundary");
-}
-
-int runDescriptorOnlySelectedEmissionFailsClosedTest(
-    mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @descriptor_only_i32 {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      status = "available"
-    }
-    tcrv.exec.variant @rvv_i32_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      policy = "metadata_only_first_slice",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1",
-      tcrv_rvv.element_count = 16 : i64,
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-  }
-
-  tcrv.exec.kernel @descriptor_only_i64 {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      status = "available"
-    }
-    tcrv.exec.variant @rvv_i64_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      policy = "metadata_only_first_slice",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.lowering_descriptor = "i64-vadd-microkernel.v1",
-      tcrv_rvv.element_count = 8 : i64,
-      tcrv_rvv.selected_vector_shape = "i64m1",
-      tcrv_rvv.selected_vector_sew = 64 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint64m1_t",
-      tcrv_rvv.selected_vector_suffix = "i64m1",
-      tcrv_rvv.selected_setvl_suffix = "e64m1"
-    } {
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse descriptor-only selected-emission module");
-
-  auto expectDescriptorOnlyRejected =
-      [&](llvm::StringRef kernelName, llvm::StringRef variantName,
-          llvm::StringRef dtype) -> int {
-    KernelOp kernel = findKernel(*module, kernelName);
-    VariantOp variant = findVariant(kernel, variantName);
-    if (int result =
-            expect(kernel && variant,
-                   llvm::Twine("descriptor-only ") + dtype +
-                       " selected-emission test has kernel and variant"))
-      return result;
-
-    TargetCapabilitySet capabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
-    VariantEmissionRequest request(variant, kernel, capabilities,
-                                   VariantEmissionRole::DirectVariant);
-
-    llvm::Expected<
-        std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
-        plan = tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
-            request, tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-    if (!plan)
-      return fail(llvm::Twine("descriptor-only ") + dtype +
-                  " selected-emission planning should fail closed without "
-                  "descriptor parsing error: " +
-                  llvm::toString(plan.takeError()));
-    if (int result =
-            expect(!*plan,
-                   llvm::Twine("descriptor-only ") + dtype +
-                       " selected-emission planning produces no plan"))
-      return result;
-
-    llvm::Expected<std::optional<VariantEmissionStatus>> readiness =
-        tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionReadiness(
-            request, tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-    if (!readiness)
-      return fail(llvm::Twine("descriptor-only ") + dtype +
-                  " selected-emission readiness should fail closed without "
-                  "descriptor parsing error: " +
-                  llvm::toString(readiness.takeError()));
-    return expect(!*readiness,
-                  llvm::Twine("descriptor-only ") + dtype +
-                      " selected-emission readiness produces no status");
-  };
-
-  if (int result = expectDescriptorOnlyRejected("descriptor_only_i32",
-                                                "rvv_i32_slice", "i32"))
-    return result;
-  return expectDescriptorOnlyRejected("descriptor_only_i64", "rvv_i64_slice",
-                                      "i64");
-}
-
 int runAvailableRVVEndToEndTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3377,9 +3048,6 @@ module {
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
     return result;
-  if (int result = expectProposalMissingAttr(
-          proposals[0], "tcrv_rvv.lowering_descriptor"))
-    return result;
   if (int result =
           expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
     return result;
@@ -3434,10 +3102,6 @@ module {
                      requiredMarchAttr.getValue() == "rv64gcv",
                  "materialized RVV variant has typed origin, requires, and "
                  "plugin-owned property metadata"))
-    return result;
-  if (int result =
-          expectMissingAttr(variant.getOperation(),
-                            "tcrv_rvv.lowering_descriptor"))
     return result;
   if (int result = expectIntegerAttr(variant.getOperation(),
                                      "tcrv_rvv.element_count", 16))
@@ -3694,7 +3358,7 @@ int main() {
     return result;
   if (int result = runRVVModuleTargetProfileCapacityDecisionTest(context))
     return result;
-  if (int result = runRVVDescriptorBackedI32FamilyTest(context))
+  if (int result = runRVVFiniteBinaryI32FamilyTest(context))
     return result;
   if (int result = runRVVI32M2ProposalMaterializationTest(context))
     return result;
@@ -3705,10 +3369,6 @@ int main() {
   if (int result = runRVVI64VMulProposalMaterializationTest(context))
     return result;
   if (int result = runRVVI64VAddMissingCapabilityDeclinesTest(context))
-    return result;
-  if (int result = runRVVI64DirectDescriptorProposalQuarantineTest(context))
-    return result;
-  if (int result = runDescriptorOnlySelectedEmissionFailsClosedTest(context))
     return result;
   if (int result = runAvailableRVVEndToEndTest(context))
     return result;

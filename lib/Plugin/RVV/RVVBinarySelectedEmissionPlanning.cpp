@@ -24,8 +24,6 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
-constexpr llvm::StringLiteral kLoweringTokenAttrName(
-    "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kVariantElementCountAttrName(
     "tcrv_rvv.element_count");
@@ -745,47 +743,13 @@ llvm::Error validateI64MicrokernelStructuredControlPlane(
   return llvm::Error::success();
 }
 
-llvm::Error validateLegacyDescriptorMirrorAfterTypedPlan(
+llvm::Error validateSelectedElementCountMirrorAfterTypedPlan(
     tcrv::exec::VariantOp variant,
     const RVVBinarySelectedPlan &typedSelectedPlan) {
   if (!variant)
     return makeRVVBinarySelectedEmissionError(
         "explicit RVV microkernel emission plan requires selected variant "
-        "metadata for legacy mirror validation");
-
-  if (mlir::Attribute rawDescriptor =
-          variant->getAttr(kLoweringTokenAttrName)) {
-    auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-    if (!descriptor || descriptor.getValue().trim().empty())
-      return makeRVVBinarySelectedEmissionError(
-          "optional legacy RVV descriptor mirror metadata "
-          "'tcrv_rvv.lowering_descriptor' must be a non-empty string");
-
-    llvm::StringRef descriptorValue = descriptor.getValue().trim();
-    if (llvm::Error error = validateRVVPropertyText(
-            "optional legacy RVV descriptor mirror",
-            kLoweringTokenAttrName, descriptorValue))
-      return error;
-
-    const RVVBinaryFamilyRecord *descriptorFamily =
-        target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
-            descriptorValue);
-    if (!descriptorFamily)
-      return makeRVVBinarySelectedEmissionError(
-          llvm::Twine("optional legacy RVV descriptor mirror metadata "
-                      "tcrv_rvv.lowering_descriptor '") +
-          descriptorValue +
-          "' must name a registered finite RVV binary descriptor");
-
-    if (descriptorFamily->familyID != typedSelectedPlan.getFamilyID())
-      return makeRVVBinarySelectedEmissionError(
-          llvm::Twine("optional legacy RVV descriptor mirror metadata "
-                      "tcrv_rvv.lowering_descriptor '") +
-          descriptorValue + "' requires " +
-          descriptorFamily->microkernelOpName +
-          " but typed microkernel body is " +
-          typedSelectedPlan.getMicrokernelOpName());
-  }
+        "metadata for selected element-count validation");
 
   if (mlir::Attribute rawCount = variant->getAttr(kVariantElementCountAttrName)) {
     auto count = llvm::dyn_cast<mlir::IntegerAttr>(rawCount);
@@ -838,8 +802,8 @@ buildSelectedPlanFromExplicitMicrokernel(
   if (!typedSelectedPlan)
     return typedSelectedPlan.takeError();
   if (llvm::Error error =
-          validateLegacyDescriptorMirrorAfterTypedPlan(variant,
-                                                       *typedSelectedPlan))
+          validateSelectedElementCountMirrorAfterTypedPlan(variant,
+                                                           *typedSelectedPlan))
     return std::move(error);
   return std::move(*typedSelectedPlan);
 }
@@ -1292,33 +1256,15 @@ llvm::Error bindFixedVectorSourceExtentContract(
 
 void appendSelectedBinaryMetadata(
     const target::rvv::RVVBinarySelectedConfigContract &contract,
-    bool includeLegacyDescriptorMirrorMetadata,
     llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
   llvm::SmallVector<
       target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 8>
-      legacyMirrorMetadata;
-  bool useTypedSourceMetadata =
-      contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
-      contract.getFamily().dtype == RVVBinaryDTypeKind::I64;
-  if (useTypedSourceMetadata)
-    target::rvv::appendRVVBinarySelectedTypedSourceMetadata(contract,
-                                                           legacyMirrorMetadata);
-  if (includeLegacyDescriptorMirrorMetadata) {
-    if (useTypedSourceMetadata) {
-      legacyMirrorMetadata.push_back(
-          {target::rvv::getRVVSelectedLoweringTokenMetadataName(),
-           contract.getLegacyLoweringTokenMirror(),
-           target::rvv::getRVVLegacyDescriptorMirrorMetadataRole(),
-           target::rvv::getRVVLegacyDescriptorMirrorMetadataNote(),
-           "legacy lowering route label mirror"});
-    } else {
-      target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
-          contract, legacyMirrorMetadata);
-    }
-  }
+      selectedMetadata;
+  target::rvv::appendRVVBinarySelectedTypedSourceMetadata(contract,
+                                                         selectedMetadata);
   target::rvv::appendRVVRuntimeLengthComponentCapacityElementCountMetadata(
-      contract.getRuntimeLengthContract(), legacyMirrorMetadata);
-  for (const auto &entry : legacyMirrorMetadata)
+      contract.getRuntimeLengthContract(), selectedMetadata);
+  for (const auto &entry : selectedMetadata)
     metadata.push_back({entry.name, entry.value, entry.role, entry.note});
 }
 
@@ -1454,11 +1400,9 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
   appendFixedVectorSourceExtentMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       plan.selectedPlanMetadata);
-  bool includeLegacyDescriptorMirrorMetadata =
-      request.getVariant()->hasAttr(kLoweringTokenAttrName);
   appendSelectedBinaryMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
-      includeLegacyDescriptorMirrorMetadata, plan.selectedPlanMetadata);
+      plan.selectedPlanMetadata);
   appendSelectedSourceIdentityMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(), plan.sourceKind,
       plan.selectedPlanMetadata);

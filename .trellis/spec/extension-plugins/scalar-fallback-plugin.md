@@ -34,16 +34,8 @@ materialized requires form: requires = [@scalar_fallback] for an exact scalar
   `implies` id `scalar.fallback`
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
-legacy lowering descriptor mirror attr: tcrv_scalar.lowering_descriptor
-legacy lowering descriptor mirror values:
-  i32-vadd-microkernel.v1
-  i32-vsub-microkernel.v1
-  i32-vmul-microkernel.v1
-  i64-vadd-microkernel.v1
-  i64-vsub-microkernel.v1
-  i64-vmul-microkernel.v1
-descriptor-local element attr: tcrv_scalar.element_count
-default descriptor-local element count: 16
+selected-path element attr: tcrv_scalar.element_count
+default selected-path element count: 16
 ```
 
 The first-slice scalar plugin may propose `@scalar_fallback_first_slice` only
@@ -58,23 +50,9 @@ The default proposal for the bounded i32/i64 vector add/sub/mul fallback source
 slice is descriptorless. Typed scalar microkernel family ops, either
 materialized by the scalar plugin's descriptorless default path or
 hand-authored explicitly for the selected path, are the selected-path compute
-authority. The legacy descriptor fields below may appear only as optional
-mirror metadata after typed scalar authority exists:
-
-```text
-tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"
-tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1"
-tcrv_scalar.lowering_descriptor = "i32-vmul-microkernel.v1"
-tcrv_scalar.lowering_descriptor = "i64-vadd-microkernel.v1"
-tcrv_scalar.lowering_descriptor = "i64-vsub-microkernel.v1"
-tcrv_scalar.lowering_descriptor = "i64-vmul-microkernel.v1"
-tcrv_scalar.element_count = 16 : i64
-```
-
-The descriptor is no longer a compiler decision handle for creating a scalar
-microkernel attachment or selected lowering boundary. `tcrv_scalar.element_count`
-is descriptor-local bounded mirror metadata only; it is not high-level shape,
-problem size, AVL, vl, runtime loop trip count, or performance evidence.
+authority. `tcrv_scalar.element_count` is bounded selected-path metadata only;
+it is not high-level shape, problem size, AVL, vl, runtime loop trip count, or
+performance evidence.
 Bounded frontend lowering may preserve
 `tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, `"i32-vmul"`,
 `"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"` on the generated kernel. The
@@ -92,9 +70,8 @@ Scalar fallback is still capability-driven:
 - generated variants must require that capability through `requires`;
 - plugin legality must reject variants with missing origin, missing fallback
   capability requirement, unavailable fallback capability, malformed
-  `tcrv_scalar.lowering_descriptor`, malformed `tcrv_scalar.element_count`, or
-  descriptor-local element counts outside the bounded first-slice range
-  `[1, 64]`;
+  `tcrv_scalar.element_count`, or selected-path element counts outside the
+  bounded first-slice range `[1, 64]`;
 - core passes must not special-case scalar fallback by name.
 
 ## Cost And Selection
@@ -134,12 +111,12 @@ family-specific `tcrv_scalar.i32_*_microkernel` or
 `tcrv_scalar.i64_*_microkernel`. It does not mean that
 TianChen-RV emitted LLVM IR, generated an object, linked a runtime, executed a
 scalar kernel, proved correctness, or measured performance.
-It also does not authorize descriptor-only selected lowering-boundary
-materialization: a selected scalar fallback variant carrying only legacy
-`tcrv_scalar.lowering_descriptor` and/or `tcrv_scalar.element_count` metadata
-must fail closed before `tcrv_scalar.lowering_boundary` creation unless a typed
-scalar microkernel body or descriptorless typed default materialization is
-already the selected-path authority.
+It also does not authorize metadata-only selected lowering-boundary
+materialization: a selected scalar fallback variant carrying only
+`tcrv_scalar.element_count` metadata must fail closed before
+`tcrv_scalar.lowering_boundary` creation unless a typed scalar microkernel body
+or descriptorless typed default materialization is already the selected-path
+authority.
 
 ## Selected Lowering Boundary
 
@@ -195,12 +172,10 @@ materialization so the selected typed body has a single owner.
 
 When a matching explicit scalar microkernel body already exists for the
 selected path, lowering-boundary materialization preserves that typed body and
-validates optional legacy `tcrv_scalar.lowering_descriptor` /
-`tcrv_scalar.element_count` metadata only as non-authoritative mirror data. A
-stale descriptor mirror must fail as a mirror mismatch. A selected scalar
-fallback variant carrying only legacy descriptor and/or element-count metadata
-with no typed body and no descriptorless typed default materialization must
-fail closed before `tcrv_scalar.lowering_boundary` creation.
+validates `tcrv_scalar.element_count` only as bounded selected-path metadata. A
+selected scalar fallback variant carrying only element-count metadata with no
+typed body and no descriptorless typed default materialization must fail closed
+before `tcrv_scalar.lowering_boundary` creation.
 
 Downstream emission planning may consume this boundary as the validated
 selected-path attachment point before materializing either metadata-only
@@ -345,8 +320,8 @@ lowering, arbitrary scalar source export, linking, runtime dispatch
 integration, broad correctness coverage, RVV hardware evidence, or performance
 evidence. Scalar fallback selected paths without typed scalar microkernel
 authority may remain metadata-only readiness/plan diagnostics, but
-descriptor-only legacy metadata must not materialize a selected lowering
-boundary or source-exportable typed body. Header/object helper routes are
+metadata-only scalar variants must not materialize a selected lowering boundary
+or source-exportable typed body. Header/object helper routes are
 bounded to the same finite add/sub/mul i32/i64 scalar family set as the source
 routes; a helper route must reject stale source candidates from a different
 family before header/object output.

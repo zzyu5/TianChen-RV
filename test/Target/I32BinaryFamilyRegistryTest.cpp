@@ -145,7 +145,7 @@ int expectFamilyDescriptorShape(const I32BinaryFamilyRecord &family) {
   if (int result =
           expect(lookupI32BinaryFamilyRegistrationByLegacyLoweringToken(
                      family.legacyLoweringToken) == &family,
-                 "legacy descriptor mirror lookup returns registration record"))
+                 "legacy route token lookup returns registration record"))
     return result;
 
   if (int result =
@@ -651,7 +651,7 @@ int expectRVVBinaryFamilyShape() {
     if (int result = expect(
             rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
                 family->legacyLoweringToken) == family,
-            "RVV registry legacy descriptor mirror lookup returns registration record"))
+            "RVV registry legacy route token lookup returns registration record"))
       return result;
 
     llvm::ArrayRef<const rvv::RVVVectorShapeConfig *> shapeConfigs =
@@ -883,7 +883,7 @@ int expectRVVScalarBinaryBridgeShape() {
     if (int result = expect(
             bridge::lookupRVVScalarBinaryRegistrationByLegacyLoweringToken(
                 family->legacyLoweringToken) == family,
-            "RVV+scalar bridge legacy descriptor mirror lookup returns registration record"))
+            "RVV+scalar bridge legacy route token lookup returns registration record"))
       return result;
     if (int result = expect(
             bridge::lookupRVVScalarBinaryRegistrationByScalarRouteID(

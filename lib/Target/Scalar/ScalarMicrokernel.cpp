@@ -107,8 +107,6 @@ constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kScalarLoweringTokenAttrName(
-    "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
 
@@ -1325,42 +1323,9 @@ llvm::Error findAndValidateMicrokernel(
                                     *matchedFamily, elementCount);
 }
 
-llvm::Error validateVariantDescriptorMatchesMicrokernel(
+llvm::Error validateVariantElementCountMatchesMicrokernel(
     KernelOp kernel, VariantOp variant,
-    const ScalarI32MicrokernelFamilySpec &family,
     std::int64_t microkernelElementCount) {
-  if (mlir::Attribute rawDescriptor =
-          variant->getAttr(kScalarLoweringTokenAttrName)) {
-    auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-    if (!descriptor || descriptor.getValue().trim().empty())
-      return makeMicrokernelError(
-          kernel, llvm::Twine("selected scalar variant @") +
-                      variant.getSymName() + " attribute '" +
-                      kScalarLoweringTokenAttrName +
-                      "' must be a non-empty string when present");
-
-    llvm::StringRef descriptorValue = descriptor.getValue().trim();
-    if (!tianchenrv::target::rvv_scalar::
-            lookupRVVScalarBinaryRegistrationByLegacyLoweringToken(descriptorValue))
-      return makeMicrokernelError(
-          kernel, llvm::Twine("selected scalar variant @") +
-                      variant.getSymName() + " attribute '" +
-                      kScalarLoweringTokenAttrName + "' must be '" +
-                      getI32VAddFamilySpec().descriptor + "' or '" +
-                      getI32VSubFamilySpec().descriptor + "' or '" +
-                      getI32VMulFamilySpec().descriptor + "' or '" +
-                      getI64VAddFamilySpec().descriptor + "' or '" +
-                      getI64VSubFamilySpec().descriptor + "' or '" +
-                      getI64VMulFamilySpec().descriptor + "'");
-
-    if (descriptorValue != family.descriptor)
-      return makeMicrokernelError(
-          kernel, llvm::Twine("selected scalar variant @") +
-                      variant.getSymName() + " descriptor '" +
-                      descriptorValue + "' does not match materialized " +
-                      family.microkernelOpName);
-  }
-
   if (auto elementCountAttr =
           variant->getAttrOfType<mlir::IntegerAttr>(kScalarElementCountAttrName);
       elementCountAttr &&
@@ -1540,8 +1505,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
                                      microkernel, microkernelFamily,
                                      elementCount))
     return std::move(error);
-  if (llvm::Error error = validateVariantDescriptorMatchesMicrokernel(
-          kernel, getPathVariant(path), *microkernelFamily, elementCount))
+  if (llvm::Error error = validateVariantElementCountMatchesMicrokernel(
+          kernel, getPathVariant(path), elementCount))
     return std::move(error);
 
   std::string emitcSourceOpName;
@@ -2158,26 +2123,6 @@ TargetArtifactRouteMetadata buildScalarMicrokernelSourceRouteMetadata(
         "TCRVEmitCLowerableOpInterface",
         tianchenrv::target::rvv_scalar::
             getScalarEmitCSourceOpMetadataRole());
-  } else {
-    llvm::StringRef descriptorRole =
-        tianchenrv::target::rvv_scalar::
-            getScalarLegacyDescriptorMirrorMetadataRole();
-    metadata.addSelectedPlanMetadataRequirement(
-        tianchenrv::target::rvv_scalar::
-            getScalarSelectedBinaryDTypeMetadataName(),
-        family.rvvFamily->dtypeID, descriptorRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        tianchenrv::target::rvv_scalar::
-            getScalarSelectedBinaryFamilyMetadataName(),
-        family.rvvFamily->familyID, descriptorRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        tianchenrv::target::rvv_scalar::
-            getScalarSelectedBinaryOperatorMetadataName(),
-        family.rvvFamily->arithmeticVerb, descriptorRole);
-    metadata.addSelectedPlanMetadataRequirement(
-        tianchenrv::target::rvv_scalar::
-            getScalarSelectedLoweringTokenMetadataName(),
-        family.descriptor, descriptorRole);
   }
   metadata.addSelectedPlanMetadataPresenceRequirement(
       tianchenrv::target::rvv_scalar::

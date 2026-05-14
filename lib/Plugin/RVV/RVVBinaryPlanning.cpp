@@ -19,8 +19,6 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
-constexpr llvm::StringLiteral kLoweringTokenAttrName(
-    "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName(
     "tcrv_rvv.required_march");
@@ -913,81 +911,6 @@ llvm::Error mergeDirectRVVBinaryFamilyCandidate(
   return llvm::Error::success();
 }
 
-llvm::Expected<bool> validateDirectLegacyDescriptorMirrorForVariant(
-    tcrv::exec::VariantOp variant,
-    const RVVBinaryFamilyPlanningResolution &typedAuthority,
-    llvm::StringRef diagnosticContext) {
-  if (!variant)
-    return false;
-
-  auto origin = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!origin || origin.getValue() != kRVVPluginName)
-    return false;
-
-  auto descriptor =
-      variant->getAttrOfType<mlir::StringAttr>(kLoweringTokenAttrName);
-  if (!descriptor)
-    return false;
-  llvm::StringRef descriptorValue = descriptor.getValue().trim();
-  std::string context =
-      (llvm::Twine("direct RVV binary descriptor mirror on variant @") +
-       variant.getSymName())
-          .str();
-  if (descriptorValue.empty())
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(context) + " requires non-empty string attribute '" +
-        kLoweringTokenAttrName + "'");
-  if (llvm::Error error = validateRVVPlanningText(
-          context, kLoweringTokenAttrName, descriptorValue))
-    return std::move(error);
-
-  const target::rvv::RVVBinaryFamilyRecord *family =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
-          descriptorValue);
-  if (!family)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(context) + " legacy lowering route label '" +
-        descriptorValue +
-        "' must be one registered finite RVV binary mirror descriptor");
-
-  if (!typedAuthority.family)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(diagnosticContext) +
-        " has descriptor-only direct RVV binary planning metadata '" +
-        descriptorValue +
-        "' before typed RVV microkernel body authority; descriptor text is "
-        "non-authoritative legacy mirror metadata and cannot select a "
-        "supported direct RVV binary proposal plan");
-
-  if (family->familyID != typedAuthority.family->familyID)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(diagnosticContext) + " has stale legacy descriptor mirror '" +
-        descriptorValue + "' for " + family->microkernelOpName +
-        " but typed RVV microkernel body authority is " +
-        typedAuthority.family->microkernelOpName + " for family '" +
-        typedAuthority.family->familyID +
-        "'; descriptor text is non-authoritative metadata after typed "
-        "authority");
-
-  llvm::Expected<const target::rvv::RVVVectorShapeConfig *> selectedShape =
-      resolveDirectSelectedShapeMetadata(
-          variant.getOperation(), *typedAuthority.family,
-          getRVVVariantSelectedVectorShapeMetadataNames(), context);
-  if (!selectedShape)
-    return selectedShape.takeError();
-  if (*selectedShape && typedAuthority.directSelectedShape &&
-      (*selectedShape)->shapeID != typedAuthority.directSelectedShape->shapeID)
-    return makeRVVBinaryPlanningError(
-        llvm::Twine(diagnosticContext) +
-        " has stale legacy descriptor mirror selected vector-shape '" +
-        (*selectedShape)->shapeID +
-        "' but typed RVV microkernel body authority selected shape '" +
-        typedAuthority.directSelectedShape->shapeID +
-        "'; descriptor mirror metadata cannot override typed authority");
-
-  return true;
-}
-
 llvm::Error preserveExistingSelectedSourceKindForVariant(
     tcrv::exec::VariantOp variant,
     RVVBinaryFamilyPlanningResolution &typedAuthority,
@@ -1802,11 +1725,6 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
       if (!variant)
         continue;
 
-      llvm::Expected<bool> validatedMirror =
-          validateDirectLegacyDescriptorMirrorForVariant(
-              variant, typedBodyResolution, diagnosticContext);
-      if (!validatedMirror)
-        return validatedMirror.takeError();
       if (llvm::Error error = preserveExistingSelectedSourceKindForVariant(
               variant, typedBodyResolution, diagnosticContext))
         return std::move(error);

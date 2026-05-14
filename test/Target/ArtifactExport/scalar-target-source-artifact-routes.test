@@ -64,9 +64,6 @@
 # RUN: sed '/tcrv.exec.runtime_param @abi_runtime_element_count/ s/c_name = "n", //' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-MISSING-RUNTIME-CNAME --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
 # SCALAR-MISSING-RUNTIME-CNAME: 'tcrv.exec.runtime_param' op requires non-empty string attribute 'c_name'
 
-# RUN: sed 's/tcrv.exec.variant @scalar_fallback_first_slice attributes {/tcrv.exec.variant @scalar_fallback_first_slice attributes {tcrv_scalar.lowering_descriptor = "i32-vsub-microkernel.v1", tcrv_scalar.element_count = 16 : i64, /' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR-DESCRIPTOR --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# STALE-SCALAR-DESCRIPTOR: selected scalar variant @scalar_fallback_first_slice descriptor 'i32-vsub-microkernel.v1' does not match materialized tcrv_scalar.i32_vadd_microkernel
-
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/../EmissionManifest/emission-manifest-selected.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-METADATA --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
 # SCALAR-METADATA: requires exactly one supported source artifact emission-plan route; found none
 

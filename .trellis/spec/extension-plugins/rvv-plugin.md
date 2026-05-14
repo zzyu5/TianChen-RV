@@ -85,11 +85,6 @@ materialized requires form: requires may be [@rvv] only when @rvv is a
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
-finite lowering descriptor attr name: tcrv_rvv.lowering_descriptor
-finite lowering descriptor values:
-  i32-vadd-microkernel.v1
-  i32-vsub-microkernel.v1
-  i32-vmul-microkernel.v1
 finite element-count attr name: tcrv_rvv.element_count
 smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
 smoke-probe descriptor value: standalone-c-toolchain-smoke-probe.v1
@@ -184,14 +179,13 @@ legality remains strict: malformed explicit RVV metadata such as
 The first slice carries generic decision metadata (`condition`, `guard`, and
 `policy`), one typed non-compute RVV policy attribute
 (`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), a
-plugin-owned `tcrv_rvv.required_march` string attribute derived from the
+  plugin-owned `tcrv_rvv.required_march` string attribute derived from the
 validated `rvv.probe.compile_run.selected_march` property, optional
 capability-derived `tcrv_rvv.vlenb_bytes` and
 `tcrv_rvv.base_i32_m1_lanes` integer attributes when structured vlenb/lane
 capabilities are available, a complete selected vector-shape metadata group,
 and typed finite RVV binary family/body authority for the bounded RVV
-C-intrinsic microkernel family. A legacy `tcrv_rvv.lowering_descriptor`, when
-present beside that typed authority, is non-authoritative mirror metadata only.
+C-intrinsic microkernel family.
 The selected vector-shape group records the
 plugin/target-owned compile-time choice: shape id, SEW, LMUL, tail policy,
 mask policy, C vector type, intrinsic suffix, setvl suffix, and the backing
@@ -208,10 +202,10 @@ bounded frontend lowering may preserve `tcrv_frontend_lowering = "i32-vsub"`,
 identity from that typed frontend family and later typed family/body evidence.
 Hand-authored or test TianChen-RV MLIR may also provide typed direct
 `tcrv_rvv.i32_*_microkernel` or `tcrv_rvv.i64_*_microkernel` bodies to
-exercise the same contract. Direct descriptor-only RVV variants must fail
-closed or remain explicitly unsupported metadata; they must not select family,
-dtype, shape, route id, artifact kind, callable ABI, required capabilities,
-selected vector config, or emitted body. When structured
+exercise the same contract. Direct variants without typed family/body authority
+must fail closed or remain explicitly unsupported metadata; they must not select
+family, dtype, shape, route id, artifact kind, callable ABI, required
+capabilities, selected vector config, or emitted body. When structured
 `rvv.i32_m1_lane_count` capacity evidence is present through an exact
 capability provider or a relation-provider target profile, the RVV plugin
 chooses that selected-path sample size as four M1 i32 vectors, capped at 64
@@ -220,14 +214,12 @@ fallback sample size `16`. This is a compiler selected-plan decision, not a
 runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.
 The generic string policy remains the input for core selection/dispatch. The
 typed policy, required march, optional capacity metadata, selected vector-shape
-metadata, and element count are default plugin-local metadata preserved by the
-generic proposal/materialization path and validated by `RVVExtensionPlugin`
-when present on a materialized variant. Default typed RVV binary proposals must
-not attach `tcrv_rvv.lowering_descriptor`; if that attribute is present on
-hand-authored or legacy MLIR, it is optional legacy mirror metadata validated
-only after typed family/body authority is known. The optional legacy descriptor
-mirror is not a default production authority and is not emitted by typed RVV
-proposal planning. These fields are compiler-visible metadata for the existing
+metadata, selected-source identity, EmitC route metadata, and element count are
+default plugin-local metadata preserved by the generic proposal/materialization
+path and validated by `RVVExtensionPlugin` when present on a materialized
+variant. Descriptor mirror metadata is not a production authority and is not
+emitted or consumed by typed RVV proposal planning. These fields are
+compiler-visible metadata for the existing
 generic materialization, legality, capability, and selection helpers. They are
 not generic tensor semantics, arbitrary RVV lowering, runtime correctness
 evidence, or performance evidence.
@@ -999,9 +991,8 @@ unavailable RVV capability refs, required-march mismatches, descriptor-local
 `element_count` masquerading as AVL/VL, and malformed control/dataflow bodies.
 
 During selected-boundary materialization, `RVVExtensionPlugin` may create this
-op automatically from the selected variant's finite
-`tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"` and bounded
-`tcrv_rvv.element_count`. This materialization is plugin-owned and must remain
+op automatically from typed frontend/default selected-source identity and
+bounded `tcrv_rvv.element_count`. This materialization is plugin-owned and must remain
 local to `tcrv_rvv`; generic transforms and `tcrv.exec` must not learn RVV
 compute semantics, dtype dispatch, or microarchitecture-specific branches.
 
@@ -1097,12 +1088,11 @@ route before printing RVV intrinsic C/C++.
 
 #### 3. Contracts
 
-- The computation op is the RVV family op in the verified body, not the
-  lowering descriptor string.
+- The computation op is the RVV family op in the verified body, not metadata
+  tokens.
 - Typed family/body authority selects the bounded family, dtype, shape, and
-  intrinsic spelling before descriptor text is considered. Descriptor metadata
-  may only mirror that already-selected typed authority; stale or descriptor-only
-  metadata fails closed before source output.
+  intrinsic spelling. Metadata-only variants without typed family/body authority
+  fail closed before source output.
 - `emitc.call_opaque` callees map from verified family ops:
   setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
   to the selected RVV load, arithmetic, and store intrinsics.

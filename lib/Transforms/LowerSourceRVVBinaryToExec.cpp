@@ -67,16 +67,6 @@ constexpr llvm::StringLiteral kFrontendKernelAttrName("tcrv_frontend_kernel");
 constexpr llvm::StringLiteral kFrontendTargetAttrName("tcrv_frontend_target");
 constexpr llvm::StringLiteral kFrontendCapabilityProvidersAttrName(
     "tcrv_frontend_capability_providers");
-constexpr llvm::StringLiteral kLegacyRVVLoweringTokenAttrName(
-    "tcrv_rvv.lowering_descriptor");
-constexpr llvm::StringLiteral kLegacyScalarLoweringTokenAttrName(
-    "tcrv_scalar.lowering_descriptor");
-constexpr llvm::StringLiteral kLegacyRVVSelectedLoweringTokenAttrName(
-    "tcrv_rvv.selected_lowering_descriptor");
-constexpr llvm::StringLiteral kLegacyScalarSelectedLoweringTokenAttrName(
-    "tcrv_scalar.selected_lowering_descriptor");
-constexpr llvm::StringLiteral kLegacySelectedLoweringTokenAttrName(
-    "selected_lowering_descriptor");
 
 enum class VectorFrontendPolicyKind {
   DefaultSourceFrontdoor,
@@ -678,37 +668,6 @@ mlir::LogicalResult requireNoDuplicateKernelSymbol(mlir::ModuleOp module,
   return sourceOp->emitError()
          << "TianChen-RV " << frontendName << " kernel symbol @" << kernelName
          << " already exists";
-}
-
-mlir::LogicalResult requireNoLegacyDescriptorMetadata(
-    mlir::Operation *funcOp, mlir::Operation *linalgOp,
-    llvm::StringRef frontendName = "linalg frontend",
-    llvm::StringRef sourceAuthority =
-        "source linalg body and typed operands") {
-  llvm::StringRef legacyNames[] = {
-      kLegacyRVVLoweringTokenAttrName,
-      kLegacyScalarLoweringTokenAttrName,
-      kLegacyRVVSelectedLoweringTokenAttrName,
-      kLegacyScalarSelectedLoweringTokenAttrName,
-      kLegacySelectedLoweringTokenAttrName,
-  };
-
-  for (mlir::Operation *op : {funcOp, linalgOp}) {
-    if (!op)
-      continue;
-    for (llvm::StringRef attrName : legacyNames) {
-      if (op->getAttr(attrName))
-        return op->emitError()
-               << "TianChen-RV " << frontendName
-               << " no longer accepts legacy "
-                  "descriptor metadata '"
-               << attrName
-               << "'; the " << sourceAuthority << " are the "
-                  "compute authority";
-    }
-  }
-
-  return mlir::success();
 }
 
 bool isIntegerConstantZero(mlir::Operation *op, mlir::Type expectedType) {
@@ -1391,9 +1350,6 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
   if (mlir::failed(crossCheckFrontendMarker(linalgOp, frontendAttr.getValue(),
                                             source)))
     return mlir::failure();
-  if (mlir::failed(requireNoLegacyDescriptorMetadata(funcOp, linalgOp)))
-    return mlir::failure();
-
   SourceFrontendLoweringRequest request;
   request.sourceOp = linalgOp;
   request.eraseOp = funcOp;
@@ -1422,11 +1378,6 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
   if (mlir::failed(crossCheckVectorFrontendMarkerPolicy(
           funcOp, frontendAttr.getValue(), policy)))
     return mlir::failure();
-  if (mlir::failed(requireNoLegacyDescriptorMetadata(
-          funcOp, nullptr, "vector frontend",
-          "source vector/arith body and typed operands")))
-    return mlir::failure();
-
   InferredFrontendBinarySource source;
   support::FiniteBinarySourceFrontendLoweringContract loweringContract;
   if (funcOp->getNumRegions() != 1 || !hasOneBlock(funcOp->getRegion(0)))

@@ -89,7 +89,6 @@ module {
   // CHECK: tcrv.exec.variant @rvv_first_slice
   // CHECK-SAME: origin = "rvv-plugin"
   // CHECK-SAME: requires = [@rvv, @rvv_i32_m2_sew32, @rvv_i32_m2_lmul_m2, @rvv_i32_m2_tail_agnostic, @rvv_i32_m2_mask_agnostic]
-  // CHECK-NOT: tcrv_rvv.lowering_descriptor
   // CHECK-SAME: tcrv_rvv.selected_setvl_suffix = "e32m2"
   // CHECK-SAME: tcrv_rvv.selected_vector_lmul = "m2"
   // CHECK-SAME: tcrv_rvv.selected_vector_shape = "i32m2"

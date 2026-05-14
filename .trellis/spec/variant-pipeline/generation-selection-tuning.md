@@ -193,10 +193,9 @@ or incorrectly marked linalg bodies must fail before creating a
 - Frontend marker dtype or family disagrees with the family inferred from the
   source memrefs, scalar region arguments, arithmetic op, and yield -> pass
   failure before creating the kernel.
-- Legacy descriptor metadata such as `tcrv_rvv.lowering_descriptor`,
-  `tcrv_scalar.lowering_descriptor`, or selected-lowering-descriptor metadata
-  on the frontend wrapper/marked op -> pass failure before creating the
-  kernel.
+- Frontend wrappers must not carry selected-route metadata; the typed source
+  memrefs, scalar region arguments, arithmetic op, yield, and bounded frontend
+  marker are the family authority before creating the kernel.
 - Marked op outside the bounded `func.func` wrapper -> pass failure.
 - Wrapper with anything other than one marked `linalg.generic` followed by
   operand-free `func.return` -> pass failure.

@@ -64,7 +64,6 @@ module {
     // PIPE-SAME: policy = "portable_scalar_fallback_first_slice"
     // PIPE-SAME: requires = [@scalar_fallback]
     // PIPE-NOT: tcrv_scalar.element_count
-    // PIPE-NOT: tcrv_scalar.lowering_descriptor
     // PIPE: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // PIPE-SAME: abi_role = "dispatch-availability-guard"
     // PIPE-SAME: c_name = "rvv_available"
@@ -297,7 +296,6 @@ module {
     // PIPE-SAME: policy = "portable_scalar_fallback_first_slice"
     // PIPE-SAME: requires = [@scalar_fallback]
     // PIPE-NOT: tcrv_scalar.element_count
-    // PIPE-NOT: tcrv_scalar.lowering_descriptor
     // PIPE-NOT: tcrv_rvv.lowering_boundary
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: fallback_role = "conservative"

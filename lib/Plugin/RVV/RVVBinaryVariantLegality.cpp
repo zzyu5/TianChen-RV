@@ -29,8 +29,6 @@ constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
     "tcrv_rvv.base_i32_m1_lanes");
-constexpr llvm::StringLiteral kRVVLegacyLoweringTokenAttrName(
-    "tcrv_rvv.lowering_descriptor");
 constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
@@ -228,13 +226,6 @@ llvm::Error verifySmokeProbeDescriptorAttr(tcrv::exec::VariantOp variant) {
         llvm::Twine("RVV smoke-probe descriptor on variant @") +
         variant.getSymName() + " must be '" + kRVVSmokeProbeDescriptorValue +
         "'");
-
-  if (variant->hasAttr(kRVVLegacyLoweringTokenAttrName))
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("RVV smoke-probe descriptor on variant @") +
-        variant.getSymName() +
-        " must not be combined with the finite RVV binary lowering "
-        "descriptor");
 
   if (!variant->hasAttr(kRVVRequiredMarchAttrName))
     return makeRVVBinaryVariantLegalityError(
@@ -544,59 +535,9 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
 
 bool hasFiniteBinaryLegalityMetadata(tcrv::exec::VariantOp variant) {
   return variant->hasAttr(kRVVElementCountAttrName) ||
-         variant->hasAttr(kRVVLegacyLoweringTokenAttrName) ||
          variant->hasAttr(
              target::rvv::getRVVSelectedBinaryFamilyMetadataName()) ||
          variant->hasAttr(getRVVSelectedBinarySourceKindAttrName());
-}
-
-llvm::Error verifyLegacyDescriptorMirrorAfterTypedAuthority(
-    tcrv::exec::VariantOp variant,
-    const RVVFiniteBinaryTypedAuthority &authority) {
-  auto descriptorAttr =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kRVVLegacyLoweringTokenAttrName);
-  if (!descriptorAttr)
-    return llvm::Error::success();
-
-  llvm::StringRef descriptor = descriptorAttr.getValue().trim();
-  if (descriptor.empty())
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("legacy RVV binary descriptor mirror on variant @") +
-        variant.getSymName() + " requires non-empty string attribute '" +
-        kRVVLegacyLoweringTokenAttrName + "'");
-  if (llvm::Error error = validateRVVPropertyText(
-          "legacy RVV binary descriptor mirror",
-          kRVVLegacyLoweringTokenAttrName, descriptor))
-    return error;
-
-  const RVVBinaryFamilyRecord *descriptorFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(
-          descriptor);
-  if (!descriptorFamily)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("legacy RVV binary descriptor mirror on variant @") +
-        variant.getSymName() + " descriptor '" + descriptor +
-        "' must be one registered finite RVV binary mirror descriptor");
-
-  if (!authority.family)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " has descriptor-only finite RVV binary legality metadata '" +
-        descriptor +
-        "'; descriptor metadata is non-authoritative mirror metadata and "
-        "cannot make a direct RVV binary variant legal without typed RVV "
-        "family/body or selected-source authority");
-
-  if (descriptorFamily->familyID != authority.family->familyID)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("legacy RVV binary descriptor mirror '") + descriptor +
-        "' on variant @" + variant.getSymName() + " names family '" +
-        descriptorFamily->familyID + "' but typed RVV authority from " +
-        authority.sourceKind + " names family '" + authority.family->familyID +
-        "'; descriptor metadata is non-authoritative mirror metadata");
-
-  return llvm::Error::success();
 }
 
 } // namespace
@@ -666,24 +607,16 @@ llvm::Error verifyRVVBinaryVariantLegality(
                                           **requiredConfig);
     if (!authority)
       return authority.takeError();
-    if (!authority->family &&
-        variant->hasAttr(kRVVLegacyLoweringTokenAttrName))
-      return verifyLegacyDescriptorMirrorAfterTypedAuthority(variant,
-                                                             *authority);
     if (!authority->family)
       return makeRVVBinaryVariantLegalityError(
           llvm::Twine("materialized RVV variant @") + variant.getSymName() +
           " requires typed RVV family/body or selected-source authority; "
-          "legacy descriptor metadata is mirror-only and selected vector "
-          "metadata alone cannot make a direct RVV binary variant legal");
+          "selected vector metadata alone cannot make a direct RVV binary "
+          "variant legal");
     finiteBinaryAuthority = std::move(*authority);
-    if (llvm::Error error = verifyLegacyDescriptorMirrorAfterTypedAuthority(
-            variant, *finiteBinaryAuthority))
-      return error;
   }
 
   if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
-      variant->hasAttr(kRVVLegacyLoweringTokenAttrName) ||
       variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVVLenBBytesAttrName) ||
       variant->hasAttr(kRVVI32M1LanesAttrName)) {
@@ -700,15 +633,6 @@ llvm::Error verifyRVVBinaryVariantLegality(
       return error;
     if (llvm::Error error =
             verifyOptionalCapacityAttrs(variant, *propertyView))
-      return error;
-
-    if (llvm::Error error =
-            validateLegacyRVVBinarySelectedDescriptorMetadata(
-                variant, *propertyView, "i32"))
-      return error;
-    if (llvm::Error error =
-            validateLegacyRVVBinarySelectedDescriptorMetadata(
-                variant, *propertyView, "i64"))
       return error;
   }
 

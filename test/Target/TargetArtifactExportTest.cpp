@@ -97,20 +97,12 @@ void appendRVVSelectedPlanMetadata(
   }
   tianchenrv::target::rvv::appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(
       *contract, metadata);
-  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
-    tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
-        *contract, metadata);
-  else
-    tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
-        *contract, metadata);
-  if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64) {
-    tianchenrv::target::rvv::appendRVVBinarySelectedSourceIdentityMetadata(
-        *contract, sourceKind, metadata);
-    tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(*contract,
-                                                              metadata);
-  }
+  tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
+      *contract, metadata);
+  tianchenrv::target::rvv::appendRVVBinarySelectedSourceIdentityMetadata(
+      *contract, sourceKind, metadata);
+  tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(*contract,
+                                                            metadata);
   tianchenrv::target::rvv::appendRVVBinarySelectedConfigProfileMetadata(
       *contract, metadata);
   for (const auto &entry : metadata) {
@@ -137,18 +129,9 @@ void appendScalarSelectedPlanMetadata(
           ScalarBinarySelectedPlanMetadataRecord,
       6>
       metadata;
-  if (family.rvvFamily->dtype ==
-          tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.rvvFamily->dtype ==
-          tianchenrv::target::rvv::RVVBinaryDTypeKind::I64) {
-    tianchenrv::target::rvv_scalar::
-        appendScalarBinarySelectedTypedSourceMetadata(
-            family, getRuntimeElementCountCNameForTest(candidate), metadata);
-  } else {
-    tianchenrv::target::rvv_scalar::
-        appendScalarBinaryLegacyDescriptorMirrorMetadata(
-            family, getRuntimeElementCountCNameForTest(candidate), metadata);
-  }
+  tianchenrv::target::rvv_scalar::
+      appendScalarBinarySelectedTypedSourceMetadata(
+          family, getRuntimeElementCountCNameForTest(candidate), metadata);
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name.str(), entry.value.str(), entry.role.str(),
@@ -504,8 +487,8 @@ bool expectRVVRuntimeLengthContractMetadata() {
           "rvv_first_slice", "direct variant",
           /*componentCapacityElementCount=*/65, "n");
   if (staleDescriptorAuthority) {
-    llvm::errs() << "descriptor-only length authority unexpectedly passed "
-                    "RVV runtime length validation\n";
+    llvm::errs() << "artifact-local capacity unexpectedly passed RVV runtime "
+                    "length validation\n";
     return false;
   }
   if (!expectErrorContains(
@@ -718,14 +701,8 @@ bool expectCompositeRouteRegistrationMetadata(
   }
 
   const RVVBinaryFamilyRecord &family = *route.family;
-  bool expectsTypedSource =
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
   llvm::StringRef expectedRole =
-      expectsTypedSource
-          ? tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole()
-          : tianchenrv::target::rvv::
-                getRVVLegacyDescriptorMirrorMetadataRole();
+      tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole();
   if (!expectCompositeRouteSelectedPlanExactRequirement(
           registry, route.getRouteID(), "tcrv_rvv.selected_binary_dtype",
           family.dtypeID, expectedRole))
@@ -738,71 +715,64 @@ bool expectCompositeRouteRegistrationMetadata(
           registry, route.getRouteID(), "tcrv_rvv.selected_binary_operator",
           family.arithmeticVerb, expectedRole))
     return false;
-  if (expectsTypedSource) {
-    if (!expectCompositeRouteSelectedPlanExactRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataName(),
-            family.arithmeticOpName,
-            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanExactRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::
-                getRVVEmitCLowerableOpInterfaceMetadataName(),
-            "TCRVEmitCLowerableOpInterface",
-            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanExactRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataValue(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanExactRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataValue(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanExactRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataValue(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::
-                getRVVEmitCArithmeticIntrinsicMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileHardwareFactsMetadataName(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileVariantConfigMetadataName(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileMetadataRole()))
-      return false;
-    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
-            registry, route.getRouteID(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileMetadataRole()))
-      return false;
-  } else if (!expectCompositeRouteSelectedPlanExactRequirement(
-                 registry, route.getRouteID(),
-                 "tcrv_rvv.selected_lowering_descriptor",
-                 family.legacyLoweringToken, expectedRole)) {
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataName(),
+          family.arithmeticOpName,
+          tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
     return false;
-  }
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::
+              getRVVEmitCLowerableOpInterfaceMetadataName(),
+          "TCRVEmitCLowerableOpInterface",
+          tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataValue(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataValue(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataValue(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::
+              getRVVEmitCArithmeticIntrinsicMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileHardwareFactsMetadataName(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileVariantConfigMetadataName(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileMetadataRole()))
+    return false;
+  if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+          registry, route.getRouteID(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileMetadataRole()))
+    return false;
   if (!expectCompositeRouteSelectedPlanPresenceRequirement(
           registry, route.getRouteID(), "tcrv_rvv.selected_vector_shape",
           "selected-rvv-vector-shape-config"))
@@ -913,14 +883,8 @@ bool expectRouteSelectedPlanExactRequirement(
 bool expectRVVSourceRouteRegistrationMetadata(
     const TargetArtifactExporterRegistry &registry,
     const RVVBinaryFamilyRecord &family) {
-  bool expectsTypedSource =
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
   llvm::StringRef expectedRole =
-      expectsTypedSource
-          ? tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole()
-          : tianchenrv::target::rvv::
-                getRVVLegacyDescriptorMirrorMetadataRole();
+      tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole();
   if (!expectRouteRegistrationMetadata(
           registry, family.routeID, family.runtimeABI, family.runtimeABIKind,
           family.runtimeABIName, family.runtimeGlueRole,
@@ -935,71 +899,64 @@ bool expectRVVSourceRouteRegistrationMetadata(
           registry, family.routeID, "tcrv_rvv.selected_binary_operator",
           family.arithmeticVerb, expectedRole))
     return false;
-  if (expectsTypedSource) {
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataName(),
-            family.arithmeticOpName,
-            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::
-                getRVVEmitCLowerableOpInterfaceMetadataName(),
-            "TCRVEmitCLowerableOpInterface",
-            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataValue(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataValue(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataValue(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanPresenceRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::
-                getRVVEmitCArithmeticIntrinsicMetadataName(),
-            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanPresenceRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileHardwareFactsMetadataName(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanPresenceRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileVariantConfigMetadataName(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanPresenceRequirement(
-            registry, family.routeID,
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
-            tianchenrv::target::rvv::
-                getRVVSelectedConfigProfileMetadataRole()))
-      return false;
-  } else {
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.routeID, "tcrv_rvv.selected_lowering_descriptor",
-            family.legacyLoweringToken, expectedRole))
-      return false;
-  }
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataName(),
+          family.arithmeticOpName,
+          tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::
+              getRVVEmitCLowerableOpInterfaceMetadataName(),
+          "TCRVEmitCLowerableOpInterface",
+          tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataValue(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataValue(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataValue(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::
+              getRVVEmitCArithmeticIntrinsicMetadataName(),
+          tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileHardwareFactsMetadataName(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileVariantConfigMetadataName(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanPresenceRequirement(
+          registry, family.routeID,
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileMetadataRole()))
+    return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.routeID, "tcrv_rvv.runtime_element_count_c_name",
           "rvv-runtime-control-name-boundary"))
@@ -1066,11 +1023,7 @@ bool expectScalarSourceRouteRegistrationMetadata(
     const tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord
         &family) {
   llvm::StringRef expectedRole =
-      family.rvvFamily->dtypeID == "i32" || family.rvvFamily->dtypeID == "i64"
-          ? tianchenrv::target::rvv_scalar::
-                getScalarTypedBinarySourceMetadataRole()
-          : tianchenrv::target::rvv_scalar::
-                getScalarLegacyDescriptorMirrorMetadataRole();
+      tianchenrv::target::rvv_scalar::getScalarTypedBinarySourceMetadataRole();
   if (!expectRouteRegistrationMetadata(
           registry, family.scalar.routeID, family.scalar.runtimeABI,
           family.scalar.runtimeABIKind, family.scalar.runtimeABIName,
@@ -1093,41 +1046,22 @@ bool expectScalarSourceRouteRegistrationMetadata(
               getScalarSelectedBinaryOperatorMetadataName(),
           family.rvvFamily->arithmeticVerb, expectedRole))
     return false;
-  if (family.rvvFamily->dtypeID == "i32" || family.rvvFamily->dtypeID == "i64") {
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.scalar.routeID,
-            tianchenrv::target::rvv_scalar::
-                getScalarEmitCSourceOpMetadataName(),
-            family.scalar.microkernelOpName,
-            tianchenrv::target::rvv_scalar::
-                getScalarEmitCSourceOpMetadataRole()))
-      return false;
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.scalar.routeID,
-            tianchenrv::target::rvv_scalar::
-                getScalarEmitCLowerableOpInterfaceMetadataName(),
-            "TCRVEmitCLowerableOpInterface",
-            tianchenrv::target::rvv_scalar::
-                getScalarEmitCSourceOpMetadataRole()))
-      return false;
-    if (findRouteSelectedPlanRequirement(
-            *registry.lookup(family.scalar.routeID),
-            tianchenrv::target::rvv_scalar::
-                getScalarSelectedLoweringTokenMetadataName())) {
-      llvm::errs() << "scalar typed source route unexpectedly requires "
-                      "selected lowering legacy descriptor mirror metadata\n";
-      return false;
-    }
-  } else {
-    if (!expectRouteSelectedPlanExactRequirement(
-            registry, family.scalar.routeID,
-            tianchenrv::target::rvv_scalar::
-                getScalarSelectedLoweringTokenMetadataName(),
-            family.legacyLoweringToken,
-            tianchenrv::target::rvv_scalar::
-                getScalarLegacyDescriptorMirrorMetadataRole()))
-      return false;
-  }
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.scalar.routeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarEmitCSourceOpMetadataName(),
+          family.scalar.microkernelOpName,
+          tianchenrv::target::rvv_scalar::
+              getScalarEmitCSourceOpMetadataRole()))
+    return false;
+  if (!expectRouteSelectedPlanExactRequirement(
+          registry, family.scalar.routeID,
+          tianchenrv::target::rvv_scalar::
+              getScalarEmitCLowerableOpInterfaceMetadataName(),
+          "TCRVEmitCLowerableOpInterface",
+          tianchenrv::target::rvv_scalar::
+              getScalarEmitCSourceOpMetadataRole()))
+    return false;
   if (!expectRouteSelectedPlanPresenceRequirement(
           registry, family.scalar.routeID,
           tianchenrv::target::rvv_scalar::
@@ -1220,46 +1154,6 @@ bool expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
       "stale selected-plan route registration preflight rejected",
       {"route id", routeID, "selected_plan_metadata", metadataName,
        "must use value"});
-}
-
-bool expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
-    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
-    llvm::StringRef metadataName, llvm::StringRef legacyMirrorRole) {
-  const TargetArtifactExporter *exporter = registry.lookup(routeID);
-  if (!exporter) {
-    llvm::errs() << "missing exporter route '" << routeID
-                 << "' for legacy descriptor mirror role preflight test\n";
-    return false;
-  }
-
-  TargetArtifactCandidate candidate;
-  candidate.routeID = routeID.str();
-  candidate.artifactKind = exporter->getArtifactKind().str();
-  candidate.origin = exporter->getOriginPlugin().str();
-  candidate.emissionKind = exporter->getEmissionKind().str();
-  candidate.runtimeABI = exporter->getRouteMetadata().getRuntimeABI().str();
-  candidate.runtimeABIKind =
-      exporter->getRouteMetadata().getRuntimeABIKind().str();
-  candidate.runtimeABIName =
-      exporter->getRouteMetadata().getRuntimeABIName().str();
-  candidate.runtimeGlueRole =
-      exporter->getRouteMetadata().getRuntimeGlueRole().str();
-
-  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
-       exporter->getRouteMetadata().getSelectedPlanMetadataRequirements()) {
-    std::string role = requirement.name == metadataName
-                           ? legacyMirrorRole.str()
-                           : requirement.role;
-    candidate.selectedPlanMetadata.push_back(
-        {requirement.name, requirement.value, role,
-         "route registration preflight legacy mirror role test metadata"});
-  }
-
-  return expectErrorContains(
-      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
-      "legacy descriptor mirror role rejected before production export",
-      {"route id", routeID, "selected_plan_metadata", metadataName,
-       "must use role"});
 }
 
 bool expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
@@ -3530,18 +3424,6 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
               registry, route.getRouteID(), "tcrv_rvv.selected_binary_family",
               staleFamily))
         return false;
-      if (!expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
-              registry, route.getRouteID(),
-              "tcrv_rvv.selected_binary_family",
-              tianchenrv::target::rvv::
-                  getRVVLegacyDescriptorMirrorMetadataRole()))
-        return false;
-      if (!expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
-              registry, route.getRouteID(),
-              "tcrv_rvv.component_capacity_element_count",
-              tianchenrv::target::rvv::
-                  getRVVLegacyDescriptorMirrorMetadataRole()))
-        return false;
       if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
               registry, route.getRouteID(), "tcrv_rvv.selected_binary_operator",
               staleOperator))
@@ -3564,7 +3446,7 @@ bool expectRVVMicrokernelDirectRouteManifestShape() {
               registry, route.getRouteID(),
               tianchenrv::target::rvv::
                   getRVVEmitCSourceAuthorityMetadataName(),
-              "descriptor-to-c-exporter"))
+              "unsupported-legacy-exporter"))
         return false;
     } else if (!registry.lookupComposite(route.getRouteID())) {
       llvm::errs() << "RVV direct composite route was not contributed: "
@@ -4294,8 +4176,6 @@ bool expectDispatchCompositeRejectsFallbackMismatchForRoute(
                       "tcrv_rvv.i32_vadd_microkernel") ||
         !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_add") ||
         !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_add") ||
-        !replaceFirst(source, "i32-vmul-microkernel.v1",
-                      "i32-vadd-microkernel.v1") ||
         !replaceFirst(source, "selected_binary_family = \"i32-vmul\"",
                       "selected_binary_family = \"i32-vadd\"") ||
         !replaceFirst(source, "selected_binary_operator = \"multiply\"",
@@ -4310,8 +4190,6 @@ bool expectDispatchCompositeRejectsFallbackMismatchForRoute(
                       "tcrv_rvv.i32_vsub_microkernel") ||
         !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_sub") ||
         !replaceFirst(source, "tcrv_rvv.i32_mul", "tcrv_rvv.i32_sub") ||
-        !replaceFirst(source, "i32-vmul-microkernel.v1",
-                      "i32-vsub-microkernel.v1") ||
         !replaceFirst(source, "selected_binary_family = \"i32-vmul\"",
                       "selected_binary_family = \"i32-vsub\"") ||
         !replaceFirst(source, "selected_binary_operator = \"multiply\"",
@@ -4765,7 +4643,7 @@ bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
           "stale selected config profile variant rejected by vsub direct route",
           tianchenrv::target::rvv::
               getRVVSelectedConfigProfileVariantConfigMetadataName(),
-          "variant=descriptor-only",
+          "variant=stale-selected-profile",
           {"selected_plan_metadata "
            "'tcrv_rvv.selected_config_profile.variant_config'",
            "selected config profile variant config must be"}))
@@ -5056,76 +4934,6 @@ bool expectRVVI64SourceRejectsMissingComponentCapacityElementCountMetadata(
       "source route",
       {"route id '" + family.routeID.str() + "'",
        "requires selected_plan_metadata 'tcrv_rvv.component_capacity_element_count'"});
-}
-
-bool expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch() {
-  ExtensionPluginRegistry plugins;
-  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
-                     "register RVV extension plugin for descriptor/body "
-                     "mismatch fixture"))
-    return false;
-
-  mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
-
-  mlir::MLIRContext context(dialectRegistry);
-  context.loadAllAvailableDialects();
-
-  constexpr llvm::StringLiteral source = R"mlir(
-module @rvv_microkernel_descriptor_body_mismatch_input {
-  tcrv.exec.kernel @descriptor_body_mismatch {
-    tcrv.exec.capability @rvv {architecture = "riscv64", id = "rvv", isa_vector_hints = "rv64gcv_zvl128b", kind = "isa-vector", lmul = "m1", mask_policy = "agnostic", provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"], sew_bits = 32 : i64, status = "available", tail_policy = "agnostic"}
-    tcrv.exec.capability @rvv_toolchain_march {id = "rvv.toolchain.march", kind = "toolchain", status = "available", value = "rv64gcv"}
-    tcrv.exec.capability @rvv_toolchain_mabi {id = "rvv.toolchain.mabi", kind = "toolchain", status = "available", value = "lp64d"}
-    tcrv.exec.variant @rvv_first_slice attributes {condition = "rvv_capability_properties_available", guard = "plugin_local_rvv_property_evidence", origin = "rvv-plugin", policy = "metadata_only_first_slice", requires = [@rvv], tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, tcrv_rvv.required_march = "rv64gcv"} {
-    }
-    tcrv.exec.diagnostic {message = "static RVV i32 vmul microkernel path selected by descriptor/body mismatch fixture", origin = "rvv-plugin", reason = "variant-selected", selection_kind = "static-variant", severity = "note", status = "selected", target = @rvv_first_slice}
-    tcrv.exec.mem_window @abi_lhs_input_buffer {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
-    tcrv.exec.mem_window @abi_rhs_input_buffer {abi_role = "rhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
-    tcrv.exec.mem_window @abi_output_buffer {abi_role = "output-buffer", access = "write", binding = "kernel-argument", c_type = "int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
-    tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
-    tcrv_rvv.lowering_boundary {capability_summary = "rvv", origin = "rvv-plugin", required_capabilities = [@rvv], role = "direct variant", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "descriptor_body_mismatch", status = "unsupported", unsupported_reason = "RVV lowering boundary is pre-executable metadata only; no RVV lowering pipeline, runtime ABI, generated artifact, correctness proof, or performance measurement is produced"}
-    tcrv_rvv.i32_vadd_microkernel attributes {element_count = 16 : i64, origin = "rvv-plugin", required_capabilities = [@rvv], required_march = "rv64gcv", role = "direct variant", selected_mabi = "lp64d", selected_mask_policy = "agnostic", selected_setvl_suffix = "e32m1", selected_tail_policy = "agnostic", selected_variant = @rvv_first_slice, selected_vector_lmul = "m1", selected_vector_sew = 32 : i64, selected_vector_shape = "i32m1", selected_vector_suffix = "i32m1", selected_vector_type = "vint32m1_t", source_kernel = "descriptor_body_mismatch"} {
-    ^bb0(%arg0: index):
-      %0 = tcrv_rvv.setvl %arg0 {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %0 attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        %1 = tcrv_rvv.i32_load %0 {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %2 = tcrv_rvv.i32_load %0 {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %3 = tcrv_rvv.i32_add %1, %2, %0 : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %3, %0 {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module =
-      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
-  if (!module) {
-    llvm::errs() << "descriptor/body mismatch fixture failed to parse\n";
-    return false;
-  }
-
-  std::string output;
-  llvm::raw_string_ostream stream(output);
-  if (!expectErrorContains(
-          tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
-              *module,
-              tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord(),
-              stream),
-          "RVV direct export rejects descriptor/body family mismatch",
-          {"tcrv_rvv.lowering_descriptor 'i32-vmul-microkernel.v1'",
-           "requires tcrv_rvv.i32_vmul_microkernel",
-           "typed microkernel body is tcrv_rvv.i32_vadd_microkernel"}))
-    return false;
-  stream.flush();
-  if (!output.empty()) {
-    llvm::errs() << "descriptor/body mismatch unexpectedly emitted source: "
-                 << output << "\n";
-    return false;
-  }
-  return true;
 }
 
 bool expectScalarSubSourceRejectsStaleAddMetadata(
@@ -5480,7 +5288,7 @@ module @dispatch_component_authority_input {
     tcrv.exec.mem_window @abi_output_buffer {abi_role = "output-buffer", access = "write", binding = "kernel-argument", c_type = "int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}
     tcrv.exec.runtime_param @abi_runtime_element_count {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
     tcrv.exec.runtime_param @abi_dispatch_availability_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
-    tcrv.exec.variant @rvv_first_slice attributes {condition = "rvv_capability_properties_available", guard = "plugin_local_rvv_property_evidence", origin = "rvv-plugin", policy = "metadata_only_first_slice", requires = [@rvv], tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vmul-microkernel.v1", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, tcrv_rvv.required_march = "rv64gcv"} {
+    tcrv.exec.variant @rvv_first_slice attributes {condition = "rvv_capability_properties_available", guard = "plugin_local_rvv_property_evidence", origin = "rvv-plugin", policy = "metadata_only_first_slice", requires = [@rvv], tcrv_rvv.element_count = 16 : i64, tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, tcrv_rvv.required_march = "rv64gcv"} {
     }
     tcrv.exec.variant @scalar_fallback_first_slice attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
@@ -5516,8 +5324,7 @@ bool replaceFirst(std::string &text, llvm::StringRef from,
 }
 
 std::string makeRVVI64BodyAuthorityFixture(
-    const RVVBinaryFamilyRecord &family, llvm::StringRef descriptorMirror,
-    bool includeTypedBody) {
+    const RVVBinaryFamilyRecord &family, bool includeTypedBody) {
   std::string source;
   llvm::raw_string_ostream os(source);
   os << "module @rvv_i64_body_authority_input {\n";
@@ -5540,8 +5347,6 @@ std::string makeRVVI64BodyAuthorityFixture(
         "\"plugin_local_rvv_property_evidence\", origin = \"rvv-plugin\", "
         "policy = \"metadata_only_first_slice\", requires = [@rvv], "
         "tcrv_rvv.element_count = 8 : i64";
-  if (!descriptorMirror.empty())
-    os << ", tcrv_rvv.lowering_descriptor = \"" << descriptorMirror << "\"";
   os << ", tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = "
         "agnostic>, tcrv_rvv.required_march = \"rv64gcv\", "
         "tcrv_rvv.selected_mask_policy = \"agnostic\", "
@@ -5652,25 +5457,23 @@ bool expectRVVI64TargetExportBodyAuthority() {
 
   const auto &vsubFamily =
       tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord();
-  std::string matchingMirrorSource =
-      makeRVVI64BodyAuthorityFixture(vsubFamily, vsubFamily.legacyLoweringToken,
-                                     /*includeTypedBody=*/true);
-  mlir::OwningOpRef<mlir::ModuleOp> matchingMirrorModule =
+  std::string typedBodySource =
+      makeRVVI64BodyAuthorityFixture(vsubFamily, /*includeTypedBody=*/true);
+  mlir::OwningOpRef<mlir::ModuleOp> typedBodyModule =
       parseRVVI64BodyAuthorityFixture(
-          context, matchingMirrorSource,
-          "matching i64 descriptor mirror body authority fixture");
-  if (!matchingMirrorModule)
+          context, typedBodySource, "matching i64 body authority fixture");
+  if (!typedBodyModule)
     return false;
 
-  std::string matchingOutput;
-  llvm::raw_string_ostream matchingOutputStream(matchingOutput);
+  std::string typedBodyOutput;
+  llvm::raw_string_ostream typedBodyOutputStream(typedBodyOutput);
   if (!expectSuccess(
           tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
-              *matchingMirrorModule, vsubFamily, matchingOutputStream),
-          "matching i64 descriptor mirror accepted after typed body authority"))
+              *typedBodyModule, vsubFamily, typedBodyOutputStream),
+          "matching i64 typed body authority accepted"))
     return false;
-  matchingOutputStream.flush();
-  llvm::StringRef rendered(matchingOutput);
+  typedBodyOutputStream.flush();
+  llvm::StringRef rendered(typedBodyOutput);
   if (!rendered.contains("executable_microkernel: "
                          "tcrv_rvv.i64_vsub_microkernel") ||
       !rendered.contains("active_route: "
@@ -5678,66 +5481,34 @@ bool expectRVVI64TargetExportBodyAuthority() {
       !rendered.contains("__riscv_vsub_vv_i64m1") ||
       rendered.contains("__riscv_vmul_vv_i64m1") ||
       rendered.contains("i64_vmul_microkernel")) {
-    llvm::errs() << "matching i64 descriptor mirror did not preserve typed "
-                    "vsub body export authority:\n"
-                 << matchingOutput << "\n";
+    llvm::errs() << "matching i64 body did not preserve typed vsub export "
+                    "authority:\n"
+                 << typedBodyOutput << "\n";
     return false;
   }
 
   const auto &vmulFamily =
       tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord();
-  std::string staleMirrorSource =
-      makeRVVI64BodyAuthorityFixture(vsubFamily, vmulFamily.legacyLoweringToken,
-                                     /*includeTypedBody=*/true);
-  mlir::OwningOpRef<mlir::ModuleOp> staleMirrorModule =
+  std::string missingBodySource =
+      makeRVVI64BodyAuthorityFixture(vmulFamily, /*includeTypedBody=*/false);
+  mlir::OwningOpRef<mlir::ModuleOp> missingBodyModule =
       parseRVVI64BodyAuthorityFixture(
-          context, staleMirrorSource,
-          "stale i64 descriptor mirror body authority fixture");
-  if (!staleMirrorModule)
+          context, missingBodySource, "missing i64 body authority fixture");
+  if (!missingBodyModule)
     return false;
-  std::string staleOutput;
-  llvm::raw_string_ostream staleOutputStream(staleOutput);
+  std::string missingBodyOutput;
+  llvm::raw_string_ostream missingBodyOutputStream(missingBodyOutput);
   if (!expectErrorContains(
           tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
-              *staleMirrorModule, vsubFamily, staleOutputStream),
-          "stale i64 descriptor mirror rejected after typed body authority",
-          {"tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'",
-           "non-authoritative legacy mirror metadata",
-           "selected typed RVV i64 microkernel body is "
-           "tcrv_rvv.i64_vsub_microkernel",
-           "typed body is authoritative"}))
+              *missingBodyModule, vmulFamily, missingBodyOutputStream),
+          "missing i64 typed body rejected before output",
+          {"selected RVV path @rvv_i64_slice as direct variant",
+           "requires exactly one matching RVV"}))
     return false;
-  staleOutputStream.flush();
-  if (!staleOutput.empty()) {
-    llvm::errs() << "stale i64 descriptor mirror unexpectedly emitted source: "
-                 << staleOutput << "\n";
-    return false;
-  }
-
-  std::string descriptorOnlySource =
-      makeRVVI64BodyAuthorityFixture(vmulFamily, vmulFamily.legacyLoweringToken,
-                                     /*includeTypedBody=*/false);
-  mlir::OwningOpRef<mlir::ModuleOp> descriptorOnlyModule =
-      parseRVVI64BodyAuthorityFixture(
-          context, descriptorOnlySource,
-          "descriptor-only i64 body authority fixture");
-  if (!descriptorOnlyModule)
-    return false;
-  std::string descriptorOnlyOutput;
-  llvm::raw_string_ostream descriptorOnlyOutputStream(descriptorOnlyOutput);
-  if (!expectErrorContains(
-          tianchenrv::target::rvv::exportRVVMicrokernelCForBinaryFamily(
-              *descriptorOnlyModule, vmulFamily, descriptorOnlyOutputStream),
-          "descriptor-only i64 export rejected before output",
-          {"tcrv_rvv.lowering_descriptor 'i64-vmul-microkernel.v1'",
-           "no selected typed RVV i64 microkernel body",
-           "typed body is authoritative",
-           "descriptor-only i64 export is rejected"}))
-    return false;
-  descriptorOnlyOutputStream.flush();
-  if (!descriptorOnlyOutput.empty()) {
-    llvm::errs() << "descriptor-only i64 export unexpectedly emitted source: "
-                 << descriptorOnlyOutput << "\n";
+  missingBodyOutputStream.flush();
+  if (!missingBodyOutput.empty()) {
+    llvm::errs() << "missing i64 body export unexpectedly emitted source: "
+                 << missingBodyOutput << "\n";
     return false;
   }
 
@@ -5791,43 +5562,7 @@ bool expectDispatchComponentAuthorityValidators() {
           tianchenrv::target::scalar::validateScalarMicrokernelSourceAuthority(
               *validModule, family.scalar, "scalar_fallback_first_slice",
               "dispatch fallback"),
-          "valid descriptorless dispatch scalar component body authority "
-          "accepted"))
-    return false;
-
-  std::string staleScalarDescriptorSource =
-      makeDispatchComponentAuthorityFixture();
-  std::string scalarVariantHeader =
-      "tcrv.exec.variant @scalar_fallback_first_slice attributes "
-      "{fallback_role = \"conservative\", origin = \"scalar-plugin\", policy = "
-      "\"portable_scalar_fallback_first_slice\", requires = "
-      "[@scalar_fallback]}";
-  std::string staleScalarDescriptorHeader =
-      "tcrv.exec.variant @scalar_fallback_first_slice attributes "
-      "{fallback_role = \"conservative\", origin = \"scalar-plugin\", policy = "
-      "\"portable_scalar_fallback_first_slice\", requires = "
-      "[@scalar_fallback], tcrv_scalar.lowering_descriptor = "
-      "\"i32-vadd-microkernel.v1\", tcrv_scalar.element_count = 16 : i64}";
-  if (!replaceFirst(staleScalarDescriptorSource, scalarVariantHeader,
-                    staleScalarDescriptorHeader)) {
-    llvm::errs() << "failed to build stale scalar descriptor authority "
-                    "fixture\n";
-    return false;
-  }
-  mlir::OwningOpRef<mlir::ModuleOp> staleScalarDescriptorModule =
-      parseDispatchComponentAuthorityFixture(
-          context, staleScalarDescriptorSource,
-          "stale scalar descriptor authority fixture");
-  if (!staleScalarDescriptorModule)
-    return false;
-  if (!expectErrorContains(
-          tianchenrv::target::scalar::validateScalarMicrokernelSourceAuthority(
-              *staleScalarDescriptorModule, family.scalar,
-              "scalar_fallback_first_slice", "dispatch fallback"),
-          "stale scalar descriptor authority rejected after typed source",
-          {"selected scalar variant @scalar_fallback_first_slice descriptor "
-           "'i32-vadd-microkernel.v1'",
-           "does not match materialized tcrv_scalar.i32_vmul_microkernel"}))
+          "valid dispatch scalar component body authority accepted"))
     return false;
 
   std::string staleRVVSource = makeDispatchComponentAuthorityFixture();
@@ -5856,8 +5591,9 @@ bool expectDispatchComponentAuthorityValidators() {
               *staleRVVModule, *family.rvvFamily, "rvv_first_slice",
               "dispatch case", family.dispatch.rvvRouteID),
           "stale RVV dispatch component body authority rejected",
-          {"tcrv_rvv.lowering_descriptor 'i32-vmul-microkernel.v1'",
-           "typed microkernel body is tcrv_rvv.i32_vadd_microkernel"}))
+          {"route 'tcrv-export-rvv-i32-vmul-microkernel-c' requires "
+           "tcrv_rvv.i32_vmul_microkernel",
+           "selected RVV record is tcrv_rvv.i32_vadd_microkernel"}))
     return false;
 
   std::string staleScalarSource = makeDispatchComponentAuthorityFixture();
@@ -6733,13 +6469,6 @@ int main() {
                 getScalarSelectedBinaryFamilyMetadataName(),
             staleFamily))
       return 1;
-    if (!expectGenericRouteMetadataPreflightRejectsLegacyDescriptorMirrorRole(
-            builtinRegistry, family->scalar.routeID,
-            tianchenrv::target::rvv_scalar::
-                getScalarSelectedBinaryFamilyMetadataName(),
-            tianchenrv::target::rvv_scalar::
-                getScalarLegacyDescriptorMirrorMetadataRole()))
-      return 1;
     if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
             builtinRegistry, family->scalar.routeID,
             tianchenrv::target::rvv_scalar::
@@ -7173,8 +6902,6 @@ int main() {
   if (!expectRVVI64SourceRejectsMissingComponentCapacityElementCountMetadata(
           builtinRegistry,
           tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord()))
-    return 1;
-  if (!expectRVVMicrokernelExportRejectsDescriptorBodyFamilyMismatch())
     return 1;
   if (!expectRVVI64TargetExportBodyAuthority())
     return 1;

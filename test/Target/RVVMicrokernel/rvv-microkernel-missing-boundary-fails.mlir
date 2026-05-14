@@ -1,4 +1,4 @@
-// RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --implicit-check-not=lowering_descriptor --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %s | FileCheck %s --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 
 module {
   tcrv.exec.kernel @missing_boundary_microkernel {

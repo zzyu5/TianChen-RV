@@ -209,9 +209,8 @@ Use lit/FileCheck for:
   from structured `rv64` / `riscv.toolchain.*` capability metadata and local
   clang, scalar source/header/object bundle index coverage, runtime ABI
   kind/name and runtime glue role metadata, execution-planning coverage proving
-  the scalar plugin materializes the microkernel from
-  `tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
-  `"i32-vsub-microkernel.v1"` without a hand-authored input microkernel, and
+  the scalar plugin materializes the microkernel from typed frontend/default
+  selected-source authority without a hand-authored input microkernel, and
   fail-closed diagnostics for
   missing/stale scalar boundaries, missing/stale scalar microkernels, malformed
   finite scalar descriptors, route spoofing, unsupported metadata-only scalar
@@ -349,12 +348,11 @@ Use C++ tests for:
 - plugin-local scalar fallback validation, including proposal gating on an
   available `scalar.fallback` capability, materialization, legality rejection
   for missing/unavailable fallback capability, conservative cost metadata,
-  generic conservative fallback role metadata, finite
-  `tcrv_scalar.lowering_descriptor` and descriptor-local element-count metadata,
-  bounded legacy `tcrv_scalar.i32_vadd_microkernel` materialization, stable
-  metadata-only emission-plan fields when no matching microkernel exists, and
-  supported source-export readiness/plan fields only when a matching scalar
-  microkernel and scalar lowering boundary are present.
+  generic conservative fallback role metadata, finite selected-path
+  element-count metadata, bounded typed `tcrv_scalar.i32_vadd_microkernel`
+  materialization, stable metadata-only emission-plan fields when no matching
+  microkernel exists, and supported source-export readiness/plan fields only
+  when a matching scalar microkernel and scalar lowering boundary are present.
 
 ## CMake Checks
 

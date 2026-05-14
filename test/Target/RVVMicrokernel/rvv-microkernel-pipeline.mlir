@@ -160,7 +160,7 @@ module @rvv_microkernel_input {
 // HARNESS: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
 // HARNESS: #include <stdio.h>
 // HARNESS: /* Harness capacity comes from artifact-local component capacity; each call still supplies runtime n through the generated C ABI. */
-// HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type. */
+// HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; expected arithmetic and scalar element type come from typed selected-source metadata. */
 // HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one(size_t runtime_n)
 // HARNESS: enum { kTCRVMicrokernelCapacity = 16 };
 // HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, runtime_n);

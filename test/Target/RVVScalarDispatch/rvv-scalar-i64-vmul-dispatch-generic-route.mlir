@@ -3,7 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=GENERIC-HDR --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not="__riscv" --implicit-check-not="out[index]" --implicit-check-not=int32_t --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c | FileCheck %s --check-prefix=SELF --implicit-check-not=i64-vadd --implicit-check-not=i64-vsub --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=__riscv_vsub_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-rvv-scalar-i64-vadd-dispatch-self-check-c 2>&1 | FileCheck %s --check-prefix=I64-VADD-ROUTE-MISMATCH
-// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed '0,/value = "runtime-element-count"/s//value = "descriptor-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | sed '0,/value = "runtime-element-count"/s//value = "stale-runtime-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 module {
   tcrv.exec.kernel @conflict_planned_i64_vmul_dispatch attributes {
@@ -115,7 +115,7 @@ module {
 // GENERIC-HDR: #endif /* TIANCHENRV_RVV_SCALAR_I64_VMUL_DISPATCH_CONFLICT_PLANNED_I64_VMUL_DISPATCH_H */
 
 // SELF: /* dispatch_manifest_route_id: tcrv-export-rvv-scalar-i64-vmul-dispatch-self-check-c */
-// SELF: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type.
+// SELF: self_check_expectation_source: validated RVV dispatch-case component + validated scalar fallback component + IR-backed dispatch ABI; expected arithmetic and scalar element type come from typed selected-source metadata.
 // SELF: static int tcrv_dispatch_i64_vmul_conflict_planned_i64_vmul_dispatch_self_check_one(size_t runtime_n, int rvv_available)
 // SELF: int64_t lhs[kCapacity];
 // SELF: int64_t rhs[kCapacity];

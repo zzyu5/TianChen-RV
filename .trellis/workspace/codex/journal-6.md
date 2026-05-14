@@ -602,3 +602,34 @@ Promoted RVV selected config into a plugin-owned profile consumed by selected em
 ### Next Steps
 
 - None - task complete
+
+
+## Session 66: Descriptor erasure: lowering descriptor metadata chain deletion
+
+**Date**: 2026-05-15
+**Task**: Descriptor erasure: lowering descriptor metadata chain deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted RVV/scalar lowering_descriptor and selected_lowering_descriptor metadata chain, rewrote typed-source/EmitC route tests, removed obsolete descriptor fixtures, validated with focused C++ tests and check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

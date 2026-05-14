@@ -55,10 +55,8 @@ module {
 
 // IR: tcrv.exec.variant @rvv_first_slice
 // IR-SAME: origin = "rvv-plugin"
-// IR-NOT: tcrv_rvv.lowering_descriptor
 // IR: tcrv.exec.variant @scalar_fallback_first_slice
 // IR-SAME: origin = "scalar-plugin"
-// IR-NOT: tcrv_scalar.lowering_descriptor
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
 // IR-SAME: c_name = "rvv_available"

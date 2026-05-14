@@ -4,7 +4,6 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-DEFAULT-SOURCE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-i32-vsub-microkernel-c | FileCheck %s --check-prefix=DIRECT --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=__riscv_vmul_vv_i32m1 --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.element_count = 16 : i64/s//tcrv_rvv.element_count = 16 : i64, tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"/' | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=STALE-SELFCHECK-DESC --implicit-check-not="int main(void)" --implicit-check-not=tcrv_rvv_microkernel_ok
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-rvv-i32-vsub-microkernel-header | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not="__riscv" --implicit-check-not=riscv_vector --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | not tcrv-translate --tcrv-export-rvv-i32-vmul-microkernel-c 2>&1 | FileCheck %s --check-prefix=STALE-VMUL --implicit-check-not="#include <riscv_vector.h>"
 
@@ -129,12 +128,8 @@ module @rvv_microkernel_i32_vsub_export_input {
 
 // HARNESS: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // HARNESS: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
-// HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; legacy descriptor mirrors cannot select expected arithmetic or scalar element type. */
 // HARNESS: int32_t expected = lhs[index] - rhs[index];
 // HARNESS: printf("tcrv_rvv_microkernel_ok runtime_counts=%zu,%zu\n", (size_t)kTCRVMicrokernelShortRuntimeN, (size_t)kTCRVMicrokernelCapacity);
-
-// STALE-SELFCHECK-DESC: selected RVV variant @rvv_sub_slice tcrv_rvv.lowering_descriptor 'i32-vadd-microkernel.v1'
-// STALE-SELFCHECK-DESC-SAME: typed microkernel body is tcrv_rvv.i32_vsub_microkernel
 
 // STALE-DEFAULT-HEADER: exact composite target artifact route 'tcrv-export-rvv-microkernel-header' requires exactly one selected emission-plan candidate group; found none
 

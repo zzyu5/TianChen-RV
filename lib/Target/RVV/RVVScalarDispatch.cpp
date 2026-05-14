@@ -2094,9 +2094,6 @@ llvm::Error validateDispatchSelectedConfigContractMetadata(
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     tianchenrv::target::rvv::appendRVVBinarySelectedTypedSourceMetadata(
         contract, expected);
-  else
-    tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
-        contract, expected);
   if (contract.getFamily().dtype ==
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype ==
@@ -3164,8 +3161,8 @@ void printDispatchSelfCheckHarness(llvm::raw_ostream &os,
         "this harness; "
         "artifact-local component capacity remains metadata only. */\n";
   os << "/* self_check_expectation_source: " << expectation.provenance
-     << "; legacy descriptor mirrors cannot select expected arithmetic or "
-        "scalar element type. */\n";
+     << "; expected arithmetic and scalar element type come from typed "
+        "selected-source metadata. */\n";
   os << "int puts(const char *);\n\n";
   os << "static int " << dispatcherFunctionName
      << "_self_check_one(size_t runtime_n, int " << guardParameterName

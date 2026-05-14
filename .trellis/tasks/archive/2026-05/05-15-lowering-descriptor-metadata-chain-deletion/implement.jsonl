@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and stack invariants for deletion-only descriptor erasure"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Descriptor-driven computation is explicitly outside TianChen-RV architecture"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary and current descriptor-era residue to delete"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback descriptor mirror residues are directly in scope"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor-to-C boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target emission metadata and selected-plan route contracts affected by deletion"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Lit/FileCheck/C++ testing policy for rewriting descriptor-protecting tests"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Guardrail against replacing descriptor metadata with new string authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Guardrail against extension-specific core orchestration branches"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Guardrail against moving compute semantics into tcrv.exec"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-binary-descriptor-authority-deletion/prd.md", "reason": "Previous deletion round boundary and continuation point"}

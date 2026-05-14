@@ -68,7 +68,6 @@ module {
 // PIPE-SAME: origin = "rvv-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_i64_profile]
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-NOT: tcrv_rvv.lowering_descriptor
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.selected_setvl_suffix = "e64m1"
 // PIPE-SAME: tcrv_rvv.selected_vector_lmul = "m1"

@@ -32,8 +32,6 @@ constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
-constexpr llvm::StringLiteral kScalarLoweringTokenAttrName(
-    "tcrv_scalar.lowering_descriptor");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
@@ -64,9 +62,6 @@ struct ScalarMicrokernelFamilySpec {
 
   llvm::StringRef getFrontendLowering() const {
     return family->frontendLowering;
-  }
-  llvm::StringRef getLoweringToken() const {
-    return family->legacyLoweringToken;
   }
   const ScalarBinaryMicrokernelRecord &getScalar() const {
     return family->scalar;
@@ -201,34 +196,6 @@ llvm::StringRef getScalarRuntimeElementCountCName(
   return "n";
 }
 
-void appendScalarSelectedLegacyDescriptorMirrorMetadata(
-    VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family,
-    llvm::StringRef runtimeElementCountCName) {
-  llvm::SmallVector<
-      tianchenrv::target::rvv_scalar::
-          ScalarBinarySelectedPlanMetadataRecord,
-      5>
-      metadata;
-  tianchenrv::target::rvv_scalar::
-      appendScalarBinaryLegacyDescriptorMirrorMetadata(
-          family, runtimeElementCountCName, metadata);
-  for (const auto &entry : metadata)
-    plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
-                                 entry.note);
-}
-
-void appendScalarSelectedLegacyDescriptorCrossCheckMetadata(
-    VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family) {
-  plan.addSelectedPlanMetadata(
-      tianchenrv::target::rvv_scalar::
-          getScalarSelectedLoweringTokenMetadataName(),
-      family.legacyLoweringToken,
-      tianchenrv::target::rvv_scalar::
-          getScalarLegacyDescriptorMirrorMetadataRole(),
-      tianchenrv::target::rvv_scalar::
-          getScalarLegacyDescriptorMirrorMetadataNote());
-}
-
 void appendScalarSelectedTypedSourceMetadata(
     VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family,
     llvm::StringRef runtimeElementCountCName) {
@@ -254,21 +221,8 @@ bool isDescriptorlessDefaultScalarTypedFamily(
               tianchenrv::target::rvv::RVVBinaryDTypeKind::I64);
 }
 
-bool hasLegacyScalarDescriptorMirrorMetadata(tcrv::exec::VariantOp variant) {
-  return variant &&
-         (variant->hasAttr(kScalarLoweringTokenAttrName) ||
-          variant->hasAttr(kScalarElementCountAttrName));
-}
-
-const ScalarMicrokernelFamilySpec *
-lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
-    llvm::StringRef descriptor) {
-  const ScalarBinaryFamilyDescriptor *family =
-      tianchenrv::target::rvv_scalar::
-          lookupRVVScalarBinaryRegistrationByLegacyLoweringToken(descriptor);
-  if (!family)
-    return nullptr;
-  return getScalarFamilySpec(*family);
+bool hasScalarElementCountMetadata(tcrv::exec::VariantOp variant) {
+  return variant && variant->hasAttr(kScalarElementCountAttrName);
 }
 
 const ScalarMicrokernelFamilySpec *
@@ -368,65 +322,15 @@ struct ScalarMicrokernelMaterializationPlan {
   std::int64_t elementCount = 0;
 };
 
-llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
+llvm::Error validateScalarElementCountMirrorMetadataSyntax(
     tcrv::exec::VariantOp variant) {
-  mlir::Attribute rawDescriptor =
-      variant->getAttr(kScalarLoweringTokenAttrName);
-  if (!rawDescriptor) {
-    if (mlir::Attribute rawElementCount =
-            variant->getAttr(kScalarElementCountAttrName)) {
-      auto elementCount = llvm::dyn_cast<mlir::IntegerAttr>(rawElementCount);
-      if (!elementCount || elementCount.getInt() <= 0 ||
-          elementCount.getInt() > 64)
-        return makeScalarPluginError(
-            llvm::Twine("optional scalar element_count mirror metadata on "
-                        "variant @") +
-            variant.getSymName() +
-            " requires tcrv_scalar.element_count in the bounded smoke range "
-            "[1, 64]");
-    }
-    return llvm::Error::success();
-  }
-
-  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-  if (!descriptor || descriptor.getValue().trim().empty())
-    return makeScalarPluginError(
-        llvm::Twine("optional legacy scalar descriptor mirror metadata on "
-                    "variant @") +
-        variant.getSymName() + " requires string attribute '" +
-        kScalarLoweringTokenAttrName + "'");
-
-  const ScalarMicrokernelFamilySpec *family =
-      lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(
-          descriptor.getValue());
-  if (!family)
-    return makeScalarPluginError(
-        llvm::Twine("optional legacy scalar descriptor mirror metadata on "
-                    "variant @") +
-        variant.getSymName() + " must be '" +
-        getI32VAddFamilySpec().getLoweringToken() + "' or '" +
-        getI32VSubFamilySpec().getLoweringToken() + "' or '" +
-        getI32VMulFamilySpec().getLoweringToken() + "' or '" +
-        getI64VAddFamilySpec().getLoweringToken() + "' or '" +
-        getI64VSubFamilySpec().getLoweringToken() + "' or '" +
-        getI64VMulFamilySpec().getLoweringToken() + "'");
-
-  std::string descriptorContext =
-      (llvm::Twine("variant @") + variant.getSymName() +
-       " optional legacy scalar descriptor mirror")
-          .str();
-  if (llvm::Error error = validateScalarMetadataText(
-          descriptorContext, kScalarLoweringTokenAttrName,
-          descriptor.getValue().trim()))
-    return std::move(error);
-
   if (mlir::Attribute rawElementCount =
           variant->getAttr(kScalarElementCountAttrName)) {
     auto elementCount = llvm::dyn_cast<mlir::IntegerAttr>(rawElementCount);
     if (!elementCount || elementCount.getInt() <= 0 ||
         elementCount.getInt() > 64)
       return makeScalarPluginError(
-          llvm::Twine("optional scalar element_count mirror metadata on "
+          llvm::Twine("optional scalar element_count metadata on "
                       "variant @") +
           variant.getSymName() +
           " requires tcrv_scalar.element_count in the bounded smoke range "
@@ -436,40 +340,18 @@ llvm::Error validateLegacyScalarDescriptorMetadataSyntax(
   return llvm::Error::success();
 }
 
-llvm::Error validateLegacyScalarDescriptorMirrorAfterTypedPlan(
+llvm::Error validateScalarElementCountMirrorAfterTypedPlan(
     tcrv::exec::VariantOp variant,
     const ScalarMicrokernelFamilySpec &typedFamily,
     std::int64_t typedElementCount) {
   if (!variant)
     return makeScalarPluginError(
         "explicit scalar microkernel emission plan requires selected variant "
-        "metadata for legacy mirror validation");
+        "metadata for selected element-count validation");
 
-  if (llvm::Error error = validateLegacyScalarDescriptorMetadataSyntax(variant))
+  if (llvm::Error error =
+          validateScalarElementCountMirrorMetadataSyntax(variant))
     return std::move(error);
-
-  if (mlir::Attribute rawDescriptor =
-          variant->getAttr(kScalarLoweringTokenAttrName)) {
-    auto descriptor = llvm::cast<mlir::StringAttr>(rawDescriptor);
-    llvm::StringRef descriptorValue = descriptor.getValue().trim();
-    const ScalarMicrokernelFamilySpec *descriptorFamily =
-        lookupScalarMicrokernelFamilyByLegacyDescriptorMirror(descriptorValue);
-    if (!descriptorFamily)
-      return makeScalarPluginError(
-          llvm::Twine("optional legacy scalar descriptor mirror metadata "
-                      "tcrv_scalar.lowering_descriptor '") +
-          descriptorValue +
-          "' must name a registered finite scalar binary descriptor");
-
-    if (descriptorFamily->family->familyID != typedFamily.family->familyID)
-      return makeScalarPluginError(
-          llvm::Twine("optional legacy scalar descriptor mirror metadata "
-                      "tcrv_scalar.lowering_descriptor '") +
-          descriptorValue + "' requires " +
-          descriptorFamily->getScalar().microkernelOpName +
-          " but typed scalar microkernel body is " +
-          typedFamily.getScalar().microkernelOpName);
-  }
 
   auto elementCountAttr =
       variant->getAttrOfType<mlir::IntegerAttr>(kScalarElementCountAttrName);
@@ -478,7 +360,7 @@ llvm::Error validateLegacyScalarDescriptorMirrorAfterTypedPlan(
 
   if (elementCountAttr.getInt() != typedElementCount)
     return makeScalarPluginError(
-        llvm::Twine("optional selected scalar element_count mirror metadata "
+        llvm::Twine("optional selected scalar element_count metadata "
                     "'tcrv_scalar.element_count' must match typed ") +
         typedFamily.getScalar().microkernelOpName +
         " element_count before selected emission planning");
@@ -491,8 +373,7 @@ buildDescriptorlessDefaultScalarTypedMaterializationPlan(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
   if (!kernel || !variant)
     return std::nullopt;
-  if (variant->hasAttr(kScalarLoweringTokenAttrName) ||
-      variant->hasAttr(kScalarElementCountAttrName))
+  if (variant->hasAttr(kScalarElementCountAttrName))
     return std::nullopt;
 
   const ScalarMicrokernelFamilySpec *family = &getI32VAddFamilySpec();
@@ -744,7 +625,7 @@ findMatchingExplicitMicrokernelFamily(
   if (matches == 0)
     return static_cast<const ScalarMicrokernelFamilySpec *>(nullptr);
 
-  if (llvm::Error error = validateLegacyScalarDescriptorMirrorAfterTypedPlan(
+  if (llvm::Error error = validateScalarElementCountMirrorAfterTypedPlan(
           variant, *matchedFamily, matchedElementCount))
     return std::move(error);
 
@@ -953,19 +834,6 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
   proposal.addRequiredCapabilityID(kScalarFallbackCapabilityID);
   proposal.setPolicy(kScalarFallbackPolicy);
   proposal.setFallbackRole(VariantFallbackRole::ConservativeFallback);
-  if (!isDescriptorlessDefaultScalarTypedFamily(*family)) {
-    proposal.addPluginAttribute(
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              kScalarLoweringTokenAttrName),
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              family->getLoweringToken()));
-    proposal.addPluginAttribute(
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              kScalarElementCountAttrName),
-        mlir::IntegerAttr::get(
-            mlir::IntegerType::get(request.getKernel()->getContext(), 64),
-            kDefaultScalarMicrokernelElementCount));
-  }
   out.push_back(proposal);
   return llvm::Error::success();
 }
@@ -1000,10 +868,9 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
         "materialized scalar fallback variant must require capability id "
         "'scalar.fallback'");
 
-  if (variant->hasAttr(kScalarLoweringTokenAttrName) ||
-      variant->hasAttr(kScalarElementCountAttrName)) {
+  if (variant->hasAttr(kScalarElementCountAttrName)) {
     if (llvm::Error error =
-            validateLegacyScalarDescriptorMetadataSyntax(variant))
+            validateScalarElementCountMirrorMetadataSyntax(variant))
       return error;
   }
 
@@ -1086,17 +953,8 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     llvm::StringRef runtimeElementCountCName =
         getScalarRuntimeElementCountCName(*runtimeABIParameters);
     out.addRuntimeABIParameters(*runtimeABIParameters);
-    bool useTypedSourceMetadata =
-        isDescriptorlessDefaultScalarTypedFamily(family);
-    if (useTypedSourceMetadata)
-      appendScalarSelectedTypedSourceMetadata(out, *family.family,
-                                             runtimeElementCountCName);
-    if (!useTypedSourceMetadata)
-      appendScalarSelectedLegacyDescriptorMirrorMetadata(
-          out, *family.family, runtimeElementCountCName);
-    else if (request.getVariant()->hasAttr(kScalarLoweringTokenAttrName))
-      appendScalarSelectedLegacyDescriptorCrossCheckMetadata(out,
-                                                            *family.family);
+    appendScalarSelectedTypedSourceMetadata(out, *family.family,
+                                           runtimeElementCountCName);
     if (llvm::Error error =
             out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
       return error;
@@ -1175,16 +1033,15 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   }
 
   if (!selectedPathHasCallableMicrokernel &&
-      hasLegacyScalarDescriptorMirrorMetadata(request.getVariant())) {
+      hasScalarElementCountMetadata(request.getVariant())) {
     return makeScalarPluginError(
         llvm::Twine("selected scalar fallback variant @") +
         request.getVariant().getSymName() +
-        " carries legacy descriptor-only metadata '" +
-        kScalarLoweringTokenAttrName + "' and/or '" +
+        " carries scalar element-count metadata '" +
         kScalarElementCountAttrName +
         "' without a typed scalar microkernel body or descriptorless typed "
-        "default materialization; descriptor metadata is non-authoritative "
-        "mirror metadata and cannot create tcrv_scalar.lowering_boundary");
+        "default materialization; element-count metadata alone cannot create "
+        "tcrv_scalar.lowering_boundary");
   }
 
   if (microkernelPlan)

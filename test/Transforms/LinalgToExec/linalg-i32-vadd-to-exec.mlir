@@ -1,7 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-source-rvv-binary-to-exec | FileCheck %s --check-prefix=LOWER --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE --implicit-check-not=linalg.generic --implicit-check-not=func.func --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
-// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=lowering_descriptor --implicit-check-not=int64_t --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=SOURCE --implicit-check-not=int64_t --implicit-check-not=__riscv_vadd_vv_i64m1 --implicit-check-not=__riscv_vsub_vv_i32m1 --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not=") {" --implicit-check-not="while (" --implicit-check-not=__riscv --implicit-check-not=riscv_vector --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.linalg-i32-vadd.o
 // RUN: llvm-readobj --file-headers --symbols %t.linalg-i32-vadd.o | FileCheck %s --check-prefix=OBJECT --implicit-check-not="Name: main"
@@ -10,7 +10,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/emitc_lowerable_op_interface = "TCRVEmitCLowerableOpInterface", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/emitc_source_op = "tcrv_rvv.i32_add", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_dtype = "i32", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_family = "i32-vadd", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_microkernel_op = "tcrv_rvv.i32_vadd_microkernel", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_operator = "add", //' -e '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_source_kind = "frontend-lowering", //' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-OP-SOURCE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '/tcrv_rvv.i32_vadd_microkernel attributes/s/selected_binary_family = "i32-vadd"/selected_binary_family = "i32-vsub"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OP-SOURCE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_suffix = "i32m1"/s//tcrv_rvv.selected_vector_suffix = "i32m2"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONFIG --implicit-check-not="#include <riscv_vector.h>"
-// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "runtime-element-count"/s//value = "descriptor-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="#include <riscv_vector.h>"
+// RUN: tcrv-opt %s --tcrv-lower-linalg-rvv-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/value = "runtime-element-count"/s//value = "stale-runtime-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-AVL --implicit-check-not="#include <riscv_vector.h>"
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -89,7 +89,6 @@ module {
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
 // PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
 // PIPE-SAME: tcrv_rvv.element_count = 16 : i64
-// PIPE-NOT: tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
 // PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 // PIPE-SAME: tcrv_rvv.selected_binary_dtype = "i32"
 // PIPE-SAME: tcrv_rvv.selected_binary_family = "i32-vadd"
@@ -105,7 +104,6 @@ module {
 // PIPE-SAME: fallback_role = "conservative"
 // PIPE-SAME: origin = "scalar-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
-// PIPE-NOT: tcrv_scalar.lowering_descriptor
 // PIPE-NOT: tcrv_scalar.element_count
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: reason = "variant-selected"

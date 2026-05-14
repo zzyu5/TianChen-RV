@@ -61,7 +61,6 @@ module {
 // PIPE-SAME: origin = "scalar-plugin"
 // PIPE-SAME: requires = [@frontend_rvv_scalar_profile]
 // PIPE-NOT: tcrv_scalar.element_count
-// PIPE-NOT: tcrv_scalar.lowering_descriptor
 // PIPE: tcrv.exec.diagnostic
 // PIPE-SAME: reason = "variant-selected"
 // PIPE-SAME: selection_kind = "static-variant"

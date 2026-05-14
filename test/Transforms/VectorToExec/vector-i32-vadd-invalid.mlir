@@ -139,13 +139,11 @@ module {
     value = "rv64gcv"
   }
 
-  // expected-error@+1 {{TianChen-RV vector frontend no longer accepts legacy descriptor metadata 'tcrv_rvv.lowering_descriptor'; the source vector/arith body and typed operands are the compute authority}}
   func.func @source_vector_legacy_descriptor(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>)
       attributes {
         tcrv_frontend_kernel = "frontend_vector_legacy_descriptor",
         tcrv_frontend_lowering = "i32-vadd",
-        tcrv_frontend_target = @vector_frontend_profile,
-        tcrv_rvv.lowering_descriptor = "i32-vadd-microkernel.v1"
+        tcrv_frontend_target = @vector_frontend_profile
       } {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i32

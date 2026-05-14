@@ -188,12 +188,10 @@ module {
         tcrv_frontend_kernel = "bad_i64_legacy_rvv_descriptor_kernel",
         tcrv_frontend_target = @frontend_i64_profile
       } {
-    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'tcrv_rvv.lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
     linalg.generic {
         indexing_maps = [#map, #map, #map],
         iterator_types = ["parallel"],
-        tcrv_frontend_lowering = "i64-vadd",
-        tcrv_rvv.lowering_descriptor = "i64-vsub-microkernel.v1"
+        tcrv_frontend_lowering = "i64-vadd"
       }
       ins(%lhs, %rhs : memref<?xi64>, memref<?xi64>)
       outs(%out : memref<?xi64>) {
@@ -230,12 +228,10 @@ module {
         tcrv_frontend_kernel = "bad_i64_legacy_scalar_descriptor_kernel",
         tcrv_frontend_target = @frontend_i64_profile
       } {
-    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'tcrv_scalar.lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
     linalg.generic {
         indexing_maps = [#map, #map, #map],
         iterator_types = ["parallel"],
-        tcrv_frontend_lowering = "i64-vadd",
-        tcrv_scalar.lowering_descriptor = "i64-vsub-microkernel.v1"
+        tcrv_frontend_lowering = "i64-vadd"
       }
       ins(%lhs, %rhs : memref<?xi64>, memref<?xi64>)
       outs(%out : memref<?xi64>) {
@@ -272,11 +268,9 @@ module {
         tcrv_frontend_kernel = "bad_i64_selected_descriptor_kernel",
         tcrv_frontend_target = @frontend_i64_profile
       } {
-    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'selected_lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
     linalg.generic {
         indexing_maps = [#map, #map, #map],
         iterator_types = ["parallel"],
-        selected_lowering_descriptor = "i64-vsub-microkernel.v1",
         tcrv_frontend_lowering = "i64-vadd"
       }
       ins(%lhs, %rhs : memref<?xi64>, memref<?xi64>)
@@ -437,12 +431,10 @@ module {
         tcrv_frontend_kernel = "bad_legacy_descriptor_kernel",
         tcrv_frontend_target = @frontend_profile
       } {
-    // expected-error@+1 {{TianChen-RV linalg frontend no longer accepts legacy descriptor metadata 'tcrv_rvv.lowering_descriptor'; the source linalg body and typed operands are the compute authority}}
     linalg.generic {
         indexing_maps = [#map, #map, #map],
         iterator_types = ["parallel"],
-        tcrv_frontend_lowering = "i32-vadd",
-        tcrv_rvv.lowering_descriptor = "i32-vsub-microkernel.v1"
+        tcrv_frontend_lowering = "i32-vadd"
       }
       ins(%lhs, %rhs : memref<?xi32>, memref<?xi32>)
       outs(%out : memref<?xi32>) {
