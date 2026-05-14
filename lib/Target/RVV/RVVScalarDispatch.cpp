@@ -80,6 +80,10 @@ constexpr llvm::StringLiteral kSelfCheckObjectArtifactKind(
 constexpr llvm::StringLiteral kDispatchRuntimeABIParametersAttrName(
     "tcrv_rvv_scalar.dispatch_runtime_abi_parameters");
 constexpr llvm::StringLiteral kRuntimeGuardAttrName("runtime_guard");
+constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
+    "RVV+scalar dispatch direct C semantic exporter was deleted; rebuild "
+    "requires materialized callable source artifacts from a real MLIR EmitC "
+    "route");
 
 constexpr llvm::StringLiteral kDispatchTargetOwner(
     "rvv-scalar-dispatch-target");
@@ -3540,20 +3544,10 @@ llvm::Expected<DispatchPair> collectDispatchPairForExpectedFamily(
 llvm::Error exportDispatchSourceFromPair(const DispatchPair &pair,
                                          bool includeSelfCheck,
                                          llvm::raw_ostream &os) {
-  std::string rvvSource;
-  std::string scalarSource;
-  if (llvm::Error error =
-          buildEmbeddedCallableSources(pair, rvvSource, scalarSource))
-    return error;
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = printDispatchSource(pair, rvvSource, scalarSource,
-                                              includeSelfCheck, stream))
-    return error;
-  stream.flush();
-  os << source;
-  return llvm::Error::success();
+  (void)pair;
+  (void)includeSelfCheck;
+  (void)os;
+  return makeModuleDispatchError(kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Error exportDispatchSourceImpl(mlir::ModuleOp module,
@@ -3581,26 +3575,9 @@ llvm::Error exportDispatchSourceForFamily(
 
 llvm::Error exportDispatchHeaderFromPair(const DispatchPair &pair,
                                          llvm::raw_ostream &os) {
-  std::string rvvSource;
-  std::string scalarSource;
-  if (llvm::Error error =
-          buildEmbeddedCallableSources(pair, rvvSource, scalarSource)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeModuleDispatchHeaderError(message);
-  }
-
-  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
-      buildDispatchObjectCompileConfig(pair);
-  if (!compileConfig) {
-    std::string message = llvm::toString(compileConfig.takeError());
-    return makeModuleDispatchHeaderError(message);
-  }
-
-  if (llvm::Error error = printDispatchHeader(pair, os)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeModuleDispatchHeaderError(message);
-  }
-  return llvm::Error::success();
+  (void)pair;
+  (void)os;
+  return makeModuleDispatchHeaderError(kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Error exportDispatchHeaderImpl(mlir::ModuleOp module,
@@ -3646,30 +3623,10 @@ llvm::Error exportDispatchSelfCheckSourceForFamily(
 llvm::Error exportDispatchObjectFromPair(const DispatchPair &pair,
                                          bool includeSelfCheck,
                                          llvm::raw_ostream &os) {
-  llvm::Expected<DispatchObjectCompileConfig> compileConfig =
-      buildDispatchObjectCompileConfig(pair);
-  if (!compileConfig)
-    return compileConfig.takeError();
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error =
-          exportDispatchSourceFromPair(pair, includeSelfCheck, stream)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeModuleDispatchObjectError(message);
-  }
-  stream.flush();
-  if (source.empty())
-    return makeDispatchObjectError(
-        pair.rvv.kernel,
-        includeSelfCheck
-            ? "validated self-check C source must be non-empty before object "
-              "export"
-            : "validated library-style dispatch C source must be non-empty "
-              "before object export");
-
-  return compileGeneratedDispatchSourceToObject(pair.rvv.kernel, source,
-                                                *compileConfig, os);
+  (void)pair;
+  (void)includeSelfCheck;
+  (void)os;
+  return makeModuleDispatchObjectError(kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Error exportDispatchObjectImpl(mlir::ModuleOp module,
@@ -4069,37 +4026,9 @@ exportRVVScalarI64VMulDispatchSelfCheckObject(mlir::ModuleOp module,
 llvm::Error registerRVVScalarDispatchRouteTargetExporter(
     TargetArtifactExporterRegistry &registry,
     const RVVScalarDispatchRouteManifestEntry &route) {
-  TargetArtifactCompositeMatchFn matchFn =
-      getDispatchCompositeMatchFn(*route.family);
-  if (!matchFn)
-    return llvm::make_error<llvm::StringError>(
-        "missing RVV+scalar dispatch composite matcher for binary family",
-        llvm::errc::invalid_argument);
-
-  TargetArtifactExportFn exportFn = nullptr;
-  switch (route.routeKind) {
-  case DispatchRouteKind::Source:
-    exportFn = exportDispatchSourceImpl;
-    break;
-  case DispatchRouteKind::Header:
-    exportFn = exportDispatchHeaderImpl;
-    break;
-  case DispatchRouteKind::Object:
-    exportFn = exportDispatchObjectImpl;
-    break;
-  case DispatchRouteKind::SelfCheckSource:
-  case DispatchRouteKind::SelfCheckObject:
-    return llvm::Error::success();
-  }
-
-  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      route.routeID, route.artifactKind, matchFn, exportFn,
-      kDispatchTargetOwner, route.runtimeABIKind, route.runtimeABIName,
-      resolveRVVScalarDispatchRuntimeABIParameters,
-      /*directHelperRoute=*/true, route.componentGroup, route.externalABIName,
-      validateRVVScalarDispatchCandidates,
-      buildRVVScalarDispatchRouteMetadata(route),
-      resolveRVVScalarDispatchBundleMetadata));
+  (void)registry;
+  (void)route;
+  return llvm::Error::success();
 }
 
 llvm::Error registerRVVScalarDispatchTargetExporters(
@@ -4123,28 +4052,7 @@ llvm::Error registerRVVScalarDispatchPluginTargetExporterBundle(
 
 llvm::Error registerRVVScalarDispatchTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  for (const RVVScalarDispatchRouteManifestEntry &route :
-       getRVVScalarDispatchRouteManifest()) {
-    const RVVScalarDispatchRouteManifestEntry *routePtr = &route;
-    llvm::StringRef targetArtifactRouteID;
-    switch (route.routeKind) {
-    case DispatchRouteKind::Source:
-    case DispatchRouteKind::Header:
-    case DispatchRouteKind::Object:
-      targetArtifactRouteID = route.routeID;
-      break;
-    case DispatchRouteKind::SelfCheckSource:
-    case DispatchRouteKind::SelfCheckObject:
-      break;
-    }
-    if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
-            route.routeID, route.description,
-            [routePtr](mlir::ModuleOp module, llvm::raw_ostream &os) {
-              return exportRVVScalarDispatchRoute(module, *routePtr, os);
-            },
-            route.requiresBinaryStdout, targetArtifactRouteID)))
-      return error;
-  }
+  (void)registry;
   return llvm::Error::success();
 }
 

@@ -2,7 +2,6 @@
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
-#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "mlir/IR/Attributes.h"
@@ -34,6 +33,9 @@ constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
+constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
+    "runtime-callable scalar direct C source exporter was deleted; rebuild "
+    "requires a materialized MLIR EmitC module source route");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -56,9 +58,6 @@ llvm::Error makeScalarPluginError(llvm::Twine message);
 
 struct ScalarMicrokernelFamilySpec {
   const ScalarBinaryFamilyDescriptor *family;
-  llvm::StringRef legacyRouteNoun;
-  llvm::StringRef emissionPath;
-  llvm::StringRef supportedMessage;
 
   llvm::StringRef getFrontendLowering() const {
     return family->frontendLowering;
@@ -70,85 +69,37 @@ struct ScalarMicrokernelFamilySpec {
 
 const ScalarMicrokernelFamilySpec &getI32VAddFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord(),
-      "finite scalar i32-vadd lowering route label",
-      "scalar-explicit-i32-vadd-microkernel-c-source-export",
-      "explicit scalar i32 vector-add microkernel C source export is "
-      "available as a library-style runtime-callable C ABI function for "
-      "this selected fallback path; no self-check main is part of the "
-      "default artifact contract; this is not generic scalar lowering, "
-      "runtime integration, arbitrary kernel emission, correctness, or "
-      "performance evidence"};
+      &tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()};
   return spec;
 }
 
 const ScalarMicrokernelFamilySpec &getI32VSubFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord(),
-      "finite scalar i32-vsub lowering route label",
-      "scalar-explicit-i32-vsub-microkernel-c-source-export",
-      "explicit scalar i32 vector-subtract microkernel C source export is "
-      "available as a library-style runtime-callable C ABI function for "
-      "this selected fallback path; no self-check main is part of the "
-      "default artifact contract; this is not generic scalar lowering, "
-      "runtime integration, arbitrary kernel emission, correctness, or "
-      "performance evidence"};
+      &tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord()};
   return spec;
 }
 
 const ScalarMicrokernelFamilySpec &getI32VMulFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord(),
-      "finite scalar i32-vmul lowering route label",
-      "scalar-explicit-i32-vmul-microkernel-c-source-export",
-      "explicit scalar i32 vector-multiply microkernel C source export is "
-      "available as a library-style runtime-callable C ABI function for "
-      "this selected fallback path; no self-check main is part of the "
-      "default artifact contract; this is not generic scalar lowering, "
-      "runtime integration, arbitrary kernel emission, correctness, or "
-      "performance evidence"};
+      &tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord()};
   return spec;
 }
 
 const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord(),
-      "finite scalar i64-vadd lowering route label",
-      "scalar-explicit-i64-vadd-microkernel-c-source-export",
-      "explicit scalar i64 vector-add microkernel C source export is "
-      "available as a library-style runtime-callable C ABI function for "
-      "this selected fallback path; no self-check main is part of the "
-      "default artifact contract; this is not generic scalar lowering, "
-      "runtime integration, arbitrary kernel emission, correctness, or "
-      "performance evidence"};
+      &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord()};
   return spec;
 }
 
 const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord(),
-      "finite scalar i64-vsub lowering route label",
-      "scalar-explicit-i64-vsub-microkernel-c-source-export",
-      "explicit scalar i64 vector-subtract microkernel C source export is "
-      "available as a library-style runtime-callable C ABI function for "
-      "this selected fallback path; no self-check main is part of the "
-      "default artifact contract; this is not generic scalar lowering, "
-      "runtime integration, arbitrary kernel emission, correctness, or "
-      "performance evidence"};
+      &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord()};
   return spec;
 }
 
 const ScalarMicrokernelFamilySpec &getI64VMulFamilySpec() {
   static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord(),
-      "finite scalar i64-vmul lowering route label",
-      "scalar-explicit-i64-vmul-microkernel-c-source-export",
-      "explicit scalar i64 vector-multiply microkernel C source export is "
-      "available as a library-style runtime-callable C ABI function for "
-      "this selected fallback path; no self-check main is part of the "
-      "default artifact contract; this is not generic scalar lowering, "
-      "runtime integration, arbitrary kernel emission, correctness, or "
-      "performance evidence"};
+      &tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord()};
   return spec;
 }
 
@@ -167,49 +118,6 @@ getScalarFamilySpec(const ScalarBinaryFamilyDescriptor &family) {
   if (family.familyID == "i64-vmul")
     return &getI64VMulFamilySpec();
   return nullptr;
-}
-
-llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
-buildScalarEmissionRuntimeABIParameters(
-    tcrv::exec::KernelOp kernel, const ScalarBinaryFamilyDescriptor &family) {
-  if (!family.rvvFamily)
-    return makeScalarPluginError(
-        llvm::Twine("scalar binary callable ABI requires finite RVV family "
-                    "metadata for '") +
-        family.familyID + "'");
-
-  llvm::Expected<support::FiniteBinaryCallableABIPlan> callablePlan =
-      support::buildFiniteBinaryCallableABIPlan(
-          kernel,
-          tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(
-              *family.rvvFamily));
-  if (!callablePlan)
-    return callablePlan.takeError();
-  return std::move(callablePlan->parameters);
-}
-
-llvm::StringRef getScalarRuntimeElementCountCName(
-    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
-  for (const support::RuntimeABIParameter &parameter : parameters)
-    if (parameter.role == support::RuntimeABIParameterRole::RuntimeElementCount)
-      return parameter.cName;
-  return "n";
-}
-
-void appendScalarSelectedTypedSourceMetadata(
-    VariantEmissionPlan &plan, const ScalarBinaryFamilyDescriptor &family,
-    llvm::StringRef runtimeElementCountCName) {
-  llvm::SmallVector<
-      tianchenrv::target::rvv_scalar::
-          ScalarBinarySelectedPlanMetadataRecord,
-      6>
-      metadata;
-  tianchenrv::target::rvv_scalar::
-      appendScalarBinarySelectedTypedSourceMetadata(
-          family, runtimeElementCountCName, metadata);
-  for (const auto &entry : metadata)
-    plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
-                                 entry.note);
 }
 
 bool isDescriptorlessDefaultScalarTypedFamily(
@@ -907,9 +815,9 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
   if (!microkernelFamily)
     return microkernelFamily.takeError();
   if (*microkernelFamily) {
-    out = VariantEmissionStatus::getSupported(
+    out = VariantEmissionStatus::getUnsupported(
         kScalarPluginName, request.getVariant().getSymName(),
-        (*microkernelFamily)->emissionPath);
+        kDirectCSourceRouteDeletedReason);
     return llvm::Error::success();
   }
 
@@ -934,30 +842,10 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
   if (!microkernelFamily)
     return microkernelFamily.takeError();
   if (*microkernelFamily) {
-    const ScalarMicrokernelFamilySpec &family = **microkernelFamily;
-    out = VariantEmissionPlan::getSupported(
+    out = VariantEmissionPlan::getUnsupported(
         kScalarPluginName, request.getKernel().getSymName(),
         request.getVariant().getSymName(), request.getRole(),
-        family.getScalar().emissionKind, family.getScalar().routeID,
-        family.getScalar().runtimeABI,
-        "runtime-callable-c-source", family.supportedMessage);
-    out.setRuntimeABIKind(family.getScalar().runtimeABIKind);
-    out.setRuntimeABIName(family.getScalar().runtimeABIName);
-    out.setRuntimeGlueRole(family.getScalar().runtimeGlueRole);
-    llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 4>>
-        runtimeABIParameters =
-        buildScalarEmissionRuntimeABIParameters(request.getKernel(),
-                                                *family.family);
-    if (!runtimeABIParameters)
-      return runtimeABIParameters.takeError();
-    llvm::StringRef runtimeElementCountCName =
-        getScalarRuntimeElementCountCName(*runtimeABIParameters);
-    out.addRuntimeABIParameters(*runtimeABIParameters);
-    appendScalarSelectedTypedSourceMetadata(out, *family.family,
-                                           runtimeElementCountCName);
-    if (llvm::Error error =
-            out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
-      return error;
+        kDirectCSourceRouteDeletedReason);
     return llvm::Error::success();
   }
 

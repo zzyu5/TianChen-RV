@@ -1,125 +1,25 @@
 # RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-post-planning.mlir
-# RUN: tcrv-translate --tcrv-export-target-source-artifact %t.scalar-post-planning.mlir > %t.scalar.c
-# RUN: FileCheck %s --check-prefix=SCALAR-POS --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not="#include <stdio.h>" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar.c
+# RUN: FileCheck %s --check-prefix=SCALAR-PLAN --implicit-check-not="artifact_kind = \"runtime-callable-c-source\"" --implicit-check-not="status = \"supported\"" < %t.scalar-post-planning.mlir
+# RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.scalar-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-GENERIC-DELETED --implicit-check-not="#include <stdint.h>" --implicit-check-not="tcrv_scalar_i32_add"
 
-# SCALAR-POS: /* TianChen-RV scalar runtime-callable microkernel C export. */
-# SCALAR-POS: /* Scope: library-style C source for exactly one tcrv_scalar.i32_vadd_microkernel. */
-# SCALAR-POS: /* Route: typed scalar family op builds the common EmitC lowerable route emitted by the common lower-to-EmitC source-authority boundary. */
-# SCALAR-POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
-# SCALAR-POS: #include <stddef.h>
-# SCALAR-POS: #include <stdint.h>
-# SCALAR-POS: /* selected_kernel: @scalar_microkernel_export */
-# SCALAR-POS: /* selected_variant: @scalar_fallback_first_slice */
-# SCALAR-POS: /* selected_role: dispatch fallback */
-# SCALAR-POS: /* fallback_role: conservative */
-# SCALAR-POS: /* lowering_boundary: tcrv_scalar.lowering_boundary */
-# SCALAR-POS: /* executable_microkernel: tcrv_scalar.i32_vadd_microkernel */
-# SCALAR-POS: /* artifact_kind: runtime-callable-c-source */
-# SCALAR-POS: /* element_count: 16 */
-# SCALAR-POS: /* required_capabilities: @scalar_fallback */
-# SCALAR-POS: /* runtime_abi_kind: scalar-runtime-callable-c-abi */
-# SCALAR-POS: /* runtime_abi_name: scalar-i32-vadd-runtime-callable-c-function.v1 */
-# SCALAR-POS: /* runtime_glue_role: runtime-callable-i32-vadd-fallback-function */
-# SCALAR-POS: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
-# SCALAR-POS: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */
-# SCALAR-POS: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
-# SCALAR-POS: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
-# SCALAR-POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-# SCALAR-POS: /* runtime_callable_abi: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n) */
-# SCALAR-POS: /* emitc_route: tcrv_scalar.i32_vadd_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
-# SCALAR-POS: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
-# SCALAR-POS: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
-# SCALAR-POS: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
-# SCALAR-POS: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
-# SCALAR-POS: /* emitc.call_opaque_boundary[0]: source_role=compute, operands=2, result=sum:int32_t, op_interface=TCRVEmitCLowerableOpInterface */
-# SCALAR-POS: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-# SCALAR-POS: static void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice__tcrv_emitc_body
-# SCALAR-POS: if (
-# SCALAR-POS: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
-# SCALAR-POS: tcrv_scalar_i32_add
-# SCALAR-POS: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=buffer-store op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_store
-# SCALAR-POS: tcrv_scalar_i32_store
-# SCALAR-POS: void tcrv_scalar_i32_vadd_microkernel_scalar_microkernel_export_scalar_fallback_first_slice
-
-# RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=SCALAR-PLAN
-# SCALAR-PLAN: artifact_kind = "runtime-callable-c-source"
-# SCALAR-PLAN: emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source"
-# SCALAR-PLAN-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-# SCALAR-PLAN-SAME: lowering_pipeline = "tcrv-export-scalar-microkernel-c"
-# SCALAR-PLAN-SAME: runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1"
-# SCALAR-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
-# SCALAR-PLAN-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
-# SCALAR-PLAN-SAME: runtime_abi_parameters = [{{.*}}role = "lhs-input-buffer"{{.*}}ownership = "target-export-abi-owned"{{.*}}role = "runtime-element-count"
-# SCALAR-PLAN-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
-# SCALAR-PLAN-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.selected_binary_family"{{.*}}role = "typed-scalar-binary-source"{{.*}}value = "i32-vadd"{{.*}}name = "tcrv_scalar.emitc_source_op"{{.*}}value = "tcrv_scalar.i32_vadd_microkernel"{{.*}}name = "tcrv_scalar.emitc_lowerable_op_interface"{{.*}}value = "TCRVEmitCLowerableOpInterface"
-# SCALAR-PLAN-SAME: status = "supported"
-
-# RUN: tcrv-opt %S/Inputs/scalar-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed 's/c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"/c_name = "n", c_type = "long", ownership = "target-export-abi-owned", role = "runtime-element-count"/' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-ABI-PREFLIGHT --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# SCALAR-ABI-PREFLIGHT: route id 'tcrv-export-scalar-microkernel-c' runtime ABI parameter role 'runtime-element-count' must use c type 'size_t'
-
-# RUN: sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/d' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-MISSING-MEM-WINDOW --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# SCALAR-MISSING-MEM-WINDOW: runtime ABI mem_window validation failed
-# SCALAR-MISSING-MEM-WINDOW-SAME: requires exactly one tcrv.exec.mem_window with ABI role 'lhs-input-buffer'
-
-# RUN: sed '/tcrv.exec.runtime_param @abi_runtime_element_count/ s/c_name = "n", //' %t.scalar-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-MISSING-RUNTIME-CNAME --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# SCALAR-MISSING-RUNTIME-CNAME: 'tcrv.exec.runtime_param' op requires non-empty string attribute 'c_name'
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/../EmissionManifest/emission-manifest-selected.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-METADATA --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# SCALAR-METADATA: requires exactly one supported source artifact emission-plan route; found none
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-scalar-boundary.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SCALAR-BOUNDARY --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# MISSING-SCALAR-BOUNDARY: selected path @scalar_fallback_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-scalar-microkernel.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SCALAR-MICRO --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# MISSING-SCALAR-MICRO: selected scalar path @scalar_fallback_first_slice as direct variant requires exactly one matching scalar microkernel
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/stale-scalar-selected-variant.txt 2>&1 | FileCheck %s --check-prefix=STALE-SCALAR --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# STALE-SCALAR: stale lowering-boundary 'tcrv_scalar.lowering_boundary' selected_variant @old_scalar as direct variant is not selected by the current dispatch or selected diagnostic surface
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/rvv-spoof-scalar-route.txt 2>&1 | FileCheck %s --check-prefix=RVV-SPOOF-SCALAR --implicit-check-not=tcrv_scalar_i32_vadd_microkernel_ok
-# RVV-SPOOF-SCALAR: route id 'tcrv-export-scalar-microkernel-c' is registered for origin 'scalar-plugin' but selected emission-plan origin is 'rvv-plugin'
+# SCALAR-PLAN: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# SCALAR-PLAN-SAME: role = "dispatch fallback"
+# SCALAR-PLAN-SAME: status = "unsupported"
+# SCALAR-PLAN-SAME: target = @scalar_fallback_first_slice
+# SCALAR-GENERIC-DELETED: requires exactly one supported source artifact emission-plan route; found none
 
 # RUN: tcrv-opt %S/Inputs/scalar-i64-vmul-microkernel-source.txt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.scalar-i64-vmul-post-planning.mlir
-# RUN: tcrv-translate --tcrv-export-target-source-artifact %t.scalar-i64-vmul-post-planning.mlir > %t.scalar-i64-vmul.c
-# RUN: FileCheck %s --check-prefix=SCALAR-I64 --implicit-check-not=RVV --implicit-check-not=rvv --implicit-check-not=riscv_vector --implicit-check-not=__riscv --implicit-check-not=int32_t --implicit-check-not=i64_vadd --implicit-check-not=i64_vsub --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not="#include <stdio.h>" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.scalar-i64-vmul.c
+# RUN: FileCheck %s --check-prefix=SCALAR-I64-PLAN --implicit-check-not="artifact_kind = \"runtime-callable-c-source\"" --implicit-check-not="status = \"supported\"" < %t.scalar-i64-vmul-post-planning.mlir
+# RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.scalar-i64-vmul-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-I64-GENERIC-DELETED --implicit-check-not="#include <stdint.h>" --implicit-check-not="tcrv_scalar_i64_mul"
 
-# SCALAR-I64: /* TianChen-RV scalar runtime-callable microkernel C export. */
-# SCALAR-I64: /* Scope: library-style C source for exactly one tcrv_scalar.i64_vmul_microkernel. */
-# SCALAR-I64: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
-# SCALAR-I64: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int64_t * */
-# SCALAR-I64: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=len64, c_type=size_t, ownership=target-export-abi-owned */
-# SCALAR-I64: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int64_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
-# SCALAR-I64: /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
-# SCALAR-I64: /* runtime_abi_parameter[3]: c_name=len64, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-# SCALAR-I64: /* runtime_callable_abi: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t len64) */
-# SCALAR-I64: /* emitc_route: tcrv_scalar.i64_vmul_microkernel -> emitc.call_opaque -> scalar runtime C/C++ */
-# SCALAR-I64: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
-# SCALAR-I64: /* emitc.call_opaque[0]: tcrv_scalar_i64_mul from tcrv_scalar.i64_vmul_microkernel */
-# SCALAR-I64: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-# SCALAR-I64: static void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice__tcrv_emitc_body
-# SCALAR-I64: if (
-# SCALAR-I64: // tcrv_emitc.source_op=tcrv_scalar.i64_vmul_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_mul
-# SCALAR-I64: tcrv_scalar_i64_mul
-# SCALAR-I64: // tcrv_emitc.source_op=tcrv_scalar.i64_vmul_microkernel role=buffer-store op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i64_store
-# SCALAR-I64: tcrv_scalar_i64_store
-# SCALAR-I64: void tcrv_scalar_i64_vmul_microkernel_scalar_i64_vmul_microkernel_export_scalar_fallback_first_slice
+# SCALAR-I64-PLAN: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# SCALAR-I64-PLAN-SAME: role = "direct variant"
+# SCALAR-I64-PLAN-SAME: status = "unsupported"
+# SCALAR-I64-PLAN-SAME: target = @scalar_fallback_first_slice
+# SCALAR-I64-GENERIC-DELETED: requires exactly one supported source artifact emission-plan route; found none
 
-# RUN: FileCheck %s --check-prefix=SCALAR-I64-PLAN < %t.scalar-i64-vmul-post-planning.mlir
-# SCALAR-I64-PLAN: artifact_kind = "runtime-callable-c-source"
-# SCALAR-I64-PLAN: emission_kind = "scalar-explicit-i64-vmul-microkernel-c-source"
-# SCALAR-I64-PLAN-SAME: lowering_pipeline = "tcrv-export-scalar-i64-vmul-microkernel-c"
-# SCALAR-I64-PLAN-SAME: runtime_abi = "scalar-i64-vmul-runtime-callable-c-abi.v1"
-# SCALAR-I64-PLAN-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
-# SCALAR-I64-PLAN-SAME: runtime_abi_name = "scalar-i64-vmul-runtime-callable-c-function.v1"
-# SCALAR-I64-PLAN-SAME: runtime_abi_parameters = [{{.*}}c_name = "lhs"{{.*}}c_type = "const int64_t *"{{.*}}role = "lhs-input-buffer"{{.*}}c_name = "len64"{{.*}}role = "runtime-element-count"
-# SCALAR-I64-PLAN-SAME: runtime_glue_role = "runtime-callable-i64-vmul-fallback-function"
-# SCALAR-I64-PLAN-SAME: selected_plan_metadata = [{{.*}}name = "tcrv_scalar.selected_binary_family"{{.*}}value = "i64-vmul"{{.*}}name = "tcrv_scalar.runtime_element_count_c_name"{{.*}}value = "len64"
-# SCALAR-I64-PLAN-SAME: status = "supported"
+# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/../EmissionManifest/emission-manifest-selected.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-METADATA --implicit-check-not=tcrv_scalar_i32_add
+# SCALAR-METADATA: requires exactly one supported source artifact emission-plan route; found none
 
-# RUN: sed '/tcrv.exec.mem_window @abi_lhs_input_buffer/d' %t.scalar-i64-vmul-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-I64-MISSING-MEM-WINDOW --implicit-check-not="#include <stdint.h>"
-# SCALAR-I64-MISSING-MEM-WINDOW: runtime ABI mem_window validation failed
-# SCALAR-I64-MISSING-MEM-WINDOW-SAME: requires exactly one tcrv.exec.mem_window with ABI role 'lhs-input-buffer'
-
-# RUN: sed '/tcrv.exec.runtime_param @abi_runtime_element_count/ s/c_type = "size_t"/c_type = "uint64_t"/' %t.scalar-i64-vmul-post-planning.mlir | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=SCALAR-I64-STALE-RUNTIME --implicit-check-not="#include <stdint.h>"
-# SCALAR-I64-STALE-RUNTIME: runtime ABI runtime_param validation failed
-# SCALAR-I64-STALE-RUNTIME-SAME: requires attribute 'c_type' = "size_t"
+# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-scalar-boundary.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SCALAR-BOUNDARY --implicit-check-not=tcrv_scalar_i32_add
+# MISSING-SCALAR-BOUNDARY: selected path @scalar_fallback_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight

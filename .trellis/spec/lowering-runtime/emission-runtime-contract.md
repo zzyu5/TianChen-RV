@@ -19,7 +19,10 @@ TCRV extension family ops
 The default native compiler is clang/LLVM. GCC is a compatibility path.
 Vendor compilers are extension-specific compatibility paths.
 
-Direct descriptor-to-C string export is not the architecture. Existing
+Direct descriptor-to-C string export is not the architecture. Direct
+RVV/scalar/RVV+scalar dispatch C compute-body exporters that synthesize source
+from selected metadata, family records, or route records are deleted or
+fail-closed until a real materialized MLIR EmitC module route exists. Existing
 descriptor-backed source/object/bundle helpers are bounded implementation debt
 that must not be used as the template for new extension work.
 
@@ -63,8 +66,8 @@ Rules:
 
 - route by the same materialized variant `origin` plugin as readiness;
 - carry kernel symbol, variant symbol, selected-path role, support status,
-  origin plugin, runtime ABI ownership metadata, required capability refs, and
-  diagnostic/explanation metadata;
+  origin plugin, runtime ABI ownership metadata, and diagnostic/explanation
+  metadata;
 - carry bounded runtime ABI kind/name metadata and a bounded required runtime
   glue role chosen by the origin plugin;
 - for supported `runtime-callable-c-source` paths, carry structured
@@ -76,14 +79,14 @@ Rules:
   `tcrv.exec.runtime_param` IR boundaries rather than acting as an independent
   parameter truth source. Add/sub/mul ABI identity fields must be derived from
   the selected finite binary runtime ABI contract keyed by selected family id;
-- carry required capability symbol refs that are a safe subset of the selected
-  variant `requires` metadata;
+- for supported and metadata-only paths, carry required capability symbol refs
+  that are a safe subset of the selected variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
   identifier, runtime ABI identifier, artifact kind, and explanation;
 - for unsupported paths, require a non-empty diagnostic reason;
 - reject plugin-returned empty runtime ABI kind/name, empty runtime glue role,
-  missing required capability refs, or unbounded/secret-like diagnostic and
-  explanation text before materialization;
+  missing required capability refs on supported/metadata-only plans, or
+  unbounded/secret-like diagnostic and explanation text before materialization;
 - diagnose missing origin, unregistered origin, disabled origin plugin,
   malformed plugin result, mismatched variant symbol, mismatched kernel symbol,
   mismatched selected-path role, duplicate selected markers, and missing
@@ -146,22 +149,15 @@ Such callbacks may validate generic compiler-owned ABI surfaces such as
 ownership/kind consistency for the selected candidate, but extension-specific
 descriptor body policy remains target/export-local.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
-dtype, shape, runtime, toolchain, or microarchitecture semantics. The
-currently supported source routes are bounded explicit target/export-owned
-artifacts: the RVV standalone smoke-probe C source exporter registered by RVV
-target/export code for an explicitly planned smoke-probe path, the RVV i32
-vector-add runtime-callable library C exporter registered by RVV target/export
-code, the scalar fallback i32 vector add/sub portable runtime-callable C
-source exporters contributed by scalar target/export code through the
-`scalar-plugin` target exporter bundle, and the RVV+scalar
-i32 vector-add host dispatch C composite exporter registered by RVV+scalar
-target/export code. The
-composite exporter consumes the selected RVV dispatch-case callable candidate
-plus selected scalar dispatch-fallback callable candidate and validates the
-target-owned dispatch availability guard ABI before source output. This does
-not add generic RVV or scalar lowering, full runtime ABI integration, object
-generation, linking, arbitrary source export, correctness evidence, or
-performance evidence.
+dtype, shape, runtime, toolchain, or microarchitecture semantics. The currently
+supported source route is bounded to the RVV standalone smoke-probe C source
+exporter registered by RVV target/export code for an explicitly planned
+smoke-probe path. Runtime-callable RVV microkernel, scalar microkernel, and
+RVV+scalar dispatch C source/object/header composite routes must fail closed
+and must not synthesize compute bodies until the rebuild supplies a materialized
+MLIR EmitC module route. This does not add generic RVV or scalar lowering, full
+runtime ABI integration, object generation, linking, arbitrary source export,
+correctness evidence, or performance evidence.
 
 The artifact-kind-aware generic route may also select target-owned bounded
 RISC-V ELF relocatable object exporters for the same validated direct RVV

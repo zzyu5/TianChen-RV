@@ -46,6 +46,57 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 67: Direct C semantic exporter erasure
+
+**Date**: 2026-05-15
+**Task**: direct-c-semantic-exporter-erasure
+**Branch**: `main`
+
+### Summary
+
+Fail-closed the production/default runtime-callable direct C semantic exporter
+surface for RVV microkernel, scalar microkernel, and RVV+scalar dispatch source
+routes. The round did not add a replacement generator or Common EmitC route.
+
+### Main Changes
+
+- RVV and scalar selected emission readiness/plans now report unsupported
+  deleted-route diagnostics for explicit direct C source routes.
+- RVV/scalar/dispatch target exporter and translate registration paths no
+  longer publish direct source/object/self-check route authority.
+- Target artifact registration and source frontdoor validation now tolerate
+  unsupported diagnostics without requiring supported-route capability fields.
+- Focused target/scalar/plugin tests were rewritten from generated C/intrinsic
+  positive output to absence/fail-closed behavior.
+- Spec wording in the touched runtime/RVV/testing layers now records the
+  deletion gap instead of treating direct source printers as EmitC authority.
+
+### Testing
+
+- [OK] Focused build: `tcrv-translate`, `tcrv-opt`, `TianChenRVTarget`,
+  `TianChenRVRVVPlugin`, `TianChenRVScalarPlugin`, `TianChenRVPlugin`.
+- [OK] C++: `tianchenrv-rvv-binary-planning-test`,
+  `tianchenrv-scalar-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit filter:
+  `target-source-artifact-routes|rvv-microkernel-pipeline|rvv-scalar-i32-vadd-dispatch-generic-route|scalar-target-source-artifact-routes`
+  passed 4/4.
+- [FAIL] `check-tianchenrv`: 133 passed, 93 failed. Failures are stale direct
+  C positive lit/e2e expectations and missing future Common EmitC source
+  architecture, not a compile failure.
+
+### Status
+
+[OPEN] **In progress**. Do not archive yet.
+
+### Next Steps
+
+- Continue deletion by removing or rewriting the remaining positive
+  RVVMicrokernel/RVVScalarDispatch/source/object/bundle/e2e tests that still
+  expect `runtime-callable-c-source`, direct translate options, RVV intrinsic
+  C bodies, or direct source bundles.
+
+
 ## Session 67: Descriptor erasure: Offload descriptor-only route deletion
 
 **Date**: 2026-05-15

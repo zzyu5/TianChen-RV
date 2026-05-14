@@ -37,8 +37,6 @@ using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::target::i32_binary::I32BinaryFamilyRecord;
-using tianchenrv::target::i32_binary::I32BinaryFamilyKind;
 using tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
@@ -83,6 +81,30 @@ int expectErrorContains(llvm::Error error,
                   "' but got: " + message);
   }
   return 0;
+}
+
+int expectDeletedScalarDirectCEmissionPlan(
+    const VariantEmissionPlan &emissionPlan, llvm::Twine context) {
+  return expect(emissionPlan.isUnsupported() &&
+                    emissionPlan.getOriginPlugin() ==
+                        tianchenrv::plugin::scalar::
+                            getScalarExtensionPluginName() &&
+                    emissionPlan.getRuntimeABIKind() ==
+                        "unsupported-plugin-runtime-abi" &&
+                    emissionPlan.getRuntimeABIName() ==
+                        "unsupported-emission-runtime-abi" &&
+                    emissionPlan.getRuntimeGlueRole() ==
+                        "no-runtime-glue-unsupported" &&
+                    emissionPlan.getEmissionKind().empty() &&
+                    emissionPlan.getLoweringPipeline().empty() &&
+                    emissionPlan.getRuntimeABI().empty() &&
+                    emissionPlan.getArtifactKind().empty() &&
+                    emissionPlan.getRequiredCapabilitySymbols().empty() &&
+                    emissionPlan.getRuntimeABIParameters().empty() &&
+                    emissionPlan.getSelectedPlanMetadata().empty() &&
+                    emissionPlan.getDiagnostic().contains(
+                        "scalar direct C source exporter was deleted"),
+                context);
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
@@ -715,18 +737,13 @@ module {
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(variant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          "scalar fallback emission readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(status.isSupported() &&
-                     status.getEmissionPath() ==
-                         "scalar-explicit-i32-vadd-microkernel-c-source-export",
-                 "scalar fallback readiness reports supported source route"))
+          {"reported unsupported emission path",
+           "scalar direct C source exporter was deleted"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -737,61 +754,14 @@ module {
               emissionPlan),
           "scalar fallback emission plan is plugin-owned"))
     return result;
-  if (int result =
-          expect(emissionPlan.isSupported() &&
-                     emissionPlan.getOriginPlugin() ==
-                         tianchenrv::plugin::scalar::
-                             getScalarExtensionPluginName() &&
-                     emissionPlan.getKernelSymbol() == kernel.getSymName() &&
-                     emissionPlan.getVariantSymbol() == variant.getSymName() &&
-                     emissionPlan.getEmissionKind() ==
-                         "scalar-explicit-i32-vadd-microkernel-c-source" &&
-                     emissionPlan.getLoweringPipeline() ==
-                         "tcrv-export-scalar-microkernel-c" &&
-                     emissionPlan.getRuntimeABI() ==
-                         "scalar-i32-vadd-runtime-callable-c-abi.v1" &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         "scalar-runtime-callable-c-abi" &&
-                     emissionPlan.getRuntimeABIName() ==
-                         "scalar-i32-vadd-runtime-callable-c-function.v1" &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         "runtime-callable-i32-vadd-fallback-function" &&
-                     emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
-                     emissionPlan.getRequiredCapabilitySymbols().front() ==
-                         "scalar_fallback" &&
-                     emissionPlan.getRuntimeABIParameters().size() == 4 &&
-                     emissionPlan.getRuntimeABIParameters()[0].role ==
-                         tianchenrv::support::RuntimeABIParameterRole::
-                             LHSInputBuffer &&
-                     emissionPlan.getRuntimeABIParameters()[3].role ==
-                         tianchenrv::support::RuntimeABIParameterRole::
-                             RuntimeElementCount &&
-                     emissionPlan.getRuntimeABIParameters()[3].ownership ==
-                         tianchenrv::support::RuntimeABIParameterOwnership::
-                             TargetExportABIOwned &&
-                     emissionPlan.getArtifactKind() ==
-                         "runtime-callable-c-source",
-                 "scalar fallback emission plan records stable supported source route"))
-    return result;
-  auto hasSelectedPlanMetadata =
-      [&](llvm::StringRef name, llvm::StringRef value,
-          llvm::StringRef role) {
-        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
-          if (entry.name == name && entry.value == value && entry.role == role)
-            return true;
-        return false;
-      };
   if (int result = expect(
-          hasSelectedPlanMetadata(
-              "tcrv_scalar.emitc_source_op",
-              "tcrv_scalar.i32_vadd_microkernel",
-              "typed-scalar-emitc-source-op") &&
-              hasSelectedPlanMetadata(
-                  "tcrv_scalar.emitc_lowerable_op_interface",
-                  "TCRVEmitCLowerableOpInterface",
-                  "typed-scalar-emitc-source-op"),
-          "scalar i32-vadd emission plan records typed EmitC source metadata "
-          "without descriptor authority"))
+          emissionPlan.getKernelSymbol() == kernel.getSymName() &&
+              emissionPlan.getVariantSymbol() == variant.getSymName(),
+          "scalar fallback emission plan records kernel and variant"))
+    return result;
+  if (int result = expectDeletedScalarDirectCEmissionPlan(
+          emissionPlan,
+          "scalar fallback emission plan records deleted source route"))
     return result;
 
   return 0;
@@ -816,9 +786,6 @@ module {
   }
 }
 )mlir";
-
-  const I32BinaryFamilyRecord &family =
-      tianchenrv::target::i32_binary::getI32VSubFamilyRegistrationRecord();
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
@@ -901,40 +868,9 @@ module {
               emissionPlan),
           "build scalar vsub emission plan"))
     return result;
-  if (int result =
-          expect(emissionPlan.isSupported() &&
-                     emissionPlan.getEmissionKind() ==
-                         family.scalar.emissionKind &&
-                     emissionPlan.getLoweringPipeline() ==
-                         family.scalar.routeID &&
-                     emissionPlan.getRuntimeABI() ==
-                         family.scalar.runtimeABI &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         family.scalar.runtimeABIKind &&
-                     emissionPlan.getRuntimeABIName() ==
-                         family.scalar.runtimeABIName &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         family.scalar.runtimeGlueRole,
-                 "scalar vsub emission plan consumes registry facts"))
-    return result;
-  auto hasSelectedPlanMetadata =
-      [&](llvm::StringRef name, llvm::StringRef value,
-          llvm::StringRef role) {
-        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
-          if (entry.name == name && entry.value == value && entry.role == role)
-            return true;
-        return false;
-      };
-  if (int result =
-          expect(hasSelectedPlanMetadata("tcrv_scalar.emitc_source_op",
-                                         family.scalar.microkernelOpName,
-                                         "typed-scalar-emitc-source-op") &&
-                     hasSelectedPlanMetadata(
-                         "tcrv_scalar.emitc_lowerable_op_interface",
-                         "TCRVEmitCLowerableOpInterface",
-                         "typed-scalar-emitc-source-op"),
-                 "scalar vsub emission plan records typed EmitC source "
-                 "metadata without descriptor authority"))
+  if (int result = expectDeletedScalarDirectCEmissionPlan(
+          emissionPlan,
+          "scalar vsub emission plan records deleted source route"))
     return result;
 
   return 0;
@@ -959,9 +895,6 @@ module {
   }
 }
 )mlir";
-
-  const I32BinaryFamilyRecord &family =
-      tianchenrv::target::i32_binary::getI32VMulFamilyRegistrationRecord();
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
@@ -1044,40 +977,9 @@ module {
               emissionPlan),
           "build scalar vmul emission plan"))
     return result;
-  if (int result =
-          expect(emissionPlan.isSupported() &&
-                     emissionPlan.getEmissionKind() ==
-                         family.scalar.emissionKind &&
-                     emissionPlan.getLoweringPipeline() ==
-                         family.scalar.routeID &&
-                     emissionPlan.getRuntimeABI() ==
-                         family.scalar.runtimeABI &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         family.scalar.runtimeABIKind &&
-                     emissionPlan.getRuntimeABIName() ==
-                         family.scalar.runtimeABIName &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         family.scalar.runtimeGlueRole,
-                 "scalar vmul emission plan consumes registry facts"))
-    return result;
-  auto hasSelectedPlanMetadata =
-      [&](llvm::StringRef name, llvm::StringRef value,
-          llvm::StringRef role) {
-        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
-          if (entry.name == name && entry.value == value && entry.role == role)
-            return true;
-        return false;
-      };
-  if (int result =
-          expect(hasSelectedPlanMetadata("tcrv_scalar.emitc_source_op",
-                                         family.scalar.microkernelOpName,
-                                         "typed-scalar-emitc-source-op") &&
-                     hasSelectedPlanMetadata(
-                         "tcrv_scalar.emitc_lowerable_op_interface",
-                         "TCRVEmitCLowerableOpInterface",
-                         "typed-scalar-emitc-source-op"),
-                 "scalar vmul emission plan records typed EmitC source "
-                 "metadata without descriptor authority"))
+  if (int result = expectDeletedScalarDirectCEmissionPlan(
+          emissionPlan,
+          "scalar vmul emission plan records deleted source route"))
     return result;
 
   return 0;
@@ -1212,42 +1114,10 @@ module {
               emissionPlan),
           llvm::Twine("build scalar ") + diagnosticLabel + " emission plan"))
     return result;
-  if (int result =
-          expect(emissionPlan.isSupported() &&
-                     emissionPlan.getEmissionKind() ==
-                         family.scalar.emissionKind &&
-                     emissionPlan.getLoweringPipeline() ==
-                         family.scalar.routeID &&
-                     emissionPlan.getRuntimeABI() ==
-                         family.scalar.runtimeABI &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         family.scalar.runtimeABIKind &&
-                     emissionPlan.getRuntimeABIName() ==
-                         family.scalar.runtimeABIName &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         family.scalar.runtimeGlueRole,
-                 llvm::Twine("scalar ") + diagnosticLabel +
-                     " emission plan consumes typed family facts"))
-    return result;
-  auto hasSelectedPlanMetadata =
-      [&](llvm::StringRef name, llvm::StringRef value,
-          llvm::StringRef role) {
-        for (const auto &entry : emissionPlan.getSelectedPlanMetadata())
-          if (entry.name == name && entry.value == value && entry.role == role)
-            return true;
-        return false;
-      };
-  if (int result =
-          expect(hasSelectedPlanMetadata("tcrv_scalar.emitc_source_op",
-                                         family.scalar.microkernelOpName,
-                                         "typed-scalar-emitc-source-op") &&
-                     hasSelectedPlanMetadata(
-                         "tcrv_scalar.emitc_lowerable_op_interface",
-                         "TCRVEmitCLowerableOpInterface",
-                         "typed-scalar-emitc-source-op"),
-                 llvm::Twine("scalar ") + diagnosticLabel +
-                     " emission plan records typed EmitC source metadata "
-                     "without descriptor authority"))
+  if (int result = expectDeletedScalarDirectCEmissionPlan(
+          emissionPlan,
+          llvm::Twine("scalar ") + diagnosticLabel +
+              " emission plan records deleted source route"))
     return result;
 
   return 0;

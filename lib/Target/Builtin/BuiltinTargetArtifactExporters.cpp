@@ -8,8 +8,6 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
-#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
-#include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteMetadataArtifact.h"
@@ -38,7 +36,8 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
 
 llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
-  return scalar::registerScalarMicrokernelPluginTargetExporterBundle(registry);
+  (void)registry;
+  return llvm::Error::success();
 }
 
 llvm::Expected<const plugin::ExtensionPlugin *>
@@ -140,11 +139,6 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   bundle.addLoweringBoundaryOp("tcrv_scalar.lowering_boundary");
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerScalarBuiltinTargetArtifactExporterBundles);
-  for (const rvv_scalar::RVVScalarBinaryFamilyRecord *family :
-       rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
-    bundle.addTargetArtifactRouteMetadataRequirement(
-        family->scalar.routeID, "runtime-callable-c-source");
-  }
   return registry.registerBundle(bundle);
 }
 

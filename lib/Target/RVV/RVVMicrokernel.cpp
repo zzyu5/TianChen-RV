@@ -161,6 +161,9 @@ constexpr llvm::StringLiteral kMicrokernelHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
+    "RVV runtime-callable direct C semantic exporter was deleted; rebuild "
+    "requires a materialized MLIR EmitC module source route");
 enum class RVVMicrokernelCExportMode {
   RuntimeCallableLibrary,
   SelfCheckHarness,
@@ -5387,10 +5390,15 @@ lookupRVVMicrokernelDirectRoute(
 llvm::Error exportRVVMicrokernelDirectRoute(
     mlir::ModuleOp module, const RVVMicrokernelDirectRouteManifestEntry &route,
     llvm::raw_ostream &os) {
+  (void)os;
   if (!route.family)
     return makeModuleMicrokernelError(
         "RVV microkernel direct artifact export requires an exact typed "
         "binary family route");
+  if (route.routeKind == RVVMicrokernelDirectRouteKind::Source)
+    return makeModuleMicrokernelError(kDirectCSourceRouteDeletedReason);
+  if (route.routeKind == RVVMicrokernelDirectRouteKind::Object)
+    return makeModuleMicrokernelObjectError(kDirectCSourceRouteDeletedReason);
 
   llvm::Expected<RVVMicrokernelRecord> record =
       buildModuleRecordForRVVBinaryFamily(module, *route.family,
@@ -5404,33 +5412,12 @@ llvm::Error exportRVVMicrokernelDirectRoute(
   }
 
   switch (route.routeKind) {
-  case RVVMicrokernelDirectRouteKind::Source: {
-    std::string source;
-    llvm::raw_string_ostream stream(source);
-    if (llvm::Error error = printMicrokernelSource(
-            *record, stream, RVVMicrokernelCExportMode::RuntimeCallableLibrary))
-      return error;
-    stream.flush();
-    os << source;
-    return llvm::Error::success();
-  }
+  case RVVMicrokernelDirectRouteKind::Source:
+    return makeModuleMicrokernelError(kDirectCSourceRouteDeletedReason);
   case RVVMicrokernelDirectRouteKind::Header:
     return printMicrokernelHeader(*record, os);
-  case RVVMicrokernelDirectRouteKind::Object: {
-    std::string source;
-    llvm::raw_string_ostream stream(source);
-    if (llvm::Error error = printMicrokernelSource(
-            *record, stream, RVVMicrokernelCExportMode::RuntimeCallableLibrary))
-      return error;
-    stream.flush();
-    if (source.empty())
-      return makeMicrokernelObjectError(
-          record->kernelSymbol,
-          "validated RVV microkernel C source must be non-empty before object "
-          "export");
-    appendMicrokernelObjectEvidenceSection(*record, source);
-    return compileGeneratedMicrokernelSourceToObject(*record, source, os);
-  }
+  case RVVMicrokernelDirectRouteKind::Object:
+    return makeModuleMicrokernelObjectError(kDirectCSourceRouteDeletedReason);
   }
   llvm_unreachable("unknown RVV microkernel direct route kind");
 }
@@ -5536,18 +5523,9 @@ resolveRVVMicrokernelSelectedConfigContractAuthority(
 
 llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
-  llvm::Expected<RVVMicrokernelRecord> record = buildModuleRecord(module);
-  if (!record)
-    return record.takeError();
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = printMicrokernelSource(
-          *record, stream, RVVMicrokernelCExportMode::SelfCheckHarness))
-    return error;
-  stream.flush();
-  os << source;
-  return llvm::Error::success();
+  (void)module;
+  (void)os;
+  return makeModuleMicrokernelError(kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Error exportRVVMicrokernelHeaderForBinaryFamily(
@@ -5597,29 +5575,7 @@ llvm::Error exportRVVMicrokernelObjectForFamily(
 
 llvm::Error registerRVVMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  for (const RVVMicrokernelDirectRouteManifestEntry &route :
-       getRVVMicrokernelArtifactRouteAuthority()) {
-    switch (route.routeKind) {
-    case RVVMicrokernelDirectRouteKind::Source: {
-      if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-              buildRVVMicrokernelSourceTargetArtifactExporter(
-                  route, /*enableCandidateValidation=*/true))))
-        return error;
-      break;
-    }
-    case RVVMicrokernelDirectRouteKind::Header:
-      if (llvm::Error error = registry.registerCompositeExporter(
-              buildRVVMicrokernelCompositeTargetArtifactExporter(route)))
-        return error;
-      break;
-    case RVVMicrokernelDirectRouteKind::Object:
-      if (llvm::Error error = registry.registerCompositeExporter(
-              buildRVVMicrokernelCompositeTargetArtifactExporter(route)))
-        return error;
-      break;
-    }
-  }
-
+  (void)registry;
   return llvm::Error::success();
 }
 
@@ -5631,17 +5587,7 @@ llvm::Error registerRVVMicrokernelPluginTargetExporterBundle(
 
 llvm::Error registerRVVMicrokernelTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  for (const RVVMicrokernelDirectRouteManifestEntry &route :
-       getRVVMicrokernelArtifactRouteAuthority()) {
-    const RVVMicrokernelDirectRouteManifestEntry *routePtr = &route;
-    if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
-            route.getRouteID(), route.getDescription(),
-            [routePtr](mlir::ModuleOp module, llvm::raw_ostream &os) {
-              return exportRVVMicrokernelDirectRoute(module, *routePtr, os);
-            },
-            route.requiresBinaryStdout(), route.getRouteID())))
-      return error;
-  }
+  (void)registry;
   return llvm::Error::success();
 }
 

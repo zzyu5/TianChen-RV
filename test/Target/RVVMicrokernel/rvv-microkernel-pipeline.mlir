@@ -1,5 +1,5 @@
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=NO-DIRECT-FALLBACK --implicit-check-not="#include <riscv_vector.h>"
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | tcrv-translate --tcrv-export-rvv-microkernel-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=NO-DIRECT-FALLBACK --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=NO-SELF-CHECK --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="int main(void)"
 // RUN: sed '/%lhs = tcrv_rvv.i32_load/s/buffer_role = "lhs-input-buffer"/buffer_role = "output-buffer"/' %s | not tcrv-opt - --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=BAD-DATAFLOW-ROLE --implicit-check-not="__riscv_vle32_v_i32m1"
 
 module @rvv_microkernel_input {
@@ -71,8 +71,7 @@ module @rvv_microkernel_input {
         policy = "metadata_only_first_slice"
       }
       tcrv.exec.fallback @scalar_fallback_first_slice {
-        fallback_role = "conservative",
-        origin = "scalar-plugin"
+        fallback_role = "conservative"
       }
     }
     tcrv_rvv.i32_vadd_microkernel attributes {
@@ -100,77 +99,8 @@ module @rvv_microkernel_input {
   }
 }
 
-// LIB: /* TianChen-RV RVV runtime-callable microkernel C export. */
-// LIB: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
-// LIB: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
-// LIB-LABEL: /* microkernel function: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
-// LIB: /* selected_kernel: @micro_a */
-// LIB: /* selected_variant: @rvv_first_slice */
-// LIB: /* selected_role: dispatch case */
-// LIB: /* selected_march: rv64gcv */
-// LIB: /* selected_mabi: lp64d */
-// LIB: /* lowering_boundary: tcrv_rvv.lowering_boundary */
-// LIB: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-// LIB: /* selected_binary_config: dtype=i32, family=i32-vadd, operator=add, shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, runtime_element_count_c_name=n, dispatch_availability_c_name=rvv_available, component_capacity_element_count=16, selected_variant=@rvv_first_slice, selected_role=dispatch case */
-// LIB: /* control_plane_body: tcrv_rvv.setvl -> tcrv_rvv.with_vl */
-// LIB: /* control_plane_runtime_avl: body index argument maps to target/export-owned runtime n ABI parameter */
-// LIB: /* control_plane_vl: !tcrv_rvv.vl value consumed by tcrv_rvv.with_vl */
-// LIB: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store */
-// LIB: /* dataflow_emission_source: derived from verified tcrv_rvv.with_vl body order, SSA chain, and buffer_role attributes */
-// LIB: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
-// LIB: /* dataflow_emission_step[0]: op=tcrv_rvv.i32_load, role=lhs-input-buffer, result=lhs_vec */
-// LIB: /* dataflow_emission_step[1]: op=tcrv_rvv.i32_load, role=rhs-input-buffer, result=rhs_vec */
-// LIB: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
-// LIB: /* dataflow_emission_step[3]: op=tcrv_rvv.i32_store, role=output-buffer, value=sum_vec */
-// LIB: /* emitc_lowerable_interface: TCRVEmitCLowerableInterface */
-// LIB: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
-// LIB: /* emitc_materialization_boundary: verified MLIR EmitC module with emitc.include, emitc.func, emitc.if, emitc.call_opaque, and emitc.call before MLIR Cpp emitter production source output */
-// LIB: /* emitc_materialization_function: @tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice */
-// LIB: /* emitc_c_source_authority: MLIR EmitC module translated by mlir::emitc::translateToCpp */
-// LIB: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
-// LIB: /* emitc_route_id: tcrv-export-rvv-microkernel-c, route_kind=extension-family-ops-to-emitc-call-opaque */
-// LIB: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */
-// LIB: /* emitc.call_opaque[3]: __riscv_vadd_vv_i32m1 from tcrv_rvv.i32_add */
-// LIB: /* emitc.call_opaque_boundary[3]: source_role=compute, operands=3, result=sum_vec:vint32m1_t, op_interface=TCRVEmitCLowerableOpInterface */
-// LIB: /* control_plane_config: sew=32, lmul=m1, policy=#tcrv_rvv.policy<tail = agnostic, mask = agnostic> */
-// LIB: /* artifact_kind: runtime-callable-c-source */
-// LIB: /* element_count: 16 */
-// LIB: /* required_capabilities: @rvv */
-// LIB: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
-// LIB: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */
-// LIB: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
-// LIB: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
-// LIB: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-// LIB: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
-// LIB: #include <riscv_vector.h>
-// LIB: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-// LIB: static void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice__tcrv_emitc_body
-// LIB: if (
-// LIB: __riscv_vsetvl_e32m1
-// LIB: __riscv_vle32_v_i32m1
-// LIB: // tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
-// LIB: __riscv_vadd_vv_i32m1
-// LIB: __riscv_vse32_v_i32m1
-// LIB: void tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice
-
-// NO-DIRECT-FALLBACK: TianChen-RV target source artifact export failed
-// NO-DIRECT-FALLBACK-SAME: selected RVV dispatch case @rvv_first_slice requires runtime_guard symbol reference to a dispatch-availability-guard tcrv.exec.runtime_param
-// NO-DIRECT-FALLBACK: artifact-backed direct translate route 'tcrv-export-rvv-microkernel-c' failed during execution planning before exact target artifact export
-
-// HARNESS: /* Harness mode: adds a bounded self-check main for explicit ssh rvv evidence only. */
-// HARNESS: #include <stdio.h>
-// HARNESS: /* Harness capacity comes from artifact-local component capacity; each call still supplies runtime n through the generated C ABI. */
-// HARNESS: /* self_check_expectation_source: verified RVV dataflow body + generated EmitC route + IR-backed callable ABI; expected arithmetic and scalar element type come from typed selected-source metadata. */
-// HARNESS-LABEL: static int tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one(size_t runtime_n)
-// HARNESS: enum { kTCRVMicrokernelCapacity = 16 };
-// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice(lhs, rhs, out, runtime_n);
-// HARNESS: int32_t expected = lhs[index] + rhs[index];
-// HARNESS: for (size_t index = runtime_n; index < (size_t)kTCRVMicrokernelCapacity; ++index)
-// HARNESS-LABEL: int main(void)
-// HARNESS: enum { kTCRVMicrokernelShortRuntimeN = kTCRVMicrokernelCapacity >= 7 ? 7 : kTCRVMicrokernelCapacity };
-// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one((size_t)kTCRVMicrokernelShortRuntimeN);
-// HARNESS: tcrv_rvv_i32_vadd_microkernel_micro_a_rvv_first_slice_self_check_one((size_t)kTCRVMicrokernelCapacity);
-// HARNESS: printf("tcrv_rvv_microkernel_ok runtime_counts=%zu,%zu\n", (size_t)kTCRVMicrokernelShortRuntimeN, (size_t)kTCRVMicrokernelCapacity);
+// NO-DIRECT-FALLBACK: Unknown command line argument '--tcrv-export-rvv-microkernel-c'
+// NO-SELF-CHECK: Unknown command line argument '--tcrv-export-rvv-microkernel-self-check-c'
 
 // BAD-DATAFLOW-ROLE: tcrv_rvv.i32_vadd_microkernel
 // BAD-DATAFLOW-ROLE-SAME: requires first tcrv_rvv.i32_load to reference runtime ABI role 'lhs-input-buffer'

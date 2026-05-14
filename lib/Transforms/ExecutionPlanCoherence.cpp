@@ -1104,27 +1104,32 @@ llvm::Error validateEmissionPlans(
         return error;
     }
 
-    llvm::SmallVector<std::string, 4> planCapabilities;
-    if (llvm::Error error = collectRequiredCapabilitySymbols(
-            kernel, diagnostic.getOperation(), "emission-plan diagnostic",
-            planCapabilities))
-      return error;
-    if (llvm::Error error = validateCapabilitySubset(
-            kernel, path.variant, planCapabilities, "emission-plan diagnostic"))
-      return error;
+    if (status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
+        status == execDiagnostic::kEmissionPlanMetadataOnlyStatusValue) {
+      llvm::SmallVector<std::string, 4> planCapabilities;
+      if (llvm::Error error = collectRequiredCapabilitySymbols(
+              kernel, diagnostic.getOperation(), "emission-plan diagnostic",
+              planCapabilities))
+        return error;
+      if (llvm::Error error =
+              validateCapabilitySubset(kernel, path.variant, planCapabilities,
+                                       "emission-plan diagnostic"))
+        return error;
 
-    llvm::SmallVector<std::string, 4> boundaryCapabilities;
-    if (llvm::Error error = collectRequiredCapabilitySymbols(
-            kernel, path.loweringBoundary, "selected lowering-boundary",
-            boundaryCapabilities))
-      return error;
-    if (!sameSymbolSet(planCapabilities, boundaryCapabilities))
-      return makeCoherenceError(
-          kernel, llvm::Twine("emission-plan diagnostic required_capabilities "
-                              "for @") +
-                      path.variantSymbol +
-                      " do not match selected lowering-boundary "
-                      "required_capabilities");
+      llvm::SmallVector<std::string, 4> boundaryCapabilities;
+      if (llvm::Error error = collectRequiredCapabilitySymbols(
+              kernel, path.loweringBoundary, "selected lowering-boundary",
+              boundaryCapabilities))
+        return error;
+      if (!sameSymbolSet(planCapabilities, boundaryCapabilities))
+        return makeCoherenceError(
+            kernel,
+            llvm::Twine("emission-plan diagnostic required_capabilities "
+                        "for @") +
+                path.variantSymbol +
+                " do not match selected lowering-boundary "
+                "required_capabilities");
+    }
 
     if (llvm::Error error = validateSupportedOrMetadataRoute(
             kernel, diagnostic, path, status, loweringBoundary,

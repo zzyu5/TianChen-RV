@@ -385,43 +385,15 @@ malformed, required march is missing, the structured body is malformed, or an
 explicit matching microkernel would make the selected path ambiguous, the
 plugin must fail before claiming a supported emission path.
 
-The microkernel slice is the first narrow exception to the metadata-only RVV
-unsupported boundary. If the selected `rvv-plugin` path has exactly one matching
-RVV i32 microkernel direct kernel-child attachment, either explicitly authored
-or plugin-materialized from the finite descriptor, `RVVExtensionPlugin` may
-report a supported plugin-owned emission path for deterministic
-runtime-callable C source export through
-`tcrv-translate --tcrv-export-rvv-microkernel-c`. This support is bounded to
-the explicit i32 add/sub/mul RVV C-intrinsic microkernel artifact routes. When
-the selected variant carries the finite descriptor, supported readiness/plan
-metadata must also validate that the attached microkernel's `element_count`
-matches the selected variant's `tcrv_rvv.element_count` descriptor metadata. It
-must also validate the microkernel's `setvl` / `with_vl` / explicit
-load/arithmetic/store body against the selected RVV first-slice policy and the
-finite i32 runtime ABI role contract before reporting the supported handoff. The
-target-owned exporter must emit riscv_vector.h C intrinsic source from the
-structured body/config by combining the family-owned arithmetic intrinsic
-prefix (`__riscv_vadd_vv_`, `__riscv_vsub_vv_`, or `__riscv_vmul_vv_`) with
-the selected vector-shape suffix (`i32m1` or `i32m2`). The family registry must
-not bake a selected shape suffix into the arithmetic intrinsic prefix; selected
-shape metadata is the only owner of the `i32m1`/`i32m2` suffix. It
-does not provide generic RVV lowering or runtime ABI integration, and it does
-not create correctness or performance evidence without separate `ssh rvv`
-compile/run artifacts.
-
-The target layer may also compile that same validated library-style
-microkernel source into a bounded RISC-V ELF relocatable object through the
-direct `tcrv-translate --tcrv-export-rvv-microkernel-object` command or
-through the generic artifact-kind-aware front door when it selects the RVV
-microkernel object route. This remains target-owned emission: it consumes the
-already selected callable source candidate, structured RVV architecture
-capability metadata, selected march/mabi capability metadata from either exact
-RVV capability providers or explicit relation-provider target profiles, and
-local toolchain diagnostics. The generic object helper route must preflight the
-matched RVV callable source candidate through the same typed runtime ABI role
-contract used by the direct source route before compiling generated source.
-It does not introduce a new lowering dialect, a hidden self-check `main`,
-linking, runtime probing, correctness evidence, or performance evidence.
+The former microkernel direct C slice is deleted as production authority. If
+the selected `rvv-plugin` path has a matching RVV microkernel attachment,
+`RVVExtensionPlugin` must report an unsupported emission plan for
+runtime-callable source until the rebuild provides a materialized MLIR EmitC
+module route. Target/export code must not synthesize RVV compute C bodies from
+selected metadata, family records, route records, or attached microkernel
+records. RVV source/object/header routes must fail closed instead of producing
+`riscv_vector.h` intrinsic source, relocatable objects, or self-check harnesses
+from the old direct printer path.
 
 ## Remote Evidence Probe Contract
 
@@ -996,52 +968,13 @@ bounded `tcrv_rvv.element_count`. This materialization is plugin-owned and must 
 local to `tcrv_rvv`; generic transforms and `tcrv.exec` must not learn RVV
 compute semantics, dtype dispatch, or microarchitecture-specific branches.
 
-`tcrv-translate --tcrv-export-rvv-microkernel-c` consumes post-planning MLIR
-that has exactly one selected `rvv-plugin` path, a matching
-`tcrv_rvv.lowering_boundary`, preserved selected march metadata, and exactly one
-matching `tcrv_rvv.i32_vadd_microkernel`. The generated C includes
-`riscv_vector.h` and exposes a deterministic runtime-callable i32 vadd C ABI
-function with `const int32_t *` input pointers, an `int32_t *` output pointer,
-and a `size_t` runtime element count. The callable ABI plan must be built from
-direct `tcrv.exec.mem_window` IR for the lhs input, rhs input, and output buffer
-roles plus direct `tcrv.exec.runtime_param` IR for the runtime element-count
-role. Supported emission-plan `runtime_abi_parameters` entries are a validated
-mirror of that IR-backed plan, not an independent source of callable C names or
-types. For this first slice those parameters are target/export ABI-owned, not
-IR-modeled RVV operands or descriptor-local `element_count`. The exporter must
-validate and consume the
-microkernel's structured `setvl` / `with_vl` / load-add-store dataflow body
-before emitting the RVV i32 load/add/store-intrinsic loop, so stale or
-mismatched control/dataflow metadata cannot be silently ignored. The default
-export is a library-style callable source artifact with no embedded `main` or
-self-check harness. If a bounded self-check executable is
-needed for evidence
-collection, `tcrv-translate --tcrv-export-rvv-microkernel-self-check-c` is the
-explicit harness export. It calls the same ABI function over bounded local
-arrays with explicit runtime `n` values; descriptor-local `element_count`
-provides only the bounded local-array capacity and is not shape, AVL, VL, or
-the only runtime trip count.
-Successful `ssh rvv` compile/run evidence for the harness source supports only
-the bounded microkernel correctness claim for the generated callable ABI plus
-harness. It is not generic high-level lowering, arbitrary RVV executable
-emission, full runtime integration, or performance evidence.
-The target layer may also emit a matching runtime-callable C ABI header through
-the direct `tcrv-translate --tcrv-export-rvv-microkernel-header` command or the
-generic `--tcrv-export-target-header-artifact` front door. This header route is
-matched from the same validated callable source candidate as the object route
-and derives its single prototype from the same selected RVV path, validated
-microkernel body, IR-backed callable ABI plan, and capability metadata. The
-generic header helper route must validate stale or conflicting
-`runtime_abi_parameters` through the same typed target-artifact candidate
-preflight surface used by the direct source route before header output. It is
-an external caller ABI surface only: no RVV body, hidden `main`, self-check
-harness, runtime probe, correctness evidence, or performance text belongs in
-the header artifact. Successful `ssh rvv` compile/link/run evidence for an
-explicit external caller that includes the generated header and links the
-generated relocatable object supports only the bounded external ABI handoff
-claim for this finite i32-vadd microkernel. It is not generic high-level
-lowering, arbitrary RVV executable emission, full runtime integration, broad
-correctness, or performance evidence.
+Runtime-callable RVV microkernel source/header/object/self-check translate
+commands are not active production routes after the direct C exporter deletion.
+Post-planning MLIR with selected RVV microkernel attachments may still carry
+typed lowering-boundary metadata, but emission planning must produce an
+unsupported diagnostic naming the missing materialized MLIR EmitC module route.
+The generic source/header/object front doors must therefore find no supported
+RVV runtime-callable artifact until the Common EmitC rebuild lands.
 
 This target export does not change the default metadata-only RVV unsupported
 boundary. A selected RVV path without the finite descriptor or exactly one

@@ -109,6 +109,9 @@ constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
+constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
+    "scalar runtime-callable direct C semantic exporter was deleted; rebuild "
+    "requires a materialized MLIR EmitC module source route");
 
 using ScalarI32MicrokernelFamilySpec =
     tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelRecord;
@@ -2513,17 +2516,9 @@ llvm::Error compileGeneratedMicrokernelSourceToObject(
 
 llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
                                      llvm::raw_ostream &os) {
-  llvm::Expected<ScalarMicrokernelRecord> record = buildModuleRecord(module);
-  if (!record)
-    return record.takeError();
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = printMicrokernelSource(*record, stream))
-    return error;
-  stream.flush();
-  os << source;
-  return llvm::Error::success();
+  (void)module;
+  (void)os;
+  return makeModuleMicrokernelError(kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Error validateScalarMicrokernelSourceAuthority(
@@ -2568,90 +2563,14 @@ llvm::Error exportScalarMicrokernelHeader(mlir::ModuleOp module,
 
 llvm::Error exportScalarMicrokernelObject(mlir::ModuleOp module,
                                           llvm::raw_ostream &os) {
-  llvm::Expected<ScalarMicrokernelRecord> record = buildModuleRecord(module);
-  if (!record) {
-    std::string message = llvm::toString(record.takeError());
-    return makeModuleMicrokernelObjectError(message);
-  }
-
-  KernelOp selectedKernel;
-  if (module)
-    module->walk([&](KernelOp kernel) {
-      if (kernel.getSymName() == record->kernelSymbol)
-        selectedKernel = kernel;
-    });
-  if (!selectedKernel)
-    return makeMicrokernelObjectError(
-        record->kernelSymbol,
-        "requires the selected scalar microkernel kernel to remain present "
-        "while deriving object compile capability metadata");
-
-  llvm::Expected<ScalarObjectCompileConfig> compileConfig =
-      buildScalarObjectCompileConfig(selectedKernel);
-  if (!compileConfig) {
-    std::string message = llvm::toString(compileConfig.takeError());
-    return makeMicrokernelObjectError(record->kernelSymbol, message);
-  }
-
-  std::string source;
-  llvm::raw_string_ostream stream(source);
-  if (llvm::Error error = printMicrokernelSource(*record, stream))
-    return error;
-  stream.flush();
-  if (source.empty())
-    return makeMicrokernelObjectError(
-        record->kernelSymbol,
-        "validated scalar microkernel C source must be non-empty before "
-        "object export");
-
-  return compileGeneratedMicrokernelSourceToObject(*record, *compileConfig,
-                                                   source, os);
+  (void)module;
+  (void)os;
+  return makeModuleMicrokernelObjectError(kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Error registerScalarMicrokernelTargetExporters(
     TargetArtifactExporterRegistry &registry) {
-  for (const ScalarI32MicrokernelFamilySpec *family :
-       getScalarMicrokernelFamilySpecs()) {
-    if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-            family->routeID, kMicrokernelArtifactKind, kScalarPluginName,
-            family->emissionKind, exportScalarMicrokernelC,
-            tianchenrv::target::rvv::
-                getRVVBinaryCallableRuntimeABIRoleRequirements(
-                    *family->rvvFamily),
-            /*directHelperRoute=*/false, /*handoffKind=*/{},
-            validateScalarMicrokernelSourceCandidate, /*componentGroup=*/{},
-            /*externalABIName=*/{},
-            buildScalarMicrokernelSourceRouteMetadata(*family))))
-      return error;
-
-    TargetArtifactCompositeMatchFn matchFn =
-        getScalarMicrokernelCompositeMatchFn(*family);
-    if (!matchFn)
-      return makeModuleMicrokernelError(
-          llvm::Twine("missing scalar microkernel composite matcher for route '") +
-          family->routeID + "'");
-
-    if (llvm::Error error =
-            registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-                family->headerRouteID, kMicrokernelHeaderArtifactKind, matchFn,
-                exportScalarMicrokernelHeader, kScalarPluginName,
-                /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-                /*directHelperRoute=*/false, /*componentGroup=*/{},
-                /*externalABIName=*/{},
-                validateScalarMicrokernelCallableCandidatePreflight)))
-      return error;
-
-    if (llvm::Error error =
-            registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-                family->objectRouteID, kMicrokernelObjectArtifactKind, matchFn,
-                exportScalarMicrokernelObject, kScalarPluginName,
-                /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-                /*directHelperRoute=*/false, /*componentGroup=*/{},
-                /*externalABIName=*/{},
-                validateScalarMicrokernelCallableCandidatePreflight)))
-      return error;
-  }
-
+  (void)registry;
   return llvm::Error::success();
 }
 

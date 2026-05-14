@@ -403,14 +403,18 @@ mlir::LogicalResult requireEmissionPlanStringAttr(DiagnosticOp diagnostic,
 
 mlir::LogicalResult
 verifyEmissionPlanRequiredCapabilities(DiagnosticOp diagnostic,
-                                       KernelOp kernel) {
+                                       KernelOp kernel,
+                                       bool requireNonEmpty) {
   auto requiredCapabilities =
       diagnostic->getAttrOfType<mlir::ArrayAttr>(
           kRequiredCapabilitiesAttrName);
-  if (!requiredCapabilities || requiredCapabilities.empty())
+  if (!requiredCapabilities || requiredCapabilities.empty()) {
+    if (!requireNonEmpty)
+      return mlir::success();
     return diagnostic.emitOpError()
            << "emission-plan diagnostic requires non-empty array attribute '"
            << kRequiredCapabilitiesAttrName << "'";
+  }
 
   llvm::StringSet<> seenCapabilities;
   for (mlir::Attribute requiredCapability : requiredCapabilities) {
@@ -499,33 +503,37 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
            << " resolves to a direct sibling symbol that is not a "
               "tcrv.exec.variant";
 
-  if (mlir::failed(
-          verifyEmissionPlanRequiredCapabilities(diagnostic, kernel)))
+  bool requiresMaterializedCapabilities =
+      statusAttr.getValue() == kEmissionPlanSupportedStatusValue ||
+      statusAttr.getValue() == kEmissionPlanMetadataOnlyStatusValue;
+  if (mlir::failed(verifyEmissionPlanRequiredCapabilities(
+          diagnostic, kernel, requiresMaterializedCapabilities)))
     return mlir::failure();
 
   auto requiredCapabilities =
       op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  auto targetRequires =
-      targetVariant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!targetRequires)
-    return diagnostic.emitOpError()
-           << "emission-plan diagnostic target @" << targetAttr.getValue()
-           << " requires structured array attribute '" << kRequiresAttrName
-           << "'";
-
-  for (mlir::Attribute requiredCapability : requiredCapabilities) {
-    auto symbolRef =
-        llvm::cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!arrayContainsSymbol(targetRequires, symbolRef.getValue()))
+  if (requiredCapabilities && !requiredCapabilities.empty()) {
+    auto targetRequires =
+        targetVariant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+    if (!targetRequires)
       return diagnostic.emitOpError()
-             << "emission-plan diagnostic required capability @"
-             << symbolRef.getValue()
-             << " is not a safe subset of target variant @"
-             << targetAttr.getValue() << " requires metadata";
+             << "emission-plan diagnostic target @" << targetAttr.getValue()
+             << " requires structured array attribute '" << kRequiresAttrName
+             << "'";
+
+    for (mlir::Attribute requiredCapability : requiredCapabilities) {
+      auto symbolRef =
+          llvm::cast<mlir::FlatSymbolRefAttr>(requiredCapability);
+      if (!arrayContainsSymbol(targetRequires, symbolRef.getValue()))
+        return diagnostic.emitOpError()
+               << "emission-plan diagnostic required capability @"
+               << symbolRef.getValue()
+               << " is not a safe subset of target variant @"
+               << targetAttr.getValue() << " requires metadata";
+    }
   }
 
-  if (statusAttr.getValue() == kEmissionPlanSupportedStatusValue ||
-      statusAttr.getValue() == kEmissionPlanMetadataOnlyStatusValue) {
+  if (requiresMaterializedCapabilities) {
     if (mlir::failed(
             requireEmissionPlanStringAttr(diagnostic, kEmissionKindAttrName)))
       return mlir::failure();

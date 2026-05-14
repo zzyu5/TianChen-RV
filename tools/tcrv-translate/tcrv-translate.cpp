@@ -4,7 +4,6 @@
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 #include "TianChenRV/Target/EmissionManifest.h"
-#include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -107,17 +106,6 @@ mlir::LogicalResult exportRVVSmokeProbeC(mlir::ModuleOp module,
                                          llvm::raw_ostream &os) {
   if (llvm::Error error =
           tianchenrv::target::rvv::exportRVVSmokeProbeC(module, os)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-  return mlir::success();
-}
-
-mlir::LogicalResult exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
-                                                   llvm::raw_ostream &os) {
-  if (llvm::Error error =
-          tianchenrv::target::rvv::exportRVVMicrokernelSelfCheckC(module, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -441,13 +429,6 @@ void registerTianChenRVTranslations() {
       "export a bounded RVV hardware/toolchain smoke-probe C source",
       exportRVVSmokeProbeC, registerTianChenRVTranslateDialects);
   (void)rvvSmokeProbeC;
-
-  static mlir::TranslateFromMLIRRegistration rvvMicrokernelSelfCheckC(
-      "tcrv-export-rvv-microkernel-self-check-c",
-      "export one RVV i32 add/sub/mul microkernel C source with self-check "
-      "harness",
-      exportRVVMicrokernelSelfCheckC, registerTianChenRVTranslateDialects);
-  (void)rvvMicrokernelSelfCheckC;
 
   registerBuiltinTargetTranslateRouteTranslations();
 

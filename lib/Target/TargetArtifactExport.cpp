@@ -976,8 +976,10 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                     getPathVariantSymbol(path) +
                     " has unsupported plan_kind '" + planKind + "'");
 
-  if (llvm::Error error = collectRequiredCapabilities(kernel, diagnostic))
-    return std::move(error);
+  if (status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
+      status == execDiagnostic::kEmissionPlanMetadataOnlyStatusValue)
+    if (llvm::Error error = collectRequiredCapabilities(kernel, diagnostic))
+      return std::move(error);
 
   if (status != execDiagnostic::kEmissionPlanSupportedStatusValue)
     return std::optional<TargetArtifactCandidate>();

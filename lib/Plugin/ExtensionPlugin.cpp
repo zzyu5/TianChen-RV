@@ -1832,9 +1832,10 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
             "' produced invalid emission plan: runtime ABI metadata requires "
             "non-empty runtime glue role");
 
-  if (llvm::Error error = validatePlanRequiredCapabilitySymbols(
-          variant, kernel, role, plugin, plan))
-    return error;
+  if (!plan.isUnsupported())
+    if (llvm::Error error = validatePlanRequiredCapabilitySymbols(
+            variant, kernel, role, plugin, plan))
+      return error;
   if (llvm::Error error =
           validateRuntimeABIParameters(variant, kernel, role, plugin, plan))
     return error;

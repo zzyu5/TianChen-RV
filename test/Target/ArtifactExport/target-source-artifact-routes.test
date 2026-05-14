@@ -1,92 +1,24 @@
 # RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-rvv-microkernel.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.rvv-microkernel-post-planning.mlir
-# RUN: tcrv-translate --tcrv-export-rvv-microkernel-c %t.rvv-microkernel-post-planning.mlir > %t.direct.c
-# RUN: tcrv-translate --tcrv-export-target-source-artifact %t.rvv-microkernel-post-planning.mlir > %t.generic.c
-# RUN: diff -u %t.direct.c %t.generic.c
-# RUN: FileCheck %s --check-prefix=POS --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.generic.c
+# RUN: FileCheck %s --check-prefix=RVV-PLAN --implicit-check-not="artifact_kind = \"runtime-callable-c-source\"" --implicit-check-not="status = \"supported\"" < %t.rvv-microkernel-post-planning.mlir
+# RUN: not tcrv-translate --tcrv-export-rvv-microkernel-c %t.rvv-microkernel-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=RVV-DIRECT-ROUTE-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
+# RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.rvv-microkernel-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=RVV-GENERIC-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
 
-# POS: /* TianChen-RV RVV runtime-callable microkernel C export. */
-# POS: /* Scope: library-style C source for exactly one tcrv_rvv.i32_vadd_microkernel. */
-# POS: /* Default artifact shape: runtime-callable C ABI function with no embedded main or self-check harness. */
-# POS: /* selected_kernel: @rvv_microkernel_manifest */
-# POS: /* selected_variant: @rvv_first_slice */
-# POS: /* selected_role: direct variant */
-# POS: /* selected_march: rv64gcv */
-# POS: /* selected_mabi: lp64d */
-# POS: /* lowering_boundary: tcrv_rvv.lowering_boundary */
-# POS: /* executable_microkernel: tcrv_rvv.i32_vadd_microkernel */
-# POS: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
-# POS: /* artifact_kind: runtime-callable-c-source */
-# POS: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
-# POS: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */
-# POS: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
-# POS: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
-# POS: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-# POS: #include <riscv_vector.h>
-# POS: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-# POS: static void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice__tcrv_emitc_body
-# POS: if (
-# POS: __riscv_vsetvl_e32m1
-# POS: __riscv_vle32_v_i32m1
-# POS: __riscv_vadd_vv_i32m1
-# POS: __riscv_vse32_v_i32m1
-# POS: void tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice
+# RVV-PLAN: message = "runtime-callable RVV direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# RVV-PLAN-SAME: role = "direct variant"
+# RVV-PLAN-SAME: status = "unsupported"
+# RVV-PLAN-SAME: target = @rvv_first_slice
+# RVV-DIRECT-ROUTE-DELETED: Unknown command line argument '--tcrv-export-rvv-microkernel-c'
+# RVV-GENERIC-DELETED: requires exactly one supported source artifact emission-plan route; found none
 
 # RUN: tcrv-opt %S/../RVVMicrokernel/rvv-microkernel-pipeline.mlir --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PLAN --implicit-check-not="#include <riscv_vector.h>"
 # MISSING-PLAN: execution plan coherence check failed for kernel @micro_a
 # MISSING-PLAN-SAME: selected path @rvv_first_slice as dispatch case requires exactly one emission-plan diagnostic before export preflight
 
-# RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact > %t.auto-dispatch.c
-# RUN: FileCheck %s --check-prefix=AUTO-DISPATCH --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=tcrv_rvv_microkernel_ok --implicit-check-not=emission_manifest --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token < %t.auto-dispatch.c
-# AUTO-DISPATCH: /* TianChen-RV RVV+scalar host runtime dispatch C export. */
-# AUTO-DISPATCH: /* selected_kernel: @pipeline_manifest */
-# AUTO-DISPATCH: /* rvv_selected_variant: @rvv_first_slice */
-# AUTO-DISPATCH: /* rvv_selected_role: dispatch case */
-# AUTO-DISPATCH: /* rvv_artifact_route_id: tcrv-export-rvv-microkernel-c */
-# AUTO-DISPATCH: /* scalar_selected_variant: @scalar_fallback_first_slice */
-# AUTO-DISPATCH: /* scalar_selected_role: dispatch fallback */
-# AUTO-DISPATCH: /* scalar_artifact_route_id: tcrv-export-scalar-microkernel-c */
-# AUTO-DISPATCH: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
-# AUTO-DISPATCH: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
-# AUTO-DISPATCH: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-# AUTO-DISPATCH: static void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice__tcrv_emitc_body
-# AUTO-DISPATCH: __riscv_vadd_vv_i32m1
-# AUTO-DISPATCH: void tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
-# AUTO-DISPATCH: void tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
-# AUTO-DISPATCH: // tcrv_emitc.source_op=tcrv_scalar.i32_vadd_microkernel role=compute op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_scalar_i32_add
-# AUTO-DISPATCH: tcrv_scalar_i32_add
-# AUTO-DISPATCH: // tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch
-# AUTO-DISPATCH: // tcrv_emitc.dispatch_guard_value=rvv_available
-# AUTO-DISPATCH-LABEL: {{^}}void tcrv_dispatch_i32_vadd_pipeline_manifest
-# AUTO-DISPATCH-SAME: (const int32_t* [[LHS:v[0-9]+]], const int32_t* [[RHS:v[0-9]+]], int32_t* [[OUT:v[0-9]+]], size_t [[LEN:v[0-9]+]], int [[GUARD:v[0-9]+]])
-# AUTO-DISPATCH-NEXT: {{^}}  bool [[COND:v[0-9]+]] = [[GUARD]] != 0;
-# AUTO-DISPATCH-NEXT: {{^}}  if ([[COND]]) {
-# AUTO-DISPATCH-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.case role=dispatch-case-call callee=tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice
-# AUTO-DISPATCH-NEXT: {{^}}  tcrv_rvv_i32_vadd_microkernel_pipeline_manifest_rvv_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
-# AUTO-DISPATCH-NEXT: {{^}}  return;
-# AUTO-DISPATCH-NEXT: {{^}}  }
-# AUTO-DISPATCH-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
-# AUTO-DISPATCH-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
+# RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-pipeline.mlir --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=AUTO-DISPATCH-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_" --implicit-check-not="tcrv_scalar_i32_add"
+# AUTO-DISPATCH-DELETED: requires exactly one supported source artifact emission-plan route; found none
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/unknown-route-id.txt 2>&1 | FileCheck %s --check-prefix=UNKNOWN --implicit-check-not="#include <riscv_vector.h>"
 # UNKNOWN: unknown target artifact export route id 'unknown-target-export-route'
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/unsupported-artifact-kind.txt 2>&1 | FileCheck %s --check-prefix=BAD-KIND --implicit-check-not="#include <riscv_vector.h>"
-# BAD-KIND: route id 'tcrv-export-rvv-microkernel-c' does not support artifact_kind 'object-file'
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/multiple-supported-artifacts.txt 2>&1 | FileCheck %s --check-prefix=MULTIPLE --implicit-check-not="#include <riscv_vector.h>"
-# MULTIPLE: requires exactly one supported source artifact emission-plan route; found multiple ambiguous supported artifacts
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-boundary.txt 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="#include <riscv_vector.h>"
-# MISSING-BOUNDARY: selected path @rvv_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-microkernel.txt 2>&1 | FileCheck %s --check-prefix=MISSING-MICRO --implicit-check-not="#include <riscv_vector.h>"
-# MISSING-MICRO: selected RVV path @rvv_first_slice as direct variant requires exactly one matching RVV i32 microkernel
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-runtime-abi-parameter-role.txt 2>&1 | FileCheck %s --check-prefix=MISSING-ABI-ROLE --implicit-check-not="#include <riscv_vector.h>"
-# MISSING-ABI-ROLE: route id 'tcrv-export-rvv-microkernel-c' requires structured runtime ABI parameter role 'runtime-element-count'
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/scalar-spoof-route.txt 2>&1 | FileCheck %s --check-prefix=SCALAR --implicit-check-not="#include <riscv_vector.h>"
-# SCALAR: route id 'tcrv-export-rvv-microkernel-c' is registered for origin 'rvv-plugin' but selected emission-plan origin is 'scalar-plugin'
 
 # RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-offload-pipeline.mlir --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=OFFLOAD --implicit-check-not="#include <riscv_vector.h>"
 # OFFLOAD: requires exactly one supported source artifact emission-plan route; found none

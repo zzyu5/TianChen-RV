@@ -195,59 +195,24 @@ Use lit/FileCheck for:
   RVV header/object helpers, and RVV+scalar dispatch source/header/object
   helpers; malformed component callable ABI role/type/name/ownership metadata
   must fail before artifact or bundle output.
-- scalar explicit microkernel C target export through the generic artifact
-  route, including dialect parse/verify for
-  `tcrv_scalar.i32_vadd_microkernel` and
-  `tcrv_scalar.i32_vsub_microkernel`, selected scalar fallback plus matching
-  `tcrv_scalar.lowering_boundary`, deterministic portable runtime-callable C
-  output with `const int32_t *` inputs, `int32_t *` output, and `size_t`
-  length, a callable function body rendered from the common EmitC lowerable
-  route's ordered scalar compute/store `call_opaque` steps for the selected
-  scalar family, absence of RVV
-  headers/intrinsics/route claims, absence of an embedded `main` or self-check
-  success marker in the default artifact, scalar runtime-callable header export
-  with a declaration-only C prototype, scalar RISC-V relocatable object export
-  from structured `rv64` / `riscv.toolchain.*` capability metadata and local
-  clang, scalar source/header/object bundle index coverage, runtime ABI
-  kind/name and runtime glue role metadata, execution-planning coverage proving
-  the scalar plugin materializes the microkernel from typed frontend/default
-  selected-source authority without a hand-authored input microkernel, and
-  fail-closed diagnostics for
-  missing/stale scalar boundaries, missing/stale scalar microkernels, malformed
-  finite scalar descriptors, route spoofing, unsupported metadata-only scalar
-  fallback paths, offload-only paths, and ambiguous supported artifacts.
-- RVV + scalar host dispatch C export for the finite i32 vector-add slice,
-  including one selected RVV dispatch case plus one scalar dispatch fallback,
-  matching lowering boundaries, supported runtime-callable C source
-  emission-plan routes for both paths, deterministic dispatcher signature from
-  an IR-backed callable ABI plan rather than detached callable parameter
-  metadata, explicit host-provided availability guard metadata, RVV callable
-  branch, scalar fallback branch, RVV intrinsic code preservation, scalar i32
-  addition preservation, bounded metadata comments, pipeline-to-dispatch-export
-  coverage where the scalar fallback callable is descriptor-materialized rather
-  than hand-authored, `tcrv.exec.mem_window` parse/verify and pipeline
-  materialized lhs/rhs/out buffer-window roles consumed by RVV, scalar, and
-  dispatch source exporters, `tcrv.exec.runtime_param` parse/verify and pipeline
-  materialized runtime-element-count / dispatch-availability-guard scalar roles
-  consumed by the exporters, typed `tcrv.exec.case runtime_guard_required`
-  metadata plus `runtime_guard` symbol linkage from the selected RVV dispatch
-  case to the dispatch-availability runtime_param, a
-  scalar callable branch link through the selected `tcrv.exec.fallback` target
-  rather than detached route metadata alone, diagnostics naming both symbols
-  when the scalar callable route and `tcrv.exec.fallback` target mismatch, a
-  role-binding fixture where a non-default runtime `len` name and non-default
-  dispatch guard name are emitted in the generated callable and dispatcher body
-  through that symbol-linked parameter, an explicit self-check harness export
-  that calls the generated dispatcher with both guard false and guard true, and
-  fail-closed diagnostics when scalar callable fallback metadata is missing,
-  unsupported, not an exact mirror of IR-backed callable ABI
-  role/name/type/ownership, typed runtime guard requirement/linkage is
-  missing/malformed/stale for the selected dispatch case, or required
-  mem_window buffer roles or runtime_param scalar roles are
-  missing/duplicated/inconsistently described,
-  and generic `--tcrv-export-target-source-artifact` coverage that proves a
-  pipeline-synthesized selected dispatch is exported through the target-owned
-  composite dispatch source route rather than a single callable shortcut.
+- scalar explicit microkernel runtime-callable C target export is currently
+  deletion-campaign fail-closed. Tests may still cover dialect parse/verify,
+  selected scalar fallback, and matching `tcrv_scalar.lowering_boundary`
+  materialization, but they must not expect source/header/object/bundle bytes
+  or portable scalar compute loops from `tcrv-export-scalar-*-microkernel-c`
+  routes. Until a real materialized MLIR EmitC module route exists, tests must
+  expect unsupported emission-plan diagnostics and generic source front-door
+  failure with no generated C body.
+- RVV + scalar host dispatch runtime-callable C export is currently
+  deletion-campaign fail-closed. Tests may still cover selected RVV dispatch
+  case, scalar dispatch fallback, runtime guard metadata, `tcrv.exec.mem_window`
+  and `tcrv.exec.runtime_param` materialization, but they must not expect
+  dispatcher source/header/object/bundle bytes, RVV intrinsic code, scalar
+  compute loops, or self-check harnesses from direct target printers. Until the
+  Common EmitC rebuild supplies materialized callable component source routes,
+  tests must expect unsupported RVV/scalar emission-plan diagnostics and generic
+  target artifact front-door failure with no supported source/header/object
+  route.
   Compiler-owned dispatch runtime-guard materialization tests must include a
   positive transform case where a selected or synthesized guarded
   `tcrv.exec.case` first carries typed `runtime_guard_required = true`, then
@@ -259,29 +224,16 @@ Use lit/FileCheck for:
   can report success. Fallback cases must be checked not to receive
   `runtime_guard_required` or `runtime_guard` metadata unless the core exec
   dialect contract is explicitly extended.
-  Direct RVV microkernel object coverage must prove that the public
-  `--tcrv-export-rvv-microkernel-object` route and the generic
-  `--tcrv-export-target-artifact` front door, when local/native RVV clang
-  object support is detected, emit non-empty tool-readable RISC-V relocatable
-  objects exposing the runtime-callable RVV microkernel symbol and no `main`.
-  When the bounded object export routes are present, lit coverage must also
-  prove the public library-object and self-check-object routes are visible,
-  preserve the source/self-check split, fail closed before object creation for
-  missing or malformed selected-path/runtime ABI metadata, and, when
-  local/native RVV clang support is detected, emit non-empty tool-readable
-  object files without committing binary artifacts. The generic
-  `--tcrv-export-target-artifact` front door must select the library-style
-  dispatch object with dispatcher/callable symbols and no `main`; the explicit
-  self-check object helper may define `main`.
-  When the bounded ABI header export is present, lit/FileCheck coverage must
-  prove both the direct header command and the generic
-  `--tcrv-export-target-header-artifact` registry front door for the
-  header-only runtime-caller surface: deterministic include guard, standard
-  integer/size includes, `extern "C"` guard, and a single prototype with the
-  same parameter order and C type spellings as the generated callable or
-  dispatcher definition. Direct RVV microkernel header tests must cover the
-  generic header front door separately from the generic source/object artifact
-  front doors. Negative coverage must prove the header exporter fails closed on
+  Direct RVV/scalar/dispatch object coverage must currently prove route absence
+  or fail-closed behavior rather than object creation. No test should require
+  public source/object/header translate commands or generic artifact front
+  doors to emit runtime-callable microkernel or dispatch artifacts from the old
+  direct C printer path.
+  When a future bounded ABI header export is rebuilt on materialized EmitC
+  source authority, lit/FileCheck coverage must prove both the direct header
+  command and the generic `--tcrv-export-target-header-artifact` registry front
+  door for the header-only runtime-caller surface. Negative coverage must prove
+  the header exporter fails closed on
   shared exec-IR boundary errors such as missing selected-case `runtime_guard`
   linkage or scalar fallback mismatch for dispatch headers, and missing/stale
   selected RVV path or callable ABI boundary errors for direct microkernel

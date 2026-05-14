@@ -911,11 +911,10 @@ llvm::Error validatePlansForMaterialization(
             validatePlanString(kernel, plan, "runtime glue role",
                                plan.getRuntimeGlueRole()))
       return error;
-    if (llvm::Error error =
-            validatePlanRequiredCapabilities(kernel, plan, planVariant))
-      return error;
-
     if (plan.isSupported() || plan.isMetadataOnly()) {
+      if (llvm::Error error =
+              validatePlanRequiredCapabilities(kernel, plan, planVariant))
+        return error;
       if (llvm::Error error =
               validatePlanString(kernel, plan, "emission kind",
                                  plan.getEmissionKind()))
@@ -965,6 +964,8 @@ void addRequiredCapabilityAttribute(mlir::MLIRContext &context,
   llvm::SmallVector<mlir::Attribute, 4> capabilities;
   for (const std::string &symbol : plan.getRequiredCapabilitySymbols())
     capabilities.push_back(mlir::FlatSymbolRefAttr::get(&context, symbol));
+  if (capabilities.empty())
+    return;
   state.addAttribute(kRequiredCapabilitiesAttrName,
                      mlir::ArrayAttr::get(&context, capabilities));
 }

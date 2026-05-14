@@ -24,6 +24,9 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
+constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
+    "runtime-callable RVV direct C source exporter was deleted; rebuild "
+    "requires a materialized MLIR EmitC module source route");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kVariantElementCountAttrName(
     "tcrv_rvv.element_count");
@@ -1309,28 +1312,16 @@ void appendSelectedConfigProfileMetadata(
 
 VariantEmissionStatus RVVBinarySelectedEmissionPlan::buildReadinessStatus(
     llvm::StringRef originPlugin, llvm::StringRef variantSymbol) const {
-  return VariantEmissionStatus::getSupported(
-      originPlugin, variantSymbol, selectedPlan.getEmissionPath());
+  return VariantEmissionStatus::getUnsupported(
+      originPlugin, variantSymbol, kDirectCSourceRouteDeletedReason);
 }
 
 VariantEmissionPlan RVVBinarySelectedEmissionPlan::buildVariantEmissionPlan(
     llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
     llvm::StringRef variantSymbol, VariantEmissionRole role) const {
-  VariantEmissionPlan plan = VariantEmissionPlan::getSupported(
+  return VariantEmissionPlan::getUnsupported(
       originPlugin, kernelSymbol, variantSymbol, role,
-      selectedPlan.getEmissionKind(), selectedPlan.getRouteID(),
-      selectedPlan.getRuntimeABI(), selectedPlan.getArtifactKind(),
-      selectedPlan.getSupportedMessage());
-  plan.setRuntimeABIKind(selectedPlan.getRuntimeABIKind());
-  plan.setRuntimeABIName(selectedPlan.getRuntimeABIName());
-  plan.setRuntimeGlueRole(selectedPlan.getRuntimeGlueRole());
-  plan.addRuntimeABIParameters(runtimeABIParameters);
-  for (llvm::StringRef symbol : requiredCapabilitySymbols)
-    plan.addRequiredCapabilitySymbol(symbol);
-  for (const VariantSelectedPlanMetadata &entry : selectedPlanMetadata)
-    plan.addSelectedPlanMetadata(entry.name, entry.value, entry.role,
-                                 entry.note);
-  return plan;
+      kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Expected<std::optional<RVVBinarySelectedEmissionAttachment>>
@@ -1426,10 +1417,9 @@ buildRVVBinarySelectedEmissionReadiness(const VariantEmissionRequest &request,
   if (!*attachment)
     return std::optional<VariantEmissionStatus>();
 
-  VariantEmissionStatus status = VariantEmissionStatus::getSupported(
+  return VariantEmissionStatus::getUnsupported(
       originPlugin, request.getVariant().getSymName(),
-      (*attachment)->getEmissionPath());
-  return status;
+      kDirectCSourceRouteDeletedReason);
 }
 
 llvm::Expected<std::optional<VariantEmissionPlan>>
