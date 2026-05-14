@@ -4074,17 +4074,17 @@ def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]
         )
     if getattr(args, "lower_vector_i32_vadd_frontend", False):
         return (
-            "tcrv_opt_vector_i32_vadd_frontend_execution_planning_pipeline",
+            "tcrv_opt_vector_source_frontend_execution_planning_pipeline",
             [
-                "--tcrv-lower-vector-rvv-i32-vadd-to-exec",
+                "--tcrv-lower-source-rvv-binary-to-exec",
                 "--tcrv-execution-planning-pipeline",
             ],
         )
     if getattr(args, "lower_vector_i32_vsub_frontend", False):
         return (
-            "tcrv_opt_vector_i32_vsub_frontend_execution_planning_pipeline",
+            "tcrv_opt_vector_source_frontend_execution_planning_pipeline",
             [
-                "--tcrv-lower-vector-rvv-i32-vsub-to-exec",
+                "--tcrv-lower-source-rvv-binary-to-exec",
                 "--tcrv-execution-planning-pipeline",
             ],
         )
@@ -4112,12 +4112,12 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
         )
     if getattr(args, "lower_vector_i32_vadd_frontend", False):
         return (
-            "tcrv-lower-vector-rvv-i32-vadd-to-exec + "
+            "tcrv-lower-source-rvv-binary-to-exec + "
             "tcrv-execution-planning-pipeline"
         )
     if getattr(args, "lower_vector_i32_vsub_frontend", False):
         return (
-            "tcrv-lower-vector-rvv-i32-vsub-to-exec + "
+            "tcrv-lower-source-rvv-binary-to-exec + "
             "tcrv-execution-planning-pipeline"
         )
     return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
@@ -6246,16 +6246,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--lower-vector-i32-vadd-frontend",
         action="store_true",
         help=(
-            "Run the bounded vector/SCF i32-vadd frontend lowering before "
-            "execution planning"
+            "Use the production bounded source RVV binary frontend on the "
+            "vector/SCF i32-vadd fixture before execution planning"
         ),
     )
     parser.add_argument(
         "--lower-vector-i32-vsub-frontend",
         action="store_true",
         help=(
-            "Run the bounded vector/SCF i32-vsub frontend lowering before "
-            "execution planning"
+            "Use the production bounded source RVV binary frontend on the "
+            "vector/SCF i32-vsub fixture before execution planning"
         ),
     )
     parser.add_argument(

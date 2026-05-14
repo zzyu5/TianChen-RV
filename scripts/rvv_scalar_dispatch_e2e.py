@@ -3234,7 +3234,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "bundle_export_mode": bundle_export_mode,
         "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
         "fixture_free_pipeline_path": (
-            "marked-linalg-rvv-binary-frontend-to-plan-and-export-bundle"
+            "source-rvv-binary-frontend-to-plan-and-export-bundle"
             if fixture_free_frontend_pipeline
             else "preplanned-mlir-to-target-artifact-bundle"
         ),

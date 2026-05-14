@@ -1402,13 +1402,9 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
         mlir::failed(crossCheckVectorFrontendMarker(
             funcOp, frontendAttr.getValue(), source)))
       return mlir::failure();
-    if (mode == VectorFrontendAdapterMode::VAddOnly)
-      loweringContract =
-          support::makeDynamicVectorI32VAddSourceFrontendLoweringContract();
-    else
-      loweringContract =
-          support::makeDynamicVectorI32SourceFrontendLoweringContract(
-              *source.contract);
+    loweringContract =
+        support::makeDynamicVectorI32SourceFrontendLoweringContract(
+            *source.contract);
   } else {
     return funcOp->emitError()
            << "TianChen-RV vector i32-vadd frontend expects either the fixed "

@@ -1682,3 +1682,71 @@ source/object semantics or make runtime correctness/performance claims.
 ### Status
 
 [OK] Completed and archived; commit pending.
+
+
+## Session 67: RVV vector frontend default artifact route
+
+**Date**: 2026-05-14
+**Task**: RVV vector frontend default artifact route
+**Branch**: `main`
+
+### Summary
+
+Promoted the bounded dynamic MLIR vector i32 vadd/vsub artifact evidence from
+explicit vector adapter surfaces to the production source RVV binary frontdoor.
+The normal route now carries dynamic vector vadd and vsub through the shared
+source-derived finite family construction, selected RVV materialization,
+selected config/runtime length metadata, EmitC bundle export, and existing
+RuntimeABICallablePlan/RVVScalarDispatch consumers.
+
+### Main Changes
+
+- Changed `lib/Transforms/LowerSourceRVVBinaryToExec.cpp` so dynamic vector
+  vadd and vsub both construct the selected frontend lowering contract from the
+  source-derived finite family contract, removing the vadd-only construction
+  branch from the dynamic vector path.
+- Updated `Passes.td` descriptions to make
+  `--tcrv-lower-source-rvv-binary-to-exec` the documented default source
+  frontdoor and keep explicit vector vadd/vsub passes as compatibility
+  adapters.
+- Updated `scripts/rvv_microkernel_e2e.py` vector frontend modes to run and
+  report `tcrv-lower-source-rvv-binary-to-exec + tcrv-execution-planning-pipeline`.
+- Updated `scripts/rvv_scalar_dispatch_e2e.py` plan-and-export bundle evidence
+  to use the shared source RVV binary frontend path name.
+- Updated focused artifact/script tests so dynamic vector vadd/vsub generated
+  artifact evidence goes through the default source frontdoor, with explicit
+  vsub retained only as compatibility coverage.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTransforms TianChenRVRVVPlugin TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/VectorToExec/vector-dynamic-i32-vadd-to-exec.mlir Transforms/VectorToExec/vector-dynamic-i32-vsub-to-exec.mlir Transforms/VectorToExec/vector-dynamic-i32-vsub-explicit-invalid.mlir Transforms/VectorToExec/vector-dynamic-i32-binary-invalid.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir Scripts/rvv-microkernel-bundle-e2e.test Scripts/rvv-scalar-dispatch-bundle-e2e.test`
+- Default vector vadd/vsub dry-run probes for direct microkernel bundle and
+  plan-and-export bundle paths.
+- RVVScalarDispatch vsub dry-run through the plan-and-export bundle front door.
+- `ssh rvv` direct microkernel bundle evidence:
+  `codex-default-vector-vsub-ssh` and `codex-default-vector-vadd-ssh`.
+- `ssh rvv` RVVScalarDispatch bundle evidence:
+  `codex-default-vector-vsub-dispatch-ssh`.
+- Ref-scans for explicit-only vector routes, descriptor-only authority, and
+  generic core family branches.
+- `git diff --check`
+
+All three `ssh rvv` runs returned `status: success` and `ssh_evidence: true`.
+The claim scope is limited to the bounded generated artifact or dispatch route
+actually run.
+
+### Spec Update Judgment
+
+No code-spec update was needed. This round did not add a new command signature,
+payload field, dialect contract, or cross-layer schema; it rewired production
+evidence to the already-specified source frontdoor, selected boundary,
+EmitC-route, descriptor-quarantine, and runtime ABI contracts.
+
+### Status
+
+[OK] Completed and archived; commit pending.
