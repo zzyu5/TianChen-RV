@@ -15,6 +15,22 @@
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/bundle_export_stdout.txt
 # RUN: not test -e %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/post_planning.mlir
 # RUN: FileCheck %s --check-prefix=PLAN-SUMMARY < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-dispatch-bundle-plan-and-export/command_summary.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --lower-vector-i32-vadd-frontend --arithmetic-family=i32-vadd --expect-selected-kernel=frontend_vector_dynamic_bundle_i32_vadd --run-id lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=VEC-VADD-PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=VEC-VADD-SOURCE --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vadd-dispatch-c.c
+# RUN: FileCheck %s --check-prefix=VEC-VADD-CALLER --implicit-check-not="lhs[index] - rhs[index]" --implicit-check-not="lhs[index] * rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=VEC-VADD-INDEX --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=VEC-VADD-EVIDENCE --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vadd-dispatch-bundle-plan-and-export/evidence.json
+# RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --lower-vector-i32-vsub-frontend --arithmetic-family=i32-vsub --expect-selected-kernel=frontend_vector_dynamic_bundle_i32_vsub --run-id lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export --overwrite | FileCheck %s --check-prefix=VEC-VSUB-PLAN-DRY
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h
+# RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-SOURCE --implicit-check-not="__riscv_vadd" --implicit-check-not=i32_vadd --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="int main(void)" --implicit-check-not="_self_check" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i32-vsub-dispatch-c.c
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-CALLER --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not="lhs[index] * rhs[index]" < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/rvv_bundle_dispatch_external_caller.c
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-INDEX --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/target_artifact_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=VEC-VSUB-EVIDENCE --implicit-check-not=rvv-scalar-i32-vadd-dispatch --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency < %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-vector-vsub-dispatch-bundle-plan-and-export/evidence.json
 # RUN: python3 %S/../../scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vadd --expect-selected-kernel=frontend_i64_vadd --run-id lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export --overwrite --input %S/../Transforms/LinalgToExec/linalg-i64-vadd-to-rvv-artifact.mlir | FileCheck %s --check-prefix=I64-VADD-FRONTDOOR-PLAN-DRY
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-0-runtime-callable-c-source-tcrv-export-rvv-scalar-i64-vadd-dispatch-c.c
 # RUN: test -f %S/../../artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/lit-rvv-scalar-i64-vadd-frontdoor-dispatch-bundle-plan-and-export/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i64-vadd-dispatch-header.h
@@ -138,6 +154,88 @@
 
 # PLAN-SUMMARY: "name": "plan_and_export_target_artifact_bundle"
 # PLAN-SUMMARY-NOT: "name": "tcrv_opt_execution_planning_pipeline"
+
+# VEC-VADD-PLAN-DRY: "arithmetic_family": "i32-vadd"
+# VEC-VADD-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VEC-VADD-PLAN-DRY: "expected_selected_kernel": "frontend_vector_dynamic_bundle_i32_vadd"
+# VEC-VADD-PLAN-DRY: "fixture_free_pipeline_path": "vector-scf-source-frontdoor-to-plan-and-export-bundle"
+# VEC-VADD-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VEC-VADD-PLAN-DRY: "selected_kernel": "frontend_vector_dynamic_bundle_i32_vadd"
+# VEC-VADD-PLAN-DRY: "ssh_evidence": false
+# VEC-VADD-PLAN-DRY: "status": "success"
+
+# VEC-VADD-SOURCE: /* selected_kernel: @frontend_vector_dynamic_bundle_i32_vadd */
+# VEC-VADD-SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
+# VEC-VADD-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_source_kind, value=frontend-lowering, role=typed-rvv-binary-source-identity
+# VEC-VADD-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_add
+# VEC-VADD-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+# VEC-VADD-SOURCE: __riscv_vadd_vv_i32m1
+# VEC-VADD-SOURCE: tcrv_scalar_i32_add
+# VEC-VADD-SOURCE: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
+
+# VEC-VADD-CALLER: tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(lhs, rhs, out, runtime_n, rvv_available);
+# VEC-VADD-CALLER: out[index] != lhs[index] + rhs[index]
+# VEC-VADD-CALLER: run_dispatch_case(7, 0)
+# VEC-VADD-CALLER: run_dispatch_case(16, 1)
+# VEC-VADD-CALLER: tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok
+
+# VEC-VADD-INDEX: name: "tcrv_frontend.source_kind"
+# VEC-VADD-INDEX-NEXT: value: "mlir-vector-scf-runtime-i32-vadd.v1"
+# VEC-VADD-INDEX: name: "tcrv_rvv.selected_binary_source_kind"
+# VEC-VADD-INDEX-NEXT: value: "frontend-lowering"
+# VEC-VADD-INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
+# VEC-VADD-INDEX-NEXT: value: "source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface"
+
+# VEC-VADD-EVIDENCE-DAG: "arithmetic_family": "i32-vadd"
+# VEC-VADD-EVIDENCE-DAG: "input": "test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir"
+# VEC-VADD-EVIDENCE-DAG: "frontend_source_kind": "vector-scf-runtime-source"
+# VEC-VADD-EVIDENCE-DAG: "source_frontdoor_authority": {
+# VEC-VADD-EVIDENCE-DAG: "tcrv_frontend.source_kind": "mlir-vector-scf-runtime-i32-vadd.v1"
+# VEC-VADD-EVIDENCE-DAG: "dispatch_runtime_element_count": {
+# VEC-VADD-EVIDENCE-DAG: "role": "runtime-element-count"
+# VEC-VADD-EVIDENCE-DAG: "guard_c_name": "rvv_available"
+# VEC-VADD-EVIDENCE-DAG: "pass_fail_result": "pass"
+
+# VEC-VSUB-PLAN-DRY: "arithmetic_family": "i32-vsub"
+# VEC-VSUB-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
+# VEC-VSUB-PLAN-DRY: "expected_selected_kernel": "frontend_vector_dynamic_bundle_i32_vsub"
+# VEC-VSUB-PLAN-DRY: "fixture_free_pipeline_path": "vector-scf-source-frontdoor-to-plan-and-export-bundle"
+# VEC-VSUB-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# VEC-VSUB-PLAN-DRY: "selected_kernel": "frontend_vector_dynamic_bundle_i32_vsub"
+# VEC-VSUB-PLAN-DRY: "ssh_evidence": false
+# VEC-VSUB-PLAN-DRY: "status": "success"
+
+# VEC-VSUB-SOURCE: /* selected_kernel: @frontend_vector_dynamic_bundle_i32_vsub */
+# VEC-VSUB-SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
+# VEC-VSUB-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_source_kind, value=frontend-lowering, role=typed-rvv-binary-source-identity
+# VEC-VSUB-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_sub
+# VEC-VSUB-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+# VEC-VSUB-SOURCE: __riscv_vsub_vv_i32m1
+# VEC-VSUB-SOURCE: tcrv_scalar_i32_sub
+# VEC-VSUB-SOURCE: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
+
+# VEC-VSUB-CALLER: tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(lhs, rhs, out, runtime_n, rvv_available);
+# VEC-VSUB-CALLER: out[index] != lhs[index] - rhs[index]
+# VEC-VSUB-CALLER: run_dispatch_case(7, 0)
+# VEC-VSUB-CALLER: run_dispatch_case(16, 1)
+# VEC-VSUB-CALLER: tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok
+
+# VEC-VSUB-INDEX: name: "tcrv_frontend.source_kind"
+# VEC-VSUB-INDEX-NEXT: value: "mlir-vector-scf-runtime-i32-vsub.v1"
+# VEC-VSUB-INDEX: name: "tcrv_rvv.selected_binary_source_kind"
+# VEC-VSUB-INDEX-NEXT: value: "frontend-lowering"
+# VEC-VSUB-INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
+# VEC-VSUB-INDEX-NEXT: value: "source_kind=frontend-lowering,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface"
+
+# VEC-VSUB-EVIDENCE-DAG: "arithmetic_family": "i32-vsub"
+# VEC-VSUB-EVIDENCE-DAG: "input": "test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir"
+# VEC-VSUB-EVIDENCE-DAG: "frontend_source_kind": "vector-scf-runtime-source"
+# VEC-VSUB-EVIDENCE-DAG: "source_frontdoor_authority": {
+# VEC-VSUB-EVIDENCE-DAG: "tcrv_frontend.source_kind": "mlir-vector-scf-runtime-i32-vsub.v1"
+# VEC-VSUB-EVIDENCE-DAG: "dispatch_runtime_element_count": {
+# VEC-VSUB-EVIDENCE-DAG: "role": "runtime-element-count"
+# VEC-VSUB-EVIDENCE-DAG: "guard_c_name": "rvv_available"
+# VEC-VSUB-EVIDENCE-DAG: "pass_fail_result": "pass"
 
 # I64-VADD-FRONTDOOR-PLAN-DRY: "arithmetic_family": "i64-vadd"
 # I64-VADD-FRONTDOOR-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
@@ -447,7 +545,7 @@
 # I64-VMUL-PLAN-DRY: "bundle_export_mode": "plan-and-export-target-artifact-bundle"
 # I64-VMUL-PLAN-DRY: "expected_selected_kernel": "frontend_bundle_i64_vmul"
 # I64-VMUL-PLAN-DRY: "fixture_free_frontend_pipeline": true
-# I64-VMUL-PLAN-DRY: "fixture_free_pipeline_path": "source-rvv-binary-frontend-to-plan-and-export-bundle"
+# I64-VMUL-PLAN-DRY: "fixture_free_pipeline_path": "marked-linalg-rvv-binary-frontend-to-plan-and-export-bundle"
 # I64-VMUL-PLAN-DRY: "planned_dispatch_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
 # I64-VMUL-PLAN-DRY: "selected_kernel": "frontend_bundle_i64_vmul"
 # I64-VMUL-PLAN-DRY: "ssh_evidence": false

@@ -40,6 +40,16 @@ DEFAULT_TIMEOUT_SECONDS = 60
 BUNDLE_INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
 DISPATCH_OBJECT_ARTIFACT_KIND = "riscv-elf-relocatable-object"
 SELF_CHECK_OBJECT_ARTIFACT_KIND = "self-check-riscv-elf-relocatable-object"
+VECTOR_SOURCE_FRONTEND_INPUTS = {
+    "i32-vadd": Path(
+        "test/Target/TargetArtifactBundleExport/"
+        "plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir"
+    ),
+    "i32-vsub": Path(
+        "test/Target/TargetArtifactBundleExport/"
+        "plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir"
+    ),
+}
 RVV_VECTOR_SHAPE_SPECS: dict[str, dict[str, Any]] = {
     "i32m1": {
         "shape": "i32m1",
@@ -374,6 +384,19 @@ def translate_option_to_route_id(option: str) -> str:
 
 def active_self_check_source_route_id() -> str:
     return translate_option_to_route_id(str(ACTIVE_ARITHMETIC_FAMILY["self_check_route"]))
+
+
+def active_rvv_microkernel_op_name() -> str:
+    return "tcrv_rvv." + str(ACTIVE_ARITHMETIC_FAMILY["function_stem"]) + "_microkernel"
+
+
+def active_rvv_emitc_source_op_name() -> str:
+    return (
+        "tcrv_rvv."
+        + str(ACTIVE_ARITHMETIC_FAMILY["dtype"])
+        + "_"
+        + str(ACTIVE_ARITHMETIC_FAMILY["intrinsic_op"])
+    )
 
 
 def active_dispatch_object_route_id() -> str:
@@ -902,6 +925,135 @@ def validate_expected_selected_kernel(args: argparse.Namespace, selected: str) -
         raise BridgeError(
             f"selected kernel {selected} did not match expected {expected}"
         )
+
+
+def vector_source_frontend_family(args: argparse.Namespace) -> str:
+    if getattr(args, "lower_vector_i32_vadd_frontend", False):
+        return "i32-vadd"
+    if getattr(args, "lower_vector_i32_vsub_frontend", False):
+        return "i32-vsub"
+    return ""
+
+
+def vector_source_frontend_requested(args: argparse.Namespace) -> bool:
+    return bool(vector_source_frontend_family(args))
+
+
+def frontend_lowering_requested(args: argparse.Namespace) -> bool:
+    return bool(getattr(args, "lower_linalg_frontend", False)) or bool(
+        vector_source_frontend_requested(args)
+    )
+
+
+def source_frontend_pipeline_path(args: argparse.Namespace, *, bundle: bool) -> str:
+    if vector_source_frontend_requested(args):
+        return (
+            "vector-scf-source-frontdoor-to-plan-and-export-bundle"
+            if bundle
+            else "vector-scf-source-frontdoor-to-execution-planning"
+        )
+    if getattr(args, "lower_linalg_frontend", False) or (
+        bundle and not getattr(args, "input", "")
+    ):
+        return (
+            "marked-linalg-rvv-binary-frontend-to-plan-and-export-bundle"
+            if bundle
+            else "marked-linalg-rvv-binary-frontend-to-execution-planning"
+        )
+    return (
+        "preplanned-mlir-to-target-artifact-bundle"
+        if bundle
+        else "preplanned-mlir-to-execution-planning"
+    )
+
+
+def expected_vector_source_frontdoor_metadata() -> dict[str, str]:
+    family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    if family not in VECTOR_SOURCE_FRONTEND_INPUTS:
+        raise BridgeError(
+            "vector/SCF source-frontdoor dispatch evidence is bounded to "
+            "i32-vadd and i32-vsub"
+        )
+    return {
+        "tcrv_frontend.source_kind": f"mlir-vector-scf-runtime-{family}.v1",
+        "tcrv_frontend.source_authority": "source-scf-for-runtime-upper-bound",
+        "tcrv_frontend.runtime_extent_arg": "n",
+        "tcrv_frontend.source_loop_step": "16",
+        "tcrv_frontend.source_vector_chunk_extent": "16",
+        "tcrv_frontend.active_lane_authority": "mlir-vector-transfer-tail-active-lanes",
+        "tcrv_frontend.source_tail_policy": "runtime-n-bounded-transfer-tail-padding-and-store",
+        "tcrv_frontend.runtime_element_count_constraint": "source-runtime-extent",
+    }
+
+
+def validate_source_frontdoor_runtime_authority(
+    text: str, context: str, *, required: bool
+) -> dict[str, str]:
+    if "source_frontend_runtime_avl_authority" not in text:
+        if required:
+            raise BridgeError(
+                f"{context} missing source_frontend_runtime_avl_authority"
+            )
+        return {}
+    values = parse_comment_key_values(text, "source_frontend_runtime_avl_authority")
+    expected = expected_vector_source_frontdoor_metadata()
+    key_map = {
+        "source_kind": "tcrv_frontend.source_kind",
+        "source_authority": "tcrv_frontend.source_authority",
+        "runtime_extent_arg": "tcrv_frontend.runtime_extent_arg",
+        "source_loop_step": "tcrv_frontend.source_loop_step",
+        "source_vector_chunk_extent": "tcrv_frontend.source_vector_chunk_extent",
+        "active_lane_authority": "tcrv_frontend.active_lane_authority",
+        "source_tail_policy": "tcrv_frontend.source_tail_policy",
+        "runtime_element_count_constraint": "tcrv_frontend.runtime_element_count_constraint",
+    }
+    for source_key, metadata_name in key_map.items():
+        actual = values.get(source_key, "")
+        expected_value = expected[metadata_name]
+        if actual != expected_value:
+            raise BridgeError(
+                f"{context} source_frontend_runtime_avl_authority {source_key}="
+                f"{actual!r} does not match expected {expected_value!r}"
+            )
+    runtime_count_authority = (
+        "dispatch_runtime_element_count_source: n is the source scf.for "
+        "upper bound and runtime AVL"
+    )
+    if runtime_count_authority not in text:
+        raise BridgeError(
+            f"{context} missing dispatch runtime element-count source-frontdoor authority"
+        )
+    return values
+
+
+def validate_bundle_source_frontdoor_metadata(
+    selected_records: dict[str, dict[str, Any]], *, required: bool
+) -> dict[str, dict[str, str]]:
+    if not required:
+        return {}
+    expected = expected_vector_source_frontdoor_metadata()
+    observed: dict[str, dict[str, str]] = {}
+    for label, record in selected_records.items():
+        context = f"dispatch bundle {label} record"
+        observed[label] = {}
+        for name, expected_value in expected.items():
+            actual = require_bundle_selected_metadata(record, name, context)
+            if actual != expected_value:
+                raise BridgeError(
+                    f"{context} selected_plan_metadata {name}={actual!r} "
+                    f"does not match expected {expected_value!r}"
+                )
+            observed[label][name] = actual
+        source_kind = require_bundle_selected_metadata(
+            record, "tcrv_rvv.selected_binary_source_kind", context
+        )
+        if source_kind != "frontend-lowering":
+            raise BridgeError(
+                f"{context} selected RVV source kind {source_kind!r} does not "
+                "match vector source-frontdoor authority"
+            )
+        observed[label]["tcrv_rvv.selected_binary_source_kind"] = source_kind
+    return observed
 
 
 def parse_comment_key_values(source: str, field: str) -> dict[str, str]:
@@ -1901,6 +2053,36 @@ def validate_dispatch_bundle_manifest_authority(record: dict[str, Any]) -> None:
         raise BridgeError(
             f"{context} generated RVV vector shape does not match requested "
             f"{ACTIVE_VECTOR_SHAPE}"
+        )
+    selected_source_kind = require_bundle_selected_metadata(
+        record, "tcrv_rvv.selected_binary_source_kind", context
+    )
+    if selected_source_kind not in {
+        "frontend-lowering",
+        f"default-{selected_family}-typed-body-materialization",
+        "direct-typed-microkernel-body",
+    }:
+        raise BridgeError(
+            f"{context} generated RVV selected source kind "
+            f"{selected_source_kind!r} is unsupported"
+        )
+    if (
+        require_bundle_selected_metadata(
+            record, "tcrv_rvv.selected_binary_microkernel_op", context
+        )
+        != active_rvv_microkernel_op_name()
+    ):
+        raise BridgeError(
+            f"{context} generated RVV microkernel op does not match requested "
+            f"{active_rvv_microkernel_op_name()}"
+        )
+    emitc_source_op = require_bundle_selected_metadata(
+        record, "tcrv_rvv.emitc_source_op", context
+    )
+    if emitc_source_op != active_rvv_emitc_source_op_name():
+        raise BridgeError(
+            f"{context} generated RVV EmitC source op {emitc_source_op!r} "
+            f"does not match requested {active_rvv_emitc_source_op_name()!r}"
         )
 
 
@@ -2990,6 +3172,9 @@ def selected_artifact_root(args: argparse.Namespace) -> Path:
 def selected_input_path(args: argparse.Namespace) -> Path:
     if args.input:
         return Path(args.input)
+    vector_family = vector_source_frontend_family(args)
+    if vector_family:
+        return VECTOR_SOURCE_FRONTEND_INPUTS[vector_family]
     default_shape = str(ACTIVE_ARITHMETIC_FAMILY["default_vector_shape"])
     if ACTIVE_VECTOR_SHAPE != default_shape:
         if args.use_target_artifact_bundle and args.use_plan_and_export_bundle_front_door:
@@ -3014,6 +3199,8 @@ def execution_planning_command_args(args: argparse.Namespace) -> list[str]:
     command_args: list[str] = []
     if args.lower_linalg_frontend:
         command_args.append("--tcrv-lower-linalg-rvv-binary-to-exec")
+    if vector_source_frontend_requested(args):
+        command_args.append("--tcrv-lower-source-rvv-binary-to-exec")
     command_args.append("--tcrv-execution-planning-pipeline")
     return command_args
 
@@ -3111,6 +3298,20 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     source_text = source_path.read_text(encoding="utf-8")
     header_text = header_path.read_text(encoding="utf-8")
     source_vector_config = validate_library_dispatch_source(source_text)
+    source_frontdoor_required = vector_source_frontend_requested(args)
+    source_frontdoor_authority = validate_source_frontdoor_runtime_authority(
+        source_text,
+        "generated dispatch bundle source",
+        required=source_frontdoor_required,
+    )
+    header_source_frontdoor_authority = validate_source_frontdoor_runtime_authority(
+        header_text,
+        "generated dispatch bundle header",
+        required=source_frontdoor_required,
+    )
+    bundle_source_frontdoor_metadata = validate_bundle_source_frontdoor_metadata(
+        selected_records, required=source_frontdoor_required
+    )
     selected_kernel = parse_selected_kernel_from_source(source_text)
     validate_expected_selected_kernel(args, selected_kernel)
     generated_symbols = {
@@ -3186,7 +3387,12 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         if args.use_plan_and_export_bundle_front_door
         else "tcrv-execution-planning-pipeline"
     )
-    fixture_free_frontend_pipeline = bool(args.use_plan_and_export_bundle_front_door)
+    fixture_free_frontend_pipeline = bool(
+        args.use_plan_and_export_bundle_front_door or frontend_lowering_requested(args)
+    )
+    fixture_free_pipeline_path = source_frontend_pipeline_path(
+        args, bundle=args.use_plan_and_export_bundle_front_door
+    )
     pipeline_artifact_route_evidence = build_bundle_route_evidence(
         selected_records,
         selected_paths,
@@ -3233,11 +3439,18 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "planned_dispatch_pipeline": planned_dispatch_pipeline,
         "bundle_export_mode": bundle_export_mode,
         "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
-        "fixture_free_pipeline_path": (
-            "source-rvv-binary-frontend-to-plan-and-export-bundle"
-            if fixture_free_frontend_pipeline
-            else "preplanned-mlir-to-target-artifact-bundle"
+        "fixture_free_pipeline_path": fixture_free_pipeline_path,
+        "frontend_source_kind": (
+            "vector-scf-runtime-source"
+            if source_frontdoor_required
+            else "linalg-or-preplanned-source"
         ),
+        "source_frontdoor_authority": {
+            "required": source_frontdoor_required,
+            "source": source_frontdoor_authority,
+            "header": header_source_frontdoor_authority,
+            "bundle_selected_plan_metadata": bundle_source_frontdoor_metadata,
+        },
         "rvv_config": source_vector_config,
         "bundle_index": relative_to_repo(index_path, root),
         "bundle_index_summary": bundle_records_summary(records),
@@ -3434,6 +3647,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         timeout_seconds=args.timeout,
     )
     library_vector_config = validate_library_dispatch_source(library_source_text)
+    source_frontdoor_required = vector_source_frontend_requested(args)
+    source_frontdoor_authority = validate_source_frontdoor_runtime_authority(
+        library_source_text,
+        "generated dispatch library source",
+        required=source_frontdoor_required,
+    )
     selected_kernel = parse_selected_kernel_from_source(library_source_text)
     validate_expected_selected_kernel(args, selected_kernel)
     generated_symbols = {
@@ -3533,7 +3752,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     }
     dispatch_object_route = active_dispatch_object_route_id()
     self_check_object_route = active_self_check_object_route_id()
-    fixture_free_frontend_pipeline = bool(args.lower_linalg_frontend)
+    fixture_free_frontend_pipeline = frontend_lowering_requested(args)
     pipeline_artifact_route_evidence = build_direct_route_evidence(
         root=root,
         fixture_free_frontend_pipeline=fixture_free_frontend_pipeline,
@@ -3571,11 +3790,18 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         ),
         "frontend_pipeline_args": execution_planning_command_args(args),
         "fixture_free_frontend_pipeline": fixture_free_frontend_pipeline,
-        "fixture_free_pipeline_path": (
-            "marked-linalg-rvv-binary-frontend-to-execution-planning"
-            if fixture_free_frontend_pipeline
-            else "preplanned-mlir-to-execution-planning"
+        "fixture_free_pipeline_path": source_frontend_pipeline_path(
+            args, bundle=False
         ),
+        "frontend_source_kind": (
+            "vector-scf-runtime-source"
+            if source_frontdoor_required
+            else "linalg-or-preplanned-source"
+        ),
+        "source_frontdoor_authority": {
+            "required": source_frontdoor_required,
+            "source": source_frontdoor_authority,
+        },
         "library_source_export_route": "generic-target-source-artifact",
         "self_check_source_export_route": str(
             ACTIVE_ARITHMETIC_FAMILY["self_check_route"]
@@ -3840,6 +4066,29 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
     flags = validate_self_check_dispatch_source(sample_source)
     assert_self_test(flags["selected_march"] == "rv64gcv", "selected march parser failed")
     assert_self_test(flags["selected_mabi"] == "lp64d", "selected mabi parser failed")
+    sample_source_frontdoor = (
+        sample_source
+        + "\n/* source_frontend_runtime_avl_authority: "
+        "source_kind=mlir-vector-scf-runtime-i32-vadd.v1, "
+        "source_authority=source-scf-for-runtime-upper-bound, "
+        "runtime_extent_arg=n, source_loop_step=16, "
+        "source_vector_chunk_extent=16, "
+        "active_lane_authority=mlir-vector-transfer-tail-active-lanes, "
+        "source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, "
+        "runtime_element_count_constraint=source-runtime-extent */\n"
+        "/* dispatch_runtime_element_count_source: n is the source scf.for "
+        "upper bound and runtime AVL; no fixed source-extent trap is emitted "
+        "before dispatch */"
+    )
+    source_frontdoor = validate_source_frontdoor_runtime_authority(
+        sample_source_frontdoor,
+        "self-test generated dispatch source",
+        required=True,
+    )
+    assert_self_test(
+        source_frontdoor["source_kind"] == "mlir-vector-scf-runtime-i32-vadd.v1",
+        "source-frontdoor runtime AVL authority parser failed",
+    )
 
     compile_command = build_remote_compile_object_command(
         "/tmp/tianchenrv_rvv_scalar_dispatch_e2e_self_test", flags
@@ -4204,9 +4453,64 @@ artifact[2]:
     role: "typed-rvv-binary-source"
     note: "bounded"
   selected_plan_metadata[2]:
+    name: "tcrv_rvv.selected_binary_source_kind"
+    value: "frontend-lowering"
+    role: "typed-rvv-binary-source-identity"
+    note: "bounded"
+  selected_plan_metadata[3]:
+    name: "tcrv_rvv.selected_binary_microkernel_op"
+    value: "tcrv_rvv.i32_vadd_microkernel"
+    role: "typed-rvv-binary-source-identity"
+    note: "bounded"
+  selected_plan_metadata[4]:
+    name: "tcrv_rvv.emitc_source_op"
+    value: "tcrv_rvv.i32_add"
+    role: "typed-rvv-emitc-source-op"
+    note: "bounded"
+  selected_plan_metadata[5]:
     name: "tcrv_scalar.selected_binary_family"
     value: "i32-vadd"
     role: "typed-scalar-binary-source"
+    note: "bounded"
+  selected_plan_metadata[6]:
+    name: "tcrv_frontend.source_kind"
+    value: "mlir-vector-scf-runtime-i32-vadd.v1"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[7]:
+    name: "tcrv_frontend.source_authority"
+    value: "source-scf-for-runtime-upper-bound"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[8]:
+    name: "tcrv_frontend.runtime_extent_arg"
+    value: "n"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[9]:
+    name: "tcrv_frontend.source_loop_step"
+    value: "16"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[10]:
+    name: "tcrv_frontend.source_vector_chunk_extent"
+    value: "16"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[11]:
+    name: "tcrv_frontend.active_lane_authority"
+    value: "mlir-vector-transfer-tail-active-lanes"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[12]:
+    name: "tcrv_frontend.source_tail_policy"
+    value: "runtime-n-bounded-transfer-tail-padding-and-store"
+    role: "source-frontdoor-runtime-avl-authority"
+    note: "bounded"
+  selected_plan_metadata[13]:
+    name: "tcrv_frontend.runtime_element_count_constraint"
+    value: "source-runtime-extent"
+    role: "source-frontdoor-runtime-avl-authority"
     note: "bounded"
 """.rstrip()
     sample_bundle_index = sample_bundle_index.replace(
@@ -4242,6 +4546,14 @@ artifact[2]:
         for record in bundle_records:
             (bundle_dir / record["file_name"]).write_bytes(b"artifact")
         selected = select_dispatch_bundle_records(bundle_records, bundle_dir)
+        source_frontdoor_metadata = validate_bundle_source_frontdoor_metadata(
+            selected, required=True
+        )
+        assert_self_test(
+            source_frontdoor_metadata["source"]["tcrv_frontend.source_kind"]
+            == "mlir-vector-scf-runtime-i32-vadd.v1",
+            "bundle source-frontdoor selected metadata parser failed",
+        )
         assert_self_test(
             selected["object"]["artifact_kind"] == "riscv-elf-relocatable-object",
             "bundle dispatch object record was not selected",
@@ -4613,6 +4925,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "the execution-planning pipeline"
         ),
     )
+    parser.add_argument(
+        "--lower-vector-i32-vadd-frontend",
+        action="store_true",
+        help=(
+            "Use the production bounded source RVV binary frontend on the "
+            "dynamic vector/SCF i32-vadd bundle fixture before dispatch "
+            "planning and artifact invocation"
+        ),
+    )
+    parser.add_argument(
+        "--lower-vector-i32-vsub-frontend",
+        action="store_true",
+        help=(
+            "Use the production bounded source RVV binary frontend on the "
+            "dynamic vector/SCF i32-vsub bundle fixture before dispatch "
+            "planning and artifact invocation"
+        ),
+    )
     parser.add_argument("--ssh-target", default=DEFAULT_SSH_TARGET)
     parser.add_argument("--connect-timeout", type=int, default=10)
     parser.add_argument("--ssh-option", action="append", default=[])
@@ -4659,6 +4989,35 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+    frontend_flags = [
+        args.lower_linalg_frontend,
+        args.lower_vector_i32_vadd_frontend,
+        args.lower_vector_i32_vsub_frontend,
+    ]
+    if sum(bool(flag) for flag in frontend_flags) > 1:
+        print(
+            "rvv_scalar_dispatch_e2e: choose only one frontend lowering flag",
+            file=sys.stderr,
+        )
+        return 1
+    vector_family = vector_source_frontend_family(args)
+    if vector_family:
+        active_family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+        if active_family != vector_family:
+            print(
+                "rvv_scalar_dispatch_e2e: vector frontend flag "
+                f"{vector_family} does not match arithmetic family "
+                f"{active_family}",
+                file=sys.stderr,
+            )
+            return 1
+        if ACTIVE_VECTOR_SHAPE != "i32m1":
+            print(
+                "rvv_scalar_dispatch_e2e: dynamic vector source-frontdoor "
+                "dispatch evidence is currently bounded to i32m1",
+                file=sys.stderr,
+            )
+            return 1
 
     try:
         evidence = run_bridge(args)

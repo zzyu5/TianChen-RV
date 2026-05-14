@@ -65,6 +65,66 @@ Vector source arithmetic-family adapter registry.
 - None - task complete
 
 
+## Session 61: RVV source-frontdoor generated artifact invocation closure
+
+**Date**: 2026-05-14
+**Task**: RVV source-frontdoor generated artifact invocation closure
+**Branch**: `main`
+
+### Summary
+
+Closed the scalar-dispatch e2e invocation handoff for dynamic vector i32
+vadd/vsub source-frontdoor inputs. The runner now drives production
+plan-and-export bundle artifacts from source fixtures and validates the
+generated dispatch source/header/object plus external caller.
+
+### Main Changes
+
+- Added `--lower-vector-i32-vadd-frontend` and
+  `--lower-vector-i32-vsub-frontend` to `rvv_scalar_dispatch_e2e.py`.
+- Routed those flags through `--tcrv-lower-source-rvv-binary-to-exec` in
+  two-step mode and through
+  `--tcrv-plan-and-export-target-artifact-bundle` in direct front-door mode.
+- Validated generated bundle/source/header metadata for source-frontdoor
+  runtime AVL authority, selected RVV source kind, microkernel op, EmitC source
+  op, runtime element-count `n`, and dispatch guard `rvv_available`.
+- Added focused script lit coverage for dynamic vector i32-vadd and i32-vsub
+  dispatch bundle invocation dry-runs.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVTarget TianChenRVRVVPlugin TianChenRVScalarTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 -m py_compile scripts/rvv_scalar_dispatch_e2e.py`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Local vector vadd/vsub plan-and-export dispatch bundle dry-runs.
+- Local vector vsub two-step dispatch bundle dry-run.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-scalar-dispatch-bundle-e2e.test` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVScalarDispatch` from `build/test`
+- `ssh rvv` vector i32-vsub plan-and-export dispatch bundle run
+  `codex-vector-vsub-ssh`, `ssh_evidence_verified = true`.
+- `git diff --check`
+
+### Self-Repair
+
+The first bundle validation was too strict for older non-vector typed-body
+fixtures because it required `frontend-lowering` everywhere. The check now
+allows existing typed-body source kinds generally and requires
+`frontend-lowering` only for vector source-frontdoor evidence.
+
+### Spec Update Judgment
+
+No `.trellis/spec/` update was needed. This round extended runner/evidence
+consumption of existing source-frontdoor and target-artifact contracts without
+adding a new dialect, schema, plugin protocol, or architecture rule.
+
+### Status
+
+ [OK] Completed; archived and committed in this round.
+
+
 ## Session 58: Template typed-role op construction path
 
 **Date**: 2026-05-13
