@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack boundaries for the task."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Confirms unified RISC-V MLIR scope, no descriptor-driven production architecture, and RVV real-hardware evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV selected binary family, typed source identity, selected config, runtime length, and descriptor mirror quarantine rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines default artifact export preflight, target-neutral generic front door, selected-state bundle records, and runtime length authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines typed extension op to EmitC/RVV intrinsic route and rejects descriptor-string computation authority."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin/interface boundary and prevents RVV semantic branching in generic orchestration."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/e2e evidence and dry-run versus ssh claim boundaries."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-selected-op-family-production-route/prd.md", "reason": "Previous selected op-family route closure and remaining descriptor-authority concern."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-05-14-rvv-compiler-produced-artifact-e2e-closure/prd.md", "reason": "Prior compiler-produced vadd artifact evidence and selected-state expectations."}

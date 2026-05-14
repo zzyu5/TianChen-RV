@@ -15,6 +15,7 @@
 // RUN: rm -rf %t.vector.dynamic.missing_source_identity.bundle && mkdir %t.vector.dynamic.missing_source_identity.bundle
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"name = \"tcrv_rvv\.selected_binary_source_kind\""; text,count=re.subn(pattern, "name = \"tcrv_rvv.stale_selected_binary_source_kind\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.missing_source_identity.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: test ! -f %t.vector.dynamic.missing_source_identity.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(?m)^\s*tcrv_rvv\.(?:lowering_boundary|i32_vadd_microkernel attributes)[^\n]*"; attr=r", (?:selected_binary_(?:source_kind|dtype|family|operator|microkernel_op)|emitc_(?:source_op|lowerable_op_interface)) = \"[^\"]*\""; text,count=re.subn(pattern, lambda m: re.sub(attr, "", m.group(0)), text); assert count == 2; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=SELF-CHECK-QUARANTINE --implicit-check-not="#include <riscv_vector.h>"
 // RUN: rm -rf %t.vector.dynamic.stale_selected_config.bundle && mkdir %t.vector.dynamic.stale_selected_config.bundle
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_rvv\.selected_vector_lmul\"[^}]*value = )\"m1\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"m2\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.stale_selected_config.bundle 2>&1 | FileCheck %s --check-prefix=STALE-SELECTED-CONFIG --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: test ! -f %t.vector.dynamic.stale_selected_config.bundle/tianchenrv-target-artifact-bundle.index
@@ -179,6 +180,15 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX-NEXT: value: "16"
 // INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
 // INDEX-NEXT: value: "source_kind=frontend-lowering,family=i32-vadd,microkernel_op=tcrv_rvv.i32_vadd_microkernel"
+// INDEX: route_claim[4]:
+// INDEX-NEXT: name: "descriptor_compute_authority"
+// INDEX-NEXT: value: "quarantined-by-selected-rvv-scalar-components"
+// INDEX: route_claim[5]:
+// INDEX-NEXT: name: "descriptor_config_authority"
+// INDEX-NEXT: value: "quarantined-by-dispatch-selected-config-contract"
+// INDEX: route_claim[6]:
+// INDEX-NEXT: name: "descriptor_runtime_authority"
+// INDEX-NEXT: value: "quarantined-runtime-avl-from-ir-backed-abi"
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vadd-dispatch-header.h"
 // INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vadd-dispatch-object.o"
 
@@ -199,6 +209,7 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 
 // STALE-SOURCE-ID: selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind' selected binary source kind must be 'frontend-lowering'
 // MISSING-SOURCE-ID: requires selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind'
+// SELF-CHECK-QUARANTINE: requires selected RVV binary source identity before target artifact export
 // STALE-SELECTED-CONFIG: selected_plan_metadata 'tcrv_rvv.selected_vector_lmul' lmul must be 'm1'
 // MISSING-SELECTED-CONFIG: requires selected_plan_metadata 'tcrv_rvv.selected_vector_lmul'
 // STALE-RUNTIME-LENGTH: selected_plan_metadata 'tcrv_rvv.runtime_avl_source' must use value 'runtime-element-count-abi-parameter'

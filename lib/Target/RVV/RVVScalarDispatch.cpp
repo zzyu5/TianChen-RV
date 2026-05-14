@@ -3435,6 +3435,12 @@ TargetArtifactRouteMetadata buildRVVScalarDispatchRouteMetadata(
   metadata.addClaimField("runtime_correctness_claim", "none");
   metadata.addClaimField("hardware_execution_claim", "none");
   metadata.addClaimField("performance_claim", "none");
+  metadata.addClaimField("descriptor_compute_authority",
+                         "quarantined-by-selected-rvv-scalar-components");
+  metadata.addClaimField("descriptor_config_authority",
+                         "quarantined-by-dispatch-selected-config-contract");
+  metadata.addClaimField("descriptor_runtime_authority",
+                         "quarantined-runtime-avl-from-ir-backed-abi");
   return metadata;
 }
 

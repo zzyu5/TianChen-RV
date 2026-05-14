@@ -1936,6 +1936,13 @@ llvm::Error validateMicrokernelSourceIdentityForRecord(
       kEmitCLowerableOpInterfaceName, "generated EmitC lowerable interface");
 }
 
+bool selectedVariantRequiresBoundarySourceIdentity(const SelectedPath &path) {
+  auto sourceKind =
+      getPathVariantOperation(path)->getAttrOfType<mlir::StringAttr>(
+          getRVVSelectedBinarySourceKindMetadataName());
+  return sourceKind && sourceKind.getValue().trim() == "frontend-lowering";
+}
+
 llvm::Error findAndValidateBoundary(
     KernelOp kernel, const SelectedPath &path,
     const llvm::StringSet<> &selectedRVVPathKeys,
@@ -2776,6 +2783,9 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
           findAndValidateBoundary(kernel, path, selectedRVVPathKeys,
                                   **selectedConfig, boundary))
     return std::move(error);
+  const bool effectiveRequireBoundarySourceIdentity =
+      requireBoundarySourceIdentity ||
+      selectedVariantRequiresBoundarySourceIdentity(path);
 
   llvm::Expected<const RVVBinaryFamilyDescriptor *> rvvBinaryFamily =
       resolveSelectedI64FamilyForPath(kernel, path);
@@ -2854,7 +2864,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     if (llvm::Error error =
             validateBoundarySourceIdentityForRecord(
                 kernel, path, boundary, record.descriptor,
-                requireBoundarySourceIdentity,
+                effectiveRequireBoundarySourceIdentity,
                 &record.selectedBinarySourceKind))
       return std::move(error);
     if (llvm::Error error = validateMicrokernelSourceIdentityForRecord(
@@ -2928,7 +2938,8 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error =
           validateBoundarySourceIdentityForRecord(
               kernel, path, boundary, record.descriptor,
-              requireBoundarySourceIdentity, &record.selectedBinarySourceKind))
+              effectiveRequireBoundarySourceIdentity,
+              &record.selectedBinarySourceKind))
     return std::move(error);
   if (llvm::Error error = validateMicrokernelSourceIdentityForRecord(
           kernel, microkernel, record.descriptor, record.selectedBinarySourceKind))
@@ -4402,6 +4413,12 @@ void addRVVMicrokernelConservativeRouteClaims(
   metadata.addClaimField("runtime_correctness_claim", "none");
   metadata.addClaimField("hardware_execution_claim", "none");
   metadata.addClaimField("performance_claim", "none");
+  metadata.addClaimField("descriptor_compute_authority",
+                         "quarantined-after-typed-rvv-source-authority");
+  metadata.addClaimField("descriptor_config_authority",
+                         "quarantined-after-selected-rvv-config-contract");
+  metadata.addClaimField("descriptor_runtime_authority",
+                         "quarantined-runtime-avl-from-ir-backed-abi");
 }
 
 TargetArtifactRouteMetadata buildRVVMicrokernelArtifactRouteMetadata(

@@ -17,6 +17,7 @@
 // RUN: rm -rf %t.vector.dynamic.vsub.missing-op-source-id.bundle && mkdir %t.vector.dynamic.vsub.missing-op-source-id.bundle
 // RUN: not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.vsub.missing-op-source-id.bundle %t.vector.dynamic.vsub.missing-op-source-id.planned.mlir 2>&1 | FileCheck %s --check-prefix=MISSING-OP-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: test ! -f %t.vector.dynamic.vsub.missing-op-source-id.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c %t.vector.dynamic.vsub.missing-op-source-id.planned.mlir 2>&1 | FileCheck %s --check-prefix=SELF-CHECK-QUARANTINE --implicit-check-not="#include <riscv_vector.h>"
 
 module @plan_vector_dynamic_i32_vsub_bundle_input {
   tcrv.exec.capability @no_rvv_policy {
@@ -138,6 +139,17 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // INDEX-NEXT: value: "runtime_element_count_c_name=n,runtime_avl_source=runtime-element-count-abi-parameter,runtime_avl_role=runtime-element-count,runtime_vl_source=tcrv_rvv.setvl,runtime_vl_scope=tcrv_rvv.with_vl"
 // INDEX: name: "tcrv_rvv.dispatch_contract_descriptor_element_count"
 // INDEX-NEXT: value: "16"
+// INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
+// INDEX-NEXT: value: "source_kind=frontend-lowering,family=i32-vsub,microkernel_op=tcrv_rvv.i32_vsub_microkernel"
+// INDEX: route_claim[4]:
+// INDEX-NEXT: name: "descriptor_compute_authority"
+// INDEX-NEXT: value: "quarantined-by-selected-rvv-scalar-components"
+// INDEX: route_claim[5]:
+// INDEX-NEXT: name: "descriptor_config_authority"
+// INDEX-NEXT: value: "quarantined-by-dispatch-selected-config-contract"
+// INDEX: route_claim[6]:
+// INDEX-NEXT: name: "descriptor_runtime_authority"
+// INDEX-NEXT: value: "quarantined-runtime-avl-from-ir-backed-abi"
 // INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-export-rvv-scalar-i32-vsub-dispatch-header.h"
 // INDEX: file_name: "artifact-2-riscv-elf-relocatable-object-tcrv-export-rvv-scalar-i32-vsub-dispatch-object.o"
 
@@ -170,3 +182,4 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // STALE-BUNDLE-VL: selected_plan_metadata 'tcrv_rvv.runtime_vl_scope'
 // STALE-BUNDLE-VL-SAME: must use value 'tcrv_rvv.with_vl'
 // MISSING-OP-SOURCE-ID: requires selected RVV binary source identity before target artifact export
+// SELF-CHECK-QUARANTINE: requires selected RVV binary source identity before target artifact export

@@ -1261,6 +1261,63 @@ printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
 [OK] Completed and archived; commit pending.
 
 
+## Session 63: RVV selected route default quarantine
+
+**Date**: 2026-05-14
+**Task**: RVV selected route default quarantine
+**Branch**: `main`
+
+### Summary
+
+Quarantined descriptor-only authority on the migrated dynamic vector
+`i32-vadd`/`i32-vsub` selected route. The default RVV+scalar dispatch bundle
+route now records explicit descriptor compute/config/runtime quarantine claims,
+and frontend-lowering selected variants must keep matching selected
+lowering-boundary source identity even when reached through explicit RVV
+self-check helper export rather than the generic artifact front door.
+
+### Main Changes
+
+- Added `selectedVariantRequiresBoundarySourceIdentity` in
+  `lib/Target/RVV/RVVMicrokernel.cpp`, making `frontend-lowering` selected
+  variants require selected lowering-boundary source identity inside
+  `buildModuleRecord()`.
+- Added descriptor compute/config/runtime quarantine route claims to RVV
+  microkernel artifact routes and RVV+scalar dispatch artifact routes.
+- Extended dynamic vector vadd/vsub bundle tests to assert quarantine claims in
+  generated bundle indexes.
+- Added fail-closed vadd/vsub self-check-helper coverage for modules where
+  selected source identity is stripped from both the RVV lowering boundary and
+  RVV microkernel op. The vsub helper path previously emitted C for this
+  stripped frontend-lowering module.
+- Confirmed changed production files are limited to RVV target/export code; no
+  generic core orchestration or `tcrv.exec` sources changed.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVTarget tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir` from `build/test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-microkernel-bundle-e2e.test` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/target-artifact-bundle-positive.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir Target/RVVMicrokernel/rvv-microkernel-pipeline.mlir` from `build/test`
+- Manual stripped-vsub self-check helper probe failed closed with `requires
+  selected RVV binary source identity before target artifact export`.
+- `git diff --check`
+
+No `ssh rvv` evidence was run because this round changed fail-closed
+preflight/quarantine metadata only. It did not change generated RVV
+source/object semantics, runtime behavior, correctness claims, or performance
+claims.
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.
+
+
 ## Session 62: RVV selected op-family production route
 
 **Date**: 2026-05-14

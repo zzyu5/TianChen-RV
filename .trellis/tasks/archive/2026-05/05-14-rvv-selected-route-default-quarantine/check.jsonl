@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck/e2e validation rules for changed RVV artifact route behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Checks required for selected-state artifact records, preflight, bundle output, and runtime length authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Checks required for selected source identity, selected config, runtime length, typed family body, and descriptor mirror quarantine."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Final audit boundary for no generic RVV semantic branches and no descriptor-driven production architecture."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-selected-op-family-production-route/prd.md", "reason": "Regression baseline for vsub selected op-family production route checks."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-05-14-rvv-compiler-produced-artifact-e2e-closure/prd.md", "reason": "Regression baseline for vadd compiler-produced source/header/object/e2e checks."}
