@@ -106,6 +106,8 @@ module @rvv_microkernel_i32_vsub_export_input {
 // SOURCE: __riscv_vse32_v_i32m1
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
 
+// HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
+// HEADER: /* emitc_body_mapping_status: selected RVV EmitC body mapping was validated before source/header/object artifact export; this header remains declaration-only and carries no intrinsic include. */
 // HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_EXPORT_I32_VSUB_RVV_SUB_SLICE_H
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>

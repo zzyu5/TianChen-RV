@@ -572,6 +572,16 @@ findCompositeRouteClaimField(const TargetArtifactCompositeExporter &exporter,
   return nullptr;
 }
 
+const TargetArtifactSelectedPlanMetadataRequirement *
+findCompositeRouteSelectedPlanRequirement(
+    const TargetArtifactCompositeExporter &exporter, llvm::StringRef name) {
+  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
+       exporter.getRouteMetadata().getSelectedPlanMetadataRequirements())
+    if (requirement.name == name)
+      return &requirement;
+  return nullptr;
+}
+
 bool expectCompositeRouteConservativeClaimFields(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
   const TargetArtifactCompositeExporter *exporter =
@@ -601,6 +611,55 @@ bool expectCompositeRouteConservativeClaimFields(
   return true;
 }
 
+bool expectCompositeRouteSelectedPlanPresenceRequirement(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef requirementName, llvm::StringRef expectedRole) {
+  const TargetArtifactCompositeExporter *exporter =
+      registry.lookupComposite(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing composite route '" << routeID
+                 << "' for selected-plan presence requirement check\n";
+    return false;
+  }
+
+  const TargetArtifactSelectedPlanMetadataRequirement *requirement =
+      findCompositeRouteSelectedPlanRequirement(*exporter, requirementName);
+  if (!requirement || requirement->requireExactValue ||
+      !requirement->value.empty() || requirement->role != expectedRole) {
+    llvm::errs() << "composite route '" << routeID
+                 << "' lacks expected selected-plan presence requirement '"
+                 << requirementName << "'\n";
+    return false;
+  }
+
+  return true;
+}
+
+bool expectCompositeRouteSelectedPlanExactRequirement(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
+    llvm::StringRef requirementName, llvm::StringRef expectedValue,
+    llvm::StringRef expectedRole) {
+  const TargetArtifactCompositeExporter *exporter =
+      registry.lookupComposite(routeID);
+  if (!exporter) {
+    llvm::errs() << "missing composite route '" << routeID
+                 << "' for selected-plan exact requirement check\n";
+    return false;
+  }
+
+  const TargetArtifactSelectedPlanMetadataRequirement *requirement =
+      findCompositeRouteSelectedPlanRequirement(*exporter, requirementName);
+  if (!requirement || !requirement->requireExactValue ||
+      requirement->value != expectedValue || requirement->role != expectedRole) {
+    llvm::errs() << "composite route '" << routeID
+                 << "' lacks expected selected-plan exact requirement '"
+                 << requirementName << "'\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectCompositeRouteRegistrationMetadata(
     const TargetArtifactExporterRegistry &registry,
     const tianchenrv::target::rvv::RVVMicrokernelArtifactRouteDescriptor
@@ -623,6 +682,87 @@ bool expectCompositeRouteRegistrationMetadata(
                     "metadata\n";
     return false;
   }
+  if (!route.family) {
+    llvm::errs() << "composite route '" << route.getRouteID()
+                 << "' has no RVV family for selected-plan metadata check\n";
+    return false;
+  }
+
+  const RVVBinaryFamilyDescriptor &family = *route.family;
+  bool expectsTypedSource =
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64;
+  llvm::StringRef expectedRole =
+      expectsTypedSource
+          ? tianchenrv::target::rvv::getRVVTypedBinarySourceMetadataRole()
+          : tianchenrv::target::rvv::
+                getRVVLegacyDescriptorMirrorMetadataRole();
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(), "tcrv_rvv.selected_binary_dtype",
+          family.dtypeID, expectedRole))
+    return false;
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(), "tcrv_rvv.selected_binary_family",
+          family.familyID, expectedRole))
+    return false;
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(), "tcrv_rvv.selected_binary_operator",
+          family.arithmeticVerb, expectedRole))
+    return false;
+  if (expectsTypedSource) {
+    if (!expectCompositeRouteSelectedPlanExactRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataName(),
+            family.arithmeticOpName,
+            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanExactRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::
+                getRVVEmitCLowerableOpInterfaceMetadataName(),
+            "TCRVEmitCLowerableOpInterface",
+            tianchenrv::target::rvv::getRVVEmitCSourceOpMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanExactRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataValue(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanExactRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataValue(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanExactRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataValue(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::
+                getRVVEmitCArithmeticIntrinsicMetadataName(),
+            tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+  } else if (!expectCompositeRouteSelectedPlanExactRequirement(
+                 registry, route.getRouteID(),
+                 "tcrv_rvv.selected_lowering_descriptor",
+                 family.loweringDescriptor, expectedRole)) {
+    return false;
+  }
+  if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+          registry, route.getRouteID(), "tcrv_rvv.selected_vector_shape",
+          "selected-rvv-vector-shape-config"))
+    return false;
+  if (!expectCompositeRouteSelectedPlanExactRequirement(
+          registry, route.getRouteID(), "tcrv_rvv.runtime_avl_source",
+          "runtime-element-count-abi-parameter",
+          "rvv-runtime-vl-avl-boundary"))
+    return false;
+
   return expectCompositeRouteConservativeClaimFields(registry,
                                                     route.getRouteID());
 }
@@ -1089,6 +1229,59 @@ bool expectGenericRouteMetadataPreflightRejectsMissingSelectedPlan(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
       "missing selected-plan route registration preflight rejected",
       {"route id", routeID, "requires selected_plan_metadata", metadataName});
+}
+
+bool expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan() {
+  TargetArtifactRouteMetadata metadata("test-runtime-abi.v1",
+                                       "test-runtime-abi-kind",
+                                       "test-runtime-abi-name",
+                                       "test-runtime-glue-role");
+  metadata.addSelectedPlanMetadataRequirement(
+      "test.emitc_body_mapping", "expected-selected-emitc-body-mapping",
+      "typed-emitc-route");
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(registry.registerCompositeExporter(
+                         TargetArtifactCompositeExporter(
+                             "test-selected-emitc-composite",
+                             "riscv-elf-relocatable-object", alwaysMatchComposite,
+                             objectMarkerExporter, "test-plugin",
+                             /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+                             /*directHelperRoute=*/false,
+                             /*componentGroup=*/{},
+                             /*externalABIName=*/{},
+                             /*candidateValidationFn=*/nullptr, metadata)),
+                     "register selected EmitC metadata composite route"))
+    return false;
+
+  TargetArtifactCandidate candidate;
+  candidate.routeID = "test-component-route";
+  candidate.runtimeABI = "test-runtime-abi.v1";
+  candidate.runtimeABIKind = "test-runtime-abi-kind";
+  candidate.runtimeABIName = "test-runtime-abi-name";
+  candidate.runtimeGlueRole = "test-runtime-glue-role";
+  candidate.selectedPlanMetadata.push_back(
+      {"test.emitc_body_mapping", "stale-selected-emitc-body-mapping",
+       "typed-emitc-route",
+       "generic composite metadata preflight stale test"});
+
+  llvm::SmallVector<TargetArtifactCandidate, 1> candidates;
+  candidates.push_back(candidate);
+  llvm::Expected<const TargetArtifactCompositeExporter *> selected =
+      selectTargetArtifactCompositeExporter(candidates, registry,
+                                            /*sourceOnly=*/false);
+  if (selected) {
+    llvm::errs() << "generic composite route metadata preflight accepted stale "
+                    "selected EmitC metadata\n";
+    return false;
+  }
+  return expectErrorContains(
+      selected.takeError(),
+      "stale selected-plan composite route metadata preflight rejected",
+      {"composite target artifact route", "test-selected-emitc-composite",
+       "route metadata preflight failed", "selected_plan_metadata",
+       "test.emitc_body_mapping", "must use value",
+       "expected-selected-emitc-body-mapping"});
 }
 
 bool containsString(llvm::ArrayRef<std::string> values,
@@ -6205,6 +6398,8 @@ int main() {
           selectTargetArtifactCompositeExporter(
               {}, compositeSelectionRegistry, /*sourceOnly=*/false),
           "object-composite", "artifact-kind composite selection"))
+    return 1;
+  if (!expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan())
     return 1;
   if (!expectGenericHeaderArtifactRouteSelection(context))
     return 1;

@@ -74,6 +74,10 @@ enum class ArtifactSelectionMode {
   HeaderOnly,
 };
 
+llvm::Error validateCompositeRouteMetadataAgainstCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactCompositeExporter &exporter);
+
 struct SelectedPath {
   VariantOp variant;
   std::string role;
@@ -1078,6 +1082,16 @@ selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
     if (!*matched)
       continue;
 
+    if (llvm::Error error =
+            validateCompositeRouteMetadataAgainstCandidates(candidates,
+                                                            exporter)) {
+      std::string message = llvm::toString(std::move(error));
+      return makeModuleArtifactExportError(
+          llvm::Twine("composite target artifact route '") +
+          exporter.getRouteID() +
+          "' route metadata preflight failed: " + message);
+    }
+
     if (TargetArtifactCompositeCandidateValidationFn validationFn =
             exporter.getCandidateValidationFn()) {
       if (llvm::Error error = validationFn(candidates)) {
@@ -1423,6 +1437,16 @@ llvm::Error appendCompositeBundleRecords(
       return matched.takeError();
     if (!*matched)
       continue;
+
+    if (llvm::Error error =
+            validateCompositeRouteMetadataAgainstCandidates(group.candidates,
+                                                            exporter)) {
+      std::string message = llvm::toString(std::move(error));
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("composite target artifact route '") +
+          exporter.getRouteID() +
+          "' route metadata preflight failed: " + message);
+    }
 
     if (TargetArtifactCompositeCandidateValidationFn validationFn =
             exporter.getCandidateValidationFn()) {
@@ -2167,13 +2191,12 @@ const SelectedPlanMetadataEntry *findSelectedPlanMetadataEntry(
 
 llvm::Error validateCandidateRouteMetadata(
     const TargetArtifactCandidate &candidate,
-    const TargetArtifactExporter &exporter) {
-  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+    const TargetArtifactRouteMetadata &metadata, llvm::StringRef routeID) {
   if (!metadata.getRuntimeABI().empty() &&
       candidate.runtimeABI != metadata.getRuntimeABI())
     return makeArtifactExportError(
         candidate.kernel,
-        llvm::Twine("route id '") + candidate.routeID +
+        llvm::Twine("route id '") + routeID +
             "' is registered for runtime_abi '" +
             metadata.getRuntimeABI() +
             "' but selected emission-plan runtime_abi is '" +
@@ -2182,7 +2205,7 @@ llvm::Error validateCandidateRouteMetadata(
       candidate.runtimeABIKind != metadata.getRuntimeABIKind())
     return makeArtifactExportError(
         candidate.kernel,
-        llvm::Twine("route id '") + candidate.routeID +
+        llvm::Twine("route id '") + routeID +
             "' is registered for runtime_abi_kind '" +
             metadata.getRuntimeABIKind() +
             "' but selected emission-plan runtime_abi_kind is '" +
@@ -2191,7 +2214,7 @@ llvm::Error validateCandidateRouteMetadata(
       candidate.runtimeABIName != metadata.getRuntimeABIName())
     return makeArtifactExportError(
         candidate.kernel,
-        llvm::Twine("route id '") + candidate.routeID +
+        llvm::Twine("route id '") + routeID +
             "' is registered for runtime_abi_name '" +
             metadata.getRuntimeABIName() +
             "' but selected emission-plan runtime_abi_name is '" +
@@ -2200,7 +2223,7 @@ llvm::Error validateCandidateRouteMetadata(
       candidate.runtimeGlueRole != metadata.getRuntimeGlueRole())
     return makeArtifactExportError(
         candidate.kernel,
-        llvm::Twine("route id '") + candidate.routeID +
+        llvm::Twine("route id '") + routeID +
             "' is registered for runtime_glue_role '" +
             metadata.getRuntimeGlueRole() +
             "' but selected emission-plan runtime_glue_role is '" +
@@ -2213,25 +2236,51 @@ llvm::Error validateCandidateRouteMetadata(
     if (!entry)
       return makeArtifactExportError(
           candidate.kernel,
-          llvm::Twine("route id '") + candidate.routeID +
+          llvm::Twine("route id '") + routeID +
               "' requires selected_plan_metadata '" + requirement.name + "'");
 
     if (entry->role != requirement.role)
       return makeArtifactExportError(
           candidate.kernel,
-          llvm::Twine("route id '") + candidate.routeID +
+          llvm::Twine("route id '") + routeID +
               "' selected_plan_metadata '" + requirement.name +
               "' must use role '" + requirement.role + "'");
 
     if (requirement.requireExactValue && entry->value != requirement.value)
       return makeArtifactExportError(
           candidate.kernel,
-          llvm::Twine("route id '") + candidate.routeID +
+          llvm::Twine("route id '") + routeID +
               "' selected_plan_metadata '" + requirement.name +
               "' must use value '" + requirement.value + "'");
   }
 
   return llvm::Error::success();
+}
+
+llvm::Error validateCandidateRouteMetadata(
+    const TargetArtifactCandidate &candidate,
+    const TargetArtifactExporter &exporter) {
+  return validateCandidateRouteMetadata(candidate, exporter.getRouteMetadata(),
+                                        exporter.getRouteID());
+}
+
+llvm::Error validateCompositeRouteMetadataAgainstCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const TargetArtifactCompositeExporter &exporter) {
+  const TargetArtifactRouteMetadata &metadata = exporter.getRouteMetadata();
+  if (!metadata.hasRuntimeABIMetadata() &&
+      metadata.getSelectedPlanMetadataRequirements().empty())
+    return llvm::Error::success();
+
+  if (candidates.size() != 1)
+    return makeModuleArtifactExportError(
+        llvm::Twine("composite route id '") + exporter.getRouteID() +
+        "' declares candidate route metadata requirements, but automatic "
+        "metadata validation requires exactly one selected emission-plan "
+        "candidate; found " + llvm::Twine(candidates.size()));
+
+  return validateCandidateRouteMetadata(candidates.front(), metadata,
+                                        exporter.getRouteID());
 }
 
 } // namespace
@@ -2513,6 +2562,15 @@ llvm::Error exportCompositeTargetArtifactRoute(
           exporter.getRouteID() +
           "' runtime ABI role contract preflight failed: " + message);
     }
+  }
+
+  if (llvm::Error error = validateCompositeRouteMetadataAgainstCandidates(
+          matches.front()->candidates, exporter)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeModuleArtifactExportError(
+        llvm::Twine("exact composite target artifact route '") +
+        exporter.getRouteID() +
+        "' route metadata preflight failed: " + message);
   }
 
   return exporter.getExportFn()(module, os);

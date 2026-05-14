@@ -156,6 +156,8 @@ module @target_artifact_bundle_positive_input {
 // DIRECT-HEADER: /* selected_binary_config: dtype=i32, family=i32-vadd
 // DIRECT-HEADER-SAME: runtime_element_count_c_name=n
 // DIRECT-HEADER-SAME: selected_role=direct variant */
+// DIRECT-HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
+// DIRECT-HEADER: /* emitc_body_mapping_status: selected RVV EmitC body mapping was validated before source/header/object artifact export; this header remains declaration-only and carries no intrinsic include. */
 // DIRECT-HEADER: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 // DIRECT-HEADER: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // DIRECT-HEADER: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */

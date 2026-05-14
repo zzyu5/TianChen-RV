@@ -1451,6 +1451,33 @@ const SelectedPlanMetadataEntry *findFirstSelectedPlanMetadataEntry(
   return nullptr;
 }
 
+void printDispatchSelectedEmitCBodyMappingSummary(llvm::raw_ostream &os,
+                                                  const DispatchPair &pair) {
+  const SelectedPlanMetadataEntry *routeKind =
+      findFirstSelectedPlanMetadataEntry(
+          pair.rvv, tianchenrv::target::rvv::getRVVEmitCRouteKindMetadataName());
+  const SelectedPlanMetadataEntry *sourceAuthority =
+      findFirstSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::getRVVEmitCSourceAuthorityMetadataName());
+  const SelectedPlanMetadataEntry *requiredHeader =
+      findFirstSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::getRVVEmitCRequiredHeaderMetadataName());
+  const SelectedPlanMetadataEntry *arithmeticIntrinsic =
+      findFirstSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::getRVVEmitCArithmeticIntrinsicMetadataName());
+  if (!routeKind || !sourceAuthority || !requiredHeader || !arithmeticIntrinsic)
+    return;
+
+  os << "/* dispatch_rvv_emitc_body_mapping: route_kind=" << routeKind->value
+     << ", source_authority=" << sourceAuthority->value
+     << ", required_header_metadata=validated-selected-plan-entry"
+     << ", arithmetic_intrinsic_metadata=validated-selected-plan-entry"
+     << ", embedded_rvv_body=selected-rvv-source-artifact */\n";
+}
+
 TargetArtifactCompositeBundleMetadata
 deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
   TargetArtifactCompositeBundleMetadata metadata;
@@ -2745,6 +2772,7 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
      << " */\n";
+  printDispatchSelectedEmitCBodyMappingSummary(os, pair);
   if (pair.selectedConfig.getFixedVectorSourceExtentContract()) {
     const support::FixedVectorSourceExtentContract &sourceExtent =
         *pair.selectedConfig.getFixedVectorSourceExtentContract();
@@ -2950,6 +2978,7 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
      << " */\n";
+  printDispatchSelectedEmitCBodyMappingSummary(os, pair);
   printCandidateMetadata(os, "rvv", pair.rvv);
   printCandidateMetadata(os, "scalar", pair.scalar);
   printDispatchMemWindowMetadata(os, pair.abiPlan.bufferWindows);

@@ -1,0 +1,21 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundary and source-of-truth constraints."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware truth, descriptor boundary, and unified RISC-V system constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Keep tcrv.exec orchestration-only and avoid extension compute semantics in core."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected family/body, selected config, EmitC route, and artifact route contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry ownership and no family branches in generic orchestration."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Execution planning pipeline and selected-boundary ownership."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, bundle export, runtime ABI, and selected source identity contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated lowerable interface boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/e2e evidence requirements and RVV evidence limits."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-emitc-body-emission-production-route/prd.md", "reason": "Previous body-emitter production route and validation baseline."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-extension-family-emitc-emission-route/prd.md", "reason": "Prior selected EmitC route metadata and artifact handoff context."}
+{"file": "lib/Target/TargetArtifactExport.cpp", "reason": "Added composite route metadata preflight for generic selection, bundle collection, and exact composite export."}
+{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "Reused source selected-plan route metadata for RVV header/object composites and added declaration-only header proof of selected EmitC body mapping validation."}
+{"file": "lib/Target/RVV/RVVScalarDispatch.cpp", "reason": "Printed sanitized dispatch source/header proof that selected RVV EmitC body mapping is consumed through the embedded selected RVV source artifact."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Covered composite selected-plan route metadata registration and generic composite metadata preflight rejection of stale selected EmitC mapping."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-header.mlir", "reason": "Asserted direct and generic RVV headers carry selected EmitC body mapping validation status."}
+{"file": "test/Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir", "reason": "Asserted vsub header route carries selected EmitC body mapping validation status."}
+{"file": "test/Target/TargetArtifactBundleExport/target-artifact-bundle-positive.mlir", "reason": "Asserted direct vadd bundle header records selected EmitC body mapping validation status."}
+{"file": "test/Target/TargetArtifactBundleExport/target-artifact-bundle-rvv-vsub.mlir", "reason": "Asserted direct vsub bundle header records selected EmitC body mapping validation status."}
+{"file": "test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir", "reason": "Asserted vector-dynamic vadd dispatch bundle source/header consume selected RVV EmitC body mapping and embedded selected RVV body source."}
+{"file": "test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir", "reason": "Asserted vector-dynamic vsub dispatch bundle source/header consume selected RVV EmitC body mapping and embedded selected RVV body source."}

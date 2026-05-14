@@ -4209,6 +4209,11 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
   os << "/* "
      << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
      << " */\n";
+  os << "/* emitc_body_mapping_source: " << record.emitcBodyMappingSource
+     << " */\n";
+  os << "/* emitc_body_mapping_status: selected RVV EmitC body mapping was "
+        "validated before source/header/object artifact export; this header "
+        "remains declaration-only and carries no intrinsic include. */\n";
   if (record.fixedSourceExtent) {
     os << "/* " << record.fixedSourceExtent->formatCommentBody() << " */\n";
     os << "/* runtime_element_count_constraint: "
@@ -4734,11 +4739,7 @@ TargetArtifactRouteMetadata buildRVVMicrokernelArtifactRouteMetadata(
   if (route.routeKind == RVVMicrokernelDirectRouteKind::Source)
     return buildRVVMicrokernelSourceRouteMetadata(*route.family);
 
-  TargetArtifactRouteMetadata metadata(
-      route.getRuntimeABI(), route.getRuntimeABIKind(),
-      route.getRuntimeABIName(), route.getRuntimeGlueRole());
-  addRVVMicrokernelConservativeRouteClaims(metadata);
-  return metadata;
+  return buildRVVMicrokernelSourceRouteMetadata(*route.family);
 }
 
 llvm::Error validateRVVMicrokernelCallableCandidatePreflight(

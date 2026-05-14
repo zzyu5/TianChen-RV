@@ -57,6 +57,8 @@ module @rvv_microkernel_header_input {
 // HEADER-SAME: runtime_avl_source=runtime-element-count-abi-parameter
 // HEADER-SAME: runtime_vl_source=tcrv_rvv.setvl
 // HEADER-SAME: runtime_vl_scope=tcrv_rvv.with_vl
+// HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
+// HEADER: /* emitc_body_mapping_status: selected RVV EmitC body mapping was validated before source/header/object artifact export; this header remains declaration-only and carries no intrinsic include. */
 // HEADER: /* dataflow_abi_roles: lhs_load.buffer_role=lhs-input-buffer, rhs_load.buffer_role=rhs-input-buffer, store.buffer_role=output-buffer; runtime n remains the target/export-owned runtime element-count ABI parameter */
 // HEADER: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 // HEADER: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer
@@ -79,6 +81,7 @@ module @rvv_microkernel_header_input {
 // HEADER: #endif /* TIANCHENRV_RVV_I32_VADD_MICROKERNEL_HEADER_I32_VADD_RVV_FIRST_SLICE_H */
 
 // GENERIC-HEADER: /* selected_body_authority: tcrv_rvv.i32_vadd_microkernel */
+// GENERIC-HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
 // GENERIC-HEADER: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // GENERIC-HEADER: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // GENERIC-HEADER: #ifndef TIANCHENRV_RVV_I32_VADD_MICROKERNEL_HEADER_I32_VADD_RVV_FIRST_SLICE_H
