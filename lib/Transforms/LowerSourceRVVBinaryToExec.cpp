@@ -36,6 +36,7 @@ namespace tianchenrv::transforms {
 #define GEN_PASS_DEF_LOWERSOURCERVVBINARYTOEXEC
 #define GEN_PASS_DEF_LOWERVECTORRVVI32VADDTOEXEC
 #define GEN_PASS_DEF_LOWERVECTORRVVI32VSUBTOEXEC
+#define GEN_PASS_DEF_LOWERVECTORRVVI32VMULTOEXEC
 #include "TianChenRV/Transforms/Passes.h.inc"
 
 namespace {
@@ -81,6 +82,7 @@ enum class VectorFrontendPolicyKind {
   DefaultSourceFrontdoor,
   ExplicitI32VAdd,
   ExplicitI32VSub,
+  ExplicitI32VMul,
 };
 
 struct VectorFrontendFamilyPolicy {
@@ -158,6 +160,11 @@ getVectorFrontendFamilyPolicy(VectorFrontendPolicyKind kind) {
     return VectorFrontendFamilyPolicy{
         "vector i32-vsub frontend",
         target::rvv::getI32VSubFamilyRegistrationRecord().familyID,
+        /*allowFixedVectorI32VAdd=*/false};
+  case VectorFrontendPolicyKind::ExplicitI32VMul:
+    return VectorFrontendFamilyPolicy{
+        "vector i32-vmul frontend",
+        target::rvv::getI32VMulFamilyRegistrationRecord().familyID,
         /*allowFixedVectorI32VAdd=*/false};
   }
   llvm_unreachable("unknown vector frontend policy kind");
@@ -1572,6 +1579,16 @@ struct LowerVectorRVVI32VSubToExecPass
   }
 };
 
+struct LowerVectorRVVI32VMulToExecPass
+    : impl::LowerVectorRVVI32VMulToExecBase<
+          LowerVectorRVVI32VMulToExecPass> {
+  void runOnOperation() override {
+    if (mlir::failed(lowerMarkedFrontendVectorInModule(
+            getOperation(), VectorFrontendPolicyKind::ExplicitI32VMul)))
+      signalPassFailure();
+  }
+};
+
 struct LowerLinalgRVVBinaryToExecPass
     : impl::LowerLinalgRVVBinaryToExecBase<LowerLinalgRVVBinaryToExecPass> {
   void runOnOperation() override {
@@ -1608,6 +1625,10 @@ std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VAddToExecPass() {
 
 std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VSubToExecPass() {
   return std::make_unique<LowerVectorRVVI32VSubToExecPass>();
+}
+
+std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VMulToExecPass() {
+  return std::make_unique<LowerVectorRVVI32VMulToExecPass>();
 }
 
 std::unique_ptr<mlir::Pass> createLowerLinalgRVVBinaryToExecPass() {

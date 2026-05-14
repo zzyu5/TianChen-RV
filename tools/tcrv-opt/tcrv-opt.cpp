@@ -58,6 +58,9 @@ void registerTianChenRVOptPasses(
   mlir::registerPass([] {
     return tianchenrv::transforms::createLowerVectorRVVI32VSubToExecPass();
   });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createLowerVectorRVVI32VMulToExecPass();
+  });
   mlir::registerPass(
       [] { return tianchenrv::transforms::createCheckCapabilityRequiresPass(); });
   mlir::registerPass([] {

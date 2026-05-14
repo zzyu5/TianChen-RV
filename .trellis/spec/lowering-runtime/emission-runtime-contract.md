@@ -393,7 +393,8 @@ This scenario applies to the bounded dynamic vector/SCF i32-vadd, i32-vsub,
 and i32-vmul source front doors that lower through
 `--tcrv-lower-source-rvv-binary-to-exec` or the explicit vector adapter aliases
 `--tcrv-lower-vector-rvv-i32-vadd-to-exec` and
-`--tcrv-lower-vector-rvv-i32-vsub-to-exec`. The generic source front door must
+`--tcrv-lower-vector-rvv-i32-vsub-to-exec` and
+`--tcrv-lower-vector-rvv-i32-vmul-to-exec`. The generic source front door must
 derive accepted dynamic source families from the RVV binary family registry
 rather than a detached descriptor or script list. It is required when a source
 `%n` runtime extent can be smaller than, equal to, or not a multiple of the

@@ -294,3 +294,71 @@ bundle evidence, and ssh-rvv execution evidence as vadd/vsub.
 ### Next Steps
 
 - Archive task and commit the op-family contract change.
+
+---
+
+## Session 67: RVV vmul generated artifact ssh-rvv closure
+
+**Date**: 2026-05-14
+**Task**: RVV vmul generated artifact ssh-rvv closure
+**Branch**: `main`
+
+### Summary
+
+Closed the remaining public vector/SCF vmul production-entry asymmetry and
+refreshed current-head generated-artifact evidence. Current code already routed
+vmul through the shared RVV binary family registry, selected boundary,
+materialization, selected emission, RVVMicrokernel, RuntimeABI invocation
+contracts, target artifact bundle export, and RVVScalarDispatch. This round
+added the missing explicit vector/SCF vmul `tcrv-opt` adapter and direct
+RVVMicrokernel runner entry, then validated vmul locally and on `ssh rvv`.
+
+### Main Changes
+
+- Added `--tcrv-lower-vector-rvv-i32-vmul-to-exec` as a bounded explicit
+  vector/SCF adapter that reuses the registry-backed source-frontdoor path and
+  only admits the existing `i32-vmul` family.
+- Registered the new pass in `tcrv-opt`.
+- Extended `rvv_microkernel_e2e.py` with
+  `--lower-vector-i32-vmul-frontend`.
+- Added explicit-vmul transform lit and direct RVVMicrokernel bundle script
+  lit coverage.
+- Updated the lowering-runtime spec so the dynamic vector source-tail authority
+  contract names the vmul explicit adapter alias.
+
+### Testing
+
+- [OK] Focused build for support, target, RVV/scalar target, RVV plugin,
+  transforms, `tcrv-opt`, `tcrv-translate`, and focused test binaries.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] Focused lit filter covering vector dynamic vadd/vsub/vmul, explicit
+  vmul fail-closed coverage, target artifact bundle export, RVVMicrokernel,
+  RVVScalarDispatch, and script e2e: 14 selected tests passed.
+- [OK] Local direct RVVMicrokernel bundle dry-runs for vector/SCF vadd, vsub,
+  and vmul.
+- [OK] Local RVVScalarDispatch bundle dry-runs for vector/SCF vadd, vsub, and
+  vmul.
+- [OK] `ssh rvv` direct RVVMicrokernel bundle execution for vector/SCF i32-vmul:
+  `codex-vmul-explicit-vector-micro-ssh-rvv`; source-built and bundle-object
+  caller runs both printed
+  `tcrv_rvv_i32_vmul_microkernel_external_abi_ok counts=7,16,23`.
+- [OK] `ssh rvv` RVVScalarDispatch bundle execution for vector/SCF i32-vmul:
+  `codex-vmul-explicit-vector-dispatch-ssh-rvv`,
+  `ssh_evidence_verified=true`; source-built and bundle-object caller runs both
+  printed
+  `tcrv_rvv_scalar_i32_vmul_bundle_external_abi_ok runtime_counts=7,16 branches=scalar_and_rvv`.
+- [OK] Bounded ref-scan found no new descriptor-to-C, descriptor-only,
+  explicit-only, or generic core RVV semantic branch authority.
+- [OK] `git diff --check`.
+
+### Status
+
+[OK] **Completed and archived; commit pending**
+
+### Next Steps
+
+- Create one coherent commit.

@@ -111,6 +111,36 @@ def LowerVectorRVVI32VSubToExec
   ];
 }
 
+def LowerVectorRVVI32VMulToExec
+    : Pass<"tcrv-lower-vector-rvv-i32-vmul-to-exec", "::mlir::ModuleOp"> {
+  let summary = "Lower one bounded MLIR vector i32 multiply source adapter to tcrv.exec";
+  let description = [{
+    Explicit bounded vector source adapter for the production source-frontend
+    lowering owner. It consumes exactly one dynamic vector/SCF i32-vmul source
+    shape: three memref<?xi32> buffers plus one runtime %n: index, with one
+    scf.for from zero to %n in step 16 containing zero i32 padding, two
+    vector.transfer_read operations, one arith.muli over vector<16xi32>, one
+    vector.transfer_write to the output buffer, and func.return. Transfer ops
+    must expose MLIR transfer tail semantics for inactive lanes rather than
+    asserting `in_bounds = [true]`.
+
+    The adapter creates the same tcrv.exec.kernel ABI boundary and dynamic
+    source-derived op-family contract as the shared
+    --tcrv-lower-source-rvv-binary-to-exec production owner, then downstream
+    RVV/scalar plugin planning materializes the selected i32-vmul route.
+
+    This is a bounded frontend adapter. It does not add a generic vector
+    backend, infer arbitrary vector semantics, select variants, branch on
+    RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit artifacts, or claim
+    runtime correctness/performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createLowerVectorRVVI32VMulToExecPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def LowerLinalgRVVBinaryToExec
     : Pass<"tcrv-lower-linalg-rvv-binary-to-exec", "::mlir::ModuleOp"> {
   let summary = "Lower bounded marked linalg RVV binary source adapters to tcrv.exec";

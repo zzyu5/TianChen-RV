@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and spec routing for this implementation round."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware evidence boundary and descriptor/core-compute non-goals."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for finite binary family materialization and intrinsic route behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-locality and shared-interface rules for avoiding generic core family branches."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target artifact export, RVVScalarDispatch, bundle, and ssh evidence contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC intrinsic route boundary for typed extension-family ops."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Bounded linalg/vector RVV binary source-frontdoor family contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required focused lit, C++ test, e2e, and ssh evidence forms."}
