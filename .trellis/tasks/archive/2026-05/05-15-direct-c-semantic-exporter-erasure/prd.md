@@ -9,6 +9,20 @@ synthesize executable C compute bodies from selected records, family metadata,
 or route records before a real materialized MLIR EmitC module becomes the
 source authority.
 
+## 2026-05-15 Completion Slice
+
+Continuation after commit `ea6bd22` completed this task by deleting stale
+positive lit/e2e fixtures that still protected runtime-callable direct C source,
+header, object, self-check, bundle, manifest, and dry-run success. Remaining
+coverage asserts deleted-route unsupported diagnostics, route absence in C++
+registry/plugin tests, and generic front-door fail-closed behavior. The target
+files no longer expose the private `printMicrokernelSource` /
+`printDispatchSource` raw body printer entry points. Stale README current-route
+guidance and the old direct-C e2e runner scripts were removed or rewritten so
+they no longer advertise selected metadata to executable C as a valid evidence
+path. No wrapper, quarantine, replacement C generator, descriptor restoration,
+or Common EmitC rebuild was added in this round.
+
 ## Why Now
 
 Commit `a7a6643` completed the Offload descriptor-only route deletion and left

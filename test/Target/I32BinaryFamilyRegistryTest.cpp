@@ -85,6 +85,19 @@ int expectRoute(const TargetArtifactExporterRegistry &registry,
   return 0;
 }
 
+int expectNoRoute(const TargetArtifactExporterRegistry &registry,
+                  llvm::StringRef routeID) {
+  if (registry.lookup(routeID))
+    return fail(llvm::Twine("deleted direct C exporter route remains "
+                            "registered: '") +
+                routeID + "'");
+  if (registry.lookupComposite(routeID))
+    return fail(llvm::Twine("deleted direct C composite route remains "
+                            "registered: '") +
+                routeID + "'");
+  return 0;
+}
+
 int expectCompositeRoute(const TargetArtifactExporterRegistry &registry,
                          llvm::StringRef routeID, llvm::StringRef artifactKind,
                          llvm::StringRef owner, llvm::StringRef runtimeABIKind,
@@ -1041,53 +1054,52 @@ int main() {
           "register RVV+scalar dispatch exporters"))
     return result;
 
-  for (const I32BinaryFamilyRecord *family : families)
-    if (int result = expectStandaloneFamilyExporterRoutes(registry, *family))
+  for (const I32BinaryFamilyRecord *family : families) {
+    if (int result = expectNoRoute(registry, family->rvv.routeID))
       return result;
+    if (int result = expectNoRoute(registry, family->rvv.headerRouteID))
+      return result;
+    if (int result = expectNoRoute(registry, family->rvv.objectRouteID))
+      return result;
+    if (int result = expectNoRoute(registry, family->scalar.routeID))
+      return result;
+    if (int result = expectNoRoute(registry, family->scalar.headerRouteID))
+      return result;
+    if (int result = expectNoRoute(registry, family->scalar.objectRouteID))
+      return result;
+  }
   const rvv::RVVBinaryIntrinsicRoute i64Descriptors[] = {
       rvv::getI64VAddIntrinsicRoute(),
       rvv::getI64VSubIntrinsicRoute(),
       rvv::getI64VMulIntrinsicRoute(),
   };
   for (const rvv::RVVBinaryIntrinsicRoute &descriptor : i64Descriptors)
-    if (int result = expectRoute(
-            registry, descriptor.getRVVRouteID(),
-            kRuntimeCallableCSourceArtifactKind, kRVVPluginName,
-            descriptor.family.emissionKind,
-            descriptor.getRVVExternalABIComponentGroup(),
-            descriptor.getRVVRuntimeABIName(),
-            /*expectedDirectHelperRoute=*/true))
+    if (int result = expectNoRoute(registry, descriptor.getRVVRouteID()))
       return result;
   for (const rvv_scalar::RVVScalarBinaryFamilyRecord *family :
        rvv_scalar::getRVVScalarBinaryRegistrationRecords())
-    if (int result = expectRoute(
-            registry, family->scalar.routeID,
-            kRuntimeCallableCSourceArtifactKind, kScalarPluginName,
-            family->scalar.emissionKind,
-            /*componentGroup=*/{}, /*externalABIName=*/{},
-            /*expectedDirectHelperRoute=*/false))
+    if (int result = expectNoRoute(registry, family->scalar.routeID))
       return result;
   for (const rvv_scalar::RVVScalarBinaryFamilyRecord *family :
        rvv_scalar::getRVVScalarBinaryRegistrationRecords()) {
-    if (int result = expectCompositeRoute(
-            registry, family->scalar.headerRouteID,
-            kRuntimeCallableCHeaderArtifactKind, kScalarPluginName,
-            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-            /*componentGroup=*/{}, /*externalABIName=*/{},
-            /*expectedDirectHelperRoute=*/false))
+    if (int result = expectNoRoute(registry,
+                                   family->dispatch.dispatchSourceRouteID))
       return result;
-    if (int result = expectCompositeRoute(
-            registry, family->scalar.objectRouteID,
-            kRiscvELFRelocatableObjectArtifactKind, kScalarPluginName,
-            /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-            /*componentGroup=*/{}, /*externalABIName=*/{},
-            /*expectedDirectHelperRoute=*/false))
+    if (int result = expectNoRoute(registry,
+                                   family->dispatch.dispatchHeaderRouteID))
+      return result;
+    if (int result = expectNoRoute(registry,
+                                   family->dispatch.dispatchObjectRouteID))
+      return result;
+    if (int result =
+            expectNoRoute(registry,
+                          family->dispatch.dispatchSelfCheckSourceRouteID))
+      return result;
+    if (int result =
+            expectNoRoute(registry,
+                          family->dispatch.dispatchSelfCheckObjectRouteID))
       return result;
   }
-  for (const rvv_scalar::RVVScalarBinaryFamilyRecord *family :
-       rvv_scalar::getRVVScalarBinaryRegistrationRecords())
-    if (int result = expectDispatchFamilyExporterRoutes(registry, *family))
-      return result;
 
   llvm::outs() << "i32 binary family registration registry test passed\n";
   return 0;

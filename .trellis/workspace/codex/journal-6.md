@@ -46,6 +46,59 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 67: Direct C semantic exporter erasure completion
+
+**Date**: 2026-05-15
+**Task**: `direct-c-semantic-exporter-erasure`
+**Branch**: `main`
+
+### Summary
+
+Completed the Wrong Logic deletion owner that remained after `ea6bd22`: stale
+direct C positive fixtures and dead private raw C body printer entry points are
+gone, while the surviving focused tests assert unsupported/deleted-route
+behavior and route absence.
+
+### Main Changes
+
+- Removed legacy lit/e2e fixtures that still expected runtime-callable RVV,
+  scalar, or RVV+scalar dispatch direct source/header/object/self-check/bundle
+  success.
+- Rewrote RVV plugin and i32 binary registry C++ tests to expect unsupported
+  deleted-route emission plans and absent target artifact route registration.
+- Kept `rvv_probe_to_mlir` coverage for MLIR/profile replay but changed source
+  export expectations to generic front-door fail-closed behavior.
+- Removed private `printMicrokernelSource` and `printDispatchSource` raw body
+  printer entry points from RVV/scalar/dispatch target files.
+- Removed stale direct-C e2e runner scripts and rewrote README current-route
+  guidance so it describes the deleted routes instead of executable C evidence
+  bridges.
+- Added Trellis spec scenarios documenting deleted route contracts and test
+  ownership.
+
+### Testing
+
+- [OK] Focused C++ build for `tcrv-opt`, `tcrv-translate`, target/plugin
+  libraries, `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-i32-binary-family-registry-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-i32-binary-family-registry-test`.
+- [OK] Focused lit fail-closed subset: 6/6 passed.
+- [OK] `git diff --check`.
+- [OK] `git diff --cached --check`.
+- [OK] Trellis task validation before archive.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 137/137 passed.
+
+### Status
+
+[OK] **Ready to finish/archive**
+
+### Next Steps
+
+- Run Trellis validation, archive the task with `--no-commit`, and create one
+  coherent commit.
+
+
 ## Session 67: Direct C semantic exporter erasure
 
 **Date**: 2026-05-15

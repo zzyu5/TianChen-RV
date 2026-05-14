@@ -11,6 +11,77 @@ C++ tests where appropriate
 CMake configure/build checks
 ```
 
+## Scenario: Deleted Direct C Exporter Test Ownership
+
+### 1. Scope / Trigger
+
+Use this contract for tests that touch RVV microkernel, scalar microkernel, or
+RVV+scalar dispatch runtime-callable C source/header/object/self-check/bundle
+routes after the direct C semantic exporter deletion campaign.
+
+### 2. Signatures
+
+- Removed direct options:
+  `--tcrv-export-rvv-microkernel-c` and
+  `--tcrv-export-rvv-scalar-dispatch-c`.
+- Fail-closed diagnostic text must name the deleted direct C source exporter
+  and the missing materialized MLIR EmitC module route.
+- Generic target artifact front doors remain valid test commands, but they
+  must report absence of a supported route for deleted direct-C artifacts.
+
+### 3. Contracts
+
+- Do not keep lit or script tests whose only assertion is successful direct C
+  source, header, object, self-check, bundle, or e2e dry-run output from the
+  old printers.
+- Tests may keep MLIR planning/source fixtures only when they assert
+  unsupported/deleted-route behavior or serve as parseable input to another
+  fail-closed test.
+- C++ tests for route registries must assert deleted route absence rather than
+  positive registration.
+
+### 4. Validation & Error Matrix
+
+- Old emitted RVV intrinsic body expected -> delete the test or rewrite it to
+  assert unsupported/no route.
+- Old scalar arithmetic loop expected -> delete or rewrite to unsupported.
+- Old dispatch source/header/object/bundle expected -> delete or rewrite to
+  unsupported/no supported artifact route.
+- Script dry-run depends on direct source artifacts -> remove that lit
+  expectation until the Common EmitC rebuild supplies a new artifact authority.
+
+### 5. Good/Base/Bad Cases
+
+- Good: a lit test proves a selected RVV path materializes typed IR and then
+  receives an unsupported emission-plan diagnostic.
+- Base: RVV smoke-probe tests may still check `standalone-c-source` because
+  they are toolchain smoke harness coverage.
+- Bad: a test checks `runtime-callable-c-source`, a direct route id, or an
+  `__riscv_` intrinsic as proof that kernel semantic source export succeeded.
+
+### 6. Tests Required
+
+- Focused fail-closed lit coverage for RVV direct source, scalar source, and
+  RVV+scalar dispatch generic front doors.
+- C++ plugin/registry coverage for unsupported emission plans and absent
+  target artifact route registrations.
+- Full `check-tianchenrv` after deleting stale positive fixtures.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+RUN: tcrv-translate --old-direct-c-route | FileCheck generated C body
+```
+
+Correct:
+
+```text
+RUN: not tcrv-translate --old-direct-c-route | FileCheck deleted-route error
+RUN: tcrv-opt ... | FileCheck unsupported emission-plan diagnostic
+```
+
 ## lit / FileCheck
 
 Use lit/FileCheck for:
@@ -465,145 +536,45 @@ the source is standalone only when explicit harness mode is requested. It is
 not RVV runtime, correctness, generic lowering, runtime ABI, or performance
 evidence.
 
-## Scenario: RVV Direct I32 Binary Microkernel Evidence Bridge
+## Scenario: Deleted RVV Direct Microkernel Evidence Bridge
 
 ### 1. Scope / Trigger
 
-Trigger: `scripts/rvv_microkernel_e2e.py` is used to collect local dry-run or
-real `ssh rvv` evidence for the bounded direct RVV i32 add/sub/mul microkernel
-routes. This helper is Python runner/evidence tooling only. It must consume
-compiler-emitted manifest, source, header, object, and bundle metadata; it must
-not define compiler IR, plugin decisions, lowering, emission, route selection,
-runtime ABI shape, or arithmetic semantics.
+Use this scenario for the former direct RVV microkernel e2e evidence bridge.
+That runner and its lit coverage were removed with the direct C semantic
+exporter deletion campaign.
 
 ### 2. Signatures
 
-Primary command surface:
-
-```text
-python3 scripts/rvv_microkernel_e2e.py
-  [--arithmetic-family=i32-vadd|i32-vsub|i32-vmul|i64-vadd|i64-vsub|i64-vmul]
-  [--dry-run]
-  [--generic-route]
-  [--self-check-harness]
-  [--use-target-artifact-bundle]
-  [--use-plan-and-export-bundle-front-door]
-  [--ssh-target rvv]
-```
-
-The default arithmetic family is `i32-vadd` for compatibility. Non-add
-families must use the existing bounded RVV direct microkernel fixtures or
-compiler front doors that already emit selected `rvv-plugin` paths and
-family-correct artifact routes.
+There is no supported script command surface for selected metadata to direct
+RVV runtime-callable C source/header/object/bundle evidence.
 
 ### 3. Contracts
 
-- The finite supported family set is exactly `i32-vadd`, `i32-vsub`,
-  `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`.
-- The helper must validate selected compiler-emitted fields against the chosen
-  family: emission kind, source/header/object route ids, runtime ABI kind/name,
-  runtime glue role, microkernel op name, arithmetic op name, RVV intrinsic,
-  result vector name, bundle `component_group`, bundle `component_role`,
-  `external_abi_name`, and ordered `runtime_abi_parameter[index]` records.
-- Bundle mode must discover source/header/object file names from
-  `tianchenrv-target-artifact-bundle.index`, not from hardcoded file-name
-  guesses.
-- The generated external C caller may check family arithmetic, but only as
-  evidence-runner caller construction from the compiler-emitted header
-  prototype and ABI signature. The caller must check `lhs + rhs` for add,
-  `lhs - rhs` for sub, and `lhs * rhs` for mul.
-- Dry-run evidence is local compiler/artifact tooling evidence only.
-- Runtime/correctness evidence requires real `ssh rvv` execution where the
-  generated caller is compiled and run against generated artifacts and the
-  bounded family-specific success marker is observed.
-- Evidence JSON and command summaries must record the selected arithmetic
-  family, sanitized artifact paths, hashes, bounded command metadata, selected
-  claim scope, and no credentials, raw URLs, throughput, latency, or
-  performance claims.
+- Do not restore a dry-run runner that accepts direct route ids or generated
+  C source as evidence.
+- New executable evidence must start from a rebuilt extension-family ops to
+  materialized EmitC module path.
+- Runtime/correctness claims still require separate real `ssh rvv` evidence
+  over the rebuilt artifact.
 
 ### 4. Validation & Error Matrix
 
-- Unsupported `--arithmetic-family` value -> CLI rejects before running tools.
-- Selected family sees another family's supported manifest handoff -> fail with
-  stale-family diagnostic before source/header/object evidence is accepted.
-- Generated source lacks the selected family intrinsic, microkernel op,
-  arithmetic op, or dataflow provenance -> fail before evidence JSON success.
-- Generated source contains stale add/sub/mul metadata for another family ->
-  fail before evidence JSON success.
-- Bundle index lacks source/header/object records for the selected family,
-  lacks component metadata, has mismatched `external_abi_name`, duplicates
-  runtime ABI roles, or disagrees on ordered ABI parameters -> fail before
-  external caller construction.
-- Header prototype does not match the selected family function stem or ordered
-  ABI signature -> fail before external caller construction.
-- `--use-plan-and-export-bundle-front-door` without
-  `--use-target-artifact-bundle` -> CLI error.
-- `--use-target-artifact-bundle` combined with `--generic-route` or
-  `--self-check-harness` -> CLI error.
-- Secret-like evidence note, ssh option, command output, artifact metadata, or
-  URL-like text -> reject or redact before persisted evidence can claim
-  success.
-- Real `ssh rvv` compile/link/run fails or the family success marker is absent
-  -> evidence status must be failure; do not fabricate runtime evidence.
+- A lit test depends on old direct source/header/object/bundle dry-run output
+  -> delete it or rewrite it to fail closed.
+- A helper validates RVV intrinsics in generated direct C source -> delete it
+  unless it is the RVV smoke-probe harness.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `--dry-run --arithmetic-family=i32-vsub` consumes a vsub selected path,
-  validates `tcrv-export-rvv-i32-vsub-microkernel-c`, observes
-  `__riscv_vsub_vv_i32m1`, and writes a no-runtime-claim evidence JSON.
-- Good: `--use-target-artifact-bundle --arithmetic-family=i32-vmul` consumes
-  source/header/object bundle records whose component group and external ABI
-  name are vmul-specific, then builds a caller that checks `lhs * rhs`.
-- Good: `--dry-run --arithmetic-family=i64-vsub` consumes an i64 vsub selected
-  path, validates i64 route/runtime ABI/component metadata, observes
-  `__riscv_vsub_vv_i64m1`, and writes a no-runtime-claim evidence JSON.
-- Good: `--use-target-artifact-bundle --arithmetic-family=i64-vmul` consumes
-  i64 source/header/object bundle records and builds an `int64_t` caller that
-  checks `lhs * rhs`.
-- Good: real `--use-target-artifact-bundle --use-plan-and-export-bundle-front-door
-  --arithmetic-family=i32-vsub --ssh-target rvv` compiles and runs the generated
-  external caller against both source-built and bundle object artifacts on
-  `ssh rvv`, observing the bounded vsub marker.
-- Base: default `--dry-run` remains i32-vadd-compatible and preserves existing
-  source-export evidence behavior.
-- Bad: `--arithmetic-family=i32-vsub` accepts a vadd manifest handoff, vadd
-  runtime ABI name, vadd component group, `__riscv_vadd_vv_i32m1`, or caller
-  check `lhs + rhs`.
+- Good: fail-closed tests prove the old direct route is unsupported and emits
+  no RVV intrinsic body.
+- Base: RVV smoke-probe tests remain allowed as standalone toolchain harness
+  coverage.
+- Bad: a script treats route metadata plus selected-family fields as enough to
+  produce executable C evidence.
 
 ### 6. Tests Required
 
-- Script self-test must exercise the family table, handoff parsing,
-  stale-family rejection, source dataflow validation, external caller arithmetic,
-  artifact path restrictions, and redaction.
-- Local lit coverage must include default vadd dry-run compatibility, vsub and
-  vmul dry-run family selection, stale vadd metadata rejection for a non-add
-  selection, and secret-like metadata rejection.
-- Bundle lit coverage, gated on local RVV object clang when needed, must include
-  at least one non-add selected bundle and one plan-and-export bundle front door
-  path, checking compiler-emitted component metadata and generated external
-  caller arithmetic.
-- Focused target/export lit coverage must continue to prove C++ exporters emit
-  family-correct direct RVV source/header/object routes.
-- Completion evidence must include `git diff --check`, script self-test,
-  focused dry-runs for vsub/vmul, focused lit, full `check-tianchenrv` when
-  feasible, and at least one real non-add `ssh rvv` run when the remote remains
-  reachable.
-
-### 7. Wrong vs Correct
-
-Wrong:
-
-```text
-python evidence helper chooses route ids from file names, accepts a vadd
-manifest for --arithmetic-family=i32-vsub, and generates a caller that checks
-lhs + rhs.
-```
-
-Correct:
-
-```text
-python evidence helper selects i32-vsub only as an evidence-runner
-configuration, validates compiler-emitted vsub route/runtime ABI/component
-metadata, rejects stale vadd handoff fields, and generates a caller that checks
-lhs - rhs.
-```
+- Keep focused fail-closed lit/C++ coverage for deleted route families.
+- Do not require script self-tests for the removed direct e2e runner.

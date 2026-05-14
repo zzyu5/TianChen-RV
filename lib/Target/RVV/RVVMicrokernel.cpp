@@ -164,11 +164,6 @@ constexpr llvm::StringLiteral kMicrokernelObjectArtifactKind(
 constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
     "RVV runtime-callable direct C semantic exporter was deleted; rebuild "
     "requires a materialized MLIR EmitC module source route");
-enum class RVVMicrokernelCExportMode {
-  RuntimeCallableLibrary,
-  SelfCheckHarness,
-};
-
 using RVVI32MicrokernelKind =
     tianchenrv::target::rvv::RVVBinaryArithmeticKind;
 using RVVI32MicrokernelFamilySpec =
@@ -3732,8 +3727,8 @@ void printEmitCRouteMetadata(llvm::raw_ostream &os,
         "emitc.include, emitc.func, emitc.if, emitc.call_opaque, and "
         "emitc.call before MLIR Cpp emitter production source output */\n";
   os << "/* emitc_materialization_function: @" << functionName << " */\n";
-  os << "/* emitc_c_source_authority: MLIR EmitC module translated by "
-        "mlir::emitc::translateToCpp */\n";
+  os << "/* deleted_direct_c_source_route: historical EmitC source text is not "
+        "a registered RVV artifact authority */\n";
   bool hasGeneratedOpInterface = llvm::any_of(
       route.getCallOpaqueSteps(), [](const TCRVEmitCCallOpaqueStep &step) {
         return !step.sourceOp.opInterface.empty();
@@ -4219,69 +4214,6 @@ llvm::Error printMicrokernelHeader(const RVVMicrokernelRecord &record,
   os << "}\n";
   os << "#endif\n\n";
   os << "#endif /* " << includeGuard << " */\n";
-  return llvm::Error::success();
-}
-
-llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
-                                   llvm::raw_ostream &os,
-                                   RVVMicrokernelCExportMode mode) {
-  std::string functionName = makeMicrokernelFunctionName(record);
-  bool includeHarness = mode == RVVMicrokernelCExportMode::SelfCheckHarness;
-  llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
-      lowerRVVBinaryToEmitCSource(record.descriptor,
-                                  record.selectedConfigEmission,
-                                  record.emitcBodyMapping,
-                                  record.dataflowPlan,
-                                  record.runtimeABIParameters,
-                                  record.selectedConfigContract
-                                      .getRuntimeLengthContract(),
-                                  functionName,
-                                  record.fixedSourceExtent
-                                      ? record.fixedSourceExtent
-                                            ->sourceVectorExtent
-                                      : 0);
-  if (!loweredSource)
-    return loweredSource.takeError();
-  const TCRVEmitCLowerableRoute &emitcRoute = loweredSource->getRoute();
-
-  os << "/* TianChen-RV RVV runtime-callable microkernel C export. */\n";
-  os << "/* Scope: library-style C source for exactly one "
-     << record.descriptor.getRVVMicrokernelOpName() << ". */\n";
-  os << "/* Route: verified RVV family ops build the common EmitC lowerable "
-        "route emitted by the common lower-to-EmitC source-authority "
-        "boundary. */\n";
-  os << "/* Default artifact shape: runtime-callable C ABI function with no "
-        "embedded main or self-check harness. */\n";
-  if (includeHarness)
-    os << "/* Harness mode: adds a bounded self-check main for explicit ssh rvv "
-          "evidence only. */\n";
-  os << "/* Correctness claims require the explicit self-check harness and ssh "
-        "rvv evidence; this source is not generic TianChen-RV lowering or "
-        "performance evidence. */\n\n";
-
-  if (llvm::Error error =
-          printRecordComment(os, record, functionName, emitcRoute))
-    return error;
-  os << loweredSource->getSource();
-  if (includeHarness) {
-    os << "#include <stdio.h>\n\n";
-    if (record.descriptor.family.dtype != RVVBinaryDTypeKind::I32)
-      return makeModuleMicrokernelError(
-          "RVV self-check harness export is currently bounded to i32 "
-          "microkernel records");
-    llvm::Expected<BinarySelfCheckExpectation> expectation =
-        buildMicrokernelSelfCheckExpectation(record);
-    if (!expectation)
-      return expectation.takeError();
-    printMicrokernelSelfCheckHarness(os, functionName, *expectation,
-                                     record.selectedConfigEmission,
-                                     record.elementCount,
-                                     record.fixedSourceExtent
-                                         ? std::optional<std::int64_t>(
-                                               record.fixedSourceExtent
-                                                   ->sourceVectorExtent)
-                                         : std::nullopt);
-  }
   return llvm::Error::success();
 }
 

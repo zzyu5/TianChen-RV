@@ -3,7 +3,7 @@
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --frontend-lowering i64-vadd --emit-target-profile | FileCheck %s --check-prefix=I64-REPLAY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - | FileCheck %s --check-prefix=PARSE
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
-# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --frontend-lowering i64-vadd --emit-target-profile | tcrv-opt - --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-target-source-artifact | FileCheck %s --check-prefix=I64-SOURCE --implicit-check-not=int32_t --implicit-check-not=__riscv_vadd_vv_i32 --implicit-check-not=i32-vadd --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --frontend-lowering i64-vadd --emit-target-profile | tcrv-opt - --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=I64-SOURCE-DELETED --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/malformed-i64-sew.json --kernel-name malformed_i64_replay --frontend-lowering i64-vadd --emit-target-profile | not tcrv-opt - --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=I64-MALFORMED --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not=emission_plan --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-architecture.json --kernel-name missing_architecture --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/non-riscv64.json --kernel-name non_riscv64 --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
@@ -159,19 +159,17 @@
 # PIPE: tcrv_rvv.i32_store
 # PIPE-SAME: buffer_role = "output-buffer"
 # PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: artifact_kind = "runtime-callable-c-source"
-# PIPE-SAME: emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source"
 # PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
-# PIPE-SAME: lowering_pipeline = "tcrv-export-rvv-microkernel-c"
+# PIPE-SAME: message = "runtime-callable RVV direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
 # PIPE-SAME: reason = "emission_plan"
-# PIPE-SAME: required_capabilities = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
 # PIPE-SAME: role = "direct variant"
-# PIPE-SAME: runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1"
-# PIPE-SAME: runtime_abi_kind = "rvv-runtime-callable-c-abi"
-# PIPE-SAME: runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1"
-# PIPE-SAME: runtime_glue_role = "runtime-callable-i32-vadd-function"
-# PIPE-SAME: status = "supported"
+# PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+# PIPE-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+# PIPE-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+# PIPE-SAME: status = "unsupported"
 # PIPE-SAME: target = @rvv_first_slice
+
+# I64-SOURCE-DELETED: requires exactly one supported source artifact emission-plan route; found none
 
 # I64-SOURCE: /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
 # I64-SOURCE: /* arithmetic_family: i64-vadd */
@@ -204,12 +202,12 @@
 # SCALAR_ONLY-SAME: selected_variant = @scalar_fallback_first_slice
 # SCALAR_ONLY: tcrv.exec.diagnostic
 # SCALAR_ONLY-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+# SCALAR_ONLY-SAME: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
 # SCALAR_ONLY-SAME: reason = "emission_plan"
-# SCALAR_ONLY-SAME: required_capabilities = [@scalar_fallback]
-# SCALAR_ONLY-SAME: runtime_abi_kind = "scalar-runtime-callable-c-abi"
-# SCALAR_ONLY-SAME: runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1"
-# SCALAR_ONLY-SAME: runtime_glue_role = "runtime-callable-i32-vadd-fallback-function"
-# SCALAR_ONLY-SAME: status = "supported"
+# SCALAR_ONLY-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+# SCALAR_ONLY-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+# SCALAR_ONLY-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+# SCALAR_ONLY-SAME: status = "unsupported"
 # SCALAR_ONLY-NOT: tcrv_rvv.lowering_boundary
 
 # SECRET: rvv_probe_to_mlir:

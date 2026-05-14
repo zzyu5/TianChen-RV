@@ -9,3 +9,7 @@
 {"file": "test/Target/ArtifactExport/scalar-target-source-artifact-routes.test", "reason": "Focused lit check passed: scalar direct source front doors fail closed instead of emitting C source."}
 {"file": "test/Target/RVVMicrokernel/rvv-microkernel-pipeline.mlir", "reason": "Focused lit check passed: removed direct RVV microkernel translate options do not emit fallback intrinsic source."}
 {"file": "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir", "reason": "Focused lit check passed: RVV+scalar dispatch source/header front doors fail closed after direct C deletion."}
+{"check": "git diff --check", "result": "pass", "notes": "No whitespace errors before archive after README/spec/script deletion updates."}
+{"check": "git diff --cached --check", "result": "pass", "notes": "No staged whitespace errors before archive."}
+{"check": "./.trellis/scripts/task.py validate .trellis/tasks/05-15-direct-c-semantic-exporter-erasure", "result": "pass", "notes": "Trellis task context validation passed before archive."}
+{"check": "cmake --build build --target check-tianchenrv -j2", "result": "pass", "notes": "Full TianChen-RV check passed after deleting stale direct-C tests/scripts and updating README/specs: 137 discovered, 137 passed."}

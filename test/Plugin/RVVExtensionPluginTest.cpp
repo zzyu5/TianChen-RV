@@ -1053,15 +1053,18 @@ module {
           "profile-derived RVV i64 path builds emission plan"))
     return result;
   if (int result =
-          expect(i64Plan.isSupported() &&
-                     i64Plan.getLoweringPipeline() ==
-                         tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord()
-                             .routeID &&
+          expect(i64Plan.isUnsupported() &&
+                     i64Plan.getDiagnostic().contains(
+                         "runtime-callable RVV direct C source exporter was "
+                         "deleted") &&
+                     i64Plan.getRuntimeABIKind() ==
+                         "unsupported-plugin-runtime-abi" &&
                      i64Plan.getRuntimeABIName() ==
-                         tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord()
-                             .runtimeABIName,
-                 "profile-derived RVV i64 path reaches supported emission "
-                 "plan"))
+                         "unsupported-emission-runtime-abi" &&
+                     i64Plan.getRuntimeGlueRole() ==
+                         "no-runtime-glue-unsupported",
+                 "profile-derived RVV i64 path reaches deleted-route "
+                 "unsupported emission plan"))
     return result;
 
   RVVProbeCapabilityFacts wideFacts = makeSuccessfulProbeFacts();
@@ -2088,20 +2091,17 @@ module {
             llvm::Twine("build RVV emission plan for ") + kernelName))
       return result;
     if (int result =
-            expect(emissionPlan.isSupported() &&
-                       emissionPlan.getEmissionKind() ==
-                           family.emissionKind &&
-                       emissionPlan.getLoweringPipeline() ==
-                           family.routeID &&
-                       emissionPlan.getRuntimeABI() ==
-                           family.runtimeABI &&
+            expect(emissionPlan.isUnsupported() &&
+                       emissionPlan.getDiagnostic().contains(
+                           "runtime-callable RVV direct C source exporter was "
+                           "deleted") &&
                        emissionPlan.getRuntimeABIKind() ==
-                           family.runtimeABIKind &&
+                           "unsupported-plugin-runtime-abi" &&
                        emissionPlan.getRuntimeABIName() ==
-                           family.runtimeABIName &&
+                           "unsupported-emission-runtime-abi" &&
                        emissionPlan.getRuntimeGlueRole() ==
-                           family.runtimeGlueRole,
-                   llvm::Twine("RVV emission plan consumes registry facts for ") +
+                           "no-runtime-glue-unsupported",
+                   llvm::Twine("RVV emission plan records deleted route for ") +
                        kernelName))
       return result;
 
@@ -2434,11 +2434,11 @@ module {
               emissionPlan),
           "build RVV i32m2 emission plan"))
     return result;
-  return expect(emissionPlan.isSupported() &&
-                    emissionPlan.getLoweringPipeline() ==
-                        tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()
-                            .routeID,
-                "RVV i32m2 emission plan preserves vsub route");
+  return expect(emissionPlan.isUnsupported() &&
+                    emissionPlan.getDiagnostic().contains(
+                        "runtime-callable RVV direct C source exporter was "
+                        "deleted"),
+                "RVV i32m2 emission plan records deleted vsub route");
 }
 
 int runRVVI64BinaryFamilyProposalMaterializationTest(
@@ -2777,49 +2777,18 @@ module {
               emissionPlan),
           "build RVV i64 emission plan"))
     return result;
-  if (int result = expect(emissionPlan.isSupported() &&
-                              emissionPlan.getEmissionKind() ==
-                                  family.emissionKind &&
-                              emissionPlan.getLoweringPipeline() ==
-                                  family.routeID &&
-                              emissionPlan.getRuntimeABI() ==
-                                  family.runtimeABI &&
-                              emissionPlan.getRuntimeABIKind() ==
-                                  family.runtimeABIKind &&
-                              emissionPlan.getRuntimeABIName() ==
-                                  family.runtimeABIName &&
-                              emissionPlan.getRuntimeGlueRole() ==
-                                  family.runtimeGlueRole,
-                          "RVV i64 emission plan preserves route and ABI"))
-    return result;
-
-  llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters =
-      emissionPlan.getRuntimeABIParameters();
-  using Role = tianchenrv::support::RuntimeABIParameterRole;
-  using Ownership = tianchenrv::support::RuntimeABIParameterOwnership;
-  return expect(parameters.size() == 4 &&
-                    parameters[0].cName == "lhs" &&
-                    parameters[0].cType == "const int64_t *" &&
-                    parameters[0].role == Role::LHSInputBuffer &&
-                    parameters[0].ownership ==
-                        Ownership::TargetExportABIOwned &&
-                    parameters[1].cName == "rhs" &&
-                    parameters[1].cType == "const int64_t *" &&
-                    parameters[1].role == Role::RHSInputBuffer &&
-                    parameters[1].ownership ==
-                        Ownership::TargetExportABIOwned &&
-                    parameters[2].cName == "out" &&
-                    parameters[2].cType == "int64_t *" &&
-                    parameters[2].role == Role::OutputBuffer &&
-                    parameters[2].ownership ==
-                        Ownership::TargetExportABIOwned &&
-                    parameters[3].cName == "n" &&
-                    parameters[3].cType == "size_t" &&
-                    parameters[3].role == Role::RuntimeElementCount &&
-                    parameters[3].ownership ==
-                        Ownership::TargetExportABIOwned,
-                "RVV i64 emission plan carries exec-IR-backed int64 "
-                "callable ABI params");
+  return expect(emissionPlan.isUnsupported() &&
+                    emissionPlan.getDiagnostic().contains(
+                        "runtime-callable RVV direct C source exporter was "
+                        "deleted") &&
+                    emissionPlan.getRuntimeABIKind() ==
+                        "unsupported-plugin-runtime-abi" &&
+                    emissionPlan.getRuntimeABIName() ==
+                        "unsupported-emission-runtime-abi" &&
+                    emissionPlan.getRuntimeGlueRole() ==
+                        "no-runtime-glue-unsupported",
+                "RVV i64 emission plan records deleted route and no runtime "
+                "ABI params");
 }
 
 int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {

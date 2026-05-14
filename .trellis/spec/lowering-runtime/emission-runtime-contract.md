@@ -26,6 +26,83 @@ fail-closed until a real materialized MLIR EmitC module route exists. Existing
 descriptor-backed source/object/bundle helpers are bounded implementation debt
 that must not be used as the template for new extension work.
 
+## Scenario: Direct C Semantic Exporter Deleted Routes
+
+### 1. Scope / Trigger
+
+This applies when RVV, scalar fallback, or RVV+scalar dispatch selected paths
+would previously have emitted runtime-callable C source, C headers,
+relocatable objects, self-check sources, or artifact bundles from target-owned
+records rather than from a materialized MLIR EmitC module.
+
+### 2. Signatures
+
+- Deleted direct translate options:
+  `--tcrv-export-rvv-microkernel-c` and
+  `--tcrv-export-rvv-scalar-dispatch-c`.
+- Deleted production route ids include the RVV/scalar microkernel source,
+  header, object, dispatch source/header/object, self-check source/object, and
+  bundle-derived route families.
+- Remaining supported source route exception:
+  `rvv-smoke-probe-standalone-c-source`, because it is a toolchain smoke
+  harness and not kernel semantic source authority.
+
+### 3. Contracts
+
+- Plugin emission plans for deleted runtime-callable C routes must return
+  `status = "unsupported"`, `runtime_abi_kind =
+  "unsupported-plugin-runtime-abi"`, `runtime_abi_name =
+  "unsupported-emission-runtime-abi"`, and `runtime_glue_role =
+  "no-runtime-glue-unsupported"`.
+- Built-in target artifact exporter registration must not publish deleted
+  RVV/scalar/dispatch source, header, object, self-check, or bundle routes as
+  active production routes.
+- Public target source/header/object front doors must fail closed when no
+  supported emission-plan route remains.
+
+### 4. Validation & Error Matrix
+
+- Removed direct translate option is invoked -> command-line parser reports the
+  unknown option and no C source is printed.
+- Generic source/header/object front door sees only unsupported plans ->
+  reports no supported route and prints no C body, header, object, or bundle
+  index.
+- Plugin-selected path reaches emission planning -> emits the deleted-route
+  unsupported diagnostic, not supported artifact metadata.
+
+### 5. Good/Base/Bad Cases
+
+- Good: tests assert unsupported diagnostics and route absence for deleted
+  direct C route families.
+- Base: smoke-probe C export remains registered only as standalone toolchain
+  probe evidence.
+- Bad: selected metadata, family records, route records, or descriptor mirrors
+  synthesize raw C loops, RVV intrinsics, scalar arithmetic bodies, dispatcher
+  branches, headers, objects, or bundles.
+
+### 6. Tests Required
+
+- C++ registry tests proving deleted route families are not registered.
+- lit tests proving direct options and generic front doors fail closed without
+  emitted C text.
+- Full `check-tianchenrv` must not rely on stale positive direct-C source,
+  header, object, bundle, or e2e dry-run fixtures.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+selected route metadata -> raw C body/header/object/bundle
+```
+
+Correct:
+
+```text
+selected route metadata -> unsupported deleted-route diagnostic
+future rebuild -> materialized MLIR EmitC module -> C/C++ emitter
+```
+
 ## Emission Readiness First Slice
 
 The first compiler-visible emission slice is a target-neutral readiness check.
@@ -205,13 +282,14 @@ callable bodies, RVV intrinsics, `main`,
 self-check helpers, runtime probing, evidence logs, credentials, artifact
 paths, or performance text.
 
-### Scenario: RVV i32-vadd Selected Source Identity For Default Artifacts
+### Scenario: Deleted RVV Selected Source Identity For Default Artifacts
 
 #### 1. Scope / Trigger
 
-This scenario applies to the migrated default RVV i32-vadd target artifact
-route when generic source/header/object export consumes a selected
-runtime-callable RVV candidate.
+This scenario is historical. The selected source identity fields may remain
+parseable on old fixtures, but generic source/header/object export must not
+consume them as a supported runtime-callable RVV artifact route after direct C
+semantic exporter deletion.
 
 #### 2. Signatures
 
@@ -221,7 +299,7 @@ runtime-callable RVV candidate.
   `selected_binary_family`, `selected_binary_operator`,
   `selected_binary_microkernel_op`, `emitc_source_op`, and
   `emitc_lowerable_op_interface`.
-- Default route ids: `tcrv-export-rvv-microkernel-c`,
+- Deleted historical route ids: `tcrv-export-rvv-microkernel-c`,
   `tcrv-export-rvv-microkernel-header`, and
   `tcrv-export-rvv-microkernel-object`.
 
@@ -961,19 +1039,18 @@ execution-plan coherence, route validation, or artifact materialization fails,
 and it must not weaken the bundle component contract or runtime ABI signature
 validation.
 
-## RVV+Scalar I32/I64 Dispatch Route Manifest
+## Deleted RVV+Scalar Dispatch Route Manifest
 
 ### 1. Scope / Trigger
 
-Trigger: target/export code or public tools add, expose, or validate a
-RVV+scalar i32/i64 binary dispatch route. The route source of truth is the
-bounded target-owned dispatch route manifest for the existing finite families
-`i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`.
+Trigger: historical target/export code or public tools would previously have
+exposed RVV+scalar dispatch source/header/object/self-check route metadata for
+finite binary families.
 
-This manifest is a target/export contract over already selected RVV dispatch
-case and scalar dispatch fallback callable artifacts. It must not become a
-generic arithmetic registry, a new high-level compute IR, or Python-owned
-compiler semantics.
+This route manifest is deleted as production route authority. It may remain
+only as historical implementation detail for deleted-route diagnostics; public
+tools and generic target-artifact front doors must not register these route
+families as supported executable C artifact paths.
 
 ### 2. Signatures
 
@@ -1010,37 +1087,24 @@ llvm::Error exportRVVScalarDispatchRoute(
     llvm::raw_ostream &os);
 ```
 
-Public command surface:
+Deleted public command surface:
 
 ```text
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-header
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-object
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-object
+none
 ```
 
-The same five route kinds must exist for `i32-vsub`, `i32-vmul`, `i64-vadd`,
-`i64-vsub`, and `i64-vmul` with the same stable naming pattern.
+Historical add/sub/mul route names must not be accepted as supported translate
+options.
 
 ### 3. Contracts
 
-- The manifest covers exactly the current registry families `i32-vadd`,
-  `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`;
-  unsupported families are absent rather than partially represented.
-- Each manifest entry derives family facts from
-  `RVVScalarBinaryFamily` and adds only dispatch-route-specific stable fields
-  such as route kind, artifact kind, description, and binary stdout mode.
-- Source, header, and library-object entries are registered as target artifact
-  composite exporters by iterating the manifest. Self-check entries remain
-  explicit direct evidence-helper translate routes and are not generic bundle
-  front-door records.
-- Direct `tcrv-translate` dispatch routes are registered by iterating the same
-  manifest. Public tool code must not keep an independent hand-written add/sub
-  /mul route list.
-- A direct route must require the selected RVV callable family and selected
-  scalar callable family to match the route family before emitting source,
-  header, object bytes, or self-check harness code.
+- Source, header, library-object, and self-check dispatch route entries must
+  not be registered as supported target artifact exporters.
+- Deleted direct `tcrv-translate` dispatch routes must fail at command-line
+  parsing or unsupported-route selection before source/header/object output.
+- Future dispatch executable artifact support must be rebuilt through
+  extension-family ops, a materialized common EmitC module, and the MLIR C/C++
+  emitter.
 - Source/header/object records in one dispatch external ABI group must agree on
   runtime ABI kind/name, component group, external ABI name, selected component
   paths, and ordered runtime ABI parameters.
@@ -1511,55 +1575,27 @@ emission remains unsupported/deferred until plugin-local kernel lowering and
 runtime evidence are implemented.
 ```
 
-## RVV I32 VAdd Microkernel Target Export Boundary
+## Deleted RVV Direct Microkernel Target Export Boundary
 
 ### 1. Scope / Trigger
 
-Trigger: post-planning MLIR contains one selected `rvv-plugin` path, a matching
-plugin-owned `tcrv_rvv.lowering_boundary`, preserved selected march metadata,
-and exactly one `tcrv_rvv.i32_vadd_microkernel` op for that selected
-kernel/variant. The microkernel op may be an explicit fixture attachment or an
-RVV-plugin materialization from typed frontend/default selected-source
-authority. The microkernel op must carry the structured RVV control/dataflow
-body for this bounded slice:
-one runtime index body argument for target/export-owned `n`/AVL, one
-`tcrv_rvv.setvl`, one matching `tcrv_rvv.with_vl`, and one nested finite
-`tcrv_rvv.i32_load`, `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`,
-`tcrv_rvv.i32_store` sequence. The load/store ops reference the
-target/export-owned lhs input, rhs input, and output buffer ABI roles consumed
-by this exporter. Runtime element count remains a direct
-`tcrv.exec.runtime_param` ABI boundary, not an RVV dataflow operand. Concrete C
-parameter names are resolved from structured runtime ABI parameter metadata by
-role when a supported emission plan is present.
+Trigger: historical post-planning MLIR would previously have selected an RVV
+path and a bounded RVV microkernel attachment, then exported executable C
+directly from selected metadata and target records.
 
-This export is the first bounded RVV executable microkernel slice. It emits a
-deterministic library-style C source file whose primary behavior is a stable
-runtime-callable C ABI function:
-
-```c
-void <generated_name>(const int32_t *lhs, const int32_t *rhs,
-                      int32_t *out, size_t n);
-```
-
-The callable function computes finite family-selected i32 vector add, subtract,
-or multiply using RVV intrinsics. The
-default artifact has no embedded `main` or self-check harness; later runtime
-glue can embed the source and call the ABI boundary directly. A separate
-  explicit harness export may add bounded local arrays and `main` only for bounded
-evidence collection. This is not generic high-level MLIR lowering, arbitrary
-RVV kernel emission, full runtime integration, benchmarking, or performance
-evidence.
+This boundary is deleted. RVV direct microkernel source/header/object and
+self-check exports must fail closed until a future route materializes a real
+MLIR EmitC module and emits C/C++ through the MLIR emitter.
 
 ### 2. Signatures
 
-Public command:
+Deleted public command:
 
 ```text
-tcrv-translate --tcrv-export-rvv-microkernel-c
-tcrv-translate --tcrv-export-rvv-microkernel-self-check-c
+none
 ```
 
-C++ entry point:
+Historical C++ entry point:
 
 ```cpp
 llvm::Error exportRVVMicrokernelC(mlir::ModuleOp module,
@@ -1598,17 +1634,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   and runtime-element-count runtime ABI parameters by role, validate their
   target/export ABI ownership and C type spelling, and use the resolved C names
   in the generated callable source.
-- Output must be deterministic library-style C with `riscv_vector.h`, a stable
-  runtime-callable i32 vadd C ABI function, RVV i32 load/add/store intrinsics
-  inside that callable function, control-flow derived only after validating the
-  structured control/dataflow body, and no default embedded `main` or
+- Output must be no executable C source, no header, no object, and no
   self-check harness.
-- The explicit self-check harness export must call the same callable ABI from a
-  bounded helper over bounded local arrays and is evidence tooling, not the
-  default target artifact contract. Descriptor-local `element_count` may bound
-  harness capacity, but the harness must pass explicit runtime `n` values
-  through the generated ABI and must not treat `element_count` as shape, AVL,
-  VL, or the only runtime trip count.
+- Historical selected metadata may remain parseable only as fail-closed input
+  for deleted-route diagnostics.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
   benchmark sizes, latency/throughput numbers, or performance claims.
 
@@ -1640,33 +1669,22 @@ arbitrary RVV kernel emission, full runtime integration, or performance.
 
 ### 6. Emission Plan / Manifest Handoff
 
-When the explicit microkernel op matches the selected RVV path, the RVV plugin
-may return a supported emission plan for the runtime-callable C source export
-route.
-The plan must also validate that the attached microkernel's `element_count`
-matches the selected variant's bounded `tcrv_rvv.element_count` selected-path
-metadata:
+When historical selected RVV metadata reaches emission planning, the RVV plugin
+must return an unsupported deleted-route plan:
 
 ```text
-status: supported
-emission kind: rvv-explicit-i32-vadd-microkernel-c-source
-lowering pipeline: tcrv-export-rvv-microkernel-c
-runtime ABI: rvv-i32-vadd-runtime-callable-c-abi.v1
-runtime ABI kind: rvv-runtime-callable-c-abi
-runtime ABI name: rvv-i32-vadd-runtime-callable-c-function.v1
-runtime glue role: runtime-callable-i32-vadd-function
-artifact kind: runtime-callable-c-source
+status: unsupported
+emission kind: rvv-runtime-callable-direct-c-source-exporter-deleted
+lowering pipeline: deleted-direct-c-source-route
+runtime ABI: unsupported-emission-runtime-abi
+runtime ABI kind: unsupported-plugin-runtime-abi
+runtime ABI name: unsupported-emission-runtime-abi
+runtime glue role: no-runtime-glue-unsupported
+artifact kind: unsupported-deleted-direct-c-route
 ```
 
-This supported plan is a plugin-owned compiler handoff to the existing RVV
-microkernel exporter and names the callable C ABI emitted in that source. It is
-more concrete than the default unsupported RVV first-slice plan, but it is
-still not generic RVV lowering, full runtime integration, object generation,
-arbitrary kernel emission, correctness evidence, or performance evidence by
-itself. The generic emission manifest may serialize the record after validating
-the selected surface, the `tcrv_rvv.lowering_boundary` link, and the
-emission-plan diagnostic. It must not reinterpret the adjacent
-`tcrv_rvv.i32_vadd_microkernel` attachment as a second lowering boundary.
+This plan is a deletion diagnostic only. It is not a compiler handoff to a C
+source exporter.
 
 ## Scalar Fallback Metadata Boundary
 
@@ -1704,49 +1722,32 @@ It is not evidence that the compiler emitted LLVM IR, assembled an object,
 linked runtime glue, ran a scalar kernel, proved correctness, or measured
 performance.
 
-## Scalar Explicit Microkernel Target Export Boundary
+## Deleted Scalar Explicit Microkernel Target Export Boundary
 
-Trigger: post-planning MLIR contains one selected `scalar-plugin` fallback
-path, a matching plugin-owned `tcrv_scalar.lowering_boundary`, and exactly one
-explicit `tcrv_scalar.i32_vadd_microkernel` or
-`tcrv_scalar.i32_vsub_microkernel` or `tcrv_scalar.i32_vmul_microkernel` op for
-that selected kernel/variant/role.
+Trigger: historical post-planning MLIR would previously have selected a scalar
+fallback path and a typed scalar microkernel attachment, then exported
+executable portable C directly from selected metadata and family records.
 
-This export is the first bounded scalar fallback executable source slice. It
-may emit a deterministic portable runtime-callable C library source artifact
-that computes finite scalar i32 vector add, subtract, or multiply through a
-pointer-plus-length C ABI. It is not generic scalar lowering, arbitrary scalar
-kernel emission, generic runtime dispatch glue, object generation, linking,
-benchmarking, or performance evidence.
+This boundary is deleted. Scalar direct source/header/object exports must fail
+closed until a future route materializes a real MLIR EmitC module and emits
+C/C++ through the MLIR emitter.
 
-Public route:
+Deleted public route:
 
 ```text
-tcrv-translate --tcrv-export-target-source-artifact
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-c
+none
 ```
 
-Route metadata:
+Deleted-route metadata:
 
 ```text
-status: supported
-add emission kind: scalar-explicit-i32-vadd-microkernel-c-source
-add lowering pipeline: tcrv-export-scalar-microkernel-c
-add runtime ABI: scalar-i32-vadd-runtime-callable-c-abi.v1
-add runtime ABI name: scalar-i32-vadd-runtime-callable-c-function.v1
-add runtime glue role: runtime-callable-i32-vadd-fallback-function
-sub emission kind: scalar-explicit-i32-vsub-microkernel-c-source
-sub lowering pipeline: tcrv-export-scalar-i32-vsub-microkernel-c
-sub runtime ABI: scalar-i32-vsub-runtime-callable-c-abi.v1
-sub runtime ABI name: scalar-i32-vsub-runtime-callable-c-function.v1
-sub runtime glue role: runtime-callable-i32-vsub-fallback-function
-mul emission kind: scalar-explicit-i32-vmul-microkernel-c-source
-mul lowering pipeline: tcrv-export-scalar-i32-vmul-microkernel-c
-mul runtime ABI: scalar-i32-vmul-runtime-callable-c-abi.v1
-mul runtime ABI name: scalar-i32-vmul-runtime-callable-c-function.v1
-mul runtime glue role: runtime-callable-i32-vmul-fallback-function
-runtime ABI kind: scalar-runtime-callable-c-abi
-artifact kind: runtime-callable-c-source
+status: unsupported
+emission kind: scalar-runtime-callable-direct-c-source-exporter-deleted
+lowering pipeline: deleted-direct-c-source-route
+runtime ABI kind: unsupported-plugin-runtime-abi
+runtime ABI name: unsupported-emission-runtime-abi
+runtime glue role: no-runtime-glue-unsupported
+artifact kind: unsupported-deleted-direct-c-route
 ```
 
 Contracts:
@@ -1761,15 +1762,9 @@ Contracts:
   `tcrv_scalar.i32_vsub_microkernel` or `tcrv_scalar.i32_vmul_microkernel` must
   identify the same selected path and required capability refs with a bounded
   element count.
-- Output must be deterministic portable C with a callable function
-  `void <name>(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n)`
-  that performs scalar i32 add, subtract, or multiply over the provided arrays
-  according to the selected scalar microkernel family.
-- The default artifact must not include a hidden `main`, stdio-only self-check
-  machinery, or a self-check success marker.
-- Output must not include RVV headers, RVV intrinsics, route-spoof claims,
-  timestamps, absolute paths, raw logs, credentials, benchmark sizes,
-  latency/throughput numbers, or performance claims.
+- Output must be no executable portable C source, no header, and no object.
+- Historical selected metadata may remain parseable only as fail-closed input
+  for deleted-route diagnostics.
 
 Missing selected scalar path, missing or stale scalar lowering boundary,
 missing or stale scalar microkernel, unavailable fallback capability, unknown
@@ -2140,33 +2135,19 @@ available. `i32-vadd` compatibility wrappers may stay as wrappers only; they
 must not be the active source of truth for `i32-vsub`, `i32-vmul`, or any i64
 RVV selected family.
 
-Direct RVV binary source/header/object route ownership is target-local. The RVV
-target support layer must expose one route contribution source of truth for the
-finite i32/i64 add/sub/mul families, and both public direct helper registration
-and `TargetArtifactExporterRegistry` population must iterate that contribution
-data rather than hand-maintaining duplicate per-family route lists in tools or
-generic target front doors. Missing contribution leaves the generic registry
-without RVV direct routes, and duplicate contribution must fail through the
-generic duplicate-route diagnostics. The legacy convenience route ids
+Direct RVV binary source/header/object route ownership is deleted as production
+route authority. Historical route ids such as
 `tcrv-export-rvv-microkernel-c`, `tcrv-export-rvv-microkernel-header`, and
-`tcrv-export-rvv-microkernel-object` remain compatibility aliases that follow
-the selected RVV binary family; family-specific route ids must reject selected
-records from a different RVV binary family before emitting source, header, or
-object bytes.
+`tcrv-export-rvv-microkernel-object` must not be registered as supported target
+artifact exporters until a future EmitC-module source route replaces direct C
+semantic export.
 
 Required tests for changes to this contract:
 
-- C++ tests must prove all direct RVV i32/i64 add/sub/mul families expose the
-  selected-family runtime ABI parameter order, roles, C spellings, and
-  ownership;
-- C++ tests must prove i64 add/sub/mul selected plans and supported emission
-  plans expose family-specific runtime ABI identity and `int64_t` callable
-  parameters rather than stale i32-vadd defaults;
-- target artifact export tests must prove an i64 route rejects stale i32-vadd
-  runtime ABI metadata before source/header/object or bundle output;
-- registry tests must prove RVV direct route contribution is explicit,
-  duplicate contribution fails, and source/header/object direct route ids remain
-  unique across the finite RVV binary family manifest.
+- C++ tests must prove deleted RVV direct route ids are absent from active
+  target artifact exporter registration;
+- lit tests must prove generic source/header/object front doors fail closed
+  without printing direct RVV C source, headers, objects, or bundle outputs.
 
 ## Host RVV + Scalar I32 VAdd Dispatch C Export Boundary
 
@@ -2228,26 +2209,23 @@ RVV lowering correctness. Real correctness claims for the RVV branch still
 require separate `ssh rvv` compile/run evidence for the generated harness
 source and selected flags.
 
-### Dispatch Self-Check Harness Export
+### Deleted Dispatch Self-Check Harness Export
 
 #### 1. Scope / Trigger
 
-Trigger: a post-planning module already satisfies the host RVV+scalar finite
-i32 add/sub/mul dispatch C export boundary, and the caller wants explicit runtime
-invocation evidence for the generated dispatcher rather than the default
-library-style source artifact.
+Trigger: historical post-planning input would previously have satisfied the
+RVV+scalar finite dispatch C export boundary, and the caller wanted explicit
+runtime invocation evidence for the generated dispatcher.
 
-This is a target-owned evidence export mode for the finite i32 add/sub/mul
-dispatcher family. It must not become a generic object/link/runtime pipeline.
+This export mode is deleted. It must not be restored as a direct C evidence
+helper.
 
 #### 2. Signatures
 
-Public command:
+Deleted public command:
 
 ```text
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c
-tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c
-tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-self-check-c
+none
 ```
 
 C++ entry point:
@@ -2263,63 +2241,27 @@ llvm::Error exportRVVScalarI32VMulDispatchSelfCheckC(mlir::ModuleOp module,
 
 #### 3. Contracts
 
-- The export reuses the same selected-path, lowering-boundary,
-  emission-plan, route-id, artifact-kind, and structured runtime ABI parameter
-  validation as `--tcrv-export-rvv-scalar-i32-vadd-dispatch-c`.
-- The default dispatcher export remains library-style and must not contain a
-  hidden `main`, self-check helper, or success marker.
-- The self-check source embeds the same RVV callable source, scalar callable
-  source, and dispatcher function, then appends a bounded harness.
-- The harness calls the dispatcher with `rvv_available = 0` to exercise the
-  scalar fallback branch and with `rvv_available = 1` to exercise the RVV
-  branch.
-- The harness expected arithmetic must come from the selected family: vadd
-  checks `lhs + rhs`, vsub checks `lhs - rhs`, and vmul checks `lhs * rhs`. A
-  stale route, ABI name, intrinsic, callable symbol stem, or success marker from
-  another family is invalid.
-- The harness must exercise more than one target/export-owned runtime `n` ABI
-  value. The current bounded slice uses `n = 7` and `n = 16` for each branch.
-- The harness uses bounded local arrays and a target/export-owned runtime `n`
-  ABI argument. Descriptor-local `element_count` remains metadata only and
-  must not become the callable runtime loop bound.
-- The harness may print one bounded success marker after both checks pass.
-- Output must not include benchmark sizes, throughput, latency, raw logs,
-  credentials, URLs, absolute artifact paths, or performance claims.
+- The export must fail closed before printing direct C source.
+- The default dispatcher direct C export is also deleted.
+- No harness code, success marker, embedded RVV/scalar callable source, or
+  dispatcher C body may be emitted by this deleted route.
 
 #### 4. Validation & Error Matrix
 
-- Missing selected RVV dispatch case -> same fail-before-source diagnostic as
-  the default dispatch export.
-- Missing selected scalar dispatch fallback -> same fail-before-source
-  diagnostic as the default dispatch export.
-- Missing or stale RVV/scalar lowering boundary -> fail before source output.
-- Missing or unsupported callable emission-plan metadata for either branch ->
-  fail before source output.
-- Missing structured `lhs`, `rhs`, `out`, or runtime `n` ABI parameter metadata
-  on either callable route -> fail before source output.
-- Route spoofing, wrong origin, wrong role, or unsupported artifact kind ->
-  fail before source output.
-- Self-check route family mismatch, such as vsub artifacts routed through the
-  vadd self-check command or vadd artifacts routed through the vsub self-check
-  command, or vmul artifacts routed through an add/sub self-check command ->
-  fail before source output.
-- Remote compile/run failure of generated harness -> evidence collection
-  failure only; it must not be converted into a compiler-side success claim.
+- Any attempt to use historical self-check route metadata -> fail before
+  direct C source output.
+- Runtime evidence must wait for a rebuilt EmitC-module route and real `ssh rvv`
+  compile/run evidence over that rebuilt artifact.
 
 #### 5. Good / Base / Bad Cases
 
-- Good: execution-planning pipeline materializes RVV and scalar callable paths;
-  the self-check export compiles on `ssh rvv`, runs both branch checks, and
-  prints the bounded success marker.
-- Base: local lit/FileCheck checks prove the harness structure without
-  contacting `ssh rvv`.
-- Bad: the default dispatcher export silently includes a `main`, or the
-  self-check command bypasses runtime ABI metadata validation.
+- Good: fail-closed tests prove no self-check C body is printed.
+- Base: historical metadata can remain as negative input.
+- Bad: a direct self-check command emits a harness or success marker.
 
 #### 6. Tests Required
 
-- lit/FileCheck must prove the default dispatcher export still lacks `main`,
-  self-check helpers, and runtime success markers.
+- lit/FileCheck must prove deleted dispatch self-check routes fail closed.
 - lit/FileCheck must prove the self-check export appends a harness that calls
   the dispatcher with both `rvv_available = 0` and `rvv_available = 1`.
 - lit/FileCheck must prove the harness passes explicit runtime element-count
@@ -2481,100 +2423,17 @@ Contracts:
   stale lowering boundaries, unsupported artifact kinds, unsupported origins,
   wrong roles, and ambiguous duplicate paths must fail before source output.
 
-### Dispatch Self-Check Executable Evidence Bridge
+### Deleted Dispatch Self-Check Executable Evidence Bridge
 
-The repo-owned executable evidence bridge is
-`scripts/rvv_scalar_dispatch_e2e.py`. It is Python runner/evidence tooling
-only. It must not implement compiler IR, plugin decisions, target selection,
-capability modeling, lowering, emission, runtime ABI, correctness logic, or
-performance measurement.
+The former repo-owned dispatch e2e runner was removed with the direct C
+semantic exporter deletion campaign. It is no longer a supported evidence path
+because it consumed selected metadata, route records, generated direct C
+source, and bundle outputs as executable proof.
 
-The bridge must consume compiler-generated artifacts from the planned dispatch
-pipeline:
-
-```bash
-tcrv-opt input.mlir --tcrv-execution-planning-pipeline
-tcrv-translate --tcrv-export-target-source-artifact post_planning.mlir
-tcrv-translate --tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c \
-  post_planning.mlir
-```
-
-For a bounded linalg frontend input, the bridge may run the existing add/sub/mul
-frontend lowering pass before execution planning:
-
-```bash
-scripts/rvv_scalar_dispatch_e2e.py \
-  --arithmetic-family i32-vsub \
-  --lower-linalg-frontend \
-  --input test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir
-```
-
-When invoked with `--use-target-artifact-bundle`, the same bridge consumes the
-registry-derived target artifact bundle instead of the direct self-check source
-route:
-
-```bash
-scripts/rvv_scalar_dispatch_e2e.py \
-  --use-target-artifact-bundle \
-  --use-plan-and-export-bundle-front-door \
-  --arithmetic-family i32-vsub \
-  --input test/Target/TargetArtifactBundleExport/plan-linalg-i32-vsub-and-export-target-artifact-bundle.mlir
-```
-
-The underlying compiler command for the bundle front door is:
-
-```bash
-tcrv-translate --tcrv-export-target-artifact-bundle \
-  --tcrv-target-artifact-bundle-output-dir=<fresh-dir> input.mlir
-```
-
-Bundle mode must parse only `tianchenrv-target-artifact-bundle.index` as the
-stable file name, discover generated source/header/object file names from that
-index, validate artifact kind, route, owner, runtime ABI kind/name, component
-selected paths, explicit external ABI component metadata, the ordered
-`runtime_abi_parameter[index]` signature (`c_name`, `c_type`, `role`, and
-`ownership`), and evidence role, then generate a small external C caller from
-the emitted header prototype and the compiler-emitted signature metadata.
-Dry-run bundle mode records bundle export, index parsing, file discovery,
-caller generation, hashes, command logs, and evidence JSON under
-`artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/<run-id>/`; it is not runtime
-or correctness evidence. Real ssh bundle mode may copy the generated source,
-generated header, generated relocatable object, and generated external caller
-to `ssh rvv`, compile the generated dispatch source and caller object on that
-host, link and run the caller against the source-built object, then also link
-and run the same caller against the generated bundle object. It must require
-the bounded bundle external ABI success marker and record sanitized
-host/toolchain facts such as `uname`, architecture, and clang path/version.
-Successful ssh bundle evidence proves only that the finite family-selected
-RVV+scalar i32 add/sub/mul compiler-generated bundle source/header/object external
-ABI caller executed both `rvv_available = 0` and `rvv_available = 1` branches
-on that host for the explicit runtime `n = 7` and `n = 16` caller inputs. For
-vsub, the generated external caller must check `lhs - rhs`; for vmul, it must
-check `lhs * rhs`; neither may use stale vadd semantics. It is not generic lowering, arbitrary RVV support, dynamic runtime
-integration, performance evidence, or broad correctness coverage.
-
-Dry-run mode records sanitized post-planning MLIR, emission manifest, generated
-library dispatch source, generated self-check dispatch source, hashes, command
-logs, and evidence JSON under
-`artifacts/tmp/rvv_scalar_dispatch_e2e/<run-id>/`. It proves only that the
-existing compiler tools can produce the planned dispatch handoff and bounded
-source artifacts.
-
-Real ssh mode may copy the generated self-check source to `ssh rvv`, compile it
-with selected `-march` and optional `-mabi` metadata into a relocatable object,
-link an executable, run that executable, and require the bounded success marker
-from the harness. This is a runtime/evidence bridge over target-owned generated
-C. The bridge must fail closed on ssh, scp, compiler, header, object, link,
-run, timeout, or success-marker failure and must record sanitized command logs
-rather than synthesizing runtime evidence.
-
-Successful ssh evidence proves only that the finite generated family-selected
-RVV+scalar i32 add/sub/mul dispatcher self-check executable compiled, linked, and
-ran both the scalar fallback and RVV dispatch branches on the selected RVV host
-flags for the explicit runtime `n = 7` and `n = 16` ABI inputs. It is not
-generic high-level lowering correctness, arbitrary RVV emission support,
-object-route proof for unrelated kernels, dynamic runtime integration,
-performance evidence, or broad correctness coverage.
+Future dispatch executable evidence must consume artifacts rebuilt from
+extension-family ops through a materialized common EmitC module and the MLIR
+C/C++ emitter. Runtime/correctness claims still require separate real `ssh rvv`
+evidence over that rebuilt artifact.
 
 ### Dispatch ABI Header Export
 

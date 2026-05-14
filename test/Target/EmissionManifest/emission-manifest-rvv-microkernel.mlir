@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-emission-manifest | FileCheck %s --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=runtime_success --implicit-check-not=password --implicit-check-not=token
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=DELETED --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=runtime_success --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_microkernel_manifest_input {
   tcrv.exec.kernel @rvv_microkernel_manifest {
@@ -82,6 +82,13 @@ module @rvv_microkernel_manifest_input {
     }
   }
 }
+
+// DELETED: message = "runtime-callable RVV direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+// DELETED-SAME: reason = "emission_plan"
+// DELETED-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+// DELETED-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+// DELETED-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+// DELETED-SAME: status = "unsupported"
 
 // CHECK: tianchenrv.emission_manifest.version: 1
 // CHECK: module: "rvv_microkernel_manifest_input"
