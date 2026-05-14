@@ -44,3 +44,56 @@ Final session commit recorded in git history for this round.
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 63: RVV exported artifact runtime consumption
+
+**Date**: 2026-05-14
+**Task**: RVV exported artifact runtime consumption
+**Branch**: `main`
+
+### Summary
+
+Closed the downstream consumption gap for source-frontdoor RVV generated
+artifacts. `RVVScalarDispatch` now validates the embedded RVVMicrokernel
+artifact's exported selected-source identity and runtime ABI invocation
+contract before dispatch source/header/object export can succeed.
+
+### Main Changes
+
+- Added production C++ validation in `RVVScalarDispatch.cpp` for embedded RVV
+  callable source contracts:
+  `rvv_microkernel_selected_source_identity`,
+  `runtime_abi_invocation_contract`, and runtime length authority.
+- Added `dispatch_embedded_rvv_artifact_contract_consumed` comments to
+  generated dispatch source/header artifacts.
+- Updated `rvv_scalar_dispatch_e2e.py` to parse and record
+  `embedded_rvv_artifact_contract` from generated dispatch artifacts as a
+  runner-only consumer.
+- Tightened vector dynamic vadd/vsub bundle FileCheck coverage around embedded
+  RVVMicrokernel selected-source and runtime ABI contracts.
+
+### Testing
+
+- [OK] Focused C++/tool build for RVV target/export/plugin and `tcrv-opt` /
+  `tcrv-translate`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit for dynamic vector vadd/vsub bundle artifacts.
+- [OK] Focused lit for `Target/RVVScalarDispatch`, `Target/RVVMicrokernel`, and
+  `Scripts/rvv-scalar-dispatch-bundle-e2e.test` (`46/46`).
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] Local generated bundle dry-runs for vector i32-vadd and i32-vsub.
+- [OK] `ssh rvv` generated bundle invocation for vector i32-vsub:
+  `codex-exported-contract-vsub-ssh`, `ssh_evidence_verified=true`.
+- [OK] `git diff --check`, `git diff --cached --check`, Trellis validation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

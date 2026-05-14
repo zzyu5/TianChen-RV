@@ -2144,6 +2144,11 @@ llvm::Error printDispatchSelectedSourceIdentityContract(
         "RVVScalarDispatch.cpp consumed selected RVV source identity from "
         "selected-plan metadata and the direct selected config before "
         "dispatch source/header/object artifact export. */\n";
+  os << "/* dispatch_embedded_rvv_artifact_contract_consumed: "
+        "selected_source_identity=rvv_microkernel_selected_source_identity, "
+        "runtime_abi_invocation_contract=runtime_abi_invocation_contract, "
+        "runtime_length=rvv_microkernel_runtime_length_contract, "
+        "production_owner=rvv-target-export */\n";
   return llvm::Error::success();
 }
 
@@ -2327,6 +2332,100 @@ llvm::Error requireEmbeddedRVVSourceSnippet(const DispatchPair &pair,
           snippet + "'");
 }
 
+std::string formatEmbeddedRuntimeABIOrderedRoles(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  std::string roles;
+  llvm::raw_string_ostream stream(roles);
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      stream << "->";
+    stream << support::stringifyRuntimeABIParameterRole(parameter.role);
+  }
+  stream.flush();
+  return roles;
+}
+
+llvm::Error validateEmbeddedRVVSourceArtifactContract(
+    const DispatchPair &pair, llvm::StringRef rvvSource) {
+  llvm::Expected<std::string> selectedSourceIdentity =
+      buildDispatchSelectedSourceIdentityContractSummary(pair);
+  if (!selectedSourceIdentity)
+    return selectedSourceIdentity.takeError();
+
+  std::string selectedSourceIdentitySnippet;
+  {
+    llvm::raw_string_ostream stream(selectedSourceIdentitySnippet);
+    stream << "rvv_microkernel_selected_source_identity: "
+           << *selectedSourceIdentity;
+  }
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, selectedSourceIdentitySnippet,
+          "RVVMicrokernel exported selected source identity contract"))
+    return error;
+
+  std::string invocationContractSnippet;
+  {
+    llvm::raw_string_ostream stream(invocationContractSnippet);
+    stream << "runtime_abi_invocation_contract: source=RVVMicrokernel.cpp"
+           << ", callable_symbol=" << makeRVVFunctionName(pair)
+           << ", runtime_abi_kind=" << pair.rvv.runtimeABIKind
+           << ", runtime_abi_name=" << pair.rvv.runtimeABIName
+           << ", runtime_glue_role=" << pair.rvv.runtimeGlueRole
+           << ", parameter_count=" << pair.rvv.runtimeABIParameters.size()
+           << ", ordered_roles="
+           << formatEmbeddedRuntimeABIOrderedRoles(
+                  pair.rvv.runtimeABIParameters)
+           << ", runtime_element_count_c_name="
+           << pair.selectedConfig.getRuntimeElementCountCName()
+           << ", production_owner=rvv-target-export";
+  }
+  if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+          pair, rvvSource, invocationContractSnippet,
+          "RVVMicrokernel exported runtime ABI invocation contract"))
+    return error;
+
+  if (auto sourceExtent =
+          pair.selectedConfig.getFixedVectorSourceExtentContract()) {
+    if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+            pair, rvvSource, sourceExtent->formatCommentBody(),
+            "RVVMicrokernel fixed vector source extent contract"))
+      return error;
+    std::string countConstraintSnippet;
+    llvm::raw_string_ostream stream(countConstraintSnippet);
+    stream << "runtime_element_count_constraint: "
+           << pair.selectedConfig.getRuntimeElementCountCName()
+           << " must equal fixed source vector extent "
+           << sourceExtent->sourceVectorExtent
+           << " before runtime AVL/VL execution";
+    stream.flush();
+    if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+            pair, rvvSource, countConstraintSnippet,
+            "RVVMicrokernel fixed runtime element-count contract"))
+      return error;
+  }
+
+  if (auto runtimeExtent =
+          pair.selectedConfig.getDynamicVectorRuntimeExtentContract()) {
+    if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+            pair, rvvSource, runtimeExtent->formatCommentBody(),
+            "RVVMicrokernel dynamic runtime AVL authority contract"))
+      return error;
+    std::string countSourceSnippet;
+    llvm::raw_string_ostream stream(countSourceSnippet);
+    stream << "runtime_element_count_source: "
+           << pair.selectedConfig.getRuntimeElementCountCName()
+           << " is the source scf.for upper bound and runtime AVL; no fixed "
+              "source-extent trap is emitted for this dynamic vector route";
+    stream.flush();
+    if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
+            pair, rvvSource, countSourceSnippet,
+            "RVVMicrokernel dynamic runtime element-count authority"))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateEmbeddedRVVSourceSelectedShape(
     const DispatchPair &pair, llvm::StringRef rvvSource) {
   if (!pair.selectedConfig.isValid())
@@ -2381,6 +2480,9 @@ llvm::Error validateEmbeddedRVVSourceSelectedShape(
     return error;
   if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
           pair, rvvSource, storeIntrinsic, "store intrinsic"))
+    return error;
+  if (llvm::Error error =
+          validateEmbeddedRVVSourceArtifactContract(pair, rvvSource))
     return error;
   return llvm::Error::success();
 }

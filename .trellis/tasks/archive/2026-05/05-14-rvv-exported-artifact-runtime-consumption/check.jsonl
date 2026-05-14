@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check any RVV runtime claim is backed by focused ssh rvv evidence."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check no compute semantics or RVV branches were moved into tcrv.exec."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected source identity, selected config, runtime length, and descriptor quarantine are preserved."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export/runtime ABI contracts are consumed before artifact success."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check typed source op and generated EmitC interface authority remain the source of artifact identity."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and evidence match the changed runtime/artifact behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-artifact-export-source-frontdoor-contract/prd.md", "reason": "Check this round consumes the newly exported artifact source identity instead of re-exporting only."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-runtime-abi-production-invocation/prd.md", "reason": "Check runtime ABI invocation remains production-owned and script-consumed."}

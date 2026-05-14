@@ -1026,6 +1026,119 @@ def validate_source_frontdoor_runtime_authority(
     return values
 
 
+def active_rvv_callable_ordered_roles() -> str:
+    return "lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count"
+
+
+def active_source_identity_operator() -> str:
+    intrinsic_op = str(ACTIVE_ARITHMETIC_FAMILY["intrinsic_op"])
+    if intrinsic_op == "add":
+        return "add"
+    if intrinsic_op == "sub":
+        return "subtract"
+    if intrinsic_op == "mul":
+        return "multiply"
+    raise BridgeError(f"unsupported RVV source identity operator: {intrinsic_op}")
+
+
+def validate_embedded_rvv_artifact_contract(source: str) -> dict[str, Any]:
+    dispatch_identity = parse_source_comment(
+        source, "dispatch_selected_source_identity", required=True
+    )
+    embedded_identity = parse_source_comment(
+        source, "rvv_microkernel_selected_source_identity", required=True
+    )
+    if embedded_identity != dispatch_identity:
+        raise BridgeError(
+            "embedded RVV source artifact selected identity does not match "
+            "dispatch-selected source identity"
+        )
+
+    identity = parse_comma_key_values(
+        embedded_identity, "rvv_microkernel_selected_source_identity"
+    )
+    selected_family = str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"])
+    expected_identity = {
+        "dtype": str(ACTIVE_ARITHMETIC_FAMILY["dtype"]),
+        "family": selected_family,
+        "operator": active_source_identity_operator(),
+        "microkernel_op": active_rvv_microkernel_op_name(),
+        "emitc_source_op": active_rvv_emitc_source_op_name(),
+        "emitc_lowerable_op_interface": "TCRVEmitCLowerableOpInterface",
+    }
+    for field, expected in expected_identity.items():
+        if identity.get(field) != expected:
+            raise BridgeError(
+                "embedded RVV source artifact selected identity field "
+                f"{field}={identity.get(field)!r} does not match expected "
+                f"{expected!r}"
+            )
+    allowed_source_kinds = {
+        "frontend-lowering",
+        f"default-{selected_family}-typed-body-materialization",
+        "direct-typed-microkernel-body",
+    }
+    if identity.get("source_kind") not in allowed_source_kinds:
+        raise BridgeError(
+            "embedded RVV source artifact selected identity source_kind "
+            f"{identity.get('source_kind')!r} is unsupported"
+        )
+
+    runtime_contract = parse_comment_key_values(
+        source, "runtime_abi_invocation_contract"
+    )
+    expected_runtime_contract = {
+        "source": "RVVMicrokernel.cpp",
+        "callable_symbol": parse_source_comment(
+            source, "rvv_callable_symbol", required=True
+        ),
+        "runtime_abi_kind": parse_source_comment(
+            source, "rvv_runtime_abi_kind", required=True
+        ),
+        "runtime_abi_name": parse_source_comment(
+            source, "rvv_runtime_abi_name", required=True
+        ),
+        "runtime_glue_role": parse_source_comment(
+            source, "rvv_runtime_glue_role", required=True
+        ),
+        "parameter_count": "4",
+        "ordered_roles": active_rvv_callable_ordered_roles(),
+        "runtime_element_count_c_name": "n",
+        "production_owner": "rvv-target-export",
+    }
+    for field, expected in expected_runtime_contract.items():
+        if runtime_contract.get(field) != expected:
+            raise BridgeError(
+                "embedded RVV source artifact runtime ABI invocation contract "
+                f"{field}={runtime_contract.get(field)!r} does not match "
+                f"expected {expected!r}"
+            )
+
+    consumption_marker = parse_comment_key_values(
+        source, "dispatch_embedded_rvv_artifact_contract_consumed"
+    )
+    expected_marker = {
+        "selected_source_identity": "rvv_microkernel_selected_source_identity",
+        "runtime_abi_invocation_contract": "runtime_abi_invocation_contract",
+        "runtime_length": "rvv_microkernel_runtime_length_contract",
+        "production_owner": "rvv-target-export",
+    }
+    for field, expected in expected_marker.items():
+        if consumption_marker.get(field) != expected:
+            raise BridgeError(
+                "dispatch embedded RVV artifact contract consumption marker "
+                f"{field}={consumption_marker.get(field)!r} does not match "
+                f"expected {expected!r}"
+            )
+
+    return {
+        "dispatch_selected_source_identity": identity,
+        "rvv_microkernel_selected_source_identity": identity,
+        "runtime_abi_invocation_contract": runtime_contract,
+        "consumption_marker": consumption_marker,
+    }
+
+
 def validate_bundle_source_frontdoor_metadata(
     selected_records: dict[str, dict[str, Any]], *, required: bool
 ) -> dict[str, dict[str, str]]:
@@ -1697,6 +1810,9 @@ def validate_library_dispatch_source(source: str) -> dict[str, Any]:
         "/* intrinsic_config: vector_type="
         + str(vector_config["vector_type"]),
     ]
+    embedded_rvv_artifact_contract = validate_embedded_rvv_artifact_contract(
+        source
+    )
     missing = [snippet for snippet in required if snippet not in source]
     if missing:
         raise BridgeError(
@@ -1724,6 +1840,7 @@ def validate_library_dispatch_source(source: str) -> dict[str, Any]:
                 + " vector-shape metadata: "
                 + ", ".join(leaked)
             )
+    vector_config["embedded_rvv_artifact_contract"] = embedded_rvv_artifact_contract
     return vector_config
 
 
@@ -3452,6 +3569,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "bundle_selected_plan_metadata": bundle_source_frontdoor_metadata,
         },
         "rvv_config": source_vector_config,
+        "embedded_rvv_artifact_contract": source_vector_config[
+            "embedded_rvv_artifact_contract"
+        ],
         "bundle_index": relative_to_repo(index_path, root),
         "bundle_index_summary": bundle_records_summary(records),
         "local_object_export_clang": sanitize_text(local_clang),
@@ -3835,6 +3955,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "pipeline_artifact_route_evidence": pipeline_artifact_route_evidence,
         "rvv_config": source_flags["vector_config"],
         "library_rvv_config": library_vector_config,
+        "embedded_rvv_artifact_contract": library_vector_config[
+            "embedded_rvv_artifact_contract"
+        ],
         "self_check": {
             "branches_exercised": ["rvv_available=0", "rvv_available=1"],
             "runtime_element_counts": [7, 16],
@@ -4089,6 +4212,39 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
         source_frontdoor["source_kind"] == "mlir-vector-scf-runtime-i32-vadd.v1",
         "source-frontdoor runtime AVL authority parser failed",
     )
+    sample_rvv_contract_source = """
+/* dispatch_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
+/* dispatch_embedded_rvv_artifact_contract_consumed: selected_source_identity=rvv_microkernel_selected_source_identity, runtime_abi_invocation_contract=runtime_abi_invocation_contract, runtime_length=rvv_microkernel_runtime_length_contract, production_owner=rvv-target-export */
+/* rvv_runtime_abi_kind: rvv-runtime-callable-c-abi */
+/* rvv_runtime_abi_name: rvv-i32-vadd-runtime-callable-c-function.v1 */
+/* rvv_runtime_glue_role: runtime-callable-i32-vadd-function */
+/* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_self_test_rvv_first_slice */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_self_test_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* rvv_microkernel_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
+""".strip()
+    artifact_contract = validate_embedded_rvv_artifact_contract(
+        sample_rvv_contract_source
+    )
+    assert_self_test(
+        artifact_contract["runtime_abi_invocation_contract"]["production_owner"]
+        == "rvv-target-export",
+        "embedded RVV artifact runtime contract parser failed",
+    )
+    try:
+        validate_embedded_rvv_artifact_contract(
+            sample_rvv_contract_source.replace(
+                "runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1",
+                "runtime_abi_name=stale-rvv-i32-vadd-runtime-callable-c-function.v1",
+                1,
+            )
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "runtime_abi_name" in str(error),
+            "stale embedded RVV runtime ABI contract error changed",
+        )
+    else:
+        raise AssertionError("stale embedded RVV runtime ABI contract was accepted")
 
     compile_command = build_remote_compile_object_command(
         "/tmp/tianchenrv_rvv_scalar_dispatch_e2e_self_test", flags
