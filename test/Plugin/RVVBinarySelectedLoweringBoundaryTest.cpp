@@ -550,7 +550,6 @@ module {
 )mlir";
   replaceAll(source, "rvv_i64_vmul_boundary", kernelSymbol);
   replaceAll(source, "i64-vmul", family.frontendLowering);
-  replaceAll(source, "i64-vmul-microkernel.v1", family.legacyLoweringToken);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)

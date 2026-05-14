@@ -4,7 +4,6 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/I32BinaryFamilyRegistry.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"

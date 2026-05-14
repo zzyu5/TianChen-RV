@@ -2,6 +2,9 @@
 #define TIANCHENRV_TARGET_RVV_RVVBINARYFAMILY_H
 
 #include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
+#include "TianChenRV/Support/RuntimeABIMemWindow.h"
+#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -26,10 +29,10 @@ enum class RVVBinaryArithmeticKind {
   Mul,
 };
 
-// Finite RVV binary family registration metadata. This table is allowed to
-// register bounded routes and compatibility names, but typed selected plans,
-// exec-IR ABI boundaries, and EmitC route metadata remain production
-// authority for source/ABI emission.
+// Finite RVV binary family facts used to connect typed frontend/source identity
+// to the RVV extension family. Route ids, intrinsic spellings, artifact kinds,
+// runtime ABI identity strings, and direct exporter names are intentionally not
+// part of this record.
 struct RVVBinaryFamilyRecord {
   RVVBinaryDTypeKind dtype = RVVBinaryDTypeKind::I32;
   RVVBinaryArithmeticKind arithmetic = RVVBinaryArithmeticKind::Add;
@@ -39,24 +42,12 @@ struct RVVBinaryFamilyRecord {
   llvm::StringRef frontendLowering;
   llvm::StringRef sourceArithmeticOpName;
   llvm::StringRef dynamicVectorSourceKind;
-  llvm::StringRef legacyLoweringToken;
-  llvm::StringRef legacyRouteNoun;
   llvm::StringRef microkernelOpName;
   llvm::StringRef arithmeticOpName;
   llvm::StringRef arithmeticVerb;
   llvm::StringRef functionStem;
   llvm::StringRef headerGuardStem;
-  llvm::StringRef arithmeticIntrinsicPrefix;
   llvm::StringRef resultCName;
-  llvm::StringRef emissionKind;
-  llvm::StringRef routeID;
-  llvm::StringRef headerRouteID;
-  llvm::StringRef objectRouteID;
-  llvm::StringRef runtimeABI;
-  llvm::StringRef runtimeABIKind;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef runtimeGlueRole;
-  llvm::StringRef externalABIComponentGroup;
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
   const support::FiniteBinaryFrontendContract *frontendContract = nullptr;
@@ -72,24 +63,12 @@ inline const RVVBinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
       "i32-vadd",
       "arith.addi",
       support::kFrontendDynamicVectorI32VAddSourceKind,
-      "i32-vadd-microkernel.v1",
-      "finite RVV i32-vadd lowering route label",
       "tcrv_rvv.i32_vadd_microkernel",
       "tcrv_rvv.i32_add",
       "add",
       "i32_vadd",
       "I32_VADD",
-      "__riscv_vadd_vv_",
       "sum_vec",
-      "rvv-explicit-i32-vadd-microkernel-c-source",
-      "tcrv-export-rvv-microkernel-c",
-      "tcrv-export-rvv-microkernel-header",
-      "tcrv-export-rvv-microkernel-object",
-      "rvv-i32-vadd-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i32-vadd-runtime-callable-c-function.v1",
-      "runtime-callable-i32-vadd-function",
-      "rvv-i32-vadd-microkernel-external-abi.v1",
       "const int32_t *",
       "int32_t *",
       &support::getI32VAddFiniteBinaryFrontendContract()};
@@ -106,24 +85,12 @@ inline const RVVBinaryFamilyRecord &getI32VSubFamilyRegistrationRecord() {
       "i32-vsub",
       "arith.subi",
       support::kFrontendDynamicVectorI32VSubSourceKind,
-      "i32-vsub-microkernel.v1",
-      "finite RVV i32-vsub lowering route label",
       "tcrv_rvv.i32_vsub_microkernel",
       "tcrv_rvv.i32_sub",
       "subtract",
       "i32_vsub",
       "I32_VSUB",
-      "__riscv_vsub_vv_",
       "difference_vec",
-      "rvv-explicit-i32-vsub-microkernel-c-source",
-      "tcrv-export-rvv-i32-vsub-microkernel-c",
-      "tcrv-export-rvv-i32-vsub-microkernel-header",
-      "tcrv-export-rvv-i32-vsub-microkernel-object",
-      "rvv-i32-vsub-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i32-vsub-runtime-callable-c-function.v1",
-      "runtime-callable-i32-vsub-function",
-      "rvv-i32-vsub-microkernel-external-abi.v1",
       "const int32_t *",
       "int32_t *",
       &support::getI32VSubFiniteBinaryFrontendContract()};
@@ -140,24 +107,12 @@ inline const RVVBinaryFamilyRecord &getI32VMulFamilyRegistrationRecord() {
       "i32-vmul",
       "arith.muli",
       support::kFrontendDynamicVectorI32VMulSourceKind,
-      "i32-vmul-microkernel.v1",
-      "finite RVV i32-vmul lowering route label",
       "tcrv_rvv.i32_vmul_microkernel",
       "tcrv_rvv.i32_mul",
       "multiply",
       "i32_vmul",
       "I32_VMUL",
-      "__riscv_vmul_vv_",
       "product_vec",
-      "rvv-explicit-i32-vmul-microkernel-c-source",
-      "tcrv-export-rvv-i32-vmul-microkernel-c",
-      "tcrv-export-rvv-i32-vmul-microkernel-header",
-      "tcrv-export-rvv-i32-vmul-microkernel-object",
-      "rvv-i32-vmul-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i32-vmul-runtime-callable-c-function.v1",
-      "runtime-callable-i32-vmul-function",
-      "rvv-i32-vmul-microkernel-external-abi.v1",
       "const int32_t *",
       "int32_t *",
       &support::getI32VMulFiniteBinaryFrontendContract()};
@@ -174,24 +129,12 @@ inline const RVVBinaryFamilyRecord &getI64VAddFamilyRegistrationRecord() {
       "i64-vadd",
       "arith.addi",
       "",
-      "i64-vadd-microkernel.v1",
-      "finite i64-vadd lowering route label",
       "tcrv_rvv.i64_vadd_microkernel",
       "tcrv_rvv.i64_add",
       "add",
       "i64_vadd",
       "I64_VADD",
-      "__riscv_vadd_vv_",
       "sum_vec",
-      "rvv-explicit-i64-vadd-microkernel-c-source",
-      "tcrv-export-rvv-i64-vadd-microkernel-c",
-      "tcrv-export-rvv-i64-vadd-microkernel-header",
-      "tcrv-export-rvv-i64-vadd-microkernel-object",
-      "rvv-i64-vadd-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i64-vadd-runtime-callable-c-function.v1",
-      "runtime-callable-i64-vadd-function",
-      "rvv-i64-vadd-microkernel-external-abi.v1",
       "const int64_t *",
       "int64_t *",
       &support::getI64VAddFiniteBinaryFrontendContract()};
@@ -208,24 +151,12 @@ inline const RVVBinaryFamilyRecord &getI64VSubFamilyRegistrationRecord() {
       "i64-vsub",
       "arith.subi",
       "",
-      "i64-vsub-microkernel.v1",
-      "finite i64-vsub lowering route label",
       "tcrv_rvv.i64_vsub_microkernel",
       "tcrv_rvv.i64_sub",
       "subtract",
       "i64_vsub",
       "I64_VSUB",
-      "__riscv_vsub_vv_",
       "difference_vec",
-      "rvv-explicit-i64-vsub-microkernel-c-source",
-      "tcrv-export-rvv-i64-vsub-microkernel-c",
-      "tcrv-export-rvv-i64-vsub-microkernel-header",
-      "tcrv-export-rvv-i64-vsub-microkernel-object",
-      "rvv-i64-vsub-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i64-vsub-runtime-callable-c-function.v1",
-      "runtime-callable-i64-vsub-function",
-      "rvv-i64-vsub-microkernel-external-abi.v1",
       "const int64_t *",
       "int64_t *",
       &support::getI64VSubFiniteBinaryFrontendContract()};
@@ -242,24 +173,12 @@ inline const RVVBinaryFamilyRecord &getI64VMulFamilyRegistrationRecord() {
       "i64-vmul",
       "arith.muli",
       "",
-      "i64-vmul-microkernel.v1",
-      "finite i64-vmul lowering route label",
       "tcrv_rvv.i64_vmul_microkernel",
       "tcrv_rvv.i64_mul",
       "multiply",
       "i64_vmul",
       "I64_VMUL",
-      "__riscv_vmul_vv_",
       "product_vec",
-      "rvv-explicit-i64-vmul-microkernel-c-source",
-      "tcrv-export-rvv-i64-vmul-microkernel-c",
-      "tcrv-export-rvv-i64-vmul-microkernel-header",
-      "tcrv-export-rvv-i64-vmul-microkernel-object",
-      "rvv-i64-vmul-runtime-callable-c-abi.v1",
-      "rvv-runtime-callable-c-abi",
-      "rvv-i64-vmul-runtime-callable-c-function.v1",
-      "runtime-callable-i64-vmul-function",
-      "rvv-i64-vmul-microkernel-external-abi.v1",
       "const int64_t *",
       "int64_t *",
       &support::getI64VMulFiniteBinaryFrontendContract()};
@@ -412,17 +331,6 @@ inline std::string formatRVVDynamicVectorFrontendLowerings() {
   return text;
 }
 
-inline const RVVBinaryFamilyRecord *
-lookupRVVBinaryFamilyRegistrationByLegacyLoweringToken(llvm::StringRef legacyLoweringToken) {
-  legacyLoweringToken = legacyLoweringToken.trim();
-  for (const RVVBinaryFamilyRecord *descriptor :
-       getRVVBinaryFamilyRegistrationRecords()) {
-    if (descriptor->legacyLoweringToken == legacyLoweringToken)
-      return descriptor;
-  }
-  return nullptr;
-}
-
 inline llvm::ArrayRef<const RVVVectorShapeConfig *>
 getRVVBinaryFamilyShapeConfigs(const RVVBinaryFamilyRecord &family) {
   switch (family.dtype) {
@@ -444,6 +352,148 @@ lookupRVVBinaryFamilyShapeConfigByID(const RVVBinaryFamilyRecord &family,
       return shape;
   }
   return nullptr;
+}
+
+class RVVBinaryRuntimeABIContract
+    : public support::FiniteBinaryRuntimeABIContract {
+public:
+  explicit RVVBinaryRuntimeABIContract(const RVVBinaryFamilyRecord &family)
+      : support::FiniteBinaryRuntimeABIContract(
+            support::FiniteBinaryRuntimeABIContractSpec{
+                family.familyID,
+                family.constInputPointerCType,
+                family.outputPointerCType,
+                {},
+                {},
+                {},
+                {},
+                {}}),
+        family(&family) {}
+
+  const RVVBinaryFamilyRecord &getFamilyRegistrationRecord() const {
+    return *family;
+  }
+
+private:
+  const RVVBinaryFamilyRecord *family = nullptr;
+};
+
+inline const RVVBinaryRuntimeABIContract &
+getRVVBinaryRuntimeABIContract(const RVVBinaryFamilyRecord &family) {
+  switch (family.dtype) {
+  case RVVBinaryDTypeKind::I32:
+    switch (family.arithmetic) {
+    case RVVBinaryArithmeticKind::Add: {
+      static const RVVBinaryRuntimeABIContract contract(
+          getI32VAddFamilyRegistrationRecord());
+      return contract;
+    }
+    case RVVBinaryArithmeticKind::Sub: {
+      static const RVVBinaryRuntimeABIContract contract(
+          getI32VSubFamilyRegistrationRecord());
+      return contract;
+    }
+    case RVVBinaryArithmeticKind::Mul: {
+      static const RVVBinaryRuntimeABIContract contract(
+          getI32VMulFamilyRegistrationRecord());
+      return contract;
+    }
+    }
+    break;
+  case RVVBinaryDTypeKind::I64:
+    switch (family.arithmetic) {
+    case RVVBinaryArithmeticKind::Add: {
+      static const RVVBinaryRuntimeABIContract contract(
+          getI64VAddFamilyRegistrationRecord());
+      return contract;
+    }
+    case RVVBinaryArithmeticKind::Sub: {
+      static const RVVBinaryRuntimeABIContract contract(
+          getI64VSubFamilyRegistrationRecord());
+      return contract;
+    }
+    case RVVBinaryArithmeticKind::Mul: {
+      static const RVVBinaryRuntimeABIContract contract(
+          getI64VMulFamilyRegistrationRecord());
+      return contract;
+    }
+    }
+    break;
+  }
+  llvm_unreachable("unknown RVV binary family");
+}
+
+inline llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVBinaryCallableRuntimeABIParameters(
+    const RVVBinaryFamilyRecord &family,
+    llvm::StringRef runtimeCountCName = "n") {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", family.constInputPointerCType,
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", family.constInputPointerCType,
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", family.outputPointerCType,
+      support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      runtimeCountCName.trim().empty() ? "n" : runtimeCountCName.trim(),
+      "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+inline llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVBinaryCallableRuntimeABIRoleRequirements(
+    const RVVBinaryFamilyRecord &family) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> requirements;
+  requirements.push_back(support::makeTargetExportABIRoleRequirement(
+      family.constInputPointerCType,
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  requirements.push_back(support::makeTargetExportABIRoleRequirement(
+      family.constInputPointerCType,
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  requirements.push_back(support::makeTargetExportABIRoleRequirement(
+      family.outputPointerCType,
+      support::RuntimeABIParameterRole::OutputBuffer));
+  requirements.push_back(support::makeTargetExportABIRoleRequirement(
+      "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
+  return requirements;
+}
+
+inline llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3>
+getRVVBinaryBufferMemWindowSpecs(const RVVBinaryFamilyRecord &family) {
+  llvm::StringRef ownership = support::stringifyRuntimeABIParameterOwnership(
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned);
+  llvm::SmallVector<support::RuntimeABIMemWindowSpec, 3> specs;
+  specs.push_back(support::RuntimeABIMemWindowSpec(
+      "abi_lhs_input_buffer",
+      support::RuntimeABIParameterRole::LHSInputBuffer,
+      support::kRuntimeABIReadAccess, ownership, family.constInputPointerCType));
+  specs.push_back(support::RuntimeABIMemWindowSpec(
+      "abi_rhs_input_buffer",
+      support::RuntimeABIParameterRole::RHSInputBuffer,
+      support::kRuntimeABIReadAccess, ownership, family.constInputPointerCType));
+  specs.push_back(support::RuntimeABIMemWindowSpec(
+      "abi_output_buffer",
+      support::RuntimeABIParameterRole::OutputBuffer,
+      support::kRuntimeABIWriteAccess, ownership, family.outputPointerCType));
+  return specs;
+}
+
+inline llvm::SmallVector<support::RuntimeABIParamSpec, 1>
+getRVVBinaryRuntimeElementCountParamSpecs(
+    const RVVBinaryFamilyRecord &family, llvm::StringRef cName = "n") {
+  (void)family;
+  llvm::StringRef trimmed = cName.trim();
+  llvm::SmallVector<support::RuntimeABIParamSpec, 1> specs;
+  specs.push_back(support::RuntimeABIParamSpec(
+      "abi_runtime_element_count",
+      support::RuntimeABIParameterRole::RuntimeElementCount,
+      trimmed.empty() ? "n" : trimmed, "size_t",
+      support::stringifyRuntimeABIParameterOwnership(
+          support::RuntimeABIParameterOwnership::TargetExportABIOwned)));
+  return specs;
 }
 
 } // namespace tianchenrv::target::rvv

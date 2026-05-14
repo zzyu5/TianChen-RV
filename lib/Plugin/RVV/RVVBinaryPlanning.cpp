@@ -379,15 +379,7 @@ getRegisteredRVVBinaryFamily(
     const target::rvv::RVVBinaryFamilyRecord &family) {
   const target::rvv::RVVBinaryFamilyRecord *registeredFamily =
       target::rvv::lookupRVVBinaryFamilyRegistrationByID(family.familyID);
-  if (!registeredFamily ||
-      registeredFamily->legacyLoweringToken != family.legacyLoweringToken ||
-      registeredFamily->routeID != family.routeID ||
-      registeredFamily->emissionKind != family.emissionKind ||
-      registeredFamily->runtimeABI != family.runtimeABI ||
-      registeredFamily->runtimeABIKind != family.runtimeABIKind ||
-      registeredFamily->runtimeABIName != family.runtimeABIName ||
-      registeredFamily->runtimeGlueRole != family.runtimeGlueRole ||
-      !registeredFamily->frontendContract ||
+  if (!registeredFamily || !registeredFamily->frontendContract ||
       registeredFamily->frontendContract->familyID != family.familyID ||
       registeredFamily->frontendContract->frontendLowering !=
           family.frontendLowering ||
@@ -1019,14 +1011,10 @@ buildDirectTypedBodyCandidateFromMicrokernel(mlir::Operation *op) {
 
 std::string buildSupportedEmissionMessage(
     const target::rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("explicit RVV ") + family.dtypeID + " vector-" +
+  return (llvm::Twine("RVV ") + family.dtypeID + " vector-" +
           family.arithmeticVerb +
-          " microkernel C source export provides a library-style "
-          "runtime-callable C ABI function for this selected path; any "
-          "self-check main is an explicit harness export and is not the "
-          "default artifact contract; this is not generic RVV lowering, "
-          "runtime integration, arbitrary kernel emission, correctness, or "
-          "performance evidence")
+          " selected planning is metadata-only after direct C route deletion; "
+          "artifact emission requires a materialized MLIR EmitC module route")
       .str();
 }
 
@@ -1037,7 +1025,7 @@ llvm::StringRef RVVBinaryEmissionIdentity::getFamilyID() const {
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getEmissionKind() const {
-  return family ? family->emissionKind : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getEmissionPath() const {
@@ -1045,27 +1033,27 @@ llvm::StringRef RVVBinaryEmissionIdentity::getEmissionPath() const {
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getRouteID() const {
-  return family ? family->routeID : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getArtifactKind() const {
-  return getRVVBinaryRuntimeCallableCSourceArtifactKind();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeABI() const {
-  return family ? family->runtimeABI : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeABIKind() const {
-  return family ? family->runtimeABIKind : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeABIName() const {
-  return family ? family->runtimeABIName : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getRuntimeGlueRole() const {
-  return family ? family->runtimeGlueRole : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinaryEmissionIdentity::getSupportedMessage() const {
@@ -1257,8 +1245,6 @@ llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
 
   RVVBinaryEmissionIdentity identity;
   identity.family = *registeredFamily;
-  identity.emissionPath =
-      (llvm::Twine((*registeredFamily)->emissionKind) + "-export").str();
   identity.supportedMessage =
       buildSupportedEmissionMessage(**registeredFamily);
   return identity;
@@ -1582,21 +1568,21 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
 
   if (elementCount <= 0 || elementCount > 64)
     return makeRVVBinaryPlanningError(
-        llvm::Twine(family.legacyRouteNoun) +
+        llvm::Twine("finite RVV binary family '") + family.familyID +
         " requires tcrv_rvv.element_count in the bounded smoke range [1, 64]");
 
   llvm::StringRef trimmedMarch = requiredMarch.trim();
   if (trimmedMarch.empty())
     return makeRVVBinaryPlanningError(
-        llvm::Twine(family.legacyRouteNoun) +
+        llvm::Twine("finite RVV binary family '") + family.familyID +
         " requires string 'tcrv_rvv.required_march' metadata");
   if (llvm::Error error = validateRVVPlanningText(
-          family.legacyRouteNoun, kRequiredMarchAttrName, trimmedMarch))
+          family.familyID, kRequiredMarchAttrName, trimmedMarch))
     return std::move(error);
 
   if (selectedMABI && !selectedMABI->empty()) {
     if (llvm::Error error = validateRVVPlanningText(
-            family.legacyRouteNoun, "selected_mabi", *selectedMABI))
+            family.familyID, "selected_mabi", *selectedMABI))
       return std::move(error);
   }
 

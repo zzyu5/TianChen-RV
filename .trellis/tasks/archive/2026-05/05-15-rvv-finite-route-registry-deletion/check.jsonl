@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no Python/compiler-stack or descriptor-driven architecture regression."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify deletion keeps TianChen-RV out of descriptor exporter framework shape."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact/export behavior remains deleted/fail-closed."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV residuals remain extension-family/local and not backend route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests assert absence/fail-closed behavior instead of old direct route success."}
+{"file": ".trellis/tasks/archive/2026-05/05-15-05-15-rvv-selected-microkernel-descriptor-materialization-deletion/prd.md", "reason": "Verify this round does not restore selected descriptor materialization."}
+{"file": "include/TianChenRV/Target/RVV/RVVBinaryFamily.h", "reason": "Confirm RVV family records no longer expose route, intrinsic, artifact, or ABI identity authority."}
+{"file": "include/TianChenRV/Target/RVV/RVVSelectedConfigContract.h", "reason": "Confirm selected-config helpers remain pure config/source/runtime-control facts."}
+{"file": "include/TianChenRV/Target/RVV/RVVMicrokernel.h", "reason": "Confirm public RVV direct route manifest/query/export API is removed."}
+{"file": "include/TianChenRV/Target/RVV/RVVScalarDispatch.h", "reason": "Confirm public RVV+scalar dispatch route manifest/query/export API is removed."}
+{"file": "lib/Target/RVV/RVVMicrokernel.cpp", "reason": "Confirm RVV direct target exporter registration is no-op and helper exports fail closed."}
+{"file": "lib/Target/RVV/RVVScalarDispatch.cpp", "reason": "Confirm RVV+scalar dispatch target exporter and translate registration are no-op."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Confirm tests assert no old built-in route registration and no replacement route registry."}
+{"file": "test/Plugin/RVVBinaryPlanningTest.cpp", "reason": "Confirm selected RVV emission planning exposes empty unsupported route/artifact/ABI identity."}

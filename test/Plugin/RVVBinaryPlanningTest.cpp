@@ -188,9 +188,8 @@ int runI32SelectedPlanTest() {
                           "route or runtime ABI authority"))
     return result;
   if (int result =
-          expect(plan.getEmissionPath() ==
-                     "rvv-explicit-i32-vsub-microkernel-c-source-export",
-                 "i32 selected plan exposes readiness emission path"))
+          expect(plan.getEmissionPath().empty(),
+                 "i32 selected plan no longer exposes direct readiness emission path"))
     return result;
   if (int result =
           expect(plan.getArtifactKind().empty(),
@@ -211,13 +210,10 @@ int runI32SelectedPlanTest() {
     return result;
   if (int result = expect(
           plan.getSupportedMessage() ==
-              "explicit RVV i32 vector-subtract microkernel C source export "
-              "provides a library-style runtime-callable C ABI function for "
-              "this selected path; any self-check main is an explicit harness "
-              "export and is not the default artifact contract; this is not "
-              "generic RVV lowering, runtime integration, arbitrary kernel "
-              "emission, correctness, or performance evidence",
-          "i32 selected plan exposes planner-owned bounded support message"))
+              "RVV i32 vector-subtract selected planning is metadata-only "
+              "after direct C route deletion; artifact emission requires a "
+              "materialized MLIR EmitC module route",
+          "i32 selected plan exposes planner-owned deletion support message"))
     return result;
   return expect(plan.getSetVLIntrinsicName().empty() &&
                     plan.getArithmeticIntrinsicName().empty() &&
@@ -291,17 +287,17 @@ int runEmissionIdentityTest() {
     return result;
   if (int result =
           expect(i32Identity.getRouteID() ==
-                     "tcrv-export-rvv-microkernel-c",
-                 "i32 emission identity references target-owned route id"))
+                     llvm::StringRef(),
+                 "i32 emission identity no longer exposes target-owned route id"))
     return result;
   if (int result =
           expect(i32Identity.getEmissionPath() ==
-                     "rvv-explicit-i32-vadd-microkernel-c-source-export",
-                 "i32 emission identity derives readiness path"))
+                     llvm::StringRef(),
+                 "i32 emission identity no longer derives direct readiness path"))
     return result;
   if (int result =
-          expect(i32Identity.getArtifactKind() == "runtime-callable-c-source",
-                 "i32 emission identity preserves source artifact kind"))
+          expect(i32Identity.getArtifactKind().empty(),
+                 "i32 emission identity no longer preserves source artifact kind"))
     return result;
 
   RVVBinaryEmissionIdentity i64VMulIdentity;
@@ -313,29 +309,18 @@ int runEmissionIdentityTest() {
 
   const auto &dispatchFamily =
       tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord().dispatch;
-  if (int result = expect(
-          llvm::StringRef(dispatchFamily.rvvRouteID) ==
-              i64VMulIdentity.getRouteID(),
-          "i64-vmul dispatch family reuses the selected RVV route id"))
+  if (int result = expect(i64VMulIdentity.getRouteID().empty(),
+                          "i64-vmul emission identity has no selected RVV route id"))
     return result;
-  if (int result = expect(
-          llvm::StringRef(dispatchFamily.rvvEmissionKind) ==
-              i64VMulIdentity.getEmissionKind(),
-          "i64-vmul dispatch family reuses the selected RVV emission kind"))
+  if (int result = expect(i64VMulIdentity.getEmissionKind().empty(),
+                          "i64-vmul emission identity has no RVV emission kind"))
     return result;
-  if (int result = expect(
-          llvm::StringRef(dispatchFamily.rvvRuntimeABIName) ==
-              i64VMulIdentity.getRuntimeABIName(),
-          "i64-vmul dispatch family reuses the selected RVV ABI name"))
-    return result;
-  if (int result =
-          expect(dispatchFamily.dispatchObjectRouteID ==
-                     "tcrv-export-rvv-scalar-i64-vmul-dispatch-object",
-                 "i64-vmul dispatch object route remains target-owned"))
+  if (int result = expect(i64VMulIdentity.getRuntimeABIName().empty(),
+                          "i64-vmul emission identity has no selected RVV ABI name"))
     return result;
   return expect(dispatchFamily.selfCheckSuccessMarker ==
                     "tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok",
-                "i64-vmul dispatch success marker remains target-owned");
+                "i64-vmul dispatch diagnostic marker remains target-owned");
 }
 
 int runProposalPlanRequirementMetadataTest() {

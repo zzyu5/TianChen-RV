@@ -1,10 +1,7 @@
 #ifndef TIANCHENRV_TARGET_RVV_RVVSELECTEDCONFIGCONTRACT_H
 #define TIANCHENRV_TARGET_RVV_RVVSELECTEDCONFIGCONTRACT_H
 
-#include "TianChenRV/Support/RuntimeABI.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
-#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 #include "TianChenRV/Target/RVV/RVVRuntimeLengthContract.h"
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
@@ -60,10 +57,6 @@ inline llvm::StringRef getRVVEmitCSourceAuthorityMetadataName() {
 
 inline llvm::StringRef getRVVEmitCRequiredHeaderMetadataName() {
   return "tcrv_rvv.emitc_required_header";
-}
-
-inline llvm::StringRef getRVVEmitCArithmeticIntrinsicMetadataName() {
-  return "tcrv_rvv.emitc_arithmetic_intrinsic";
 }
 
 inline llvm::StringRef getRVVEmitCRouteKindMetadataValue() {
@@ -122,11 +115,6 @@ inline llvm::StringRef getRVVEmitCRouteMetadataNote() {
          "emission";
 }
 
-inline llvm::StringRef getRVVEmitCArithmeticIntrinsicMetadataNote() {
-  return "family-owned RVV arithmetic intrinsic selected from typed RVV source "
-         "op plus selected vector config before target artifact export";
-}
-
 inline llvm::StringRef getRVVSelectedConfigProfileHardwareFactsMetadataName() {
   return "tcrv_rvv.selected_config_profile.hardware_facts";
 }
@@ -170,9 +158,6 @@ public:
   }
   llvm::StringRef getFrontendLowering() const {
     return family ? family->frontendLowering : llvm::StringRef();
-  }
-  llvm::StringRef getLegacyLoweringTokenMirror() const {
-    return family ? family->legacyLoweringToken : llvm::StringRef();
   }
   llvm::StringRef getArithmeticOpName() const {
     return family ? family->arithmeticOpName : llvm::StringRef();
@@ -287,61 +272,6 @@ public:
     return ids;
   }
 
-  llvm::SmallVector<support::RuntimeABIParameter, 4>
-  getCallableRuntimeABIParameters() const {
-    return getRVVBinaryCallableRuntimeABIParameters(
-        getFamily(), getRuntimeElementCountCName());
-  }
-
-  llvm::SmallVector<support::RuntimeABIParamSpec, 1>
-  getRuntimeElementCountParamSpecs() const {
-    return getRVVBinaryRuntimeElementCountParamSpecs(
-        getFamily(), getRuntimeElementCountCName());
-  }
-
-  support::RuntimeABIParameter getDispatchAvailabilityGuardParameter() const {
-    return support::makeTargetExportABIParameter(
-        dispatchAvailabilityGuardCName, "int",
-        support::RuntimeABIParameterRole::DispatchAvailabilityGuard);
-  }
-
-  RVVBinaryIntrinsicRoute getIntrinsicRoute() const {
-    return getRVVBinaryIntrinsicRoute(getFamily(), getShape());
-  }
-
-  std::string getSetVLIntrinsicName() const {
-    std::string name;
-    llvm::raw_string_ostream stream(name);
-    stream << "__riscv_vsetvl_" << getSetVLSuffix();
-    stream.flush();
-    return name;
-  }
-
-  std::string getLoadIntrinsicName() const {
-    std::string name;
-    llvm::raw_string_ostream stream(name);
-    stream << "__riscv_vle" << getSEWBits() << "_v_" << getVectorSuffix();
-    stream.flush();
-    return name;
-  }
-
-  std::string getArithmeticIntrinsicName() const {
-    std::string name;
-    llvm::raw_string_ostream stream(name);
-    stream << (family ? family->arithmeticIntrinsicPrefix : llvm::StringRef())
-           << getVectorSuffix();
-    stream.flush();
-    return name;
-  }
-
-  std::string getStoreIntrinsicName() const {
-    std::string name;
-    llvm::raw_string_ostream stream(name);
-    stream << "__riscv_vse" << getSEWBits() << "_v_" << getVectorSuffix();
-    stream.flush();
-    return name;
-  }
-
   std::string formatSelectedVectorShapeConfigCommentBody() const {
     std::string text;
     llvm::raw_string_ostream stream(text);
@@ -399,8 +329,7 @@ public:
            << ",mask=" << getMaskPolicy()
            << ",vtype=" << getVectorType()
            << ",vsuffix=" << getVectorSuffix()
-           << ",setvl=" << getSetVLSuffix()
-           << ",arith=" << getArithmeticIntrinsicName();
+           << ",setvl=" << getSetVLSuffix();
     stream.flush();
     return text;
   }
@@ -453,10 +382,6 @@ public:
     stream << "selected_config_emission_authority: vector_type="
            << getVectorType() << ", vector_suffix=" << getVectorSuffix()
            << ", setvl_suffix=" << getSetVLSuffix()
-           << ", setvl_intrinsic=" << getSetVLIntrinsicName()
-           << ", load_intrinsic=" << getLoadIntrinsicName()
-           << ", arithmetic_intrinsic=" << getArithmeticIntrinsicName()
-           << ", store_intrinsic=" << getStoreIntrinsicName()
            << ", tail_policy=" << getTailPolicy()
            << ", mask_policy=" << getMaskPolicy()
            << ", source=RVVBinarySelectedConfigContract";
@@ -623,18 +548,12 @@ struct RVVBinarySelectedConfigEmissionView {
   std::string vectorType;
   std::string vectorSuffix;
   std::string setvlSuffix;
-  std::string setvlIntrinsicName;
-  std::string loadIntrinsicName;
-  std::string arithmeticIntrinsicName;
-  std::string storeIntrinsicName;
   std::string tailPolicy;
   std::string maskPolicy;
 
   bool isValid() const {
     return sew > 0 && !lmul.empty() && !vectorType.empty() &&
            !vectorSuffix.empty() && !setvlSuffix.empty() &&
-           !setvlIntrinsicName.empty() && !loadIntrinsicName.empty() &&
-           !arithmeticIntrinsicName.empty() && !storeIntrinsicName.empty() &&
            !tailPolicy.empty() && !maskPolicy.empty();
   }
 };
@@ -643,11 +562,10 @@ struct RVVBinaryEmitCBodyMapping {
   std::string routeKind;
   std::string sourceAuthority;
   std::string requiredHeader;
-  std::string arithmeticIntrinsicName;
 
   bool isValid() const {
     return !routeKind.empty() && !sourceAuthority.empty() &&
-           !requiredHeader.empty() && !arithmeticIntrinsicName.empty();
+           !requiredHeader.empty();
   }
 };
 
@@ -784,16 +702,12 @@ buildRVVBinarySelectedConfigEmissionView(
   view.vectorType = contract.getVectorType().str();
   view.vectorSuffix = contract.getVectorSuffix().str();
   view.setvlSuffix = contract.getSetVLSuffix().str();
-  view.setvlIntrinsicName = contract.getSetVLIntrinsicName();
-  view.loadIntrinsicName = contract.getLoadIntrinsicName();
-  view.arithmeticIntrinsicName = contract.getArithmeticIntrinsicName();
-  view.storeIntrinsicName = contract.getStoreIntrinsicName();
   view.tailPolicy = contract.getTailPolicy().str();
   view.maskPolicy = contract.getMaskPolicy().str();
   if (!view.isValid())
     return makeRVVSelectedConfigContractError(
         "selected config emission view must contain non-empty vector type, "
-        "suffix, policy, and intrinsic spelling fields");
+        "suffix, and policy fields");
   return view;
 }
 
@@ -807,11 +721,10 @@ buildRVVBinaryEmitCBodyMappingFromSelectedConfig(
   mapping.routeKind = getRVVEmitCRouteKindMetadataValue().str();
   mapping.sourceAuthority = getRVVEmitCSourceAuthorityMetadataValue().str();
   mapping.requiredHeader = getRVVEmitCRequiredHeaderMetadataValue().str();
-  mapping.arithmeticIntrinsicName = contract.getArithmeticIntrinsicName();
   if (!mapping.isValid())
     return makeRVVSelectedConfigContractError(
         "EmitC body mapping requires route kind, source authority, required "
-        "header, and arithmetic intrinsic");
+        "header");
   return mapping;
 }
 
@@ -961,10 +874,6 @@ inline void appendRVVBinaryEmitCRouteMetadata(
   out.push_back({getRVVEmitCRequiredHeaderMetadataName(),
                  getRVVEmitCRequiredHeaderMetadataValue(), routeRole,
                  routeNote, "EmitC required header"});
-  out.push_back({getRVVEmitCArithmeticIntrinsicMetadataName(),
-                 contract.getArithmeticIntrinsicName(), routeRole,
-                 getRVVEmitCArithmeticIntrinsicMetadataNote(),
-                 "EmitC arithmetic intrinsic"});
 }
 
 inline void appendRVVBinarySelectedConfigProfileMetadata(

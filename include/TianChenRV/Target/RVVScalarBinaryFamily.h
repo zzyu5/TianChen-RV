@@ -4,7 +4,6 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -46,26 +45,6 @@ struct RVVScalarDispatchFamilyRecord {
   std::string functionStem;
   std::string headerGuardStem;
   std::string selfCheckSuccessMarker;
-  std::string rvvRouteID;
-  std::string rvvEmissionKind;
-  std::string rvvRuntimeABI;
-  std::string rvvRuntimeABIKind;
-  std::string rvvRuntimeABIName;
-  std::string rvvRuntimeGlueRole;
-  std::string scalarRouteID;
-  std::string scalarEmissionKind;
-  std::string scalarRuntimeABI;
-  std::string scalarRuntimeABIKind;
-  std::string scalarRuntimeABIName;
-  std::string scalarRuntimeGlueRole;
-  std::string dispatchSourceRouteID;
-  std::string dispatchHeaderRouteID;
-  std::string dispatchObjectRouteID;
-  std::string dispatchSelfCheckSourceRouteID;
-  std::string dispatchSelfCheckObjectRouteID;
-  std::string dispatchRuntimeABIKind;
-  std::string dispatchRuntimeABIName;
-  std::string dispatchExternalABIComponentGroup;
 };
 
 // Bridge registration metadata for the bounded finite RVV+scalar family set.
@@ -74,8 +53,6 @@ struct RVVScalarBinaryFamilyRecord {
   const rvv::RVVBinaryFamilyRecord *rvvFamily = nullptr;
   std::string familyID;
   std::string frontendLowering;
-  std::string legacyLoweringToken;
-  std::string legacyRouteNoun;
   ScalarBinaryMicrokernelRecord scalar;
   RVVScalarDispatchFamilyRecord dispatch;
 };
@@ -214,27 +191,6 @@ inline std::string makeScalarCompatibilityRuntimeGlueRole(
       .str();
 }
 
-inline std::string makeDispatchRegistrationRouteID(
-    const rvv::RVVBinaryFamilyRecord &family, llvm::StringRef suffix) {
-  return (llvm::Twine("tcrv-export-rvv-scalar-") + family.familyID +
-          "-dispatch-" + suffix)
-      .str();
-}
-
-inline std::string makeDispatchRegistrationRuntimeABIName(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("rvv-scalar-") + family.familyID +
-          "-dispatch-runtime-callable-c-function.v1")
-      .str();
-}
-
-inline std::string makeDispatchRegistrationExternalABIComponentGroup(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("rvv-scalar-") + family.familyID +
-          "-dispatch-external-abi.v1")
-      .str();
-}
-
 inline std::string makeDispatchRegistrationSelfCheckSuccessMarker(
     const rvv::RVVBinaryFamilyRecord &family) {
   return (llvm::Twine("tcrv_rvv_scalar_") + family.functionStem +
@@ -248,18 +204,13 @@ inline RVVScalarBinaryFamilyRecord makeFamilyRegistrationRecord(
   descriptor.rvvFamily = &family;
   descriptor.familyID = family.familyID.str();
   descriptor.frontendLowering = family.frontendLowering.str();
-  descriptor.legacyLoweringToken = family.legacyLoweringToken.str();
-  descriptor.legacyRouteNoun =
-      (llvm::Twine("finite scalar ") + family.familyID +
-       " lowering route label")
-          .str();
 
   descriptor.scalar.rvvFamily = &family;
   descriptor.scalar.microkernelOpName = makeScalarRegistrationMicrokernelOpName(family);
   descriptor.scalar.operationNoun = makeRegistrationOperationNoun(family);
   descriptor.scalar.functionStem = family.functionStem.str();
   descriptor.scalar.headerGuardStem = family.headerGuardStem.str();
-  descriptor.scalar.descriptor = family.legacyLoweringToken.str();
+  descriptor.scalar.descriptor = family.frontendLowering.str();
   descriptor.scalar.emissionKind = makeScalarRegistrationEmissionKind(family);
   descriptor.scalar.routeID = makeScalarCompatibilityRouteID(family);
   descriptor.scalar.headerRouteID = makeScalarCompatibilityHeaderRouteID(family);
@@ -276,35 +227,6 @@ inline RVVScalarBinaryFamilyRecord makeFamilyRegistrationRecord(
   descriptor.dispatch.headerGuardStem = family.headerGuardStem.str();
   descriptor.dispatch.selfCheckSuccessMarker =
       makeDispatchRegistrationSelfCheckSuccessMarker(family);
-  descriptor.dispatch.rvvRouteID = family.routeID.str();
-  descriptor.dispatch.rvvEmissionKind = family.emissionKind.str();
-  descriptor.dispatch.rvvRuntimeABI = family.runtimeABI.str();
-  descriptor.dispatch.rvvRuntimeABIKind = family.runtimeABIKind.str();
-  descriptor.dispatch.rvvRuntimeABIName = family.runtimeABIName.str();
-  descriptor.dispatch.rvvRuntimeGlueRole = family.runtimeGlueRole.str();
-  descriptor.dispatch.scalarRouteID = descriptor.scalar.routeID;
-  descriptor.dispatch.scalarEmissionKind = descriptor.scalar.emissionKind;
-  descriptor.dispatch.scalarRuntimeABI = descriptor.scalar.runtimeABI;
-  descriptor.dispatch.scalarRuntimeABIKind = descriptor.scalar.runtimeABIKind;
-  descriptor.dispatch.scalarRuntimeABIName = descriptor.scalar.runtimeABIName;
-  descriptor.dispatch.scalarRuntimeGlueRole =
-      descriptor.scalar.runtimeGlueRole;
-  descriptor.dispatch.dispatchSourceRouteID =
-      makeDispatchRegistrationRouteID(family, "c");
-  descriptor.dispatch.dispatchHeaderRouteID =
-      makeDispatchRegistrationRouteID(family, "header");
-  descriptor.dispatch.dispatchObjectRouteID =
-      makeDispatchRegistrationRouteID(family, "object");
-  descriptor.dispatch.dispatchSelfCheckSourceRouteID =
-      makeDispatchRegistrationRouteID(family, "self-check-c");
-  descriptor.dispatch.dispatchSelfCheckObjectRouteID =
-      makeDispatchRegistrationRouteID(family, "self-check-object");
-  descriptor.dispatch.dispatchRuntimeABIKind =
-      "rvv-scalar-dispatch-runtime-callable-c-abi";
-  descriptor.dispatch.dispatchRuntimeABIName =
-      makeDispatchRegistrationRuntimeABIName(family);
-  descriptor.dispatch.dispatchExternalABIComponentGroup =
-      makeDispatchRegistrationExternalABIComponentGroup(family);
   return descriptor;
 }
 
@@ -404,17 +326,6 @@ lookupRVVScalarBinaryRegistrationByFrontendLowering(
   for (const RVVScalarBinaryFamilyRecord *descriptor :
        getRVVScalarBinaryRegistrationRecords())
     if (descriptor->frontendLowering == frontendLowering)
-      return descriptor;
-  return nullptr;
-}
-
-inline const RVVScalarBinaryFamilyRecord *
-lookupRVVScalarBinaryRegistrationByLegacyLoweringToken(
-    llvm::StringRef legacyLoweringToken) {
-  legacyLoweringToken = legacyLoweringToken.trim();
-  for (const RVVScalarBinaryFamilyRecord *descriptor :
-       getRVVScalarBinaryRegistrationRecords())
-    if (descriptor->legacyLoweringToken == legacyLoweringToken)
       return descriptor;
   return nullptr;
 }
